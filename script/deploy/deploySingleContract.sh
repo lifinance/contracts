@@ -6,7 +6,7 @@
 deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
-  source script/deploy/resources/contractSpecificReminders.sh
+  source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
 
   # read function arguments into variables
   local CONTRACT="$1"

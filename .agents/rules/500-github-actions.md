@@ -33,6 +33,23 @@ paths:
   - uses: some-action@main
   ```
 
+### Foundry installation ([CONV:FOUNDRY-SETUP])
+
+- **Always install foundry via the project's `./.github/actions/setup-foundry` composite action.** Do not call `foundry-rs/foundry-toolchain` directly from a workflow.
+- The composite action reads `.foundry-version`, installs that exact version, and verifies the installed binary matches the pin. This keeps every CI runner and every dev's pre-commit hook on the same foundry version.
+- To bump foundry repo-wide, change one line in `.foundry-version`. Every workflow that uses the composite action picks it up on the next run.
+- **Correct**:
+  ```yaml
+  - name: Install Foundry
+    uses: ./.github/actions/setup-foundry
+  ```
+- **Anti-pattern (forbidden)**:
+  ```yaml
+  - uses: foundry-rs/foundry-toolchain@<sha>     # bypasses the .foundry-version pin
+    with:
+      version: stable                            # floats — not reproducible across runs
+  ```
+
 ## GitHub Actions Workflow Structure
 
 ### File Organization

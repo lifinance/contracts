@@ -55,7 +55,6 @@
     "FeeCollector",
     "FeeForwarder",
     "GasZipPeriphery",
-    "LiFiDEXAggregator",
     "LiFiTimelockController",
     "Permit2Proxy",
     "TokenWrapper"

@@ -1,0 +1,246 @@
+# Sync Clear Signing (ERC-7730) Registry
+# - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments AND with the `display.formats` proposal at `config/clearSigningProposal.json`.
+# - Triggers: monthly cron (safety net), push to facets/deployments/proposal (fast path), and manual.
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
+# - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
+# - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
+
+name: Sync Clear Signing (ERC-7730) Registry
+
+on:
+  workflow_dispatch: # allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run the full sync but do not push branch, do not open PR upstream, do not notify Slack. Use for first-run validation and any post-change verification before risking a real upstream PR.'
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    # Monthly safety net at 03:00 UTC on the 1st. Push-based triggers below
+    # handle the fast path (new facet/deployment lands -> sync within minutes).
+    - cron: '0 3 1 * *'
+  push:
+    branches:
+      - main # only sync on what's actually been merged
+    paths:
+      - 'src/Facets/**' # new/changed facets -> new/changed selectors
+      - 'src/Libraries/**' # struct definitions used by facets
+      - 'deployments/**' # new deployment addresses
+      - 'config/networks.json' # chain metadata used by deployments resolver
+      - 'config/clearSigningProposal.json' # the display.formats source of truth
+      - 'tasks/generateLedgerClearSigning.ts'
+      - 'tasks/buildClearSigningProposal.ts'
+      - '.github/workflows/syncLedgerClearSigning.yml'
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  sync-ledger:
+    concurrency:
+      # Key by event so a manual workflow_dispatch (especially dry_run) can't
+      # cancel an in-progress scheduled or push-triggered production sync.
+      # cancel-in-progress is still per-group: multiple dry-runs cancel each
+      # other, multiple push-triggered runs cancel each other, but the two
+      # never cross-cancel.
+      group: sync-ledger-clear-signing-${{ github.event_name }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+          persist-credentials: false # do not leave repo auth on the runner for later steps; sync uses LEDGER_SYNC_TOKEN explicitly
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+
+      - name: Build contracts (generate Foundry artifacts)
+        run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
+
+      - name: Sync Ledger registry file (push to fork)
+        id: sync # exposes PR_URL as step output for the Slack notification step
+        env:
+          LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
+          LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
+          LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
+          LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
+          SYNC_BRANCH: sync/lifi-erc7730
+          PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (abi + deployments + display.formats)'
+          # Dry-run only applies on workflow_dispatch. Cron + push triggers always
+          # run for real (DRY_RUN evaluates to '' in those contexts, falling
+          # through the [ "$DRY_RUN" = "true" ] guards).
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo -e "\033[33m=== DRY-RUN MODE ===\033[0m"
+            echo "Will: clone fork, regenerate descriptor, print diff."
+            echo "Will NOT: commit, push, open/update upstream PR, notify Slack."
+            echo ""
+          fi
+
+          if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
+            echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
+            exit 1
+          fi
+
+          echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
+          rm -rf ledger-registry
+          # Clone without baking the PAT into remote.origin.url. A token in the
+          # URL persists in `.git/config` and would surface via any later
+          # `git remote -v` / `git config -l` / verbose git invocation. Set an
+          # auth header instead — same effect, token never on disk.
+          git clone "https://github.com/${LEDGER_FORK}.git" ledger-registry
+          cd ledger-registry
+          git config "http.https://github.com/.extraheader" "AUTHORIZATION: bearer ${LEDGER_SYNC_TOKEN}"
+
+          git remote add upstream "https://github.com/${LEDGER_UPSTREAM}.git"
+          git fetch upstream --prune
+
+          # Resolve upstream default branch dynamically. EF has been migrating
+          # repos from `master` to `main`; if this one flips and we hardcoded
+          # `master`, `git checkout -B` would silently fail and drift would
+          # accumulate. Resolving once also covers the `gh pr` invocations below.
+          UPSTREAM_DEFAULT_BRANCH="$(GH_TOKEN="${LEDGER_SYNC_TOKEN}" gh api "repos/${LEDGER_UPSTREAM}" --jq .default_branch)"
+          if [ -z "${UPSTREAM_DEFAULT_BRANCH:-}" ]; then
+            echo -e "\033[31mError: could not resolve default branch for ${LEDGER_UPSTREAM}\033[0m"
+            exit 1
+          fi
+          echo -e "\033[32mUpstream default branch: ${UPSTREAM_DEFAULT_BRANCH}\033[0m"
+
+          git checkout -B "${SYNC_BRANCH}" "upstream/${UPSTREAM_DEFAULT_BRANCH}"
+          cd ..
+
+          echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (abi + deployments + display.formats merge; metadata preserved)...\033[0m"
+          bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --printDiff
+
+          cd ledger-registry
+          if [ -z "$(git status --porcelain)" ]; then
+            echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
+            exit 0
+          fi
+
+          if [ "${DRY_RUN:-}" = "true" ]; then
+            echo -e "\033[33m[dry-run] Would commit + push to ${LEDGER_FORK}@${SYNC_BRANCH} and open/update PR against ${LEDGER_UPSTREAM}.\033[0m"
+            echo -e "\033[33m[dry-run] Diff that would be pushed:\033[0m"
+            git --no-pager diff --stat
+            echo ""
+            echo -e "\033[33m[dry-run] Full diff (truncated to first 200 lines):\033[0m"
+            # `sed -n '1,200p'` (not `head -200`) consumes the whole stream:
+            # with `set -euo pipefail` (line 77 above) `head` closes its stdin
+            # after 200 lines, which sends SIGPIPE to `git diff` and fails the
+            # step. First-run dry-runs have a multi-thousand-line diff (101
+            # display.formats entries), so this matters in practice.
+            git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
+            echo ""
+            echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"
+            exit 0
+          fi
+
+          git add "${LEDGER_FILE_PATH}"
+          git -c user.name="lifi-action-bot" -c user.email="lifi-action-bot@users.noreply.github.com" \
+            commit -m "${PR_TITLE}" -m "Auto-generated from lifinance/contracts (facets ABI, deployments, and display.formats from config/clearSigningProposal.json)."
+
+          echo -e "\033[32mPushing branch to fork...\033[0m"
+          git push --force-with-lease -u origin HEAD
+
+          echo -e "\033[32mCreating/updating PR against upstream...\033[0m"
+          ##### Authenticate gh with custom PAT (do not rely on implicit GITHUB_TOKEN)
+          unset GITHUB_TOKEN
+          export GH_TOKEN="${LEDGER_SYNC_TOKEN}"
+          HEAD_OWNER="$(echo "${LEDGER_FORK}" | cut -d/ -f1)"
+          HEAD_REF="${HEAD_OWNER}:${SYNC_BRANCH}"
+
+          ##### Resolve existing PR (if any) by head ref.
+          ##### Use API query since `gh pr list --head` can be inconsistent with OWNER:BRANCH.
+          resolve_pr_url() {
+            gh api "repos/${LEDGER_UPSTREAM}/pulls?state=open&head=${HEAD_REF}&base=${UPSTREAM_DEFAULT_BRANCH}" --jq '.[0].html_url' 2>/dev/null || true
+          }
+
+          EXISTING_PR_URL="$(resolve_pr_url)"
+          if [ -n "${EXISTING_PR_URL}" ]; then
+            ##### `gh pr edit` can fail if token lacks PR-update permissions; do not fail the sync run for that.
+            if gh pr edit "${EXISTING_PR_URL}" --title "${PR_TITLE}" >/dev/null; then
+              echo -e "\033[32mPR already exists; updated title.\033[0m"
+            else
+              echo -e "\033[33mWarning: unable to update PR title (insufficient permissions). Continuing.\033[0m"
+            fi
+          else
+            PR_BODY="$(printf '%s\n' \
+              '## Summary' \
+              '- Auto-sync `registry/lifi/calldata-LIFIDiamond.json` from the LI.FI contracts repo (https://github.com/lifinance/contracts).' \
+              '- Updates `context.contract.abi`, `context.contract.deployments`, and merges `display.formats` from the LI.FI source-of-truth proposal (`config/clearSigningProposal.json`).' \
+              '- Merge policy: selectors LI.FI owns are replaced from the proposal; registry-only entries (e.g. EF working-group additions for non-LI.FI selectors) are preserved; entries for selectors no longer in the LI.FI diamond are also preserved (older deployments may still expose them).' \
+              '- `metadata.*` and other `display.*` keys (e.g. `definitions`, `screens`) are preserved verbatim.' \
+              '' \
+              '## Notes' \
+              '- This PR is generated by CI and can be re-run safely (idempotent).' \
+              '- Source of truth for the LI.FI display.formats entries is enforced at PR-merge time in the contracts repo by a CI gate that re-runs the generator and rejects any drift.' \
+              '' \
+            )"
+
+            ##### If a PR already exists, `gh pr create` exits non-zero; treat as non-fatal and resolve via list.
+            if gh pr create --repo "${LEDGER_UPSTREAM}" \
+              --base "${UPSTREAM_DEFAULT_BRANCH}" \
+              --head "${HEAD_REF}" \
+              --title "${PR_TITLE}" \
+              --body "${PR_BODY}" >/dev/null; then
+              echo -e "\033[32mPR created.\033[0m"
+            else
+              echo -e "\033[33mPR create returned non-zero; attempting to resolve existing PR...\033[0m"
+            fi
+          fi
+
+          ##### Always print PR link to workflow logs (when there were changes)
+          ##### and expose it as a step output so the Slack notification step can read it.
+          PR_URL="${EXISTING_PR_URL:-}"
+          if [ -z "${PR_URL}" ]; then
+            PR_URL="$(resolve_pr_url)"
+          fi
+          if [ -n "${PR_URL}" ]; then
+            echo -e "\033[32mPR URL: ${PR_URL}\033[0m"
+            echo "pr_url=${PR_URL}" >> "${GITHUB_OUTPUT}"
+            ##### `pr_was_created` distinguishes a fresh PR from a re-push to an
+            ##### existing one — we only want to ping Slack for new PRs to avoid
+            ##### channel noise on every monthly re-run that produces no upstream diff.
+            if [ -z "${EXISTING_PR_URL}" ]; then
+              echo "pr_was_created=true" >> "${GITHUB_OUTPUT}"
+            else
+              echo "pr_was_created=false" >> "${GITHUB_OUTPUT}"
+            fi
+          else
+            echo -e "\033[31mError: unable to resolve PR URL after create/edit\033[0m"
+            exit 1
+          fi
+
+      - name: Notify Slack on new upstream PR
+        # Only ping the channel for *new* PRs against the registry; re-pushes
+        # to an already-open PR are silent (otherwise the monthly cron would
+        # spam the channel with no-news updates).
+        # Webhook secret is checked inside the script — `if:` cannot read
+        # step-level `env`, and `secrets.*` in `if:` is fragile across forks
+        # / dependabot contexts. In-script check is robust everywhere.
+        if: steps.sync.outputs.pr_was_created == 'true'
+        env:
+          SLACK_WEBHOOK_SC_GENERAL: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          PR_URL: ${{ steps.sync.outputs.pr_url }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_SC_GENERAL:-}" ]; then
+            echo "SLACK_WEBHOOK_SC_GENERAL not set — skipping notification (this is OK in forks / first-run before the secret is configured)."
+            exit 0
+          fi
+          payload=$(jq -nc --arg pr "${PR_URL}" \
+            '{text: "🪪 New ERC-7730 clear-signing PR opened against `ethereum/clear-signing-erc7730-registry`: \($pr) — please review."}')
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d "${payload}" "${SLACK_WEBHOOK_SC_GENERAL}" >/dev/null
+          echo "Slack notified."

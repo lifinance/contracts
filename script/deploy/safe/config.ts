@@ -99,3 +99,28 @@ export const SAFE_SINGLETON_ABI = [
     type: 'function',
   },
 ] as const
+
+// Safe execution outcome events. Neither parameter is `indexed` in Safe
+// v1.3.0+ — match the on-chain layout exactly so viem decodes from `data`.
+// Used by reconciliation to scan past executions when the script lost track
+// of an in-flight tx (e.g. RPC dropped after broadcast).
+export const SAFE_EVENTS_ABI = [
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, name: 'txHash', type: 'bytes32' },
+      { indexed: false, name: 'payment', type: 'uint256' },
+    ],
+    name: 'ExecutionSuccess',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, name: 'txHash', type: 'bytes32' },
+      { indexed: false, name: 'payment', type: 'uint256' },
+    ],
+    name: 'ExecutionFailure',
+    type: 'event',
+  },
+] as const

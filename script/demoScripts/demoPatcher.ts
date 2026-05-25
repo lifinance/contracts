@@ -1,5 +1,17 @@
 #!/usr/bin/env bun
 
+// =============================================================================
+// ⚠️  WARNING — LIKELY BROKEN AFTER RelayFacet DEPRECATION ⚠️
+// -----------------------------------------------------------------------------
+// This demo encodes a call to `RelayFacet.startBridgeTokensViaRelay` via
+// `setupCowShedPostHooks` (see ./utils/cowSwapHelpers.ts). RelayFacet has been
+// removed from the diamond; running this script against a current deployment
+// will fail when the Patcher attempts to call the (no-longer-registered)
+// selector. Kept here as a reference for the dynamic-patcher pattern only.
+// To make it functional again, migrate the post-hook to encode a
+// RelayDepositoryFacet call (or another bridge facet) instead.
+// =============================================================================
+
 import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
