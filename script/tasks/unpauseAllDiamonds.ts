@@ -1,10 +1,18 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import 'dotenv/config'
-import { encodeFunctionData, parseAbi, type Address } from 'viem'
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  getAddress,
+  http,
+  parseAbi,
+  type Address,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
-import { type SupportedChain } from '../common/types'
+import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import {
   getNextNonce,
   getPrivateKey,
@@ -15,8 +23,11 @@ import {
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
+  castEnv,
   getAllActiveNetworks,
   getContractAddressForNetwork,
+  getViemChainForNetworkName,
+  isTestnetNetwork,
   networks,
 } from '../utils/viemScriptHelpers'
 
@@ -36,34 +47,121 @@ const main = defineCommand({
       type: 'string',
       description: 'Names of the facet(s) to be blacklisted',
     },
+    networks: {
+      type: 'string',
+      description:
+        'Optional comma-separated list of network names to process (default: all active networks). Example: --networks gnosis,moonbeam,rootstock',
+    },
+    environment: {
+      type: 'string',
+      description:
+        'Target environment: production (default) or staging. Staging skips the Safe/MongoDB flow and sends directly to the diamond.',
+    },
   },
   async run({ args }) {
     const blacklist = args.blacklist
-    const activeNetworks = getAllActiveNetworks()
+    const environment = castEnv(args.environment ?? 'production')
+    let activeNetworks = getAllActiveNetworks()
 
-    const privateKey = getPrivateKey('SAFE_SIGNER_PRIVATE_KEY')
+    if (args.networks) {
+      const requested = new Set(
+        args.networks
+          .split(',')
+          .map((n: string) => n.trim())
+          .filter((n) => n.length > 0)
+      )
+      activeNetworks = activeNetworks.filter((n) => requested.has(n.name))
+      const found = new Set(activeNetworks.map((n) => n.name))
+      const missing = [...requested].filter((n) => !found.has(n))
+      if (missing.length > 0)
+        consola.warn(
+          `Networks not found in active list (skipped): ${missing.join(', ')}`
+        )
+      if (activeNetworks.length === 0) {
+        consola.error('No matching active networks found. Exiting.')
+        process.exit(1)
+      }
+      consola.info(
+        `Restricted to networks: ${activeNetworks
+          .map((n) => n.name)
+          .join(', ')}`
+      )
+    }
+    const isStaging = environment === EnvironmentEnum.staging
+    const testnets = activeNetworks.filter((n) => isTestnetNetwork(n.id))
+    // Staging mainnets are EOA-owned — treat them like testnets (direct send, no Safe/Mongo).
+    const mainnets = isStaging
+      ? []
+      : activeNetworks.filter((n) => !isTestnetNetwork(n.id))
+    const directSendNetworks = isStaging ? activeNetworks : testnets
+
+    // Pass 1: direct-send networks (testnets always; all networks when staging).
+    await Promise.all(
+      directSendNetworks.map(async (network) => {
+        try {
+          consola.info(
+            `[${network.name}] Processing ${
+              isStaging ? 'staging' : 'testnet'
+            } network`
+          )
+          const diamondAddress = await getContractAddressForNetwork(
+            'LiFiDiamond',
+            network.name as SupportedChain,
+            environment
+          )
+          const blacklistedAddresses = await getBlacklistedFacetAddresses(
+            network.name,
+            blacklist,
+            environment
+          )
+          const calldata = encodeFunctionData({
+            abi: unpauseDiamondABI,
+            functionName: 'unpauseDiamond',
+            args: [blacklistedAddresses],
+          })
+          await sendUnpauseDirect(
+            network.name,
+            diamondAddress as Address,
+            calldata,
+            environment
+          )
+        } catch (error) {
+          consola.error(
+            `[${network.name}] Error sending direct unpause:`,
+            error
+          )
+        }
+      })
+    )
+
+    if (mainnets.length === 0) {
+      consola.success('All networks processed successfully.')
+      process.exit(0)
+    }
+
+    // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
+    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
     const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
-
-    // Connect to MongoDB
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
-    // Execute transactions for all active networks in parallel
     await Promise.all(
-      activeNetworks.map(async (network) => {
+      mainnets.map(async (network) => {
         try {
           consola.info(`[${network.name}] Processing network now`)
 
           // get the diamond address for this network
           const diamondAddress = await getContractAddressForNetwork(
             'LiFiDiamond',
-            network.name as SupportedChain
+            network.name as SupportedChain,
+            environment
           )
 
           // get blacklisted addresses for this network
           const blacklistedAddresses = await getBlacklistedFacetAddresses(
             network.name,
-            blacklist
+            blacklist,
+            environment
           )
 
           // create calldata for unpausing the diamond with blacklisted addresses
@@ -156,9 +254,56 @@ const main = defineCommand({
   },
 })
 
+/**
+ * Send the unpause transaction directly to the diamond.
+ * Used for testnets (EOA-owned, no Safe/Timelock) and staging environments.
+ * Production uses `PRIVATE_KEY_PRODUCTION`; staging uses `PRIVATE_KEY`.
+ */
+async function sendUnpauseDirect(
+  networkName: string,
+  diamondAddress: Address,
+  calldata: `0x${string}`,
+  environment: EnvironmentEnum
+): Promise<void> {
+  const pkVar =
+    environment === EnvironmentEnum.production
+      ? 'PRIVATE_KEY_PRODUCTION'
+      : 'PRIVATE_KEY'
+  const pk = process.env[pkVar]
+  if (!pk) throw new Error(`[${networkName}] Missing ${pkVar} in environment`)
+  const normalizedPk = pk.startsWith('0x') ? pk : `0x${pk}`
+  const account = privateKeyToAccount(normalizedPk as `0x${string}`)
+  const chain = getViemChainForNetworkName(networkName)
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(),
+  })
+  const publicClient = createPublicClient({ chain, transport: http() })
+
+  consola.info(
+    `[${networkName}] Sending unpauseDiamond directly to ${diamondAddress}`
+  )
+
+  const hash = await walletClient.sendTransaction({
+    to: getAddress(diamondAddress),
+    data: calldata,
+  })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success')
+    throw new Error(
+      `[${networkName}] unpauseDiamond reverted in block ${receipt.blockNumber}`
+    )
+  consola.success(
+    `[${networkName}] unpauseDiamond confirmed in block ${receipt.blockNumber}`
+  )
+}
+
 async function getBlacklistedFacetAddresses(
   networkName: string,
-  blacklistFacets: string
+  blacklistFacets: string,
+  environment: EnvironmentEnum = EnvironmentEnum.production
 ): Promise<Address[]> {
   // if blacklist is empty we dont need to look for addresses
   if (!blacklistFacets) return []
@@ -176,7 +321,8 @@ async function getBlacklistedFacetAddresses(
     try {
       const facetAddress = await getContractAddressForNetwork(
         facetName,
-        networkName
+        networkName,
+        environment
       )
 
       facetAddresses.push(facetAddress as Address)

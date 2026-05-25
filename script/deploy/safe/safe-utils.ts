@@ -86,6 +86,21 @@ export interface ISafeSignature {
   data: Hex
 }
 
+/**
+ * Lifecycle of a Safe tx row in MongoDB.
+ *
+ * - `pending`   : awaiting signatures or execution.
+ * - `submitted` : broadcast on-chain but no confirmed receipt yet. The Safe
+ *                 nonce may or may not have advanced; reconciliation resolves
+ *                 it to `executed`, `reverted`, or back to `pending` on the
+ *                 next run.
+ * - `executed`  : on-chain receipt confirmed success (Safe nonce consumed).
+ * - `reverted`  : on-chain receipt confirmed revert (Safe nonce still
+ *                 consumed because signatures verified; flagged for manual
+ *                 review).
+ */
+export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -94,7 +109,9 @@ export interface ISafeTxDocument {
   safeTxHash: string
   proposer: string
   timestamp: Date
-  status: 'pending' | 'executed'
+  status: SafeTxStatus
+  executionHash?: string
+  submittedAt?: Date
   intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
@@ -184,6 +201,7 @@ export class SafeClient {
    * @param walletClient - Wallet client used for EVM execution
    * @param account - Account used for signing and broadcasting
    * @param tronWalletClient - Optional Tron signer required for TVM execution
+   * @param networkName - Network name used to construct explorer URLs in results
    * @returns Executor implementation matching the connected chain
    * @throws Error if a Tron executor is required but no Tron signer is available
    */
@@ -191,7 +209,8 @@ export class SafeClient {
     publicClient: PublicClient,
     walletClient: WalletClient,
     account: Account,
-    tronWalletClient?: TronWalletClient
+    tronWalletClient?: TronWalletClient,
+    networkName?: string
   ): Promise<IChainExecutor | undefined> {
     const chainId = await publicClient.getChainId()
 
@@ -210,7 +229,12 @@ export class SafeClient {
     }
 
     const { EvmChainExecutor } = await import('./executors/evm-executor')
-    return new EvmChainExecutor(walletClient, publicClient, account)
+    return new EvmChainExecutor(
+      walletClient,
+      publicClient,
+      account,
+      networkName
+    )
   }
 
   public static async init(options: {
@@ -224,6 +248,7 @@ export class SafeClient {
       accountIndex?: number
     }
     account?: Account
+    networkName?: string
   }): Promise<SafeClient> {
     const {
       privateKey,
@@ -232,6 +257,7 @@ export class SafeClient {
       useLedger,
       ledgerOptions,
       account: preCreatedAccount,
+      networkName,
     } = options
 
     // Create provider with Viem
@@ -300,7 +326,8 @@ export class SafeClient {
       publicClient,
       walletClient,
       account,
-      tronWalletClient
+      tronWalletClient,
+      networkName
     )
 
     return new SafeClient(
@@ -315,6 +342,12 @@ export class SafeClient {
   // Get Safe address
   public getAddress(): Address {
     return this.safeAddress
+  }
+
+  // Used by reconciliation to issue read-only RPC calls (getTransactionReceipt,
+  // getLogs, getBlockNumber) without re-creating a client.
+  public getPublicClient(): PublicClient {
+    return this.publicClient
   }
 
   public async getChainId(): Promise<number> {
@@ -1176,6 +1209,7 @@ export async function getSafeMongoCollection(): Promise<{
   }
 
   const client = new MongoClient(process.env.SC_MONGODB_URI)
+  await client.connect()
   const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'
@@ -1203,12 +1237,14 @@ export async function getNextNonce(
   chainId: number,
   currentNonce: bigint
 ): Promise<bigint> {
+  // Include 'submitted' rows: a tx broadcast but not yet confirmed still has
+  // its Safe nonce in flight, so a new proposal must not collide with it.
   const latestTx = await pendingTransactions
     .find({
       safeAddress,
       network: network.toLowerCase(),
       chainId,
-      status: 'pending',
+      status: { $in: ['pending', 'submitted'] },
     })
     .sort({ 'safeTx.data.nonce': -1 })
     .limit(1)
@@ -1217,8 +1253,20 @@ export async function getNextNonce(
   if (latestTx.length > 0) {
     const tx = latestTx[0]
     if (!tx) throw new Error('Latest transaction not found')
-    return BigInt(tx.safeTx?.data?.nonce || 0) + 1n
+    const pendingNonce = BigInt(tx.safeTx?.data?.nonce || 0)
+    // Clamp to on-chain nonce: if the DB-derived nonce is behind the chain
+    // (stale pending rows), use the on-chain nonce so we don't mint another
+    // stale proposal.
+    const nextNonce =
+      pendingNonce + 1n > currentNonce ? pendingNonce + 1n : currentNonce
+    consola.debug(
+      `[getNextNonce] found pending proposal with nonce ${pendingNonce} → assigning ${nextNonce} (on-chain nonce: ${currentNonce})`
+    )
+    return nextNonce
   }
+  consola.debug(
+    `[getNextNonce] no pending proposals found → using on-chain nonce ${currentNonce}`
+  )
   return currentNonce
 }
 
@@ -1309,6 +1357,7 @@ export async function initializeSafeClient(
       useLedger,
       ledgerOptions,
       account,
+      networkName: network.toLowerCase(),
     })
 
     return { safe, chain, safeAddress: finalSafeAddress }

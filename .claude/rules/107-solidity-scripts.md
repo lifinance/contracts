@@ -1,1 +1,1 @@
-../../.agents/rules/107-solidity-scripts.mdc
+../../.agents/rules/107-solidity-scripts.md

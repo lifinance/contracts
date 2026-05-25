@@ -1,10 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x17Bb203F42d8e404ac7E8dB6ff972B7E8473850b": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
       "0xB2A8517734CDf985d53F303A1f7759A34fdC772F": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
@@ -27,7 +23,7 @@
       },
       "0x4D8Bc5FB73fB13C38de218F42467e210747c73C2": {
         "Name": "AccessManagerFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xD40732F1af7c7f020286e5D74F2b617A88eF0cB9": {
         "Name": "PeripheryRegistryFacet",
@@ -197,7 +193,7 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xF158ac0983D6D4eF8Ef65De7B39585B8381Fe570": {
+      "0x6ed89349aC140De341574831A91469bC029209e0": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
@@ -205,31 +201,31 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
-        "Name": "WhitelistRecoveryFacet",
-        "Version": "1.0.2"
-      },
       "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0xFCE93F61dd59E269d8B7ae860874E6BaE8c041EE": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+      "0xd35fC069dcBD50780c706750A41AfC418f25f5D6": {
+        "Name": "WhitelistRecoveryFacet",
+        "Version": "1.0.2"
       },
       "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
-      "FeeForwarder": "",
+      "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",

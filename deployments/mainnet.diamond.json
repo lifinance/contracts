@@ -169,9 +169,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2290f918c21D64aC8b1D7cE725E320EfB75271d4": {
+      "0x67Cc6E0f10A1d98E68238Ff549533e7F02a81e11": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0x989a7eFaBb9bE76ac3424B940862d9cf55334873": {
         "Name": "UnitFacet",
@@ -189,9 +189,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
+      "0x7167AcC53c891272b3BE0943906Ab3d165065a43": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",

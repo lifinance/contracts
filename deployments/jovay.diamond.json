@@ -53,9 +53,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x7bCEEC85ad7f592a211CA540C860c45c0264f970": {
+      "0x66072dB08cFBD82De18F0D1cbAA30612767b961F": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.0.1"
+        "Version": "1.1.1"
       },
       "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
         "Name": "GlacisFacet",

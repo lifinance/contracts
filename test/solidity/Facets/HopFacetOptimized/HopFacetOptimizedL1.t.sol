@@ -50,6 +50,8 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
 
         hopFacet = TestHopFacet(address(diamond));
 
+        vm.startPrank(USER_DIAMOND_OWNER);
+
         hopFacet.addAllowedContractSelector(
             address(uniswap),
             uniswap.swapExactTokensForTokens.selector
@@ -71,6 +73,8 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
             uniswap.swapExactETHForTokens.selector
         );
 
+        vm.stopPrank();
+
         setFacetAddressInTestBase(address(hopFacet), "HopFacet");
 
         // Set approval for all bridges
@@ -80,7 +84,9 @@ contract HopFacetOptimizedL1Test is TestBaseFacet {
         address[] memory tokens = new address[](2);
         tokens[0] = ADDRESS_USDC;
         tokens[1] = ADDRESS_DAI;
+        vm.startPrank(USER_DIAMOND_OWNER);
         hopFacet.setApprovalForBridges(bridges, tokens);
+        vm.stopPrank();
 
         vm.makePersistent(address(hopFacet));
 

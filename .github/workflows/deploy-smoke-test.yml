@@ -1,0 +1,202 @@
+# Deploy Smoke Test
+# - Runs the full deployAllContracts pipeline against a local anvil + empty Mongo
+# - Triggers on PRs targeting main and on manual dispatch
+# - Validates the deploy script end-to-end so regressions in deploy bash,
+#   Solidity scripts, target state, or whitelist sync surface before merge
+# - Path-gated: heavy job runs only when files that can affect the smoke outcome
+#   change. A `smoke-test-required` aggregator job always reports a final status so
+#   this workflow can be a required check on `main` branch protection.
+name: Deploy Smoke Test
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+
+concurrency:
+  group: deploy-smoke-test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    # Determines whether files that can influence the smoke pipeline were touched.
+    # Always runs (cheap) so the downstream smoke-test-required can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            smoke:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - 'config/**'
+              - 'deployments/_deployments_log_file.json'
+              - 'deployments/localanvil*.json'
+              - 'script/deploy/**'
+              - 'script/utils/**'
+              - 'script/tasks/**'
+              - 'script/resources/**'
+              - '.env.example'
+              - 'package.json'
+              - 'bun.lockb'
+              - '.github/workflows/deploy-smoke-test.yml'
+
+  deploy-smoke-test:
+    # Always run on manual dispatch; for PRs, skip drafts, require main as the base,
+    # and only run when files that influence the smoke pipeline have changed.
+    # github.event.pull_request is unset on workflow_dispatch, so the explicit
+    # event_name branch is required to keep the manual trigger path working.
+    needs: detect-changes
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.draft == false &&
+           github.event.pull_request.base.ref == 'main' &&
+           needs.detect-changes.outputs.smoke == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongo:
+        # pre-commit-checker: not a secret — sha256 image digest pin for supply-chain integrity, not a credential
+        image: mongo:7@sha256:43fddee7e532a920f3dfdee9e8f4834398c155c26bcb92d790cc1cd3c630fc40 # mongo:7
+        ports:
+          - 27017:27017
+        # Readiness gate so the first MongoClient.connect() inside the deploy
+        # scripts does not race the container's startup.
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' | grep 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive # forge dependencies live under lib/
+          persist-credentials: false # smoke test does not push back; avoid leaking the runner token to subsequent actions
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+
+      - name: Install gum
+        # gum is required by helper functions sourced via deployAllContracts;
+        # the smoke driver mocks `gum choose` for the start-stage prompt but
+        # falls through to the real binary for any other invocation.
+        # The deb is verified against the publisher SHA-256 from
+        # https://github.com/charmbracelet/gum/releases/download/v0.14.5/checksums.txt
+        # before install — fail closed on any mismatch.
+        run: |
+          set -euo pipefail
+          GUM_VERSION=0.14.5
+          # pre-commit-checker: not a secret — publisher-published sha256 checksum for the gum release tarball
+          EXPECTED_SHA256=fd1a34711ae724eb2a6c1a3209d57078d529575a03316e699054f2f5d3bcb2ba
+          curl -fsSLo /tmp/gum.deb "https://github.com/charmbracelet/gum/releases/download/v${GUM_VERSION}/gum_${GUM_VERSION}_amd64.deb"
+          echo "${EXPECTED_SHA256}  /tmp/gum.deb" | sha256sum -c -
+          sudo dpkg -i /tmp/gum.deb
+          gum --version
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Prepare .env
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          # Override the example default that turns on contract verification.
+          sed -i 's/^VERIFY_CONTRACTS=.*/VERIFY_CONTRACTS=false/' .env
+          # Append CI-only values. smokeDeploy.sh sources .env with `set -a`,
+          # so PRIVATE_KEY=$PRIVATE_KEY_ANVIL expands at source time and the
+          # later definitions override earlier ones from .env.example.
+          # shellcheck disable=SC2016 # the $PRIVATE_KEY_ANVIL literal is expanded later when .env is sourced, not now
+          {
+            echo 'PRIVATE_KEY=$PRIVATE_KEY_ANVIL'
+            # pre-commit-checker: not a secret
+            echo 'ETH_NODE_URI_LOCALANVIL=http://localhost:8545'
+            echo 'MONGODB_URI=mongodb://localhost:27017/contract-deployments'
+          } >> .env
+
+      - name: Start anvil
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          set -a; source .env; set +a
+          anvil --mnemonic "${MNEMONIC}" --silent &
+          # Bounded readiness probe — fail fast if anvil never comes up.
+          for _ in $(seq 1 30); do
+            # pre-commit-checker: not a secret
+            if [[ "$(cast chain-id --rpc-url http://localhost:8545 2>/dev/null || true)" == "31337" ]]; then
+              echo -e "\033[32manvil ready\033[0m"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo -e "\033[31manvil failed to start\033[0m" >&2
+          exit 1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Run deploy smoke test
+        run: bash script/deploy/smokeDeploy.sh 2>&1 | tee smoke-deploy.log
+
+      - name: Run health check
+        # `set -o pipefail` so that healthCheck.ts's exit code is not masked by `tee`.
+        run: |
+          set -eo pipefail
+          bun script/deploy/healthCheck.ts --network localanvil --environment staging 2>&1 | tee -a smoke-deploy.log
+
+      - name: Upload diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deploy-smoke-test-logs
+          path: |
+            smoke-deploy.log
+            deployments/localanvil*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  smoke-test-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `deploy-smoke-test`) as the required status check on `main`.
+    needs: [detect-changes, deploy-smoke-test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `deploy-smoke-test`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          smoke_result="${{ needs.deploy-smoke-test.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31msmoke-test-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$smoke_result" == "success" || "$smoke_result" == "skipped" ]]; then
+            echo -e "\033[32msmoke-test-required OK (deploy-smoke-test=$smoke_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31msmoke-test-required FAILED (deploy-smoke-test=$smoke_result)\033[0m" >&2
+          exit 1

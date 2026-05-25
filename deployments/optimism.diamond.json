@@ -153,9 +153,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x78A78927ba0EeE804d37cad22BfcC69e3B0fF5e1": {
+      "0x7167AcC53c891272b3BE0943906Ab3d165065a43": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.0"
+        "Version": "2.0.1"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",

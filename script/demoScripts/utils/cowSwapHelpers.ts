@@ -1,3 +1,14 @@
+// =============================================================================
+// ⚠️  WARNING — LIKELY BROKEN AFTER RelayFacet DEPRECATION ⚠️
+// -----------------------------------------------------------------------------
+// `setupCowShedPostHooks` below builds calldata for
+// `RelayFacet.startBridgeTokensViaRelay`. RelayFacet has been removed from the
+// diamond, so the produced calldata will revert when executed. The helper is
+// kept (alongside its only consumer, ../demoPatcher.ts) as a reference for the
+// dynamic-patcher pattern. To make it functional again, migrate the encoded
+// call to RelayDepositoryFacet (or another active bridge facet).
+// =============================================================================
+
 import { randomBytes } from 'crypto'
 
 import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
@@ -260,6 +271,7 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
   const relayData = {
     requestId: relayRequestId,
     nonEVMReceiver:
+      // pre-commit-checker: not a secret — zero bytes32 sentinel (non-EVM bridging disabled)
       '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // Not bridging to non-EVM chain
     receivingAssetId: pad(baseUsdcAddress as `0x${string}`), // Use viem's pad instead of manual padStart
     signature: relaySignature, // Real signature from the Relay API
@@ -339,6 +351,7 @@ export async function setupCowShedPostHooks(config: ICowShedPostHooksConfig) {
     args: [
       lifiDiamondAddress as `0x${string}`, // spender - LiFi Diamond
       BigInt(
+        // pre-commit-checker: not a secret — max uint256 constant, not a private key
         '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
       ), // Max uint256 approval
     ],

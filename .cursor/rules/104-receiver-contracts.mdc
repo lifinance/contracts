@@ -1,1 +1,1 @@
-../../.agents/rules/104-receiver-contracts.mdc
+../../.agents/rules/104-receiver-contracts.md

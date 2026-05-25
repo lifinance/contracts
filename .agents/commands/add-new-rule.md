@@ -15,10 +15,10 @@ This command is the single workflow for adding/updating **rules** and **commands
 Rules and commands have a single source of truth. Never edit the symlink targets directly.
 
 ```
-.agents/rules/*.mdc          ← SOURCE OF TRUTH for rules (edit here)
+.agents/rules/*.md           ← SOURCE OF TRUTH for rules (edit here)
   ↑ symlinked from:
-  .cursor/rules/*.mdc        ← Cursor reads these (same extension)
-  .claude/rules/*.md         ← Claude Code reads these (extension mapped)
+  .cursor/rules/*.mdc        ← Cursor reads these (link name keeps .mdc; target is .md)
+  .claude/rules/*.md         ← Claude Code reads these
 
 .agents/commands/*.md        ← SOURCE OF TRUTH for commands (edit here)
   ↑ symlinked from:
@@ -34,6 +34,7 @@ When you add or edit a command, **always work in `.agents/commands/`**.
 Every rule must use the hybrid header so both Cursor and Claude Code activate it correctly.
 
 **Scoped rule** (activates only for matching files):
+
 ```yaml
 ---
 name: Rule name
@@ -46,6 +47,7 @@ paths:           # Claude Code: file matching (no negation patterns)
 ```
 
 **Global rule** (always active, no file scoping):
+
 ```yaml
 ---
 name: Rule name
@@ -121,8 +123,14 @@ Before adding a new guideline:
 ## Adding a New Rule (step by step)
 
 1. Determine scope → pick numbering range from `.agents/rules/README.md`.
-2. Create `.agents/rules/<NNN>-<name>.mdc` with hybrid frontmatter.
-3. Symlinks are already in place — no action needed for `.cursor/rules/` or `.claude/rules/`.
+2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
+3. Create the Cursor and Claude Code symlinks:
+
+   ```bash
+   ln -sf "../../.agents/rules/<NNN>-<name>.md" ".cursor/rules/<NNN>-<name>.mdc"
+   ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
+   ```
+
 4. Update `.agents/rules/README.md` table (name, range, description).
 5. Run validation steps below.
 
@@ -130,11 +138,13 @@ Before adding a new guideline:
 
 1. Create `.agents/commands/<name>.md` with the command content.
 2. Create the Cursor and Claude Code symlinks:
+
    ```bash
    ln -sf "../../.agents/commands/<name>.md" ".cursor/commands/<name>.md"
    mkdir -p ".claude/skills/<name>"
    ln -sf "../../../.agents/commands/<name>.md" ".claude/skills/<name>/SKILL.md"
    ```
+
 3. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
 
 ## Validation Steps (PR-ready)

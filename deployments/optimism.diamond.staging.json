@@ -21,10 +21,6 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
       },
-      "0x32aAa3d5a7541E2c845B00b6EEd5B9bdb8df7320": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
       "0x843A1AA0131CBD55F188de709806B8046848E392": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
@@ -53,9 +49,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x12B47a94737D8c45793CFC8690716B600E1C2D31": {
+      "0x17508BC3E587683E6f98bE89b5fDC28521611138": {
         "Name": "PolymerCCTPFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.1"
       },
       "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe": {
         "Name": "GlacisFacet",
@@ -64,6 +60,10 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

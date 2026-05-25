@@ -3,6 +3,10 @@ name: Enforce Min Test Coverage
 # - will make sure that (Foundry) unit test coverage is above min threshold
 # - we start with 74% (status today), planning to increase to 100% until EOY 2024
 # - Only the 'lines' coverage counts as 'branch' coverage is not reliable
+# - Path-gated: heavy job runs only when files that can affect coverage outcome
+#   change. A `coverage-required` aggregator job always reports a final status so
+#   this workflow can remain a required check on `main` branch protection even
+#   when the heavy job is skipped.
 
 on:
   pull_request:
@@ -13,21 +17,50 @@ permissions:
   pull-requests: write # required to post the coverage summary as a PR comment
 
 jobs:
-  enforce-min-test-coverage:
+  detect-changes:
+    # Determines whether files that can influence `forge coverage` outcomes were touched.
+    # Always runs (cheap) so the downstream coverage-required can report status.
     runs-on: ubuntu-latest
-    # will only run once the PR is in "Ready for Review" state
-    if: ${{ github.event.pull_request.draft == false }}
+    permissions:
+      contents: read
+      pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+    outputs:
+      coverage: ${{ steps.filter.outputs.coverage }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            coverage:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'test/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - '.github/workflows/enforceTestCoverage.yml'
+
+  enforce-min-test-coverage:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    # will only run once the PR is in "Ready for Review" state AND files that
+    # influence coverage have changed
+    if: >-
+      ${{ github.event.pull_request.draft == false &&
+          needs.detect-changes.outputs.coverage == 'true' }}
 
     env:
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-      
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
       - name: Install dev dependencies
         run: bun install
 
@@ -36,44 +69,28 @@ jobs:
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
           bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
               echo "$line" >> "$GITHUB_ENV"
             fi
           done < ".env"
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
-      - name: Check for Solidity file changes
-        id: check_files
-        run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '^src/.*\.sol|^test/.*\.sol' || true)
-          if [[ -n "$CHANGED_FILES" ]]; then
-            echo "solidity_changed=true" >> "$GITHUB_ENV"
-          else
-            echo "solidity_changed=false" >> "$GITHUB_ENV"
-          fi
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        if: env.solidity_changed == 'true'
-
-      - name: Install dev dependencies
-        run: bun install
-        if: env.solidity_changed == 'true'
-
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1.3.1
-        if: env.solidity_changed == 'true'
+        uses: ./.github/actions/setup-foundry
 
       - name: Install forge Dependencies
         run: forge install
-        if: env.solidity_changed == 'true'
 
       - name: Generate Coverage Report
-        if: env.solidity_changed == 'true'
         run: |
           forge coverage --report lcov --force --ir-minimum
 
@@ -84,7 +101,6 @@ jobs:
           echo "Coverage report successfully filtered"
 
       - name: Generate Coverage Summary
-        if: env.solidity_changed == 'true'
         run: |
 
 
@@ -163,8 +179,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Comment with Coverage Summary in PR
-        if: env.solidity_changed == 'true'
-        uses: mshick/add-pr-comment@v2.8.2
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
         with:
           repo-token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
           message: |
@@ -174,6 +189,29 @@ jobs:
             ${{ env.BRANCH_COVERAGE_REPORT }}
             ${{ env.RESULT_COVERAGE_REPORT }}
 
-      - name: Skip Tests (No Solidity Changes)
-        if: env.solidity_changed == 'false'
-        run: echo "No Solidity files changed. Skipping test coverage check."
+  coverage-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `enforce-min-test-coverage`) as the required status check on `main`.
+    needs: [detect-changes, enforce-min-test-coverage]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `enforce-min-test-coverage`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          coverage_result="${{ needs.enforce-min-test-coverage.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31mcoverage-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$coverage_result" == "success" || "$coverage_result" == "skipped" ]]; then
+            echo -e "\033[32mcoverage-required OK (enforce-min-test-coverage=$coverage_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mcoverage-required FAILED (enforce-min-test-coverage=$coverage_result)\033[0m" >&2
+          exit 1

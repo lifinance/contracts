@@ -7,6 +7,14 @@ deployUpgradesToSAFE() {
   ENVIRONMENT=$1
   FILE_SUFFIX=$(getFileSuffix $ENVIRONMENT)
   NETWORK=$(getUserSelectedNetwork)
+
+  # This script proposes facet upgrades to the Safe multisig. Testnet networks
+  # have an EOA-owned diamond with no Safe; the Safe-proposal flow does not apply.
+  if isTestnetNetwork "$NETWORK"; then
+    error "deployUpgradesToSAFE is not supported on testnet networks (no Safe). Use diamondUpdateFacet for testnet upgrades."
+    return 1
+  fi
+
   DIAMOND_CONTRACT_NAME=$(userDialogSelectDiamondType)
   if [ "$DIAMOND_CONTRACT_NAME" == "LiFiDiamond" ]; then
     USE_MUTABLE_DIAMOND=true
@@ -43,7 +51,7 @@ deployUpgradesToSAFE() {
       
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" -f $NETWORK --json --skip-simulation --legacy" \
+        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
         "true" \
         "forge script failed for $script on network $NETWORK" \
         "continue"; then

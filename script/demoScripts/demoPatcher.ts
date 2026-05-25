@@ -1,5 +1,17 @@
 #!/usr/bin/env bun
 
+// =============================================================================
+// ⚠️  WARNING — LIKELY BROKEN AFTER RelayFacet DEPRECATION ⚠️
+// -----------------------------------------------------------------------------
+// This demo encodes a call to `RelayFacet.startBridgeTokensViaRelay` via
+// `setupCowShedPostHooks` (see ./utils/cowSwapHelpers.ts). RelayFacet has been
+// removed from the diamond; running this script against a current deployment
+// will fail when the Patcher attempts to call the (no-longer-registered)
+// selector. Kept here as a reference for the dynamic-patcher pattern only.
+// To make it functional again, migrate the post-hook to encode a
+// RelayDepositoryFacet call (or another bridge facet) instead.
+// =============================================================================
+
 import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -33,6 +45,7 @@ const ERC20_ABI = erc20Artifact.abi
  * Execute CowSwap demo with Patcher contract
  *
  * Example successful transaction:
+ * pre-commit-checker: not a secret — public on-chain example transaction hash, not a credential
  * - Arbitrum: https://arbiscan.io/tx/0x7536cd0d5175a6a985f6a0c5cbfaf63b573fe2300301c57e12cca4c8995fe891
  */
 async function executeCowSwapDemo(options: {
@@ -84,6 +97,7 @@ async function executeCowSwapDemo(options: {
       const approveTx = await wethContract.write?.approve?.([
         VAULT_RELAYER_ARBITRUM as `0x${string}`,
         BigInt(
+          // pre-commit-checker: not a secret — max uint256 constant, not a private key
           '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
         ), // Max uint256
       ])

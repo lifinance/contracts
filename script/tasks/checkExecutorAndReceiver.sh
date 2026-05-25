@@ -57,7 +57,7 @@ checkExecutorAndReceiver() {
 
     # Execute, parse, and check return code
     executeAndParse \
-      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol -f $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
+      "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_DEF_DIAMOND forge script script/tasks/solidity/CheckExecutorAndReceiver.s.sol --fork-url $NETWORK --json --skip-simulation --legacy --tc DeployScript" \
       "true"
 
     # Handle errors using centralized helper function
