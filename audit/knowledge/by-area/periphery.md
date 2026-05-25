@@ -513,3 +513,15 @@
 **Fix:** Acknowledged; team argues ReceiverOIF cannot meaningfully hold tokens because anyone can craft a withdrawal call, so a residual Executor approval is treated as insignificant.
 
 **Source:** `2025.12.15_ReceiverOIF(v1.0.0).pdf` p.6-6 · `audit20251215::6.2.2`
+
+---
+
+## LF-146 · INFO · LidoWrapper · acknowledged
+
+**Recognition signal:** Token-conversion entrypoint that derives output from an external accounting contract (e.g. wrap/unwrap, deposit/redeem) and forwards the resulting balance to the caller without a `minAmountOut` floor.
+
+**Root cause:** Both wrap/unwrap entrypoints call ST_ETH.wrap / ST_ETH.unwrap with the user-supplied `_amount` and forward the resulting wstETH/stETH balance without comparing it to a caller-specified floor. Because stETH/wstETH share-to-token math depends on Lido's accounting state, the realized output amount can diverge from the caller's expectation between transaction construction and inclusion, with no on-chain check to abort the call.
+
+**Fix:** Acknowledged, not fixed. LI.FI argued no direct AMM-pool-style exploit exists and preferred to save gas; researcher accepted but flagged it as a defense-in-depth gap.
+
+**Source:** `2025.06.10_LidoWrapper(v1.0.0).pdf` p.4-5 · `audit20250610::6.1.3`

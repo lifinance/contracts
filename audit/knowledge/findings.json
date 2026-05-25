@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.0",
-  "generated_at": "2026-05-19T14:56:58Z",
+  "schema_version": "1.1",
+  "generated_at": "2026-05-25T07:24:14Z",
   "findings": {
     "LF-001": {
       "source_id": "audit20240201::3.1.1",
@@ -5238,6 +5238,162 @@
         "authority"
       ],
       "id": "LF-145"
+    },
+    "LF-146": {
+      "source_id": "audit20250610::6.1.3",
+      "title": "wrapStETHToWstETH and unwrapWstETHToStETH lack a minimum-amount-out slippage parameter",
+      "severity": "info",
+      "severity_native": "Informational",
+      "area": "periphery",
+      "contracts": [
+        "LidoWrapper"
+      ],
+      "root_cause": "Both wrap/unwrap entrypoints call ST_ETH.wrap / ST_ETH.unwrap with the user-supplied `_amount` and forward the resulting wstETH/stETH balance without comparing it to a caller-specified floor. Because stETH/wstETH share-to-token math depends on Lido's accounting state, the realized output amount can diverge from the caller's expectation between transaction construction and inclusion, with no on-chain check to abort the call.",
+      "fix_summary": "Acknowledged, not fixed. LI.FI argued no direct AMM-pool-style exploit exists and preferred to save gas; researcher accepted but flagged it as a defense-in-depth gap.",
+      "recognition_signal": "Token-conversion entrypoint that derives output from an external accounting contract (e.g. wrap/unwrap, deposit/redeem) and forwards the resulting balance to the caller without a `minAmountOut` floor.",
+      "status_history": [
+        {
+          "audit_id": "audit20250610",
+          "source_label": "6.1.3",
+          "status": "acknowledged",
+          "severity_native": "Informational",
+          "notes": "LI.FI declined the fix citing no AMM exploit path; researcher acknowledged but recommended defensive check."
+        }
+      ],
+      "source": {
+        "pdf": "2025.06.10_LidoWrapper(v1.0.0).pdf",
+        "pages": [
+          4,
+          5
+        ]
+      },
+      "extraction_confidence": "high",
+      "tags": [
+        "slippage",
+        "wrapper",
+        "lido",
+        "defense-in-depth"
+      ],
+      "id": "LF-146"
+    },
+    "LF-147": {
+      "source_id": "audit20260205::6.1.2",
+      "title": "validateBridgeDataLiFiIntentEscrow modifier omits zero-check on destinationChainId, allowing bridge calls with chainId 0",
+      "severity": "info",
+      "severity_native": "Informational",
+      "area": "facets",
+      "contracts": [
+        "LiFiIntentEscrowFacet"
+      ],
+      "root_cause": "The validateBridgeDataLiFiIntentEscrow() modifier only rejects a zero receiver and a zero minAmount, but does not check that _bridgeData.destinationChainId != 0. A malformed or misconfigured input can therefore pass facet-level validation with destinationChainId == 0, causing LiFiTransferStarted to be emitted with an invalid destination and any downstream off-chain routing to consume bad metadata.",
+      "fix_summary": "LI.FI acknowledged but declined to add the check to keep validateBridgeData modifiers consistent across facets (the check did not exist in the prior version). No code change landed.",
+      "recognition_signal": "Facet-specific validateBridgeData modifier that checks receiver and minAmount but skips destinationChainId != 0, leaving a single field of BridgeData unvalidated at the facet entry.",
+      "status_history": [
+        {
+          "audit_id": "audit20260205",
+          "source_label": "6.1.2",
+          "status": "acknowledged",
+          "severity_native": "Informational",
+          "notes": "LI.FI declined for cross-facet consistency; check did not exist prior to the change"
+        }
+      ],
+      "source": {
+        "pdf": "2026.02.05_LiFiIntentEscrowFacet(v1.0.1,v1.1.1).pdf",
+        "pages": [
+          4
+        ]
+      },
+      "extraction_confidence": "high",
+      "tags": [
+        "input-validation",
+        "bridge-data",
+        "modifier",
+        "destination-chain-id"
+      ],
+      "id": "LF-147"
     }
-  }
+  },
+  "processed_audits": [
+    "audit20240201",
+    "audit20240814",
+    "audit20240902",
+    "audit20240913",
+    "audit20241007",
+    "audit20241014",
+    "audit20241105",
+    "audit20241107",
+    "audit20241122",
+    "audit20241202",
+    "audit20241203",
+    "audit20241205",
+    "audit20241206",
+    "audit20250106",
+    "audit20250109_1",
+    "audit20250109_2",
+    "audit20250109_3",
+    "audit20250110_1",
+    "audit20250110_2",
+    "audit20250117_1",
+    "audit20250117_2",
+    "audit20250117_3",
+    "audit20250117_4",
+    "audit20250219",
+    "audit20250220",
+    "audit20250228",
+    "audit20250305",
+    "audit20250327",
+    "audit20250411",
+    "audit20250413",
+    "audit20250415",
+    "audit20250416",
+    "audit20250422",
+    "audit20250506",
+    "audit20250508",
+    "audit20250510",
+    "audit20250515",
+    "audit20250603",
+    "audit20250608",
+    "audit20250610",
+    "audit20250620",
+    "audit20250626",
+    "audit20250629",
+    "audit20250629_1",
+    "audit20250630",
+    "audit20250706",
+    "audit20250706_01",
+    "audit20250718",
+    "audit20250728",
+    "audit20250730",
+    "audit20250822",
+    "audit20250825",
+    "audit20250825_1",
+    "audit20250901",
+    "audit20250919",
+    "audit20250921",
+    "audit20251001",
+    "audit20251007",
+    "audit20251015",
+    "audit20251020",
+    "audit20251104",
+    "audit20251104_1",
+    "audit20251113",
+    "audit20251119",
+    "audit20251201",
+    "audit20251203_1",
+    "audit20251203_2",
+    "audit20251215",
+    "audit20251215_1",
+    "audit20251215_2",
+    "audit20251216",
+    "audit20251219",
+    "audit20251225",
+    "audit20251231",
+    "audit20260130",
+    "audit20260205",
+    "audit20260216",
+    "audit20260320",
+    "audit20260409",
+    "audit20260423",
+    "audit20260430"
+  ]
 }

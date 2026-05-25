@@ -117,14 +117,22 @@ For each in-scope finding:
 - **Existing finding** (some entry's `status_history` already references this `source_id`): append a new `status_history` row to that entry. Do NOT create a new `LF-NNN`. Update top-level `severity` only if the new appearance has higher severity than the recorded one
 - **Cross-audit echo** (same root cause appears in two audits under different `source_id`s): do NOT auto-merge. Log a warning to console; let the human decide via follow-up edit. Auto-merging is a future v2 enhancement
 
-### 8. Regenerate projections
+### 8. Record processing in `processed_audits`
+
+Append the audit's ID to `findings.json`'s top-level `processed_audits` array (schema 1.1+). This MUST happen even when zero findings were kept — the array records "we considered this audit", so the coverage check (`script/tasks/checkAuditKnowledgeCoverage.ts`) stops flagging zero-finding audits as drift.
+
+- Read `findings.json#processed_audits` (initialize to `[]` if missing)
+- If `audit_id` is not present, append it; keep the array sorted
+- If `audit_id` is already present (re-run), no-op (idempotent)
+
+### 9. Regenerate projections
 
 After `findings.json` is updated, regenerate the markdown surfaces:
 
 - **`lessons.md`** — totals tables + flat index of every finding
 - **`by-area/<area>.md`** — for each area that has at least one finding, write a file with all entries in that area, sorted severity-descending. Do not write files for areas with zero findings (downstream loaders should handle the missing file gracefully)
 
-### 9. Summary output
+### 10. Summary output
 
 Print to console:
 
@@ -142,6 +150,7 @@ Before finalizing the skill's output:
 - [ ] Every `source_id` is unique across the corpus
 - [ ] Every finding cites at least one page from the source PDF
 - [ ] No skipped categories slipped through (verify a sample)
+- [ ] `audit_id` appended to `findings.json#processed_audits` (Step 8) regardless of findings count
 - [ ] `lessons.md` totals match actual finding counts
 - [ ] `by-area/*.md` files contain only findings tagged with that area
 - [ ] `findings.json` is valid JSON (no trailing commas, well-formed strings)
@@ -151,8 +160,12 @@ Before finalizing the skill's output:
 
 ```jsonc
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "generated_at": "<ISO-8601 UTC>",
+  // Schema 1.1+: every audit_id we've considered (with or without findings).
+  // The coverage check uses this to distinguish "we looked and found nothing"
+  // from "we never looked". Sorted lexicographically; idempotent on re-run.
+  "processed_audits": ["audit20240201", "audit20240814", "audit20240902", ...],
   "findings": {
     "LF-001": {
       "id": "LF-001",

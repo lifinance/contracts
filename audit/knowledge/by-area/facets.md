@@ -1089,3 +1089,15 @@
 **Fix:** Acknowledged: LI.FI treats destinationCall=true as 'LI.FI-added destination calls only'; the Across swap API is treated as one opaque operation.
 
 **Source:** `2026.04.09_AcrossV4SwapFacet(v1.0.0).pdf` p.10-12 · `audit20260409::6.5.3`
+
+---
+
+## LF-147 · INFO · LiFiIntentEscrowFacet · acknowledged
+
+**Recognition signal:** Facet-specific validateBridgeData modifier that checks receiver and minAmount but skips destinationChainId != 0, leaving a single field of BridgeData unvalidated at the facet entry.
+
+**Root cause:** The validateBridgeDataLiFiIntentEscrow() modifier only rejects a zero receiver and a zero minAmount, but does not check that _bridgeData.destinationChainId != 0. A malformed or misconfigured input can therefore pass facet-level validation with destinationChainId == 0, causing LiFiTransferStarted to be emitted with an invalid destination and any downstream off-chain routing to consume bad metadata.
+
+**Fix:** LI.FI acknowledged but declined to add the check to keep validateBridgeData modifiers consistent across facets (the check did not exist in the prior version). No code change landed.
+
+**Source:** `2026.02.05_LiFiIntentEscrowFacet(v1.0.1,v1.1.1).pdf` p.4-4 · `audit20260205::6.1.2`

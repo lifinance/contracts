@@ -4,9 +4,9 @@ Generated from `findings.json` by the `extract-audit-knowledge` skill. Do not ha
 
 ## Totals
 
-- Findings: 145
-- Audits with at least one finding: 42
-- Audits processed (zero findings): 39
+- Findings: 147
+- Audits with at least one finding: 44
+- Audits processed (zero findings): 37
 - Audits processed total: 81
 - Audits unprocessable (PDF corrupt): 2
 
@@ -14,13 +14,13 @@ Generated from `findings.json` by the `extract-audit-knowledge` skill. Do not ha
 
 | critical | high | medium | low | info |
 | --- | --- | --- | --- | --- |
-| 0 | 4 | 18 | 67 | 56 |
+| 0 | 4 | 18 | 67 | 58 |
 
 ## By area
 
 | facets | periphery | libraries | security | helpers | cross-cutting |
 | --- | --- | --- | --- | --- | --- |
-| 91 | 43 | 8 | 2 | 0 | 1 |
+| 92 | 44 | 8 | 2 | 0 | 1 |
 
 ## Coverage gaps
 
@@ -28,15 +28,15 @@ Generated from `findings.json` by the `extract-audit-knowledge` skill. Do not ha
 - `audit20251208` — PDF file is permanently corrupted in the repository (and on github.com): xref/catalog destroyed, UTF-8 replacement bytes baked into binary stream — qpdf/pdftotext/pdfinfo all fail. Findings cannot be extracted from this report.
 - `audit20251229` — PDF file is corrupted (missing /Root dictionary, illegal characters, broken xref); not recoverable with qpdf/pdftotext. Both working tree and git-committed copy are damaged.
 
-**Zero-finding audits (39)** — read successfully but produced no in-scope findings (either 0 issues reported, or all issues were gas/style/code-quality with no security path):
+**Zero-finding audits (37)** — read successfully but produced no in-scope findings (either 0 issues reported, or all issues were gas/style/code-quality with no security path):
 
 - `audit20240814`, `audit20241014`, `audit20241107`, `audit20241203`, `audit20250109_1`, `audit20250109_2`
 - `audit20250109_3`, `audit20250117_1`, `audit20250117_2`, `audit20250117_3`, `audit20250117_4`, `audit20250220`
 - `audit20250228`, `audit20250327`, `audit20250413`, `audit20250415`, `audit20250416`, `audit20250422`
-- `audit20250515`, `audit20250608`, `audit20250610`, `audit20250629`, `audit20250629_1`, `audit20250706`
+- `audit20250515`, `audit20250608`, `audit20250629`, `audit20250629_1`, `audit20250706`
 - `audit20250706_01`, `audit20250728`, `audit20250822`, `audit20250921`, `audit20251015`, `audit20251113`
 - `audit20251203_2`, `audit20251215_1`, `audit20251215_2`, `audit20251219`, `audit20251225`, `audit20251231`
-- `audit20260205`, `audit20260320`, `audit20260423`
+- `audit20260320`, `audit20260423`
 
 ## Index
 
@@ -187,3 +187,5 @@ Generated from `findings.json` by the `extract-audit-knowledge` skill. Do not ha
 | LF-143 | hasDestinationCall flag always false even when forwarded Across calldata contains a destination message | info | facets | AcrossV4SwapFacet | acknowledged |
 | LF-144 | Missing validation of orderAuthorityDst strands DLN cancel/refund flow | low | facets | DeBridgeDlnFacet | fixed |
 | LF-145 | givePatchAuthoritySrc = msg.sender assigns DLN patch authority to Permit2Proxy on permit flows | low | facets | DeBridgeDlnFacet | acknowledged |
+| LF-146 | wrapStETHToWstETH and unwrapWstETHToStETH lack a minimum-amount-out slippage parameter | info | periphery | LidoWrapper | acknowledged |
+| LF-147 | validateBridgeDataLiFiIntentEscrow modifier omits zero-check on destinationChainId, allowing zero/uninitialized destination | info | facets | LiFiIntentEscrowFacet | acknowledged |
