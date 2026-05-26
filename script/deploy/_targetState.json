@@ -2486,7 +2486,7 @@
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
         "LiFiIntentEscrowFacet": "1.1.1",
-        "PolymerCCTPFacet": "3.0.0"
+        "PolymerCCTPFacet": "2.1.0"
       }
     }
   }
