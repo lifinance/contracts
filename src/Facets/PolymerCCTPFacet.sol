@@ -11,12 +11,12 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidCallData, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidReceiver, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 2.0.1
+/// @custom:version 3.0.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -26,6 +26,9 @@ contract PolymerCCTPFacet is
 {
     /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
     bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.polymercctp");
 
     /// @notice The address of the TokenMessenger contract on the current chain
     ITokenMessenger public immutable TOKEN_MESSENGER;
@@ -48,6 +51,17 @@ contract PolymerCCTPFacet is
         uint32 minFinalityThreshold;
     }
 
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint32 domainId;
+    }
+
+    struct Storage {
+        // Stores domainId + 1 so domain 0 remains distinguishable from unset entries
+        mapping(uint256 => uint32) cctpDomainIds;
+        bool chainMappingsInitialized;
+    }
+
     /// Events ///
 
     /// @notice Emitted when a Polymer CCTP bridge transaction is initiated
@@ -60,6 +74,10 @@ contract PolymerCCTPFacet is
         uint256 polymerFee,
         uint32 minFinalityThreshold
     );
+
+    event PolymerCCTPChainMappingsInitialized(ChainIdConfig[] chainIdConfigs);
+
+    event ChainIdToDomainIdSet(uint256 indexed chainId, uint32 domainId);
 
     /// Modifiers ///
 
@@ -112,6 +130,58 @@ contract PolymerCCTPFacet is
         // approve max allowance to TokenMessenger
         // since this facet only supports one token: USDC, we can safely use approve instead of safeApprove
         IERC20(USDC).approve(address(TOKEN_MESSENGER), type(uint256).max);
+    }
+
+    /// @notice Initializes chain ID to CCTP domain ID mappings
+    /// @param chainIdConfigs Chain ID configuration data
+    /// @dev https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains
+    function initPolymerCCTPChainMappings(
+        ChainIdConfig[] calldata chainIdConfigs
+    ) external {
+        if (chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage sm = getStorage();
+
+        for (uint256 i = 0; i < chainIdConfigs.length; ) {
+            sm.cctpDomainIds[chainIdConfigs[i].chainId] =
+                chainIdConfigs[i].domainId +
+                1;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        sm.chainMappingsInitialized = true;
+        emit PolymerCCTPChainMappingsInitialized(chainIdConfigs);
+    }
+
+    /// @notice Sets the CCTP domain ID for a given chain ID
+    /// @param _chainId LI.FI chain ID
+    /// @param _domainId CCTP domain ID recognized by TokenMessenger
+    function setChainIdToDomainId(
+        uint256 _chainId,
+        uint32 _domainId
+    ) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+
+        if (!sm.chainMappingsInitialized) {
+            revert NotInitialized();
+        }
+
+        sm.cctpDomainIds[_chainId] = _domainId + 1;
+        emit ChainIdToDomainIdSet(_chainId, _domainId);
+    }
+
+    /// @notice Gets the CCTP domain ID for a given chain ID
+    /// @param _chainId LI.FI chain ID
+    /// @return domainId CCTP domain ID recognized by TokenMessenger
+    function getChainIdToDomainId(
+        uint256 _chainId
+    ) external view returns (uint32 domainId) {
+        return _chainIdToDomainId(_chainId);
     }
 
     /// @notice Bridges USDC via PolymerCCTP
@@ -262,71 +332,23 @@ contract PolymerCCTPFacet is
     }
 
     /// @notice Get CCTP domain ID for destination chain
-    /// https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains
     /// @param chainId LIFI specific chain id
     /// @return CCTP domain ID recognized by TokenMessenger
-    // solhint-disable-next-line code-complexity
     function _chainIdToDomainId(
         uint256 chainId
-    ) internal pure returns (uint32) {
-        // Mainnet chain IDs
-        if (chainId == 1) {
-            return 0; // Ethereum
+    ) internal view returns (uint32) {
+        uint32 storedDomainId = getStorage().cctpDomainIds[chainId];
+        if (storedDomainId == 0) revert UnsupportedChainId(chainId);
+        // Stored as domainId + 1 so unset (0) is distinct from Ethereum domain 0
+        return storedDomainId - 1;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
         }
-        if (chainId == 43114) {
-            return 1; // Avalanche
-        }
-        if (chainId == 10) {
-            return 2; // OP Mainnet
-        }
-        if (chainId == 42161) {
-            return 3; // Arbitrum
-        }
-        if (chainId == LIFI_CHAIN_ID_SOLANA) {
-            return 5; // Solana
-        }
-        if (chainId == 8453) {
-            return 6; // Base
-        }
-        if (chainId == 137) {
-            return 7; // Polygon PoS
-        }
-        if (chainId == 130) {
-            return 10; // Unichain
-        }
-        if (chainId == 59144) {
-            return 11; // Linea
-        }
-        if (chainId == 81224) {
-            return 12; // Codex
-        }
-        if (chainId == 146) {
-            return 13; // Sonic
-        }
-        if (chainId == 480) {
-            return 14; // World Chain
-        }
-        if (chainId == 143) {
-            return 15; // Monad
-        }
-        if (chainId == 1329) {
-            return 16; // Sei
-        }
-        if (chainId == 50) {
-            return 18; // XDC
-        }
-        if (chainId == 999) {
-            return 19; // HyperEVM
-        }
-        if (chainId == 57073) {
-            return 21; // Ink
-        }
-        if (chainId == 98866) {
-            return 22; // Plume
-        }
-        if (chainId == 1672) {
-            return 31; // Pharos
-        }
-        revert InvalidCallData();
     }
 }

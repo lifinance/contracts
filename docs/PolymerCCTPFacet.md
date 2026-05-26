@@ -18,6 +18,17 @@ graph LR;
   - Simply bridges USDC using Polymer CCTP
 - `function swapAndStartBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, SwapData[] calldata _swapData, PolymerCCTPData calldata _polymerData)`
   - Performs swap(s) before bridging USDC using Polymer CCTP
+- `function getChainIdToDomainId(uint256 _chainId)`
+  - Returns the configured CCTP domain ID for a LI.FI chain ID
+
+## Admin Methods
+
+- `function initPolymerCCTP()`
+  - Sets max USDC approval for the TokenMessenger (owner-only, one-shot setup)
+- `function initPolymerCCTPChainMappings(ChainIdConfig[] calldata chainIdConfigs)`
+  - Batch-initializes chain ID to CCTP domain ID mappings from `config/polymercctp.json` (owner-only)
+- `function setChainIdToDomainId(uint256 _chainId, uint32 _domainId)`
+  - Adds or updates a single chain ID to CCTP domain ID mapping after initialization (owner-only)
 
 ## Polymer CCTP Specific Parameters
 
