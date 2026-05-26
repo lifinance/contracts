@@ -20,6 +20,7 @@
  * whether the caller is a Safe owner.
  */
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 import {
@@ -29,8 +30,6 @@ import {
   type Hex,
   type PublicClient,
 } from 'viem'
-
-import { isTronNetworkKey } from '../shared/tron-network-keys'
 
 import { SAFE_EVENTS_ABI } from './config'
 import type { ISafeTxDocument } from './safe-utils'

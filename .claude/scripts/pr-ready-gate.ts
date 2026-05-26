@@ -194,7 +194,7 @@ const main = (): void => {
   let blocked: string
   let action: string
   if (mPr) {
-    const subcmd = mPr[1].toLowerCase()
+    const subcmd = mPr[1]!.toLowerCase()
     blocked = `gh pr ${subcmd}`
     action =
       subcmd === 'create'
