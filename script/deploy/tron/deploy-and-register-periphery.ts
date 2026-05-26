@@ -1005,9 +1005,9 @@ async function deployAndRegisterPeripheryImpl(options: {
           const message = error instanceof Error ? error.message : String(error)
           consola.error(`Propose step failed: ${message}`)
           consola.error(
-            'Contracts deployed but NOT yet registered. Re-run ' +
-              'propose-periphery-registration.ts manually: ' +
-              successfulContracts.map((c) => `--contract ${c}`).join(' ')
+            'Contracts deployed but NOT yet registered. Re-run with ' +
+              '--registerOnly --only ' +
+              successfulContracts.join(',')
           )
         }
     }

@@ -1,35 +1,25 @@
-#!/usr/bin/env bun
 /**
- * Propose Tron periphery registrations via Safe → Timelock.
+ * Helper for proposing Tron periphery registrations via Safe → Timelock.
  *
- * For each `--contract <Name>`:
+ * Exports `planAndProposePeripheryRegistration`, called by
+ * `deploy-and-register-periphery.ts` on the production branch (Diamond owner
+ * = Timelock). For staging/testnet (deployer-owned), the deploy script uses
+ * its existing direct-register path.
+ *
+ * For each contract name:
  *   - Resolves the new address from `deployments/<network>.json`.
  *   - Reads the current registration via
  *     `PeripheryRegistryFacet.getPeripheryContract(name)`.
- *   - If already registered at the same address, skips.
+ *   - Skips if already registered at the same address.
  *   - Otherwise encodes `registerPeripheryContract(name, address)` and
- *     creates ONE Safe → Timelock proposal per contract (matches the
- *     per-facet convention used by `propose-facet-update.ts`).
- *
- * Use this for production Tron where the Diamond owner is the Timelock; for
- * staging/testnet (deployer-owned), use the direct path in
- * `deploy-and-register-periphery.ts`.
- *
- * Usage:
- *   PRODUCTION=true bun ./script/deploy/tron/propose-periphery-registration.ts \
- *     --contract ERC20Proxy --contract Executor
- *   bun ./script/deploy/tron/propose-periphery-registration.ts \
- *     --contract FeeCollector --dryRun
+ *     creates one Safe → Timelock proposal per contract.
  */
-
-import 'dotenv/config'
 
 import {
   TRON_ZERO_ADDRESS,
   tronAddressLikeToBase58,
   tronAddressToHex,
 } from '@lifi/tron-devkit'
-import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import { encodeFunctionData, parseAbi, type Address, type Hex } from 'viem'
@@ -196,42 +186,3 @@ export async function planAndProposePeripheryRegistration(options: {
         `skipped ${skipped} already-registered contract(s).`
     )
 }
-
-const main = defineCommand({
-  meta: {
-    name: 'propose-periphery-registration',
-    description:
-      'Propose Tron periphery registrations to Safe → Timelock (one proposal per contract)',
-  },
-  args: {
-    contract: {
-      type: 'string',
-      description:
-        'Periphery contract name to register (repeatable). Address resolved from deployments/<network>.json.',
-      required: true,
-    },
-    dryRun: {
-      type: 'boolean',
-      description: 'Do not write to MongoDB — only print the planned proposals',
-      default: false,
-    },
-  },
-  async run({ args }) {
-    try {
-      // citty turns repeated --contract into an array; a single value stays a string.
-      const contractNames = Array.isArray(args.contract)
-        ? args.contract
-        : [args.contract]
-      await planAndProposePeripheryRegistration({
-        contractNames,
-        dryRun: args.dryRun,
-      })
-      process.exit(0)
-    } catch (e) {
-      consola.error(e instanceof Error ? e.message : e)
-      process.exit(1)
-    }
-  },
-})
-
-if (import.meta.main) runMain(main)

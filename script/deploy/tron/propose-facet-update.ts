@@ -1,31 +1,22 @@
-#!/usr/bin/env bun
 /**
- * Propose Tron diamondCut updates for one or more facets via Safe → Timelock.
+ * Helper for proposing Tron diamondCut updates via Safe → Timelock.
  *
- * For each `--facet <Name>`:
+ * Exports `planAndProposeFacetUpdates`, called by the
+ * `deploy-and-register-*-facet.ts` scripts after a successful deploy.
+ *
+ * For each facet name:
  *   - Resolves the new facet address from `deployments/<network>.json`
  *     (the authoritative deployment log, written by deployContractWithLogging).
  *   - Reads the new facet's selectors from its Forge artifact.
  *   - Reads the live DiamondLoupe state via `readDiamondFacets`.
- *   - Computes Add/Replace/Remove via `buildDiamondCut`.
- * Emits one Safe → Timelock proposal per facet (matches the convention used by
- * `deploy-and-register-{eco,allbridge,symbiosis,near-intents}-facet.ts`).
- *
- * Use this to remediate facets that were deployed but not yet wired in
- * (e.g. after running deploy-core-facets without governance integration),
- * or as the next step after any redeploy on a Timelock-owned diamond.
- *
- * Usage:
- *   bun ./script/deploy/tron/propose-facet-update.ts --facet GenericSwapFacetV3 --facet WithdrawFacet
- *   bun ./script/deploy/tron/propose-facet-update.ts --facet EcoFacet --dryRun
+ *   - Computes Add/Replace/Remove via `buildDiamondCut` (TS port of
+ *     `script/deploy/facets/utils/UpdateScriptBase.sol:buildDiamondCut`).
+ *   - Emits one Safe → Timelock proposal per facet.
  */
-
-import 'dotenv/config'
 
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { encodeFunctionData, type Abi, type Address, type Hex } from 'viem'
 
@@ -196,41 +187,3 @@ export async function planAndProposeFacetUpdates(options: {
       `Done — proposed ${proposed} facet update(s), skipped ${skipped} already-wired facet(s).`
     )
 }
-
-const main = defineCommand({
-  meta: {
-    name: 'propose-facet-update',
-    description:
-      'Propose diamondCut updates for Tron facets via Safe → Timelock',
-  },
-  args: {
-    facet: {
-      type: 'string',
-      description:
-        'Facet name to update (repeatable). Address resolved from deployments/<network>.json.',
-      required: true,
-    },
-    dryRun: {
-      type: 'boolean',
-      description:
-        'Do not write to MongoDB — only print the planned cuts and encoded calldata',
-      default: false,
-    },
-  },
-  async run({ args }) {
-    try {
-      // citty turns repeated --facet into an array; a single value stays a string.
-      const facetNames = Array.isArray(args.facet) ? args.facet : [args.facet]
-      await planAndProposeFacetUpdates({
-        facetNames,
-        dryRun: args.dryRun,
-      })
-      process.exit(0)
-    } catch (e) {
-      consola.error(e instanceof Error ? e.message : e)
-      process.exit(1)
-    }
-  },
-})
-
-if (import.meta.main) runMain(main)

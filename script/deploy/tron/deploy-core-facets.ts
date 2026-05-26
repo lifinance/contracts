@@ -27,7 +27,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
-import { planAndProposeFacetUpdates } from './propose-facet-update'
+import { registerFacetsToDiamond } from './register-facets-to-diamond'
 import {
   deployContractWithLogging,
   validateBalance,
@@ -352,55 +352,22 @@ async function deployCoreFacetsImpl(options: {
   // Use new utility for summary
   printDeploymentSummary(deploymentResults, options.dryRun)
 
-  // Propose diamondCut updates for any facets that were just deployed (or
-  // redeployed) against an existing diamond. First-time bootstrap (diamond
-  // deployed in THIS run) is still owned by the deployer wallet at this
-  // point, so the operator should use `register-facets-to-diamond.ts`
-  // directly rather than going through Safe → Timelock.
-  const diamondWasJustCreated = deploymentResults.some(
-    (r) => r.contract === diamondName && r.status === 'success'
-  )
-  const successfulFacets = deploymentResults
-    .filter((r) => r.status === 'success' && r.contract !== diamondName)
-    .map((r) => r.contract)
-
-  if (successfulFacets.length === 0) {
-    consola.info(
-      'No facets were newly deployed in this run — nothing to propose.'
+  // Auto-wire facets into the diamond. Bootstrap path: the deployer still
+  // owns the diamond, so register-facets-to-diamond does a direct diamondCut.
+  // On a Timelock-owned diamond this fails with "Must be contract owner" —
+  // operator falls back to the per-facet deploy-and-register-<facet>.ts
+  // scripts which propose via Safe → Timelock.
+  try {
+    await registerFacetsToDiamond({ dryRun: options.dryRun })
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    consola.error(`Facet registration failed: ${errorMessage}`)
+    consola.error(
+      'If the diamond is owned by the Timelock, use the per-facet ' +
+        'deploy-and-register-<facet>.ts scripts (they propose via Safe → Timelock).'
     )
-  } else if (diamondWasJustCreated) {
-    consola.warn(
-      `\nNew LiFiDiamond was deployed in this run — deployer still owns it. ` +
-        `Run \`register-facets-to-diamond.ts\` to wire facets directly ` +
-        `(no Safe proposal needed yet). Facets pending registration: ` +
-        successfulFacets.join(', ')
-    )
-  } else
-    try {
-      consola.info(
-        `\nProposing diamondCut for ${successfulFacets.length} facet(s) ` +
-          `via Safe → Timelock: ${successfulFacets.join(', ')}`
-      )
-      await planAndProposeFacetUpdates({
-        facetNames: successfulFacets,
-        dryRun: options.dryRun,
-      })
-      consola.success(
-        options.dryRun
-          ? 'Dry-run complete — no proposal written.'
-          : 'Proposal stored in MongoDB. Continue with `confirm-safe-tx.ts` to sign and schedule.'
-      )
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      consola.error(`Propose step failed: ${errorMessage}`)
-      consola.error(
-        `Facets are deployed but NOT yet wired. ` +
-          `Re-run propose-facet-update.ts manually: ` +
-          successfulFacets.map((f) => `--facet ${f}`).join(' ')
-      )
-      process.exit(1)
-    }
+    process.exit(1)
+  }
 
   // Exit with appropriate code
   const hasFailures = deploymentResults.some((r) => r.status === 'failed')
