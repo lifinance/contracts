@@ -9,6 +9,7 @@
 
 import 'dotenv/config'
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { Address, Hex, PublicClient } from 'viem'
@@ -22,6 +23,7 @@ import {
   type SupportedChain,
 } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
@@ -416,17 +418,46 @@ const cmd = defineCommand({
 })
 
 /**
- * Checks the status of an operation in the LiFiTimelockController
+ * Checks the status of an operation in the LiFiTimelockController.
+ *
+ * On Tron the three readContract calls run sequentially with a small inter-call
+ * delay; TronGrid caps the API key at 15 req/s and a single Promise.all here
+ * combined with the per-row loop bursts past that and trips a 25-second penalty.
  */
 async function checkOperationStatus(
   publicClient: PublicClient,
   timelockAddress: Address,
-  operationId: Hex
+  operationId: Hex,
+  networkName: string
 ): Promise<{
   isDone: boolean
   isPending: boolean
   isReady: boolean
 }> {
+  if (isTronNetworkKey(networkName)) {
+    const isDone = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationDone',
+      args: [operationId],
+    })
+    await sleep(100)
+    const isPending = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationPending',
+      args: [operationId],
+    })
+    await sleep(100)
+    const isReady = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationReady',
+      args: [operationId],
+    })
+    return { isDone, isPending, isReady }
+  }
+
   const [isDone, isPending, isReady] = await Promise.all([
     publicClient.readContract({
       address: timelockAddress,
@@ -615,7 +646,7 @@ async function processNetwork(
     let operationsSkipped = 0
     const totalGasUsed = 0n
 
-    for (const operation of readyOperations)
+    for (const operation of readyOperations) {
       if (rejectAll) {
         const rejectResult = await rejectOperation(
           chainCaller,
@@ -654,6 +685,10 @@ async function processNetwork(
         else if (result === 'rejected') operationsRejected++
         else if (result === 'skipped') operationsSkipped++
       }
+      // TronGrid caps the API key at 15 req/s; each op fires ~3-5 RPC calls
+      // (simulate + broadcast + receipt poll), so pace iterations on Tron.
+      if (isTronNetworkKey(network.name)) await sleep(200)
+    }
 
     // Only send network completion notification if there were actual operations executed or failures
     if (slackNotifier && (operationsSucceeded > 0 || operationsFailed > 0))
@@ -868,7 +903,8 @@ async function getPendingOperations(
         const status = await checkOperationStatus(
           publicClient,
           timelockAddress,
-          opId
+          opId,
+          networkName
         )
 
         if (status.isDone) {
