@@ -39,6 +39,7 @@ import {
 } from '../../utils/utils'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
+import { planAndProposePeripheryRegistration } from '../shared/propose-periphery-registration'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import {
@@ -46,7 +47,6 @@ import {
   REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
 } from './constants.js'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { planAndProposePeripheryRegistration } from './propose-periphery-registration'
 import { getTronWallet } from './tronUtils.js'
 
 /**
@@ -993,6 +993,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       else
         try {
           await planAndProposePeripheryRegistration({
+            network,
             contractNames: successfulContracts,
             dryRun: false,
           })

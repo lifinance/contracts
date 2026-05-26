@@ -1,49 +1,76 @@
 /**
- * Helper for proposing Tron periphery registrations via Safe → Timelock.
+ * Chain-agnostic helper for proposing periphery registrations via
+ * Safe → Timelock.
  *
- * Exports `planAndProposePeripheryRegistration`, called by
- * `deploy-and-register-periphery.ts` on the production branch (Diamond owner
- * = Timelock). For staging/testnet (deployer-owned), the deploy script uses
- * its existing direct-register path.
+ * For each contract: reads the current `PeripheryRegistryFacet
+ * .getPeripheryContract(name)` value, skips when already pointing at the new
+ * address, otherwise encodes `registerPeripheryContract(name, address)` and
+ * submits one proposal per contract.
  *
- * For each contract name:
- *   - Resolves the new address from `deployments/<network>.json`.
- *   - Reads the current registration via
- *     `PeripheryRegistryFacet.getPeripheryContract(name)`.
- *   - Skips if already registered at the same address.
- *   - Otherwise encodes `registerPeripheryContract(name, address)` and
- *     creates one Safe → Timelock proposal per contract.
+ * Dispatches on `isTronNetworkKey(network)`:
+ *   - **Tron**: TronWeb-based view read + `propose-to-safe-tron`. Tron-specific
+ *     modules are loaded via dynamic `await import()` so EVM-only consumers
+ *     don't pull TronWeb into their bundle.
+ *   - **EVM**: not implemented in TS. For EVM, the existing
+ *     `propose-to-safe.ts --timelock` flow is the established path; this
+ *     branch throws with a pointer, preserving the chain-agnostic API
+ *     contract for future TS-side EVM use.
  */
 
-import {
-  TRON_ZERO_ADDRESS,
-  tronAddressLikeToBase58,
-  tronAddressToHex,
-} from '@lifi/tron-devkit'
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import { encodeFunctionData, parseAbi, type Address, type Hex } from 'viem'
-
-import {
-  getTronProposalContext,
-  proposeViaTimelock,
-} from './helpers/tronProposalContext'
 
 const PERIPHERY_REGISTRY_ABI = parseAbi([
   'function registerPeripheryContract(string _name, address _contractAddress)',
 ])
 
 /**
- * Reads the current registered periphery address from the Diamond.
- * Returns the EVM-20 hex form (lowercase, `0x…`) or `null` when the slot is
- * unregistered (zero address) or the call fails (treated as unregistered).
+ * Plans `registerPeripheryContract(name, address)` proposals for the given
+ * contracts and submits one Safe → Timelock transaction per contract.
+ * Returns silently when every contract is already registered correctly.
+ *
+ * @param options.network        Target network key. Chain dispatch is decided
+ *                               by `isTronNetworkKey(network)`.
+ * @param options.contractNames  Periphery contract names to register.
+ *                               Addresses are resolved from
+ *                               `deployments/<network>.json`.
+ * @param options.dryRun         When true, prints the planned proposals but
+ *                               does not write to MongoDB.
+ * @throws on missing deployments file, missing contract entries, EVM
+ *   dispatch (not yet implemented), or any underlying TronWeb /
+ *   propose-to-safe error.
  */
-async function readCurrentRegistration(
+export async function planAndProposePeripheryRegistration(options: {
+  network: string
+  contractNames: string[]
+  dryRun?: boolean
+}): Promise<void> {
+  if (isTronNetworkKey(options.network))
+    return planAndProposePeripheryRegistrationForTron(options)
+  throw new Error(
+    `planAndProposePeripheryRegistration: EVM TS-side proposing not yet ` +
+      `implemented. For EVM networks, encode ` +
+      `registerPeripheryContract(name, address) and submit via ` +
+      `script/deploy/safe/propose-to-safe.ts --timelock directly.`
+  )
+}
+
+/**
+ * Reads the current registered periphery address from the Diamond via
+ * TronWeb. Returns the EVM-20 hex form (lowercase, `0x…`) or `null` when
+ * the slot is unregistered (zero address) or the call fails (treated as
+ * unregistered).
+ */
+async function readCurrentRegistrationTron(
   tronWeb: TronWeb,
   diamondAddressBase58: string,
-  contractName: string
+  contractName: string,
+  zeroAddressHex: string,
+  toBase58: (raw: string) => string,
+  toEvmHex: (base58: string) => Address
 ): Promise<Address | null> {
-  // PeripheryRegistryFacet ABI subset, used solely for the view read here.
   const viewAbi = [
     {
       inputs: [{ name: '_name', type: 'string' }],
@@ -53,7 +80,6 @@ async function readCurrentRegistration(
       type: 'function',
     },
   ]
-  // TronWeb's narrower AbiFragment type; cast to satisfy the runtime call.
   const diamond = tronWeb.contract(
     viewAbi as unknown as Parameters<typeof tronWeb.contract>[0],
     diamondAddressBase58
@@ -64,9 +90,8 @@ async function readCurrentRegistration(
       | string
       | undefined
     if (!raw) return null
-    if (raw === TRON_ZERO_ADDRESS) return null
-    const base58 = tronAddressLikeToBase58(tronWeb, raw)
-    return tronAddressToHex(tronWeb, base58) as Address
+    if (raw === zeroAddressHex) return null
+    return toEvmHex(toBase58(raw))
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     consola.warn(
@@ -77,18 +102,8 @@ async function readCurrentRegistration(
   }
 }
 
-/**
- * Plans `registerPeripheryContract(name, address)` proposals for the given
- * contracts and submits one Safe → Timelock proposal per contract.
- *
- * Reused by the CLI (interactive) and by `deploy-and-register-periphery.ts`
- * (after deploys on Timelock-owned diamonds). Returns silently when every
- * contract is already registered at the right address.
- *
- * @throws if no contracts given, deployments file missing, or any contract
- *   has no entry in `deployments/<network>.json`.
- */
-export async function planAndProposePeripheryRegistration(options: {
+async function planAndProposePeripheryRegistrationForTron(options: {
+  network: string
   contractNames: string[]
   dryRun?: boolean
 }): Promise<void> {
@@ -98,8 +113,17 @@ export async function planAndProposePeripheryRegistration(options: {
       'planAndProposePeripheryRegistration: at least one contract required'
     )
 
+  // Dynamic imports keep TronWeb / Tron helpers out of EVM-only consumers.
+  const { TRON_ZERO_ADDRESS, tronAddressLikeToBase58, tronAddressToHex } =
+    await import('@lifi/tron-devkit')
+  const { getTronProposalContext, proposeViaTimelock } = await import(
+    '../tron/helpers/tronProposalContext'
+  )
+
   const { networkName, diamondAddressBase58, deployments, readTronWeb } =
-    getTronProposalContext()
+    getTronProposalContext(
+      options.network as Parameters<typeof getTronProposalContext>[0]
+    )
 
   consola.info(`Network: ${networkName}`)
   consola.info(`Diamond: ${diamondAddressBase58}`)
@@ -119,10 +143,13 @@ export async function planAndProposePeripheryRegistration(options: {
       newAddressBase58
     ) as Address
 
-    const currentHex = await readCurrentRegistration(
+    const currentHex = await readCurrentRegistrationTron(
       readTronWeb,
       diamondAddressBase58,
-      name
+      name,
+      TRON_ZERO_ADDRESS,
+      (raw) => tronAddressLikeToBase58(readTronWeb, raw),
+      (base58) => tronAddressToHex(readTronWeb, base58) as Address
     )
 
     if (

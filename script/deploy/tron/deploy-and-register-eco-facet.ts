@@ -27,8 +27,8 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
+import { planAndProposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { planAndProposeFacetUpdates } from './propose-facet-update'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
@@ -171,7 +171,8 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     displayRegistrationInfo('EcoFacet', facetAddress, diamondAddress, selectors)
 
-    if (!dryRun) await planAndProposeFacetUpdates({ facetNames: ['EcoFacet'] })
+    if (!dryRun)
+      await planAndProposeDiamondCut({ network, facetNames: ['EcoFacet'] })
     else consola.info('Dry run - skipping diamondCut proposal for EcoFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)

@@ -1,16 +1,19 @@
 /**
- * Shared setup for Tron Safe → Timelock proposal scripts.
+ * Tron-specific I/O for the chain-agnostic propose helpers in
+ * `script/deploy/shared/propose-{diamond-cut,periphery-registration}.ts`.
+ * Those dispatchers route Tron via dynamic `await import()` of this module
+ * (and of `tronUtils.readDiamondFacets`) so EVM-only consumers do not pull
+ * TronWeb into their bundle.
  *
- * Both `propose-facet-update.ts` and `propose-periphery-registration.ts`
- * (and any future per-item Tron proposer) need the same boilerplate:
- *   - Resolve `PRODUCTION` env to the network key (`tron` vs `tronshasta`).
- *   - Load the deployment log and validate the Diamond entry.
- *   - Build a read-only TronWeb instance with a placeholder defaultAddress
- *     so `.call()` on view methods doesn't fail with "owner_address isn't set".
- *   - Submit the encoded calldata via `propose-to-safe-tron`'s `runPropose`
- *     with `timelock: true` (Safe → Timelock.scheduleBatch → target).
- *
- * Keeping these in one place avoids drift between proposer scripts.
+ * Provides:
+ *   - `getTronProposalContext(networkName?)`: resolves the deployment log
+ *     and a read-only TronWeb (with placeholder defaultAddress so `.call()`
+ *     on view methods does not fail with "owner_address isn't set"). When
+ *     `networkName` is omitted, falls back to `PRODUCTION`-env detection so
+ *     standalone callers keep working.
+ *   - `proposeViaTimelock(...)`: thin wrapper around `runPropose` from
+ *     `propose-to-safe-tron.ts` that locks in `timelock: true` (Safe calls
+ *     `Timelock.scheduleBatch(target, calldata)`).
  */
 
 import * as fs from 'fs'
@@ -40,14 +43,25 @@ export interface ITronProposalContext {
 }
 
 /**
- * Resolves the env-derived network, deployment log, and a read-only TronWeb
- * for proposal scripts. Throws when `deployments/<network>.json` is missing
- * or has no `LiFiDiamond` entry.
+ * Resolves the deployment log and a read-only TronWeb for proposal scripts.
+ *
+ * @param networkName  Optional override. When omitted, derives from the
+ *                     `PRODUCTION` env (`tron` vs `tronshasta`) — preserves
+ *                     standalone-call behaviour. The chain-agnostic dispatcher
+ *                     in `script/deploy/shared/propose-diamond-cut.ts` passes
+ *                     the network explicitly so the routed network and the
+ *                     loaded deployment log cannot drift.
+ * @throws when `deployments/<networkName>.json` is missing or has no
+ *   `LiFiDiamond` entry.
  */
-export function getTronProposalContext(): ITronProposalContext {
-  const environment = getEnvironment()
-  const networkName: TronTvmNetworkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+export function getTronProposalContext(
+  networkName?: TronTvmNetworkName
+): ITronProposalContext {
+  if (!networkName) {
+    const environment = getEnvironment()
+    networkName =
+      environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  }
 
   const deploymentPath = path.join(
     process.cwd(),

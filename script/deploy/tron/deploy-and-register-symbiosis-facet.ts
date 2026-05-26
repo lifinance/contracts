@@ -27,8 +27,8 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
+import { planAndProposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { planAndProposeFacetUpdates } from './propose-facet-update'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -206,7 +206,10 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     )
 
     if (!dryRun)
-      await planAndProposeFacetUpdates({ facetNames: ['SymbiosisFacet'] })
+      await planAndProposeDiamondCut({
+        network,
+        facetNames: ['SymbiosisFacet'],
+      })
     else
       consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
 

@@ -1,78 +1,91 @@
 /**
- * Helper for proposing Tron diamondCut updates via Safe → Timelock.
+ * Chain-agnostic helper for proposing diamondCut updates via Safe → Timelock.
  *
- * Exports `planAndProposeFacetUpdates`, called by the
- * `deploy-and-register-*-facet.ts` scripts after a successful deploy.
+ * Plans the Add/Replace/Remove diff (via `buildDiamondCut`, a TS port of
+ * `script/deploy/facets/utils/UpdateScriptBase.sol:buildDiamondCut`) and
+ * submits one Safe → Timelock proposal per facet.
  *
- * For each facet name:
- *   - Resolves the new facet address from `deployments/<network>.json`
- *     (the authoritative deployment log, written by deployContractWithLogging).
- *   - Reads the new facet's selectors from its Forge artifact.
- *   - Reads the live DiamondLoupe state via `readDiamondFacets`.
- *   - Computes Add/Replace/Remove via `buildDiamondCut` (TS port of
- *     `script/deploy/facets/utils/UpdateScriptBase.sol:buildDiamondCut`).
- *   - Emits one Safe → Timelock proposal per facet.
+ * Dispatches on `isTronNetworkKey(network)`:
+ *   - **Tron**: reads Loupe via TronWeb, proposes via `propose-to-safe-tron`.
+ *     Tron-specific modules (TronWeb, base58 codec) are loaded via dynamic
+ *     `await import()` so EVM-only consumers don't pull them into their bundle.
+ *   - **EVM**: not implemented in TS. EVM facet updates go through
+ *     `script/tasks/diamondUpdateFacet.sh`, which runs `Update<Facet>.s.sol`
+ *     via forge — `UpdateScriptBase.sol:buildDiamondCut` computes the diff
+ *     on-chain via Loupe — and pipes the captured calldata to
+ *     `propose-to-safe.ts --timelock`. This branch throws with a pointer to
+ *     that flow, preserving the chain-agnostic API contract for future
+ *     TS-side EVM use.
  */
 
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { encodeFunctionData, type Abi, type Address, type Hex } from 'viem'
 
 import { getFacetSelectors } from '../../utils/utils'
+
 import {
   buildDiamondCut,
   FacetCutActionEnum,
   type IFacetCut,
-} from '../shared/buildDiamondCut'
-import { DIAMOND_CUT_ABI } from '../shared/constants'
-
-import {
-  getTronProposalContext,
-  proposeViaTimelock,
-} from './helpers/tronProposalContext'
-import { readDiamondFacets } from './tronUtils'
+} from './buildDiamondCut'
+import { DIAMOND_CUT_ABI } from './constants'
 
 const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000'
 
-/** Plan FacetCuts for a single facet by diffing on-chain Loupe vs artifact. */
-async function planForFacet(
-  facetName: string,
-  newAddressBase58: string,
-  onChainFacets: Awaited<ReturnType<typeof readDiamondFacets>>,
-  newAddrToEvmHex: (base58: string) => Address
-): Promise<IFacetCut[]> {
-  const newSelectors = (await getFacetSelectors(facetName)) as Hex[]
-  if (newSelectors.length === 0)
-    throw new Error(`No selectors found in Forge artifact for ${facetName}`)
-  const newFacetAddress = newAddrToEvmHex(newAddressBase58)
-  return buildDiamondCut({
-    newSelectors,
-    newFacetAddress,
-    onChainFacets,
-  })
-}
-
 /**
  * Plans `diamondCut` updates for the given facets and proposes one Safe →
- * Timelock transaction per facet. Reused by the CLI (interactive) and by
- * `deploy-core-facets.ts` (after each production redeploy). Returns silently
- * when every facet is already wired correctly.
+ * Timelock transaction per facet. Returns silently when every facet is
+ * already wired correctly.
  *
- * @throws if no `--facet` given, deployments file missing, or any facet has
- *   no entry in the deployment log.
+ * @param options.network     Target network key (e.g. `tron`, `tronshasta`,
+ *                            or any EVM network from `config/networks.json`).
+ *                            Chain dispatch is decided by
+ *                            `isTronNetworkKey(network)`.
+ * @param options.facetNames  Facet names to propose updates for. Addresses
+ *                            are resolved from `deployments/<network>.json`.
+ * @param options.dryRun      When true, prints the planned cuts + encoded
+ *                            calldata but does not write to MongoDB.
+ * @throws on missing deployments file, missing facet entries, EVM dispatch
+ *   (not yet implemented), or any underlying TronWeb / propose-to-safe error.
  */
-export async function planAndProposeFacetUpdates(options: {
+export async function planAndProposeDiamondCut(options: {
+  network: string
+  facetNames: string[]
+  dryRun?: boolean
+}): Promise<void> {
+  if (isTronNetworkKey(options.network))
+    return planAndProposeDiamondCutForTron(options)
+  throw new Error(
+    `planAndProposeDiamondCut: EVM TS-side proposing not yet implemented. ` +
+      `For EVM networks, use \`script/tasks/diamondUpdateFacet.sh\` which ` +
+      `runs Update<Facet>.s.sol via forge and pipes the captured calldata ` +
+      `to propose-to-safe.ts --timelock.`
+  )
+}
+
+async function planAndProposeDiamondCutForTron(options: {
+  network: string
   facetNames: string[]
   dryRun?: boolean
 }): Promise<void> {
   const { facetNames, dryRun = false } = options
   if (facetNames.length === 0)
-    throw new Error('planAndProposeFacetUpdates: at least one facet required')
+    throw new Error('planAndProposeDiamondCut: at least one facet required')
+
+  // Dynamic imports keep TronWeb / Tron helpers out of EVM-only consumers.
+  const { getTronProposalContext, proposeViaTimelock } = await import(
+    '../tron/helpers/tronProposalContext'
+  )
+  const { readDiamondFacets } = await import('../tron/tronUtils')
 
   const { networkName, diamondAddressBase58, deployments, readTronWeb } =
-    getTronProposalContext()
+    getTronProposalContext(
+      options.network as Parameters<typeof getTronProposalContext>[0]
+    )
 
   // Load DiamondLoupeFacet ABI from the Forge artifact (already on disk
   // post-`forge build`).
@@ -116,12 +129,17 @@ export async function planAndProposeFacetUpdates(options: {
       throw new Error(
         `Facet ${facetName} not found in deployments/${networkName}.json`
       )
-    const cuts = await planForFacet(
-      facetName,
-      newAddressBase58,
+
+    const newSelectors = (await getFacetSelectors(facetName)) as Hex[]
+    if (newSelectors.length === 0)
+      throw new Error(`No selectors found in Forge artifact for ${facetName}`)
+    const newFacetAddress = base58ToEvmHex(newAddressBase58)
+    const cuts: IFacetCut[] = buildDiamondCut({
+      newSelectors,
+      newFacetAddress,
       onChainFacets,
-      base58ToEvmHex
-    )
+    })
+
     if (cuts.length === 0) {
       consola.info(
         `  ✓ ${facetName} (${newAddressBase58}): already wired, skipping`

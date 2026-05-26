@@ -27,8 +27,8 @@ import {
   getFacetSelectors,
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
+import { planAndProposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { planAndProposeFacetUpdates } from './propose-facet-update'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
@@ -177,7 +177,10 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     )
 
     if (!dryRun)
-      await planAndProposeFacetUpdates({ facetNames: ['NEARIntentsFacet'] })
+      await planAndProposeDiamondCut({
+        network,
+        facetNames: ['NEARIntentsFacet'],
+      })
     else
       consola.info(
         'Dry run - skipping diamondCut proposal for NEARIntentsFacet'
