@@ -45,6 +45,7 @@ const ERC20_ABI = erc20Artifact.abi
  * Execute CowSwap demo with Patcher contract
  *
  * Example successful transaction:
+ * pre-commit-checker: not a secret — public on-chain example transaction hash, not a credential
  * - Arbitrum: https://arbiscan.io/tx/0x7536cd0d5175a6a985f6a0c5cbfaf63b573fe2300301c57e12cca4c8995fe891
  */
 async function executeCowSwapDemo(options: {
@@ -96,6 +97,7 @@ async function executeCowSwapDemo(options: {
       const approveTx = await wethContract.write?.approve?.([
         VAULT_RELAYER_ARBITRUM as `0x${string}`,
         BigInt(
+          // pre-commit-checker: not a secret — max uint256 constant, not a private key
           '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
         ), // Max uint256
       ])

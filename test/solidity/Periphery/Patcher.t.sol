@@ -1739,6 +1739,7 @@ contract PatcherTest is TestBase {
         );
 
         bridgeData
+        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
             .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
@@ -1827,6 +1828,7 @@ contract PatcherTest is TestBase {
         );
 
         bridgeData
+        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
             .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
@@ -1912,6 +1914,7 @@ contract PatcherTest is TestBase {
         );
 
         bridgeData
+        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
             .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
