@@ -16,7 +16,7 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidReceive
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 3.0.0
+/// @custom:version 2.1.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,

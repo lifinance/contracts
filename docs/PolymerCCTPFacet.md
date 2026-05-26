@@ -30,6 +30,12 @@ graph LR;
 - `function setChainIdToDomainId(uint256 _chainId, uint32 _domainId)`
   - Adds or updates a single chain ID to CCTP domain ID mapping after initialization (owner-only)
 
+After adding mappings to `config/polymercctp.json`, propagate them to all deployed networks:
+
+```bash
+bun script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
+```
+
 ## Polymer CCTP Specific Parameters
 
 The methods listed above take a variable labeled `_polymerData`. This data is specific to Polymer CCTP and is represented as the following struct type:

@@ -1,4 +1,5 @@
 {
+  "IMPORTANT DEV NOTICE": "after adding a new mapping, run script/tasks/proposePolymerCCTPChainIdMappings.ts to update chainId mappings on all other chains",
   "Note: Networks with missing polymerFeeReceiver are not supported by Polymer yet and will be added later": {},
   "Source for TokenMessengerV2 addresses and CCTP domain IDs (to be used in Facet): https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2": {},
   "Source for USDC addresses: https://developers.circle.com/stablecoins/usdc-contract-addresses": {},
