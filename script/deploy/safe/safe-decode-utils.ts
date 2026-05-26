@@ -28,6 +28,7 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
+import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { decodeDiamondCut } from './safe-utils'
 
@@ -402,7 +403,10 @@ function formatDecodedArg(arg: unknown, network?: string): string {
     s.startsWith('0x') &&
     /^0x[a-fA-F0-9]{40}$/.test(s)
   ) {
-    return formatAddressForNetworkCliDisplay(network, s)
+    return `${formatAddressForNetworkCliDisplay(network, s)}${tronHexSuffix(
+      network,
+      s
+    )}`
   }
   return s
 }

@@ -18,6 +18,7 @@ import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
 import { reconcileSubmittedSafeTxs } from './reconcile'
@@ -412,10 +413,10 @@ const processTxs = async (
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
-    const toAddrDisplay = formatAddressForNetworkCliDisplay(
+    const toAddrDisplay = `${formatAddressForNetworkCliDisplay(
       network,
       tx.safeTx.data.to
-    )
+    )}${tronHexSuffix(network, tx.safeTx.data.to)}`
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
@@ -424,10 +425,10 @@ const processTxs = async (
       tx.safeTx.data.to
     )
     const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
-    const proposerDisplay = formatAddressForNetworkCliDisplay(
+    const proposerDisplay = `${formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
-    )
+    )}${tronHexSuffix(network, tx.proposer)}`
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
