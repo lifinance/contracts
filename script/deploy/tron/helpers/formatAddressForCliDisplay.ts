@@ -43,3 +43,22 @@ export function formatAddressForNetworkCliDisplay(
 
   return address
 }
+
+/**
+ * Returns ` (0x…)` (checksummed EVM hex) for Tron addresses so CLI output can
+ * show the hex form familiar from EVM contexts alongside the displayed base58.
+ * Returns `''` for non-Tron networks or unrecognizable input. Assumes the input
+ * is an EVM `0x`-form address — matches every current caller in confirm-safe-tx
+ * / safe-decode-utils, which pass addresses sourced from MongoDB or viem-decoded
+ * args (always `0x`). Kept separate from `formatAddressForNetworkCliDisplay` so
+ * the plain-base58 output can still feed explorer URL builders.
+ */
+export function tronHexSuffix(networkKey: string, evmAddress: string): string {
+  if (!isTronNetworkKey(networkKey.toLowerCase())) return ''
+
+  try {
+    return ` (${getAddress(evmAddress.trim() as Address)})`
+  } catch {
+    return ''
+  }
+}
