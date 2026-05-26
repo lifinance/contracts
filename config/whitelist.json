@@ -254,6 +254,28 @@
       }
     },
     {
+      "name": "Faroswap",
+      "key": "faroswap",
+      "logoURI": "https://static.pharosnetwork.xyz/ecosystem/faroswap.png",
+      "webUrl": "https://faroswap.xyz/",
+      "contracts": {
+        "pharos": [
+          {
+            "address": "0xA5cA5Fbe34e444F366B373170541ec6902b0F75c",
+            "functions": {
+              "0xff84aafa": "mixSwap(address,address,uint256,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)"
+            }
+          },
+          {
+            "address": "0xBF105f4ffBD3825f5433d074008B9A76237d849c",
+            "functions": {
+              "0xffffffff": "approveTo-only"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "Eisen",
       "key": "eisen",
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/eisen.svg",
