@@ -796,6 +796,7 @@ export async function formatDecodedTxDataForDisplay(
       log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
       const peripheryName = String(decoded.args[0] ?? '')
       const peripheryAddress = String(decoded.args[1] ?? '')
+      log(`Periphery Name: \u001b[33m${peripheryName}\u001b[0m`)
       const deploymentSuffix = await getPeripheryDeploymentCheckSuffix(
         network,
         peripheryName,
