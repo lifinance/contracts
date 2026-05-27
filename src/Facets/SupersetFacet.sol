@@ -56,8 +56,10 @@ contract SupersetFacet is
     /// @param amountOutMin Slippage floor on destination omni-token (absolute amount).
     /// @param amountOutMinPercent Fraction (1e18 = 100%) used to recompute `amountOutMin`
     ///        post source-swap so positive slippage propagates to the destination floor.
-    /// @param refundAddress Address that receives `amountIn` on the source spoke if the
-    ///        swap fails. Ignored on the hub branch (hub failures revert synchronously).
+    /// @param refundAddress Source-chain address that receives `amountIn` if the swap
+    ///        fails, plus any source-side excess native and swap leftovers. Must be
+    ///        non-zero. Superset ignores it on the hub branch, but the facet still uses
+    ///        it as the local refund sink.
     /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
     ///        `refundAddress` fails. Superset validates this is a pure EOA on the source;
     ///        we double-check on the facet for a cheaper revert.
@@ -116,7 +118,7 @@ contract SupersetFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_supersetData.refundAddress))
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
@@ -148,7 +150,7 @@ contract SupersetFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_supersetData.refundAddress))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
@@ -156,13 +158,11 @@ contract SupersetFacet is
     {
         _validateSupersetData(_bridgeData, _supersetData);
 
-        // Reserve lzFee from msg.value so it isn't swept back to the user
-        // when SwapperV2 refunds leftover native.
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender),
+            payable(_supersetData.refundAddress),
             _supersetData.lzFee
         );
 
@@ -191,15 +191,23 @@ contract SupersetFacet is
             revert InvalidNonEVMReceiver();
         }
 
+        // refundAddress also receives source-side excess native and swap leftovers,
+        // so it must be set even on the hub branch where Superset itself ignores it.
+        if (_supersetData.refundAddress == address(0)) {
+            revert InvalidConfig();
+        }
+
         // Minimum single-hop encoding is omniTokenId(32) || fee(3) || omniTokenId(32) = 67 bytes.
         if (_supersetData.path.length < 67) {
             revert InvalidSupersetPath();
         }
 
-        // Defense-in-depth: Superset already validates this on the source side
-        // (`SwapDelivery.resolveAndValidateFallbackEoA`); reverting earlier here
-        // saves gas on bad inputs.
-        if (_supersetData.fallbackEoA.code.length != 0) {
+        // Must be a non-zero pure EOA. Superset re-validates on the source side
+        // (`SwapDelivery.resolveAndValidateFallbackEoA`); checking here reverts cheaper.
+        if (
+            _supersetData.fallbackEoA == address(0) ||
+            _supersetData.fallbackEoA.code.length != 0
+        ) {
             revert InvalidFallbackEoA(_supersetData.fallbackEoA);
         }
     }

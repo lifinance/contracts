@@ -329,6 +329,53 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_RefundAddressIsZero() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.refundAddress = address(0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function testRevert_FallbackEoAIsZero() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.fallbackEoA = address(0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SupersetFacet.InvalidFallbackEoA.selector,
+                address(0)
+            )
+        );
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function test_RefundsExcessNativeToRefundAddress() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.refundAddress = USER_REFUND;
+
+        uint256 refundBalanceBefore = USER_REFUND.balance;
+        uint256 excess = 0.01 ether;
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee + excess
+        }(bridgeData, validSupersetData);
+
+        assertEq(USER_REFUND.balance, refundBalanceBefore + excess);
+    }
+
     // --- Forwarding tests ---
 
     function test_ForwardsBridgeArgsToSpoke() public {

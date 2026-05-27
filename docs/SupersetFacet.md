@@ -98,8 +98,15 @@ A Superset cross-chain swap is a three-message LayerZero round-trip:
 The user pays for all three messages upfront via `SupersetData.lzFee`, which
 the facet forwards as `msg.value` to the spoke. Quotes are obtained from
 Superset's `PoolManagerMessagingQuoter` and surfaced by the LI.FI backend.
-Excess native sent to the facet is refunded to `msg.sender` via the
-`refundExcessNative` modifier.
+
+Because `lzFee` is a LayerZero quote that drifts with gas price between quote
+and execution, the backend overpays `msg.value` on essentially every call, so a
+refund is the normal case. The facet refunds excess native — and any source-side
+swap leftovers — to `SupersetData.refundAddress` (not `msg.sender`), so refunds
+reach the user even when the call is routed through `Permit2Proxy` (whose
+`msg.sender` would otherwise strand the funds in the proxy). `refundAddress` must
+be non-zero. This deviates from facets like `AcrossFacetV3` that refund to
+`msg.sender`; it is intentional given the structural overpayment above.
 
 ## Refund Flow
 
