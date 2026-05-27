@@ -420,7 +420,7 @@ const cmd = defineCommand({
 /**
  * Checks the status of an operation in the LiFiTimelockController.
  *
- * On Tron the three readContract calls run sequentially with a small inter-call
+ * On Tron the three readContract calls run sequentially with an inter-call
  * delay; TronGrid caps the API key at 15 req/s and a single Promise.all here
  * combined with the per-row loop bursts past that and trips a 25-second penalty.
  */
@@ -441,14 +441,14 @@ async function checkOperationStatus(
       functionName: 'isOperationDone',
       args: [operationId],
     })
-    await sleep(100)
+    await sleep(2000) // 2 s — TronGrid 15 req/s cap needs generous spacing
     const isPending = await publicClient.readContract({
       address: timelockAddress,
       abi: TIMELOCK_ABI,
       functionName: 'isOperationPending',
       args: [operationId],
     })
-    await sleep(100)
+    await sleep(2000) // 2 s — TronGrid 15 req/s cap needs generous spacing
     const isReady = await publicClient.readContract({
       address: timelockAddress,
       abi: TIMELOCK_ABI,
@@ -687,7 +687,7 @@ async function processNetwork(
       }
       // TronGrid caps the API key at 15 req/s; each op fires ~3-5 RPC calls
       // (simulate + broadcast + receipt poll), so pace iterations on Tron.
-      if (isTronNetworkKey(network.name)) await sleep(200)
+      if (isTronNetworkKey(network.name)) await sleep(2000) // 2 s
     }
 
     // Only send network completion notification if there were actual operations executed or failures
