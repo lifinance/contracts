@@ -1,6 +1,6 @@
 /**
  * Pre-stages Safe unpause transaction proposals for Phase 2b emergency-pause testing.
- * Proposes unpauseDiamond([]) on gnosis, moonbeam, and rootstock to MongoDB so signers
+ * Proposes unpauseDiamond([]) on sophon, boba, and rootstock to MongoDB so signers
  * can confirm and execute without needing to reconstruct the calldata during the test.
  *
  * Prerequisites: PRIVATE_KEY_PRODUCTION must be set and belong to a Safe owner.
@@ -19,7 +19,7 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 const UNPAUSE_CALLDATA =
   '0x2fc487ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000'
 
-const NETWORKS = ['gnosis', 'moonbeam', 'rootstock'] as const
+const NETWORKS = ['sophon', 'boba', 'rootstock'] as const
 
 async function main(): Promise<number> {
   consola.info(
