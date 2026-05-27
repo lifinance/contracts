@@ -3,6 +3,13 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  createTronWeb,
+  getCurrentPrices,
+  tryTronFacetLoupeAddressToBase58,
+  tronAddressToHex,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -11,17 +18,10 @@ import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptH
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
-import { getCurrentPrices } from './helpers/tronPricing.js'
-import { createTronWeb } from './helpers/tronWebFactory.js'
-import {
-  tryTronFacetLoupeAddressToBase58,
-  tronAddressToHex,
-} from './tronAddressHelpers.js'
 import {
   estimateDiamondCutEnergy,
   waitBetweenDeployments,
 } from './tronUtils.js'
-import type { TronTvmNetworkName } from './types.js'
 
 /**
  * Extract function selectors from compiled artifact

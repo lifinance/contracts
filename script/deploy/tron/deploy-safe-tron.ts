@@ -17,6 +17,20 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  TronContractDeployer,
+  createTronWeb,
+  evm20HexStringToTronBase58,
+  estimateEnergyAndFeeLimit,
+  evmHexToTronBase58,
+  getTronRPCConfig,
+  promptEnergyRentalReminder,
+  resolveTronWebRpcUrlToFullHost,
+  tronAddressToHex,
+  tronProxyCreationHexToBase58,
+  type IForgeArtifact,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -27,7 +41,6 @@ import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-import { TronContractDeployer } from './TronContractDeployer.js'
 import {
   CREATE_PROXY_SAFETY_MARGIN,
   TRON_DEPLOY_NETWORK,
@@ -37,24 +50,7 @@ import {
   TRON_SAFE_PROXY_FACTORY_ABI,
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
-import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
-import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
-import {
-  createTronWeb,
-  resolveTronWebRpcUrlToFullHost,
-} from './helpers/tronWebFactory.js'
-import {
-  evm20HexStringToTronBase58,
-  evmHexToTronBase58,
-  tronAddressToHex,
-  tronProxyCreationHexToBase58,
-} from './tronAddressHelpers.js'
-import { promptEnergyRentalReminder } from './tronUtils.js'
-import type {
-  IForgeArtifact,
-  ITronSafeTemp,
-  TronTvmNetworkName,
-} from './types.js'
+import type { ITronSafeTemp } from './types.js'
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {

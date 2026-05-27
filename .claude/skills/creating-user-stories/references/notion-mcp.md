@@ -7,6 +7,7 @@ Mechanics for editing Notion pages via the MCP without losing data or generating
 The Notion pages used by the catalogue are shared workspace artifacts. Humans and other AI sessions may edit them in parallel with your work. State you saw at the start of a session may have changed mid-session.
 
 **Mandatory discipline:**
+
 1. **Always `notion-fetch` the affected page immediately before any non-trivial edit.** Stale context older than ~5 minutes is risky on a shared doc.
 2. **For large batched edits**: fetch → construct `old_str` values from the just-fetched content → submit immediately. Don't interleave other tool calls between construction and submission.
 3. **After every edit, fetch again to verify.** Don't trust the `{page_id: ...}` response as confirmation.
@@ -23,6 +24,7 @@ The Notion pages used by the catalogue are shared workspace artifacts. Humans an
 `notionhq_client_request_timeout` from `notion-update-page` does **NOT** mean the edit failed. Observed in practice: the request reaches the server, the server processes it (sometimes partially), the response doesn't arrive in time. The page IS modified.
 
 **Always verify with a fetch after a timeout, never blindly retry.** A blind retry can:
+
 - Succeed twice and create duplicate content (e.g. ❓Q markers appearing twice on each story).
 - Fail with `old_str not found` because the first attempt already changed the content.
 
@@ -35,12 +37,14 @@ In Notion, ANY block (paragraph, heading, bullet, callout, …) is anchorable vi
 ### What the MCP can and cannot do (tested 2026-05-12)
 
 **Cannot do programmatically** (verified):
+
 - `notion-fetch` returns markdown content; block IDs are NOT in the output.
 - `notion-fetch` with `include_discussions: true` only surfaces block-anchored `discussion://` URLs when discussions already exist on the page.
 - `notion-update-page` and `notion-create-pages` return only the page ID, not per-block IDs.
 - `notion-search` with `page_url` returns page-level results, not per-block matches.
 
 **Can do, but with a catch** (verified):
+
 - Discussion URLs have the form `discussion://pageId/blockId/discussionId`. So `notion-create-comment` on a block + `notion-get-comments` reveals the block's ID via the URL.
 - **Catch**: the MCP has no `notion-delete-comment` or `notion-resolve-comment` tool. Comments persist permanently. Polluting a doc with 30+ visible comments is worse than not having deep links.
 

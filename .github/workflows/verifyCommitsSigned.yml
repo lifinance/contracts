@@ -1,0 +1,135 @@
+# Verify Commits Are Signed
+# - Fails a PR if any of its commits is not GitHub-Verified (GPG, SSH, or S/MIME).
+# - Uses GitHub's `pulls.listCommits` REST endpoint as the source of truth;
+#   no local GPG keyring, no third-party action.
+# - Triggers on every PR open/push/reopen/ready-for-review against `main`.
+#   `synchronize` is the "new commit pushed to PR branch" event, so the
+#   workflow re-runs on every push, including force-pushes.
+# - Skips draft PRs.
+# - Exposes `signed-commits-required` as the stable aggregator job name to
+#   register in branch-protection settings (mirrors coverage-required in
+#   enforceTestCoverage.yml).
+# - Known limitation: GitHub's pulls.listCommits API truncates at 250 commits
+#   per PR. PRs with more commits will emit a warning; only the first 250
+#   are checked.
+
+name: Verify Commits Are Signed
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read # required to read PR metadata via the REST API
+  pull-requests: read # required by pulls.listCommits (per GitHub fine-grained permission spec)
+
+# Cancel any in-progress run for the same PR when a new commit is pushed.
+# The status check that lands on the PR will reflect the latest commit only.
+concurrency:
+  group: verify-commits-signed-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify-signed-commits:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: List PR commits and check verification
+        id: check
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number
+            const { owner, repo } = context.repo
+
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits,
+              { owner, repo, pull_number: prNumber, per_page: 100 }
+            )
+
+            // GitHub's listCommits caps at 250 commits per PR. Surface this
+            // so a >250-commit PR can't silently slip through unverified
+            // tail commits.
+            if (commits.length >= 250) {
+              core.warning(
+                `PR has ${commits.length}+ commits; GitHub's pulls.listCommits ` +
+                `API truncates at 250. Verification only covers the first 250.`
+              )
+            }
+
+            const unsigned = commits
+              .filter((c) => !c.commit?.verification?.verified)
+              .map((c) => ({
+                shortSha: c.sha.slice(0, 7),
+                author:
+                  c.commit?.author?.name || c.author?.login || 'unknown',
+                reason: c.commit?.verification?.reason || 'unknown',
+                subject: (c.commit?.message || '').split('\n')[0],
+              }))
+
+            core.setOutput('total_commits', String(commits.length))
+            core.setOutput('unsigned_count', String(unsigned.length))
+
+            if (unsigned.length === 0) {
+              core.info(`All ${commits.length} commits are verified.`)
+              await core.summary
+                .addHeading('✅ Signed-commit check')
+                .addRaw(`All ${commits.length} commits are verified.`)
+                .write()
+              return
+            }
+
+            const rows = unsigned.map(
+              (c) =>
+                `- \`${c.shortSha}\` (${c.author}) — \`${c.reason}\` — ${c.subject}`
+            )
+            const summary = [
+              `### ❌ Unsigned commits detected`,
+              ``,
+              `${unsigned.length} of ${commits.length} commit(s) in this PR are not GitHub-verified.`,
+              `All commits must be signed (GPG, SSH, or S/MIME) before this PR can be merged.`,
+              ``,
+              ...rows,
+              ``,
+              `**How to fix:**`,
+              `1. Set up signing locally — https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification`,
+              `2. Re-sign existing commits: \`git rebase --exec 'git commit --amend --no-edit -S' -i origin/main\``,
+              `3. Force-push: \`git push --force-with-lease\``,
+            ].join('\n')
+
+            await core.summary.addRaw(summary).write()
+
+            // Also write each offending SHA into the live log so the Actions
+            // log itself is self-contained for triage.
+            for (const c of unsigned) {
+              core.error(
+                `Unverified commit ${c.shortSha} (${c.author}): ${c.reason} — ${c.subject}`
+              )
+            }
+
+      - name: Fail job if any commit is unsigned
+        if: ${{ steps.check.outputs.unsigned_count != '0' }}
+        run: |
+          echo -e "\033[31m${{ steps.check.outputs.unsigned_count }} unsigned commit(s) detected. See the job summary above for the full list.\033[0m"
+          exit 1
+
+  # Aggregator job for branch protection. Reports green when the main job
+  # either succeeded or was skipped (e.g. on draft PRs).
+  # Register THIS job (not `verify-signed-commits`) as the required status check on `main`.
+  signed-commits-required:
+    needs: verify-signed-commits
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        run: |
+          set -euo pipefail
+          result="${{ needs.verify-signed-commits.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo -e "\033[32msigned-commits-required OK (verify-signed-commits=$result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31msigned-commits-required FAILED (verify-signed-commits=$result)\033[0m" >&2
+          exit 1
