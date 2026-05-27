@@ -355,7 +355,7 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description:
-        'Optional Safe signer private key (defaults to PRIVATE_KEY_PRODUCTION, or PRIVATE_KEY_STAGING when --environment=staging).',
+        'Optional Safe signer private key (defaults to PRIVATE_KEY_PRODUCTION, or PRIVATE_KEY when --environment=staging).',
       required: false,
     },
   },
@@ -373,7 +373,7 @@ const main = defineCommand({
 
     const keyName =
       environment === EnvironmentEnum.staging
-        ? 'PRIVATE_KEY_STAGING'
+        ? 'PRIVATE_KEY'
         : 'PRIVATE_KEY_PRODUCTION'
     const privateKey = getPrivateKey(keyName, args.privateKey)
 

@@ -1376,8 +1376,8 @@ export async function initializeSafeClient(
  */
 export function getPrivateKey(
   keyType:
+    | 'PRIVATE_KEY'
     | 'PRIVATE_KEY_PRODUCTION'
-    | 'PRIVATE_KEY_STAGING'
     | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION',
   privateKeyArg?: string
 ): string {
