@@ -23,12 +23,12 @@ graph LR;
 
 ## Admin Methods
 
-- `function initPolymerCCTP()`
-  - Sets max USDC approval for the TokenMessenger (owner-only, one-shot setup)
-- `function initPolymerCCTPChainMappings(ChainIdConfig[] calldata chainIdConfigs)`
-  - Batch-initializes chain ID to CCTP domain ID mappings from `config/polymercctp.json` (owner-only)
-- `function setChainIdToDomainId(uint256 _chainId, uint32 _domainId)`
-  - Adds or updates a single chain ID to CCTP domain ID mapping after initialization (owner-only)
+- `function initPolymerCCTP(ChainIdConfig[] calldata chainIdConfigs)`
+  - Sets max USDC approval for the TokenMessenger and batch-initializes chain ID to CCTP domain ID mappings from `config/polymercctp.json` (owner-only)
+- `function setChainIdToDomainId(ChainIdConfig[] calldata chainIdConfigs)`
+  - Adds or updates one or more chain ID to CCTP domain ID mappings after initialization (owner-only)
+- `function unsetChainIdToDomainId(uint256 _chainId)`
+  - Removes a chain ID to CCTP domain ID mapping, restoring the unsupported state (owner-only)
 
 After adding mappings to `config/polymercctp.json`, propagate them to all deployed networks:
 

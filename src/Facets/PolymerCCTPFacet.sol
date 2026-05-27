@@ -79,6 +79,8 @@ contract PolymerCCTPFacet is
 
     event ChainIdToDomainIdSet(uint256 indexed chainId, uint32 domainId);
 
+    event ChainIdToDomainIdUnset(uint256 indexed chainId);
+
     /// Modifiers ///
 
     // Alternative to validateBridgeData modifier for gas optimization (receiver check is done in _startBridge)
@@ -121,25 +123,17 @@ contract PolymerCCTPFacet is
         POLYMER_FEE_RECEIVER = payable(_polymerFeeReceiver);
     }
 
-    /// @notice Sets a max approval from lifiDiamond to TokenMessenger
-    /// It is safe to set a max approval since the diamond is designed to not hold any funds (that could otherwise be stolen if TokenMessenger turns malicious)
-    /// We also don't need to store the initialization status of this facet since it will not break from being initialized multiple times (plus it's an admin-only function)
-    function initPolymerCCTP() external {
-        LibDiamond.enforceIsContractOwner();
-
-        // approve max allowance to TokenMessenger
-        // since this facet only supports one token: USDC, we can safely use approve instead of safeApprove
-        IERC20(USDC).approve(address(TOKEN_MESSENGER), type(uint256).max);
-    }
-
-    /// @notice Initializes chain ID to CCTP domain ID mappings
+    /// @notice Initializes the facet: max USDC approval for TokenMessenger and chain ID to CCTP domain ID mappings
     /// @param chainIdConfigs Chain ID configuration data
+    /// @dev Max approval is safe since the diamond is designed to not hold funds. Re-initialization is idempotent for approval and overwrites mappings.
     /// @dev https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains
-    function initPolymerCCTPChainMappings(
+    function initPolymerCCTP(
         ChainIdConfig[] calldata chainIdConfigs
     ) external {
         if (chainIdConfigs.length == 0) revert InvalidConfig();
         LibDiamond.enforceIsContractOwner();
+
+        IERC20(USDC).approve(address(TOKEN_MESSENGER), type(uint256).max);
 
         Storage storage sm = getStorage();
 
@@ -157,13 +151,12 @@ contract PolymerCCTPFacet is
         emit PolymerCCTPChainMappingsInitialized(chainIdConfigs);
     }
 
-    /// @notice Sets the CCTP domain ID for a given chain ID
-    /// @param _chainId LI.FI chain ID
-    /// @param _domainId CCTP domain ID recognized by TokenMessenger
+    /// @notice Sets the CCTP domain ID for one or more chain IDs
+    /// @param chainIdConfigs Chain ID configuration data
     function setChainIdToDomainId(
-        uint256 _chainId,
-        uint32 _domainId
+        ChainIdConfig[] calldata chainIdConfigs
     ) external {
+        if (chainIdConfigs.length == 0) revert InvalidConfig();
         LibDiamond.enforceIsContractOwner();
         Storage storage sm = getStorage();
 
@@ -171,8 +164,31 @@ contract PolymerCCTPFacet is
             revert NotInitialized();
         }
 
-        sm.cctpDomainIds[_chainId] = _domainId + 1;
-        emit ChainIdToDomainIdSet(_chainId, _domainId);
+        for (uint256 i = 0; i < chainIdConfigs.length; ) {
+            uint256 chainId = chainIdConfigs[i].chainId;
+            uint32 domainId = chainIdConfigs[i].domainId;
+
+            sm.cctpDomainIds[chainId] = domainId + 1;
+            emit ChainIdToDomainIdSet(chainId, domainId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Removes the CCTP domain ID mapping for a given chain ID
+    /// @param _chainId LI.FI chain ID
+    function unsetChainIdToDomainId(uint256 _chainId) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+
+        if (!sm.chainMappingsInitialized) {
+            revert NotInitialized();
+        }
+
+        delete sm.cctpDomainIds[_chainId];
+        emit ChainIdToDomainIdUnset(_chainId);
     }
 
     /// @notice Gets the CCTP domain ID for a given chain ID

@@ -17,11 +17,10 @@ contract DeployScript is UpdateScriptBase {
 
     function getExcludes() internal view override returns (bytes4[] memory) {
         PolymerCCTPFacet polymer;
-        bytes4[] memory excludes = new bytes4[](3);
+        bytes4[] memory excludes = new bytes4[](2);
         excludes[0] = PolymerCCTPFacet.initPolymerCCTP.selector;
-        excludes[1] = PolymerCCTPFacet.initPolymerCCTPChainMappings.selector;
         // Exclude USDC() to prevent conflict with CelerCircleBridgeFacet (Celer's USDC() remains active)
-        excludes[2] = polymer.USDC.selector;
+        excludes[1] = polymer.USDC.selector;
         return excludes;
     }
 
@@ -36,7 +35,7 @@ contract DeployScript is UpdateScriptBase {
 
         return
             abi.encodeWithSelector(
-                PolymerCCTPFacet.initPolymerCCTPChainMappings.selector,
+                PolymerCCTPFacet.initPolymerCCTP.selector,
                 chainIdConfigs
             );
     }

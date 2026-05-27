@@ -5,9 +5,11 @@
  *
  * For each network where PolymerCCTPFacet is deployed, this script:
  * 1) Reads mappings from config/polymercctp.json
- * 2) Builds a batch of LiFiDiamond.setChainIdToDomainId(chainId, domainId) calls
- * 3) Wraps them in TimelockController.scheduleBatch(...)
- * 4) Proposes the transaction to the network Safe and stores it in MongoDB
+ * 2) Multicalls getChainIdToDomainId on the diamond and keeps only rows that
+ *    are unset (UnsupportedChainId) or differ from config
+ * 3) Builds a LiFiDiamond.setChainIdToDomainId(ChainIdConfig[]) call
+ * 4) Wraps them in TimelockController.scheduleBatch(...)
+ * 5) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
  * bun script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
@@ -23,6 +25,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
   createPublicClient,
+  decodeErrorResult,
   encodeFunctionData,
   getAddress,
   http,
@@ -126,6 +129,81 @@ function loadPolymerCCTPMappings(): IChainIdMapping[] {
   return mappings
 }
 
+function getRevertData(error: unknown): Hex | undefined {
+  if (!error || typeof error !== 'object') return undefined
+
+  if ('data' in error && typeof error.data === 'string')
+    return error.data as Hex
+
+  if ('cause' in error) return getRevertData(error.cause)
+
+  return undefined
+}
+
+async function filterMappingsNeedingUpdate(params: {
+  network: string
+  diamondAddress: Address
+  mappings: IChainIdMapping[]
+}): Promise<IChainIdMapping[]> {
+  const { network, diamondAddress, mappings } = params
+
+  const chain = getViemChainForNetworkName(network)
+  const client = createPublicClient({ chain, transport: http() })
+
+  const getChainIdAbi = parseAbi([
+    'function getChainIdToDomainId(uint256 chainId) view returns (uint32 domainId)',
+  ])
+  const errorsAbi = parseAbi(['error UnsupportedChainId(uint256 chainId)'])
+
+  const results = await client.multicall({
+    contracts: mappings.map((m) => ({
+      address: diamondAddress,
+      abi: getChainIdAbi,
+      functionName: 'getChainIdToDomainId',
+      args: [m.chainId],
+    })),
+    allowFailure: true,
+  })
+
+  const needingUpdate: IChainIdMapping[] = []
+
+  for (let i = 0; i < mappings.length; i++) {
+    const mapping = mappings[i]
+    const result = results[i]
+    if (!mapping || !result)
+      throw new Error(`Missing multicall result for mapping index ${i}`)
+
+    if (result.status === 'success') {
+      if (Number(result.result) !== mapping.domainId)
+        needingUpdate.push(mapping)
+      continue
+    }
+
+    const revertData = getRevertData(result.error)
+    if (revertData) {
+      try {
+        const decoded = decodeErrorResult({ abi: errorsAbi, data: revertData })
+        if (decoded.errorName === 'UnsupportedChainId') {
+          needingUpdate.push(mapping)
+          continue
+        }
+      } catch {
+        // not UnsupportedChainId
+      }
+    }
+
+    const message =
+      result.error instanceof Error
+        ? result.error.message
+        : String(result.error)
+    throw new Error(
+      `Failed to read chainId ${mapping.chainId.toString()} on ${network}: ${message}`
+    )
+  }
+
+  return needingUpdate
+}
+
 async function buildTimelockScheduleBatchCalldata(params: {
   network: string
   timelockAddress: Address
@@ -135,19 +213,23 @@ async function buildTimelockScheduleBatchCalldata(params: {
   const { network, timelockAddress, diamondAddress, mappings } = params
 
   const setChainIdAbi = parseAbi([
-    'function setChainIdToDomainId(uint256 chainId, uint32 domainId)',
+    'function setChainIdToDomainId((uint256 chainId, uint32 domainId)[] chainIdConfigs)',
   ])
 
-  const payloads: Hex[] = mappings.map((m) =>
-    encodeFunctionData({
-      abi: setChainIdAbi,
-      functionName: 'setChainIdToDomainId',
-      args: [m.chainId, m.domainId],
-    })
-  )
+  const chainIdConfigs = mappings.map((m) => ({
+    chainId: m.chainId,
+    domainId: m.domainId,
+  }))
 
-  const targets: Address[] = mappings.map(() => diamondAddress)
-  const values: bigint[] = mappings.map(() => 0n)
+  const payload = encodeFunctionData({
+    abi: setChainIdAbi,
+    functionName: 'setChainIdToDomainId',
+    args: [chainIdConfigs],
+  })
+
+  const targets: Address[] = [diamondAddress]
+  const values: bigint[] = [0n]
+  const payloads: Hex[] = [payload]
 
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({ chain, transport: http() })
@@ -323,7 +405,7 @@ const main = defineCommand({
         ', '
       )}`
     )
-    consola.info(`Mappings to apply: ${mappings.length}`)
+    consola.info(`Mappings in config: ${mappings.length}`)
 
     const results: Array<{ network: string; ok: boolean; error?: string }> = []
 
@@ -351,11 +433,29 @@ const main = defineCommand({
         const diamondAddress = getAddress(diamondRaw as Address)
         const timelockAddress = getAddress(timelockRaw as Address)
 
+        const mappingsToUpdate = await filterMappingsNeedingUpdate({
+          network,
+          diamondAddress,
+          mappings,
+        })
+
+        if (mappingsToUpdate.length === 0) {
+          consola.info(
+            `[${network}] All ${mappings.length} mapping(s) up to date - skipping`
+          )
+          results.push({ network, ok: true })
+          continue
+        }
+
+        consola.info(
+          `[${network}] ${mappingsToUpdate.length}/${mappings.length} mapping(s) need update`
+        )
+
         const calldata = await buildTimelockScheduleBatchCalldata({
           network,
           timelockAddress,
           diamondAddress,
-          mappings,
+          mappings: mappingsToUpdate,
         })
 
         await proposeToSafe({
