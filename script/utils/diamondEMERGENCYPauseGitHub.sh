@@ -4,10 +4,6 @@
 # it can only pause the main PROD diamond on all networks
 # for all other actions the diamondEMERGENCYPause.sh script should be called
 # via scriptMaster.sh in local CLI for more flexibility
-#
-# The staging mirror lives at `diamondEMERGENCYPauseStagingGitHub.sh` and runs
-# the same logic against the staging diamonds on a small representative set of
-# networks - any change here should usually land in the staging script first.
 
 
 # load helper functions
@@ -21,8 +17,7 @@ MAX_ATTEMPTS=10
 # RPC pacing for read calls. Send retries use MAX_ATTEMPTS above (intentionally
 # larger). RPCs can throttle reads under load - paid tiers included, and
 # especially under the kind of incident-response load this script runs under.
-# So we pace and retry transient failures. The staging mirror script
-# (diamondEMERGENCYPauseStagingGitHub.sh) carries the same constants.
+# So we pace and retry transient failures.
 RPC_MAX_ATTEMPTS=5
 RPC_RETRY_SLEEP_SECONDS=3
 RPC_CALL_DELAY_SECONDS=1
