@@ -515,7 +515,10 @@ function getContractNamesFromNetworkDeploymentFile() {
     return 1
   fi
 
-  jq -r 'to_entries[] | select(.value != null and .value != "" and .value != "0x") | .key' "$ADDRESSES_FILE"
+  if ! jq -r 'to_entries[] | select(.value != null and .value != "" and .value != "0x") | .key' "$ADDRESSES_FILE"; then
+    error "Failed to parse deployment file: $ADDRESSES_FILE"
+    return 1
+  fi
   return 0
 }
 

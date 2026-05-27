@@ -132,13 +132,15 @@ function verifyAllUnverifiedContractsOnNetwork() {
     esac
   fi
 
+  local CONTRACT_LIST
+  if ! CONTRACT_LIST=$(getContractNamesFromNetworkDeploymentFile "$NETWORK" "$ENVIRONMENT"); then
+    return 1
+  fi
+
   local -a CONTRACTS=()
   while IFS= read -r CONTRACT; do
     [[ -n "$CONTRACT" ]] && CONTRACTS+=("$CONTRACT")
-  done < <(getContractNamesFromNetworkDeploymentFile "$NETWORK" "$ENVIRONMENT")
-  if [[ $? -ne 0 ]]; then
-    return 1
-  fi
+  done <<< "$CONTRACT_LIST"
 
   local TOTAL=${#CONTRACTS[@]}
   if [[ $TOTAL -eq 0 ]]; then
