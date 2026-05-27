@@ -1,0 +1,1 @@
+../../.agents/commands/coderabbit-rules-audit.md

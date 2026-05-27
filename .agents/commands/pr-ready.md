@@ -123,7 +123,17 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
    - Local checks pass: `bun format:fix`, `bun lint:fix`, `forge build`, relevant `forge test` / `bun test:ts` suites.
    - All intentional changes are committed (CodeRabbit reviews committed diff vs. base).
 
-2. **Run the review**
+2. **Pre-flight: local house-rules pass** (added 2026-05-27)
+
+   Before the CodeRabbit CLI run, do a local pass against the LI.FI house-rules catalogue. This catches the recurring patterns CodeRabbit's cloud reviewer has already taught us, without burning the CI round-trip.
+
+   ```bash
+   bun .agents/scripts/coderabbit-house-rules/retrieve.ts --base origin/main
+   ```
+
+   The script writes matched-rule context to stdout. Read it, perform an LLM review pass against just those rules, emit findings in the same Auto-apply / Ask / Reject format used below, and fold them into the downstream classification — they are NOT a substitute for the CodeRabbit CLI review, only a pre-filter. See `.agents/commands/coderabbit-house-rules.md` for the full skill.
+
+3. **Run the CodeRabbit CLI review**
 
    ```bash
    coderabbit review --base origin/main --type committed --plain
@@ -134,7 +144,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
    - `--plain` produces a stable, machine-parseable output that agents can consume.
    - First run on a branch can take a few minutes; subsequent runs on the same diff are cached.
 
-3. **Classify findings** into three buckets
+4. **Classify findings** into three buckets
 
    - **Auto-apply (safe)** — mechanical, behavior-preserving, low-risk fixes. **Strict allowlist** (current trial period; revisit after a few weeks of real use):
      - Typos in comments, NatSpec, log/error strings, and markdown docs.
@@ -149,7 +159,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
    - **Reject** — false positives or suggestions that conflict with `.agents/rules/`. No edit; rationale recorded in the summary.
 
-4. **Apply** — different rules per bucket
+5. **Apply** — different rules per bucket
 
    **Auto-apply bucket** (no prompt; oversight is the commit log + final summary):
 
@@ -187,7 +197,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
    - Never push automatically. The dev pushes after reviewing the summary.
    - If a fix would clearly break a test or the build, do not commit — surface it as an Ask instead, even if it's in the Auto-apply allowlist.
 
-5. **Detect repeat patterns** (the "brain")
+6. **Detect repeat patterns** (the "brain")
 
    The skill maintains a gitignored local log at `~/.cache/lifi-contracts/pr-ready/findings.jsonl`. After classification (step 3), the agent appends one entry per finding:
 
@@ -205,13 +215,13 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
    The agent **never** writes to `.agents/rules/` from inside `/pr-ready`. Promotion is a separate, explicit step the dev runs via `/add-new-rule`.
 
-6. **Re-run until clean**
+7. **Re-run until clean**
 
    After all approved fixes are applied, run `coderabbit review --base origin/main --type committed --plain` again until the output is either:
    - empty / "no findings", or
    - contains only items explicitly deferred/rejected (record those in the PR description).
 
-7. **Clear the gate marker**
+8. **Clear the gate marker**
 
    Once the re-run is clean (or only documented-deferred items remain), write the gate-clear marker so the PR-creation hook stops blocking:
 
@@ -223,7 +233,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
    The pre-PR gate (`.claude/scripts/pr-ready-gate.py`, or `~/.claude/scripts/pr-ready-gate.py` for the user-installed copy) requires this marker's mtime to be newer than `HEAD`'s commit timestamp; any new commit after this point re-arms the gate and the skill must be re-run.
 
-8. **Open or update the PR**
+9. **Open or update the PR**
 
    - `gh pr create` for a new PR, `gh pr ready <num>` to flip a draft, or `git push` for updates.
    - Cloud CodeRabbit will still run in CI as a safety net — but it should now find little to nothing.
