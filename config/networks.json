@@ -997,7 +997,8 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xe514Ab33F262ccCff8b8ec46a7ca8e2F0bfD1b95",
-    "devNotes": "Successful deployment only with GAS_ESTIMATE_MULTIPLIER=500 in .env"
+    "devNotes": "Successful deployment only with GAS_ESTIMATE_MULTIPLIER=500 in .env",
+    "customDeployFlags": "--with-gas-price 110000000"
   },
   "pharos": {
     "name": "pharos",
