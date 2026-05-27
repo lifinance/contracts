@@ -355,7 +355,7 @@ const main = defineCommand({
     privateKey: {
       type: 'string',
       description:
-        'Optional Safe signer private key (defaults to PRIVATE_KEY_PRODUCTION from .env).',
+        'Optional Safe signer private key (defaults to PRIVATE_KEY_PRODUCTION, or PRIVATE_KEY_STAGING when --environment=staging).',
       required: false,
     },
   },
@@ -371,7 +371,11 @@ const main = defineCommand({
       for (const n of parsed) excludeSet.add(String(n).toLowerCase())
     }
 
-    const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION', args.privateKey)
+    const keyName =
+      environment === EnvironmentEnum.staging
+        ? 'PRIVATE_KEY_STAGING'
+        : 'PRIVATE_KEY_PRODUCTION'
+    const privateKey = getPrivateKey(keyName, args.privateKey)
 
     const networksToCheck = args.network
       ? [args.network]
