@@ -511,7 +511,7 @@ const main = defineCommand({
     skipDisplayMerge: {
       type: 'boolean',
       description:
-        "Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.",
+        'Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
       default: false,
     },
     printDiff: {

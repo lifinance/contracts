@@ -2,6 +2,22 @@
 
 import { resolve } from 'path'
 
+import {
+  DEFAULT_SAFETY_MARGIN,
+  REGISTRATION_RETRY_DELAY_MS,
+  REGISTRATION_RPC_DELAY_MS,
+  TRON_ZERO_ADDRESS,
+  TronContractDeployer,
+  createTronWeb,
+  estimateEnergyAndFeeLimit,
+  loadForgeArtifact,
+  promptEnergyRentalReminder,
+  tronAddressLikeToBase58,
+  tronAddressToHex,
+  tronRegistrationAddressToEvmHex,
+  type ITronDeploymentConfig,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -27,26 +43,13 @@ import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-import { TronContractDeployer } from './TronContractDeployer'
+
 import {
-  DEFAULT_SAFETY_MARGIN,
   REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
   REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
-  REGISTRATION_RETRY_DELAY_MS,
-  REGISTRATION_RPC_DELAY_MS,
-  TRON_ZERO_ADDRESS,
 } from './constants.js'
-import { estimateEnergyAndFeeLimit } from './helpers/estimateContractEnergy.js'
-import { loadForgeArtifact } from './helpers/loadForgeArtifact.js'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { createTronWeb } from './helpers/tronWebFactory.js'
-import {
-  tronAddressLikeToBase58,
-  tronAddressToHex,
-  tronRegistrationAddressToEvmHex,
-} from './tronAddressHelpers.js'
-import { promptEnergyRentalReminder, getTronWallet } from './tronUtils.js'
-import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
+import { getTronWallet } from './tronUtils.js'
 
 /**
  * Deploy and register periphery contracts to Tron

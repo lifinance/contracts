@@ -4,6 +4,21 @@
  * Generic deployment utilities (file I/O, environment, selectors) live in `../../utils/utils.ts`.
  */
 
+import {
+  DEFAULT_FEE_LIMIT_TRX,
+  MIN_BALANCE_REGISTRATION,
+  MIN_BALANCE_WARNING,
+  TRON_ZERO_ADDRESS,
+  createTronWebReadOnly,
+  estimateContractCallEnergy,
+  evmHexToTronBase58,
+  getCurrentPrices,
+  getTronWebCodecFullHostForNetwork,
+  getTronWebCodecOnlyForNetwork,
+  loadForgeArtifact,
+  tronAddressToHex,
+  tryTronFacetLoupeAddressToBase58,
+} from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
@@ -27,45 +42,9 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import {
-  DEFAULT_FEE_LIMIT_TRX,
-  DIAMOND_CUT_ENERGY_MULTIPLIER,
-  MIN_BALANCE_REGISTRATION,
-  MIN_BALANCE_WARNING,
-  TRON_ZERO_ADDRESS,
-} from './constants'
-import { estimateContractCallEnergy } from './helpers/estimateContractEnergy'
-import { loadForgeArtifact } from './helpers/loadForgeArtifact'
-import { getCurrentPrices } from './helpers/tronPricing'
-import {
-  getTronWebCodecFullHost,
-  getTronWebCodecOnly,
-} from './helpers/tronWebCodecOnly'
-import { createTronWebReadOnly } from './helpers/tronWebFactory'
-import {
-  evmHexToTronBase58,
-  tronAddressToHex,
-  tryTronFacetLoupeAddressToBase58,
-} from './tronAddressHelpers'
-import type { IDiamondRegistrationResult } from './types'
 
-/**
- * Prompt user to confirm they are aware they can rent energy (e.g. Zinergy.ag, 1 hr) to reduce TRON deployment costs.
- * Call before starting deployments when not in dry run. If user declines, exits the process.
- */
-export async function promptEnergyRentalReminder(): Promise<void> {
-  consola.info(
-    'Tip: You can rent energy (e.g. from Zinergy.ag for 1 hour) to reduce TRX burn during deployment.'
-  )
-  const proceed = await consola.prompt('Continue with deployment?', {
-    type: 'confirm',
-    initial: true,
-  })
-  if (proceed !== true) {
-    consola.info('Deployment cancelled.')
-    process.exit(0)
-  }
-}
+import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
+import type { IDiamondRegistrationResult } from './types'
 
 /**
  * Check if a contract is deployed on Tron
@@ -161,7 +140,7 @@ export async function waitBetweenDeployments(
     })
   } else if (!rpcTronWeb) {
     rpcTronWeb = createTronWebReadOnly({
-      rpcUrl: getTronWebCodecFullHost(),
+      rpcUrl: getTronWebCodecFullHostForNetwork('tron'),
       verbose,
     })
   }
@@ -256,7 +235,7 @@ export async function encodeConstructorArgs(args: any[]): Promise<string> {
   if (args.length === 0) return '0x'
 
   try {
-    const tronWeb = getTronWebCodecOnly()
+    const tronWeb = getTronWebCodecOnlyForNetwork('tron')
 
     // Determine types based on argument values
     const types: string[] = args.map((arg) => {

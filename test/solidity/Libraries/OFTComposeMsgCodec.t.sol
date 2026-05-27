@@ -11,7 +11,8 @@ contract OFTComposeMsgCodecImplementer {
         uint256 _amountLD,
         bytes memory _composeMsg
     ) external pure returns (bytes memory) {
-        return OFTComposeMsgCodec.encode(_nonce, _srcEid, _amountLD, _composeMsg);
+        return
+            OFTComposeMsgCodec.encode(_nonce, _srcEid, _amountLD, _composeMsg);
     }
 
     function nonce(bytes calldata _msg) external pure returns (uint64) {
@@ -75,9 +76,7 @@ contract OFTComposeMsgCodecTest is TestBase {
     }
 
     function test_Bytes32ToAddress() public {
-        address expected = address(
-            0xAaBbccDDAaBbCcdDAABBCcdDAABbCcDdaabBccdd
-        );
+        address expected = address(0xAaBbccDDAaBbCcdDAABBCcdDAABbCcDdaabBccdd);
         bytes32 b = bytes32(uint256(uint160(expected)));
         assertEq(codec.bytes32ToAddress(b), expected);
     }
