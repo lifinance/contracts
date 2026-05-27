@@ -224,11 +224,15 @@ type Hunk = { startLine: number; text: string }
 type FileDiff = { path: string; hunks: Hunk[] }
 
 function getDiff(base: string, filesFilter: string[] | null): FileDiff[] {
+  // Escape single quotes properly to avoid shell-quoting issues if a path
+  // ever contains one (CodeRabbit flagged this as a security anti-pattern
+  // even though `filesFilter` is user-controlled CLI input).
+  const esc = (p: string) => `'${p.replace(/'/g, `'\\''`)}'`
   const pathArgs =
     filesFilter && filesFilter.length
-      ? ` -- ${filesFilter.map((p) => `'${p}'`).join(' ')}`
+      ? ` -- ${filesFilter.map(esc).join(' ')}`
       : ''
-  const out = execSync(`git diff -U3 ${base}...HEAD${pathArgs}`, {
+  const out = execSync(`git diff -U3 ${esc(base)}...HEAD${pathArgs}`, {
     encoding: 'utf8',
     maxBuffer: 100 * 1024 * 1024,
   })
@@ -388,12 +392,13 @@ function main() {
         )
       if (m.rule.source_refs?.length) {
         const refs = m.rule.source_refs
+          .filter((r: any) => r.pr != null)
           .slice(0, 3)
           .map(
             (r: any) => `[#${r.pr}](https://github.com/${r.repo}/pull/${r.pr})`
           )
           .join(', ')
-        out.push(`\nSource: ${refs}`)
+        if (refs) out.push(`\nSource: ${refs}`)
       }
     }
     out.push('')

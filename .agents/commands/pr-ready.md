@@ -199,7 +199,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
 
 6. **Detect repeat patterns** (the "brain")
 
-   The skill maintains a gitignored local log at `~/.cache/lifi-contracts/pr-ready/findings.jsonl`. After classification (step 3), the agent appends one entry per finding:
+   The skill maintains a gitignored local log at `~/.cache/lifi-contracts/pr-ready/findings.jsonl`. After classification (step 4), the agent appends one entry per finding:
 
    ```json
    {"date":"<ISO>","branch":"<name>","file":"<path>","category":"<CR rule id or short tag>","fingerprint":"<hash of normalized message>"}
