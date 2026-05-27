@@ -126,10 +126,6 @@ contract SupersetFacet is
     {
         _validateSupersetData(_bridgeData, _supersetData);
 
-        if (msg.value < _supersetData.lzFee) {
-            revert InsufficientNativeValue();
-        }
-
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -202,13 +198,16 @@ contract SupersetFacet is
             revert InvalidSupersetPath();
         }
 
-        // Must be a non-zero pure EOA. Superset re-validates on the source side
-        // (`SwapDelivery.resolveAndValidateFallbackEoA`); checking here reverts cheaper.
+        // Must be a non-zero EOA
         if (
             _supersetData.fallbackEoA == address(0) ||
             _supersetData.fallbackEoA.code.length != 0
         ) {
             revert InvalidFallbackEoA(_supersetData.fallbackEoA);
+        }
+
+        if (msg.value < _supersetData.lzFee) {
+            revert InsufficientNativeValue();
         }
     }
 
