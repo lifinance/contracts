@@ -145,7 +145,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
 
         // Adjust destination slippage floor for positive source-side slippage
-        // ([CONV:FACET-REQS] positive slippage handling).
         SupersetData memory modifiedSupersetData = _supersetData;
         modifiedSupersetData.amountOutMin =
             (_bridgeData.minAmount * _supersetData.amountOutMinPercent) /

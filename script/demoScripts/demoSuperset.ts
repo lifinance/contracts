@@ -1,6 +1,14 @@
 /**
- * Demo for the SupersetFacet. Fill in the constants below and run with
- * `bunx tsx script/demoScripts/demoSuperset.ts`.
+ * Demo for the SupersetFacet. Select scenario with `--scenario <name>`:
+ *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain
+ *   bunx tsx script/demoScripts/demoSuperset.ts --scenario arbitrum-to-base
+ *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain-w-swap
+ *
+ * Executed runs:
+ *   base-to-unichain        SRC https://basescan.org/tx/0x4ea0a142a2186a4399601ad1531fcf9256f26b7f1049cd4b727b7e47fe5eefa4
+ *                           DST https://arbiscan.io/tx/0x4d6388b9c47984fe24984851e81f818958a3700934c560a66f38c9b86a7dd809
+ *   arbitrum-to-base        (pending)
+ *   base-to-unichain-w-swap (pending)
  */
 
 import { randomBytes } from 'crypto'
@@ -19,6 +27,7 @@ import {
 
 import { ERC20__factory, SupersetFacet__factory } from '../../typechain'
 import type { ILiFi, SupersetFacet } from '../../typechain'
+import type { LibSwap } from '../../typechain/SupersetFacet.sol/SupersetFacet'
 import { type SupportedChain } from '../common/types'
 
 import {
@@ -30,97 +39,288 @@ import {
 
 config()
 
-// ─── Route ────────────────────────────────────────────────────────────────────
-const SOURCE_CHAIN: SupportedChain = 'basesepolia' as SupportedChain
-const DESTINATION_CHAIN_ID = 1301 // Unichain Sepolia
-const SOURCE_TOKEN: Address = '0x90B9506cE63e31B68584f94e888Eb37bf108472d' // test-USD
-const AMOUNT = '1'
-const RECEIVER: Address = '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3'
-const REFUND_ADDRESS: Address = '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3'
-const FALLBACK_EOA: Address = '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3'
-const DEADLINE_SECONDS = 1200
+type Scenario =
+  | 'base-to-unichain'
+  | 'arbitrum-to-base'
+  | 'base-to-unichain-w-swap'
 
-// ─── Retrieved values (paste cast output here) ────────────────────────────────
-const OMNI_PATH: Hex =
-  '0x000000000000000000000000000000000000000000000000000000000000000e000bb8000000000000000000000000000000000000000000000000000000000000000c'
-const AMOUNT_OUT_MIN = 750645737863094597n
-const AMOUNT_OUT_MIN_PCT = 754417826998085023n
-const TO_EID = 40333 // Unichain Sepolia
-const OPTIONS: Hex =
-  '0x00030100210100000000000000000000000000000000000000000000000000001b6f20cb06da'
-const LZ_FEE = 17513267398348n
-// ──────────────────────────────────────────────────────────────────────────────
+const SCENARIO_NAMES = [
+  'base-to-unichain',
+  'arbitrum-to-base',
+  'base-to-unichain-w-swap',
+] as const
 
-function assertConfigured(): void {
+interface IPreSwap {
+  fromToken: Address
+  fromAmount: bigint
+  callTo: Address
+  approveTo: Address
+  callData: Hex
+  estimatedReceived: bigint
+}
+
+interface ISupersetParams {
+  omniPath: Hex
+  amountOutMin: bigint
+  amountOutMinPercent: bigint
+  toEid: number
+  options: Hex
+  lzFee: bigint
+}
+
+interface IScenarioConfig {
+  description: string
+  sourceChain: SupportedChain
+  destinationChainId: number
+  sourceToken: Address // token the bridge consumes (= post-swap output if preSwap present)
+  amount: string // human-readable; ignored when preSwap is present
+  preSwap?: IPreSwap
+  superset: ISupersetParams
+}
+
+const SHARED = {
+  receiver: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
+  refundAddress: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
+  fallbackEoA: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
+  deadlineSeconds: 1800, // 30 minutes
+}
+
+// Quoted off-band; opaque to the script.
+const SCENARIOS: Record<Scenario, IScenarioConfig> = {
+  'base-to-unichain': {
+    description: 'Base → Unichain · 1 USDC → WBTC (spoke source, cross-chain)',
+    sourceChain: 'base',
+    destinationChainId: 130,
+    sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+    amount: '1',
+    superset: {
+      omniPath:
+        '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
+      amountOutMin: 1341n,
+      amountOutMinPercent: 1348000000000000n,
+      toEid: 30320, // Unichain
+      options:
+        '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
+      lzFee: 173694647215662n, // 20% buffer above quoted request fee
+    },
+  },
+
+  'arbitrum-to-base': {
+    description: 'Arbitrum → Base · 1 USDC → WBTC (hub source, cross-chain)',
+    sourceChain: 'arbitrum',
+    destinationChainId: 8453,
+    sourceToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC on Arbitrum
+    amount: '1',
+    superset: {
+      omniPath:
+        '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
+      amountOutMin: 1341n,
+      amountOutMinPercent: 1348000000000000n,
+      toEid: 30184, // Base
+      options: '0x00030100110100000000000000000000000000030d40', // unused on hub branch (facet picks 7-arg hub ABI)
+      lzFee: 35544130952448n, // 20% buffer; one LZ message: hub → Base
+    },
+  },
+
+  'base-to-unichain-w-swap': {
+    description:
+      'Base → Unichain · ETH→USDC pre-swap on Base, then bridge USDC→WBTC',
+    sourceChain: 'base',
+    destinationChainId: 130,
+    sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC, post-swap
+    amount: '1', // ignored when preSwap is present
+    preSwap: {
+      // Paste a fresh 0x / Uniswap quote before running.
+      fromToken: zeroAddress, // native ETH
+      fromAmount: 0n, // raw wei of ETH input
+      callTo: zeroAddress, // DEX router
+      approveTo: zeroAddress, // approval target (usually == callTo; differs for Permit2)
+      callData: '0x', // raw swap calldata
+      estimatedReceived: 0n, // ≈ 1 USDC in 6-dec units
+    },
+    superset: {
+      omniPath:
+        '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
+      amountOutMin: 1341n,
+      amountOutMinPercent: 1348000000000000n,
+      toEid: 30320,
+      options:
+        '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
+      lzFee: 173694647215662n,
+    },
+  },
+}
+
+function assertConfigured(s: IScenarioConfig): void {
   const missing: string[] = []
-  if (RECEIVER === zeroAddress) missing.push('RECEIVER')
-  if (REFUND_ADDRESS === zeroAddress) missing.push('REFUND_ADDRESS')
-  if (FALLBACK_EOA === zeroAddress) missing.push('FALLBACK_EOA')
-  if (OMNI_PATH === '0x') missing.push('OMNI_PATH')
-  if (OPTIONS === '0x') missing.push('OPTIONS')
+  if (s.superset.omniPath === '0x') missing.push('superset.omniPath')
+  if (s.superset.options === '0x') missing.push('superset.options')
+  if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
+  if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
+  if (s.preSwap) {
+    if (s.preSwap.callTo === zeroAddress) missing.push('preSwap.callTo')
+    if (s.preSwap.callData === '0x') missing.push('preSwap.callData')
+    if (s.preSwap.fromAmount === 0n) missing.push('preSwap.fromAmount')
+    if (s.preSwap.estimatedReceived === 0n)
+      missing.push('preSwap.estimatedReceived')
+  }
   if (missing.length > 0)
-    throw new Error(`Missing constants: ${missing.join(', ')}`)
+    throw new Error(`Scenario incomplete: ${missing.join(', ')}`)
 }
 
 const cli = defineCommand({
   meta: {
     name: 'demoSuperset',
-    description: 'Bridge tokens via SupersetFacet.',
+    description:
+      'Bridge tokens via SupersetFacet. Pick a scenario with --scenario.',
   },
-  args: {},
-  run: async () => {
-    assertConfigured()
+  args: {
+    scenario: {
+      type: 'string',
+      description: `One of: ${SCENARIO_NAMES.join(' | ')}`,
+      required: true,
+    },
+  },
+  run: async ({ args }) => {
+    if (!SCENARIO_NAMES.includes(args.scenario as Scenario))
+      throw new Error(
+        `Unknown scenario "${args.scenario}". Available: ${SCENARIO_NAMES.join(
+          ', '
+        )}`
+      )
+    const scenario = SCENARIOS[args.scenario as Scenario]
+    assertConfigured(scenario)
+
+    consola.info(scenario.description)
 
     const { publicClient, walletClient, walletAccount, client } =
-      await setupEnvironment(SOURCE_CHAIN, null)
+      await setupEnvironment(scenario.sourceChain, null)
     const callerAddress = walletAccount.address
 
-    const deployments = await import(`../../deployments/${SOURCE_CHAIN}.json`)
+    const deployments = await import(
+      `../../deployments/${scenario.sourceChain}.staging.json`
+    )
     const diamondAddress = getAddress(deployments.LiFiDiamond)
-    const tokenAddress = getAddress(SOURCE_TOKEN)
+    const sourceTokenAddress = getAddress(scenario.sourceToken)
 
-    const decimals = (await publicClient.readContract({
-      address: tokenAddress,
-      abi: ERC20__factory.abi,
-      functionName: 'decimals',
-    })) as number
-    const amountIn = parseUnits(AMOUNT, decimals)
-
-    consola.info(`From:    ${SOURCE_CHAIN}`)
-    consola.info(`ToChain: ${DESTINATION_CHAIN_ID}`)
-    consola.info(`Token:   ${tokenAddress}`)
-    consola.info(`Amount:  ${AMOUNT}`)
+    consola.info(`From:    ${scenario.sourceChain}`)
+    consola.info(`ToChain: ${scenario.destinationChainId}`)
     consola.info(`Caller:  ${callerAddress}`)
+    consola.info(`Diamond: ${diamondAddress}`)
 
     const transactionId = `0x${randomBytes(32).toString('hex')}` as Hex
 
     const bridgeData: ILiFi.BridgeDataStruct = {
       transactionId,
       bridge: 'superset',
-      integrator: 'ACME Devs',
+      integrator: 'lifi-demo',
       referrer: zeroAddress,
-      sendingAssetId: tokenAddress,
-      receiver: getAddress(RECEIVER),
-      minAmount: amountIn,
-      destinationChainId: BigInt(DESTINATION_CHAIN_ID),
-      hasSourceSwaps: false,
+      sendingAssetId: sourceTokenAddress,
+      receiver: getAddress(SHARED.receiver),
+      minAmount: 0n, // set below per branch
+      destinationChainId: BigInt(scenario.destinationChainId),
+      hasSourceSwaps: scenario.preSwap !== undefined,
       hasDestinationCall: false,
     }
 
     const supersetData: SupersetFacet.SupersetDataStruct = {
-      path: OMNI_PATH,
-      amountOutMin: AMOUNT_OUT_MIN,
-      amountOutMinPercent: AMOUNT_OUT_MIN_PCT,
-      refundAddress: getAddress(REFUND_ADDRESS),
-      fallbackEoA: getAddress(FALLBACK_EOA),
-      deadline: BigInt(Math.floor(Date.now() / 1000) + DEADLINE_SECONDS),
-      toEid: TO_EID,
-      options: OPTIONS,
-      lzFee: LZ_FEE,
+      path: scenario.superset.omniPath,
+      amountOutMin: scenario.superset.amountOutMin,
+      amountOutMinPercent: scenario.superset.amountOutMinPercent,
+      refundAddress: getAddress(SHARED.refundAddress),
+      fallbackEoA: getAddress(SHARED.fallbackEoA),
+      deadline: BigInt(Math.floor(Date.now() / 1000) + SHARED.deadlineSeconds),
+      toEid: scenario.superset.toEid,
+      options: scenario.superset.options,
+      lzFee: scenario.superset.lzFee,
     }
 
+    const supersetFacet = getContract({
+      address: diamondAddress,
+      abi: SupersetFacet__factory.abi,
+      client,
+    })
+
+    if (scenario.preSwap) {
+      const ps = scenario.preSwap
+      const fromTokenIsNative = ps.fromToken === zeroAddress
+      bridgeData.minAmount = ps.estimatedReceived
+
+      const swapData: LibSwap.SwapDataStruct[] = [
+        {
+          callTo: getAddress(ps.callTo),
+          approveTo: getAddress(ps.approveTo),
+          sendingAssetId: fromTokenIsNative
+            ? zeroAddress
+            : getAddress(ps.fromToken),
+          receivingAssetId: sourceTokenAddress,
+          fromAmount: ps.fromAmount,
+          callData: ps.callData,
+          requiresDeposit: true,
+        },
+      ]
+
+      if (!fromTokenIsNative) {
+        const fromToken = getContract({
+          address: getAddress(ps.fromToken),
+          abi: ERC20__factory.abi,
+          client: { public: publicClient, wallet: walletClient },
+        })
+        await ensureBalance(
+          fromToken,
+          callerAddress,
+          ps.fromAmount,
+          publicClient
+        )
+        await ensureAllowance(
+          fromToken,
+          callerAddress,
+          diamondAddress,
+          ps.fromAmount,
+          publicClient
+        )
+      }
+
+      const value = fromTokenIsNative
+        ? ps.fromAmount + scenario.superset.lzFee
+        : scenario.superset.lzFee
+
+      const hash = await executeTransaction(
+        () =>
+          (
+            supersetFacet.write as {
+              swapAndStartBridgeTokensViaSuperset: (
+                args: [
+                  ILiFi.BridgeDataStruct,
+                  LibSwap.SwapDataStruct[],
+                  SupersetFacet.SupersetDataStruct
+                ],
+                options?: { value: bigint }
+              ) => Promise<Hex>
+            }
+          ).swapAndStartBridgeTokensViaSuperset(
+            [bridgeData, swapData, supersetData],
+            { value }
+          ),
+        'Swap + bridge via Superset',
+        publicClient,
+        true
+      )
+      consola.success(`tx hash: ${hash}`)
+      return
+    }
+
+    // Bridge-only path
+    const decimals = (await publicClient.readContract({
+      address: sourceTokenAddress,
+      abi: ERC20__factory.abi,
+      functionName: 'decimals',
+    })) as number
+    const amountIn = parseUnits(scenario.amount, decimals)
+    bridgeData.minAmount = amountIn
+
     const tokenContract = getContract({
-      address: tokenAddress,
+      address: sourceTokenAddress,
       abi: ERC20__factory.abi,
       client: { public: publicClient, wallet: walletClient },
     })
@@ -133,12 +333,6 @@ const cli = defineCommand({
       publicClient
     )
 
-    const supersetFacet = getContract({
-      address: diamondAddress,
-      abi: SupersetFacet__factory.abi,
-      client,
-    })
-
     const hash = await executeTransaction(
       () =>
         (
@@ -149,13 +343,12 @@ const cli = defineCommand({
             ) => Promise<Hex>
           }
         ).startBridgeTokensViaSuperset([bridgeData, supersetData], {
-          value: BigInt(supersetData.lzFee.toString()),
+          value: scenario.superset.lzFee,
         }),
       'Bridge tokens via Superset',
       publicClient,
       true
     )
-
     consola.success(`tx hash: ${hash}`)
   },
 })

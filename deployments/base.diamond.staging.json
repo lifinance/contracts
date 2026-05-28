@@ -76,6 +76,10 @@
       "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0xeA4AaCDD6DecB9f7020B01FA7D467184f8047af7": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -84,8 +88,8 @@
       "FeeCollector": "0x8354CdFA9FD680e53a4AAAecbf7dfB22665c36Ec",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",

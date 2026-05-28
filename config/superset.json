@@ -1,7 +1,9 @@
 {
   "poolManager": {
-    "arbitrum": "0xb5d8dC0AD0F2dAD55A3C2E8b27f5Ad888410Fe1E",
-    "base": "0x518dDE8eaf5f0A31F0b3d464c705D36A35005b47",
-    "unichain": "0x518dDE8eaf5f0A31F0b3d464c705D36A35005b47"
+    "arbitrum": "0xcC687ed9155F5e49719D5f3147F79FD5F177961c",
+    "arbitrumsepolia": "0x1fDA3aAD6e6B932d992F42C4a808A19fFEd938F0",
+    "base": "0x57C155a15a9CA0A6C1F759ac6988b4fCa3663Ea4",
+    "basesepolia": "0x401DCd3FfD09908e277Ea609A91117C5aDAb4cf6",
+    "unichain": "0x326D0B0357b394EC5bbeFE87554243E5dc76e56E"
   }
 }
