@@ -6,7 +6,7 @@ import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, NativeAssetNotSupported, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -269,6 +269,19 @@ contract SupersetFacetTest is TestBaseFacet {
         supersetFacet.swapAndStartBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
         }(bridgeData, swapData, validSupersetData);
+    }
+
+    function testRevert_DestinationCallNotSupported() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.hasDestinationCall = true;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
     }
 
     function testRevert_FallbackEoAIsContract() public {
