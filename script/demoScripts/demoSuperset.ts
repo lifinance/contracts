@@ -16,17 +16,14 @@ import { randomBytes } from 'crypto'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { config } from 'dotenv'
+import { BigNumber } from 'ethers'
 import {
-  encodeFunctionData,
   getAddress,
   getContract,
-  parseAbi,
-  parseEther,
   parseUnits,
   zeroAddress,
   type Address,
   type Hex,
-  type PublicClient,
 } from 'viem'
 
 import { ERC20__factory, SupersetFacet__factory } from '../../typechain'
@@ -35,9 +32,12 @@ import type { LibSwap } from '../../typechain/SupersetFacet.sol/SupersetFacet'
 import { type SupportedChain } from '../common/types'
 
 import {
+  ADDRESS_UNISWAP_BASE,
+  ADDRESS_WETH_BASE,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
+  getUniswapDataERC20toExactERC20,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
@@ -56,54 +56,7 @@ const SCENARIO_NAMES = [
 
 interface IPreSwap {
   fromToken: Address
-  fromAmount: bigint
-}
-
-const ADDRESS_UNISWAP_V2_BASE =
-  '0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891' as Address
-const ADDRESS_WETH_BASE =
-  '0x4200000000000000000000000000000000000006' as Address
-
-const UNISWAP_V2_ABI = parseAbi([
-  'function getAmountsOut(uint amountIn, address[] path) external view returns (uint[] memory amounts)',
-  'function swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-])
-
-const buildExactEthToErc20Swap = async (
-  publicClient: PublicClient,
-  ethAmount: bigint,
-  receivingToken: Address,
-  receiver: Address
-): Promise<{ swap: LibSwap.SwapDataStruct; minOut: bigint }> => {
-  const path: readonly Address[] = [ADDRESS_WETH_BASE, receivingToken]
-  const amounts = (await publicClient.readContract({
-    address: ADDRESS_UNISWAP_V2_BASE,
-    abi: UNISWAP_V2_ABI,
-    functionName: 'getAmountsOut',
-    args: [ethAmount, path],
-  })) as readonly bigint[]
-  const expectedOut = amounts[1]
-  if (expectedOut === undefined || expectedOut === 0n)
-    throw new Error('Uniswap V2 returned zero output (no liquidity?)')
-  const minOut = (expectedOut * 95n) / 100n
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 30 * 60)
-  const callData = encodeFunctionData({
-    abi: UNISWAP_V2_ABI,
-    functionName: 'swapExactETHForTokens',
-    args: [minOut, path, receiver, deadline],
-  })
-  return {
-    swap: {
-      callTo: ADDRESS_UNISWAP_V2_BASE,
-      approveTo: ADDRESS_UNISWAP_V2_BASE,
-      sendingAssetId: zeroAddress,
-      receivingAssetId: receivingToken,
-      fromAmount: ethAmount,
-      callData,
-      requiresDeposit: true,
-    },
-    minOut,
-  }
+  targetOutAmount: bigint
 }
 
 interface ISupersetParams {
@@ -171,14 +124,14 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
 
   'base-to-unichain-w-swap': {
     description:
-      'Base → Unichain · ETH→USDC pre-swap on Base, then bridge USDC→WBTC',
+      'Base → Unichain · WETH→USDC pre-swap on Base, then bridge USDC→WBTC',
     sourceChain: 'base',
     destinationChainId: 130,
     sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC, post-swap
     amount: '1', // ignored when preSwap is present
     preSwap: {
-      fromToken: zeroAddress, // native ETH
-      fromAmount: parseEther('0.0005'), // ~$1–2 of ETH; swap is quoted live
+      fromToken: getAddress(ADDRESS_WETH_BASE),
+      targetOutAmount: 1_000_000n, // exact 1 USDC (6 decimals); swap input quoted live
     },
     superset: {
       omniPath:
@@ -199,8 +152,8 @@ function assertConfigured(s: IScenarioConfig): void {
   if (s.superset.options === '0x') missing.push('superset.options')
   if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
   if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
-  if (s.preSwap && s.preSwap.fromAmount === 0n)
-    missing.push('preSwap.fromAmount')
+  if (s.preSwap && s.preSwap.targetOutAmount === 0n)
+    missing.push('preSwap.targetOutAmount')
   if (missing.length > 0)
     throw new Error(`Scenario incomplete: ${missing.join(', ')}`)
 }
@@ -280,19 +233,41 @@ const cli = defineCommand({
 
     if (scenario.preSwap) {
       const ps = scenario.preSwap
-      if (ps.fromToken !== zeroAddress)
-        throw new Error('preSwap only supports native ETH input (Base)')
 
-      const { swap, minOut } = await buildExactEthToErc20Swap(
-        publicClient,
-        ps.fromAmount,
+      const srcSwap = await getUniswapDataERC20toExactERC20(
+        ADDRESS_UNISWAP_BASE,
+        8453, // Base
+        getAddress(ps.fromToken),
         sourceTokenAddress,
-        diamondAddress
+        BigNumber.from(ps.targetOutAmount.toString()),
+        diamondAddress,
+        true
       )
-      bridgeData.minAmount = minOut
-      const swapData: LibSwap.SwapDataStruct[] = [swap]
 
-      const value = ps.fromAmount + scenario.superset.lzFee
+      const swapData: LibSwap.SwapDataStruct[] = [
+        { ...srcSwap, fromAmount: BigInt(srcSwap.fromAmount.toString()) },
+      ]
+      bridgeData.minAmount = ps.targetOutAmount
+
+      const fromTokenContract = getContract({
+        address: getAddress(ps.fromToken),
+        abi: ERC20__factory.abi,
+        client: { public: publicClient, wallet: walletClient },
+      })
+      const maxAmountIn = BigInt(srcSwap.fromAmount.toString())
+      await ensureBalance(
+        fromTokenContract,
+        callerAddress,
+        maxAmountIn,
+        publicClient
+      )
+      await ensureAllowance(
+        fromTokenContract,
+        callerAddress,
+        diamondAddress,
+        maxAmountIn,
+        publicClient
+      )
 
       const hash = await executeTransaction(
         () =>
@@ -309,7 +284,7 @@ const cli = defineCommand({
             }
           ).swapAndStartBridgeTokensViaSuperset(
             [bridgeData, swapData, supersetData],
-            { value }
+            { value: scenario.superset.lzFee }
           ),
         'Swap + bridge via Superset',
         publicClient,
