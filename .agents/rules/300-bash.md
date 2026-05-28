@@ -67,6 +67,7 @@ universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVAT
 You can also call `universalCall`, `universalSend`, `universalSendRaw`, or `universalCode` directly (they are what `universalCast` dispatches to). **Optional private key override**: For `universalSend`, `universalSendRaw`, and `sendOrPropose`, pass a hex private key as the last (optional) argument to use that key instead of `getPrivateKey(NETWORK, ENVIRONMENT)` (e.g. for pauser wallet or old/new owner flows).
 
 **For raw calldata transactions**, use `sendOrPropose` (internally uses `universalCast "sendRaw"` for Tron and EVM staging; EVM production uses propose-to-safe.ts):
+
 ```bash
 # sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
 CALLDATA=$(cast calldata "transfer(address,uint256)" "$TO" "$AMOUNT")
@@ -114,6 +115,7 @@ function functionName() {
 ```
 
 **Key conventions**:
+
 - Parameter names in UPPERCASE in both documentation and code
 - Use `-` dash separator for parameter descriptions (not `:`)
 - Group optional parameters with `Optional:` prefix

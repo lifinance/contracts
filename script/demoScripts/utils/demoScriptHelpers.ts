@@ -1,6 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
@@ -39,7 +40,6 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV3'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
-import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,

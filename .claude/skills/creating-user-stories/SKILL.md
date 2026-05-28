@@ -44,11 +44,13 @@ The catalogue is read by product managers, engineers, auditors, and ops. None of
 ```
 
 Reasons:
+
 1. The reader can scan options in one pass.
 2. The recommendation is unambiguous — no "the second one" or "invite-only"-style indirection that forces re-reading.
 3. Sub-questions can reference the letter: "If (b) is chosen, who issues invites?"
 
 When sub-options nest under one parent, use roman numerals to disambiguate:
+
 ```
 *Sub-questions if (b)*: (i) who issues invites? (ii) how do invitees redeem? (iii) expiry policy?
 ```
@@ -84,6 +86,7 @@ Within each persona, group stories by theme. Themes vary by product. Common shap
 The persona phrase ("As a ...") is in the H2 heading, not repeated per story. One sentence each. No acceptance hints, no implementation detail — those belong in the design doc that consumes this catalogue, not in the story.
 
 Variants:
+
 - **Sub-points** (A2.1, A2.2 …) when a story is an umbrella that fans out to several concrete sub-actions. List each sub-action.
 - **Cross-references**: `(see A16)`, `(mirrors I18)` for adjacent-lifecycle stories — see below.
 
@@ -115,6 +118,7 @@ A user story has exactly two semantic slots: `[verb] [object], so that [benefit]
 Two stories on the same concept at different lifecycle stages can be confused by a reader. Always cross-link with `(see IX)`.
 
 Examples of pairings worth cross-linking:
+
 - Configure-time vs runtime (set up an admin role vs use the role).
 - Inject vs schedule vs distribute vs cancel (for any flow with multiple temporal states).
 - Different pause variants — emergency, scheduled, partial.
@@ -136,6 +140,7 @@ Anti-pattern: writing "Recommend spec-amend §X.Y to authorize …". The catalog
 Follow the readability format (title is the actual question; options labeled; recommendation references a letter). Two flavors depending on whether there's a real trade-off:
 
 **Standard (most Qs)**:
+
 ```
 **QX.Y — [The actual decision question]**
 *What*: [one-sentence context]. **(a)** ..., **(b)** ..., **(c)** ...
@@ -143,6 +148,7 @@ Follow the readability format (title is the actual question; options labeled; re
 ```
 
 **With trade-off (only when a product owner must weigh options)**:
+
 ```
 **QX.Y — [The actual decision question]**
 *What*: [one-sentence context describing the capability and why it's debatable].
@@ -158,6 +164,7 @@ Follow the readability format (title is the actual question; options labeled; re
 Note: the lane tag (⚠️ PRODUCT DECISION NEEDED / [TECH] / [META]) sits on the **section header**, not in every question title — see "Open-question linkage".
 
 **Anti-patterns**:
+
 - Title as a category label (`Pricing mechanism`) instead of a question (`How should pricing be tiered?`).
 - Options listed in prose without (a)/(b) labels.
 - Recommendation that doesn't reference one of the labeled options.
@@ -172,6 +179,7 @@ Some user-visible properties fall out "for free" from the architecture and have 
 ## The "naming a story" red flag
 
 If a story title contains a noun that could mean many things (`"manage the allowlist"`, `"handle errors"`), it's too vague. Either:
+
 - (a) Split into multiple concrete stories, or
 - (b) Keep the umbrella but enumerate sub-actions A2.1, A2.2, …
 
@@ -206,12 +214,14 @@ How to verify practically: fetch both pages, extract `Q*.*` markers from Stories
 ### Meta / cross-cutting Qs (excluded from orphan check)
 
 Some Qs legitimately don't map to a single story:
+
 - Catalogue-level deliverables ("produce an access-control matrix").
 - Spec-level confirmations ("confirm V1 has no external dependencies").
 - Out-of-scope concerns (legal, compliance, ownership questions).
 - Refinements of other Qs.
 
 Tag these `[META]` in the title:
+
 ```
 **Q4.6 [META] — Access-control matrix**
 ```
@@ -231,6 +241,7 @@ Don't. Half-synced edits accumulate; eventually nothing is trusted. If you can't
 Open questions live on their own dedicated page, never inline in stories. Stories reference Qs by ID only.
 
 **Open Questions page structure**:
+
 - **Top-level sections** (priority axis): `# BLOCKS [design-name]` / `# Nice-to-resolve` / `# Cosmetic` / `# Deferred` / `# Resolved`.
 - **Lane sub-sections** within BLOCKS (audience axis): `## ⚠️ Product decisions needed` / `## [TECH] technical questions` / `## [META] cross-cutting`. Within each lane, group by theme.
 - **Each Q**: `**QX.Y — Title**` + prose description + optional `*Recommendation*: ...`. The lane tag sits on the section header — no need to repeat the tag in every title.
@@ -256,6 +267,7 @@ Lane assignment — **strict criterion**:
 **Linking from stories**: `❓[Q4.9](url)` — hyperlinked to the Open Questions page URL.
 
 **Lifecycle**:
+
 - New Q while drafting a story → add to Open Questions in the same edit; link from the story.
 - Q resolved → move to "Resolved" with rationale (Rx-numbered); strip story markers; update counts.
 - Q's candidate shifts → edit Q in place; story bodies usually don't need touching.

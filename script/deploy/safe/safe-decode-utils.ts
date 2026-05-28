@@ -9,6 +9,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { Abi, Address, Hex } from 'viem'
 import {
@@ -27,10 +28,7 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
-import {
-  formatAddressForNetworkCliDisplay,
-  tronHexSuffix,
-} from '../tron/helpers/formatAddressForCliDisplay'
+import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { decodeDiamondCut } from './safe-utils'
 
@@ -749,6 +747,16 @@ export async function formatDecodedTxDataForDisplay(
         // fall through
       }
     }
+    if (!decoded) {
+      const abiItem = getDiamondAbiItemForSelector(data.slice(0, 10))
+      if (abiItem?.type === 'function') {
+        try {
+          decoded = decodeFunctionData({ abi: [abiItem], data })
+        } catch {
+          // fall through
+        }
+      }
+    }
 
     if (decoded?.functionName === 'diamondCut' && decoded.args) {
       await decodeDiamondCut(decoded, chainId, network, pre)
@@ -798,6 +806,7 @@ export async function formatDecodedTxDataForDisplay(
       log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
       const peripheryName = String(decoded.args[0] ?? '')
       const peripheryAddress = String(decoded.args[1] ?? '')
+      log(`Periphery Name: \u001b[33m${peripheryName}\u001b[0m`)
       const deploymentSuffix = await getPeripheryDeploymentCheckSuffix(
         network,
         peripheryName,
@@ -827,10 +836,23 @@ export async function formatDecodedTxDataForDisplay(
       log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
       const args = decoded.args
       if (args && args.length > 0) {
+        const abiItem = getDiamondAbiItemForSelector(data.slice(0, 10))
+        const inputs =
+          abiItem?.type === 'function' &&
+          'inputs' in abiItem &&
+          Array.isArray(abiItem.inputs)
+            ? abiItem.inputs
+            : []
         log('Decoded Arguments:')
         args.forEach((arg: unknown, index: number) => {
+          const input = inputs[index]
+          const paramName =
+            input && typeof input === 'object' && 'name' in input
+              ? (input as { name: string }).name
+              : undefined
+          const label = paramName ? paramName : `[${index}]`
           log(
-            `  [${index}]: \u001b[33m${formatDecodedArg(arg, network)}\u001b[0m`
+            `  ${label}: \u001b[33m${formatDecodedArg(arg, network)}\u001b[0m`
           )
         })
       } else {
@@ -840,6 +862,11 @@ export async function formatDecodedTxDataForDisplay(
     }
 
     if (functionName) {
+      const pretty = tryFormatDiamondPayload(data, network)
+      if (pretty) {
+        log(`Call: \u001b[34m${pretty}\u001b[0m`)
+        return
+      }
       log(`Function: \u001b[34m${functionName}\u001b[0m`)
       return
     }

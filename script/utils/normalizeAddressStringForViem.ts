@@ -4,11 +4,13 @@
  * Import `normalizeAddressForNetwork` wherever you need to handle both Tron and EVM addresses uniformly.
  */
 
+import {
+  getTronWebCodecOnlyForNetwork,
+  isTronNetworkKey,
+  tronAddressToHex,
+} from '@lifi/tron-devkit'
 import { getAddress, type Address } from 'viem'
 
-import { isTronNetworkKey } from '../deploy/shared/tron-network-keys'
-import { getTronWebCodecOnlyForNetwork } from '../deploy/tron/helpers/tronWebCodecOnly'
-import { tronAddressToHex } from '../deploy/tron/tronAddressHelpers'
 
 /**
  * Normalize a contract address from config or Mongo for viem RPC usage.

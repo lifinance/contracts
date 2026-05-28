@@ -6,6 +6,10 @@
  * and provides options to sign and/or execute them.
  */
 
+import {
+  formatAddressForNetworkCliDisplay,
+  isTronNetworkKey,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
@@ -14,11 +18,7 @@ import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
-import { isTronNetworkKey } from '../shared/tron-network-keys'
-import {
-  formatAddressForNetworkCliDisplay,
-  tronHexSuffix,
-} from '../tron/helpers/formatAddressForCliDisplay'
+import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
 import { reconcileSubmittedSafeTxs } from './reconcile'

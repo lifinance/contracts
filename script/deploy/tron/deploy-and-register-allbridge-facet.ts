@@ -1,5 +1,12 @@
 #!/usr/bin/env bun
 
+import {
+  TronContractDeployer,
+  createTronWeb,
+  tronAddressToHex,
+  type ITronDeploymentConfig,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -23,11 +30,8 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { TronContractDeployer } from './TronContractDeployer'
-import { createTronWeb } from './helpers/tronWebFactory'
-import { tronAddressToHex } from './tronAddressHelpers'
+
 import { deployContractWithLogging, validateBalance } from './tronUtils'
-import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
  * Deploy and register AllBridgeFacet to Tron

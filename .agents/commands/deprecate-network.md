@@ -74,9 +74,11 @@ When `/deprecate-network` is invoked with network names:
 
    - Locate the `[etherscan]` section
    - For each network, remove the entire etherscan entry block:
+
      ```toml
      {network} = { key = "...", url = "...", chain = "..." }
      ```
+
    - Handle entries that may span multiple lines
    - Preserve TOML formatting and comments
 

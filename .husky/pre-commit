@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
-export HUSKY_SHELL="${HUSKY_SHELL:-bash}"
-. "$(dirname -- "$0")/_/husky.sh"
+# This hook uses bash-only features (process substitution `< <(...)`, array
+# `+=`, `[[ ]]`). husky v8's `.husky/_/husky.sh` re-execs hooks under `sh -e
+# "$0"`, which on macOS is bash-in-POSIX-mode — bash-only syntax fails to
+# parse inside function bodies, and the error fires AFTER git has already
+# accepted the commit, so bad commits slip through silently.
+#
+# We bypass the broken re-exec by replicating the small bits of husky.sh
+# init we actually need (HUSKY=0 skip, ~/.huskyrc) and re-execing under
+# `bash -e` instead of `sh -e`.
+[ "$HUSKY" = "0" ] && exit 0
+if [ -z "$husky_skip_init" ]; then
+  readonly husky_skip_init=1
+  export husky_skip_init
+  [ -f ~/.huskyrc ] && . ~/.huskyrc
+  exec bash -e "$0" "$@"
+fi
 
 # Early exit: Check if there are any staged files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
@@ -510,7 +524,7 @@ else
 fi
 
 print_status "info" "Running lint-staged (formatting & linting)..."
-(bun lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
+(bunx lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
 LINT_STAGED_PID=$!
 
 # If we have TS/JS files but no Solidity files, start TypeScript compilation in parallel

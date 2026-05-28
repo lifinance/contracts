@@ -5,6 +5,7 @@ Load this only when escalating beyond the SKILL.md "lightweight three-lane revie
 ## When to escalate
 
 Trigger the deep review only when:
+
 - The catalogue is going into a high-stakes audit (third-party with substantial engagement).
 - The product has truly bimodal users (e.g. compliance-heavy AND DeFi-native integrators with very different needs).
 - An incident or near-miss revealed a class of finding the lightweight review missed.
@@ -26,6 +27,7 @@ Use named personas (named produces sharper findings than generic "Reviewer #1").
 ## Required agent-prompt structure
 
 Every agent prompt must include:
+
 - **Persona briefing**: name, role, background, what they care about, what they've been burned by (1–2 paragraphs).
 - **Required reading**: exact URLs / file paths. Don't assume the agent can guess.
 - **Task** with 4–6 explicit categories of finding to look for.
@@ -35,6 +37,7 @@ Every agent prompt must include:
 - **Propose, don't apply**: agent recommends actions; does NOT edit the catalogue.
 
 Findings format per agent:
+
 ```
 **Finding-N**: [Category] [SeverityTag] [Cost-tag] — one-sentence description — suggested action
 ```

@@ -1,4 +1,6 @@
-# Facets
+# Smart Contracts Documentation
+
+## Facets
 
 - [Access Manager Facet](./AccessManagerFacet.md)
 - [Across Facet](./AcrossFacet.md)
@@ -35,11 +37,11 @@
 - [ThorSwap Facet](./ThorSwapFacet.md)
 - [Withdraw Facet](./WithdrawFacet.md)
 
-# Helpers
+## Helpers
 
 - [SwapperV2](./SwapperV2.md)
 
-# Libraries
+## Libraries
 
 - [LibAccess](./LibAccess.md)
 - [LibAllowList](./LibAllowList.md)
@@ -50,7 +52,7 @@
 - [LibSwap](./LibSwap.md)
 - [LibUtil](./LibUtil.md)
 
-# Periphery
+## Periphery
 
 - [ERC20Proxy](./ERC20Proxy.md)
 - [Executor](./Executor.md)
