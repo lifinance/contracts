@@ -132,12 +132,6 @@ Superset does not relay arbitrary destination calldata. The facet rejects
 `bridgeData.hasDestinationCall == true` via the
 `doesNotContainDestinationCalls` modifier.
 
-## Non-EVM Destinations
-
-Superset's current message format encodes `recipient` and `refundAddress` as
-20-byte EVM addresses. Non-EVM destinations are not supported; the facet
-rejects `bridgeData.receiver == NON_EVM_ADDRESS` with `InvalidNonEVMReceiver`.
-
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
