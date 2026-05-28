@@ -6,7 +6,7 @@ import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig, InvalidNonEVMReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -278,12 +278,7 @@ contract SupersetFacetTest is TestBaseFacet {
         validSupersetData.fallbackEoA = address(mockSpoke);
         bridgeData.minAmount = defaultUSDCAmount;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                SupersetFacet.InvalidFallbackEoA.selector,
-                address(mockSpoke)
-            )
-        );
+        vm.expectRevert(InvalidConfig.selector);
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
@@ -299,33 +294,6 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee - 1
-        }(bridgeData, validSupersetData);
-    }
-
-    function testRevert_InvalidSupersetPath() public {
-        vm.startPrank(USER_SENDER);
-        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
-        bridgeData.minAmount = defaultUSDCAmount;
-        // 66 bytes — one short of the 67-byte single-hop minimum
-        validSupersetData.path = new bytes(66);
-
-        vm.expectRevert(SupersetFacet.InvalidSupersetPath.selector);
-
-        supersetFacet.startBridgeTokensViaSuperset{
-            value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
-    }
-
-    function testRevert_NonEvmReceiverRejected() public {
-        vm.startPrank(USER_SENDER);
-        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
-        bridgeData.minAmount = defaultUSDCAmount;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        vm.expectRevert(InvalidNonEVMReceiver.selector);
-
-        supersetFacet.startBridgeTokensViaSuperset{
-            value: validSupersetData.lzFee
         }(bridgeData, validSupersetData);
     }
 
@@ -348,12 +316,7 @@ contract SupersetFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultUSDCAmount;
         validSupersetData.fallbackEoA = address(0);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                SupersetFacet.InvalidFallbackEoA.selector,
-                address(0)
-            )
-        );
+        vm.expectRevert(InvalidConfig.selector);
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee

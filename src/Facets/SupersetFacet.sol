@@ -9,28 +9,19 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridges stablecoins via Superset's hub-and-spoke virtual pools
-///         (LayerZero messaging; hub on Arbitrum, spokes on Base/Unichain).
+///         (LayerZero messaging; hub on Arbitrum).
 /// @dev    Same protocol exposes two slightly different ABIs depending on whether
 ///         the facet is deployed on the hub chain or on a spoke chain. The branch
 ///         is selected by `IS_HUB`, derived once at construction time from
-///         `block.chainid`. Storage layout is identical across deployments.
+///         `block.chainid`.
 ///         Native source asset is not supported because Superset does not support it.
-///         This contract is not intended to custody user funds. Any balance held
-///         is transient during a single transaction and should not persist across calls.
 /// @custom:version 1.0.0
-contract SupersetFacet is
-    ILiFi,
-    ReentrancyGuard,
-    SwapperV2,
-    Validatable,
-    LiFiData
-{
+contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constants ///
 
     /// @notice Chain ID of Arbitrum One (the Superset hub).
@@ -41,11 +32,9 @@ contract SupersetFacet is
     /// @notice Address of the Superset pool manager on the current chain.
     /// @dev On Arbitrum this is `HubPoolManager`; on spokes (Base, Unichain) this
     ///      is `SpokePoolManager`. The facet picks the matching ABI via `IS_HUB`.
-    // solhint-disable-next-line immutable-vars-naming
     address public immutable POOL_MANAGER;
 
     /// @notice True when this facet was deployed on Superset's hub chain (Arbitrum).
-    // solhint-disable-next-line immutable-vars-naming
     bool public immutable IS_HUB;
 
     /// Types ///
@@ -84,15 +73,8 @@ contract SupersetFacet is
 
     /// Errors ///
 
-    /// @notice Thrown when `fallbackEoA` is a contract (i.e. has bytecode).
-    error InvalidFallbackEoA(address fallbackEoA);
-
     /// @notice Thrown when `msg.value` does not cover the declared `lzFee`.
     error InsufficientNativeValue();
-
-    /// @notice Thrown when `SupersetData.path` is shorter than the minimum encoding
-    ///         (one hop = 32 + 3 + 32 = 67 bytes).
-    error InvalidSupersetPath();
 
     /// Constructor ///
 
@@ -124,7 +106,7 @@ contract SupersetFacet is
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        _validateSupersetData(_bridgeData, _supersetData);
+        _validateSupersetData(_supersetData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -152,7 +134,7 @@ contract SupersetFacet is
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateSupersetData(_bridgeData, _supersetData);
+        _validateSupersetData(_supersetData);
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -176,26 +158,14 @@ contract SupersetFacet is
 
     /// @dev Validates Superset-specific data. Native source asset is rejected
     ///      by the `noNativeAsset` modifier on each external entry.
-    /// @param _bridgeData Core LI.FI bridge data
     /// @param _supersetData Superset-specific parameters
     function _validateSupersetData(
-        ILiFi.BridgeData memory _bridgeData,
         SupersetData calldata _supersetData
     ) internal view {
-        // Superset has no non-EVM spokes; reject explicitly.
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            revert InvalidNonEVMReceiver();
-        }
-
         // refundAddress also receives source-side excess native and swap leftovers,
         // so it must be set even on the hub branch where Superset itself ignores it.
         if (_supersetData.refundAddress == address(0)) {
             revert InvalidConfig();
-        }
-
-        // Minimum single-hop encoding is omniTokenId(32) || fee(3) || omniTokenId(32) = 67 bytes.
-        if (_supersetData.path.length < 67) {
-            revert InvalidSupersetPath();
         }
 
         // Must be a non-zero EOA
@@ -203,7 +173,7 @@ contract SupersetFacet is
             _supersetData.fallbackEoA == address(0) ||
             _supersetData.fallbackEoA.code.length != 0
         ) {
-            revert InvalidFallbackEoA(_supersetData.fallbackEoA);
+            revert InvalidConfig();
         }
 
         if (msg.value < _supersetData.lzFee) {
@@ -230,28 +200,28 @@ contract SupersetFacet is
             // on the hub; no source → hub LZ leg).
             ISupersetHubPoolManager(POOL_MANAGER).multiHopSwapWithOutputChain{
                 value: _supersetData.lzFee
-            }(
-                _supersetData.path,
-                _bridgeData.minAmount,
-                _supersetData.amountOutMin,
-                _bridgeData.receiver,
-                _supersetData.fallbackEoA,
-                _supersetData.deadline,
-                _supersetData.toEid
-            );
+            }({
+                _path: _supersetData.path,
+                _amountIn: _bridgeData.minAmount,
+                _amountOutMin: _supersetData.amountOutMin,
+                _recipient: _bridgeData.receiver,
+                _fallbackEoA: _supersetData.fallbackEoA,
+                _deadline: _supersetData.deadline,
+                _toEid: _supersetData.toEid
+            });
         } else {
             ISupersetSpokePoolManager(POOL_MANAGER)
-                .multiHopSwapWithOutputChain{ value: _supersetData.lzFee }(
-                _supersetData.path,
-                _bridgeData.minAmount,
-                _supersetData.amountOutMin,
-                _bridgeData.receiver,
-                _supersetData.refundAddress,
-                _supersetData.fallbackEoA,
-                _supersetData.deadline,
-                _supersetData.toEid,
-                _supersetData.options
-            );
+                .multiHopSwapWithOutputChain{ value: _supersetData.lzFee }({
+                _path: _supersetData.path,
+                _amountIn: _bridgeData.minAmount,
+                _amountOutMin: _supersetData.amountOutMin,
+                _recipient: _bridgeData.receiver,
+                _refundAddress: _supersetData.refundAddress,
+                _fallbackEoA: _supersetData.fallbackEoA,
+                _deadline: _supersetData.deadline,
+                _toEid: _supersetData.toEid,
+                _options: _supersetData.options
+            });
         }
 
         emit LiFiTransferStarted(_bridgeData);
