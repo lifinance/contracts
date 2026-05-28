@@ -589,6 +589,7 @@ const NON_USER_FACING_PREFIXES = [
   'init', // initCelerCircleBridge, initHop, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
   'register', // registerBridge, registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
   'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
+  'unset', // unsetChainIdToDomainId — owner/admin config (inverse of set*)
   'get', // getDeBridgeChainId, getDestinationChainsValue, getPeripheryContract, getStorage, getWhitelistedSelectorsForContract, getAllContractSelectorPairs — view-only
   'is', // isContractSelectorWhitelisted, isQuoteConsumed — view-only
   'extract', // extractBridgeData, extractData, extractGenericSwapParameters, extractMainParameters, extractNonEVMAddress, extractSwapData — pure calldata helpers

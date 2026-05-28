@@ -2,9 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { PolymerCCTPFacet } from "lifi/Facets/PolymerCCTPFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
+    using stdJson for string;
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -21,8 +24,19 @@ contract DeployScript is UpdateScriptBase {
         return excludes;
     }
 
-    function getCallData() internal pure override returns (bytes memory) {
+    function getCallData() internal override returns (bytes memory) {
+        path = string.concat(root, "/config/polymercctp.json");
+        json = vm.readFile(path);
+        bytes memory rawMappings = json.parseRaw(".mappings");
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
+            rawMappings,
+            (PolymerCCTPFacet.ChainIdConfig[])
+        );
+
         return
-            abi.encodeWithSelector(PolymerCCTPFacet.initPolymerCCTP.selector);
+            abi.encodeWithSelector(
+                PolymerCCTPFacet.initPolymerCCTP.selector,
+                chainIdConfigs
+            );
     }
 }
