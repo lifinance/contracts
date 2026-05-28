@@ -179,13 +179,20 @@ function handleNetwork() {
     echo "[network: $NETWORK] registered pauser wallet matches with stored private key (= ready to execute)"
   fi
 
+  # Pre-build pauseDiamond() calldata so we can dispatch via `universalCast sendRaw`.
+  # `universalCast send` with "production" routes through sendOrPropose → propose-to-safe.ts,
+  # but the PauserWallet is registered as an EOA on the diamond and must call pauseDiamond()
+  # directly — no Safe involvement, no multisig signers.
+  local PAUSE_CALLDATA
+  PAUSE_CALLDATA=$(cast calldata "pauseDiamond()")
+
   # repeatedly try to pause the diamond until it's done (or attempts are exhausted)
   local ATTEMPTS=1
   while [ $ATTEMPTS -le $MAX_ATTEMPTS ]; do
     echo ""
     echo "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from PauserWallet: $PRIV_KEY_ADDRESS (attempt: $ATTEMPTS)"
     echo ""
-    universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PAUSER_PRIVATE_KEY"
+    universalCast "sendRaw" "$NETWORK" "production" "$DIAMOND_ADDRESS" "$PAUSE_CALLDATA" "$PAUSER_PRIVATE_KEY"
 
     # check the return code of the last call
     if [ $? -eq 0 ]; then
