@@ -5,10 +5,12 @@
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain-w-swap
  *
  * Executed runs:
- *   base-to-unichain        SRC https://basescan.org/tx/0x4ea0a142a2186a4399601ad1531fcf9256f26b7f1049cd4b727b7e47fe5eefa4
- *                           DST https://arbiscan.io/tx/0x4d6388b9c47984fe24984851e81f818958a3700934c560a66f38c9b86a7dd809
- *   arbitrum-to-base        (pending)
- *   base-to-unichain-w-swap (pending)
+ *   base-to-unichain        SRC https://basescan.org/tx/0x0af0389397d4466ade9877beaa6320a0e827f2ee5e349fe4bff10ae5cb087ede
+ *                           DST https://uniscan.xyz/tx/0xed9d331190fb76ed7f01aeaf11504544338cee1151aed4c2aabb84331a89af0a
+ *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x3cfd0c6b54d3412dcf4e43c54aa8cde67b5a59e9a7b301fcaca101b4125a9baf
+ *                           DST https://basescan.org/tx/0x54f6cbfcbb9da553187052ae39afa0b96788e20114eb09d70faf9e9d97dc2da3
+ *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x96f090b47093fc42b2e64a5363ee214d96d651b0306e904b23ddf268adc0dde1
+ *                           DST https://uniscan.xyz/tx/0xb8c5e36e1c53e7b15b14a049e317fe43843f9a7beb2b31b50c0607f3b9458250
  */
 
 import { randomBytes } from 'crypto'
@@ -81,7 +83,7 @@ interface IScenarioConfig {
 const SHARED = {
   receiver: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
   refundAddress: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
-  fallbackEoA: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
+  fallbackEoA: '0x34E7db45783b50F4e7764258d0Dc0400c3539A57' as Address,
   deadlineSeconds: 1800, // 30 minutes
 }
 

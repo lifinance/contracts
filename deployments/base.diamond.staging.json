@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
       "0x953ad37E0c1883c5A8b6ee5527Eb392Da18d2e64": {
         "Name": "",
         "Version": ""
@@ -73,11 +77,7 @@
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
       },
-      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
-      "0xeA4AaCDD6DecB9f7020B01FA7D467184f8047af7": {
+      "0xdAB548Fd9075b7dABf720c2335B61ED8061b9071": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
       }
