@@ -52,7 +52,8 @@ readonly WARN_MULT_DEN=2
 # notation for extreme values (e.g. near-zero gas costs).
 # Usage: fmtAmount WEI
 function fmtAmount() {
-  printf '%.3g' "$(cast from-wei "$1")"
+  local WEI="$1"
+  printf '%.3g' "$(cast from-wei "$WEI")"
 }
 
 # resolveRpc: ETH_NODE_URI_* env var first, networks.json rpcUrl as fallback.
