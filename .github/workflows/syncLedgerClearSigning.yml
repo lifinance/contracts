@@ -95,12 +95,19 @@ jobs:
 
           echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
           rm -rf ledger-registry
-          # Clone without baking the PAT into remote.origin.url. A token in the
-          # URL persists in `.git/config` and would surface via any later
-          # `git remote -v` / `git config -l` / verbose git invocation. Set an
-          # auth header instead — same effect, token never on disk.
-          git clone "https://github.com/${LEDGER_FORK}.git" ledger-registry
+          # Authenticate the initial clone via a transient token-in-URL: the
+          # runner's prior `actions/checkout` leaves a credential helper that
+          # makes an anonymous clone of github.com prompt for a username and
+          # fail (`fatal: could not read Username for 'https://github.com'`)
+          # even though the fork is public. Once cloned, immediately rewrite
+          # `remote.origin.url` to the bare HTTPS form so the token does not
+          # surface from `git remote -v` (the common debug command), and
+          # install it as an HTTP auth header for subsequent fetch/push.
+          # The header still lands in `.git/config` (visible via `git config
+          # -l`), but the workspace is destroyed at job end.
+          git clone "https://x-access-token:${LEDGER_SYNC_TOKEN}@github.com/${LEDGER_FORK}.git" ledger-registry
           cd ledger-registry
+          git remote set-url origin "https://github.com/${LEDGER_FORK}.git"
           git config "http.https://github.com/.extraheader" "AUTHORIZATION: bearer ${LEDGER_SYNC_TOKEN}"
 
           git remote add upstream "https://github.com/${LEDGER_UPSTREAM}.git"
