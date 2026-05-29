@@ -94,7 +94,14 @@ function fmtRow() { printf '%s\t%s\t%s\t%s\t%s\t%s' "$1" "$2" "$3" "$4" "$5" "$6
 # plainRow: a row with dashes in the numeric columns (for SKIP/PAUSED/ERROR).
 function plainRow() { fmtRow "$1" "-" "-" "-" "-" "$2"; }
 
+# Progress goes to stderr so the final table on stdout stays clean and pipeable.
+TOTAL=${#NETWORKS[@]}
+echo "Checking pauser-wallet funding on $TOTAL network(s) — reading live gas prices & balances, this can take a minute..." >&2
+
+IDX=0
 for NETWORK in "${NETWORKS[@]}"; do
+  IDX=$((IDX + 1))
+  printf '[%d/%d] %s\n' "$IDX" "$TOTAL" "$NETWORK" >&2
   if isTestnetNetwork "$NETWORK" >/dev/null 2>&1 || isTronNetwork "$NETWORK" >/dev/null 2>&1; then
     ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
     continue
@@ -154,8 +161,9 @@ done
 } | column -t -s "$(printf '\t')"
 
 if [[ $HAS_CRITICAL -eq 1 ]]; then
-  echo ""
-  warning "one or more networks are CRITICAL (pauser cannot afford a single pause)"
+  # Summary alert to stderr (keeps stdout = table only); exit code is the machine signal.
+  echo "" >&2
+  warning "one or more networks are CRITICAL (pauser cannot afford a single pause)" >&2
   exit 1
 fi
 exit 0
