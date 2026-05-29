@@ -109,6 +109,18 @@ jobs:
             exit 1
           fi
 
+          # TEMP-DEBUG: token-length print to compare against the diagnostic
+          # workflow that succeeded on the same commit / same runner. Remove
+          # with the rest of the TEMP-TEST-BRANCH-* markers before opening the PR.
+          echo "[debug] LEDGER_SYNC_TOKEN length = ${#LEDGER_SYNC_TOKEN}"
+          echo "[debug] LEDGER_FORK = ${LEDGER_FORK}"
+          # Validate the token in-line against the GitHub API before the clone,
+          # so we can tell whether the failure is auth-state vs URL/clone-pattern.
+          TOKEN_CHECK_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Authorization: bearer ${LEDGER_SYNC_TOKEN}" \
+            https://api.github.com/user)
+          echo "[debug] /user HTTP = ${TOKEN_CHECK_HTTP}"
+
           echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
           rm -rf ledger-registry
           # Authenticate the initial clone via a transient token-in-URL: the
