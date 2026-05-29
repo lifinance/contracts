@@ -10,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
@@ -274,7 +274,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // as `bridgeData.destinationChainId` would. Reverts `UnsupportedChainId`
         // if no mapping is configured for the destination chain.
         if (_chainIdToEid(_destinationChainId) != _supersetData.toEid) {
-            revert InformationMismatch();
+            revert InvalidConfig();
         }
     }
 

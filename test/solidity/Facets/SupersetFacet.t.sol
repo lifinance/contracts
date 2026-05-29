@@ -782,7 +782,7 @@ contract SupersetFacetTest is TestBaseFacet {
         // destinationChainId is 130 (Unichain), but supply Arbitrum's EID.
         validSupersetData.toEid = 30110;
 
-        vm.expectRevert(InformationMismatch.selector);
+        vm.expectRevert(InvalidConfig.selector);
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
