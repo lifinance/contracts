@@ -90,9 +90,11 @@ checkPauserFunds.sh [NETWORK ...]    # no args → all production EVM networks
 ```
 
 **Network selection:** `getAllNetworksArray`, filtered to exclude `isTestnetNetwork`,
-`isTronNetwork`, and `status != active`. Positional args override the sweep → audit only
-those networks (still validated against the same filters; an explicitly-named testnet/Tron
-network is reported as `SKIP`).
+`isTronNetwork`, `status != active`, and chains with no native currency
+(`nativeCurrency == "N/A"`, e.g. `tempo`, which pays gas in a non-native token — a native
+balance vs native gas-cost comparison is meaningless there). Positional args override the
+sweep → audit only those networks (still validated against the same filters; a filtered
+network named explicitly is reported as `SKIP`).
 
 **Per network:**
 
@@ -109,16 +111,18 @@ network is reported as `SKIP`).
 `column -t`:
 
 ```
-NETWORK · COST(1x, native) · REQUIRED(2.5x, native) · BALANCE(native) · PAUSES · STATUS
+NETWORK · COST(1x, native) · REQUIRED(2.5x, native) · BALANCE(native) · NUM OF PAUSES · STATUS
 ```
 
-`PAUSES = balance ÷ single-pause cost` — i.e. how many `pauseDiamond()` calls the wallet can
-fund. Named `PAUSES` (not "ratio") so the denominator is unambiguous: it is relative to the
-1× cost, not the 2.5× target. It is the primary signal (unitless, comparable across chains).
-Native amounts formatted with `cast from-wei` + the chain's `nativeCurrency` symbol, trailing
-zeros trimmed. Gas and gas-price are intermediate inputs folded into `cost`, not shown as
-separate columns — `estimatePauseCost` returns a single wei value, keeping the shared
-contract minimal for the funding consumer.
+`NUM OF PAUSES = balance ÷ single-pause cost` — i.e. how many `pauseDiamond()` calls the
+wallet can fund. Named `NUM OF PAUSES` (not "ratio") so the denominator is unambiguous: it is
+relative to the 1× cost, not the 2.5× target. It is the primary signal (unitless, comparable
+across chains), displayed via `%g` so extreme over-funding (cheap-gas chains) compacts to
+scientific notation; the raw value is still the sort key. Native amounts are rendered to 3
+significant figures (`%.3g` on `cast from-wei`) — enough to eyeball funding without 18-digit
+noise. Gas and gas-price are intermediate inputs folded into `cost`, not shown as separate
+columns — `estimatePauseCost` returns a single wei value, keeping the shared contract minimal
+for the funding consumer.
 
 **Presentation:**
 

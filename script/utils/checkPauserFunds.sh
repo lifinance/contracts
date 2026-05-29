@@ -2,15 +2,16 @@
 #
 # checkPauserFunds.sh — audit whether the pauser wallet on each production EVM network can
 # afford pauseDiamond(). Read-only: estimates the single-pause cost, reads the pauser
-# balance, and reports PAUSES + a status per network. EVM only (Tron / testnets skipped).
+# balance, and reports NUM OF PAUSES + a status per network. EVM only (Tron / testnets, and
+# chains with no native currency such as tempo, are skipped).
 #
 # Usage:
 #   ./script/utils/checkPauserFunds.sh [NETWORK ...]
 #     (no args)   audit all active, non-testnet, non-Tron networks in networks.json
 #     NETWORK...  audit only the named networks
 #
-# PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can currently fund.
-# Status:  OK (PAUSES >= 2.5)   WARNING (1 <= PAUSES < 2.5)   CRITICAL (PAUSES < 1)
+# NUM OF PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can fund.
+# Status:  OK (>= 2.5 pauses)   WARNING (1 to 2.5)   CRITICAL (< 1 pause)
 #          PAUSED (already paused)   ERROR (estimate/RPC failed)   SKIP (filtered/no diamond)
 # Exit code: 1 if any audited network is CRITICAL, else 0.
 #
@@ -24,8 +25,8 @@ function usage() {
 Usage: ./script/utils/checkPauserFunds.sh [NETWORK ...]
   No args     audit all active, non-testnet, non-Tron networks
   NETWORK...  audit only the named networks
-PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
-Statuses: OK (PAUSES>=2.5)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
+NUM OF PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
+Statuses: OK (>=2.5 pauses)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
 Exit code 1 if any network is CRITICAL.
 EOF
 }
@@ -46,10 +47,12 @@ source script/helperFunctions.sh
 readonly WARN_MULT_NUM=5
 readonly WARN_MULT_DEN=2
 
-# trimZeros: strip trailing zeros (and a trailing dot) from a decimal string for display.
-# Usage: trimZeros DECIMAL_STRING
-function trimZeros() {
-  printf '%s' "$1" | sed -E 's/([0-9])0+$/\1/; s/\.$//'
+# fmtAmount: show a wei value in native units rounded to 3 significant figures — enough to
+# eyeball funding; full 18-digit precision isn't useful here. %g may switch to scientific
+# notation for extreme values (e.g. near-zero gas costs).
+# Usage: fmtAmount WEI
+function fmtAmount() {
+  printf '%.3g' "$(cast from-wei "$1")"
 }
 
 # resolveRpc: ETH_NODE_URI_* env var first, networks.json rpcUrl as fallback.
@@ -132,8 +135,13 @@ for NETWORK in "${NETWORKS[@]}"; do
     continue
   fi
 
+  # Skip chains with no meaningful native currency (nativeCurrency "N/A") — e.g. tempo, which
+  # pays gas in a non-native token, so a native balance vs native gas-cost comparison is moot.
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
-  [[ -z "$SYMBOL" ]] && SYMBOL="?"
+  if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
+    ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
+    continue
+  fi
 
   COST=$(estimatePauseCost "$NETWORK")
   RC=$?
@@ -166,22 +174,25 @@ for NETWORK in "${NETWORKS[@]}"; do
     STATUS="OK"
   fi
 
-  COST_N=$(trimZeros "$(cast from-wei "$COST")")
-  REQ_N=$(trimZeros "$(cast from-wei "$REQUIRED")")
-  BAL_N=$(trimZeros "$(cast from-wei "$BALANCE")")
+  COST_N=$(fmtAmount "$COST")
+  REQ_N=$(fmtAmount "$REQUIRED")
+  BAL_N=$(fmtAmount "$BALANCE")
+  # Display the pause count compactly (scientific for extreme over-funding) but keep the raw
+  # RATIO as the sort key so ordering stays exact.
+  PAUSES_DISP=$(printf '%g' "$RATIO")
 
-  ROWS+=("$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$RATIO" "$STATUS")")
+  ROWS+=("$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$PAUSES_DISP" "$STATUS")")
 done
 
 # header + sorted rows through one column pipe: sort by category then ratio, strip both keys.
 # colorizeStatus runs last so coloring can't affect the column-width calculation.
 {
-  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "PAUSES" "STATUS"
+  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "NUM OF PAUSES" "STATUS"
   printf '\n'
   printf '%s\n' "${ROWS[@]}" | sort -t'|' -k1,1n -k2,2g | cut -d'|' -f3-
 } | column -t -s "$(printf '\t')" | colorizeStatus
 
-echo "PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
+echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
 
 if [[ $HAS_CRITICAL -eq 1 ]]; then
   # Summary alert to stderr (keeps stdout = table only); exit code is the machine signal.
