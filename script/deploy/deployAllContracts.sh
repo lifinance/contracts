@@ -333,7 +333,19 @@ deployAllContracts() {
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
-      local DEFAULT_FUND_AMOUNT=2000000000000000
+      # Default funding = 2.5x the real per-chain cost of one pauseDiamond() (~2 pauses +
+      # buffer). Fall back to a flat amount if estimation fails so a deploy is never blocked
+      # on a transient RPC/estimate error.
+      local FALLBACK_FUND_AMOUNT=2000000000000000
+      local DEFAULT_FUND_AMOUNT
+      local SINGLE_PAUSE_COST
+      if SINGLE_PAUSE_COST=$(estimatePauseCost "$NETWORK" "$PAUSER_WALLET_ADDRESS") && [[ "$SINGLE_PAUSE_COST" =~ ^[0-9]+$ ]]; then
+        DEFAULT_FUND_AMOUNT=$(echo "$SINGLE_PAUSE_COST * 5 / 2" | bc)
+        echo "Computed PauserWallet funding default: $DEFAULT_FUND_AMOUNT wei (2.5x single pauseDiamond cost of $SINGLE_PAUSE_COST wei)"
+      else
+        DEFAULT_FUND_AMOUNT=$FALLBACK_FUND_AMOUNT
+        warning "could not estimate pause cost for $NETWORK; falling back to default $DEFAULT_FUND_AMOUNT wei"
+      fi
       echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
       FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
       FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
