@@ -627,6 +627,16 @@ contract SupersetFacetTest is TestBaseFacet {
 
         assertEq(supersetFacet.getChainIdToEid(999), 30364);
 
+        // Updating an existing entry overwrites it and re-emits.
+        configs[0].lzEid = 40231;
+
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidSet(999, 40231);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        assertEq(supersetFacet.getChainIdToEid(999), 40231);
+
         vm.stopPrank();
     }
 
