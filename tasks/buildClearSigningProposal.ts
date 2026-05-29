@@ -43,15 +43,43 @@ const ROOT = path.resolve(__dirname, '..')
 const OUT_DIR = path.join(ROOT, 'out')
 const TARGET = path.join(ROOT, 'config', 'clearSigningProposal.json')
 
-function canonicalType(p: IAbiParam): string {
+// Emit a Solidity-declaration-form type with named tuple components:
+//   `(address callTo, address approveTo, …) _swapData`
+//   `(int64 v, uint32 n, bytes b, uint256 q)[] _data`
+// Tuple components include their field names; nested tuples recurse. Primitives
+// are emitted as the bare type (the caller appends the param name). This is the
+// shape the ERC-7730 v2 schema's `display.formats` key regex requires (every
+// parameter and tuple component needs an identifier), and the shape the EF
+// registry's existing entries are already authored in — so emitting it here
+// also makes our overwrite of registry-side entries byte-identical at the key
+// level (no canonical-vs-declaration string mismatch producing a "2 formats
+// sections for <selector>" collision in the descriptor validator).
+function declarationType(p: IAbiParam): string {
   if (p.type.startsWith('tuple')) {
-    const inner = (p.components ?? []).map(canonicalType).join(',')
+    const inner = (p.components ?? [])
+      .map((c) => {
+        if (!c.name)
+          throw new Error(
+            `tuple component missing name in field of type "${p.type}" — Foundry ABI artifacts should always include component names; rebuild with \`forge build\` if stale`
+          )
+        return `${declarationType(c)} ${c.name}`
+      })
+      .join(', ')
     return `(${inner})${p.type.slice('tuple'.length)}`
   }
   return p.type
 }
 function signature(fn: IAbiFn): string {
-  return `${fn.name}(${fn.inputs.map(canonicalType).join(',')})`
+  const params = fn.inputs
+    .map((p) => {
+      if (!p.name)
+        throw new Error(
+          `function ${fn.name}: parameter has no name (type=${p.type}). ERC-7730 v2 schema requires every parameter to be named.`
+        )
+      return `${declarationType(p)} ${p.name}`
+    })
+    .join(', ')
+  return `${fn.name}(${params})`
 }
 
 function collectFns(): IAbiFn[] {
