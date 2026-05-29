@@ -63,62 +63,6 @@ contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
     }
 }
 
-/// @dev Spoke-side mock — 9-arg ABI matching Superset's `SpokePoolManager`.
-contract MockSupersetSpokePoolManager is ISupersetSpokePoolManager {
-    using SafeERC20 for IERC20;
-
-    struct Call {
-        bytes path;
-        uint256 amountIn;
-        uint256 amountOutMin;
-        address recipient;
-        address refundAddress;
-        address fallbackEoA;
-        uint256 deadline;
-        uint32 toEid;
-        bytes options;
-        uint256 lzFee;
-        address inputToken;
-    }
-
-    Call public lastCall;
-
-    function multiHopSwapWithOutputChain(
-        bytes calldata _path,
-        uint256 _amountIn,
-        uint256 _amountOutMin,
-        address _recipient,
-        address _refundAddress,
-        address _fallbackEoA,
-        uint256 _deadline,
-        uint32 _toEid,
-        bytes calldata _options
-    ) external payable override {
-        // Test-only shortcut: see MockSupersetHubPoolManager for rationale.
-        address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
-
-        IERC20(inputToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amountIn
-        );
-
-        lastCall = Call({
-            path: _path,
-            amountIn: _amountIn,
-            amountOutMin: _amountOutMin,
-            recipient: _recipient,
-            refundAddress: _refundAddress,
-            fallbackEoA: _fallbackEoA,
-            deadline: _deadline,
-            toEid: _toEid,
-            options: _options,
-            lzFee: msg.value,
-            inputToken: inputToken
-        });
-    }
-}
-
 /// @dev Test-only router that performs a fixed-rate swap so the
 ///      `amountOutMin = minAmount * percent / 1e18` math is exact.
 contract MockFixedSwapRouter {
@@ -583,18 +527,8 @@ contract SupersetFacetTest is TestBaseFacet {
     // --- Positive slippage forwarding to amountOutMin ---
 
     function test_PositiveSlippageAdjustsAmountOutMin() public {
-        // Isolate the bridge call so we can inspect the args the facet
-        // forwards to the spoke pool manager.
-        MockSupersetSpokePoolManager mockSpoke = new MockSupersetSpokePoolManager();
-        TestSupersetFacet isolatedFacet = new TestSupersetFacet(
-            address(mockSpoke)
-        );
-
-        vm.prank(address(0));
-        isolatedFacet.initSuperset(_defaultChainIdConfigs());
-
         MockFixedSwapRouter mockRouter = new MockFixedSwapRouter();
-        isolatedFacet.addAllowedContractSelector(
+        supersetFacet.addAllowedContractSelector(
             address(mockRouter),
             MockFixedSwapRouter.swap.selector
         );
@@ -618,7 +552,7 @@ contract SupersetFacetTest is TestBaseFacet {
                 ADDRESS_DAI,
                 swapInputUSDC,
                 swapOutputDAI,
-                address(isolatedFacet)
+                _facetTestContractAddress
             ),
             requiresDeposit: true
         });
@@ -628,28 +562,36 @@ contract SupersetFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
 
         SupersetFacet.SupersetData memory spokeData = validSupersetData;
-        // First 32 bytes of path = input omni-token address (mock shortcut).
-        spokeData.path = abi.encodePacked(
-            bytes32(uint256(uint160(ADDRESS_DAI))),
-            bytes3(uint24(3000)),
-            bytes32(uint256(3))
-        );
         uint64 percent = 0.95e18;
         spokeData.amountOutMinPercent = percent;
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(address(isolatedFacet), swapInputUSDC);
-
-        isolatedFacet.swapAndStartBridgeTokensViaSuperset{
-            value: spokeData.lzFee
-        }(bridgeData, localSwaps, spokeData);
-
-        (, , uint256 capturedAmountOutMin, , , , , , , , ) = mockSpoke
-            .lastCall();
-
         uint256 expectedAmountOutMin = (swapOutputDAI * uint256(percent)) /
             1e18;
-        assertEq(capturedAmountOutMin, expectedAmountOutMin);
+
+        // Short-circuit the real spoke and verify the exact calldata + value.
+        bytes memory expectedCalldata = abi.encodeCall(
+            ISupersetSpokePoolManager.multiHopSwapWithOutputChain,
+            (
+                spokeData.path,
+                swapOutputDAI,
+                expectedAmountOutMin,
+                bridgeData.receiver,
+                spokeData.refundAddress,
+                spokeData.fallbackEoA,
+                spokeData.deadline,
+                spokeData.toEid,
+                spokeData.options
+            )
+        );
+
+        vm.mockCall(SPOKE_POOL_MANAGER, expectedCalldata, "");
+        vm.expectCall(SPOKE_POOL_MANAGER, spokeData.lzFee, expectedCalldata);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, swapInputUSDC);
+
+        supersetFacet.swapAndStartBridgeTokensViaSuperset{
+            value: spokeData.lzFee
+        }(bridgeData, localSwaps, spokeData);
     }
 
     // --- Chain mapping admin tests ---
