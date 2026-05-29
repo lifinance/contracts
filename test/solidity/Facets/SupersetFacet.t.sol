@@ -5,6 +5,7 @@ import { LibSwap } from "../utils/TestBase.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
+import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -59,6 +60,83 @@ contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
             lzFee: msg.value,
             inputToken: inputToken
         });
+    }
+}
+
+/// @dev Spoke-side mock — 9-arg ABI matching Superset's `SpokePoolManager`.
+contract MockSupersetSpokePoolManager is ISupersetSpokePoolManager {
+    using SafeERC20 for IERC20;
+
+    struct Call {
+        bytes path;
+        uint256 amountIn;
+        uint256 amountOutMin;
+        address recipient;
+        address refundAddress;
+        address fallbackEoA;
+        uint256 deadline;
+        uint32 toEid;
+        bytes options;
+        uint256 lzFee;
+        address inputToken;
+    }
+
+    Call public lastCall;
+
+    function multiHopSwapWithOutputChain(
+        bytes calldata _path,
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address _recipient,
+        address _refundAddress,
+        address _fallbackEoA,
+        uint256 _deadline,
+        uint32 _toEid,
+        bytes calldata _options
+    ) external payable override {
+        // Test-only shortcut: see MockSupersetHubPoolManager for rationale.
+        address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
+
+        IERC20(inputToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amountIn
+        );
+
+        lastCall = Call({
+            path: _path,
+            amountIn: _amountIn,
+            amountOutMin: _amountOutMin,
+            recipient: _recipient,
+            refundAddress: _refundAddress,
+            fallbackEoA: _fallbackEoA,
+            deadline: _deadline,
+            toEid: _toEid,
+            options: _options,
+            lzFee: msg.value,
+            inputToken: inputToken
+        });
+    }
+}
+
+/// @dev Test-only router that performs a fixed-rate swap so the
+///      `amountOutMin = minAmount * percent / 1e18` math is exact.
+contract MockFixedSwapRouter {
+    using SafeERC20 for IERC20;
+
+    function swap(
+        address _fromToken,
+        address _toToken,
+        uint256 _fromAmount,
+        uint256 _toAmount,
+        address _to
+    ) external {
+        IERC20(_fromToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _fromAmount
+        );
+        IERC20(_toToken).safeTransfer(_to, _toAmount);
     }
 }
 
@@ -502,6 +580,78 @@ contract SupersetFacetTest is TestBaseFacet {
         assertEq(toEid, hubData.toEid);
         assertEq(lzFee, hubData.lzFee);
         assertEq(inputToken, ADDRESS_USDC);
+    }
+
+    // --- Positive slippage forwarding to amountOutMin ---
+
+    function test_PositiveSlippageAdjustsAmountOutMin() public {
+        // Isolate the bridge call so we can inspect the args the facet
+        // forwards to the spoke pool manager.
+        MockSupersetSpokePoolManager mockSpoke = new MockSupersetSpokePoolManager();
+        TestSupersetFacet isolatedFacet = new TestSupersetFacet(
+            address(mockSpoke)
+        );
+
+        vm.prank(address(0));
+        isolatedFacet.initSuperset(_defaultChainIdConfigs());
+
+        MockFixedSwapRouter mockRouter = new MockFixedSwapRouter();
+        isolatedFacet.addAllowedContractSelector(
+            address(mockRouter),
+            MockFixedSwapRouter.swap.selector
+        );
+
+        // Fixed-rate swap: 100 USDC → 200 DAI. Post-swap minAmount is exactly
+        // 200 DAI, so `amountOutMin` must be `200e18 * percent / 1e18`.
+        uint256 swapInputUSDC = defaultUSDCAmount;
+        uint256 swapOutputDAI = 200 * 10 ** dai.decimals();
+        deal(ADDRESS_DAI, address(mockRouter), swapOutputDAI);
+
+        LibSwap.SwapData[] memory localSwaps = new LibSwap.SwapData[](1);
+        localSwaps[0] = LibSwap.SwapData({
+            callTo: address(mockRouter),
+            approveTo: address(mockRouter),
+            sendingAssetId: ADDRESS_USDC,
+            receivingAssetId: ADDRESS_DAI,
+            fromAmount: swapInputUSDC,
+            callData: abi.encodeWithSelector(
+                MockFixedSwapRouter.swap.selector,
+                ADDRESS_USDC,
+                ADDRESS_DAI,
+                swapInputUSDC,
+                swapOutputDAI,
+                address(isolatedFacet)
+            ),
+            requiresDeposit: true
+        });
+
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        bridgeData.minAmount = swapInputUSDC;
+        bridgeData.hasSourceSwaps = true;
+
+        SupersetFacet.SupersetData memory spokeData = validSupersetData;
+        // First 32 bytes of path = input omni-token address (mock shortcut).
+        spokeData.path = abi.encodePacked(
+            bytes32(uint256(uint160(ADDRESS_DAI))),
+            bytes3(uint24(3000)),
+            bytes32(uint256(3))
+        );
+        uint64 percent = 0.95e18;
+        spokeData.amountOutMinPercent = percent;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(isolatedFacet), swapInputUSDC);
+
+        isolatedFacet.swapAndStartBridgeTokensViaSuperset{
+            value: spokeData.lzFee
+        }(bridgeData, localSwaps, spokeData);
+
+        (, , uint256 capturedAmountOutMin, , , , , , , , ) = mockSpoke
+            .lastCall();
+
+        uint256 expectedAmountOutMin = (swapOutputDAI * uint256(percent)) /
+            1e18;
+        assertEq(capturedAmountOutMin, expectedAmountOutMin);
     }
 
     // --- Chain mapping admin tests ---
