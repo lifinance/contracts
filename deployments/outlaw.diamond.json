@@ -25,9 +25,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0x2a7df458af866dcD427eA1B578f8b90bf7Ae512A": {
+      "0xB129ce9C3fCD55726Ff314a2764d3937FA496071": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0xe1A910021eDf98F692c9fa08dC699e77e57bd794": {
         "Name": "OwnershipFacet",
