@@ -9,8 +9,10 @@ updateERC20Proxy() {
 
   local RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-  ERC20PROXY=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "ERC20Proxy" )
-	EXECUTOR=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "Executor" )
+  local ERC20PROXY
+  ERC20PROXY=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "ERC20Proxy")
+  local EXECUTOR
+  EXECUTOR=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "Executor")
 
   if [[ -z "$ERC20PROXY" || -z "$EXECUTOR" ]]; then
     error "Missing address (ERC20Proxy=$ERC20PROXY, Executor=$EXECUTOR)"

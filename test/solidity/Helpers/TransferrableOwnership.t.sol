@@ -20,6 +20,11 @@ contract TransferrableOwnershipTest is DSTest {
         ownable = new TransferrableOwnership(address(this));
     }
 
+    function testRevert_CannotDeployWithNullOwner() public {
+        vm.expectRevert(NoNullOwner.selector);
+        new TransferrableOwnership(address(0));
+    }
+
     function testOwnerCanTransferOwnership() public {
         address newOwner = address(0x1234567890123456789012345678901234567890);
         ownable.transferOwnership(newOwner);

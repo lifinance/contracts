@@ -23,6 +23,7 @@ contract TransferrableOwnership is IERC173 {
     );
 
     constructor(address initialOwner) {
+        if (initialOwner == LibAsset.NULL_ADDRESS) revert NoNullOwner();
         owner = initialOwner;
     }
 
