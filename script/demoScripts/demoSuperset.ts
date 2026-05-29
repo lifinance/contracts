@@ -5,12 +5,12 @@
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain-w-swap
  *
  * Executed runs:
- *   base-to-unichain        SRC https://basescan.org/tx/0x0af0389397d4466ade9877beaa6320a0e827f2ee5e349fe4bff10ae5cb087ede
- *                           DST https://uniscan.xyz/tx/0xed9d331190fb76ed7f01aeaf11504544338cee1151aed4c2aabb84331a89af0a
- *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x3cfd0c6b54d3412dcf4e43c54aa8cde67b5a59e9a7b301fcaca101b4125a9baf
- *                           DST https://basescan.org/tx/0x54f6cbfcbb9da553187052ae39afa0b96788e20114eb09d70faf9e9d97dc2da3
- *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x96f090b47093fc42b2e64a5363ee214d96d651b0306e904b23ddf268adc0dde1
- *                           DST https://uniscan.xyz/tx/0xb8c5e36e1c53e7b15b14a049e317fe43843f9a7beb2b31b50c0607f3b9458250
+ *   base-to-unichain        SRC https://basescan.org/tx/0x3ecb04feec3f101b2a60bfb9d2674e6b3f7bced146d770d0f2acf602b942f3d5
+ *                           DST https://uniscan.xyz/tx/0x9e69d68a59333303d79b5acc316e679ca3e59a12855ab4ba2d676590539872f9
+ *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x9bdb85d94293705292bd00ff5dee39d6107469d91f239d13d27ccc612e54f25d
+ *                           DST https://basescan.org/tx/0xd2dd811a69cf121638b2572d0d1cbf193fbf5e79af6a2e4648f609438b0aa87c
+ *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x34d9da78ebb454ba08dd9e1364763622d2653427b17245b630ec0eddedf0e08b
+ *                           DST https://uniscan.xyz/tx/0xa4a87fd3ea003b0a62834da4396b9c3ae8c8a79172d16a0d5ef24d45d54aa0ca
  */
 
 import { randomBytes } from 'crypto'
