@@ -54,7 +54,14 @@ jobs:
           # does not print the key on error, and the runner is ephemeral and
           # single-tenant, so the brief argv presence is not a practical leak.
           DERIVED="$(cast wallet address --private-key "${PRIVATE_KEY_PAUSER_WALLET}")"
-          EXPECTED="$(jq -r '.pauserWallet' config/global.json)"
+
+          # `// empty` so a missing/null key yields a clear error below rather than
+          # the literal string "null" silently masquerading as a MISMATCH.
+          EXPECTED="$(jq -r '.pauserWallet // empty' config/global.json)"
+          if [[ -z "${EXPECTED}" ]]; then
+            echo -e "\033[31mpauserWallet key is missing or null in config/global.json.\033[0m"
+            exit 1
+          fi
 
           # Compare case-insensitively to ignore EIP-55 checksum-casing differences.
           DERIVED_LC="$(echo "${DERIVED}" | tr '[:upper:]' '[:lower:]')"
