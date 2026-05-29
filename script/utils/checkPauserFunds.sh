@@ -94,11 +94,17 @@ readonly CAT_PAUSED=2
 readonly CAT_SKIP=3
 
 # fmtRow: join the 6 table columns with tabs (column -t aligns them at the end).
-# Usage: fmtRow NETWORK COST REQUIRED BALANCE RATIO STATUS
-function fmtRow() { printf '%s\t%s\t%s\t%s\t%s\t%s' "$1" "$2" "$3" "$4" "$5" "$6"; }
+# Usage: fmtRow NETWORK COST REQUIRED BALANCE PAUSES STATUS
+function fmtRow() {
+  local NETWORK="$1" COST="$2" REQUIRED="$3" BALANCE="$4" PAUSES="$5" STATUS="$6"
+  printf '%s\t%s\t%s\t%s\t%s\t%s' "$NETWORK" "$COST" "$REQUIRED" "$BALANCE" "$PAUSES" "$STATUS"
+}
 
 # plainRow: a row with dashes in the numeric columns (for SKIP/PAUSED/ERROR).
-function plainRow() { fmtRow "$1" "-" "-" "-" "-" "$2"; }
+function plainRow() {
+  local NETWORK="$1" STATUS="$2"
+  fmtRow "$NETWORK" "-" "-" "-" "-" "$STATUS"
+}
 
 # colorizeStatus: color the trailing STATUS word of each row. Applied AFTER `column -t` so the
 # non-printing escape codes can't skew column-width alignment, and only on a TTY so piped or
