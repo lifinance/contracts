@@ -88,6 +88,25 @@ function signature(fn: IAbiFn): string {
   return `${fn.name}(${params})`
 }
 
+// Lenient, canonical-form signature for internal dedup + sort during collection.
+// `signature()` (declaration form, name-required) is what we emit as
+// display.formats keys — and it intentionally throws on unnamed params to keep
+// the keys schema-valid. But `collectFns()` walks the *entire* facet ABI before
+// `isKnownNonUserFacing()` has a chance to drop admin / getter / view helpers,
+// so a single unnamed-param helper would crash the generator before it could
+// even be classified as non-user-facing. Use this canonical form for
+// dedup/sort only — never as an output key.
+function collectionSignature(fn: IAbiFn): string {
+  const canonicalType = (p: IAbiParam): string => {
+    if (p.type.startsWith('tuple')) {
+      const inner = (p.components ?? []).map(canonicalType).join(',')
+      return `(${inner})${p.type.slice('tuple'.length)}`
+    }
+    return p.type
+  }
+  return `${fn.name}(${fn.inputs.map(canonicalType).join(',')})`
+}
+
 function collectFns(): IAbiFn[] {
   const facetsDir = path.join(ROOT, 'src', 'Facets')
   const fnNames = new Set<string>()
@@ -110,14 +129,14 @@ function collectFns(): IAbiFn[] {
     // making the strict failure unreachable. See PR #1821 review.)
     for (const item of json.abi ?? []) {
       if (item.type !== 'function') continue
-      const sig = signature(item)
+      const sig = collectionSignature(item)
       if (out[sig]) continue
       out[sig] = item
       fnNames.add(item.name)
     }
   }
   return Object.values(out).sort((a, b) =>
-    signature(a).localeCompare(signature(b))
+    collectionSignature(a).localeCompare(collectionSignature(b))
   )
 }
 
