@@ -169,8 +169,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @return lzEid LayerZero endpoint ID.
     function getChainIdToEid(
         uint256 _chainId
-    ) external view returns (uint32 lzEid) {
-        return _chainIdToEid(_chainId);
+    ) public view returns (uint32 lzEid) {
+        lzEid = _getStorage().lzEids[_chainId];
+        if (lzEid == 0) revert UnsupportedChainId(_chainId);
     }
 
     /// External Methods ///
@@ -273,7 +274,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Ensure backend-supplied `toEid` resolves to the same LayerZero endpoint
         // as `bridgeData.destinationChainId` would. Reverts `UnsupportedChainId`
         // if no mapping is configured for the destination chain.
-        if (_chainIdToEid(_destinationChainId) != _supersetData.toEid) {
+        if (getChainIdToEid(_destinationChainId) != _supersetData.toEid) {
             revert InvalidConfig();
         }
     }
@@ -322,15 +323,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @dev Returns the LayerZero EID configured for `_chainId`.
-    /// @param _chainId LI.FI chain ID to look up.
-    /// @return LayerZero endpoint ID.
-    function _chainIdToEid(uint256 _chainId) internal view returns (uint32) {
-        uint32 lzEid = _getStorage().lzEids[_chainId];
-        if (lzEid == 0) revert UnsupportedChainId(_chainId);
-        return lzEid;
     }
 
     /// @dev Fetches diamond storage.
