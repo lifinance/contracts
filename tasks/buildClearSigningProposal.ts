@@ -56,7 +56,13 @@ const TARGET = path.join(ROOT, 'config', 'clearSigningProposal.json')
 // sections for <selector>" collision in the descriptor validator).
 function declarationType(p: IAbiParam): string {
   if (p.type.startsWith('tuple')) {
-    const inner = (p.components ?? [])
+    if (!p.components)
+      throw new Error(
+        `tuple "${p.name || '<anonymous>'}" of type "${
+          p.type
+        }" is missing components — Foundry ABI artifacts should include tuple components; rebuild with \`forge build\` if stale`
+      )
+    const inner = p.components
       .map((c) => {
         if (!c.name)
           throw new Error(
