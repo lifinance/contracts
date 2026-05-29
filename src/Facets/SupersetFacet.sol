@@ -52,8 +52,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint32 lzEid;
     }
 
-    /// @dev Diamond storage layout. Mapping stores `lzEid + 1` so 0 always means
-    ///      "unset" regardless of future LayerZero EID assignments.
+    /// @dev Diamond storage layout. `lzEids[chainId] == 0` means "unset" — safe
+    ///      because LayerZero does not assign EID 0 (v1 starts at 101, v2 at 30000).
     struct Storage {
         mapping(uint256 => uint32) lzEids;
         bool chainMappingsInitialized;
@@ -131,9 +131,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         Storage storage s = _getStorage();
 
         for (uint256 i = 0; i < _chainIdConfigs.length; ) {
-            s.lzEids[_chainIdConfigs[i].chainId] =
-                _chainIdConfigs[i].lzEid +
-                1;
+            s.lzEids[_chainIdConfigs[i].chainId] = _chainIdConfigs[i].lzEid;
 
             unchecked {
                 ++i;
@@ -160,7 +158,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             uint256 chainId = _chainIdConfigs[i].chainId;
             uint32 lzEid = _chainIdConfigs[i].lzEid;
 
-            s.lzEids[chainId] = lzEid + 1;
+            s.lzEids[chainId] = lzEid;
             emit ChainIdToEidSet(chainId, lzEid);
 
             unchecked {
@@ -346,10 +344,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _chainId LI.FI chain ID to look up.
     /// @return LayerZero endpoint ID.
     function _chainIdToEid(uint256 _chainId) internal view returns (uint32) {
-        uint32 storedLzEid = _getStorage().lzEids[_chainId];
-        if (storedLzEid == 0) revert UnsupportedChainId(_chainId);
-        // Stored as lzEid + 1 so unset (0) is distinct from a real EID.
-        return storedLzEid - 1;
+        uint32 lzEid = _getStorage().lzEids[_chainId];
+        if (lzEid == 0) revert UnsupportedChainId(_chainId);
+        return lzEid;
     }
 
     /// @dev Fetches diamond storage.
