@@ -4,14 +4,17 @@
 # it is the READ-ONLY companion to diamondEMERGENCYPauseGitHub.sh: it verifies that the
 # emergency pause CAN fire on every production diamond, WITHOUT firing it.
 #
-# Two layers (fail-fast on the first):
-#   Layer 1 (offline): the address derived from PRIVATE_KEY_PAUSER_WALLET matches the
-#                      configured pauser in config/global.json (EVM hex + Tron base58).
+# Layers:
+#   Layer 1 (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
+#                      the configured pauser in config/global.json (EVM hex + Tron base58).
 #   Layer 2 (on-chain, per production LiFiDiamond): the registered pauserWallet() equals
 #                      that derived address, read via the real `universalCast "call"`.
+#   Layer 3 (on-chain governance, per mainnet diamond — the UNPAUSE path): the
+#                      LiFiTimelockController's diamond() points at the production diamond,
+#                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
 #
 # It performs NO transactions (no pause / unpause / send). A non-zero exit means the
-# emergency pause would not work as configured and must be investigated.
+# emergency pause/unpause would not work as configured and must be investigated.
 
 
 # load helper functions (also sources script/universalCast.sh)
@@ -39,6 +42,11 @@ source ./script/helperFunctions.sh
 RPC_MAX_ATTEMPTS=5
 RPC_RETRY_SLEEP_SECONDS=3
 RPC_CALL_DELAY_SECONDS=1
+
+# The role gating LiFiTimelockController.unpauseDiamond(). Derived at runtime via
+# keccak256("TIMELOCK_ADMIN_ROLE") so it reads as a role hash rather than a magic 32-byte
+# literal (which also trips secret scanners as a false-positive "private key").
+TIMELOCK_ADMIN_ROLE="$(cast keccak "TIMELOCK_ADMIN_ROLE")"
 
 # rpcCallWithRetry: Run an RPC-touching command up to $RPC_MAX_ATTEMPTS times with
 # $RPC_RETRY_SLEEP_SECONDS between failures. Captures stdout cleanly so callers
@@ -169,6 +177,89 @@ function verifyPauserOnNetwork() {
   return 0
 }
 
+# verifyGovernanceOnNetwork: Layer 3 — verify the UNPAUSE path's governance wiring:
+#   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond, and
+#   (2) the Safe holds TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond()).
+# Read-only. Applies only to mainnet (non-testnet, non-Tron) networks that have a deployed
+# timelock AND a configured Safe; everything else is skipped with a notice. Returns 0 on
+# pass/skip, 1 on a real mismatch / missing role / RPC exhausted.
+#
+# Usage: verifyGovernanceOnNetwork NETWORK
+function verifyGovernanceOnNetwork() {
+  local NETWORK="$1"
+
+  # Testnets are EOA-owned (no Safe/timelock); Tron's governance model differs. Skip both.
+  if isTestnetNetwork "$NETWORK" || isTronNetwork "$NETWORK"; then
+    echo "skipping $NETWORK governance checks (testnet or Tron - no Safe/timelock)"
+    return 0
+  fi
+
+  local TIMELOCK_ADDRESS
+  TIMELOCK_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiTimelockController")
+  if [[ $? -ne 0 || -z "$TIMELOCK_ADDRESS" ]]; then
+    echo "skipping $NETWORK governance checks (no LiFiTimelockController in deploy log)"
+    return 0
+  fi
+
+  local SAFE_ADDRESS
+  SAFE_ADDRESS=$(jq -r --arg n "$NETWORK" '.[$n].safeAddress // empty' config/networks.json)
+  if [[ -z "$SAFE_ADDRESS" ]]; then
+    echo "skipping $NETWORK governance checks (no safeAddress in networks.json)"
+    return 0
+  fi
+
+  local DIAMOND_ADDRESS
+  DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
+  if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" ]]; then
+    error "[network: $NETWORK] governance: production LiFiDiamond not found in deploy log."
+    return 1
+  fi
+
+  local RC=0
+
+  # (1) timelock.diamond() must point at the production diamond
+  sleep "$RPC_CALL_DELAY_SECONDS"
+  local TIMELOCK_DIAMOND
+  if ! TIMELOCK_DIAMOND=$(rpcCallWithRetry "[$NETWORK] timelock.diamond()" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "diamond() returns (address)"); then
+    error "[network: $NETWORK] governance: failed to read LiFiTimelockController.diamond() after $RPC_MAX_ATTEMPTS attempts: $TIMELOCK_DIAMOND"
+    RC=1
+  elif [[ "$(echo "$TIMELOCK_DIAMOND" | tr '[:upper:]' '[:lower:]')" != "$(echo "$DIAMOND_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+    error "[network: $NETWORK] governance: timelock.diamond() ($TIMELOCK_DIAMOND) does not match deploy-log LiFiDiamond ($DIAMOND_ADDRESS)"
+    RC=1
+  else
+    success "[network: $NETWORK] governance: timelock.diamond() matches the production diamond"
+  fi
+
+  # (2) Safe must hold TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond())
+  sleep "$RPC_CALL_DELAY_SECONDS"
+  local HAS_ROLE
+  if ! HAS_ROLE=$(rpcCallWithRetry "[$NETWORK] timelock.hasRole(admin,safe)" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS"); then
+    error "[network: $NETWORK] governance: failed to read hasRole(TIMELOCK_ADMIN_ROLE, safe) after $RPC_MAX_ATTEMPTS attempts: $HAS_ROLE"
+    RC=1
+  elif [[ "$HAS_ROLE" != "true" ]]; then
+    error "[network: $NETWORK] governance: Safe ($SAFE_ADDRESS) does NOT hold TIMELOCK_ADMIN_ROLE on the timelock (hasRole=$HAS_ROLE)"
+    RC=1
+  else
+    success "[network: $NETWORK] governance: Safe holds TIMELOCK_ADMIN_ROLE"
+  fi
+
+  return $RC
+}
+
+# verifyNetwork: run all per-network readiness checks for one network (Layer 2 pauser +
+# Layer 3 governance). Runs both even if the first fails, so a network reports all problems.
+# Returns non-zero if any check failed.
+#
+# Usage: verifyNetwork NETWORK EXPECTED_PAUSER_ADDRESS
+function verifyNetwork() {
+  local NETWORK="$1"
+  local EXPECTED_PAUSER="$2"
+  local RC=0
+  verifyPauserOnNetwork "$NETWORK" "$EXPECTED_PAUSER" || RC=1
+  verifyGovernanceOnNetwork "$NETWORK" || RC=1
+  return $RC
+}
+
 function main {
   if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
     error "PRIVATE_KEY_PAUSER_WALLET is empty or not set. Cannot verify emergency pause readiness."
@@ -216,7 +307,7 @@ function main {
   # abort the others; aggregation happens after every job finishes and does not short-circuit.
   local -a PIDS=()
   for NETWORK in "${NETWORKS[@]}"; do
-    verifyPauserOnNetwork "$NETWORK" "$PRIV_KEY_ADDRESS" &
+    verifyNetwork "$NETWORK" "$PRIV_KEY_ADDRESS" &
     PIDS+=("$!")
   done
   local RETURN=0

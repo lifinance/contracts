@@ -5,6 +5,8 @@
 #   configured pauser in config/global.json (EVM + Tron). Fail-fast.
 # - Layer 2 (on-chain): each production LiFiDiamond's registered pauserWallet() equals
 #   that derived address, read via the real `universalCast "call"` (EVM + Tron).
+# - Layer 3 (on-chain governance, mainnet only - the unpause path): LiFiTimelockController.diamond()
+#   matches the deploy-log diamond, and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
