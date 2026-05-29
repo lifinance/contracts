@@ -99,7 +99,17 @@ function signature(fn: IAbiFn): string {
 function collectionSignature(fn: IAbiFn): string {
   const canonicalType = (p: IAbiParam): string => {
     if (p.type.startsWith('tuple')) {
-      const inner = (p.components ?? []).map(canonicalType).join(',')
+      // Tolerate unnamed params (that's the point of the lenient form), but a
+      // tuple missing its `components` is a stale/corrupt ABI artifact — the
+      // same hard-fail condition as declarationType(). Don't swallow it into
+      // `()`, which could collide with another malformed tuple during dedup.
+      if (!p.components)
+        throw new Error(
+          `tuple "${p.name || '<anonymous>'}" of type "${
+            p.type
+          }" is missing components — Foundry ABI artifacts should include tuple components; rebuild with \`forge build\` if stale`
+        )
+      const inner = p.components.map(canonicalType).join(',')
       return `(${inner})${p.type.slice('tuple'.length)}`
     }
     return p.type
