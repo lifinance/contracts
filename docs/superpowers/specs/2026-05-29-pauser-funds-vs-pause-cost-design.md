@@ -108,11 +108,14 @@ network is reported as `SKIP`).
 **Output:** one table, **sorted by ratio ascending** (worst first):
 
 ```
-network · gas · gasPrice(gwei) · cost(native) · required 2.5×(native) · balance(native) · ratio · status
+network · cost(1×, native) · required 2.5×(native) · balance(native) · ratio · status
 ```
 
 Native amounts formatted with `cast from-wei` and the chain's `nativeCurrency` symbol from
-`networks.json`. Ratio is the primary signal (unitless, comparable across chains).
+`networks.json`, trailing zeros trimmed. Ratio is the primary signal (unitless, comparable
+across chains). Gas and gas-price are intermediate inputs folded into `cost`, not shown as
+separate columns — `estimatePauseCost` returns a single wei value, keeping the shared
+contract minimal for the funding consumer.
 
 **Exit code:** `1` if any network is CRITICAL, else `0`. ERROR/PAUSED/SKIP do not fail the
 run. (Lets a future GH Action (b) gate on a clean exit.)
