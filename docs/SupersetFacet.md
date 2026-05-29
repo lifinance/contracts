@@ -35,6 +35,23 @@ graph LR;
   - Simply bridges tokens using Superset.
 - `function swapAndStartBridgeTokensViaSuperset(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, SupersetData calldata _supersetData)`
   - Performs swap(s) on the source chain before bridging via Superset.
+- `function getChainIdToEid(uint256 _chainId)`
+  - Returns the LayerZero EID configured for a LI.FI chain ID.
+
+## Admin Methods
+
+- `function initSuperset(ChainIdConfig[] calldata _chainIdConfigs)`
+  - Owner-only. Seeds the chain ID → LayerZero EID mapping from `config/superset.json` (`mappings` array). Required before any bridge can be processed.
+- `function setChainIdToEid(ChainIdConfig[] calldata _chainIdConfigs)`
+  - Owner-only. Adds or updates entries in the mapping after initialization. Use when a new spoke is onboarded without redeploying the facet.
+- `function unsetChainIdToEid(uint256 _chainId)`
+  - Owner-only. Removes a single entry, restoring the unsupported state.
+
+After adding mappings to `config/superset.json`, propagate them to every chain where SupersetFacet is deployed (Safe-proposed Diamond cut + initSuperset / setChainIdToEid call).
+
+## Destination Chain Validation
+
+The facet validates that the backend-supplied `_supersetData.toEid` matches the LayerZero EID stored for `_bridgeData.destinationChainId`. A mismatch reverts with `InformationMismatch`; a destination chain that has not been onboarded reverts with `UnsupportedChainId(chainId)`. This makes the off-chain `(destinationChainId, toEid)` pair structurally consistent with on-chain configuration.
 
 ## Superset Specific Parameters
 

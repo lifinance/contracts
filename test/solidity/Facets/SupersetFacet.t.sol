@@ -6,7 +6,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig, NativeAssetNotSupported, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -64,6 +64,12 @@ contract TestSupersetFacet is SupersetFacet, TestWhitelistManagerBase {
 }
 
 contract SupersetFacetTest is TestBaseFacet {
+    event SupersetChainMappingsInitialized(
+        SupersetFacet.ChainIdConfig[] chainIdConfigs
+    );
+    event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+    event ChainIdToEidUnset(uint256 indexed chainId);
+
     // Real Superset spoke deployment on Base mainnet (see config/superset.json).
     address internal constant SPOKE_POOL_MANAGER =
         0x57C155a15a9CA0A6C1F759ac6988b4fCa3663Ea4;
@@ -76,6 +82,26 @@ contract SupersetFacetTest is TestBaseFacet {
     TestSupersetFacet internal supersetFacet;
     SupersetFacet.SupersetData internal validSupersetData;
 
+    function _defaultChainIdConfigs()
+        internal
+        pure
+        returns (SupersetFacet.ChainIdConfig[] memory configs)
+    {
+        configs = new SupersetFacet.ChainIdConfig[](3);
+        configs[0] = SupersetFacet.ChainIdConfig({
+            chainId: 42161,
+            lzEid: 30110
+        }); // Arbitrum
+        configs[1] = SupersetFacet.ChainIdConfig({
+            chainId: 8453,
+            lzEid: 30184
+        }); // Base
+        configs[2] = SupersetFacet.ChainIdConfig({
+            chainId: 130,
+            lzEid: 30320
+        }); // Unichain
+    }
+
     function setUp() public {
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
         customBlockNumberForForking = 46595000;
@@ -83,7 +109,7 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
-        bytes4[] memory functionSelectors = new bytes4[](3);
+        bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = supersetFacet
             .startBridgeTokensViaSuperset
             .selector;
@@ -93,9 +119,18 @@ contract SupersetFacetTest is TestBaseFacet {
         functionSelectors[2] = supersetFacet
             .addAllowedContractSelector
             .selector;
+        functionSelectors[3] = supersetFacet.initSuperset.selector;
+        functionSelectors[4] = supersetFacet.setChainIdToEid.selector;
+        functionSelectors[5] = supersetFacet.unsetChainIdToEid.selector;
+        functionSelectors[6] = supersetFacet.getChainIdToEid.selector;
 
         addFacet(diamond, address(supersetFacet), functionSelectors);
         supersetFacet = TestSupersetFacet(payable(address(diamond)));
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+        supersetFacet.initSuperset(_defaultChainIdConfigs());
+        vm.stopPrank();
+
         supersetFacet.addAllowedContractSelector(
             ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
@@ -405,6 +440,10 @@ contract SupersetFacetTest is TestBaseFacet {
         MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
         TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
 
+        // Standalone facet: diamond-storage owner defaults to address(0).
+        vm.prank(address(0));
+        hubFacet.initSuperset(_defaultChainIdConfigs());
+
         vm.startPrank(USER_SENDER);
         usdc.approve(address(hubFacet), defaultUSDCAmount);
 
@@ -447,5 +486,196 @@ contract SupersetFacetTest is TestBaseFacet {
         assertEq(toEid, hubData.toEid);
         assertEq(lzFee, hubData.lzFee);
         assertEq(inputToken, ADDRESS_USDC);
+    }
+
+    // --- Chain mapping admin tests ---
+
+    function test_DefaultChainMappingsSeeded() public {
+        assertEq(supersetFacet.getChainIdToEid(42161), 30110);
+        assertEq(supersetFacet.getChainIdToEid(8453), 30184);
+        assertEq(supersetFacet.getChainIdToEid(130), 30320);
+    }
+
+    function testRevert_GetChainIdToEidUnsupported() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 99999)
+        );
+
+        supersetFacet.getChainIdToEid(99999);
+    }
+
+    function test_CanSetChainIdToEid() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({
+            chainId: 999,
+            lzEid: 30364
+        });
+
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidSet(999, 30364);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        assertEq(supersetFacet.getChainIdToEid(999), 30364);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToEidFromNonOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({
+            chainId: 999,
+            lzEid: 30364
+        });
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToEidEmpty() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToEidBeforeInit() public {
+        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({
+            chainId: 999,
+            lzEid: 30364
+        });
+
+        vm.prank(address(0));
+        vm.expectRevert(NotInitialized.selector);
+
+        fresh.setChainIdToEid(configs);
+    }
+
+    function test_CanUnsetChainIdToEid() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidUnset(130);
+
+        supersetFacet.unsetChainIdToEid(130);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 130)
+        );
+
+        supersetFacet.getChainIdToEid(130);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_UnsetChainIdToEidFromNonOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        supersetFacet.unsetChainIdToEid(130);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_UnsetChainIdToEidBeforeInit() public {
+        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
+
+        vm.prank(address(0));
+        vm.expectRevert(NotInitialized.selector);
+
+        fresh.unsetChainIdToEid(130);
+    }
+
+    function test_InitSupersetEmitsAndSetsMappings() public {
+        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
+        SupersetFacet.ChainIdConfig[]
+            memory configs = _defaultChainIdConfigs();
+
+        vm.prank(address(0));
+        vm.expectEmit(true, true, true, true);
+        emit SupersetChainMappingsInitialized(configs);
+
+        fresh.initSuperset(configs);
+
+        assertEq(fresh.getChainIdToEid(42161), 30110);
+        assertEq(fresh.getChainIdToEid(8453), 30184);
+        assertEq(fresh.getChainIdToEid(130), 30320);
+    }
+
+    function testRevert_InitSupersetFromNonOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        supersetFacet.initSuperset(_defaultChainIdConfigs());
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InitSupersetEmpty() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.initSuperset(configs);
+
+        vm.stopPrank();
+    }
+
+    // --- Destination chain validation tests ---
+
+    function testRevert_DestinationChainIdMismatch() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        // destinationChainId is 130 (Unichain), but supply Arbitrum's EID.
+        validSupersetData.toEid = 30110;
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function testRevert_DestinationChainIdUnsupported() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+        supersetFacet.unsetChainIdToEid(130);
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 130)
+        );
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
     }
 }

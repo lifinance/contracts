@@ -5,11 +5,12 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISupersetSpokePoolManager } from "../Interfaces/ISupersetSpokePoolManager.sol";
 import { ISupersetHubPoolManager } from "../Interfaces/ISupersetHubPoolManager.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
@@ -27,6 +28,10 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Chain ID of Arbitrum One (the Superset hub).
     uint256 internal constant ARBITRUM_CHAIN_ID = 42161;
 
+    /// @dev Diamond storage namespace.
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.superset");
+
     /// Storage ///
 
     /// @notice Address of the Superset pool manager on the current chain.
@@ -38,6 +43,21 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     bool public immutable IS_HUB;
 
     /// Types ///
+
+    /// @dev Entry used to seed or update the chainId ↔ LayerZero EID mapping.
+    /// @param chainId LI.FI chain ID (e.g. 8453 for Base).
+    /// @param lzEid LayerZero endpoint ID for the same chain (e.g. 30184 for Base).
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint32 lzEid;
+    }
+
+    /// @dev Diamond storage layout. Mapping stores `lzEid + 1` so 0 always means
+    ///      "unset" regardless of future LayerZero EID assignments.
+    struct Storage {
+        mapping(uint256 => uint32) lzEids;
+        bool chainMappingsInitialized;
+    }
 
     /// @dev Superset-specific parameters supplied by the LI.FI backend.
     /// @param path Packed `omniTokenId(32) || fee(3) || ... || omniTokenId(32)` describing
@@ -76,6 +96,17 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Thrown when `msg.value` does not cover the declared `lzFee`.
     error InsufficientNativeValue();
 
+    /// Events ///
+
+    /// @notice Emitted when the chainId ↔ LayerZero EID mapping is initialized.
+    event SupersetChainMappingsInitialized(ChainIdConfig[] chainIdConfigs);
+
+    /// @notice Emitted when a chainId ↔ LayerZero EID entry is set or updated.
+    event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+
+    /// @notice Emitted when a chainId ↔ LayerZero EID entry is removed.
+    event ChainIdToEidUnset(uint256 indexed chainId);
+
     /// Constructor ///
 
     /// @param _poolManager Superset `HubPoolManager` on Arbitrum or `SpokePoolManager` on
@@ -86,6 +117,78 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
         POOL_MANAGER = _poolManager;
         IS_HUB = block.chainid == ARBITRUM_CHAIN_ID;
+    }
+
+    /// Admin Methods ///
+
+    /// @notice Seeds the chainId ↔ LayerZero EID mapping (owner-only).
+    /// @param _chainIdConfigs Batch of `{chainId, lzEid}` entries.
+    /// @dev Overwrites any existing entries for the supplied chain IDs.
+    function initSuperset(ChainIdConfig[] calldata _chainIdConfigs) external {
+        if (_chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+
+        for (uint256 i = 0; i < _chainIdConfigs.length; ) {
+            s.lzEids[_chainIdConfigs[i].chainId] =
+                _chainIdConfigs[i].lzEid +
+                1;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        s.chainMappingsInitialized = true;
+
+        emit SupersetChainMappingsInitialized(_chainIdConfigs);
+    }
+
+    /// @notice Adds or updates chainId ↔ LayerZero EID entries (owner-only).
+    /// @param _chainIdConfigs Batch of `{chainId, lzEid}` entries.
+    function setChainIdToEid(
+        ChainIdConfig[] calldata _chainIdConfigs
+    ) external {
+        if (_chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+        if (!s.chainMappingsInitialized) revert NotInitialized();
+
+        for (uint256 i = 0; i < _chainIdConfigs.length; ) {
+            uint256 chainId = _chainIdConfigs[i].chainId;
+            uint32 lzEid = _chainIdConfigs[i].lzEid;
+
+            s.lzEids[chainId] = lzEid + 1;
+            emit ChainIdToEidSet(chainId, lzEid);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Removes the chainId ↔ LayerZero EID entry for `_chainId` (owner-only).
+    /// @param _chainId LI.FI chain ID to unset.
+    function unsetChainIdToEid(uint256 _chainId) external {
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+        if (!s.chainMappingsInitialized) revert NotInitialized();
+
+        delete s.lzEids[_chainId];
+
+        emit ChainIdToEidUnset(_chainId);
+    }
+
+    /// @notice Returns the LayerZero EID configured for `_chainId`.
+    /// @param _chainId LI.FI chain ID to look up.
+    /// @return lzEid LayerZero endpoint ID.
+    function getChainIdToEid(
+        uint256 _chainId
+    ) external view returns (uint32 lzEid) {
+        return _chainIdToEid(_chainId);
     }
 
     /// External Methods ///
@@ -106,7 +209,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        _validateSupersetData(_supersetData);
+        _validateSupersetData(_bridgeData.destinationChainId, _supersetData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -134,7 +237,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateSupersetData(_supersetData);
+        _validateSupersetData(_bridgeData.destinationChainId, _supersetData);
 
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
@@ -157,8 +260,10 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Validates Superset-specific data. Native source asset is rejected
     ///      by the `noNativeAsset` modifier on each external entry.
+    /// @param _destinationChainId LI.FI chain ID of the destination spoke.
     /// @param _supersetData Superset-specific parameters
     function _validateSupersetData(
+        uint256 _destinationChainId,
         SupersetData calldata _supersetData
     ) internal view {
         // refundAddress also receives source-side excess native and swap leftovers,
@@ -177,6 +282,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         if (msg.value < _supersetData.lzFee) {
             revert InsufficientNativeValue();
+        }
+
+        // Ensure backend-supplied `toEid` resolves to the same LayerZero endpoint
+        // as `bridgeData.destinationChainId` would. Reverts `UnsupportedChainId`
+        // if no mapping is configured for the destination chain.
+        if (_chainIdToEid(_destinationChainId) != _supersetData.toEid) {
+            revert InformationMismatch();
         }
     }
 
@@ -224,5 +336,24 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Returns the LayerZero EID configured for `_chainId`.
+    /// @param _chainId LI.FI chain ID to look up.
+    /// @return LayerZero endpoint ID.
+    function _chainIdToEid(uint256 _chainId) internal view returns (uint32) {
+        uint32 storedLzEid = _getStorage().lzEids[_chainId];
+        if (storedLzEid == 0) revert UnsupportedChainId(_chainId);
+        // Stored as lzEid + 1 so unset (0) is distinct from a real EID.
+        return storedLzEid - 1;
+    }
+
+    /// @dev Fetches diamond storage.
+    function _getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

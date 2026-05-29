@@ -1,9 +1,16 @@
 {
+  "IMPORTANT DEV NOTICE": "after adding a new mapping, call initSuperset (first deploy) or setChainIdToEid (incremental update) on every diamond where SupersetFacet is deployed",
+  "Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts": {},
   "poolManager": {
     "arbitrum": "0xcC687ed9155F5e49719D5f3147F79FD5F177961c",
     "arbitrumsepolia": "0x1fDA3aAD6e6B932d992F42C4a808A19fFEd938F0",
     "base": "0x57C155a15a9CA0A6C1F759ac6988b4fCa3663Ea4",
     "basesepolia": "0x401DCd3FfD09908e277Ea609A91117C5aDAb4cf6",
     "unichain": "0x326D0B0357b394EC5bbeFE87554243E5dc76e56E"
-  }
+  },
+  "mappings": [
+    { "chainId": 42161, "lzEid": 30110 },
+    { "chainId": 8453, "lzEid": 30184 },
+    { "chainId": 130, "lzEid": 30320 }
+  ]
 }
