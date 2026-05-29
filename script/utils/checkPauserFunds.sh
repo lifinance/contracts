@@ -2,14 +2,15 @@
 #
 # checkPauserFunds.sh — audit whether the pauser wallet on each production EVM network can
 # afford pauseDiamond(). Read-only: estimates the single-pause cost, reads the pauser
-# balance, and reports a ratio + status per network. EVM only (Tron / testnets skipped).
+# balance, and reports PAUSES + a status per network. EVM only (Tron / testnets skipped).
 #
 # Usage:
 #   ./script/utils/checkPauserFunds.sh [NETWORK ...]
 #     (no args)   audit all active, non-testnet, non-Tron networks in networks.json
 #     NETWORK...  audit only the named networks
 #
-# Status:  OK (ratio >= 2.5)   WARNING (1 <= ratio < 2.5)   CRITICAL (ratio < 1)
+# PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can currently fund.
+# Status:  OK (PAUSES >= 2.5)   WARNING (1 <= PAUSES < 2.5)   CRITICAL (PAUSES < 1)
 #          PAUSED (already paused)   ERROR (estimate/RPC failed)   SKIP (filtered/no diamond)
 # Exit code: 1 if any audited network is CRITICAL, else 0.
 #
@@ -23,7 +24,8 @@ function usage() {
 Usage: ./script/utils/checkPauserFunds.sh [NETWORK ...]
   No args     audit all active, non-testnet, non-Tron networks
   NETWORK...  audit only the named networks
-Statuses: OK (>=2.5x)  WARNING (1x-2.5x)  CRITICAL (<1x)  PAUSED  ERROR  SKIP
+PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
+Statuses: OK (PAUSES>=2.5)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
 Exit code 1 if any network is CRITICAL.
 EOF
 }
@@ -94,6 +96,24 @@ function fmtRow() { printf '%s\t%s\t%s\t%s\t%s\t%s' "$1" "$2" "$3" "$4" "$5" "$6
 # plainRow: a row with dashes in the numeric columns (for SKIP/PAUSED/ERROR).
 function plainRow() { fmtRow "$1" "-" "-" "-" "-" "$2"; }
 
+# colorizeStatus: color the trailing STATUS word of each row. Applied AFTER `column -t` so the
+# non-printing escape codes can't skew column-width alignment, and only on a TTY so piped or
+# redirected output stays plain and parseable.
+function colorizeStatus() {
+  if [[ ! -t 1 ]]; then
+    cat
+    return
+  fi
+  local RED=$'\033[31m' YEL=$'\033[33m' GRN=$'\033[32m' CYN=$'\033[36m' DIM=$'\033[2m' RST=$'\033[0m'
+  sed -E \
+    -e "s/(CRITICAL)[[:space:]]*\$/${RED}\\1${RST}/" \
+    -e "s/(ERROR)[[:space:]]*\$/${RED}\\1${RST}/" \
+    -e "s/(WARNING)[[:space:]]*\$/${YEL}\\1${RST}/" \
+    -e "s/(PAUSED)[[:space:]]*\$/${CYN}\\1${RST}/" \
+    -e "s/(OK)[[:space:]]*\$/${GRN}\\1${RST}/" \
+    -e "s/(SKIP)[[:space:]]*\$/${DIM}\\1${RST}/"
+}
+
 # Progress goes to stderr so the final table on stdout stays clean and pipeable.
 TOTAL=${#NETWORKS[@]}
 echo "Checking pauser-wallet funding on $TOTAL network(s) — reading live gas prices & balances, this can take a minute..." >&2
@@ -153,12 +173,15 @@ for NETWORK in "${NETWORKS[@]}"; do
   ROWS+=("$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$RATIO" "$STATUS")")
 done
 
-# header + sorted rows through one column pipe: sort by category then ratio, strip both keys
+# header + sorted rows through one column pipe: sort by category then ratio, strip both keys.
+# colorizeStatus runs last so coloring can't affect the column-width calculation.
 {
-  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "RATIO" "STATUS"
+  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "PAUSES" "STATUS"
   printf '\n'
   printf '%s\n' "${ROWS[@]}" | sort -t'|' -k1,1n -k2,2g | cut -d'|' -f3-
-} | column -t -s "$(printf '\t')"
+} | column -t -s "$(printf '\t')" | colorizeStatus
+
+echo "PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
 
 if [[ $HAS_CRITICAL -eq 1 ]]; then
   # Summary alert to stderr (keeps stdout = table only); exit code is the machine signal.

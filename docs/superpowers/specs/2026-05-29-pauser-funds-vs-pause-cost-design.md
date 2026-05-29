@@ -105,17 +105,30 @@ network is reported as `SKIP`).
    - `RATIO ≥ 2.5` → **OK**
    - estimate exit 2 → **PAUSED**; exit 1 → **ERROR**; no diamond → **SKIP**
 
-**Output:** one table, **sorted by ratio ascending** (worst first):
+**Output:** one table, **sorted by affordability ascending** (worst first), aligned via
+`column -t`:
 
 ```
-network · cost(1×, native) · required 2.5×(native) · balance(native) · ratio · status
+NETWORK · COST(1x, native) · REQUIRED(2.5x, native) · BALANCE(native) · PAUSES · STATUS
 ```
 
-Native amounts formatted with `cast from-wei` and the chain's `nativeCurrency` symbol from
-`networks.json`, trailing zeros trimmed. Ratio is the primary signal (unitless, comparable
-across chains). Gas and gas-price are intermediate inputs folded into `cost`, not shown as
+`PAUSES = balance ÷ single-pause cost` — i.e. how many `pauseDiamond()` calls the wallet can
+fund. Named `PAUSES` (not "ratio") so the denominator is unambiguous: it is relative to the
+1× cost, not the 2.5× target. It is the primary signal (unitless, comparable across chains).
+Native amounts formatted with `cast from-wei` + the chain's `nativeCurrency` symbol, trailing
+zeros trimmed. Gas and gas-price are intermediate inputs folded into `cost`, not shown as
 separate columns — `estimatePauseCost` returns a single wei value, keeping the shared
 contract minimal for the funding consumer.
+
+**Presentation:**
+
+- A startup banner and per-network `[i/N] <network>` progress print to **stderr** so a long
+  sweep visibly advances; the table and a `PAUSES = …` legend round it out.
+- `STATUS` is color-coded (CRITICAL/ERROR red, WARNING yellow, OK green, PAUSED cyan, SKIP
+  dim) — applied **after** `column -t` (so escape codes can't skew alignment) and **only when
+  stdout is a TTY**, so piped/redirected output stays plain and parseable.
+- stdout carries only the table; banner, progress, legend, and the CRITICAL summary go to
+  stderr. The exit code (`1` if any CRITICAL) is the machine-readable signal.
 
 **Exit code:** `1` if any network is CRITICAL, else `0`. ERROR/PAUSED/SKIP do not fail the
 run. (Lets a future GH Action (b) gate on a clean exit.)
