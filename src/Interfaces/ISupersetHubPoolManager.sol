@@ -4,10 +4,10 @@ pragma solidity ^0.8.17;
 /// @title ISupersetHubPoolManager
 /// @author LI.FI (https://li.fi)
 /// @notice Minimal interface for Superset's hub-chain entrypoint used by SupersetFacet
-/// @dev Mirrors `HubPoolManager.multiHopSwapWithOutputChain` from
-///      https://github.com/superset-finance/virtual-pools (`develop` branch).
-///      The hub flow has no `refundAddress` or `options` because failures revert
-///      synchronously on the hub itself and there's no source → hub LZ leg.
+/// @dev Mirrors `HubPoolManager.multiHopSwapWithOutputChain` from Superset's
+///      virtual-pools contracts. The hub flow has no `refundAddress` or
+///      `options` because failures revert synchronously on the hub itself and
+///      there's no source → hub LZ leg.
 /// @custom:version 1.0.0
 interface ISupersetHubPoolManager {
     /// @notice Initiate a cross-chain swap from the hub chain (Arbitrum) to a spoke

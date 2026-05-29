@@ -4,9 +4,8 @@ pragma solidity ^0.8.17;
 /// @title ISupersetSpokePoolManager
 /// @author LI.FI (https://li.fi)
 /// @notice Minimal interface for Superset's spoke-chain entrypoint used by SupersetFacet
-/// @dev Mirrors `SpokePoolManager.multiHopSwapWithOutputChain` from
-///      https://github.com/superset-finance/virtual-pools (`develop` branch).
-///      Only the single function we call is included.
+/// @dev Mirrors `SpokePoolManager.multiHopSwapWithOutputChain` from Superset's
+///      virtual-pools contracts. Only the single function we call is included.
 /// @custom:version 1.0.0
 interface ISupersetSpokePoolManager {
     /// @notice Initiate a cross-chain swap via Superset's hub-and-spoke virtual pools
