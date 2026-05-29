@@ -24,7 +24,7 @@ confirmation.
 ### .env (one-time per developer)
 
 Convention: a channel `#X` is posted to via env var `WEBHOOK_X` (uppercase, hyphens → underscores).
-URLs live in 1Password vault **Engineering**, item **slack-webhooks**.
+URLs live in 1Password vault **Developers Smart Contract**, item **Webhooks SC Channels**.
 
 ```
 WEBHOOK_DEV_SC_AUDIT=https://hooks.slack.com/services/...
