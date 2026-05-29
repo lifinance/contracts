@@ -52,6 +52,10 @@
       "0x0A8fE15edcBD04E2fB6a345b6201Ec20d5CbbE43": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
+      },
+      "0x4aed96BeDf86Ca29B43b532BC3748488cCc74CE0": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       }
     },
     "Periphery": {
