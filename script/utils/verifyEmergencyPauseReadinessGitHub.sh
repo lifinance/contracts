@@ -125,11 +125,15 @@ function verifyPauserOnNetwork() {
       ;;
   esac
 
+  # A network with no production LiFiDiamond is simply not in scope ("verify every
+  # production diamond" — there isn't one here), so skip with a visible notice rather
+  # than failing. networks.json lists more networks (e.g. tronshasta) than have a prod
+  # deployment; treating "not deployed" as a failure would be a permanent false alarm.
   local DIAMOND_ADDRESS
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
   if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" ]]; then
-    error "[network: $NETWORK] could not find diamond address in PROD deploy log."
-    return 1
+    echo "skipping $NETWORK (no production LiFiDiamond in deploy log)"
+    return 0
   fi
 
   # read on-chain registered pauser (retry transient RPC throttling, then fail hard).
