@@ -22,12 +22,6 @@ on:
   push:
     branches:
       - main # only sync on what's actually been merged
-      # TEMP-TEST-BRANCH-TRIGGER: also runs on `test/ledger-sync-**`; the
-      # job-level safety guard below force-overrides DRY_RUN=true for any
-      # ref that isn't `main`, so a test-branch push can never mutate the
-      # fork or open an upstream PR. Remove this branch entry + the guard
-      # before opening the PR for review.
-      - 'test/ledger-sync-**'
     paths:
       - 'src/Facets/**' # new/changed facets -> new/changed selectors
       - 'src/Libraries/**' # struct definitions used by facets
@@ -102,19 +96,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # TEMP-TEST-BRANCH-GUARD: force DRY_RUN=true for any ref that isn't
-          # `main`. Belt-and-suspenders so a `test/ledger-sync-**` push (used
-          # for iterating this workflow without a PR review) can never mutate
-          # the fork or open an upstream PR. Remove together with the
-          # TEMP-TEST-BRANCH-TRIGGER on the `on.push.branches` list above.
-          if [ "${GITHUB_REF_NAME:-}" != "main" ]; then
-            echo -e "\033[33m[safety] ref=${GITHUB_REF_NAME} is not main — forcing DRY_RUN=true\033[0m"
-            DRY_RUN=true
-          fi
-
           if [ "${DRY_RUN:-}" = "true" ]; then
             echo -e "\033[33m=== DRY-RUN MODE ===\033[0m"
-            echo "Will: clone fork, regenerate descriptor, print diff."
+            echo "Will: regenerate descriptor, print diff."
             echo "Will NOT: commit, push, open/update upstream PR, notify Slack."
             echo ""
           fi
