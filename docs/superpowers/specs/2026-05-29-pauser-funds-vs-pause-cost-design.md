@@ -19,9 +19,9 @@ per-chain cost of a pause. Two gaps:
 
 Three deliverables, sharing one cost-estimation primitive:
 
-- **(a) Read-only check script** — `script/utils/checkPauserFunds.sh`.
-- **(2) Calculated funding** — `deployAllContracts.sh` stage 9 PauserWallet branch.
-- **(3) Shared helper** — `estimatePauseCost` in `script/helperFunctions.sh`.
+- **Read-only check script** — `script/utils/checkPauserFunds.sh` (ticket option (a)).
+- **Calculated funding** — `deployAllContracts.sh` stage 9 PauserWallet branch.
+- **Shared helper** — `estimatePauseCost` in `script/helperFunctions.sh`.
 
 ### Out of scope (deferred to follow-up tickets)
 
