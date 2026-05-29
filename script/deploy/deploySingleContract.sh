@@ -163,6 +163,14 @@ deploySingleContract() {
     # create salt that is used to deploy contract
     local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
+    # ERC20Proxy deploy pre-authorizes the predicted Executor CREATE3 address
+    local EXECUTOR_DEPLOYSALT=""
+    if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
+      local EXECUTOR_BYTECODE
+      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+      EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
+    fi
+
     # get predicted contract address based on salt (or special case for LiFiDiamond)
     if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
       CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
@@ -198,6 +206,14 @@ deploySingleContract() {
 
       # Create salt that is used to deploy contract (same logic as non-zkEVM path)
       local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
+
+      # ERC20Proxy deploy pre-authorizes the predicted Executor CREATE3 address
+      local EXECUTOR_DEPLOYSALT=""
+      if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
+        local EXECUTOR_BYTECODE
+        EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+        EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
+      fi
 
       # Get predicted contract address for zksync deployment
       # Note: zksync uses CREATE2-like deterministic addressing
@@ -264,12 +280,12 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "DEPLOYSALT=\"$DEPLOYSALT\" EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

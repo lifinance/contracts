@@ -32,13 +32,15 @@ contract DeployScriptBase is ScriptBase {
 
     function getConstructorArgs() internal virtual returns (bytes memory) {}
 
-    /// @notice Predicts the CREATE3 deployment address for a contract name using the same salt scheme as DeployScriptBase
-    function _getPredictedAddress(
+    /// @notice Predicts the CREATE3 deployment address for another contract using a precomputed deploy salt prefix
+    /// @param deploySaltPrefix The keccak256(bytecode || SALT) hex string (same as DEPLOYSALT / EXECUTOR_DEPLOYSALT env vars)
+    /// @param contractName The target contract name (e.g. "Executor")
+    function _getPredictedAddressFromDeploySalt(
+        string memory deploySaltPrefix,
         string memory contractName
     ) internal view returns (address) {
-        string memory saltPrefix = vm.envString("DEPLOYSALT");
         bytes32 contractSalt = keccak256(
-            abi.encodePacked(saltPrefix, contractName)
+            abi.encodePacked(deploySaltPrefix, contractName)
         );
         return factory.getDeployed(deployerAddress, contractSalt);
     }

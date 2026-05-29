@@ -10,6 +10,7 @@ import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { MandateOutput } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
 import { TestBase, LibSwap } from "../utils/TestBase.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 address constant OUTPUT_SETTLER_COIN = 0x0000000000eC36B683C2E6AC89e9A75989C22a2e;
 
@@ -38,8 +39,8 @@ contract ReceiverOIFTest is TestBase {
         customBlockNumberForForking = 23695990;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER, address(0));
-        executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), USER_DIAMOND_OWNER);
         receiver = new ReceiverOIF(
             USER_DIAMOND_OWNER,
             address(executor),

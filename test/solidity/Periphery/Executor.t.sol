@@ -10,6 +10,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 // Stub Vault Contract
 contract Vault {
@@ -78,10 +79,9 @@ contract ExecutorTest is DSTest {
 
     function setUp() public {
         gw = new MockGateway();
-        erc20Proxy = new ERC20Proxy(address(this), address(0));
-        executor = new Executor(address(erc20Proxy), address(this));
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), address(this));
         vm.makePersistent(address(executor));
-        erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
         setter = new Setter();

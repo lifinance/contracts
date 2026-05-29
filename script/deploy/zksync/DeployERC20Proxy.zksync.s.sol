@@ -47,14 +47,15 @@ contract DeployScript is DeployScriptBase {
     function _getPredictedExecutorAddressForZkSync(
         address refundWalletAddress
     ) internal returns (address predictedExecutor) {
+        string memory erc20SaltPrefix = vm.envString("DEPLOYSALT");
+        string memory executorSaltPrefix = vm.envString("EXECUTOR_DEPLOYSALT");
         bytes32 erc20BytecodeHash = getZkSyncBytecodeHash("ERC20Proxy");
         bytes32 executorBytecodeHash = getZkSyncBytecodeHash("Executor");
-        string memory saltPrefix = vm.envString("DEPLOYSALT");
         bytes32 erc20Salt = keccak256(
-            abi.encodePacked(saltPrefix, "ERC20Proxy")
+            abi.encodePacked(erc20SaltPrefix, "ERC20Proxy")
         );
         bytes32 executorSalt = keccak256(
-            abi.encodePacked(saltPrefix, "Executor")
+            abi.encodePacked(executorSaltPrefix, "Executor")
         );
 
         address erc20Proxy;

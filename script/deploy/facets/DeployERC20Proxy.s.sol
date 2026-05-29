@@ -31,7 +31,10 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        address predictedExecutor = _getPredictedAddress("Executor");
+        address predictedExecutor = _getPredictedAddressFromDeploySalt(
+            vm.envString("EXECUTOR_DEPLOYSALT"),
+            "Executor"
+        );
 
         emit log_named_address(
             "LI.FI: Predicted Executor Address: ",

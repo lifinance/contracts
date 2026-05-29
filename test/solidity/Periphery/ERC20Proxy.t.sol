@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
+import { Executor } from "lifi/Periphery/Executor.sol";
 import { DSTest } from "ds-test/test.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 contract ERC20ProxyTest is DSTest {
     ERC20Proxy public erc20Proxy;
@@ -26,6 +28,14 @@ contract ERC20ProxyTest is DSTest {
             erc20Proxy.authorizedCallers(executorAddress),
             "Executor address should be authorized at deploy time"
         );
+    }
+
+    function test_DeployPeripheryHelperMatchesProductionPattern() public {
+        (ERC20Proxy proxy, Executor executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), proxyOwner);
+
+        assertTrue(proxy.authorizedCallers(address(executor)));
+        assertEq(proxy.owner(), proxyOwner);
     }
 
     function test_CannotReceiveETH() public {
