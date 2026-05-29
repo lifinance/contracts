@@ -1,6 +1,6 @@
 ---
 name: request-audit
-description: Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)
+description: Prepares and sends a smart contract audit request to Slack (Sujith or burrasec team); use when a PR is ready for external audit review.
 usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 ---
 
