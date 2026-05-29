@@ -37,6 +37,9 @@ jobs:
       - name: Install Foundry (mirror prod)
         uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
 
+      - name: Build contracts (mirror prod — final step before the failing clone)
+        run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
+
       - name: Dump git config + env state RIGHT BEFORE the failing clone
         run: |
           set -uo pipefail
@@ -54,6 +57,28 @@ jobs:
           echo ""
           echo "=== git version ==="
           git --version
+
+      - name: Run prod clone sequence VERBATIM (full reproduction)
+        env:
+          LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
+          LEDGER_FORK: lifinance/clear-signing-erc7730-registry
+        run: |
+          # Copied verbatim from syncLedgerClearSigning.yml lines 82-114 (current main).
+          # If this passes but prod fails, the difference is event-context or a transient issue.
+          set -euo pipefail
+
+          if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
+            echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
+            exit 1
+          fi
+
+          echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
+          rm -rf ledger-registry
+          git clone "https://x-access-token:${LEDGER_SYNC_TOKEN}@github.com/${LEDGER_FORK}.git" ledger-registry
+          cd ledger-registry
+          git remote set-url origin "https://github.com/${LEDGER_FORK}.git"
+          git config "http.https://github.com/.extraheader" "AUTHORIZATION: bearer ${LEDGER_SYNC_TOKEN}"
+          echo "OK: full prod clone sequence succeeded"
 
       - name: Diagnose LEDGER_SYNC_TOKEN
         env:
