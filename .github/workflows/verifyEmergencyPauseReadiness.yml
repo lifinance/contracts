@@ -1,0 +1,86 @@
+# Verify Emergency Pause Readiness
+# - Read-only companion to the emergency-pause workflow: verifies the pause CAN fire
+#   on every production diamond, without firing it. Runs script/utils/verifyEmergencyPauseReadinessGitHub.sh.
+# - Layer 1 (offline): the address derived from PRIV_KEY_PAUSER_WALLET matches the
+#   configured pauser in config/global.json (EVM + Tron). Fail-fast.
+# - Layer 2 (on-chain): each production LiFiDiamond's registered pauserWallet() equals
+#   that derived address, read via the real `universalCast "call"` (EVM + Tron).
+# - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
+#   is triggered; this turns both latent failures into a scheduled, loud one.
+# - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
+# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are
+#   retried then failed hard (see rpcCallWithRetry).
+
+name: Verify Emergency Pause Readiness
+
+on:
+  schedule:
+    - cron: '0 9 * * 4' # 09:00 UTC every Thursday
+  workflow_dispatch: # manual trigger (e.g. after rotating the key or before a drill)
+  pull_request:
+    paths:
+      # catch a bad pauser edit, or a change to the scripts this check depends on
+      - config/global.json
+      - script/utils/verifyEmergencyPauseReadinessGitHub.sh
+      - script/universalCast.sh
+      - script/helperFunctions.sh
+      - .github/workflows/verifyEmergencyPauseReadiness.yml
+
+permissions:
+  contents: read # required to checkout the repository and read config/deploy logs
+
+jobs:
+  verify-emergency-pause-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # read-only check; no git push/tag/submodule operations
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              echo "$line" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Verify emergency pause readiness
+        run: bash script/utils/verifyEmergencyPauseReadinessGitHub.sh
+        env:
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
+
+      # Page on-call for real drift (scheduled / manual runs). PR runs already surface
+      # the failure as a red check to the author, so we skip Slack noise there.
+      - name: Notify Slack on failure
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rotating_light: Emergency pause readiness check FAILED — the pauser key or an on-chain pauserWallet no longer matches config. The emergency pause may be unusable on one or more chains. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
+            }
