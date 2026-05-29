@@ -59,33 +59,26 @@ order:
 
 If found, fetch with `mcp__claude_ai_Linear__get_issue` (id = `EXSC-1234`). Treat the
 description and comments as another input source for the context paragraph (Step 3). If the
-ticket links a Slack thread, surface it as a default in Step 1b.
+ticket links a Slack thread, read it for context (Step 1b).
 
 If no identifier is found, skip silently — don't ask the user.
 
-## Step 1b — Always ask for additional context
+## Step 1b — Enrich from Slack only if readily available (never block)
 
-After fetching, before drafting, ask:
+Don't stop to ask for a Slack thread — the PR plus the Linear ticket (Step 1a) are enough by
+default. Pull Slack context only when it's free:
+
+- **Linear ticket links a thread** — read it, fold decision-relevant parts into the context
+  paragraph (Step 3).
+- **User passed a Slack URL or note in the invocation** — use it.
+- **Otherwise** — draft from PR + Linear; the user can still add detail at the Step 4 preview.
+
+Parse a Slack URL to `channel_id` + `message_ts`, then read with `slack_read_thread`:
 
 ```
-Before I draft the message, do you have a Slack thread or any other background where this
-change was discussed? (e.g. design decisions, root cause, alternatives considered, urgency
-reason)
-
-Paste a Slack thread URL, write a few sentences, or press Enter to skip.
+https://lifi-protocol.slack.com/archives/{channel_id}/p{ts_without_dot}
+→ message_ts: insert dot after 10th digit, e.g. p1776070807528139 → 1776070807.528139
 ```
-
-**Wait for the reply.** Then:
-
-- **Slack thread URL** — parse to `channel_id` + `message_ts`:
-  ```
-  https://lifi-protocol.slack.com/archives/{channel_id}/p{ts_without_dot}
-  → message_ts: insert dot after 10th digit, e.g. p1776070807528139 → 1776070807.528139
-  ```
-  Read with `slack_read_thread`, then distill 3–6 sentences covering: root cause / problem,
-  alternatives considered + why rejected, decision rationale, urgency signals.
-- **Free-form text** — use as-is, lightly cleaned.
-- **Skip** — use only PR-body context.
 
 ## Step 2 — Extract scope, context, urgency
 
@@ -265,11 +258,13 @@ For each chosen channel, **independently** (one channel failing must not abort s
 2. Write it to a temp file (multi-line text mustn't be shell-quoted):
    `/tmp/audit-{pr_number}-{channel}.txt`
 3. Run:
+
    ```bash
    bunx tsx script/utils/send-slack-webhook-message.ts \
      --channel {channel} \
      --message-file /tmp/audit-{pr_number}-{channel}.txt
    ```
+
    where `{channel}` is `dev-sc-audit` (sujith) or `dev-sc-audit-burrasec` (burrasec).
 4. Interpret exit code:
 
