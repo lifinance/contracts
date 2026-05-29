@@ -127,12 +127,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         Storage storage s = _getStorage();
 
-        for (uint256 i = 0; i < _chainIdConfigs.length; ) {
+        for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
             s.lzEids[_chainIdConfigs[i].chainId] = _chainIdConfigs[i].lzEid;
-
-            unchecked {
-                ++i;
-            }
         }
 
         s.chainMappingsInitialized = true;
@@ -151,16 +147,12 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         Storage storage s = _getStorage();
         if (!s.chainMappingsInitialized) revert NotInitialized();
 
-        for (uint256 i = 0; i < _chainIdConfigs.length; ) {
+        for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
             uint256 chainId = _chainIdConfigs[i].chainId;
             uint32 lzEid = _chainIdConfigs[i].lzEid;
 
             s.lzEids[chainId] = lzEid;
             emit ChainIdToEidSet(chainId, lzEid);
-
-            unchecked {
-                ++i;
-            }
         }
     }
 
