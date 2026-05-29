@@ -49,7 +49,7 @@ After adding mappings to `config/superset.json`, propagate them to every chain w
 
 ## Destination Chain Validation
 
-The facet validates that the backend-supplied `_supersetData.toEid` matches the LayerZero EID stored for `_bridgeData.destinationChainId`. A mismatch reverts with `InformationMismatch`; a destination chain that has not been onboarded reverts with `UnsupportedChainId(chainId)`. This makes the off-chain `(destinationChainId, toEid)` pair structurally consistent with on-chain configuration.
+The facet validates that the backend-supplied `_supersetData.toEid` matches the LayerZero EID stored for `_bridgeData.destinationChainId`. A mismatch reverts with `InvalidConfig`; a destination chain that has not been onboarded reverts with `UnsupportedChainId(chainId)`. This makes the off-chain `(destinationChainId, toEid)` pair structurally consistent with on-chain configuration.
 
 ## Superset Specific Parameters
 
