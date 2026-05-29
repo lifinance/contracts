@@ -22,10 +22,38 @@ jobs:
   debug-token:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository (mirrors sync workflow setup)
+      - name: Checkout repository (mirrors sync workflow setup EXACTLY)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          persist-credentials: false # match sync workflow — this is part of what we're diagnosing
+          submodules: recursive # mirror prod — submodule init is a suspect for git-config poisoning
+          persist-credentials: false
+
+      - name: Set up Bun (mirror prod)
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
+
+      - name: Install JS dependencies (mirror prod)
+        run: bun install
+
+      - name: Install Foundry (mirror prod)
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+
+      - name: Dump git config + env state RIGHT BEFORE the failing clone
+        run: |
+          set -uo pipefail
+          echo "=== git config -l --show-origin (system + global + local) ==="
+          git config -l --show-origin || true
+          echo ""
+          echo "=== git config --global -l ==="
+          git config --global -l || true
+          echo ""
+          echo "=== ~/.gitconfig (if present) ==="
+          [ -f "$HOME/.gitconfig" ] && cat "$HOME/.gitconfig" || echo "(none)"
+          echo ""
+          echo "=== env vars (GIT_* and GITHUB_*, values redacted) ==="
+          env | grep -E '^(GIT_|GITHUB_)' | sed 's/=.*/=<redacted>/' | sort
+          echo ""
+          echo "=== git version ==="
+          git --version
 
       - name: Diagnose LEDGER_SYNC_TOKEN
         env:
