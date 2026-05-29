@@ -104,9 +104,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Emitted when a chainId ↔ LayerZero EID entry is set or updated.
     event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
-    /// @notice Emitted when a chainId ↔ LayerZero EID entry is removed.
-    event ChainIdToEidUnset(uint256 indexed chainId);
-
     /// Constructor ///
 
     /// @param _poolManager Superset `HubPoolManager` on Arbitrum or `SpokePoolManager` on
@@ -165,19 +162,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 ++i;
             }
         }
-    }
-
-    /// @notice Removes the chainId ↔ LayerZero EID entry for `_chainId` (owner-only).
-    /// @param _chainId LI.FI chain ID to unset.
-    function unsetChainIdToEid(uint256 _chainId) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage s = _getStorage();
-        if (!s.chainMappingsInitialized) revert NotInitialized();
-
-        delete s.lzEids[_chainId];
-
-        emit ChainIdToEidUnset(_chainId);
     }
 
     /// @notice Returns the LayerZero EID configured for `_chainId`.

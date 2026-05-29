@@ -149,7 +149,6 @@ contract SupersetFacetTest is TestBaseFacet {
         SupersetFacet.ChainIdConfig[] chainIdConfigs
     );
     event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
-    event ChainIdToEidUnset(uint256 indexed chainId);
 
     // Real Superset spoke deployment on Base mainnet (see config/superset.json).
     address internal constant SPOKE_POOL_MANAGER =
@@ -190,7 +189,7 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](6);
         functionSelectors[0] = supersetFacet
             .startBridgeTokensViaSuperset
             .selector;
@@ -202,8 +201,7 @@ contract SupersetFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[3] = supersetFacet.initSuperset.selector;
         functionSelectors[4] = supersetFacet.setChainIdToEid.selector;
-        functionSelectors[5] = supersetFacet.unsetChainIdToEid.selector;
-        functionSelectors[6] = supersetFacet.getChainIdToEid.selector;
+        functionSelectors[5] = supersetFacet.getChainIdToEid.selector;
 
         addFacet(diamond, address(supersetFacet), functionSelectors);
         supersetFacet = TestSupersetFacet(payable(address(diamond)));
@@ -736,42 +734,6 @@ contract SupersetFacetTest is TestBaseFacet {
         fresh.setChainIdToEid(configs);
     }
 
-    function test_CanUnsetChainIdToEid() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-
-        vm.expectEmit(true, true, true, true);
-        emit ChainIdToEidUnset(130);
-
-        supersetFacet.unsetChainIdToEid(130);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(UnsupportedChainId.selector, 130)
-        );
-
-        supersetFacet.getChainIdToEid(130);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_UnsetChainIdToEidFromNonOwner() public {
-        vm.startPrank(USER_SENDER);
-
-        vm.expectRevert(OnlyContractOwner.selector);
-
-        supersetFacet.unsetChainIdToEid(130);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_UnsetChainIdToEidBeforeInit() public {
-        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
-
-        vm.prank(address(0));
-        vm.expectRevert(NotInitialized.selector);
-
-        fresh.unsetChainIdToEid(130);
-    }
-
     function test_InitSupersetEmitsAndSetsMappings() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
         SupersetFacet.ChainIdConfig[]
@@ -828,16 +790,17 @@ contract SupersetFacetTest is TestBaseFacet {
     }
 
     function testRevert_DestinationChainIdUnsupported() public {
-        vm.startPrank(USER_DIAMOND_OWNER);
-        supersetFacet.unsetChainIdToEid(130);
-        vm.stopPrank();
-
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
         bridgeData.minAmount = defaultUSDCAmount;
+        // Solana's LI.FI chain id has no LayerZero EID mapping.
+        bridgeData.destinationChainId = 1151111081099710;
 
         vm.expectRevert(
-            abi.encodeWithSelector(UnsupportedChainId.selector, 130)
+            abi.encodeWithSelector(
+                UnsupportedChainId.selector,
+                1151111081099710
+            )
         );
 
         supersetFacet.startBridgeTokensViaSuperset{
