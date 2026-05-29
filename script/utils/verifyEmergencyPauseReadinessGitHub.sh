@@ -142,10 +142,24 @@ function verifyPauserOnNetwork() {
     return 1
   fi
 
-  # compare addresses in lowercase format
-  if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED_PAUSER" | tr '[:upper:]' '[:lower:]')" ]]; then
-    error "[network: $NETWORK] on-chain pauserWallet ($DIAMOND_PAUSER_WALLET) does not match the configured pauser key ($EXPECTED_PAUSER)"
-    return 1
+  # Compare on-chain pauser to the expected (derived) address. The two networks return
+  # different address forms, so normalize before comparing:
+  #   - Tron: `troncast call ... returns(address)` yields a base58 (T...) address, while
+  #     EXPECTED_PAUSER is EVM hex. Encode the expected address to base58 and compare
+  #     case-SENSITIVELY (base58 distinguishes case).
+  #   - EVM: both are 0x hex; compare case-insensitively (EIP-55 casing is cosmetic).
+  if isTronNetwork "$NETWORK"; then
+    local EXPECTED_TRON
+    EXPECTED_TRON=$(evmToTronBase58 "$EXPECTED_PAUSER")
+    if [[ "$DIAMOND_PAUSER_WALLET" != "$EXPECTED_TRON" ]]; then
+      error "[network: $NETWORK] on-chain pauserWallet ($DIAMOND_PAUSER_WALLET) does not match the configured pauser key ($EXPECTED_TRON)"
+      return 1
+    fi
+  else
+    if [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED_PAUSER" | tr '[:upper:]' '[:lower:]')" ]]; then
+      error "[network: $NETWORK] on-chain pauserWallet ($DIAMOND_PAUSER_WALLET) does not match the configured pauser key ($EXPECTED_PAUSER)"
+      return 1
+    fi
   fi
   success "[network: $NETWORK] on-chain pauserWallet matches the configured key"
   return 0
