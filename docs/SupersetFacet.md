@@ -41,7 +41,7 @@ graph LR;
 ## Admin Methods
 
 - `function initSuperset(ChainIdConfig[] calldata _chainIdConfigs)`
-  - Owner-only. Seeds the chain ID → LayerZero EID mapping from `config/superset.json` (`mappings` array). Required before any bridge can be processed.
+  - Owner-only one-shot. Invoked atomically by `diamondCut` via its `_init`/`_calldata` payload to seed the chain ID → LayerZero EID mapping from `config/superset.json` (`mappings` array). The selector is intentionally excluded from the diamond cut (see `UpdateSupersetFacet.s.sol` `getExcludes()`), so post-deploy it is no longer reachable — use `setChainIdToEid` for any later changes. Required to run before any bridge can be processed.
 - `function setChainIdToEid(ChainIdConfig[] calldata _chainIdConfigs)`
   - Owner-only. Adds or updates entries in the mapping after initialization. Use when a new spoke is onboarded without redeploying the facet.
 
