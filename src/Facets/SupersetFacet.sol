@@ -266,6 +266,10 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 _destinationChainId,
         SupersetData calldata _supersetData
     ) internal view {
+        if (_supersetData.path.length == 0) {
+            revert InvalidConfig();
+        }
+
         // refundAddress also receives source-side excess native and swap leftovers,
         // so it must be set even on the hub branch where Superset itself ignores it.
         if (_supersetData.refundAddress == address(0)) {

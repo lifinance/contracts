@@ -334,6 +334,19 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_EmptyPath() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.path = "";
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
     function testRevert_FallbackEoAIsContract() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
