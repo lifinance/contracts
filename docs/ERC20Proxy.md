@@ -29,12 +29,12 @@ function transferFrom(
 
 ### Deployment
 
-New deployments (v1.2.0+) pass the predicted CREATE3 Executor address as `_initialAuthorizedCaller`
+New deployments (v1.2.0+) pass the predicted CREATE3 Executor address as `_executorAddress`
 in the constructor so `refundWallet` remains owner without requiring a post-deploy
 `setAuthorizedCaller` transaction from the refund wallet.
 
 ```solidity
-constructor(address _owner, address _initialAuthorizedCaller)
+constructor(address _owner, address _executorAddress)
 ```
 
 The following utility method can be called by the owner of the contract to set which contracts are

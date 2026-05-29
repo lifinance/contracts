@@ -7,12 +7,12 @@ import { DSTest } from "ds-test/test.sol";
 contract ERC20ProxyTest is DSTest {
     ERC20Proxy public erc20Proxy;
     address public proxyOwner;
-    address public initialAuthorizedCaller;
+    address public executorAddress;
 
     function setUp() public {
         proxyOwner = address(123456);
-        initialAuthorizedCaller = address(789012);
-        erc20Proxy = new ERC20Proxy(proxyOwner, initialAuthorizedCaller);
+        executorAddress = address(789012);
+        erc20Proxy = new ERC20Proxy(proxyOwner, executorAddress);
     }
 
     function test_DeploysWithoutErrors() public {
@@ -21,10 +21,10 @@ contract ERC20ProxyTest is DSTest {
         assertEq(erc20Proxy.owner(), proxyOwner);
     }
 
-    function test_InitialAuthorizedCallerIsSetAtDeploy() public {
+    function test_ExecutorAddressIsAuthorizedAtDeploy() public {
         assertTrue(
-            erc20Proxy.authorizedCallers(initialAuthorizedCaller),
-            "Initial authorized caller should be set at deploy time"
+            erc20Proxy.authorizedCallers(executorAddress),
+            "Executor address should be authorized at deploy time"
         );
     }
 
