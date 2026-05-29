@@ -65,10 +65,12 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param amountOutMin Slippage floor on destination omni-token (absolute amount).
     /// @param amountOutMinPercent Fraction (1e18 = 100%) used to recompute `amountOutMin`
     ///        post source-swap so positive slippage propagates to the destination floor.
-    /// @param refundAddress Source-chain address that receives `amountIn` if the swap
-    ///        fails, plus any source-side excess native and swap leftovers. Must be
-    ///        non-zero. Superset ignores it on the hub branch, but the facet still uses
-    ///        it as the local refund sink.
+    /// @param refundAddress Source-chain address that receives source-side excess native
+    ///        and any swap leftovers from `swapAndStartBridgeTokensViaSuperset`. On a
+    ///        spoke origin Superset also forwards `amountIn` here if the hub rejects the
+    ///        swap (async failure). On a hub origin there is no async failure path, so
+    ///        Superset itself ignores this field — but the facet still requires it to be
+    ///        non-zero because the local refund sink is the same on both branches.
     /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
     ///        `refundAddress` fails. Superset validates this is a pure EOA on the source;
     ///        we double-check on the facet for a cheaper revert.
