@@ -1,16 +1,18 @@
 # Verify Pauser Wallet matches config
-# - Derives the EVM address from the PRIV_KEY_PAUSER_WALLET secret (via `cast`) and
-#   asserts it equals `pauserWallet` in config/global.json.
+# - Derives the address from the PRIV_KEY_PAUSER_WALLET secret (via `cast`) and asserts
+#   it equals BOTH `pauserWallet` (EVM hex) and `tronWallets.pauserWallet` (Tron base58)
+#   in config/global.json — the Tron value is checked directly, not assumed.
 # - Guards the emergency-pause credential: GitHub secrets are write-only, so a
 #   rotated / overwritten / fat-fingered key is otherwise invisible until the pause
 #   is actually triggered. This turns that latent failure into a scheduled, loud one.
-# - Tron is covered transitively: the same secret signs the Tron pause, and the Tron
-#   address is just a different encoding of the same key, so a matching EVM address
-#   guarantees the correct Tron signer. No base58 logic is needed.
+# - Tron has no `cast` base58 support, so the Tron address is derived here by
+#   base58check-encoding the same key's bytes (0x41 || 20-byte address) using only
+#   coreutils / openssl / bc.
 # - Intentionally depends only on Foundry `cast` (pinned via .foundry-version) and
-#   `jq` — never on the npm/TS dependency tree — so a viem/tronweb bump cannot break it.
-# - Known limitations: only validates the production EVM key in this repo; it does not
-#   check on-chain state (see script/tasks/temp/checkEmergencyPausePerNetwork.ts).
+#   standard runner tools (jq, xxd, openssl, bc) — never on the npm/TS dependency
+#   tree — so a viem/tronweb bump cannot break it.
+# - Known limitations: validates the production key against this repo's config only; it
+#   does not check on-chain state (see script/tasks/temp/checkEmergencyPausePerNetwork.ts).
 
 name: Verify Pauser Wallet
 
@@ -37,11 +39,18 @@ jobs:
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
 
-      - name: Verify derived pauser address matches config
+      - name: Verify derived pauser address matches config (EVM + Tron)
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
         run: |
           set -euo pipefail
+
+          # Fail clearly if the runner is missing a tool the check relies on, rather
+          # than emitting a confusing mid-script error.
+          for tool in cast jq xxd openssl bc; do
+            command -v "${tool}" >/dev/null 2>&1 || {
+              echo -e "\033[31mRequired tool '${tool}' not found on runner.\033[0m"; exit 1; }
+          done
 
           # An unset/cleared secret is itself a drift we want to catch loudly.
           if [[ -z "${PRIVATE_KEY_PAUSER_WALLET}" ]]; then
@@ -57,26 +66,52 @@ jobs:
 
           # `// empty` so a missing/null key yields a clear error below rather than
           # the literal string "null" silently masquerading as a MISMATCH.
-          EXPECTED="$(jq -r '.pauserWallet // empty' config/global.json)"
-          if [[ -z "${EXPECTED}" ]]; then
-            echo -e "\033[31mpauserWallet key is missing or null in config/global.json.\033[0m"
+          EXPECTED_EVM="$(jq -r '.pauserWallet // empty' config/global.json)"
+          EXPECTED_TRON="$(jq -r '.tronWallets.pauserWallet // empty' config/global.json)"
+          if [[ -z "${EXPECTED_EVM}" || -z "${EXPECTED_TRON}" ]]; then
+            echo -e "\033[31mpauserWallet / tronWallets.pauserWallet missing or null in config/global.json.\033[0m"
             exit 1
           fi
 
-          # Compare case-insensitively to ignore EIP-55 checksum-casing differences.
-          DERIVED_LC="$(echo "${DERIVED}" | tr '[:upper:]' '[:lower:]')"
-          EXPECTED_LC="$(echo "${EXPECTED}" | tr '[:upper:]' '[:lower:]')"
+          # Tron address = base58check(0x41 || 20-byte EVM address). `cast` has no
+          # base58, so encode here with coreutils/openssl/bc (no npm/TS dependency).
+          ADDR_HEX="$(echo "${DERIVED#0x}" | tr 'A-F' 'a-f')"
+          PAYLOAD_HEX="41${ADDR_HEX}"
+          CHECKSUM_HEX="$(printf '%s' "${PAYLOAD_HEX}" | xxd -r -p \
+            | openssl dgst -sha256 -binary | openssl dgst -sha256 -binary \
+            | xxd -p | tr -d '\n' | cut -c1-8)"
+          ALPHABET="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+          # 0x41-prefixed payload has no leading zero bytes, so no leading-'1' padding.
+          DEC="$(echo "ibase=16; $(echo "${PAYLOAD_HEX}${CHECKSUM_HEX}" | tr 'a-f' 'A-F')" | bc)"
+          DERIVED_TRON=""
+          while [[ "${DEC}" != "0" ]]; do
+            REM="$(echo "${DEC} % 58" | bc)"
+            DERIVED_TRON="${ALPHABET:${REM}:1}${DERIVED_TRON}"
+            DEC="$(echo "${DEC} / 58" | bc)"
+          done
 
-          echo "Derived from secret : ${DERIVED}"
-          echo "Config pauserWallet : ${EXPECTED}"
+          echo "Derived (EVM)  : ${DERIVED}"
+          echo "Derived (Tron) : ${DERIVED_TRON}"
+          echo "Config  (EVM)  : ${EXPECTED_EVM}"
+          echo "Config  (Tron) : ${EXPECTED_TRON}"
 
-          if [[ "${DERIVED_LC}" != "${EXPECTED_LC}" ]]; then
-            echo -e "\033[31mMISMATCH: the address derived from PRIV_KEY_PAUSER_WALLET does not match config/global.json pauserWallet.\033[0m"
+          FAILED=0
+          # EVM: case-insensitive (EIP-55 checksum casing is cosmetic).
+          if [[ "$(echo "${DERIVED}" | tr 'A-F' 'a-f')" != "$(echo "${EXPECTED_EVM}" | tr 'A-F' 'a-f')" ]]; then
+            echo -e "\033[31mEVM MISMATCH: derived address != config pauserWallet.\033[0m"
+            FAILED=1
+          fi
+          # Tron: case-SENSITIVE (base58 distinguishes case).
+          if [[ "${DERIVED_TRON}" != "${EXPECTED_TRON}" ]]; then
+            echo -e "\033[31mTRON MISMATCH: derived address != config tronWallets.pauserWallet.\033[0m"
+            FAILED=1
+          fi
+          if [[ "${FAILED}" -ne 0 ]]; then
             echo -e "\033[31mThe emergency-pause workflow would sign with the wrong wallet. Fix the secret or the config before relying on the pause.\033[0m"
             exit 1
           fi
 
-          echo -e "\033[32mOK: derived address matches config pauserWallet. Tron uses the same key and is covered transitively.\033[0m"
+          echo -e "\033[32mOK: derived address matches both config pauserWallet (EVM) and tronWallets.pauserWallet (Tron).\033[0m"
 
       # Page on-call for real drift (scheduled / manual runs). PR runs already surface
       # the failure as a red check to the author, so we skip Slack noise there.
