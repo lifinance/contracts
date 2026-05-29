@@ -37,6 +37,9 @@ contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
         uint256 _deadline,
         uint32 _toEid
     ) external payable override {
+        // Test-only shortcut: the hub test embeds a raw EVM address in the
+        // first 32 bytes of `_path`. The real Superset hub encodes an
+        // omniTokenId there and resolves it via its OmniTokenAddressBook.
         address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
 
         IERC20(inputToken).safeTransferFrom(
