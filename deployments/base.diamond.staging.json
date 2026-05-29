@@ -80,6 +80,10 @@
       "0xdAB548Fd9075b7dABf720c2335B61ED8061b9071": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
+      },
+      "0x8151776fFCefDE00b06BCC9688638b5049855Bee": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
