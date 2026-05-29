@@ -37,7 +37,7 @@ contract ReceiverChainflipTest is TestBase {
         );
         vm.label(chainflipVault, "Chainflip Vault");
 
-        erc20Proxy = new ERC20Proxy(address(this));
+        erc20Proxy = new ERC20Proxy(address(this), address(0));
         executor = new Executor(address(erc20Proxy), address(this));
         receiver = new ReceiverChainflip(
             address(this),

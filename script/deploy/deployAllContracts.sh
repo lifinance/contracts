@@ -65,7 +65,7 @@ deployAllContracts() {
       "7) Add periphery to diamond" \
       "8) Update whitelist.json and execute sync whitelist script" \
       "9) Fund PauserWallet and DevWallet" \
-      "10) Update ERC20Proxy" \
+      "10) Verify ERC20Proxy authorization" \
       "11) Run health check only" \
       "12) Ownership transfer to timelock (production only)"
   )
@@ -390,14 +390,15 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
-  # Stage 10: Update ERC20Proxy
+  # Stage 10: Verify ERC20Proxy authorization
   if [[ $START_STAGE -le 10 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Verify ERC20Proxy authorization"
 
-    # Register Executor as authorized caller in ERC20Proxy
-    # This allows the Executor contract to transfer tokens on behalf of users
+    # ERC20Proxy >= 1.2.0 pre-authorizes Executor at deploy time via predicted CREATE3 address.
+    # This stage verifies the linkage; legacy deployments require refundWallet to call setAuthorizedCaller.
     updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+    checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi

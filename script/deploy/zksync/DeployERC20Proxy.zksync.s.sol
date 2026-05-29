@@ -20,20 +20,68 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
         );
 
-        // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
 
-        return abi.encode(refundWalletAddress);
+        address predictedExecutor = _getPredictedExecutorAddressForZkSync(
+            refundWalletAddress
+        );
+
+        emit log_named_address(
+            "LI.FI: Predicted Executor Address: ",
+            predictedExecutor
+        );
+
+        return abi.encode(refundWalletAddress, predictedExecutor);
+    }
+
+    /// @dev zkSync CREATE2 addresses depend on constructor args; resolve the ERC20Proxy/Executor fixed point.
+    function _getPredictedExecutorAddressForZkSync(
+        address refundWalletAddress
+    ) internal returns (address predictedExecutor) {
+        bytes32 erc20BytecodeHash = getZkSyncBytecodeHash("ERC20Proxy");
+        bytes32 executorBytecodeHash = getZkSyncBytecodeHash("Executor");
+        string memory saltPrefix = vm.envString("DEPLOYSALT");
+        bytes32 erc20Salt = keccak256(
+            abi.encodePacked(saltPrefix, "ERC20Proxy")
+        );
+        bytes32 executorSalt = keccak256(
+            abi.encodePacked(saltPrefix, "Executor")
+        );
+
+        address erc20Proxy;
+        predictedExecutor = address(0);
+
+        for (uint256 i = 0; i < 8; ) {
+            erc20Proxy = predictCreate2Address(
+                erc20BytecodeHash,
+                erc20Salt,
+                abi.encode(refundWalletAddress, predictedExecutor)
+            );
+
+            address nextExecutor = predictCreate2Address(
+                executorBytecodeHash,
+                executorSalt,
+                abi.encode(erc20Proxy, refundWalletAddress)
+            );
+
+            if (nextExecutor == predictedExecutor && i > 0) {
+                break;
+            }
+
+            predictedExecutor = nextExecutor;
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

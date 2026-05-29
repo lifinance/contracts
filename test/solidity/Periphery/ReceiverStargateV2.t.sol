@@ -42,7 +42,7 @@ contract ReceiverStargateV2Test is TestBase {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
+        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER, address(0));
         executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
         receiver = new ReceiverStargateV2(
             USER_DIAMOND_OWNER,

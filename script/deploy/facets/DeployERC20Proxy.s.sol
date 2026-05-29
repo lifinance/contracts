@@ -20,20 +20,24 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
         );
 
-        // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
 
-        return abi.encode(refundWalletAddress);
+        address predictedExecutor = _getPredictedAddress("Executor");
+
+        emit log_named_address(
+            "LI.FI: Predicted Executor Address: ",
+            predictedExecutor
+        );
+
+        return abi.encode(refundWalletAddress, predictedExecutor);
     }
 }

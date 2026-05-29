@@ -2,12 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
+import { UnAuthorized } from "../Errors/GenericErrors.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 
 /// @title ERC20 Proxy
 /// @author LI.FI (https://li.fi)
 /// @notice Proxy contract for safely transferring ERC20 tokens for swaps/executions
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract ERC20Proxy is WithdrawablePeriphery {
     /// Storage ///
     mapping(address => bool) public authorizedCallers;
@@ -15,8 +16,17 @@ contract ERC20Proxy is WithdrawablePeriphery {
     /// Events ///
     event AuthorizationChanged(address indexed caller, bool authorized);
 
-    /// Constructor
-    constructor(address _owner) WithdrawablePeriphery(_owner) {}
+    /// @param _owner The owner of the contract (typically refundWallet)
+    /// @param _initialAuthorizedCaller Optional caller authorized at deploy time (e.g. predicted Executor CREATE3 address)
+    constructor(
+        address _owner,
+        address _initialAuthorizedCaller
+    ) WithdrawablePeriphery(_owner) {
+        if (_initialAuthorizedCaller != address(0)) {
+            authorizedCallers[_initialAuthorizedCaller] = true;
+            emit AuthorizationChanged(_initialAuthorizedCaller, true);
+        }
+    }
 
     /// @notice Sets whether or not a specified caller is authorized to call this contract
     /// @param caller the caller to change authorization for

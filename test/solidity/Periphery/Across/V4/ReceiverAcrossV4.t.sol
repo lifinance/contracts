@@ -29,7 +29,7 @@ contract ReceiverAcrossV4Test is TestBase {
         customBlockNumberForForking = 22989702;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
+        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER, address(0));
         executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
         receiver = new ReceiverAcrossV4(
             USER_DIAMOND_OWNER,

@@ -111,7 +111,7 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
         // Instead of accessing the mainnet deployment, deploy here.
         // This saves a lot of RPC calls and significantly speeds up testing suite.
-        ERC20Proxy erc20Proxy = new ERC20Proxy(address(this));
+        ERC20Proxy erc20Proxy = new ERC20Proxy(address(this), address(0));
         Executor executor = new Executor(address(erc20Proxy), address(this));
         dstCallReceiver = address(
             new ReceiverOIF(
