@@ -2472,20 +2472,19 @@
         "GasZipFacet": "2.0.5",
         "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "2.0.0",
+        "LiFiIntentEscrowFacet": "1.1.1",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
+        "WhitelistManagerFacet": "1.1.0",
         "WithdrawFacet": "1.0.0",
         "LiFiDiamond": "1.0.0",
         "ERC20Proxy": "1.1.0",
         "Executor": "2.1.0",
-        "FeeCollector": "1.0.1",
         "FeeForwarder": "1.0.0",
         "GasZipPeriphery": "1.0.2",
-        "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
-        "LiFiIntentEscrowFacet": "1.1.1",
         "PolymerCCTPFacet": "2.1.0"
       }
     }
