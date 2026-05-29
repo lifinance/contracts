@@ -89,6 +89,98 @@ function getContractVerified() {
   fi
 }
 
+# verifyAllUnverifiedContractsOnNetwork: Verify contracts listed in deployments/<network>.json.
+# Contract list comes from the local deployment file; verified status is read from MongoDB.
+# On success, MongoDB is updated via getContractVerified.
+#
+# Usage: verifyAllUnverifiedContractsOnNetwork NETWORK [ENVIRONMENT]
+#   NETWORK     - Network key from networks.json (e.g. arc, base)
+#   ENVIRONMENT - Optional: production (default) or staging
+#
+# Returns: 0 if all contracts verified or already verified; 1 if any verification failed
+# Example: verifyAllUnverifiedContractsOnNetwork arc production
+function verifyAllUnverifiedContractsOnNetwork() {
+  local NETWORK="$1"
+  local ENVIRONMENT="${2:-production}"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "Usage: verifyAllUnverifiedContractsOnNetwork NETWORK [ENVIRONMENT]"
+    return 1
+  fi
+
+  if [[ "$ENVIRONMENT" != "production" && "$ENVIRONMENT" != "staging" ]]; then
+    error "ENVIRONMENT must be 'production' or 'staging' (got: $ENVIRONMENT)"
+    return 1
+  fi
+
+  if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
+    error "Network '$NETWORK' not found in networks.json"
+    return 1
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    warning "[$NETWORK] Tron networks do not support forge verification — skipping"
+    return 0
+  fi
+
+  if [[ -n "${DO_NOT_VERIFY_IN_THESE_NETWORKS:-}" ]]; then
+    case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
+    *,"$NETWORK",*)
+      warning "[$NETWORK] excluded by DO_NOT_VERIFY_IN_THESE_NETWORKS — skipping"
+      return 0
+      ;;
+    esac
+  fi
+
+  local CONTRACT_LIST
+  if ! CONTRACT_LIST=$(getContractNamesFromNetworkDeploymentFile "$NETWORK" "$ENVIRONMENT"); then
+    return 1
+  fi
+
+  local -a CONTRACTS=()
+  while IFS= read -r CONTRACT; do
+    [[ -n "$CONTRACT" ]] && CONTRACTS+=("$CONTRACT")
+  done <<< "$CONTRACT_LIST"
+
+  local TOTAL=${#CONTRACTS[@]}
+  if [[ $TOTAL -eq 0 ]]; then
+    warning "[$NETWORK] No contracts found in deployments file for environment $ENVIRONMENT"
+    return 0
+  fi
+
+  local FILE_SUFFIX
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  echo "[info] [$NETWORK] Processing $TOTAL contract(s) from deployments/${NETWORK}.${FILE_SUFFIX}json (env=$ENVIRONMENT)"
+
+  local SKIPPED_VERIFIED=0
+  local VERIFIED_NOW=0
+  local FAILED=0
+  local CONTRACT
+
+  for CONTRACT in "${CONTRACTS[@]}"; do
+    if isContractAlreadyVerified "$CONTRACT" "$NETWORK" "$ENVIRONMENT"; then
+      echo "[info] [$NETWORK] $CONTRACT already verified in MongoDB — skipping"
+      SKIPPED_VERIFIED=$((SKIPPED_VERIFIED + 1))
+      continue
+    fi
+
+    echo "[info] [$NETWORK] Verifying $CONTRACT..."
+    if getContractVerified "$NETWORK" "$ENVIRONMENT" "$CONTRACT"; then
+      VERIFIED_NOW=$((VERIFIED_NOW + 1))
+    else
+      FAILED=$((FAILED + 1))
+    fi
+  done
+
+  echo ""
+  echo "[info] [$NETWORK] Done: $VERIFIED_NOW newly verified, $SKIPPED_VERIFIED already verified, $FAILED failed (of $TOTAL contracts)"
+
+  if [[ $FAILED -gt 0 ]]; then
+    return 1
+  fi
+  return 0
+}
+
 # =============================================================================
 # NETWORK QUERY FUNCTIONS
 # =============================================================================
@@ -294,8 +386,9 @@ function isContractAlreadyVerified() {
         return 1  # No log entry found
     fi
 
-    # Extract verification status
-    local VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED" 2>/dev/null)
+    # Extract verification status (MongoDB uses .verified; legacy JSON used .VERIFIED)
+    local VERIFIED
+    VERIFIED=$(echo "$LOG_ENTRY" | jq -r '.verified // .VERIFIED // "false"' 2>/dev/null)
     if [[ "$VERIFIED" == "true" ]]; then
         return 0  # Contract is verified
     fi
@@ -2395,6 +2488,7 @@ EOF
 
 # Contract verification and deployment
 export -f getContractVerified
+export -f verifyAllUnverifiedContractsOnNetwork
 export -f deployContract
 export -f getContractDeploymentStatusSummary
 export -f compareContractBytecode

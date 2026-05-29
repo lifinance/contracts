@@ -18,6 +18,7 @@
  * Run: `bunx tsx ./script/tasks/temp/checkEmergencyPausePerNetwork.ts`
  */
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import {
   createPublicClient,
@@ -37,7 +38,6 @@ import {
   type INetwork,
   type SupportedChain,
 } from '../../common/types'
-import { isTronNetworkKey } from '../../deploy/shared/tron-network-keys'
 import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'

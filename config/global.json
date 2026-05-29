@@ -44,6 +44,7 @@
     "GasZipFacet",
     "GenericSwapFacet",
     "GenericSwapFacetV3",
+    "LiFiIntentEscrowFacet",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WhitelistManagerFacet",

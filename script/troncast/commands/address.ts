@@ -1,10 +1,7 @@
+import { evmHexToTronBase58, tronAddressToHex } from '@lifi/tron-devkit'
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
-import {
-  evmHexToTronBase58,
-  tronAddressToHex,
-} from '../../deploy/tron/tronAddressHelpers'
 import { isValidAddress } from '../utils/parser'
 import { initTronWeb } from '../utils/tronweb'
 

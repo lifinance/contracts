@@ -9,6 +9,12 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  TronWalletClient,
+  formatAddressForNetworkCliDisplay,
+  getTronNetworkKeyForChainId,
+  isTronTvmChainId,
+} from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
@@ -43,12 +49,6 @@ import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
-import { TronWalletClient } from '../tron/helpers/TronWalletClient'
-import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
-import {
-  getTronNetworkKeyForChainId,
-  isTronTvmChainId,
-} from '../tron/helpers/tronTvmChain'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
@@ -1376,6 +1376,7 @@ export async function initializeSafeClient(
  */
 export function getPrivateKey(
   keyType:
+    | 'PRIVATE_KEY'
     | 'PRIVATE_KEY_PRODUCTION'
     | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION',
   privateKeyArg?: string
