@@ -91,10 +91,12 @@ constructor argument and is sourced from `config/superset.json` per chain.
 On Arbitrum it points to `HubPoolManager`; on Base/Unichain it points to
 `SpokePoolManager`. The facet picks the right ABI via its `IS_HUB` immutable.
 
-On the hub branch, `SupersetData.refundAddress` and `SupersetData.options` are
-ignored (the hub has no async failure refund path and no source-side LZ message
-to configure). Backends can leave them as `address(0)` / `""` for hub-origin
-quotes.
+On the hub branch, Superset itself ignores `SupersetData.options` (no source →
+hub LZ leg) and does not consume `SupersetData.refundAddress` (no async failure
+refund). The facet, however, still uses `refundAddress` as the local sink for
+excess native and source-side swap leftovers, so it is validated to be non-zero
+on every path. Backends must supply a non-zero `refundAddress` for both hub and
+spoke origins; `options` may be left as `""` for hub-origin quotes.
 
 ## `fallbackEoA` Constraint
 
