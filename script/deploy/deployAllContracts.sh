@@ -339,8 +339,10 @@ deployAllContracts() {
       local FALLBACK_FUND_AMOUNT=2000000000000000
       local DEFAULT_FUND_AMOUNT
       local SINGLE_PAUSE_COST
-      if SINGLE_PAUSE_COST=$(estimatePauseCost "$NETWORK" "$PAUSER_WALLET_ADDRESS") && [[ "$SINGLE_PAUSE_COST" =~ ^[0-9]+$ ]]; then
-        DEFAULT_FUND_AMOUNT=$(echo "$SINGLE_PAUSE_COST * 5 / 2" | bc)
+      if SINGLE_PAUSE_COST=$(estimatePauseCost "$NETWORK" "$PAUSER_WALLET_ADDRESS") \
+        && [[ "$SINGLE_PAUSE_COST" =~ ^[0-9]+$ ]] \
+        && DEFAULT_FUND_AMOUNT=$(echo "$SINGLE_PAUSE_COST * 5 / 2" | bc) \
+        && [[ "$DEFAULT_FUND_AMOUNT" =~ ^[0-9]+$ ]]; then
         echo "Computed PauserWallet funding default: $DEFAULT_FUND_AMOUNT wei (2.5x single pauseDiamond cost of $SINGLE_PAUSE_COST wei)"
       else
         DEFAULT_FUND_AMOUNT=$FALLBACK_FUND_AMOUNT
