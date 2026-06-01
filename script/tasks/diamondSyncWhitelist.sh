@@ -239,15 +239,21 @@ function diamondSyncWhitelist {
       return
     fi
     
-    # Use troncast to convert addresses
-    local HEX_ADDRESSES
-    HEX_ADDRESSES=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR" 2>&1)
+    # Use troncast to convert addresses.
+    # The troncast init message ("⚙ Initializing TronWeb…") is emitted on stdout, so
+    # we capture the full output first, then grep for the hex line.  Piping directly
+    # would lose the bun exit code (pipe replaces it with grep's), so we split the steps.
+    local RAW_OUTPUT
+    RAW_OUTPUT=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR")
     local CONVERSION_EXIT_CODE=$?
-    
+
+    # Extract only the line(s) that contain hex addresses (start with 0x)
+    local HEX_ADDRESSES
+    HEX_ADDRESSES=$(echo "$RAW_OUTPUT" | grep '^0x')
+
     # Check if conversion was successful
     # Valid output should be comma-separated hex addresses (each starting with 0x)
-    # Check that it doesn't contain error messages and contains at least one valid hex address
-    if [[ $CONVERSION_EXIT_CODE -eq 0 && -n "$HEX_ADDRESSES" && ! "$HEX_ADDRESSES" =~ Error && "$HEX_ADDRESSES" =~ 0x ]]; then
+    if [[ $CONVERSION_EXIT_CODE -eq 0 && -n "$HEX_ADDRESSES" && "$HEX_ADDRESSES" =~ ^0x ]]; then
       echo "$HEX_ADDRESSES"
     else
       # Conversion failed - return empty to signal error
