@@ -79,86 +79,6 @@ function diamondSyncWhitelist {
     NETWORKS=("$NETWORK")
   fi
 
-  # Execute a whitelist batch operation (add or remove)
-  function executeWhitelistBatch {
-    local BATCH_CONTRACTS="$1"    # comma-separated
-    local BATCH_SELECTORS="$2"    # comma-separated
-    local IS_ADD="$3"             # "true" or "false"
-    local BATCH_COUNT="$4"
-    local NETWORK="$5"
-    local DIAMOND_ADDRESS="$6"
-    local IS_TRON="$7"
-    local TRON_ENV="$8"
-    
-    local ATTEMPTS=1
-    local BATCH_TX_SUCCESS=false
-
-    while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-      # Wait before retries (except first attempt)
-      if [ $ATTEMPTS -gt 1 ]; then
-        echoSyncDebug "Waiting 3 seconds before retry..."
-        sleep 3
-      fi
-
-      # Prepare arguments based on network type
-      local CONTRACTS_FOR_SEND="$BATCH_CONTRACTS"
-      local SEND_ARGS=""
-      
-      if [[ "$IS_TRON" == "true" ]]; then
-        if [[ "$ENVIRONMENT" == "production" ]]; then
-          # Tron : convert base58 addresses to hex for calldata
-          if ! CONTRACTS_FOR_SEND=$(convertTronAddressesToHex "$BATCH_CONTRACTS"); then
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to convert Tron addresses to hex"
-            echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
-            return 1
-          fi
-          
-          if [[ -z "$CONTRACTS_FOR_SEND" ]]; then
-            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Address conversion returned empty result"
-            echoSyncDebug "Original addresses: '$BATCH_CONTRACTS'"
-            return 1
-          fi
-          # Tron: Uses bracket notation for cast calldata
-          SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
-        else
-          # Tron staging: use JSON array format
-          local TRON_CONTRACTS_JSON=$(formatCommaToJsonArray "$BATCH_CONTRACTS")
-          local TRON_SELECTORS_JSON=$(formatCommaToJsonArray "$BATCH_SELECTORS")
-          SEND_ARGS="$TRON_CONTRACTS_JSON,$TRON_SELECTORS_JSON,$IS_ADD"
-          echoSyncDebug "Tron staging - params: $SEND_ARGS"
-        fi
-      else
-        # EVM: use bracket notation for cast
-        SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS] $IS_ADD"
-      fi
-      
-      local TIMELOCK_FLAG="false"
-      if [[ "$ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NETWORK"; then
-        TIMELOCK_FLAG="true"
-      fi
-      echoSyncDebug "Send args: $SEND_ARGS"
-      
-      local OUTPUT
-      OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
-      local EXIT_CODE=$?
-
-      if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
-
-      if [[ $EXIT_CODE -eq 0 ]]; then
-        BATCH_TX_SUCCESS=true
-        break
-      fi
-
-      ATTEMPTS=$((ATTEMPTS + 1))
-    done
-
-    if [[ "$BATCH_TX_SUCCESS" == "true" ]]; then
-      return 0
-    else
-      return 1
-    fi
-  }
-
   # Function to check if an address is a token contract
   # tries to call decimals() function and returns true if a number value is returned
   function isTokenContract {
@@ -221,7 +141,7 @@ function diamondSyncWhitelist {
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] && ! isTestnetNetwork "$NET"; then
       echo "true"
     else
       echo "false"
