@@ -193,11 +193,16 @@ done
 
 # header + sorted rows through one column pipe: sort by category then ratio, strip both keys.
 # colorizeStatus runs last so coloring can't affect the column-width calculation.
-{
+# pipefail is set, so a failure in any render stage (sort/cut/column/colorize) surfaces as the
+# pipeline's exit status; fail loudly rather than printing nothing and still exiting 0.
+if ! {
   fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "NUM OF PAUSES" "STATUS"
   printf '\n'
   printf '%s\n' "${ROWS[@]}" | sort -t'|' -k1,1n -k2,2g | cut -d'|' -f3-
-} | column -t -s "$(printf '\t')" | colorizeStatus
+} | column -t -s "$(printf '\t')" | colorizeStatus; then
+  error "failed to render results table" >&2
+  exit 1
+fi
 
 echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
 
