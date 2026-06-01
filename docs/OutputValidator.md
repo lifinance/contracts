@@ -111,7 +111,8 @@ function withdrawToken(
 The contract inherits errors from WithdrawablePeriphery and defines custom errors:
 
 - **UnAuthorized**: Thrown when non-owner tries to withdraw tokens
-- **InvalidCallData**: Thrown when validation wallet address is zero
+- **InvalidCallData**: Thrown by the constructor when `_owner` is the zero address
+- **InvalidReceiver**: Thrown by `LibAsset` when the validation wallet address is zero
 - **Native token errors**: Handled by `LibAsset.transferAsset()`
 - **ERC20 token errors**: Handled by `SafeTransferLib.safeTransferFrom()`
 
