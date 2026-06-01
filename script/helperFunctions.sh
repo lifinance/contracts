@@ -5503,6 +5503,12 @@ function estimatePauseCost() {
   fi
 
   # wei overflows 64-bit bash arithmetic; use bc for the multiplication
-  echo "$GAS_ESTIMATE * $GAS_PRICE" | bc
+  local COST
+  COST=$(echo "$GAS_ESTIMATE * $GAS_PRICE" | bc) || COST=""
+  if ! [[ "$COST" =~ ^[0-9]+$ ]]; then
+    error "estimatePauseCost: failed to compute pause cost for $NETWORK (gas=$GAS_ESTIMATE, price=$GAS_PRICE)" >&2
+    return 1
+  fi
+  echo "$COST"
   return 0
 }
