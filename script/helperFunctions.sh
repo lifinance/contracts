@@ -5434,7 +5434,7 @@ function removeNetworkFromTargetStateJSON() {
 #            missing diamond, unauthorized --from, unparseable gas/price
 # Example: COST=$(estimatePauseCost "mainnet") || echo "estimate failed (rc=$?)"
 function estimatePauseCost() {
-  local NETWORK="$1"
+  local NETWORK="${1:-}"
   local PAUSER_ADDRESS="${2:-}"
   # DiamondIsPaused() selector; matched in cast's revert output (cast lacks the ABI here,
   # so it surfaces the raw selector rather than the decoded name).
