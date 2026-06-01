@@ -39,7 +39,9 @@ contract DiamondLoupeFacetTest is TestBase {
         assertTrue(found);
     }
 
-    function test_SupportsInterfaceReturnsFalseForUnregisteredInterfaces() public {
+    function test_SupportsInterfaceReturnsFalseForUnregisteredInterfaces()
+        public
+    {
         // supportedInterfaces mapping is never written — all return false
         assertFalse(loupe.supportsInterface(IID_IDIAMOND_LOUPE));
         assertFalse(loupe.supportsInterface(IID_IERC165));

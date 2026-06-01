@@ -1,11 +1,11 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
+import { loadForgeArtifact } from '@lifi/tron-devkit'
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
-import { loadForgeArtifact } from '../../deploy/tron/helpers/loadForgeArtifact'
 import { getEnvironment, getPrivateKey } from '../../utils/utils'
 import type { Environment, ITransactionReceipt } from '../types'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'

@@ -18,6 +18,7 @@ import {
 } from './timelock-queue'
 
 const ZERO_BYTES32 =
+  // pre-commit-checker: not a secret — zero bytes32 sentinel used as test fixture
   '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
 
 const SAMPLE_TARGET = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' as Address

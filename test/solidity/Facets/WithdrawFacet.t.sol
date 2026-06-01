@@ -65,7 +65,9 @@ contract WithdrawFacetTest is TestBase {
     function test_ZeroAddressRecipientDefaultsToSender() public {
         uint256 amount = 100 * 1e6;
         _fundDiamond(amount);
-        uint256 balanceBefore = IERC20(ADDRESS_USDC).balanceOf(USER_DIAMOND_OWNER);
+        uint256 balanceBefore = IERC20(ADDRESS_USDC).balanceOf(
+            USER_DIAMOND_OWNER
+        );
 
         vm.startPrank(USER_DIAMOND_OWNER);
         withdrawFacet.withdraw(ADDRESS_USDC, address(0), amount);

@@ -2,6 +2,17 @@
  * Tron TVM chain caller — broadcasts arbitrary contract calls via TronWeb native protocol.
  */
 
+import {
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
+  buildTronWalletJsonPostHeaders,
+  createTronWebForTvmNetworkKey,
+  evmHexToTronBase58,
+  getTronRPCConfig,
+  resolveTronWebRpcUrlToFullHost,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
+import { broadcastTronContractCall } from '@lifi/tron-devkit/safe'
 import type { Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -12,21 +23,6 @@ import type {
   IChainSimulateResult,
 } from '../../../common/types'
 import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
-import {
-  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-  TRON_WALLET_API_FETCH_TIMEOUT_MS,
-} from '../../tron/constants'
-import {
-  buildTronWalletJsonPostHeaders,
-  getTronRPCConfig,
-} from '../../tron/helpers/tronRpcConfig'
-import { broadcastTronContractCall } from '../../tron/helpers/tronSafeExecBroadcast'
-import {
-  createTronWebForTvmNetworkKey,
-  resolveTronWebRpcUrlToFullHost,
-} from '../../tron/helpers/tronWebFactory'
-import { evmHexToTronBase58 } from '../../tron/tronAddressHelpers'
-import type { TronTvmNetworkName } from '../../tron/types'
 
 export class TronChainCaller implements IChainCaller {
   public readonly senderAddress: Address

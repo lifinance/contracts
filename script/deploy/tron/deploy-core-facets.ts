@@ -1,5 +1,15 @@
 #!/usr/bin/env bun
 
+import {
+  MIN_BALANCE_WARNING,
+  TronContractDeployer,
+  createTronWeb,
+  evmHexToTronBase58,
+  getTronRPCConfig,
+  getTronWebCodecOnlyForNetwork,
+  type ITronDeploymentConfig,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -21,18 +31,12 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import { getTronRPCConfig } from './helpers/tronRpcConfig.js'
-import { getTronWebCodecOnly } from './helpers/tronWebCodecOnly.js'
-import { createTronWeb } from './helpers/tronWebFactory.js'
-import { evmHexToTronBase58 } from './tronAddressHelpers.js'
+
 import {
   deployContractWithLogging,
   validateBalance,
   waitBetweenDeployments,
 } from './tronUtils.js'
-import type { ITronDeploymentConfig, TronTvmNetworkName } from './types.js'
 
 /**
  * Get constructor arguments for a facet
@@ -56,7 +60,7 @@ async function getConstructorArgs(
     // The ABI encoder needs this format for proper encoding
     const displayAddr =
       pauserWalletTron ||
-      evmHexToTronBase58(getTronWebCodecOnly(), pauserWallet)
+      evmHexToTronBase58(getTronWebCodecOnlyForNetwork(network), pauserWallet)
     consola.info(`Using pauserWallet: ${displayAddr} (hex: ${pauserWallet})`)
     return [pauserWallet]
   } else if (facetName === 'GenericSwapFacetV3') {
@@ -69,7 +73,7 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnly(), nativeAddress)
+    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnlyForNetwork(network), nativeAddress)
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`

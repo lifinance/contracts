@@ -496,6 +496,32 @@ function getUnverifiedContractsFromMongo() {
   return $?
 }
 
+# getContractNamesFromNetworkDeploymentFile: List contract names from deployments/<network>.json.
+#
+# Usage: getContractNamesFromNetworkDeploymentFile NETWORK ENVIRONMENT
+#   NETWORK     - Network key from networks.json
+#   ENVIRONMENT - production or staging (selects .json vs .staging.json)
+#
+# Returns: One contract name per line on stdout; exit 0 on success, 1 on failure
+function getContractNamesFromNetworkDeploymentFile() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local FILE_SUFFIX
+  FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
+  local ADDRESSES_FILE="./deployments/${NETWORK}.${FILE_SUFFIX}json"
+
+  if ! checkIfFileExists "$ADDRESSES_FILE" >/dev/null; then
+    error "Deployment file not found: $ADDRESSES_FILE"
+    return 1
+  fi
+
+  if ! jq -r 'to_entries[] | select(.value != null and .value != "" and .value != "0x") | .key' "$ADDRESSES_FILE"; then
+    error "Failed to parse deployment file: $ADDRESSES_FILE"
+    return 1
+  fi
+  return 0
+}
+
 function getSolcVersion() {
   local NETWORK="$1"
 
