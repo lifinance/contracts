@@ -247,9 +247,10 @@ function diamondSyncWhitelist {
     RAW_OUTPUT=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR")
     local CONVERSION_EXIT_CODE=$?
 
-    # Extract only the line(s) that contain hex addresses (start with 0x)
+    # Extract only the line(s) that contain hex addresses (start with 0x).
+    # || true keeps grep non-fatal under set -e; no-match is handled below.
     local HEX_ADDRESSES
-    HEX_ADDRESSES=$(echo "$RAW_OUTPUT" | grep '^0x')
+    HEX_ADDRESSES=$(echo "$RAW_OUTPUT" | grep '^0x' || true)
 
     # Check if conversion was successful
     # Valid output should be comma-separated hex addresses (each starting with 0x)
