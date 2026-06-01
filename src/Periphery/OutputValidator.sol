@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 
@@ -14,8 +13,6 @@ import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 /// @notice Accidentally stuck funds can be recovered by the owner via the provided withdrawal functions
 /// @custom:version 1.0.0
 contract OutputValidator is WithdrawablePeriphery {
-    using SafeTransferLib for address;
-
     /// Constructor ///
     constructor(address _owner) WithdrawablePeriphery(_owner) {
         if (_owner == address(0)) revert InvalidCallData();
@@ -94,14 +91,10 @@ contract OutputValidator is WithdrawablePeriphery {
 
         // make sure we do not attempt any token transfers if there is no excess amount
         if (outputAmount > expectedAmount) {
-            // validate wallet address
-            if (validationWalletAddress == address(0)) {
-                revert InvalidCallData();
-            }
-
             // transfer excess tokens to validation wallet
             // no need to validate the tokenAddress, tx will fail if address is invalid
-            tokenAddress.safeTransferFrom(
+            LibAsset.transferFromERC20(
+                tokenAddress,
                 msg.sender,
                 validationWalletAddress,
                 outputAmount - expectedAmount

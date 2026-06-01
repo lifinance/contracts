@@ -11,7 +11,7 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { TransferFromFailed, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { TransferFromFailed, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
 // Stub CBridgeFacet Contract
 contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
@@ -439,7 +439,7 @@ contract OutputValidatorTest is TestBase {
         dai.approve(address(outputValidator), actualAmount);
 
         // Act & Assert - should revert when validationWalletAddress is address(0)
-        vm.expectRevert(InvalidCallData.selector);
+        vm.expectRevert(InvalidReceiver.selector);
         outputValidator.validateERC20Output(
             address(dai),
             expectedAmount,
