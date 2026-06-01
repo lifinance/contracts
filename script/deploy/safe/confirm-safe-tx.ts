@@ -21,7 +21,10 @@ import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
-import { reconcileSubmittedSafeTxs } from './reconcile'
+import {
+  reconcileAllSubmittedSafeTxs,
+  reconcileSubmittedSafeTxs,
+} from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -64,6 +67,10 @@ const globalTimeoutExecutions: Array<{
   safeTxHash: string
   error: string
 }> = []
+
+// Networks whose `submitted` rows were resolved by the startup reconcile sweep.
+// Used to skip the redundant per-network reconcile inside processTxs.
+const startupReconciledNetworks = new Set<string>()
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
@@ -315,7 +322,10 @@ const processTxs = async (
   // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
   // detected. Read-only on-chain — failures are warnings, not throws.
   const networkKey = network.toLowerCase()
-  if (!isTronNetworkKey(network)) {
+  if (
+    !isTronNetworkKey(network) &&
+    !startupReconciledNetworks.has(networkKey)
+  ) {
     try {
       await reconcileSubmittedSafeTxs(
         pendingTransactions,
@@ -854,6 +864,21 @@ const main = defineCommand({
       // Connect to MongoDB early to use it for network detection
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
+
+      // Resolve in-flight `submitted` rows across all networks before the
+      // pending-only selection runs. A network whose only row is `submitted`
+      // (no sibling `pending` proposal) is otherwise never reconciled, so its
+      // timelock op is never enqueued for auto-execution. Read-only on-chain.
+      try {
+        const reconciled = await reconcileAllSubmittedSafeTxs(
+          pendingTransactions,
+          args.network ? { network: args.network } : undefined
+        )
+        reconciled.forEach((n) => startupReconciledNetworks.add(n))
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.warn(`Startup reconcile sweep failed: ${errorMsg}`)
+      }
 
       // Get signer address early (needed for filtering actionable networks)
       let signerAddress: Address

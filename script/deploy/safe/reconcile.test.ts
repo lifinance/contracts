@@ -30,6 +30,7 @@ import {
 } from 'viem'
 
 import {
+  reconcileAllSubmittedSafeTxs,
   reconcileSubmittedSafeTxs,
   RECONCILE_LOOKBACK_BLOCKS,
   SUBMITTED_GRACE_MS,
@@ -1040,5 +1041,162 @@ describe('reconcileSubmittedSafeTxs — timelock enqueue plumbing', () => {
     )
 
     expect(enqueueSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () => {
+  function submittedRow(
+    network: string,
+    chainId: number,
+    executionHash: Hex,
+    overrides: Partial<ISafeTxDocument> = {}
+  ): ISafeTxDocument {
+    return buildRow({
+      network,
+      chainId,
+      safeAddress: SAFE_ADDR,
+      status: 'submitted',
+      executionHash,
+      submittedAt: new Date(),
+      safeTxHash: executionHash,
+      ...overrides,
+    })
+  }
+
+  it('reconciles a network whose only row is submitted (no pending sibling)', async () => {
+    const execHash = ('0x' + 'c1'.repeat(32)) as Hex
+    const calldata = ('0x' + 'a1'.repeat(36)) as Hex
+    const target = ('0x' + '12'.repeat(20)) as Address
+    const collection = createFakeCollection([
+      submittedRow('base', 8453, execHash, {
+        safeTx: {
+          data: {
+            to: target,
+            value: 0n,
+            data: calldata,
+            operation: 0,
+            nonce: 4n,
+          },
+          signatures: new Map(),
+        } as ISafeTransaction,
+      }),
+    ])
+    const client = createFakeClient({ receipts: { [execHash]: 'success' } })
+    const enqueueSpy = mock(noopEnqueueImpl)
+    const factoryCalls: string[] = []
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      publicClientFactory: (network) => {
+        factoryCalls.push(network)
+        return client
+      },
+      readSafeNonce: async () => 5n,
+      enqueueTimelockOpFn: enqueueSpy,
+    })
+
+    expect(factoryCalls).toEqual(['base'])
+    expect([...covered]).toEqual(['base'])
+    expect(collection.rows[0]?.status).toBe('executed')
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+    expect(enqueueSpy.mock.calls[0]).toEqual([
+      calldata,
+      target,
+      execHash,
+      execHash,
+      8453,
+      'base',
+    ])
+  })
+
+  it('honors the network filter and sweeps only the named network', async () => {
+    const hashBase = ('0x' + 'b1'.repeat(32)) as Hex
+    const hashOp = ('0x' + 'b2'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      submittedRow('base', 8453, hashBase),
+      submittedRow('optimism', 10, hashOp),
+    ])
+    const client = createFakeClient({
+      receipts: { [hashBase]: 'success', [hashOp]: 'success' },
+    })
+    const factoryCalls: string[] = []
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      network: 'base',
+      publicClientFactory: (network) => {
+        factoryCalls.push(network)
+        return client
+      },
+      readSafeNonce: async () => 1n,
+      enqueueTimelockOpFn: mock(noopEnqueueImpl),
+    })
+
+    expect(factoryCalls).toEqual(['base'])
+    expect([...covered]).toEqual(['base'])
+    expect(collection.rows.find((r) => r.network === 'optimism')?.status).toBe(
+      'submitted'
+    )
+  })
+
+  it('skips Tron networks without building a client or touching the row', async () => {
+    const execHash = ('0x' + 'd1'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      submittedRow('tron', 728_126_428, execHash),
+    ])
+    const factoryCalls: string[] = []
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      publicClientFactory: (network) => {
+        factoryCalls.push(network)
+        return createFakeClient()
+      },
+      readSafeNonce: async () => 1n,
+    })
+
+    expect(factoryCalls).toEqual([])
+    expect([...covered]).toEqual([])
+    expect(collection.rows[0]?.status).toBe('submitted')
+  })
+
+  it('continues past a network whose client construction fails', async () => {
+    const hashBase = ('0x' + 'e1'.repeat(32)) as Hex
+    const hashOp = ('0x' + 'e2'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      submittedRow('base', 8453, hashBase),
+      submittedRow('optimism', 10, hashOp),
+    ])
+    const okClient = createFakeClient({ receipts: { [hashOp]: 'success' } })
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      publicClientFactory: (network) => {
+        if (network === 'base') throw new Error('rpc down')
+        return okClient
+      },
+      readSafeNonce: async () => 1n,
+      enqueueTimelockOpFn: mock(noopEnqueueImpl),
+    })
+
+    expect([...covered]).toEqual(['optimism'])
+    expect(collection.rows.find((r) => r.network === 'optimism')?.status).toBe(
+      'executed'
+    )
+    expect(collection.rows.find((r) => r.network === 'base')?.status).toBe(
+      'submitted'
+    )
+  })
+
+  it('returns an empty set when there are no submitted rows', async () => {
+    const collection = createFakeCollection([buildRow({ status: 'pending' })])
+    const factoryCalls: string[] = []
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      publicClientFactory: (network) => {
+        factoryCalls.push(network)
+        return createFakeClient()
+      },
+      readSafeNonce: async () => 0n,
+    })
+
+    expect([...covered]).toEqual([])
+    expect(factoryCalls).toEqual([])
   })
 })
