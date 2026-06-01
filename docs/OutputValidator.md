@@ -162,7 +162,7 @@ outputValidator.withdrawToken(
 - **Owner-based Access Control**: Only the contract owner can withdraw stuck tokens
 - **Safe Transfers**: Uses `SafeTransferLib` for safe ERC20 operations and `LibAsset` for native transfers
 - **Input Validation**: ERC20 function validates wallet addresses; native transfers rely on `LibAsset` validation
-- **Fail-Safe Behavior**: Reverts on arithmetic underflow when actual < expected amounts
+- **Fail-Safe Behavior**: When actual ≤ expected, the guarded comparison skips the excess transfer (no underflow, no revert) — the call is a no-op (ERC20) or refunds `msg.value` (native)
 - **No Fund Retention**: Contract never retains funds permanently, minimizing risk
 - **Inheritance Security**: Inherits proven security patterns from WithdrawablePeriphery
 
