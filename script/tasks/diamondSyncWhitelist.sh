@@ -221,7 +221,7 @@ function diamondSyncWhitelist {
   function getTimelockFlag {
     local NET="$1"
     local ENV="$2"
-    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTronNetwork "$NET" && ! isTestnetNetwork "$NET"; then
+    if [[ "$ENV" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" ]] && ! isTestnetNetwork "$NET"; then
       echo "true"
     else
       echo "false"
