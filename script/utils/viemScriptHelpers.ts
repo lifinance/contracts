@@ -9,6 +9,7 @@ import readline from 'readline'
 
 import {
   applyTronGridViemTransportExtras,
+  formatAddressForNetworkCliDisplay,
   isTronNetworkKey,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
@@ -104,9 +105,10 @@ export const buildExplorerAddressUrl = (
   // Handle special explorers that do NOT follow the default /address/<address> pattern.
   // This list can be extended over time as we discover exceptions.
   switch (network.verificationType) {
-    // Tron-style explorers – use /#/address/<address>
+    // Tron-style explorers – use /#/address/<address> with base58 address
     case 'tronscan': {
-      return `${base}/#/address/${addr}`
+      const tronAddr = formatAddressForNetworkCliDisplay(networkId, addr)
+      return `${base}/#/address/${tronAddr}`
     }
 
     // Sourcify-style explorer (Ronin) – contract details live under /address/<address>
@@ -142,7 +144,8 @@ export const buildExplorerContractPageUrl = (
 
   // TronScan contract tab: /#/contract/<address>/code (not /#/address/...#code).
   if (network.verificationType === 'tronscan') {
-    return `${base}/#/contract/${address}/code`
+    const tronAddr = formatAddressForNetworkCliDisplay(networkId, address)
+    return `${base}/#/contract/${tronAddr}/code`
   }
 
   const addressUrl = buildExplorerAddressUrl(networkId, address)
