@@ -645,20 +645,6 @@
       }
     }
   },
-  "RelayFacet": {
-    "configData": {
-      "_relayReceiver": {
-        "configFileName": "relay.json",
-        "keyInConfigFile": ".<NETWORK>.relayReceiver",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_relaySolver": {
-        "configFileName": "relay.json",
-        "keyInConfigFile": ".relaySolver",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "OutputValidator": {
     "configData": {
       "_owner": {
