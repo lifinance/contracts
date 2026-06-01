@@ -43,14 +43,77 @@ const ROOT = path.resolve(__dirname, '..')
 const OUT_DIR = path.join(ROOT, 'out')
 const TARGET = path.join(ROOT, 'config', 'clearSigningProposal.json')
 
-function canonicalType(p: IAbiParam): string {
+// Emit a Solidity-declaration-form type with named tuple components:
+//   `(address callTo, address approveTo, …) _swapData`
+//   `(int64 v, uint32 n, bytes b, uint256 q)[] _data`
+// Tuple components include their field names; nested tuples recurse. Primitives
+// are emitted as the bare type (the caller appends the param name). This is the
+// shape the ERC-7730 v2 schema's `display.formats` key regex requires (every
+// parameter and tuple component needs an identifier), and the shape the EF
+// registry's existing entries are already authored in — so emitting it here
+// also makes our overwrite of registry-side entries byte-identical at the key
+// level (no canonical-vs-declaration string mismatch producing a "2 formats
+// sections for <selector>" collision in the descriptor validator).
+function declarationType(p: IAbiParam): string {
   if (p.type.startsWith('tuple')) {
-    const inner = (p.components ?? []).map(canonicalType).join(',')
+    if (!p.components)
+      throw new Error(
+        `tuple "${p.name || '<anonymous>'}" of type "${
+          p.type
+        }" is missing components — Foundry ABI artifacts should include tuple components; rebuild with \`forge build\` if stale`
+      )
+    const inner = p.components
+      .map((c) => {
+        if (!c.name)
+          throw new Error(
+            `tuple component missing name in field of type "${p.type}" — Foundry ABI artifacts should always include component names; rebuild with \`forge build\` if stale`
+          )
+        return `${declarationType(c)} ${c.name}`
+      })
+      .join(', ')
     return `(${inner})${p.type.slice('tuple'.length)}`
   }
   return p.type
 }
 function signature(fn: IAbiFn): string {
+  const params = fn.inputs
+    .map((p) => {
+      if (!p.name)
+        throw new Error(
+          `function ${fn.name}: parameter has no name (type=${p.type}). ERC-7730 v2 schema requires every parameter to be named.`
+        )
+      return `${declarationType(p)} ${p.name}`
+    })
+    .join(', ')
+  return `${fn.name}(${params})`
+}
+
+// Lenient, canonical-form signature for internal dedup + sort during collection.
+// `signature()` (declaration form, name-required) is what we emit as
+// display.formats keys — and it intentionally throws on unnamed params to keep
+// the keys schema-valid. But `collectFns()` walks the *entire* facet ABI before
+// `isKnownNonUserFacing()` has a chance to drop admin / getter / view helpers,
+// so a single unnamed-param helper would crash the generator before it could
+// even be classified as non-user-facing. Use this canonical form for
+// dedup/sort only — never as an output key.
+function collectionSignature(fn: IAbiFn): string {
+  const canonicalType = (p: IAbiParam): string => {
+    if (p.type.startsWith('tuple')) {
+      // Tolerate unnamed params (that's the point of the lenient form), but a
+      // tuple missing its `components` is a stale/corrupt ABI artifact — the
+      // same hard-fail condition as declarationType(). Don't swallow it into
+      // `()`, which could collide with another malformed tuple during dedup.
+      if (!p.components)
+        throw new Error(
+          `tuple "${p.name || '<anonymous>'}" of type "${
+            p.type
+          }" is missing components — Foundry ABI artifacts should include tuple components; rebuild with \`forge build\` if stale`
+        )
+      const inner = p.components.map(canonicalType).join(',')
+      return `(${inner})${p.type.slice('tuple'.length)}`
+    }
+    return p.type
+  }
   return `${fn.name}(${fn.inputs.map(canonicalType).join(',')})`
 }
 
@@ -76,14 +139,14 @@ function collectFns(): IAbiFn[] {
     // making the strict failure unreachable. See PR #1821 review.)
     for (const item of json.abi ?? []) {
       if (item.type !== 'function') continue
-      const sig = signature(item)
+      const sig = collectionSignature(item)
       if (out[sig]) continue
       out[sig] = item
       fnNames.add(item.name)
     }
   }
   return Object.values(out).sort((a, b) =>
-    signature(a).localeCompare(signature(b))
+    collectionSignature(a).localeCompare(collectionSignature(b))
   )
 }
 
@@ -647,12 +710,15 @@ function main() {
   const failures: string[] = []
 
   for (const fn of fns) {
-    const sig = signature(fn)
     // Skip known non-user-facing functions explicitly (admin, init, view,
-    // helpers). Keeping the skip-list here rather than at collection time
-    // means new user-facing verbs not in either the templates or the skip
-    // list still fall through to the failure branch below.
+    // helpers) BEFORE computing the strict signature: signature() hard-fails
+    // on unnamed params (legal Solidity for non-user-facing helpers), so it
+    // must run only on the functions we actually emit. Keeping the skip-list
+    // here rather than at collection time means new user-facing verbs not in
+    // either the templates or the skip list still fall through to the failure
+    // branch below.
     if (isKnownNonUserFacing(fn)) continue
+    const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
