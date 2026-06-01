@@ -555,7 +555,7 @@ contract OutputValidatorTest is TestBase {
             validationWallet
         );
 
-        // Assert - positive slippage tokens transferred to validation wallet due to underflow
+        // Assert - positive slippage (actual - expected) transferred to validation wallet
         assertEq(dai.balanceOf(validationWallet), positiveSlippage);
         assertEq(dai.balanceOf(address(diamond)), expectedAmount);
         assertEq(dai.balanceOf(address(outputValidator)), 0);
