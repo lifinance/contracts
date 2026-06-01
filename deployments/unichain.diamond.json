@@ -109,9 +109,9 @@
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0x5d489e667f96b49Bf9fA67e1dEf4542904757794": {
+      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
       "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
         "Name": "AcrossV4SwapFacet",
