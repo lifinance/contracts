@@ -158,7 +158,7 @@ contract OutputValidatorTest is TestBase {
     function test_validateOutputERC20LessThanExpected() public {
         vm.startPrank(address(diamond));
 
-        // Arrange - test case where actual amount is less than expected (should revert)
+        // Arrange - actual < expected: guard skips the transfer, call is a no-op (no revert)
         uint256 expectedAmount = 1000 ether;
         uint256 actualAmount = 500 ether; // Less than expected
 
