@@ -710,12 +710,15 @@ function main() {
   const failures: string[] = []
 
   for (const fn of fns) {
-    const sig = signature(fn)
     // Skip known non-user-facing functions explicitly (admin, init, view,
-    // helpers). Keeping the skip-list here rather than at collection time
-    // means new user-facing verbs not in either the templates or the skip
-    // list still fall through to the failure branch below.
+    // helpers) BEFORE computing the strict signature: signature() hard-fails
+    // on unnamed params (legal Solidity for non-user-facing helpers), so it
+    // must run only on the functions we actually emit. Keeping the skip-list
+    // here rather than at collection time means new user-facing verbs not in
+    // either the templates or the skip list still fall through to the failure
+    // branch below.
     if (isKnownNonUserFacing(fn)) continue
+    const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
