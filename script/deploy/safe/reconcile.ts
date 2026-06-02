@@ -35,7 +35,7 @@ import {
 
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
-import { SAFE_EVENTS_ABI } from './config'
+import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
 import type { ISafeTxDocument } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
@@ -152,17 +152,6 @@ export async function reconcileSubmittedSafeTxs(
   return result
 }
 
-/** Minimal ABI for reading a Safe's current nonce. */
-const SAFE_NONCE_ABI = [
-  {
-    type: 'function',
-    name: 'nonce',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint256' }],
-  },
-] as const
-
 export interface IReconcileAllOptions extends IReconcileOptions {
   /**
    * Restrict the sweep to a single network. Sweeps every network with
@@ -197,9 +186,9 @@ async function defaultReadSafeNonce(
 ): Promise<bigint> {
   return client.readContract({
     address: safeAddress,
-    abi: SAFE_NONCE_ABI,
+    abi: SAFE_SINGLETON_ABI,
     functionName: 'nonce',
-  }) as Promise<bigint>
+  })
 }
 
 /**
