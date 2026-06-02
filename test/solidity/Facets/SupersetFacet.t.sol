@@ -705,6 +705,14 @@ contract SupersetFacetTest is TestBaseFacet {
             memory configs = _defaultChainIdConfigs();
 
         vm.prank(address(0));
+        // Per-entry ChainIdToEidSet events fire first, in config order…
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidSet(configs[0].chainId, configs[0].lzEid);
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidSet(configs[1].chainId, configs[1].lzEid);
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToEidSet(configs[2].chainId, configs[2].lzEid);
+        // …followed by the batch confirmation.
         vm.expectEmit(true, true, true, true);
         emit SupersetChainMappingsInitialized(configs);
 

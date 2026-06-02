@@ -136,7 +136,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         Storage storage s = _getStorage();
 
         for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
-            s.lzEids[_chainIdConfigs[i].chainId] = _chainIdConfigs[i].lzEid;
+            uint256 chainId = _chainIdConfigs[i].chainId;
+            uint32 lzEid = _chainIdConfigs[i].lzEid;
+
+            s.lzEids[chainId] = lzEid;
+            // Per-entry event lets indexers subscribe to a single signal
+            // (ChainIdToEidSet) for both initial seeding and later updates.
+            emit ChainIdToEidSet(chainId, lzEid);
         }
 
         s.chainMappingsInitialized = true;
