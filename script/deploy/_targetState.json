@@ -2483,7 +2483,6 @@
         "Executor": "2.1.0",
         "FeeForwarder": "1.0.0",
         "GasZipPeriphery": "1.0.2",
-        "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
         "PolymerCCTPFacet": "2.1.0"
       }
