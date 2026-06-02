@@ -80,7 +80,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ///        non-zero because the local refund sink is the same on both branches.
     /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
     ///        `refundAddress` fails. Superset validates this is a pure EOA on the source;
-    ///        we double-check on the facet for a cheaper revert.
+    ///        we double-check on the facet for a cheaper revert. EIP-7702 delegated EOAs
+    ///        are rejected (the 23-byte delegation designator counts as `code`).
     /// @param deadline Unix timestamp after which the hub will reject the request.
     /// @param toEid LayerZero endpoint ID of the destination spoke chain.
     /// @param options LayerZero executor options for the source → hub request. Ignored
