@@ -125,6 +125,18 @@ reach the user even when the call is routed through `Permit2Proxy` (whose
 be non-zero. This deviates from facets like `AcrossFacetV3` that refund to
 `msg.sender`; it is intentional given the structural overpayment above.
 
+## Positive Slippage Handling
+
+The two entry points use different slippage fields. `startBridgeTokensViaSuperset` takes `amountOutMin` as an absolute amount and passes it through unchanged. `swapAndStartBridgeTokensViaSuperset` ignores the value of `amountOutMin` and instead recomputes it from `amountOutMinPercent` after the source-side swap:
+
+```
+amountOutMin = postSwapAmount * amountOutMinPercent / 1e18
+```
+
+This lets positive slippage from the source-side swap propagate proportionally to the destination floor. Example: the backend quotes a swap that produces 100 USDC and expects 99 USDC on the destination (1% slippage tolerance), so it sets `amountOutMinPercent = 0.99e18`. If the swap actually returns 110 USDC, the facet derives `amountOutMin = 108.9 USDC` rather than the static 99 from the original quote — the user keeps the upside instead of the hub absorbing it.
+
+For the bridge-only entry point (no swap involved), there is nothing to recompute; backends should pass the absolute floor as `amountOutMin` and may leave `amountOutMinPercent` at zero.
+
 ## Refund Flow
 
 If the hub rejects the swap (slippage, deadline, insufficient destination pot,

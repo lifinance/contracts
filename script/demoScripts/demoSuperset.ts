@@ -138,7 +138,7 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 1341n,
+      amountOutMin: 0n, // ignored by swapAndStartBridgeTokensViaSuperset; facet recomputes from amountOutMinPercent
       amountOutMinPercent: 1348000000000000n,
       toEid: 30320,
       options:
@@ -153,7 +153,12 @@ function assertConfigured(s: IScenarioConfig): void {
   if (s.superset.omniPath === '0x') missing.push('superset.omniPath')
   if (s.superset.options === '0x') missing.push('superset.options')
   if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
-  if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
+  // amountOutMin is only consumed by the bridge-only path; swapAndStartBridge
+  // ignores it and derives the floor from amountOutMinPercent.
+  if (!s.preSwap && s.superset.amountOutMin === 0n)
+    missing.push('superset.amountOutMin')
+  if (s.preSwap && s.superset.amountOutMinPercent === 0n)
+    missing.push('superset.amountOutMinPercent')
   if (s.preSwap && s.preSwap.targetOutAmount === 0n)
     missing.push('preSwap.targetOutAmount')
   if (missing.length > 0)

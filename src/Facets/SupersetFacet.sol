@@ -63,8 +63,18 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param path Packed `omniTokenId(32) || fee(3) || ... || omniTokenId(32)` describing
     ///        the multi-hop route on the hub's virtual Uniswap-V3 pools.
     /// @param amountOutMin Slippage floor on destination omni-token (absolute amount).
-    /// @param amountOutMinPercent Fraction (1e18 = 100%) used to recompute `amountOutMin`
-    ///        post source-swap so positive slippage propagates to the destination floor.
+    ///        Used directly by `startBridgeTokensViaSuperset`. Ignored by
+    ///        `swapAndStartBridgeTokensViaSuperset`, which derives it from
+    ///        `amountOutMinPercent` post-swap.
+    /// @param amountOutMinPercent Used only by `swapAndStartBridgeTokensViaSuperset`.
+    ///        Expected destination-floor / post-swap-amount ratio, scaled by 1e18 (so
+    ///        0.99e18 ≈ 99%). After the source-side swap the facet sets
+    ///        `amountOutMin = postSwapAmount * amountOutMinPercent / 1e18`, so positive
+    ///        slippage on the swap propagates proportionally to the destination floor.
+    ///        Ignored by `startBridgeTokensViaSuperset`. Example: backend quotes a swap
+    ///        producing 100 USDC and expects 99 USDC on the destination →
+    ///        `amountOutMinPercent = 0.99e18`. If the swap actually returns 110 USDC,
+    ///        `amountOutMin` becomes 108.9 USDC instead of the static 99 from the quote.
     /// @param refundAddress Source-chain address that receives source-side excess native
     ///        and any swap leftovers from `swapAndStartBridgeTokensViaSuperset`. On a
     ///        spoke origin Superset also forwards `amountIn` here if the hub rejects the
