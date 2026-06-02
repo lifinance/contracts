@@ -3208,9 +3208,7 @@ function getContractAddressFromSalt() {
   local NETWORK=$2
   local CONTRACT_NAME=$3
   local ENVIRONMENT=$4
-
-  # get RPC URL
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local CREATE3_FACTORY_ADDRESS=$5
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -3223,8 +3221,8 @@ function getContractAddressFromSalt() {
 
   # return address
   echo "$RESULT"
-
 }
+
 function getDeployerAddress() {
   # read function arguments into variables
   local NETWORK=$1
@@ -3452,17 +3450,16 @@ function doesAddressContainBytecode() {
     return 1
   fi
 
-  # make sure address is in correct checksum format
-  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
-
   # get CONTRACT code from ADDRESS using
-  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
+  CONTRACT_CODE=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
-  # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
+  # return false if ADDRESS does not contain CONTRACT code, otherwise true
+  if [[ $? -ne 0 || "$CONTRACT_CODE" == "0x" || "$CONTRACT_CODE" == "" ]]; then
     echo "false"
+    return 1
   else
     echo "true"
+    return 0
   fi
 }
 function getFacetAddressFromDiamond() {
