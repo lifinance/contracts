@@ -104,6 +104,8 @@ on the Superset spoke. For smart-wallet users (Safe, AA, etc.), an explicit
 EOA fallback must be supplied by the integrator — there is no automatic
 derivation from the smart wallet's address.
 
+This check intentionally mirrors Superset's `SwapDelivery.sol` check verbatim, which means **EIP-7702 delegated EOAs are also rejected**: once an EOA opts into a 7702 delegation it carries the 23-byte `0xef0100…` designator as `code`, so `code.length != 0` and the facet reverts. Backends serving 7702 users must supply a separate pure-EOA address (e.g. a freshly generated recovery wallet) as `fallbackEoA`. Switching the facet to `LibAsset.isContract` here would diverge from the spoke and cause Superset's own check to revert later, so the constraint stays.
+
 ## LayerZero Fees
 
 A Superset cross-chain swap is a three-message LayerZero round-trip:
