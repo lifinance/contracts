@@ -102,6 +102,15 @@ Before adding a new guideline:
 - **What belongs in rules**: requirements/constraints, example code and anti-patterns, behavioral expectations, agent behavior instructions, rationale.
 - **What to exclude**: CI workflow code, detailed tooling setup, optional enforcement mechanisms.
 
+## Referencing MCP Tools
+
+When a rule, command, or skill mentions an MCP tool, use the **client-agnostic name** — never the fully-qualified namespace ID.
+
+- ✅ Good: Linear MCP `list_issues`, Slack MCP `send_message`, the Notion MCP `search` tool
+- ❌ Bad: `mcp__claude_ai_Linear__list_issues`, `mcp__Slack__slack_send_message`
+
+The `mcp__<client>_<server>__<tool>` prefix is the runtime tool ID Claude Code injects for the Claude.ai integration. Cursor, Gemini, and other MCP clients use different prefixes; integration renames (e.g. `claude_ai` → `claude-ai`) silently break any baked-in IDs. The client-agnostic form survives both.
+
 ## Naming Conventions + Uniqueness Check
 
 - Follow `.agents/rules/README.md` as the **single source of truth** for numbering ranges and naming.
