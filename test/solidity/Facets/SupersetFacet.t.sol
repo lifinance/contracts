@@ -401,7 +401,7 @@ contract SupersetFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultUSDCAmount;
         validSupersetData.deadline = block.timestamp - 1;
 
-        vm.expectRevert(SupersetFacet.DeadlineExpired.selector);
+        vm.expectRevert(InvalidConfig.selector);
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee

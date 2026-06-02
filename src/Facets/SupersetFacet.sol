@@ -104,12 +104,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Thrown when `msg.value` does not cover the declared `lzFee`.
     error InsufficientNativeValue();
 
-    /// @notice Thrown when `_supersetData.deadline` has already passed at the source.
-    /// @dev Superset only enforces the deadline on the hub. Without this source-side
-    ///      check, a stale deadline would burn the user's `lzFee` before the hub
-    ///      eventually rejects it.
-    error DeadlineExpired();
-
     /// Events ///
 
     /// @notice Emitted when the chainId ↔ LayerZero EID mapping is initialized.
@@ -291,7 +285,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         if (block.timestamp > _supersetData.deadline) {
-            revert DeadlineExpired();
+            revert InvalidConfig();
         }
 
         // Ensure backend-supplied `toEid` resolves to the same LayerZero endpoint
