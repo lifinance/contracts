@@ -62,19 +62,16 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Superset-specific parameters supplied by the LI.FI backend.
     /// @param path Packed `omniTokenId(32) || fee(3) || ... || omniTokenId(32)` describing
     ///        the multi-hop route on the hub's virtual Uniswap-V3 pools.
-    /// @param amountOutMin Slippage floor on destination omni-token (absolute amount).
-    ///        Used directly by `startBridgeTokensViaSuperset`. Ignored by
-    ///        `swapAndStartBridgeTokensViaSuperset`, which derives it from
-    ///        `amountOutMinPercent` post-swap.
-    /// @param amountOutMinPercent Used only by `swapAndStartBridgeTokensViaSuperset`.
-    ///        Expected destination-floor / post-swap-amount ratio, scaled by 1e18 (so
-    ///        0.99e18 ≈ 99%). After the source-side swap the facet sets
-    ///        `amountOutMin = postSwapAmount * amountOutMinPercent / 1e18`, so positive
-    ///        slippage on the swap propagates proportionally to the destination floor.
-    ///        Ignored by `startBridgeTokensViaSuperset`. Example: backend quotes a swap
-    ///        producing 100 USDC and expects 99 USDC on the destination →
-    ///        `amountOutMinPercent = 0.99e18`. If the swap actually returns 110 USDC,
-    ///        `amountOutMin` becomes 108.9 USDC instead of the static 99 from the quote.
+    /// @param amountOutMin Backend-quoted slippage floor on the destination omni-token
+    ///        (absolute amount, in destination-token raw units). On
+    ///        `startBridgeTokensViaSuperset` it is forwarded as-is. On
+    ///        `swapAndStartBridgeTokensViaSuperset` the quoted value is calibrated to
+    ///        the pre-swap `bridgeData.minAmount` (the swap floor); after the swap the
+    ///        facet scales it by `actualPostSwap / preSwapFloor` so the percentage
+    ///        bridge-slippage tolerance is preserved against the real swap result. Example:
+    ///        backend says "if the swap returns its 100 USDC floor, accept ≥ 99 USDC on
+    ///        the destination." If the swap actually returns 110 USDC, the facet uses
+    ///        `99 * 110 / 100 = 108.9 USDC` instead of the static 99 from the quote.
     /// @param refundAddress Source-chain address that receives source-side excess native
     ///        and any swap leftovers from `swapAndStartBridgeTokensViaSuperset`. On a
     ///        spoke origin Superset also forwards `amountIn` here if the hub rejects the
@@ -94,7 +91,6 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct SupersetData {
         bytes path;
         uint256 amountOutMin;
-        uint64 amountOutMinPercent;
         address refundAddress;
         address fallbackEoA;
         uint256 deadline;
@@ -238,6 +234,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     {
         _validateSupersetData(_bridgeData.destinationChainId, _supersetData);
 
+        uint256 preSwapMinAmount = _bridgeData.minAmount;
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -246,11 +243,17 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _supersetData.lzFee
         );
 
-        // Adjust destination slippage floor for positive source-side slippage
+        // Scale the destination floor by the same proportion the swap exceeded
+        // its floor, so the backend's percentage bridge-slippage budget is
+        // preserved against the actual post-swap amount.
+        // `_depositAndSwap` reverts when the swap returns less than the floor,
+        // so by here `_bridgeData.minAmount >= preSwapMinAmount` and the ratio
+        // never tightens the floor. `validateBridgeData` already rejects
+        // `_bridgeData.minAmount == 0`, so `preSwapMinAmount > 0`.
         SupersetData memory modifiedSupersetData = _supersetData;
         modifiedSupersetData.amountOutMin =
-            (_bridgeData.minAmount * _supersetData.amountOutMinPercent) /
-            1e18;
+            (_supersetData.amountOutMin * _bridgeData.minAmount) /
+            preSwapMinAmount;
 
         _startBridge(_bridgeData, modifiedSupersetData);
     }

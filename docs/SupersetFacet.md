@@ -59,9 +59,11 @@ specific to Superset and is represented as the following struct type:
 ```solidity
 /// @param path Packed `omniTokenId(32) || fee(3) || ... || omniTokenId(32)`
 ///        describing the multi-hop route on the hub's virtual Uniswap-V3 pools.
-/// @param amountOutMin Slippage floor on destination omni-token (absolute amount).
-/// @param amountOutMinPercent Fraction (1e18 = 100%) used to recompute `amountOutMin`
-///        post source-swap so positive slippage propagates to the destination floor.
+/// @param amountOutMin Backend-quoted slippage floor on the destination omni-token
+///        (absolute amount, in destination-token raw units). For
+///        `swapAndStartBridgeTokensViaSuperset` the facet scales it post-swap to
+///        preserve the backend's percentage slippage budget — see "Positive
+///        Slippage Handling" below.
 /// @param refundAddress Address that receives `amountIn` on the source spoke if the
 ///        swap fails.
 /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
@@ -74,7 +76,6 @@ specific to Superset and is represented as the following struct type:
 struct SupersetData {
     bytes path;
     uint256 amountOutMin;
-    uint64 amountOutMinPercent;
     address refundAddress;
     address fallbackEoA;
     uint256 deadline;
@@ -129,15 +130,32 @@ be non-zero. This deviates from facets like `AcrossFacetV3` that refund to
 
 ## Positive Slippage Handling
 
-The two entry points use different slippage fields. `startBridgeTokensViaSuperset` takes `amountOutMin` as an absolute amount and passes it through unchanged. `swapAndStartBridgeTokensViaSuperset` ignores the value of `amountOutMin` and instead recomputes it from `amountOutMinPercent` after the source-side swap:
+`startBridgeTokensViaSuperset` (no source-side swap) forwards `amountOutMin` unchanged.
+
+`swapAndStartBridgeTokensViaSuperset` scales `amountOutMin` after the source-side swap to preserve the backend's percentage bridge-slippage budget against the actual swap output:
 
 ```
-amountOutMin = postSwapAmount * amountOutMinPercent / 1e18
+modifiedAmountOutMin = amountOutMin * actualPostSwap / preSwapMinAmount
 ```
 
-This lets positive slippage from the source-side swap propagate proportionally to the destination floor. Example: the backend quotes a swap that produces 100 USDC and expects 99 USDC on the destination (1% slippage tolerance), so it sets `amountOutMinPercent = 0.99e18`. If the swap actually returns 110 USDC, the facet derives `amountOutMin = 108.9 USDC` rather than the static 99 from the original quote — the user keeps the upside instead of the hub absorbing it.
+where `preSwapMinAmount` is the value of `bridgeData.minAmount` before `_depositAndSwap` runs (the swap floor) and `actualPostSwap` is the swap's actual output. Because `_depositAndSwap` reverts when the swap returns less than the floor, the ratio is always `>= 1` and the scaling either leaves `amountOutMin` unchanged or increases it proportionally to positive swap slippage.
 
-For the bridge-only entry point (no swap involved), there is nothing to recompute; backends should pass the absolute floor as `amountOutMin` and may leave `amountOutMinPercent` at zero.
+### Example
+
+```
+backend quote (1% bridge slippage on top of 1% swap slippage):
+  expected swap median:   3,000 USDC
+  bridgeData.minAmount:   2,970 USDC   (1% swap floor)
+  amountOutMin:           2,940 USDC   (1% bridge slippage on the floor)
+
+execution — actual swap output = 3,100 USDC (positive slippage):
+  modifiedAmountOutMin = 2,940 * 3,100 / 2,970 = 3,069 USDC
+  bridge tolerance: 31 / 3,100 ≈ 1.0%   ← same as backend's intent
+```
+
+If the swap had instead landed exactly at the floor (2,970), `modifiedAmountOutMin` would equal `amountOutMin` (no scaling). At any output above the floor, both numerator (`amountOutMin × actualPostSwap`) and denominator (`preSwapMinAmount`) grow together so the percentage tolerance is preserved.
+
+Both fields are absolute token amounts in their native decimals — there is no multiplier or fraction to encode, and no cross-decimal overflow risk because the scaling ratio is computed from same-decimal pairs (source-token / source-token).
 
 ## Refund Flow
 

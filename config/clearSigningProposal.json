@@ -2242,7 +2242,7 @@
         }
       ]
     },
-    "startBridgeTokensViaSuperset((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes,uint256,uint64,address,address,uint256,uint32,bytes,uint256))": {
+    "startBridgeTokensViaSuperset((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes,uint256,address,address,uint256,uint32,bytes,uint256))": {
       "intent": "Bridge via Superset",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Superset to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -5582,7 +5582,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaSuperset((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(address,address,address,address,uint256,bytes,bool)[],(bytes,uint256,uint64,address,address,uint256,uint32,bytes,uint256))": {
+    "swapAndStartBridgeTokensViaSuperset((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(address,address,address,address,uint256,bytes,bool)[],(bytes,uint256,address,address,uint256,uint32,bytes,uint256))": {
       "intent": "Swap & Bridge via Superset",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Superset to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [

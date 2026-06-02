@@ -182,7 +182,6 @@ contract SupersetFacetTest is TestBaseFacet {
                 bytes32(uint256(3))
             ),
             amountOutMin: 1,
-            amountOutMinPercent: 0.99e18,
             refundAddress: USER_SENDER,
             // Pure EOA (no code on Base); spoke's SwapDelivery enforces this.
             fallbackEoA: 0x34E7db45783b50F4e7764258d0Dc0400c3539A57,
@@ -546,8 +545,9 @@ contract SupersetFacetTest is TestBaseFacet {
             MockFixedSwapRouter.swap.selector
         );
 
-        // Fixed-rate swap: 100 USDC → 200 DAI. Post-swap minAmount is exactly
-        // 200 DAI, so `amountOutMin` must be `200e18 * percent / 1e18`.
+        // Swap floor on the post-swap token (DAI). Actual swap output is 2x the
+        // floor — heavy positive slippage relative to backend's worst-case quote.
+        uint256 swapFloorDAI = 100 * 10 ** dai.decimals();
         uint256 swapInputUSDC = defaultUSDCAmount;
         uint256 swapOutputDAI = 200 * 10 ** dai.decimals();
         deal(ADDRESS_DAI, address(mockRouter), swapOutputDAI);
@@ -571,14 +571,18 @@ contract SupersetFacetTest is TestBaseFacet {
         });
 
         bridgeData.sendingAssetId = ADDRESS_DAI;
-        bridgeData.minAmount = swapInputUSDC;
+        // Backend-supplied swap floor — what `_depositAndSwap` enforces and what
+        // the facet scales the destination floor against.
+        bridgeData.minAmount = swapFloorDAI;
         bridgeData.hasSourceSwaps = true;
 
         SupersetFacet.SupersetData memory spokeData = validSupersetData;
-        uint64 percent = 0.95e18;
-        spokeData.amountOutMinPercent = percent;
-        uint256 expectedAmountOutMin = (swapOutputDAI * uint256(percent)) /
-            1e18;
+        // Destination floor calibrated to the swap floor: 99 DAI (1% bridge
+        // slippage on the 100 DAI floor).
+        spokeData.amountOutMin = 99 * 10 ** dai.decimals();
+        // Actual swap returns 2x → facet should scale the destination floor by 2×.
+        uint256 expectedAmountOutMin = (spokeData.amountOutMin *
+            swapOutputDAI) / swapFloorDAI;
 
         // Short-circuit the real spoke and verify the exact calldata + value.
         bytes memory expectedCalldata = abi.encodeCall(

@@ -30,7 +30,7 @@ import {
 
 import { ERC20__factory, SupersetFacet__factory } from '../../typechain'
 import type { ILiFi, SupersetFacet } from '../../typechain'
-import type { LibSwap } from '../../typechain/SupersetFacet.sol/SupersetFacet'
+import type { LibSwap } from '../../typechain/SupersetFacet'
 import { type SupportedChain } from '../common/types'
 
 import {
@@ -64,7 +64,6 @@ interface IPreSwap {
 interface ISupersetParams {
   omniPath: Hex
   amountOutMin: bigint
-  amountOutMinPercent: bigint
   toEid: number
   options: Hex
   lzFee: bigint
@@ -99,7 +98,6 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
       amountOutMin: 1341n,
-      amountOutMinPercent: 1348000000000000n,
       toEid: 30320, // Unichain
       options:
         '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
@@ -117,7 +115,6 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
       amountOutMin: 1341n,
-      amountOutMinPercent: 1348000000000000n,
       toEid: 30184, // Base
       options: '0x00030100110100000000000000000000000000030d40', // unused on hub branch (facet picks 7-arg hub ABI)
       lzFee: 35544130952448n, // 20% buffer; one LZ message: hub → Base
@@ -138,8 +135,10 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 0n, // ignored by swapAndStartBridgeTokensViaSuperset; facet recomputes from amountOutMinPercent
-      amountOutMinPercent: 1348000000000000n,
+      // Destination floor calibrated to the pre-swap targetOutAmount (1 USDC).
+      // If the swap returns >1 USDC (positive slippage), the facet scales this
+      // up proportionally.
+      amountOutMin: 1341n,
       toEid: 30320,
       options:
         '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
@@ -153,12 +152,7 @@ function assertConfigured(s: IScenarioConfig): void {
   if (s.superset.omniPath === '0x') missing.push('superset.omniPath')
   if (s.superset.options === '0x') missing.push('superset.options')
   if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
-  // amountOutMin is only consumed by the bridge-only path; swapAndStartBridge
-  // ignores it and derives the floor from amountOutMinPercent.
-  if (!s.preSwap && s.superset.amountOutMin === 0n)
-    missing.push('superset.amountOutMin')
-  if (s.preSwap && s.superset.amountOutMinPercent === 0n)
-    missing.push('superset.amountOutMinPercent')
+  if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
   if (s.preSwap && s.preSwap.targetOutAmount === 0n)
     missing.push('preSwap.targetOutAmount')
   if (missing.length > 0)
@@ -223,7 +217,6 @@ const cli = defineCommand({
     const supersetData: SupersetFacet.SupersetDataStruct = {
       path: scenario.superset.omniPath,
       amountOutMin: scenario.superset.amountOutMin,
-      amountOutMinPercent: scenario.superset.amountOutMinPercent,
       refundAddress: getAddress(SHARED.refundAddress),
       fallbackEoA: getAddress(SHARED.fallbackEoA),
       deadline: BigInt(Math.floor(Date.now() / 1000) + SHARED.deadlineSeconds),
