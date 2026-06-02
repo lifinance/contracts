@@ -396,6 +396,19 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_DeadlineExpired() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.deadline = block.timestamp - 1;
+
+        vm.expectRevert(SupersetFacet.DeadlineExpired.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
     function testRevert_RefundAddressIsZero() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
