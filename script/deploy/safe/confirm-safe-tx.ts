@@ -23,6 +23,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import type { ILedgerAccountResult } from './ledger'
 import {
   reconcileAllSubmittedSafeTxs,
+  reconcileCoverageKey,
   reconcileSubmittedSafeTxs,
 } from './reconcile'
 import {
@@ -68,9 +69,10 @@ const globalTimeoutExecutions: Array<{
   error: string
 }> = []
 
-// Networks whose `submitted` rows were resolved by the startup reconcile sweep.
-// Used to skip the redundant per-network reconcile inside processTxs.
-const startupReconciledNetworks = new Set<string>()
+// `reconcileCoverageKey` values for each Safe whose `submitted` rows were
+// resolved by the startup reconcile sweep. Used to skip the redundant in-loop
+// reconcile inside processTxs — per Safe, not per network.
+const startupReconciledKeys = new Set<string>()
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
@@ -324,7 +326,9 @@ const processTxs = async (
   const networkKey = network.toLowerCase()
   if (
     !isTronNetworkKey(network) &&
-    !startupReconciledNetworks.has(networkKey)
+    !startupReconciledKeys.has(
+      reconcileCoverageKey(networkKey, chain.id, safeAddress)
+    )
   ) {
     try {
       await reconcileSubmittedSafeTxs(
@@ -872,9 +876,11 @@ const main = defineCommand({
       try {
         const reconciled = await reconcileAllSubmittedSafeTxs(
           pendingTransactions,
-          args.network ? { network: args.network } : undefined
+          args.network
+            ? { network: args.network, rpcUrl: args.rpcUrl }
+            : undefined
         )
-        reconciled.forEach((n) => startupReconciledNetworks.add(n))
+        reconciled.forEach((k) => startupReconciledKeys.add(k))
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error)
         consola.warn(`Startup reconcile sweep failed: ${errorMsg}`)

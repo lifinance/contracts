@@ -31,6 +31,7 @@ import {
 
 import {
   reconcileAllSubmittedSafeTxs,
+  reconcileCoverageKey,
   reconcileSubmittedSafeTxs,
   RECONCILE_LOOKBACK_BLOCKS,
   SUBMITTED_GRACE_MS,
@@ -1095,7 +1096,9 @@ describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () =>
     })
 
     expect(factoryCalls).toEqual(['base'])
-    expect([...covered]).toEqual(['base'])
+    expect([...covered]).toEqual([
+      reconcileCoverageKey('base', 8453, SAFE_ADDR),
+    ])
     expect(collection.rows[0]?.status).toBe('executed')
     expect(enqueueSpy).toHaveBeenCalledTimes(1)
     expect(enqueueSpy.mock.calls[0]).toEqual([
@@ -1131,7 +1134,9 @@ describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () =>
     })
 
     expect(factoryCalls).toEqual(['base'])
-    expect([...covered]).toEqual(['base'])
+    expect([...covered]).toEqual([
+      reconcileCoverageKey('base', 8453, SAFE_ADDR),
+    ])
     expect(collection.rows.find((r) => r.network === 'optimism')?.status).toBe(
       'submitted'
     )
@@ -1175,11 +1180,44 @@ describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () =>
       enqueueTimelockOpFn: mock(noopEnqueueImpl),
     })
 
-    expect([...covered]).toEqual(['optimism'])
+    expect([...covered]).toEqual([
+      reconcileCoverageKey('optimism', 10, SAFE_ADDR),
+    ])
     expect(collection.rows.find((r) => r.network === 'optimism')?.status).toBe(
       'executed'
     )
     expect(collection.rows.find((r) => r.network === 'base')?.status).toBe(
+      'submitted'
+    )
+  })
+
+  it('tracks coverage per Safe — a sibling Safe failure is not masked by a success', async () => {
+    const SAFE_A = ('0x' + '1a'.repeat(20)) as Address
+    const SAFE_B = ('0x' + '2b'.repeat(20)) as Address
+    const hashA = ('0x' + 'f1'.repeat(32)) as Hex
+    const hashB = ('0x' + 'f2'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      submittedRow('base', 8453, hashA, { safeAddress: SAFE_A }),
+      submittedRow('base', 8453, hashB, { safeAddress: SAFE_B }),
+    ])
+    const client = createFakeClient({ receipts: { [hashA]: 'success' } })
+
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      publicClientFactory: () => client,
+      readSafeNonce: async (_c, addr) => {
+        if (addr === SAFE_B) throw new Error('nonce read failed')
+        return 5n
+      },
+      enqueueTimelockOpFn: mock(noopEnqueueImpl),
+    })
+
+    // Only Safe A's key is covered; Safe B's failure is isolated per Safe,
+    // not masked by the same-network success.
+    expect([...covered]).toEqual([reconcileCoverageKey('base', 8453, SAFE_A)])
+    expect(collection.rows.find((r) => r.safeAddress === SAFE_A)?.status).toBe(
+      'executed'
+    )
+    expect(collection.rows.find((r) => r.safeAddress === SAFE_B)?.status).toBe(
       'submitted'
     )
   })

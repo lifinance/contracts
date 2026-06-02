@@ -159,8 +159,15 @@ export interface IReconcileAllOptions extends IReconcileOptions {
    */
   network?: string
   /**
+   * RPC URL override for the read-only client. Honored only by the default
+   * client factory and only meaningful for a single-network sweep (one URL
+   * cannot serve every chain); ignored when `publicClientFactory` is supplied.
+   */
+  rpcUrl?: string
+  /**
    * Builds a read-only public client for a network. Injectable for tests;
-   * defaults to a viem client using the RPC from `networks.json`.
+   * defaults to a viem client using `rpcUrl` when set, else the RPC from
+   * `networks.json`.
    */
   publicClientFactory?: (network: string) => PublicClient
   /**
@@ -173,13 +180,15 @@ export interface IReconcileAllOptions extends IReconcileOptions {
   ) => Promise<bigint>
 }
 
-function defaultPublicClientFactory(network: string): PublicClient {
+/** Builds a read-only viem client for a network, honoring an optional RPC override. */
+function buildReadOnlyClient(network: string, rpcUrl?: string): PublicClient {
   return createPublicClient({
     chain: getViemChainForNetworkName(network),
-    transport: http(),
+    transport: http(rpcUrl),
   }) as PublicClient
 }
 
+/** Reads a Safe's current on-chain nonce via the standard `nonce()` view. */
 async function defaultReadSafeNonce(
   client: PublicClient,
   safeAddress: Address
@@ -189,6 +198,25 @@ async function defaultReadSafeNonce(
     abi: SAFE_SINGLETON_ABI,
     functionName: 'nonce',
   })
+}
+
+/**
+ * Coverage key identifying a single Safe on a chain. Producers and consumers of
+ * the startup-sweep coverage set MUST use this so an in-loop reconcile is
+ * skipped only for the exact `(network, chainId, safeAddress)` that was swept —
+ * never for a sibling Safe on the same network.
+ *
+ * @param network - Network name (case-insensitive).
+ * @param chainId - Chain ID.
+ * @param safeAddress - Safe address (case-insensitive).
+ * @returns A normalized composite key.
+ */
+export function reconcileCoverageKey(
+  network: string,
+  chainId: number,
+  safeAddress: Address
+): string {
+  return `${network.toLowerCase()}:${chainId}:${safeAddress.toLowerCase()}`
 }
 
 /**
@@ -202,20 +230,21 @@ async function defaultReadSafeNonce(
  * in-loop reconcile for any returned network.
  *
  * A network can host more than one Safe, so rows are grouped by
- * `(network, chainId, safeAddress)` and reconciled per group. Per-network
+ * `(network, chainId, safeAddress)` and reconciled per group. Per-group
  * failures are logged and skipped so one unreachable RPC cannot abort the run.
  * Read-only on-chain; writes only to MongoDB; does not require Safe ownership.
  *
  * @param pendingTransactions - Safe tx collection.
  * @param options - Optional network filter and injectable client/nonce/enqueue seams.
- * @returns Lowercased network keys that were successfully swept.
+ * @returns `reconcileCoverageKey` values for each Safe that was successfully swept.
  */
 export async function reconcileAllSubmittedSafeTxs(
   pendingTransactions: Collection<ISafeTxDocument>,
   options?: IReconcileAllOptions
 ): Promise<Set<string>> {
   const clientFactory =
-    options?.publicClientFactory ?? defaultPublicClientFactory
+    options?.publicClientFactory ??
+    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
   const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
   const networkFilter = options?.network?.toLowerCase()
 
@@ -231,17 +260,14 @@ export async function reconcileAllSubmittedSafeTxs(
     const network = row.network.toLowerCase()
     if (networkFilter && network !== networkFilter) continue
     if (isTronNetworkKey(network)) continue
-    const key = `${network}:${row.chainId}:${row.safeAddress}`
+    const safeAddress = row.safeAddress as Address
+    const key = reconcileCoverageKey(network, row.chainId, safeAddress)
     if (!groups.has(key))
-      groups.set(key, {
-        network,
-        chainId: row.chainId,
-        safeAddress: row.safeAddress as Address,
-      })
+      groups.set(key, { network, chainId: row.chainId, safeAddress })
   }
 
   const covered = new Set<string>()
-  for (const { network, chainId, safeAddress } of groups.values())
+  for (const [key, { network, chainId, safeAddress }] of groups)
     try {
       const client = clientFactory(network)
       const onChainNonce = await nonceReader(client, safeAddress)
@@ -254,7 +280,7 @@ export async function reconcileAllSubmittedSafeTxs(
         onChainNonce,
         options
       )
-      covered.add(network)
+      covered.add(key)
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
