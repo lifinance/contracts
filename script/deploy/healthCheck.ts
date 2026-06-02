@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'fs'
+import path from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -621,21 +624,20 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
-    // Load whitelist config (staging or production)
-    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
+    // Load whitelist config (staging or production).
+    // whitelist.staging.json is gitignored — read from disk so TS/ESLint need not resolve it.
     let whitelistConfig: unknown = { DEXS: [], PERIPHERY: {} }
-    if (environment === 'staging') {
-      try {
-        const mod = await import('../../config/whitelist.staging.json')
-        whitelistConfig = mod.default
-      } catch {
-        consola.info(
-          'whitelist.staging.json not found, skipping whitelist checks'
-        )
-      }
-    } else {
-      const mod = await import('../../config/whitelist.json')
-      whitelistConfig = mod.default
+    const whitelistFileName =
+      environment === 'staging' ? 'whitelist.staging.json' : 'whitelist.json'
+    const whitelistPath = path.join(process.cwd(), 'config', whitelistFileName)
+    if (existsSync(whitelistPath)) {
+      whitelistConfig = JSON.parse(
+        readFileSync(whitelistPath, 'utf8')
+      ) as IWhitelistConfig
+    } else if (environment === 'staging') {
+      consola.info(
+        'whitelist.staging.json not found, skipping whitelist checks'
+      )
     }
 
     // Check if whitelist configuration exists for this network
@@ -725,7 +727,7 @@ const main = defineCommand({
       if (environment === 'production') {
         await checkOwnershipTron(
           'ERC20Proxy',
-          deployerWallet,
+          refundWallet,
           deployedContracts,
           tronRpcUrl,
           tronWeb,
@@ -788,11 +790,11 @@ const main = defineCommand({
           client: publicClient,
         })
         const erc20ProxyOwner = await erc20ProxyContract.read.owner()
-        if (getAddress(erc20ProxyOwner) !== getAddress(deployerWallet))
+        if (getAddress(erc20ProxyOwner) !== getAddress(refundWallet))
           logError(
             `ERC20Proxy owner is ${getAddress(
               erc20ProxyOwner
-            )}, expected ${getAddress(deployerWallet)}`
+            )}, expected ${getAddress(refundWallet)}`
           )
         else consola.success('ERC20Proxy owner is correct')
       } else {

@@ -34,6 +34,7 @@ When you add or edit a command, **always work in `.agents/commands/`**.
 Every rule must use the hybrid header so both Cursor and Claude Code activate it correctly.
 
 **Scoped rule** (activates only for matching files):
+
 ```yaml
 ---
 name: Rule name
@@ -46,6 +47,7 @@ paths:           # Claude Code: file matching (no negation patterns)
 ```
 
 **Global rule** (always active, no file scoping):
+
 ```yaml
 ---
 name: Rule name
@@ -76,6 +78,7 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
 ## No-Duplication, Naming, Size, Cross-References
 
 These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/rules/*.md` or `.agents/commands/*.md`). See that rule for the full list. Key reminders:
+
 - Search before adding — pick a single owning file, remove duplicates.
 - Rules define "what/why", not "how"; report CI/tooling suggestions separately.
 - Follow `.agents/README.md` for numbering ranges.
@@ -85,10 +88,12 @@ These constraints are enforced automatically via `010-agents-authoring` (auto-lo
 1. Determine scope → pick numbering range from `.agents/README.md`.
 2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
 3. Create the Cursor and Claude Code symlinks:
+
    ```bash
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".cursor/rules/<NNN>-<name>.mdc"
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
    ```
+
 4. Update `.agents/README.md` table (name, range, description).
 5. Run validation steps below.
 
@@ -97,11 +102,13 @@ These constraints are enforced automatically via `010-agents-authoring` (auto-lo
 1. Run `/skill-creator` (Anthropic built-in) to draft the skill content — it enforces ≤500 lines, progressive disclosure, and other best practices automatically.
 2. Save the output to `.agents/commands/<name>.md`.
 3. Create the Cursor and Claude Code symlinks:
+
    ```bash
    ln -sf "../../.agents/commands/<name>.md" ".cursor/commands/<name>.md"
    mkdir -p ".claude/skills/<name>"
    ln -sf "../../../.agents/commands/<name>.md" ".claude/skills/<name>/SKILL.md"
    ```
+
 4. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
 
 ## Modifying an Existing Rule or Command

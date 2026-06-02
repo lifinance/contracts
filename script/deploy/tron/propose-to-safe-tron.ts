@@ -21,6 +21,12 @@ import 'dotenv/config'
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  createTronWebForTvmNetworkKey,
+  tronBase58ToEvm20Hex,
+  tronZeroAddressBase58,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
@@ -41,12 +47,7 @@ import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
-import { createTronWebForTvmNetworkKey } from './helpers/tronWebFactory.js'
-import {
-  tronBase58ToEvm20Hex,
-  tronZeroAddressBase58,
-} from './tronAddressHelpers.js'
-import type { IProposeToSafeTronOptions, TronTvmNetworkName } from './types.js'
+import type { IProposeToSafeTronOptions } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName: TronTvmNetworkName = options.network ?? 'tron'
@@ -70,7 +71,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const networks = JSON.parse(fs.readFileSync(networksPath, 'utf8'))
   const safeAddressBase58 = networks[networkName]?.safeAddress
   if (!safeAddressBase58)
-    throw new Error(`${networkName}.safeAddress not set in config/networks.json`)
+    throw new Error(
+      `${networkName}.safeAddress not set in config/networks.json`
+    )
 
   const genericMode = Boolean(options.to && options.calldata)
   if ((options.to && !options.calldata) || (!options.to && options.calldata)) {

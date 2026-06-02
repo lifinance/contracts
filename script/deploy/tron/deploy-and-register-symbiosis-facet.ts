@@ -1,13 +1,20 @@
 #!/usr/bin/env bun
 
+import {
+  MIN_BALANCE_WARNING,
+  TronContractDeployer,
+  createTronWeb,
+  evmHexToTronBase58,
+  tronAddressToHex,
+  type ITronDeploymentConfig,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -23,12 +30,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import { createTronWeb } from './helpers/tronWebFactory'
-import { evmHexToTronBase58, tronAddressToHex } from './tronAddressHelpers'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
-import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 /**
  * Deploy and register SymbiosisFacet to Tron
@@ -207,7 +209,10 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     if (!dryRun)
       await proposeDiamondCut({
         facetName: 'SymbiosisFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        facetAddressHex: tronAddressToHex(
+          tronWeb,
+          facetAddress
+        ) as `0x${string}`,
         diamondAddress,
         network: network,
       })

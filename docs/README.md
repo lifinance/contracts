@@ -1,4 +1,6 @@
-# Facets
+# Smart Contracts Documentation
+
+## Facets
 
 - [Access Manager Facet](./AccessManagerFacet.md)
 - [Across Facet](./AcrossFacet.md)
