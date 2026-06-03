@@ -65,6 +65,21 @@ jobs:
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 
+      - name: Checkout fork (clear-signing-erc7730-registry) with sync token
+        # Use `actions/checkout` rather than a manual `git clone` token-in-URL.
+        # The manual pattern failed in this job with `fatal: could not read
+        # Username for 'https://github.com'` even though the same token was
+        # valid (curl /user → 200 in the same shell). `actions/checkout` is
+        # GitHub's own well-tested clone path and handles auth setup robustly
+        # — it also persists `http.https://github.com/.extraheader` inside
+        # the cloned repo so the later push to origin authenticates.
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          repository: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }}
+          token: ${{ secrets.LEDGER_SYNC_TOKEN }}
+          path: ledger-registry
+          fetch-depth: 0 # need full history for branch creation off upstream/default
+
       - name: Sync Ledger registry file (push to fork)
         id: sync # exposes PR_URL as step output for the Slack notification step
         env:
@@ -83,7 +98,7 @@ jobs:
 
           if [ "${DRY_RUN:-}" = "true" ]; then
             echo -e "\033[33m=== DRY-RUN MODE ===\033[0m"
-            echo "Will: clone fork, regenerate descriptor, print diff."
+            echo "Will: regenerate descriptor, print diff."
             echo "Will NOT: commit, push, open/update upstream PR, notify Slack."
             echo ""
           fi
@@ -93,22 +108,12 @@ jobs:
             exit 1
           fi
 
-          echo -e "\033[32mCloning fork: ${LEDGER_FORK}\033[0m"
-          rm -rf ledger-registry
-          # Authenticate the initial clone via a transient token-in-URL: the
-          # runner's prior `actions/checkout` leaves a credential helper that
-          # makes an anonymous clone of github.com prompt for a username and
-          # fail (`fatal: could not read Username for 'https://github.com'`)
-          # even though the fork is public. Once cloned, immediately rewrite
-          # `remote.origin.url` to the bare HTTPS form so the token does not
-          # surface from `git remote -v` (the common debug command), and
-          # install it as an HTTP auth header for subsequent fetch/push.
-          # The header still lands in `.git/config` (visible via `git config
-          # -l`), but the workspace is destroyed at job end.
-          git clone "https://x-access-token:${LEDGER_SYNC_TOKEN}@github.com/${LEDGER_FORK}.git" ledger-registry
+          # Fork is already cloned into `ledger-registry/` by the preceding
+          # `actions/checkout` step. That step also persists credentials via
+          # the `http.https://github.com/.extraheader` config inside the
+          # ledger-registry repo, so subsequent fetch/push to the fork
+          # authenticates automatically — no manual extraheader setup needed.
           cd ledger-registry
-          git remote set-url origin "https://github.com/${LEDGER_FORK}.git"
-          git config "http.https://github.com/.extraheader" "AUTHORIZATION: bearer ${LEDGER_SYNC_TOKEN}"
 
           git remote add upstream "https://github.com/${LEDGER_UPSTREAM}.git"
           git fetch upstream --prune
@@ -143,9 +148,9 @@ jobs:
             echo ""
             echo -e "\033[33m[dry-run] Full diff (truncated to first 200 lines):\033[0m"
             # `sed -n '1,200p'` (not `head -200`) consumes the whole stream:
-            # with `set -euo pipefail` (line 77 above) `head` closes its stdin
-            # after 200 lines, which sends SIGPIPE to `git diff` and fails the
-            # step. First-run dry-runs have a multi-thousand-line diff (101
+            # under `set -euo pipefail`, `head` closes its stdin after 200
+            # lines, which sends SIGPIPE to `git diff` and fails the step.
+            # First-run dry-runs have a multi-thousand-line diff (101
             # display.formats entries), so this matters in practice.
             git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
             echo ""

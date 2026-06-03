@@ -1,6 +1,6 @@
 ---
 name: add-new-rule
-description: Standardize adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure)
+description: Guides adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure); use when authoring or revising an agent rule or command.
 usage: /add-new-rule
 ---
 
@@ -101,6 +101,15 @@ Before adding a new guideline:
 - **Report implementation suggestions separately**: When creating a rule, if you identify helpful implementation approaches, report these back to the user as suggestions, but do NOT include them in the rule file.
 - **What belongs in rules**: requirements/constraints, example code and anti-patterns, behavioral expectations, agent behavior instructions, rationale.
 - **What to exclude**: CI workflow code, detailed tooling setup, optional enforcement mechanisms.
+
+## Referencing MCP Tools
+
+When a rule, command, or skill mentions an MCP tool, use the **client-agnostic name** — never the fully-qualified namespace ID.
+
+- ✅ Good: Linear MCP `list_issues`, Slack MCP `send_message`, the Notion MCP `search` tool
+- ❌ Bad: `mcp__claude_ai_Linear__list_issues`, `mcp__Slack__slack_send_message`
+
+The `mcp__<client>_<server>__<tool>` prefix is the runtime tool ID Claude Code injects for the Claude.ai integration. Cursor, Gemini, and other MCP clients use different prefixes; integration renames (e.g. `claude_ai` → `claude-ai`) silently break any baked-in IDs. The client-agnostic form survives both.
 
 ## Naming Conventions + Uniqueness Check
 

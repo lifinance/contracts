@@ -24,14 +24,18 @@ import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 import {
+  createPublicClient,
   decodeEventLog,
+  http,
   TransactionReceiptNotFoundError,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
 
-import { SAFE_EVENTS_ABI } from './config'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
+import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
 import type { ISafeTxDocument } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
@@ -146,6 +150,143 @@ export async function reconcileSubmittedSafeTxs(
   )
 
   return result
+}
+
+export interface IReconcileAllOptions extends IReconcileOptions {
+  /**
+   * Restrict the sweep to a single network. Sweeps every network with
+   * `submitted` rows when omitted.
+   */
+  network?: string
+  /**
+   * RPC URL override for the read-only client. Honored only by the default
+   * client factory and only meaningful for a single-network sweep (one URL
+   * cannot serve every chain); ignored when `publicClientFactory` is supplied.
+   */
+  rpcUrl?: string
+  /**
+   * Builds a read-only public client for a network. Injectable for tests;
+   * defaults to a viem client using `rpcUrl` when set, else the RPC from
+   * `networks.json`.
+   */
+  publicClientFactory?: (network: string) => PublicClient
+  /**
+   * Reads the Safe's on-chain nonce. Injectable for tests; defaults to a
+   * `nonce()` contract read.
+   */
+  readSafeNonce?: (
+    client: PublicClient,
+    safeAddress: Address
+  ) => Promise<bigint>
+}
+
+/** Builds a read-only viem client for a network, honoring an optional RPC override. */
+function buildReadOnlyClient(network: string, rpcUrl?: string): PublicClient {
+  return createPublicClient({
+    chain: getViemChainForNetworkName(network),
+    transport: http(rpcUrl),
+  }) as PublicClient
+}
+
+/** Reads a Safe's current on-chain nonce via the standard `nonce()` view. */
+async function defaultReadSafeNonce(
+  client: PublicClient,
+  safeAddress: Address
+): Promise<bigint> {
+  return client.readContract({
+    address: safeAddress,
+    abi: SAFE_SINGLETON_ABI,
+    functionName: 'nonce',
+  })
+}
+
+/**
+ * Coverage key identifying a single Safe on a chain. Producers and consumers of
+ * the startup-sweep coverage set MUST use this so an in-loop reconcile is
+ * skipped only for the exact `(network, chainId, safeAddress)` that was swept —
+ * never for a sibling Safe on the same network.
+ *
+ * @param network - Network name (case-insensitive).
+ * @param chainId - Chain ID.
+ * @param safeAddress - Safe address (case-insensitive).
+ * @returns A normalized composite key.
+ */
+export function reconcileCoverageKey(
+  network: string,
+  chainId: number,
+  safeAddress: Address
+): string {
+  return `${network.toLowerCase()}:${chainId}:${safeAddress.toLowerCase()}`
+}
+
+/**
+ * Reconciles every network that has `submitted` Safe-tx rows, independent of
+ * the pending-only network selection in confirm-safe-tx.
+ *
+ * Closes the gap where a network whose only row is `submitted` (no sibling
+ * `pending` proposal) is never passed to `reconcileSubmittedSafeTxs` and stays
+ * stuck — its timelock op never enqueued for auto-execution. Each group runs
+ * the full reconcile (Sweep A + Sweep B), so the caller may skip a redundant
+ * in-loop reconcile for any returned network.
+ *
+ * A network can host more than one Safe, so rows are grouped by
+ * `(network, chainId, safeAddress)` and reconciled per group. Per-group
+ * failures are logged and skipped so one unreachable RPC cannot abort the run.
+ * Read-only on-chain; writes only to MongoDB; does not require Safe ownership.
+ *
+ * @param pendingTransactions - Safe tx collection.
+ * @param options - Optional network filter and injectable client/nonce/enqueue seams.
+ * @returns `reconcileCoverageKey` values for each Safe that was successfully swept.
+ */
+export async function reconcileAllSubmittedSafeTxs(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  options?: IReconcileAllOptions
+): Promise<Set<string>> {
+  const clientFactory =
+    options?.publicClientFactory ??
+    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
+  const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
+  const networkFilter = options?.network?.toLowerCase()
+
+  const submittedRows = await pendingTransactions
+    .find({ status: { $eq: 'submitted' } })
+    .toArray()
+
+  const groups = new Map<
+    string,
+    { network: string; chainId: number; safeAddress: Address }
+  >()
+  for (const row of submittedRows) {
+    const network = row.network.toLowerCase()
+    if (networkFilter && network !== networkFilter) continue
+    if (isTronNetworkKey(network)) continue
+    const safeAddress = row.safeAddress as Address
+    const key = reconcileCoverageKey(network, row.chainId, safeAddress)
+    if (!groups.has(key))
+      groups.set(key, { network, chainId: row.chainId, safeAddress })
+  }
+
+  const covered = new Set<string>()
+  for (const [key, { network, chainId, safeAddress }] of groups)
+    try {
+      const client = clientFactory(network)
+      const onChainNonce = await nonceReader(client, safeAddress)
+      await reconcileSubmittedSafeTxs(
+        pendingTransactions,
+        client,
+        network,
+        chainId,
+        safeAddress,
+        onChainNonce,
+        options
+      )
+      covered.add(key)
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+    }
+
+  return covered
 }
 
 /**
