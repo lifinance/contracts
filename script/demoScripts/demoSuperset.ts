@@ -5,12 +5,12 @@
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain-w-swap
  *
  * Executed runs:
- *   base-to-unichain        SRC https://basescan.org/tx/0x3ecb04feec3f101b2a60bfb9d2674e6b3f7bced146d770d0f2acf602b942f3d5
- *                           DST https://uniscan.xyz/tx/0x9e69d68a59333303d79b5acc316e679ca3e59a12855ab4ba2d676590539872f9
- *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x9bdb85d94293705292bd00ff5dee39d6107469d91f239d13d27ccc612e54f25d
- *                           DST https://basescan.org/tx/0xd2dd811a69cf121638b2572d0d1cbf193fbf5e79af6a2e4648f609438b0aa87c
- *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x34d9da78ebb454ba08dd9e1364763622d2653427b17245b630ec0eddedf0e08b
- *                           DST https://uniscan.xyz/tx/0xa4a87fd3ea003b0a62834da4396b9c3ae8c8a79172d16a0d5ef24d45d54aa0ca
+ *   base-to-unichain        SRC https://basescan.org/tx/0x89c55da51e3461637cc5a17371c23417d4600f073659d7ba407694e022f263f2
+ *                           DST https://uniscan.xyz/tx/0xe2702ba8c1d45f3bc7a1ce94c9193538389d84037eeadab49a8e375db64fe040
+ *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x4a087bf8a7e6f4658c5f2d0dac9d9d6e783691a65d11822153f3a8fa2482610e
+ *                           DST https://basescan.org/tx/0x10eabe39174e6426a49d9145ec59af580f26958fc89cffe75259c4d973d7cbd5
+ *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x446053ee8e5b2400bf46eef45188f3289dce8333c0cbe0cc635cbf5a1eca3ce9
+ *                           DST https://uniscan.xyz/tx/0x905d8ca1a6a61c31049a6f7e0e40be78b66872d4870d84a9bcba2d2648c35c27
  */
 
 import { randomBytes } from 'crypto'
@@ -99,7 +99,7 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
+      amountOutMin: 1472n, // off-band hub quote for 1 USDC in, minus 1% slippage
       toEid: 30320, // Unichain
       options:
         '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
@@ -116,7 +116,7 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
+      amountOutMin: 1472n, // off-band hub quote for 1 USDC in, minus 1% slippage
       toEid: 30184, // Base
       options: '0x00030100110100000000000000000000000000030d40', // unused on hub branch (facet picks 7-arg hub ABI)
       lzFee: 37644833027306n, // 20% buffer above one-message hub → Base quote (raw: 31370694189421)
@@ -141,10 +141,13 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      // Base floor for the hub omni-pool USDC → WBTC swap of declared
-      // bridgeData.minAmount (= pre-swap minAmountOut). The facet scales this
-      // up by (actualPostSwap / declared) before forwarding.
-      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
+      // Calibrated off-band against the declared bridge floor (= pre-swap
+      // minAmountOut at today's WETH/USDC quote). Facet scales this up by
+      // (actualPostSwap / declared) before forwarding, so the on-chain floor
+      // tracks pre-swap positive slippage while keeping the same buffer below
+      // the hub's expected output. Re-calibrate if WETH/USDC drifts materially
+      // between runs.
+      amountOutMin: 1308n, // off-band hub quote for declared bridge floor in, minus 3% slippage
       toEid: 30320,
       options:
         '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
