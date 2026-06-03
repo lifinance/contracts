@@ -72,11 +72,19 @@ contract TestMayanFacetExposed is MayanFacet {
         return _parseReceiver(protocolData, 0);
     }
 
-    /// @dev Exposes the HyperCore receiver path via _parseReceiver (destinationChainId == marker).
+    /// @dev Exposes the internal _parseHypercoreReceiver function.
     function testParseHypercoreReceiver(
         bytes memory protocolData
     ) public pure returns (bytes32) {
-        return _parseReceiver(protocolData, HYPERCORE_CHAIN_ID);
+        return _parseHypercoreReceiver(protocolData);
+    }
+
+    /// @dev Exposes _parseReceiver with an explicit destination chain id.
+    function testParseReceiverForChain(
+        bytes memory protocolData,
+        uint256 destinationChainId
+    ) public pure returns (bytes32) {
+        return _parseReceiver(protocolData, destinationChainId);
     }
 
     /// @dev Exposes the internal _replaceInputAmount function.
@@ -656,6 +664,24 @@ contract MayanFacetTest is TestBaseFacet {
             address(uint160(uint256(receiver))),
             expectedReceiver,
             "parse hypercore receiver: follows customPayload offset pointer"
+        );
+
+        // Regression: an HCDepositInitiator deposit under the HyperCore chain id (1337) must
+        // still parse via its fixed-offset switch case, not be shadowed by the Swift v2 path.
+        bytes memory hcDeposit = vm.parseBytes(
+            "0xe27dce37000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000006acfc00000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c00000000000000000000000000000000000000000000000000000000000001f400000000000000000000000000000000000000000000000000000000006acfc00000000000000000000000000000000000000000000000000000000000012caf000000000000000000000000bd55c2f306c97fd1d3e7a023f7c4834a2f472834000000000000000000000000000000000000000000000000000000000069a3110000000000000000000000000000000000000000000000000000000068a7068ee2d54d29d37687633ac8ad2fc0514a5ee922480ebf7f24c509fb2cf2f00dbe341c22259dd180dda20abd2a4c9cbd8e13900cb34642fdedd1458a953d17c74d0c000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000"
+        );
+
+        assertEq(
+            address(
+                uint160(
+                    uint256(
+                        testFacet.testParseReceiverForChain(hcDeposit, 1337)
+                    )
+                )
+            ),
+            0xBD55C2F306C97Fd1d3E7A023f7c4834a2F472834,
+            "HCDepositInitiator under hypercore chainId must fall through to fixed-offset parsing"
         );
     }
 

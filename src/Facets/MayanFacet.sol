@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @dev HyperCore deposits (BridgeData.destinationChainId == HYPERCORE_CHAIN_ID) are Mayan
+/// @dev HyperCore deposits (BridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) are Mayan
 ///      Swift orders whose destAddr is Mayan's HCDepositor handler and whose real receiver is
 ///      encoded in customPayload[0:20], so for these the facet validates BridgeData.receiver
 ///      against the customPayload receiver instead of destAddr.
@@ -36,9 +36,6 @@ contract MayanFacet is
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
 
     IMayan public immutable MAYAN;
-
-    /// @dev BridgeData.destinationChainId value used for Mayan HyperCore deposits.
-    uint256 internal constant HYPERCORE_CHAIN_ID = 1337;
 
     /// @dev Mayan specific bridge data
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
@@ -217,15 +214,22 @@ contract MayanFacet is
 
     // @dev Parses the receiver address from the protocol data
     // @param protocolData The protocol data for the Mayan protocol
-    // @param destinationChainId The bridge destination chain id; HYPERCORE_CHAIN_ID delegates
-    //        to _parseHypercoreReceiver (customPayload), all others read destAddr below
+    // @param destinationChainId The bridge destination chain id; for LIFI_CHAIN_ID_HYPERCORE a
+    //        Swift v2 customPayload receiver is preferred, otherwise it falls through to the
+    //        destAddr switch below (so HCDepositInitiator and other selectors keep their
+    //        fixed-offset parsing)
     // @return receiver The receiver address
     function _parseReceiver(
         bytes memory protocolData,
         uint256 destinationChainId
     ) internal pure returns (bytes32 receiver) {
-        if (destinationChainId == HYPERCORE_CHAIN_ID) {
-            return _parseHypercoreReceiver(protocolData);
+        if (destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
+            // Swift v2 HyperCore deposits encode the receiver in customPayload; other selectors
+            // (e.g. HCDepositInitiator deposit/fastDeposit) fall through to the switch below.
+            receiver = _parseHypercoreReceiver(protocolData);
+            if (receiver != bytes32(0)) {
+                return receiver;
+            }
         }
 
         bytes4 selector;
