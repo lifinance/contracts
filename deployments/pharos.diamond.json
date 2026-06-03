@@ -57,9 +57,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x4aed96BeDf86Ca29B43b532BC3748488cCc74CE0": {
+      "0xCA2aa66178eff56A5EA132eB4add52684e67d62D": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       }
     },
     "Periphery": {
