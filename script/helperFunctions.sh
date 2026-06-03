@@ -5419,20 +5419,10 @@ function removeNetworkFromTargetStateJSON() {
   fi
 }
 
-# estimatePauseCost: Estimate the native-token cost (in wei) of one pauseDiamond() call.
-# Computes gasEstimate × gasPrice for the production LiFiDiamond on NETWORK. EVM only.
-#
-# Usage: estimatePauseCost NETWORK [PAUSER_ADDRESS]
-#   NETWORK        - Network key from networks.json
-#   PAUSER_ADDRESS - Optional: address used as --from for the gas estimate.
-#                    Defaults to .pauserWallet in config/global.json
-#
-# Returns:
-#   exit 0 - echoes the single-pause cost in wei (decimal) to stdout
-#   exit 2 - diamond is already paused (pauseDiamond() reverts DiamondIsPaused)
-#   exit 1 - any other failure (reason on stderr): Tron network (EVM-only), RPC error,
-#            missing diamond, unauthorized --from, unparseable gas/price
-# Example: COST=$(estimatePauseCost "mainnet") || echo "estimate failed (rc=$?)"
+# estimatePauseCost: echo the wei cost of one pauseDiamond() (gasEstimate × gasPrice) for the
+# production LiFiDiamond on NETWORK. EVM only; optional PAUSER_ADDRESS overrides the --from
+# (defaults to config/global.json .pauserWallet).
+# Exit: 0 = cost on stdout · 2 = diamond already paused · 1 = any other failure (reason on stderr).
 function estimatePauseCost() {
   local NETWORK="${1:-}"
   local PAUSER_ADDRESS="${2:-}"
@@ -5478,18 +5468,19 @@ function estimatePauseCost() {
   # and revert data (DiamondIsPaused selector) also comes via stderr.
   local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC
   GAS_ESTIMATE_ERR=$(mktemp)
+  # RETURN trap removes the temp file on every exit path (verified contained: without
+  # functrace it fires only on this function's return, not the caller's).
+  trap 'rm -f "$GAS_ESTIMATE_ERR"' RETURN
   GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
   if [[ $CAST_ESTIMATE_RC -ne 0 ]]; then
     local CAST_ERR
     CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
-    rm -f "$GAS_ESTIMATE_ERR"
     if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
       return 2
     fi
     error "estimatePauseCost: cast estimate failed for $NETWORK: $CAST_ERR" >&2
     return 1
   fi
-  rm -f "$GAS_ESTIMATE_ERR"
   if ! [[ "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
     error "estimatePauseCost: unexpected gas estimate for $NETWORK: $GAS_ESTIMATE" >&2
     return 1
