@@ -7,6 +7,10 @@
 #   that derived address, read via the real `universalCast "call"` (EVM + Tron).
 # - Layer 3 (on-chain governance, mainnet only - the unpause path): LiFiTimelockController.diamond()
 #   matches the deploy-log diamond, and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
+# - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
+#   wallet can afford pauseDiamond() on every production EVM chain. A CRITICAL network (cannot fund a
+#   single pause) fails the run with its own Slack alert. Skipped on PRs: funding is live operational
+#   state, independent of the code under review.
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
@@ -69,15 +73,19 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
+      # continue-on-error so the funds check below still runs even if this fails; the final
+      # "Fail if any readiness check failed" step restores the red check.
       - name: Verify emergency pause readiness
+        id: readiness
+        continue-on-error: true
         run: bash script/utils/verifyEmergencyPauseReadinessGitHub.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
       # Page on-call for real drift (scheduled / manual runs). PR runs already surface
       # the failure as a red check to the author, so we skip Slack noise there.
-      - name: Notify Slack on failure
-        if: ${{ failure() && github.event_name != 'pull_request' }}
+      - name: Notify Slack on readiness failure
+        if: ${{ steps.readiness.outcome == 'failure' && github.event_name != 'pull_request' }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
@@ -86,3 +94,36 @@ jobs:
             {
               "text": ":rotating_light: Emergency pause readiness check FAILED — the pauser key or an on-chain pauserWallet no longer matches config. The emergency pause may be unusable on one or more chains. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
             }
+
+      # Funding is live operational state (independent of the code in a PR), so this runs on
+      # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
+      # secret (it reads the CONFIGURED pauser's balance, not the key); it exits non-zero when
+      # any production chain is CRITICAL (cannot afford a single pauseDiamond()). RPC endpoints
+      # come from the MongoDB fetch step above (ETH_NODE_URI_* in the environment).
+      - name: Check pauser wallet funds
+        id: funds
+        if: ${{ github.event_name != 'pull_request' }}
+        continue-on-error: true
+        run: bash script/utils/checkPauserFunds.sh
+
+      - name: Notify Slack on under-funded pauser wallet
+        if: ${{ steps.funds.outcome == 'failure' && github.event_name != 'pull_request' }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rotating_light: Pauser wallet UNDER-FUNDED on one or more production chains — it cannot afford a single pauseDiamond() there, so the emergency pause would fail. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
+            }
+
+      # Restore the red check that continue-on-error suppressed: fail the job if either check
+      # failed. On PR runs the funds step is skipped (outcome 'skipped'), so only the readiness
+      # check gates PRs — unchanged from before the funds check was added.
+      - name: Fail if any readiness check failed
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.readiness.outcome }}" == "failure" || "${{ steps.funds.outcome }}" == "failure" ]]; then
+            echo "Emergency pause readiness FAILED (readiness=${{ steps.readiness.outcome }}, funds=${{ steps.funds.outcome }})."
+            exit 1
+          fi
