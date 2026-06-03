@@ -635,6 +635,28 @@ contract MayanFacetTest is TestBaseFacet {
             bytes32(0),
             "non-Swift selector must yield zero receiver"
         );
+
+        // Non-canonical encoding: customPayload placed one word later than canonical, with the
+        // head word 16 offset pointer updated to match. A fixed-offset parser would read the
+        // wrong word; following the pointer locates the receiver Mayan actually decodes.
+        bytes memory nonCanonical = abi.encodePacked(
+            bytes4(0xa3a30834),
+            new bytes(16 * 32), // head words 0..15 (filler)
+            uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
+            new bytes(32), // extra padding word before customPayload
+            uint256(32), // customPayload length
+            expectedReceiver,
+            uint32(0),
+            uint64(0)
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(nonCanonical);
+
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse hypercore receiver: follows customPayload offset pointer"
+        );
     }
 
     function test_ParseReceiver() public {

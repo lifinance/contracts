@@ -216,31 +216,48 @@ contract MayanFacet is
     //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
     //      receiver as a left-aligned address in customPayload[0:20]
     //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
-    //      the first dynamic argument, so it sits at a fixed offset per selector.
+    //      the first dynamic argument of both Swift v2 selectors, so its data location is read
+    //      from the offset pointer at head word 16 (the same location Mayan decodes) rather
+    //      than assumed. Returns 0 for unknown selectors or out-of-bounds payloads, so the
+    //      caller's bridgeData.receiver == receiver check reverts.
     // @param protocolData The protocol data for the Mayan protocol
     // @return receiver The receiver address parsed from customPayload[0:20]
     function _parseHypercoreReceiver(
         bytes memory protocolData
     ) internal pure returns (bytes32 receiver) {
+        // Need the head through the customPayload offset pointer (head word 16 -> data 0x204)
+        if (protocolData.length < 0x224) {
+            return bytes32(0);
+        }
+
         bytes4 selector;
+        uint256 payloadOffset;
         assembly {
-            // Load the selector from the protocol data
-            selector := mload(add(protocolData, 0x20))
-            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
-            let shiftedSelector := shr(224, selector)
-            switch shiftedSelector
-            // Note: receiver = left-aligned address at customPayload[0:20]
-            case 0xa3a30834 {
-                // createOrderWithToken: head = 17 words; customPayload word at mem 0x264
-                receiver := shr(96, mload(add(protocolData, 0x264)))
-            }
-            case 0x6147435b {
-                // createOrderWithSig: head = 24 words; customPayload word at mem 0x344
-                receiver := shr(96, mload(add(protocolData, 0x344)))
-            }
-            default {
-                receiver := 0x0
-            }
+            let dataPtr := add(protocolData, 0x20)
+            selector := mload(dataPtr)
+            // customPayload offset (relative to args start) at head word 16 (data offset 0x204)
+            payloadOffset := mload(add(dataPtr, 0x204))
+        }
+
+        // Only the Swift v2 createOrderWith* selectors carry a dynamic customPayload here.
+        if (selector != bytes4(0xa3a30834) && selector != bytes4(0x6147435b)) {
+            return bytes32(0);
+        }
+
+        // receiver = customPayload[0:20]; its data word is at args(0x04) + payloadOffset + 0x20.
+        // The first clause bounds payloadOffset so the addition cannot overflow.
+        if (
+            payloadOffset > protocolData.length ||
+            payloadOffset + 0x44 > protocolData.length
+        ) {
+            return bytes32(0);
+        }
+
+        assembly {
+            receiver := shr(
+                96,
+                mload(add(add(protocolData, 0x44), payloadOffset))
+            )
         }
     }
 
