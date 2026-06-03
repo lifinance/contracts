@@ -65,18 +65,18 @@ interface ISwiftV2Encode {
 contract TestMayanFacetExposed is MayanFacet {
     constructor(IMayan _mayan) MayanFacet(_mayan) {}
 
-    /// @dev Exposes the internal _parseReceiver function.
+    /// @dev Exposes the internal _parseReceiver function on the non-HyperCore (destAddr) path.
     function testParseReceiver(
         bytes memory protocolData
     ) public pure returns (bytes32) {
-        return _parseReceiver(protocolData);
+        return _parseReceiver(protocolData, 0);
     }
 
-    /// @dev Exposes the internal _parseHypercoreReceiver function.
+    /// @dev Exposes the HyperCore receiver path via _parseReceiver (destinationChainId == marker).
     function testParseHypercoreReceiver(
         bytes memory protocolData
     ) public pure returns (bytes32) {
-        return _parseHypercoreReceiver(protocolData);
+        return _parseReceiver(protocolData, HYPERCORE_CHAIN_ID);
     }
 
     /// @dev Exposes the internal _replaceInputAmount function.

@@ -17,11 +17,12 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @notice Provides functionality for bridging through Mayan Bridge
 /// @dev HyperCore deposits (BridgeData.destinationChainId == HYPERCORE_CHAIN_ID) are Mayan
 ///      Swift orders whose destAddr is Mayan's HCDepositor handler and whose real receiver is
-///      encoded in customPayload[0:20]. For these orders the facet validates
-///      BridgeData.receiver against the customPayload receiver instead of destAddr.
-///      Trust assumption: the HyperCore marker is caller-supplied and the destAddr handler is
-///      not verified on-chain, so the on-chain receiver guarantee for this path holds only when
-///      the caller routes through the genuine Mayan HyperCore handler.
+///      encoded in customPayload[0:20], so for these the facet validates BridgeData.receiver
+///      against the customPayload receiver instead of destAddr.
+///      Trust assumption: unlike a normal order (where the validated destAddr is the address
+///      Mayan pays), the HyperCore destAddr handler is not constrained on-chain, so the emitted
+///      receiver matches the actual recipient only when the caller routes through a genuine
+///      Mayan HCDepositor handler.
 /// @custom:version 1.3.0
 contract MayanFacet is
     ILiFi,
@@ -36,8 +37,7 @@ contract MayanFacet is
 
     IMayan public immutable MAYAN;
 
-    /// @dev LiFi/Mayan tooling marker used as BridgeData.destinationChainId for HyperCore
-    ///      deposits. Not a registered EVM chain id.
+    /// @dev BridgeData.destinationChainId value used for Mayan HyperCore deposits.
     uint256 internal constant HYPERCORE_CHAIN_ID = 1337;
 
     /// @dev Mayan specific bridge data
@@ -158,21 +158,24 @@ contract MayanFacet is
             if (_mayanData.nonEVMReceiver == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
             }
-            bytes32 receiver = _parseReceiver(_mayanData.protocolData);
+            bytes32 receiver = _parseReceiver(
+                _mayanData.protocolData,
+                _bridgeData.destinationChainId
+            );
             if (_mayanData.nonEVMReceiver != receiver) {
                 revert InvalidNonEVMReceiver();
             }
         } else {
-            // HyperCore deposits route through Mayan's HCDepositor handler: the Swift order's
-            // destAddr is the handler (not the user) and the real receiver is encoded in
-            // customPayload[0:20], so for those we read the receiver from customPayload.
-            // Trust assumption: the marker is caller-supplied and the handler is not verified
-            // on-chain (see contract NatSpec).
-            bytes32 receiverWord = _bridgeData.destinationChainId ==
-                HYPERCORE_CHAIN_ID
-                ? _parseHypercoreReceiver(_mayanData.protocolData)
-                : _parseReceiver(_mayanData.protocolData);
-            address receiver = address(uint160(uint256(receiverWord)));
+            address receiver = address(
+                uint160(
+                    uint256(
+                        _parseReceiver(
+                            _mayanData.protocolData,
+                            _bridgeData.destinationChainId
+                        )
+                    )
+                )
+            );
             if (_bridgeData.receiver != receiver) {
                 revert InvalidReceiver(_bridgeData.receiver, receiver);
             }
@@ -216,57 +219,58 @@ contract MayanFacet is
     //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
     //      receiver as a left-aligned address in customPayload[0:20]
     //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
-    //      the first dynamic argument of both Swift v2 selectors, so its data location is read
-    //      from the offset pointer at head word 16 (the same location Mayan decodes) rather
-    //      than assumed. Returns 0 for unknown selectors or out-of-bounds payloads, so the
-    //      caller's bridgeData.receiver == receiver check reverts.
+    //      a dynamic argument, so unlike _parseReceiver (which reads the static destAddr at a
+    //      fixed slot) its location is read from the offset pointer at head word 16 - the same
+    //      location Mayan decodes. Unknown selectors return 0 so the caller's receiver check
+    //      reverts; a malformed offset reverts in Mayan's ABI decode.
     // @param protocolData The protocol data for the Mayan protocol
     // @return receiver The receiver address parsed from customPayload[0:20]
     function _parseHypercoreReceiver(
         bytes memory protocolData
     ) internal pure returns (bytes32 receiver) {
-        // Need the head through the customPayload offset pointer (head word 16 -> data 0x204)
-        if (protocolData.length < 0x224) {
-            return bytes32(0);
-        }
-
         bytes4 selector;
-        uint256 payloadOffset;
         assembly {
             let dataPtr := add(protocolData, 0x20)
+            // Load the selector from the protocol data
             selector := mload(dataPtr)
-            // customPayload offset (relative to args start) at head word 16 (data offset 0x204)
-            payloadOffset := mload(add(dataPtr, 0x204))
-        }
-
-        // Only the Swift v2 createOrderWith* selectors carry a dynamic customPayload here.
-        if (selector != bytes4(0xa3a30834) && selector != bytes4(0x6147435b)) {
-            return bytes32(0);
-        }
-
-        // receiver = customPayload[0:20]; its data word is at args(0x04) + payloadOffset + 0x20.
-        // The first clause bounds payloadOffset so the addition cannot overflow.
-        if (
-            payloadOffset > protocolData.length ||
-            payloadOffset + 0x44 > protocolData.length
-        ) {
-            return bytes32(0);
-        }
-
-        assembly {
-            receiver := shr(
-                96,
-                mload(add(add(protocolData, 0x44), payloadOffset))
-            )
+            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
+            let shiftedSelector := shr(224, selector)
+            switch shiftedSelector
+            // customPayload is dynamic: read its offset pointer at head word 16 (data 0x204),
+            // then receiver = customPayload[0:20] (skip the 0x20 length word)
+            case 0xa3a30834 {
+                // createOrderWithToken(...,bytes customPayload)
+                receiver := shr(
+                    96,
+                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
+                )
+            }
+            case 0x6147435b {
+                // createOrderWithSig(...,bytes customPayload,...)
+                receiver := shr(
+                    96,
+                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
+                )
+            }
+            default {
+                receiver := 0x0
+            }
         }
     }
 
     // @dev Parses the receiver address from the protocol data
     // @param protocolData The protocol data for the Mayan protocol
+    // @param destinationChainId The bridge destination chain id; HYPERCORE_CHAIN_ID delegates
+    //        to _parseHypercoreReceiver (customPayload), all others read destAddr below
     // @return receiver The receiver address
     function _parseReceiver(
-        bytes memory protocolData
+        bytes memory protocolData,
+        uint256 destinationChainId
     ) internal pure returns (bytes32 receiver) {
+        if (destinationChainId == HYPERCORE_CHAIN_ID) {
+            return _parseHypercoreReceiver(protocolData);
+        }
+
         bytes4 selector;
         assembly {
             // Load the selector from the protocol data
