@@ -5419,20 +5419,10 @@ function removeNetworkFromTargetStateJSON() {
   fi
 }
 
-# estimatePauseCost: Estimate the native-token cost (in wei) of one pauseDiamond() call.
-# Computes gasEstimate × gasPrice for the production LiFiDiamond on NETWORK. EVM only.
-#
-# Usage: estimatePauseCost NETWORK [PAUSER_ADDRESS]
-#   NETWORK        - Network key from networks.json
-#   PAUSER_ADDRESS - Optional: address used as --from for the gas estimate.
-#                    Defaults to .pauserWallet in config/global.json
-#
-# Returns:
-#   exit 0 - echoes the single-pause cost in wei (decimal) to stdout
-#   exit 2 - diamond is already paused (pauseDiamond() reverts DiamondIsPaused)
-#   exit 1 - any other failure (reason on stderr): Tron network (EVM-only), RPC error,
-#            missing diamond, unauthorized --from, unparseable gas/price
-# Example: COST=$(estimatePauseCost "mainnet") || echo "estimate failed (rc=$?)"
+# estimatePauseCost: echo the wei cost of one pauseDiamond() (gasEstimate × gasPrice) for the
+# production LiFiDiamond on NETWORK. EVM only; optional PAUSER_ADDRESS overrides the --from
+# (defaults to config/global.json .pauserWallet).
+# Exit: 0 = cost on stdout · 2 = diamond already paused · 1 = any other failure (reason on stderr).
 function estimatePauseCost() {
   local NETWORK="${1:-}"
   local PAUSER_ADDRESS="${2:-}"
