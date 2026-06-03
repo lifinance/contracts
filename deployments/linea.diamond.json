@@ -157,9 +157,9 @@
         "Name": "AllBridgeFacet",
         "Version": "2.1.2"
       },
-      "0x9B2F096B6544E2275b830845d5654321b64C7fa3": {
+      "0x9B73f333787892e241f2dc3f8A7A8C2411dC6432": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
       "0x2d50a526Bb83F95B1b5d69f25e355f9a7eb5321D": {
         "Name": "AcrossV4SwapFacet",
