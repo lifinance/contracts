@@ -202,6 +202,8 @@ function checkNetwork() {
 # from the collected rows. Progress goes to stderr to keep stdout a clean, pipeable table.
 TOTAL=${#NETWORKS[@]}
 MAX_JOBS=${MAX_CONCURRENT_JOBS:-10} # shared concurrency knob (see helperFunctions.sh)
+# guard against MAX_CONCURRENT_JOBS=0 / non-numeric, which would spin the throttle loop forever
+[[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]] || MAX_JOBS=10
 RESULT_DIR=$(mktemp -d)
 trap 'rm -rf "$RESULT_DIR"' EXIT
 echo "Checking pauser-wallet funding on $TOTAL network(s), up to $MAX_JOBS in parallel — reading live gas prices & balances..." >&2
