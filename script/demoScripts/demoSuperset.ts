@@ -39,7 +39,8 @@ import {
   ensureAllowance,
   ensureBalance,
   executeTransaction,
-  getUniswapDataERC20toExactERC20,
+  getAmountsOutUniswap,
+  getUniswapSwapDataERC20ToERC20,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
@@ -58,7 +59,8 @@ const SCENARIO_NAMES = [
 
 interface IPreSwap {
   fromToken: Address
-  targetOutAmount: bigint
+  fromAmount: bigint // exact-input pre-swap; minAmountOut derived live with slippageBps
+  slippageBps: number // basis points (e.g. 300 = 3%)
 }
 
 interface ISupersetParams {
@@ -97,11 +99,11 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 1341n,
+      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
       toEid: 30320, // Unichain
       options:
-        '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
-      lzFee: 173694647215662n, // 20% buffer above quoted request fee
+        '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
+      lzFee: 181180803718221n, // 20% buffer above quoted request fee (raw: 150984003098517)
     },
   },
 
@@ -114,10 +116,10 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      amountOutMin: 1341n,
+      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
       toEid: 30184, // Base
       options: '0x00030100110100000000000000000000000000030d40', // unused on hub branch (facet picks 7-arg hub ABI)
-      lzFee: 35544130952448n, // 20% buffer; one LZ message: hub → Base
+      lzFee: 37644833027306n, // 20% buffer above one-message hub → Base quote (raw: 31370694189421)
     },
   },
 
@@ -130,19 +132,23 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     amount: '1', // ignored when preSwap is present
     preSwap: {
       fromToken: getAddress(ADDRESS_WETH_BASE),
-      targetOutAmount: 1_000_000n, // exact 1 USDC (6 decimals); swap input quoted live
+      // Exact-input swap: actual USDC out exceeds declared minAmountOut by
+      // ~slippageBps, which forces the facet's positive-slippage scaling path
+      // for amountOutMin. Use a small WETH amount to keep the demo cheap.
+      fromAmount: 500_000_000_000_000n, // 0.0005 WETH (≈ 0.93 USDC at current quote)
+      slippageBps: 300, // 3% slippage tolerance on pre-swap output
     },
     superset: {
       omniPath:
         '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
-      // Destination floor calibrated to the pre-swap targetOutAmount (1 USDC).
-      // If the swap returns >1 USDC (positive slippage), the facet scales this
-      // up proportionally.
-      amountOutMin: 1341n,
+      // Base floor for the hub omni-pool USDC → WBTC swap of declared
+      // bridgeData.minAmount (= pre-swap minAmountOut). The facet scales this
+      // up by (actualPostSwap / declared) before forwarding.
+      amountOutMin: 1472n, // 1% slippage off 1487 quoted (HubOmniTokensQuoterV2WithFee.quoteExactInputOmni, 1 USDC in)
       toEid: 30320,
       options:
-        '0x000301002101000000000000000000000000000000000000000000000000000025241fc03498',
-      lzFee: 173694647215662n,
+        '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
+      lzFee: 181180803718221n, // 20% buffer above quoted request fee (raw: 150984003098517)
     },
   },
 }
@@ -153,8 +159,11 @@ function assertConfigured(s: IScenarioConfig): void {
   if (s.superset.options === '0x') missing.push('superset.options')
   if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
   if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
-  if (s.preSwap && s.preSwap.targetOutAmount === 0n)
-    missing.push('preSwap.targetOutAmount')
+  if (s.preSwap) {
+    if (s.preSwap.fromAmount === 0n) missing.push('preSwap.fromAmount')
+    if (s.preSwap.slippageBps <= 0 || s.preSwap.slippageBps >= 10000)
+      missing.push('preSwap.slippageBps')
+  }
   if (missing.length > 0)
     throw new Error(`Scenario incomplete: ${missing.join(', ')}`)
 }
@@ -233,39 +242,66 @@ const cli = defineCommand({
 
     if (scenario.preSwap) {
       const ps = scenario.preSwap
+      const fromAmountBN = BigNumber.from(ps.fromAmount.toString())
 
-      const srcSwap = await getUniswapDataERC20toExactERC20(
+      // Live-quote the expected USDC output and derive the slippage floor.
+      // Setting bridgeData.minAmount = declared floor (not the expected output)
+      // is what gives the facet a measurable positive-slippage ratio when
+      // actualPostSwap > declared floor.
+      const amounts = await getAmountsOutUniswap(
         ADDRESS_UNISWAP_BASE,
-        8453, // Base
+        8453,
+        [getAddress(ps.fromToken), sourceTokenAddress],
+        fromAmountBN
+      )
+      const expectedOut = BigNumber.from(amounts[1])
+      const minAmountOutBN = expectedOut.mul(10000 - ps.slippageBps).div(10000)
+      const minAmountOut = minAmountOutBN.toNumber() // safe for sub-billion USDC values
+
+      consola.info(
+        `Pre-swap: expected ${expectedOut.toString()}, floor ${minAmountOut} (${
+          ps.slippageBps / 100
+        }% slippage)`
+      )
+      consola.info(
+        `Expected scaled amountOutMin ≈ ${
+          (scenario.superset.amountOutMin * expectedOut.toBigInt()) /
+          minAmountOutBN.toBigInt()
+        }`
+      )
+
+      const srcSwap = await getUniswapSwapDataERC20ToERC20(
+        ADDRESS_UNISWAP_BASE,
+        8453,
         getAddress(ps.fromToken),
         sourceTokenAddress,
-        BigNumber.from(ps.targetOutAmount.toString()),
+        fromAmountBN,
         diamondAddress,
-        true
+        true,
+        minAmountOut
       )
 
       const swapData: LibSwap.SwapDataStruct[] = [
         { ...srcSwap, fromAmount: BigInt(srcSwap.fromAmount.toString()) },
       ]
-      bridgeData.minAmount = ps.targetOutAmount
+      bridgeData.minAmount = BigInt(minAmountOutBN.toString())
 
       const fromTokenContract = getContract({
         address: getAddress(ps.fromToken),
         abi: ERC20__factory.abi,
         client: { public: publicClient, wallet: walletClient },
       })
-      const maxAmountIn = BigInt(srcSwap.fromAmount.toString())
       await ensureBalance(
         fromTokenContract,
         callerAddress,
-        maxAmountIn,
+        ps.fromAmount,
         publicClient
       )
       await ensureAllowance(
         fromTokenContract,
         callerAddress,
         diamondAddress,
-        maxAmountIn,
+        ps.fromAmount,
         publicClient
       )
 
