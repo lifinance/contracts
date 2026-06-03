@@ -136,8 +136,9 @@ for NETWORK in "${NETWORKS[@]}"; do
     ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
     continue
   fi
-  STATUS_FIELD=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.status")
-  if [[ "$STATUS_FIELD" != "active" ]]; then
+  # output suppressed: isNetworkActive logs "not found" for unknown args and that would
+  # otherwise land on stdout, polluting the table.
+  if ! isNetworkActive "$NETWORK" >/dev/null 2>&1; then
     ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
     continue
   fi
