@@ -215,49 +215,6 @@ contract MayanFacet is
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    // @dev Parses the HyperCore receiver from a Mayan Swift v2 order's customPayload.
-    //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
-    //      receiver as a left-aligned address in customPayload[0:20]
-    //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
-    //      a dynamic argument, so unlike _parseReceiver (which reads the static destAddr at a
-    //      fixed slot) its location is read from the offset pointer at head word 16 - the same
-    //      location Mayan decodes. Unknown selectors return 0 so the caller's receiver check
-    //      reverts; a malformed offset reverts in Mayan's ABI decode.
-    // @param protocolData The protocol data for the Mayan protocol
-    // @return receiver The receiver address parsed from customPayload[0:20]
-    function _parseHypercoreReceiver(
-        bytes memory protocolData
-    ) internal pure returns (bytes32 receiver) {
-        bytes4 selector;
-        assembly {
-            let dataPtr := add(protocolData, 0x20)
-            // Load the selector from the protocol data
-            selector := mload(dataPtr)
-            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
-            let shiftedSelector := shr(224, selector)
-            switch shiftedSelector
-            // customPayload is dynamic: read its offset pointer at head word 16 (data 0x204),
-            // then receiver = customPayload[0:20] (skip the 0x20 length word)
-            case 0xa3a30834 {
-                // createOrderWithToken(...,bytes customPayload)
-                receiver := shr(
-                    96,
-                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
-                )
-            }
-            case 0x6147435b {
-                // createOrderWithSig(...,bytes customPayload,...)
-                receiver := shr(
-                    96,
-                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
-                )
-            }
-            default {
-                receiver := 0x0
-            }
-        }
-    }
-
     // @dev Parses the receiver address from the protocol data
     // @param protocolData The protocol data for the Mayan protocol
     // @param destinationChainId The bridge destination chain id; HYPERCORE_CHAIN_ID delegates
@@ -364,6 +321,49 @@ contract MayanFacet is
                 // by disabling the option to specify a different receiver.
                 //
                 receiver := mload(add(protocolData, 0x164))
+            }
+            default {
+                receiver := 0x0
+            }
+        }
+    }
+
+    // @dev Parses the HyperCore receiver from a Mayan Swift v2 order's customPayload.
+    //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
+    //      receiver as a left-aligned address in customPayload[0:20]
+    //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
+    //      a dynamic argument, so unlike _parseReceiver (which reads the static destAddr at a
+    //      fixed slot) its location is read from the offset pointer at head word 16 - the same
+    //      location Mayan decodes. Unknown selectors return 0 so the caller's receiver check
+    //      reverts; a malformed offset reverts in Mayan's ABI decode.
+    // @param protocolData The protocol data for the Mayan protocol
+    // @return receiver The receiver address parsed from customPayload[0:20]
+    function _parseHypercoreReceiver(
+        bytes memory protocolData
+    ) internal pure returns (bytes32 receiver) {
+        bytes4 selector;
+        assembly {
+            let dataPtr := add(protocolData, 0x20)
+            // Load the selector from the protocol data
+            selector := mload(dataPtr)
+            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
+            let shiftedSelector := shr(224, selector)
+            switch shiftedSelector
+            // customPayload is dynamic: read its offset pointer at head word 16 (data 0x204),
+            // then receiver = customPayload[0:20] (skip the 0x20 length word)
+            case 0xa3a30834 {
+                // createOrderWithToken(...,bytes customPayload)
+                receiver := shr(
+                    96,
+                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
+                )
+            }
+            case 0x6147435b {
+                // createOrderWithSig(...,bytes customPayload,...)
+                receiver := shr(
+                    96,
+                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
+                )
             }
             default {
                 receiver := 0x0
