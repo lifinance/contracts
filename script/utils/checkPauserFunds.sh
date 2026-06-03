@@ -118,64 +118,66 @@ function colorizeStatus() {
     -e "s/(SKIP)[[:space:]]*\$/${DIM}\\1${RST}/"
 }
 
-# Progress goes to stderr so the final table on stdout stays clean and pipeable.
-TOTAL=${#NETWORKS[@]}
-echo "Checking pauser-wallet funding on $TOTAL network(s) — reading live gas prices & balances, this can take a minute..." >&2
+# checkNetwork: audit ONE network and echo its "<CAT>|<RATIO>|<row>" line to stdout.
+# Runs in a background subshell during the parallel sweep, so it must not write back to
+# parent-shell state (e.g. HAS_CRITICAL) — the caller derives that from the collected rows.
+function checkNetwork() {
+  local NETWORK="$1"
 
-IDX=0
-for NETWORK in "${NETWORKS[@]}"; do
-  IDX=$((IDX + 1))
-  printf '[%d/%d] %s\n' "$IDX" "$TOTAL" "$NETWORK" >&2
   if isTestnetNetwork "$NETWORK" >/dev/null 2>&1 || isTronNetwork "$NETWORK" >/dev/null 2>&1; then
-    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
-    continue
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    return
   fi
-  # output suppressed: isNetworkActive logs "not found" for unknown args and that would
-  # otherwise land on stdout, polluting the table.
+  # output suppressed: isNetworkActive logs "not found" for unknown args, which would
+  # otherwise land on stdout and pollute the table.
   if ! isNetworkActive "$NETWORK" >/dev/null 2>&1; then
-    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
-    continue
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    return
   fi
 
   # Skip chains with no meaningful native currency (nativeCurrency "N/A") — e.g. tempo, which
   # pays gas in a non-native token, so a native balance vs native gas-cost comparison is moot.
+  local SYMBOL
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
   if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
-    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
-    continue
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    return
   fi
 
+  local COST RC
   COST=$(estimatePauseCost "$NETWORK")
   RC=$?
   if [[ $RC -eq 2 ]]; then
-    ROWS+=("$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "PAUSED")")
-    continue
+    echo "$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "PAUSED")"
+    return
   fi
   if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ || "$COST" == "0" ]]; then
-    ROWS+=("$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")")
-    continue
+    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
+    return
   fi
 
+  local RPC_URL BALANCE
   RPC_URL=$(resolveRpc "$NETWORK")
   BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
   if ! [[ "$BALANCE" =~ ^[0-9]+$ ]]; then
-    ROWS+=("$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")")
-    continue
+    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
+    return
   fi
 
+  local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
   RATIO=$(echo "scale=2; $BALANCE / $COST" | bc)
   [[ "$RATIO" == .* ]] && RATIO="0$RATIO"   # bc prints ".40"; make it "0.40"
 
   if [[ $(echo "$BALANCE < $COST" | bc) -eq 1 ]]; then
     STATUS="CRITICAL"
-    HAS_CRITICAL=1
   elif [[ $(echo "$BALANCE < $REQUIRED" | bc) -eq 1 ]]; then
     STATUS="WARNING"
   else
     STATUS="OK"
   fi
 
+  local COST_N REQ_N BAL_N PAUSES_DISP
   COST_N=$(fmtAmount "$COST")
   REQ_N=$(fmtAmount "$REQUIRED")
   BAL_N=$(fmtAmount "$BALANCE")
@@ -183,8 +185,36 @@ for NETWORK in "${NETWORKS[@]}"; do
   # RATIO as the sort key so ordering stays exact.
   PAUSES_DISP=$(printf '%g' "$RATIO")
 
-  ROWS+=("$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$PAUSES_DISP" "$STATUS")")
+  echo "$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$PAUSES_DISP" "$STATUS")"
+}
+
+# Run the sweep in parallel: networks are independent and most of the time is RPC latency, so
+# a sequential loop wastes minutes waiting. Each worker writes its row to a file; we collect
+# after `wait`. A backgrounded subshell can't set parent state, so HAS_CRITICAL is derived
+# from the collected rows. Progress goes to stderr to keep stdout a clean, pipeable table.
+TOTAL=${#NETWORKS[@]}
+MAX_JOBS=${MAX_CONCURRENT_JOBS:-10} # shared concurrency knob (see helperFunctions.sh)
+RESULT_DIR=$(mktemp -d)
+trap 'rm -rf "$RESULT_DIR"' EXIT
+echo "Checking pauser-wallet funding on $TOTAL network(s), up to $MAX_JOBS in parallel — reading live gas prices & balances..." >&2
+
+IDX=0
+for NETWORK in "${NETWORKS[@]}"; do
+  IDX=$((IDX + 1))
+  printf '[%d/%d] %s\n' "$IDX" "$TOTAL" "$NETWORK" >&2
+  # throttle to MAX_JOBS concurrent workers
+  while (($(jobs -rp | wc -l) >= MAX_JOBS)); do wait -n; done
+  checkNetwork "$NETWORK" >"$RESULT_DIR/result_$IDX" &
 done
+wait
+
+for ((I = 1; I <= TOTAL; I++)); do
+  [[ -s "$RESULT_DIR/result_$I" ]] && ROWS+=("$(cat "$RESULT_DIR/result_$I")")
+done
+
+if printf '%s\n' "${ROWS[@]}" | grep -q 'CRITICAL$'; then
+  HAS_CRITICAL=1
+fi
 
 # header + sorted rows through one column pipe: sort by category then ratio, strip both keys.
 # colorizeStatus runs last so coloring can't affect the column-width calculation.
