@@ -10,6 +10,21 @@ graph LR;
     MayanFacet -- CALL --> C(Mayan)
 ```
 
+## Receiver validation
+
+Before forwarding to Mayan, the facet validates that the order's destination receiver matches `BridgeData.receiver`:
+
+- **EVM destinations:** the receiver parsed from the Mayan protocol data (`destAddr`) must equal `BridgeData.receiver`.
+- **Non-EVM destinations** (`BridgeData.receiver == NON_EVM_ADDRESS`): the receiver parsed from the protocol data must equal `MayanData.nonEVMReceiver` (full 32-byte comparison).
+
+### HyperCore deposits (trust assumption)
+
+For direct deposits to Hyperliquid HyperCore, Mayan crafts a Swift order (`createOrderWithToken` / `createOrderWithSig`, `payloadType == 2`) whose `destAddr` is **Mayan's `HCDepositor` handler contract**, not the end user. The real receiver is encoded as a left-aligned 20-byte address in `customPayload[0:20]` (`HCDepositor.parseCustomPayload`: `userWallet = customPayload[0:20]`).
+
+These orders are identified by `BridgeData.destinationChainId == 1337` (the LiFi/Mayan tooling marker for HyperCore — not a registered EVM chain id). For them the facet validates `BridgeData.receiver` against the `customPayload` receiver instead of `destAddr`, so the emitted `LiFiTransferStarted.receiver` is the real user.
+
+**Trust assumption:** the HyperCore marker (`destinationChainId == 1337`) is caller-supplied, and the `destAddr` handler is **not** verified on-chain. The on-chain receiver guarantee for this path therefore holds only when the caller routes through the genuine Mayan HyperCore handler. Integrators must be aware that, for HyperCore orders, the receiver is enforced against `customPayload` rather than the on-chain bridge destination.
+
 ## Public Methods
 
 - `function startBridgeTokensViaMayan(BridgeData calldata _bridgeData, MayanData calldata _mayanData)`

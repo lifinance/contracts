@@ -60,7 +60,8 @@ interface ISwiftV2Encode {
     ) external;
 }
 
-/// @notice This contract exposes _parseReceiver and _replaceInputAmount for testing purposes.
+/// @notice This contract exposes _parseReceiver, _parseHypercoreReceiver and
+///         _replaceInputAmount for testing purposes.
 contract TestMayanFacetExposed is MayanFacet {
     constructor(IMayan _mayan) MayanFacet(_mayan) {}
 
@@ -69,6 +70,13 @@ contract TestMayanFacetExposed is MayanFacet {
         bytes memory protocolData
     ) public pure returns (bytes32) {
         return _parseReceiver(protocolData);
+    }
+
+    /// @dev Exposes the internal _parseHypercoreReceiver function.
+    function testParseHypercoreReceiver(
+        bytes memory protocolData
+    ) public pure returns (bytes32) {
+        return _parseHypercoreReceiver(protocolData);
     }
 
     /// @dev Exposes the internal _replaceInputAmount function.
@@ -549,6 +557,84 @@ contract MayanFacetTest is TestBaseFacet {
         vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
 
         testFacet.testReplaceInputAmount(shortData, newAmount);
+    }
+
+    function test_ParseHypercoreReceiver() public {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+
+        address tokenIn = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+        address expectedReceiver = 0xd01e6A41E4DE4032830C99aa79c0206753De628A;
+
+        // Real on-chain HyperCore deposit on Base (createOrderWithToken 0xa3a30834,
+        // payloadType 2). destAddr is Mayan's HCDepositor handler; the real receiver is
+        // customPayload[0:20]. Source tx:
+        // 0x7077760ccec417b7057267465e933f163545c82ce5808798c17be068860eeb29
+        bytes memory protocolData = vm.parseBytes(
+            "0xa3a30834000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004c1a6c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000000000056032241c0adab58a29b13e94fb595a4bc414e33000000000000000000000000000000000000000000000000000000000000002f000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cd000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f00000000000000000000000000000000000000000000000000000000004479bf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001250a000000000000000000000000000000000000000000000000000000000000d107000000000000000000000000000000000000000000000000000000006a1ec3f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d72eef3486e6427a1820fced5ec5ea59bdc4f4efd88f471e3660fec52cfd7de00000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000020d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000007a120"
+        );
+
+        bytes32 receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse hypercore receiver: createOrderWithToken customPayload[0:20]"
+        );
+
+        // createOrderWithSig (0x6147435b) carries the same OrderParams + customPayload layout
+        bytes memory customPayload = abi.encodePacked(
+            expectedReceiver,
+            uint32(0),
+            uint64(500000)
+        );
+        ISwiftV2Encode.OrderParams memory order = ISwiftV2Encode.OrderParams({
+            payloadType: 2,
+            trader: bytes32(uint256(uint160(expectedReceiver))),
+            destAddr: bytes32(
+                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
+            ),
+            destChainId: 47,
+            referrerAddr: bytes32(0),
+            tokenOut: bytes32(0),
+            minAmountOut: 0,
+            gasDrop: 0,
+            cancelFee: 0,
+            refundFee: 0,
+            deadline: 0,
+            referrerBps: 0,
+            auctionMode: 0,
+            random: bytes32(0)
+        });
+        ISwiftV2Encode.PermitParams memory permit;
+
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            address(uint160(uint256(receiver))),
+            expectedReceiver,
+            "parse hypercore receiver: createOrderWithSig customPayload[0:20]"
+        );
+
+        // Unknown / non-Swift selector (bridgeWithFee 0x94454a5d) -> zero receiver, so the
+        // caller's bridgeData.receiver == receiver check reverts.
+        protocolData = vm.parseBytes(
+            "0x94454a5d000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            receiver,
+            bytes32(0),
+            "non-Swift selector must yield zero receiver"
+        );
     }
 
     function test_ParseReceiver() public {

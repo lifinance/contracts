@@ -15,7 +15,14 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Mayan Bridge
-/// @custom:version 1.2.4
+/// @dev HyperCore deposits (BridgeData.destinationChainId == HYPERCORE_CHAIN_ID) are Mayan
+///      Swift orders whose destAddr is Mayan's HCDepositor handler and whose real receiver is
+///      encoded in customPayload[0:20]. For these orders the facet validates
+///      BridgeData.receiver against the customPayload receiver instead of destAddr.
+///      Trust assumption: the HyperCore marker is caller-supplied and the destAddr handler is
+///      not verified on-chain, so the on-chain receiver guarantee for this path holds only when
+///      the caller routes through the genuine Mayan HyperCore handler.
+/// @custom:version 1.3.0
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -28,6 +35,10 @@ contract MayanFacet is
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
 
     IMayan public immutable MAYAN;
+
+    /// @dev LiFi/Mayan tooling marker used as BridgeData.destinationChainId for HyperCore
+    ///      deposits. Not a registered EVM chain id.
+    uint256 internal constant HYPERCORE_CHAIN_ID = 1337;
 
     /// @dev Mayan specific bridge data
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
@@ -152,9 +163,16 @@ contract MayanFacet is
                 revert InvalidNonEVMReceiver();
             }
         } else {
-            address receiver = address(
-                uint160(uint256(_parseReceiver(_mayanData.protocolData)))
-            );
+            // HyperCore deposits route through Mayan's HCDepositor handler: the Swift order's
+            // destAddr is the handler (not the user) and the real receiver is encoded in
+            // customPayload[0:20], so for those we read the receiver from customPayload.
+            // Trust assumption: the marker is caller-supplied and the handler is not verified
+            // on-chain (see contract NatSpec).
+            bytes32 receiverWord = _bridgeData.destinationChainId ==
+                HYPERCORE_CHAIN_ID
+                ? _parseHypercoreReceiver(_mayanData.protocolData)
+                : _parseReceiver(_mayanData.protocolData);
+            address receiver = address(uint160(uint256(receiverWord)));
             if (_bridgeData.receiver != receiver) {
                 revert InvalidReceiver(_bridgeData.receiver, receiver);
             }
@@ -192,6 +210,38 @@ contract MayanFacet is
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    // @dev Parses the HyperCore receiver from a Mayan Swift v2 order's customPayload.
+    //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
+    //      receiver as a left-aligned address in customPayload[0:20]
+    //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
+    //      the first dynamic argument, so it sits at a fixed offset per selector.
+    // @param protocolData The protocol data for the Mayan protocol
+    // @return receiver The receiver address parsed from customPayload[0:20]
+    function _parseHypercoreReceiver(
+        bytes memory protocolData
+    ) internal pure returns (bytes32 receiver) {
+        bytes4 selector;
+        assembly {
+            // Load the selector from the protocol data
+            selector := mload(add(protocolData, 0x20))
+            // Shift the selector to the right by 224 bits to match shape of literal in switch statement
+            let shiftedSelector := shr(224, selector)
+            switch shiftedSelector
+            // Note: receiver = left-aligned address at customPayload[0:20]
+            case 0xa3a30834 {
+                // createOrderWithToken: head = 17 words; customPayload word at mem 0x264
+                receiver := shr(96, mload(add(protocolData, 0x264)))
+            }
+            case 0x6147435b {
+                // createOrderWithSig: head = 24 words; customPayload word at mem 0x344
+                receiver := shr(96, mload(add(protocolData, 0x344)))
+            }
+            default {
+                receiver := 0x0
+            }
+        }
     }
 
     // @dev Parses the receiver address from the protocol data
