@@ -100,12 +100,6 @@ function fmtRow() {
   printf '%s\t%s\t%s\t%s\t%s\t%s' "$NETWORK" "$COST" "$REQUIRED" "$BALANCE" "$PAUSES" "$STATUS"
 }
 
-# plainRow: a row with dashes in the numeric columns (for SKIP/PAUSED/ERROR).
-function plainRow() {
-  local NETWORK="$1" STATUS="$2"
-  fmtRow "$NETWORK" "-" "-" "-" "-" "$STATUS"
-}
-
 # colorizeStatus: color the trailing STATUS word of each row. Applied AFTER `column -t` so the
 # non-printing escape codes can't skew column-width alignment, and only on a TTY so piped or
 # redirected output stays plain and parseable.
@@ -133,13 +127,13 @@ for NETWORK in "${NETWORKS[@]}"; do
   IDX=$((IDX + 1))
   printf '[%d/%d] %s\n' "$IDX" "$TOTAL" "$NETWORK" >&2
   if isTestnetNetwork "$NETWORK" >/dev/null 2>&1 || isTronNetwork "$NETWORK" >/dev/null 2>&1; then
-    ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
+    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
     continue
   fi
   # output suppressed: isNetworkActive logs "not found" for unknown args and that would
   # otherwise land on stdout, polluting the table.
   if ! isNetworkActive "$NETWORK" >/dev/null 2>&1; then
-    ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
+    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
     continue
   fi
 
@@ -147,25 +141,25 @@ for NETWORK in "${NETWORKS[@]}"; do
   # pays gas in a non-native token, so a native balance vs native gas-cost comparison is moot.
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
   if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
-    ROWS+=("$CAT_SKIP|0|$(plainRow "$NETWORK" "SKIP")")
+    ROWS+=("$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")")
     continue
   fi
 
   COST=$(estimatePauseCost "$NETWORK")
   RC=$?
   if [[ $RC -eq 2 ]]; then
-    ROWS+=("$CAT_PAUSED|0|$(plainRow "$NETWORK" "PAUSED")")
+    ROWS+=("$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "PAUSED")")
     continue
   fi
   if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ || "$COST" == "0" ]]; then
-    ROWS+=("$CAT_ERROR|0|$(plainRow "$NETWORK" "ERROR")")
+    ROWS+=("$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")")
     continue
   fi
 
   RPC_URL=$(resolveRpc "$NETWORK")
   BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
   if ! [[ "$BALANCE" =~ ^[0-9]+$ ]]; then
-    ROWS+=("$CAT_ERROR|0|$(plainRow "$NETWORK" "ERROR")")
+    ROWS+=("$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")")
     continue
   fi
 
