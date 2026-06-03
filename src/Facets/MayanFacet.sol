@@ -17,8 +17,10 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @notice Provides functionality for bridging through Mayan Bridge
 /// @dev HyperCore deposits (BridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) are Mayan
 ///      Swift orders whose destAddr is Mayan's HCDepositor handler and whose real receiver is
-///      encoded in customPayload[0:20], so for these the facet validates BridgeData.receiver
-///      against the customPayload receiver instead of destAddr.
+///      encoded in customPayload[0:20]. For these the facet validates BridgeData.receiver against
+///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
+///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
+///      orders.
 /// @custom:version 1.3.0
 contract MayanFacet is
     ILiFi,
@@ -30,6 +32,12 @@ contract MayanFacet is
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
+
+    /// @dev Mayan's sole HyperCore HCDepositor handler. HyperCore Swift v2 orders set this as
+    ///      their destAddr while the real receiver lives in customPayload[0:20]. Mayan commits to
+    ///      announcing any change in advance; rotating it requires a facet upgrade.
+    address internal constant MAYAN_HYPERCORE_DEPOSITOR =
+        0x56032241C0AdAb58A29b13E94fb595a4bc414e33;
 
     IMayan public immutable MAYAN;
 
@@ -331,11 +339,12 @@ contract MayanFacet is
     // @dev Parses the HyperCore receiver from a Mayan Swift v2 order's customPayload.
     //      HyperCore deposits set destAddr to Mayan's HCDepositor handler and encode the real
     //      receiver as a left-aligned address in customPayload[0:20]
-    //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). customPayload is
-    //      a dynamic argument, so unlike _parseReceiver (which reads the static destAddr at a
-    //      fixed slot) its location is read from the offset pointer at head word 16 - the same
-    //      location Mayan decodes. Unknown selectors return 0 so the caller's receiver check
-    //      reverts; a malformed offset reverts in Mayan's ABI decode.
+    //      (HCDepositor.parseCustomPayload: userWallet = customPayload[0:20]). The customPayload
+    //      receiver is trusted only when destAddr (at 0xa4) equals MAYAN_HYPERCORE_DEPOSITOR, so
+    //      a non-HCDepositor order yields 0. customPayload is a dynamic argument, so unlike
+    //      _parseReceiver (which reads the static destAddr at a fixed slot) its location is read
+    //      from the offset pointer at head word 16 - the same location Mayan decodes. Unknown
+    //      selectors and non-handler orders return 0 so the caller's receiver check reverts.
     // @param protocolData The protocol data for the Mayan protocol
     // @return receiver The receiver address parsed from customPayload[0:20]
     function _parseHypercoreReceiver(
@@ -349,21 +358,30 @@ contract MayanFacet is
             // Shift the selector to the right by 224 bits to match shape of literal in switch statement
             let shiftedSelector := shr(224, selector)
             switch shiftedSelector
-            // customPayload is dynamic: read its offset pointer at head word 16 (data 0x204),
-            // then receiver = customPayload[0:20] (skip the 0x20 length word)
+            // destAddr (the handler) sits at 0xa4; customPayload is dynamic, so read its offset
+            // pointer at head word 16 (data 0x204), then receiver = customPayload[0:20] (skip the
+            // 0x20 length word). Only trust customPayload when destAddr is Mayan's HCDepositor.
             case 0xa3a30834 {
                 // createOrderWithToken(...,bytes customPayload)
-                receiver := shr(
-                    96,
-                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
-                )
+                if eq(mload(add(dataPtr, 0x84)), MAYAN_HYPERCORE_DEPOSITOR) {
+                    receiver := shr(
+                        96,
+                        mload(
+                            add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204)))
+                        )
+                    )
+                }
             }
             case 0x6147435b {
                 // createOrderWithSig(...,bytes customPayload,...)
-                receiver := shr(
-                    96,
-                    mload(add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204))))
-                )
+                if eq(mload(add(dataPtr, 0x84)), MAYAN_HYPERCORE_DEPOSITOR) {
+                    receiver := shr(
+                        96,
+                        mload(
+                            add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204)))
+                        )
+                    )
+                }
             }
             default {
                 receiver := 0x0

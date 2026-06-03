@@ -644,12 +644,35 @@ contract MayanFacetTest is TestBaseFacet {
             "non-Swift selector must yield zero receiver"
         );
 
+        // A Swift v2 order whose destAddr is NOT Mayan's HCDepositor handler must yield zero, so
+        // the caller's receiver check reverts rather than trusting an attacker-controlled
+        // customPayload routed to a fake handler.
+        order.destAddr = bytes32(uint256(uint160(address(0xdEAD))));
+
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            receiver,
+            bytes32(0),
+            "non-HCDepositor destAddr must yield zero receiver"
+        );
+
         // Non-canonical encoding: customPayload placed one word later than canonical, with the
         // head word 16 offset pointer updated to match. A fixed-offset parser would read the
-        // wrong word; following the pointer locates the receiver Mayan actually decodes.
+        // wrong word; following the pointer locates the receiver Mayan actually decodes. destAddr
+        // (head word 4) is set to the handler so the gate passes.
         bytes memory nonCanonical = abi.encodePacked(
             bytes4(0xa3a30834),
-            new bytes(16 * 32), // head words 0..15 (filler)
+            new bytes(4 * 32), // head words 0..3 (tokenIn, amountIn, payloadType, trader) filler
+            bytes32(
+                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
+            ), // word 4: destAddr = handler
+            new bytes(11 * 32), // head words 5..15 filler
             uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
             new bytes(32), // extra padding word before customPayload
             uint256(32), // customPayload length

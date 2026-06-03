@@ -17,13 +17,13 @@ Before forwarding to Mayan, the facet validates that the order's destination rec
 - **EVM destinations:** the receiver parsed from the Mayan protocol data (`destAddr`) must equal `BridgeData.receiver`.
 - **Non-EVM destinations** (`BridgeData.receiver == NON_EVM_ADDRESS`): the receiver parsed from the protocol data must equal `MayanData.nonEVMReceiver` (full 32-byte comparison).
 
-### HyperCore deposits (trust assumption)
+### HyperCore deposits
 
 For direct deposits to Hyperliquid HyperCore, Mayan crafts a Swift order (`createOrderWithToken` / `createOrderWithSig`, `payloadType == 2`) whose `destAddr` is **Mayan's `HCDepositor` handler contract**, not the end user. The real receiver is encoded as a left-aligned 20-byte address in `customPayload[0:20]` (`HCDepositor.parseCustomPayload`: `userWallet = customPayload[0:20]`).
 
-These orders are identified by `BridgeData.destinationChainId == 1337` (the HyperCore chain id). For them the facet validates `BridgeData.receiver` against the `customPayload` receiver instead of `destAddr`, so the emitted `LiFiTransferStarted.receiver` is the real user.
+These orders are identified by `BridgeData.destinationChainId == 1337` (the HyperCore chain id). For them the facet reads the receiver from `customPayload` instead of `destAddr`, but **only after verifying that `destAddr` equals the hardcoded `MAYAN_HYPERCORE_DEPOSITOR` handler** (`0x56032241C0AdAb58A29b13E94fb595a4bc414e33`). Any other `destAddr` falls through to the standard `destAddr` validation, so the `customPayload` receiver is trusted only for genuine `HCDepositor` orders and `LiFiTransferStarted.receiver` is the real user.
 
-**Trust assumption:** for a normal order the validated field (`destAddr`) is the address Mayan actually pays, so the emitted receiver equals the on-chain recipient. For HyperCore orders Mayan pays the `destAddr` handler, which the facet does **not** constrain, and the validated receiver lives one hop downstream in `customPayload`. The emitted receiver therefore matches the actual recipient only when the caller routes through a genuine Mayan `HCDepositor` handler. A handler allowlist or backend EIP-712 signature would remove this assumption.
+Mayan has confirmed this is the sole `HCDepositor` handler and will announce any change in advance. Because the address is hardcoded, rotating it requires a facet upgrade.
 
 ## Public Methods
 
