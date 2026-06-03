@@ -18,6 +18,15 @@ contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
     constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
 }
 
+// Reverts on any native transfer; used to prove that zero-value native calls are skipped
+contract RevertingNativeReceiver {
+    error NativeNotAccepted();
+
+    receive() external payable {
+        revert NativeNotAccepted();
+    }
+}
+
 contract OutputValidatorTest is TestBase {
     address internal constant CBRIDGE_ROUTER =
         0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820; // mainnet
@@ -31,6 +40,12 @@ contract OutputValidatorTest is TestBase {
         address assetId,
         address payable receiver,
         uint256 amount
+    );
+
+    event OutputValidated(
+        address indexed token,
+        address indexed validationWallet,
+        uint256 excessAmount
     );
 
     function setUp() public {
@@ -105,6 +120,9 @@ contract OutputValidatorTest is TestBase {
 
         // Approve OutputValidator to spend tokens from diamond
         dai.approve(address(outputValidator), excessOutput);
+
+        vm.expectEmit(true, true, true, true, address(outputValidator));
+        emit OutputValidated(address(dai), validationWallet, excessOutput);
 
         // Act - call from diamond
         outputValidator.validateERC20Output(
@@ -200,6 +218,13 @@ contract OutputValidatorTest is TestBase {
         // Fund diamond with some native tokens
         vm.deal(address(diamond), msgValue + diamondBalance);
 
+        vm.expectEmit(true, true, true, true, address(outputValidator));
+        emit OutputValidated(
+            LibAsset.NULL_ADDRESS,
+            validationWallet,
+            msgValue
+        );
+
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
             expectedAmount,
@@ -240,6 +265,13 @@ contract OutputValidatorTest is TestBase {
 
         // Fund diamond with some native tokens
         vm.deal(address(diamond), msgValue + diamondBalance);
+
+        vm.expectEmit(true, true, true, true, address(outputValidator));
+        emit OutputValidated(
+            LibAsset.NULL_ADDRESS,
+            validationWallet,
+            excessAmount
+        );
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
@@ -342,6 +374,43 @@ contract OutputValidatorTest is TestBase {
             address(outputValidator).balance,
             0 ether,
             "OutputValidator should have no remaining balance"
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_validateOutputNativeWithZeroMsgValueSkipsTransfer() public {
+        // a reverting wallet proves the excess branch does not perform a zero-value
+        // native call when msg.value == 0: without the guard the call would hit the
+        // wallet's receive() and revert
+        RevertingNativeReceiver revertingWallet = new RevertingNativeReceiver();
+
+        vm.startPrank(address(diamond));
+
+        // Arrange
+        uint256 expectedAmount = 10 ether;
+        uint256 diamondBalance = 200 ether; // Diamond has some native tokens
+
+        // Fund diamond with some native tokens
+        vm.deal(address(diamond), diamondBalance);
+
+        // Act - outputAmount (200) > expectedAmount (10) enters the excess branch, but msg.value
+        // is 0, so the guard must skip the transfer and the call must not revert
+        outputValidator.validateNativeOutput{ value: 0 }(
+            expectedAmount,
+            address(revertingWallet)
+        );
+
+        // Assert
+        assertEq(
+            address(revertingWallet).balance,
+            0,
+            "Reverting wallet should receive nothing"
+        );
+        assertEq(
+            address(diamond).balance,
+            diamondBalance,
+            "Sender should keep all balance"
         );
 
         vm.stopPrank();
