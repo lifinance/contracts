@@ -19,10 +19,6 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 ///      Swift orders whose destAddr is Mayan's HCDepositor handler and whose real receiver is
 ///      encoded in customPayload[0:20], so for these the facet validates BridgeData.receiver
 ///      against the customPayload receiver instead of destAddr.
-///      Trust assumption: unlike a normal order (where the validated destAddr is the address
-///      Mayan pays), the HyperCore destAddr handler is not constrained on-chain, so the emitted
-///      receiver matches the actual recipient only when the caller routes through a genuine
-///      Mayan HCDepositor handler.
 /// @custom:version 1.3.0
 contract MayanFacet is
     ILiFi,
