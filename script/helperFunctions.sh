@@ -5468,18 +5468,19 @@ function estimatePauseCost() {
   # and revert data (DiamondIsPaused selector) also comes via stderr.
   local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC
   GAS_ESTIMATE_ERR=$(mktemp)
+  # RETURN trap removes the temp file on every exit path (verified contained: without
+  # functrace it fires only on this function's return, not the caller's).
+  trap 'rm -f "$GAS_ESTIMATE_ERR"' RETURN
   GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
   if [[ $CAST_ESTIMATE_RC -ne 0 ]]; then
     local CAST_ERR
     CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
-    rm -f "$GAS_ESTIMATE_ERR"
     if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
       return 2
     fi
     error "estimatePauseCost: cast estimate failed for $NETWORK: $CAST_ERR" >&2
     return 1
   fi
-  rm -f "$GAS_ESTIMATE_ERR"
   if ! [[ "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
     error "estimatePauseCost: unexpected gas estimate for $NETWORK: $GAS_ESTIMATE" >&2
     return 1
