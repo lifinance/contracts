@@ -80,7 +80,9 @@ fetches, per-chain queries), use `Promise.all` — or `Promise.allSettled` when 
 not reject the whole batch — instead of `await`-ing in a sequential loop; most of the cost is
 network latency, so this turns minutes into seconds. If you hit provider rate limits, bound
 concurrency (chunk the array or use a small pool) rather than reverting to sequential. See
-`script/balances.ts` for the pattern.
+`script/balances.ts` for the simple `Promise.all` case, and
+`script/tasks/moveNativeFundsToNewWallet.ts` for batched concurrency bounded by
+`MAX_CONCURRENT_JOBS`.
 
 ## Demo Scripts
 
