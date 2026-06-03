@@ -66,6 +66,14 @@ function resolveRpc() {
 NETWORKS=()
 if [[ $# -gt 0 ]]; then
   NETWORKS=("$@")
+  # Explicitly named networks must exist — fail fast on a typo instead of silently emitting a
+  # SKIP row and exiting 0 (a targeted audit that audits nothing must not look clean).
+  for NET in "${NETWORKS[@]}"; do
+    if ! jq -e --arg n "$NET" '.[$n] != null' ./config/networks.json >/dev/null 2>&1; then
+      error "unknown network '$NET' — not found in networks.json"
+      exit 1
+    fi
+  done
 else
   while IFS= read -r NET; do
     NETWORKS+=("$NET")
