@@ -24,6 +24,12 @@
 name: Verify Emergency Pause Readiness
 
 on:
+  # TEMPORARY (remove before merge): run the full workflow on push to this branch so the funds
+  # step actually executes pre-merge. workflow_dispatch only works once the workflow is on the
+  # default branch, and pull_request runs skip the funds step — a push event is neither, so it
+  # exercises the complete pipeline. Tracked for removal in the PR.
+  push:
+    branches: [verify-pauser-wallet-matches-config]
   schedule:
     - cron: '0 9 * * 4' # 09:00 UTC every Thursday
   workflow_dispatch: # manual trigger (e.g. after rotating the key or before a drill)
