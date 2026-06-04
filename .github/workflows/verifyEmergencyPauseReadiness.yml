@@ -120,9 +120,11 @@ jobs:
       # and a silently-broken cron shows up as a MISSING message) and manual (workflow_dispatch) runs
       # (posted only when a check failed — quiet on success). PR runs never reach here. Runs unless the
       # job was cancelled, so it still reports after the "Fail if any readiness check failed" gate.
+      # NOTE: `github.event_name == 'push'` in the if: below is TEMPORARY (revert before merge) —
+      # it lets the branch push-test post to Slack so we can validate delivery pre-merge.
       - name: Compose readiness status message
         id: status_msg
-        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           # Per-check emoji: pass/success -> check; skipped (e.g. the on-chain checks not reached
@@ -145,6 +147,10 @@ jobs:
           else
             HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
           fi
+          # TEMPORARY (revert before merge): mark branch push-test messages so #sc-general isn't confused.
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            HEADER=":test_tube: [TEST — PR #1868 branch run, please ignore] $HEADER"
+          fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
           TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches on every production diamond\n• %s Timelock + Safe governance can drive the unpause\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
             "$HEADER" "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$GOVERNANCE")" "$(icon "$FUNDS")" "$RUN_URL")
@@ -154,8 +160,9 @@ jobs:
             echo "SLACK_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # NOTE: `github.event_name == 'push'` below is TEMPORARY (revert before merge) — see compose step.
       - name: Notify Slack with readiness status
-        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
