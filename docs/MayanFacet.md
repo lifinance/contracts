@@ -38,8 +38,6 @@ On-chain, the facet enforces `customPayload[0:20] == BridgeData.receiver`, so a 
 - **The handler is single-purpose.** `0x56032241C0AdAb58A29b13E94fb595a4bc414e33` is only ever used as the `HCDepositor` handler for HyperCore deposits — never as a `destAddr` for another order type that interprets `customPayload` differently. If it were reused, a `destinationChainId == 1337` order could pass the receiver check while the handler routed funds elsewhere.
 - **The handler's decode is stable.** It always treats `customPayload[0:20]` as the user wallet and is not an upgradeable proxy that could silently change that decode under the same address.
 
-Mayan has confirmed (Jun 2026): this is the **sole** `HCDepositor` handler; the receiver is **always** `customPayload[0:20]` (followed by a 4-byte destination dex and an 8-byte relayer fee); `payloadType` is **always** `2` for HyperCore deposits; `destChainId` is `47` (HyperEVM); and they will announce any change to the handler in advance. Because the handler address is hardcoded, rotating it requires a facet upgrade.
-
 ## Public Methods
 
 - `function startBridgeTokensViaMayan(BridgeData calldata _bridgeData, MayanData calldata _mayanData)`
