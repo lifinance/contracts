@@ -15,9 +15,9 @@
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.
 # - Slack: ONE consolidated status (a green check / red cross / fast-forward per check, with a link
-#   to the run) is posted on the WEEKLY SCHEDULED run (pass or fail — a green week is confirmed, and a
-#   silently-broken cron shows up as a missing message) and on MANUAL runs only when a check failed.
-#   PR runs post nothing.
+#   to the run) is posted on every WEEKLY SCHEDULED run and every MANUAL (workflow_dispatch) run, pass
+#   or fail — so a green week is confirmed, a silently-broken cron shows up as a missing message, and a
+#   manual run always reports back. PR runs post nothing.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
 # - Triggers: weekly cron (Thu 09:00 UTC) + workflow_dispatch (manual) + pull_request limited to the
 #   paths below (config/global.json, config/networks.json, the involved scripts, this workflow).
@@ -116,14 +116,14 @@ jobs:
           fi
 
       # Build ONE consolidated Slack message — a bullet per check (green check = pass, red cross =
-      # fail, fast-forward = not reached) plus a link to this run — and post it once below. Used for
-      # BOTH the weekly scheduled run (posted pass OR fail, so a healthy week is positively confirmed
-      # and a silently-broken cron shows up as a MISSING message) and manual (workflow_dispatch) runs
-      # (posted only when a check failed — quiet on success). PR runs never reach here. Runs unless the
-      # job was cancelled, so it still reports after the "Fail if any readiness check failed" gate.
+      # fail, fast-forward = not reached) plus a link to this run — and post it once below. Posted on
+      # every scheduled run AND every manual (workflow_dispatch) run, pass or fail: a healthy week is
+      # confirmed, a silently-broken cron shows up as a MISSING message, and a manual drill/check always
+      # reports a result in-channel. PR runs never reach here. Runs unless the job was cancelled, so it
+      # still reports after the "Fail if any readiness check failed" gate.
       - name: Compose readiness status message
         id: status_msg
-        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -166,7 +166,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify Slack with readiness status
-        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
