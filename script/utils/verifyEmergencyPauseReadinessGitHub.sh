@@ -340,31 +340,55 @@ function main {
     NETWORKS+=("$NETWORK")
   done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
-  echo "Verifying on-chain pauserWallet + governance across ${#NETWORKS[@]} networks (parallel; log may appear interleaved)..."
+  echo "Verifying on-chain pauserWallet + governance across ${#NETWORKS[@]} networks (throttled parallel; log may appear interleaved)..."
 
-  # Launch verifyNetwork in parallel and capture PIDs explicitly (same pattern and rationale as
-  # diamondEMERGENCYPauseGitHub.sh:309-319). A failure on one diamond does NOT abort the others;
-  # aggregation happens after every job finishes and does not short-circuit. Each job's bit-encoded
-  # exit code (see verifyNetwork) lets us tell pauser-check failures from governance-check failures.
-  local -a PIDS=()
+  # Throttled parallel sweep ([CONV:PARALLEL-WORK]): cap concurrency at MAX_CONCURRENT_JOBS so we
+  # don't fan ~60 simultaneous RPC calls at providers (which invites throttling/429s and more
+  # retries). A backgrounded subshell can't write back to parent variables, so each worker writes
+  # verifyNetwork's bit-encoded exit code to a per-network file; we aggregate after `wait`. A
+  # failure on one diamond does NOT abort the others.
+  #
+  # NOTE: this intentionally DIVERGES from diamondEMERGENCYPauseGitHub.sh's unbounded fan-out — that
+  # live script fires every network at once because an incident can't wait; this read-only weekly
+  # check has no such urgency and is gentler on RPCs when throttled.
+  local MAX_JOBS=${MAX_CONCURRENT_JOBS:-10}
+  [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]] || MAX_JOBS=10
+  local RESULT_DIR
+  RESULT_DIR=$(mktemp -d)
+  trap 'rm -rf "$RESULT_DIR"' RETURN
+  local IDX=0
   for NETWORK in "${NETWORKS[@]}"; do
-    verifyNetwork "$NETWORK" "$PRIV_KEY_ADDRESS" &
-    PIDS+=("$!")
+    IDX=$((IDX + 1))
+    # throttle: block until a slot frees up before launching the next worker
+    while (($(jobs -rp | wc -l) >= MAX_JOBS)); do wait -n; done
+    (
+      verifyNetwork "$NETWORK" "$PRIV_KEY_ADDRESS"
+      echo "$?" >"$RESULT_DIR/result_$IDX"
+    ) &
   done
-  local PAUSER_FAILED=0 TIMELOCK_DIAMOND_FAILED=0 SAFE_ROLE_FAILED=0 PID_RC
-  for PID in "${PIDS[@]}"; do
-    wait "$PID"
-    PID_RC=$?
-    ((PID_RC & 1)) && PAUSER_FAILED=1
-    ((PID_RC & 2)) && TIMELOCK_DIAMOND_FAILED=1
-    ((PID_RC & 4)) && SAFE_ROLE_FAILED=1
+  wait
+
+  # Aggregate each worker's bit-encoded exit code from its result file (bit layout: see verifyNetwork).
+  # A missing / non-numeric result means a worker died before recording — fail loud rather than
+  # silently pass.
+  local PAUSER_FAILED=0 TIMELOCK_DIAMOND_FAILED=0 SAFE_ROLE_FAILED=0 INCOMPLETE=0 RC
+  for ((I = 1; I <= IDX; I++)); do
+    RC=$(cat "$RESULT_DIR/result_$I" 2>/dev/null)
+    if ! [[ "$RC" =~ ^[0-9]+$ ]]; then
+      error "[network #$I] no result captured from the parallel sweep — failing the run"
+      INCOMPLETE=1
+      continue
+    fi
+    ((RC & 1)) && PAUSER_FAILED=1
+    ((RC & 2)) && TIMELOCK_DIAMOND_FAILED=1
+    ((RC & 4)) && SAFE_ROLE_FAILED=1
   done
   [[ "$PAUSER_FAILED" -eq 0 ]] && PAUSER_STATUS="pass" || PAUSER_STATUS="fail"
   [[ "$TIMELOCK_DIAMOND_FAILED" -eq 0 ]] && TIMELOCK_DIAMOND_STATUS="pass" || TIMELOCK_DIAMOND_STATUS="fail"
   [[ "$SAFE_ROLE_FAILED" -eq 0 ]] && SAFE_ROLE_STATUS="pass" || SAFE_ROLE_STATUS="fail"
 
   local RETURN=0
-  [[ "$PAUSER_FAILED" -eq 1 || "$TIMELOCK_DIAMOND_FAILED" -eq 1 || "$SAFE_ROLE_FAILED" -eq 1 ]] && RETURN=1
+  [[ "$PAUSER_FAILED" -eq 1 || "$TIMELOCK_DIAMOND_FAILED" -eq 1 || "$SAFE_ROLE_FAILED" -eq 1 || "$INCOMPLETE" -eq 1 ]] && RETURN=1
 
   emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
 
