@@ -43,43 +43,29 @@ Mayan has confirmed (Jun 2026): this is the **sole** `HCDepositor` handler; the 
 ## Public Methods
 
 - `function startBridgeTokensViaMayan(BridgeData calldata _bridgeData, MayanData calldata _mayanData)`
-  - Simply bridges tokens using mayan
-- `swapAndStartBridgeTokensViamayan(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, mayanData memory _mayanData)`
-  - Performs swap(s) before bridging tokens using mayan
+  - Simply bridges tokens using Mayan
+- `function swapAndStartBridgeTokensViaMayan(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, MayanData memory _mayanData)`
+  - Performs swap(s) before bridging tokens using Mayan
 
-## mayan Specific Parameters
+## Mayan Specific Parameters
 
-The methods listed above take a variable labeled `_mayanData`. This data is specific to mayan and is represented as the following struct type:
+The methods listed above take a variable labeled `_mayanData`. This data is specific to Mayan and is represented as the following struct type:
 
 ```solidity
-/// @dev Optional bridge specific struct
-/// @param mayanAddr The address of the Mayan
-/// @param referrer The referrer address
-/// @param tokenOutAddr The address of the token to be received
-/// @param receiver The address of the receiver
-/// @param swapFee The swap fee
-/// @param redeemFee The redeem fee
-/// @param refundFee The refund fee
-/// @param transferDeadline The transfer deadline
-/// @param swapDeadline The swap deadline
-/// @param amountOutMin The minimum amount out
-/// @param unwrap Whether to unwrap the asset
-/// @param gasDrop The gas drop
+/// @dev Mayan specific bridge data
+/// @param nonEVMReceiver The address of the non-EVM receiver if applicable
+/// @param mayanProtocol The address of the Mayan protocol final contract
+/// @param protocolData The protocol data for the Mayan protocol
 struct MayanData {
-  bytes32 mayanAddr;
-  bytes32 referrer;
-  bytes32 tokenOutAddr;
-  bytes32 receiver;
-  uint64 swapFee;
-  uint64 redeemFee;
-  uint64 refundFee;
-  uint256 transferDeadline;
-  uint64 swapDeadline;
-  uint64 amountOutMin;
-  bool unwrap;
-  uint64 gasDrop;
+  bytes32 nonEVMReceiver;
+  address mayanProtocol;
+  bytes protocolData;
 }
 ```
+
+`protocolData` is the opaque calldata forwarded to `mayanProtocol`. The facet parses
+the receiver out of it (see [Receiver validation](#receiver-validation)) and validates
+it against `BridgeData.receiver` before forwarding; it is not otherwise interpreted.
 
 ## Swap Data
 
