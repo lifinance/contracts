@@ -8,7 +8,7 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 ```
 .agents/
   rules/*.md      25 rule files (source of truth, symlinked to .cursor/ as .mdc and .claude/ as .md)
-  commands/*.md    7 command files (source of truth, symlinked to .cursor/ and .claude/)
+  commands/*.md   13 command files (source of truth, symlinked to .cursor/ and .claude/)
   hooks/*.sh       post-edit hooks (auto-format + lint feedback)
 ```
 

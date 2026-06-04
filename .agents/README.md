@@ -59,14 +59,19 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-rule-or-skill.md`       | `/add-rule-or-skill`                             | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
-| `add-audit.md`          | `/add-audit`                                | Add an audit PDF + update `audit/auditLog.json`                                              |
-| `add-network.md`        | `/add-network [networkKey]`                 | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
-| `deprecate-network.md`  | `/deprecate-network <net1> [net2] ...`      | Deprecate networks — remove from networks.json, foundry.toml, deployment logs               |
-| `analyze-tx.md`         | `/analyze-tx <network> <tx_hash>`           | Transaction trace/runbook analysis for a specific tx                                         |
-| `review-bounty-report.md` | `/review-bounty-report`                   | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
-| `request-audit.md`      | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
-| `pr-ready.md`           | `/pr-ready`                                 | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
+| `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
+| `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
+| `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
+| `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
+| `analyze-unverified-contract.md` | `/analyze-unverified-contract <address> <network>` | Investigate an unverified contract — resolve RPC, detect proxies, disassemble, enumerate selectors, emit a report |
+| `create-pr.md`    | `/create-pr`                      | Create a PR for the current branch (branch/commit/push) using the repo PR template          |
+| `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
+| `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — remove from networks.json, foundry.toml, deployment logs            |
+| `post-pr-for-review.md` | `/post-pr-for-review`            | Post a PR to `#dev-sc-review`, enable auto-merge (squash), tag `@smartcontract_core`     |
+| `pr-ready.md`     | `/pr-ready`                       | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
+| `request-audit.md` | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
+| `request-dev-funds.md` | `/request-dev-funds`            | Request dev funds via the `automate-wallet-dev-fees` PR-based wallet (EVM + Solana)        |
+| `review-bounty-report.md` | `/review-bounty-report`       | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
 
 ## Transaction Analysis
 
@@ -97,6 +102,8 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `106-gas.md`                  | Gas-efficiency guidance aligned with existing patterns           | ❌ On match | `src/**/*.sol`                                                                                                |
 | `107-solidity-scripts.md`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`, `script/**/*.sol`                                                                        |
 | `200-typescript.md`           | TS scripting, helpers, lint/tests                                | ❌ On match | `script/**/*.ts`, `tasks/**/*.ts`                                                                             |
+| `201-safe-decode-scripts.md`  | Safe/timelock decode & display conventions                       | ❌ On match | `script/deploy/safe/**/*.ts`                                                                                  |
+| `202-tron-scripts.md`         | Tron-specific TS conventions (TronWeb, address handling)         | ❌ On match | `script/deploy/tron/**/*.ts`, `script/troncast/**/*.ts`                                                       |
 | `300-bash.md`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
 | `400-solidity-tests.md`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.t.sol`                                                                                             |
 | `401-testing-patterns.md`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |
