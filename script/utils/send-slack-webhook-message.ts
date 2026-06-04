@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   if (!webhookUrl) {
     consola.warn(
       `${envVar} is not set in .env — cannot post to #${channel}.\n` +
-        `Add this line to .env (URL from 1Password "slack-webhooks"):\n` +
+        `Add this line to .env (URL from 1Password vault "Developers Smart Contract", item "Webhooks SC Channels"):\n` +
         `  ${envVar}=https://hooks.slack.com/services/...`
     )
     process.exit(2)
