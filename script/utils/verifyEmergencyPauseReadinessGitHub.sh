@@ -4,12 +4,12 @@
 # it is the READ-ONLY companion to diamondEMERGENCYPauseGitHub.sh: it verifies that the
 # emergency pause CAN fire on every production diamond, WITHOUT firing it.
 #
-# Layers:
-#   Layer 1 (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
+# Checks:
+#   Secret check (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
 #                      the configured pauser in config/global.json (EVM hex + Tron base58).
-#   Layer 2 (on-chain, per production LiFiDiamond): the registered pauserWallet() equals
+#   Pauser check (on-chain, per production LiFiDiamond): the registered pauserWallet() equals
 #                      that derived address, read via the real `universalCast "call"`.
-#   Layer 3 (on-chain governance, per mainnet diamond — the UNPAUSE path): the
+#   Governance check (on-chain, per Safe/timelock-governed diamond — the UNPAUSE path): the
 #                      LiFiTimelockController's diamond() points at the production diamond,
 #                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
 #
@@ -87,7 +87,7 @@ function rpcCallWithRetry() {
 # evmToTronBase58: encode a 20-byte EVM hex address as a Tron base58check (T...) address.
 # Tron payload = 0x41 || 20-byte address; checksum = first 4 bytes of sha256(sha256(payload)).
 # Uses only coreutils / openssl / bc (no npm/TS dependency). A 0x41-prefixed payload has no
-# leading zero bytes, so no leading-'1' padding is needed. Used by the offline Layer-1 check
+# leading zero bytes, so no leading-'1' padding is needed. Used by the offline secret check
 # to compare the derived key against config tronWallets.pauserWallet.
 #
 # Usage: TRON_ADDR=$(evmToTronBase58 "0xd387...")
@@ -112,7 +112,7 @@ function evmToTronBase58() {
   printf "%s" "$OUT"
 }
 
-# verifyPauserOnNetwork: Layer 2 — read the on-chain pauserWallet() of a network's
+# verifyPauserOnNetwork: pauser check — read the on-chain pauserWallet() of a network's
 # production LiFiDiamond and assert it equals the derived pauser address. Read-only.
 # Mirrors diamondEMERGENCYPauseGitHub.sh's comparison exactly (lowercase string compare),
 # which also handles Tron's address form the same proven way the live pause does.
@@ -177,7 +177,7 @@ function verifyPauserOnNetwork() {
   return 0
 }
 
-# verifyGovernanceOnNetwork: Layer 3 — verify the UNPAUSE path's governance wiring:
+# verifyGovernanceOnNetwork: governance check — verify the UNPAUSE path's governance wiring:
 #   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond, and
 #   (2) the Safe holds TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond()).
 # Read-only. Applies only to mainnet (non-testnet, non-Tron) networks that have a deployed
@@ -246,23 +246,48 @@ function verifyGovernanceOnNetwork() {
   return $RC
 }
 
-# verifyNetwork: run all per-network readiness checks for one network (Layer 2 pauser +
-# Layer 3 governance). Runs both even if the first fails, so a network reports all problems.
-# Returns non-zero if any check failed.
+# verifyNetwork: run both on-chain per-network checks for one network (the pauser check +
+# the governance check). Runs both even if the first fails, so a network reports all problems.
+# The exit code BIT-ENCODES which check failed so main() can aggregate the two checks
+# separately (for the per-check status report) from each background job's `wait` status:
+#   bit 0 (1) = pauser check failed,  bit 1 (2) = governance check failed.
 #
 # Usage: verifyNetwork NETWORK EXPECTED_PAUSER_ADDRESS
+# Returns: 0 (both ok) | 1 (pauser failed) | 2 (governance failed) | 3 (both failed).
 function verifyNetwork() {
   local NETWORK="$1"
   local EXPECTED_PAUSER="$2"
   local RC=0
-  verifyPauserOnNetwork "$NETWORK" "$EXPECTED_PAUSER" || RC=1
-  verifyGovernanceOnNetwork "$NETWORK" || RC=1
+  verifyPauserOnNetwork "$NETWORK" "$EXPECTED_PAUSER" || RC=$((RC | 1))
+  verifyGovernanceOnNetwork "$NETWORK" || RC=$((RC | 2))
   return $RC
 }
 
+# emitCheckStatus: when running inside GitHub Actions, publish each check's result as a step
+# output (secret / pauser / governance, each one of pass | fail | skipped) so the workflow can
+# render an accurate per-check Slack status. No-op locally (GITHUB_OUTPUT unset). OUTPUT ONLY —
+# never affects which checks run or the exit code.
+#
+# Usage: emitCheckStatus SECRET_STATUS PAUSER_STATUS GOVERNANCE_STATUS
+function emitCheckStatus() {
+  [[ -n "${GITHUB_OUTPUT:-}" ]] || return 0
+  {
+    echo "secret=$1"
+    echo "pauser=$2"
+    echo "governance=$3"
+  } >>"$GITHUB_OUTPUT"
+}
+
 function main {
+  # Per-check results for the workflow's per-check Slack status. The secret check fail-fasts (we do
+  # not hit chains with a wrong key), so on a secret-check failure the on-chain checks stay
+  # "skipped". emitCheckStatus publishes these as step outputs in CI; it is output-only and never
+  # changes the exit code below.
+  local SECRET_STATUS="fail" PAUSER_STATUS="skipped" GOVERNANCE_STATUS="skipped"
+
   if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
     error "PRIVATE_KEY_PAUSER_WALLET is empty or not set. Cannot verify emergency pause readiness."
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
     return 1
   fi
 
@@ -273,47 +298,62 @@ function main {
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address derived from PRIVATE_KEY_PAUSER_WALLET: $PRIV_KEY_ADDRESS"
 
-  ##### Layer 1: offline secret <-> config (fail fast - no point hitting chains if the key is wrong)
+  ##### Secret check: offline secret <-> config (fail fast - no point hitting chains if the key is wrong)
   local EXPECTED_EVM EXPECTED_TRON
   EXPECTED_EVM=$(jq -r '.pauserWallet // empty' config/global.json)
   EXPECTED_TRON=$(jq -r '.tronWallets.pauserWallet // empty' config/global.json)
   if [[ -z "$EXPECTED_EVM" || -z "$EXPECTED_TRON" ]]; then
     error "pauserWallet / tronWallets.pauserWallet missing or null in config/global.json."
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
     return 1
   fi
   if [[ "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED_EVM" | tr '[:upper:]' '[:lower:]')" ]]; then
     error "secret-derived address ($PRIV_KEY_ADDRESS) does not match config pauserWallet ($EXPECTED_EVM)."
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
     return 1
   fi
   local DERIVED_TRON
   DERIVED_TRON=$(evmToTronBase58 "$PRIV_KEY_ADDRESS")
   if [[ "$DERIVED_TRON" != "$EXPECTED_TRON" ]]; then
     error "secret-derived Tron address ($DERIVED_TRON) does not match config tronWallets.pauserWallet ($EXPECTED_TRON)."
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
     return 1
   fi
-  success "Layer 1 OK: the GitHub secret matches the configured pauser (EVM + Tron)."
+  SECRET_STATUS="pass"
+  success "Secret check OK: the GitHub secret matches the configured pauser (EVM + Tron)."
 
-  ##### Layer 2: on-chain pauserWallet() per production diamond
+  ##### On-chain checks: pauserWallet() + governance, per production diamond
   local NETWORKS=()
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   while IFS= read -r NETWORK; do
     NETWORKS+=("$NETWORK")
   done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
 
-  echo "Verifying on-chain pauserWallet across ${#NETWORKS[@]} networks (parallel; log may appear interleaved)..."
+  echo "Verifying on-chain pauserWallet + governance across ${#NETWORKS[@]} networks (parallel; log may appear interleaved)..."
 
-  # Launch verifyPauserOnNetwork in parallel and capture PIDs explicitly (same pattern and
-  # rationale as diamondEMERGENCYPauseGitHub.sh:309-319). A failure on one diamond does NOT
-  # abort the others; aggregation happens after every job finishes and does not short-circuit.
+  # Launch verifyNetwork in parallel and capture PIDs explicitly (same pattern and rationale as
+  # diamondEMERGENCYPauseGitHub.sh:309-319). A failure on one diamond does NOT abort the others;
+  # aggregation happens after every job finishes and does not short-circuit. Each job's bit-encoded
+  # exit code (see verifyNetwork) lets us tell pauser-check failures from governance-check failures.
   local -a PIDS=()
   for NETWORK in "${NETWORKS[@]}"; do
     verifyNetwork "$NETWORK" "$PRIV_KEY_ADDRESS" &
     PIDS+=("$!")
   done
-  local RETURN=0
+  local PAUSER_FAILED=0 GOVERNANCE_FAILED=0 PID_RC
   for PID in "${PIDS[@]}"; do
-    wait "$PID" || RETURN=1
+    wait "$PID"
+    PID_RC=$?
+    ((PID_RC & 1)) && PAUSER_FAILED=1
+    ((PID_RC & 2)) && GOVERNANCE_FAILED=1
   done
+  [[ "$PAUSER_FAILED" -eq 0 ]] && PAUSER_STATUS="pass" || PAUSER_STATUS="fail"
+  [[ "$GOVERNANCE_FAILED" -eq 0 ]] && GOVERNANCE_STATUS="pass" || GOVERNANCE_STATUS="fail"
+
+  local RETURN=0
+  [[ "$PAUSER_FAILED" -eq 1 || "$GOVERNANCE_FAILED" -eq 1 ]] && RETURN=1
+
+  emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
 
   echo "-------------------------------------------------------------------------------------"
   if [[ "$RETURN" -ne 0 ]]; then

@@ -1,18 +1,22 @@
 # Verify Emergency Pause Readiness
 # - Read-only companion to the emergency-pause workflow: verifies the pause CAN fire
 #   on every production diamond, without firing it. Runs script/utils/verifyEmergencyPauseReadinessGitHub.sh.
-# - Layer 1 (offline): the address derived from PRIV_KEY_PAUSER_WALLET matches the
+# - Secret check (offline): the address derived from PRIV_KEY_PAUSER_WALLET matches the
 #   configured pauser in config/global.json (EVM + Tron). Fail-fast.
-# - Layer 2 (on-chain): each production LiFiDiamond's registered pauserWallet() equals
+# - Pauser check (on-chain): each production LiFiDiamond's registered pauserWallet() equals
 #   that derived address, read via the real `universalCast "call"` (EVM + Tron).
-# - Layer 3 (on-chain governance, mainnet only - the unpause path): LiFiTimelockController.diamond()
-#   matches the deploy-log diamond, and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
+# - Governance check (on-chain, the unpause path): LiFiTimelockController.diamond() matches the
+#   deploy-log diamond, and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
 #   wallet can afford pauseDiamond() on every production EVM chain. A CRITICAL network (cannot fund a
-#   single pause) fails the run with its own Slack alert. Skipped on PRs: funding is live operational
-#   state, independent of the code under review.
+#   single pause) fails the run and shows as a red cross in the consolidated Slack status. Skipped on
+#   PRs: funding is live operational state, independent of the code under review.
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.
+# - Slack: ONE consolidated status (a green check / red cross / fast-forward per check, with a link
+#   to the run) is posted on the WEEKLY SCHEDULED run (pass or fail — a green week is confirmed, and a
+#   silently-broken cron shows up as a missing message) and on MANUAL runs only when a check failed.
+#   PR runs post nothing.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are
 #   retried then failed hard (see rpcCallWithRetry).
@@ -82,19 +86,6 @@ jobs:
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
 
-      # Page on-call for real drift (scheduled / manual runs). PR runs already surface
-      # the failure as a red check to the author, so we skip Slack noise there.
-      - name: Notify Slack on readiness failure
-        if: ${{ steps.readiness.outcome == 'failure' && github.event_name != 'pull_request' }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":rotating_light: Emergency pause readiness check FAILED — the pauser key or an on-chain pauserWallet no longer matches config. The emergency pause may be unusable on one or more chains. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
-            }
-
       # Funding is live operational state (independent of the code in a PR), so this runs on
       # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
       # secret (it reads the CONFIGURED pauser's balance, not the key); it exits non-zero when
@@ -106,17 +97,6 @@ jobs:
         continue-on-error: true
         run: bash script/utils/checkPauserFunds.sh
 
-      - name: Notify Slack on under-funded pauser wallet
-        if: ${{ steps.funds.outcome == 'failure' && github.event_name != 'pull_request' }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":rotating_light: Pauser wallet UNDER-FUNDED on one or more production chains — it cannot afford a single pauseDiamond() there, so the emergency pause would fail. <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
-            }
-
       # Restore the red check that continue-on-error suppressed: fail the job if either check
       # failed. On PR runs the funds step is skipped (outcome 'skipped'), so only the readiness
       # check gates PRs — unchanged from before the funds check was added.
@@ -127,3 +107,54 @@ jobs:
             echo "Emergency pause readiness FAILED (readiness=${{ steps.readiness.outcome }}, funds=${{ steps.funds.outcome }})."
             exit 1
           fi
+
+      # Build ONE consolidated Slack message — a bullet per check (green check = pass, red cross =
+      # fail, fast-forward = not reached) plus a link to this run — and post it once below. Used for
+      # BOTH the weekly scheduled run (posted pass OR fail, so a healthy week is positively confirmed
+      # and a silently-broken cron shows up as a MISSING message) and manual (workflow_dispatch) runs
+      # (posted only when a check failed — quiet on success). PR runs never reach here. Runs unless the
+      # job was cancelled, so it still reports after the "Fail if any readiness check failed" gate.
+      - name: Compose readiness status message
+        id: status_msg
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Per-check emoji: pass/success -> check; skipped (e.g. the on-chain checks not reached
+          # because the secret check fail-fasted) -> fast-forward; anything else (failure / missing
+          # output) -> cross.
+          icon() {
+            case "$1" in
+              pass | success) printf ':white_check_mark:' ;;
+              skipped) printf ':fast_forward:' ;;
+              *) printf ':x:' ;;
+            esac
+          }
+          # Per-check results published by verifyEmergencyPauseReadinessGitHub.sh; funds is its own step.
+          SECRET="${{ steps.readiness.outputs.secret }}"
+          PAUSER="${{ steps.readiness.outputs.pauser }}"
+          GOVERNANCE="${{ steps.readiness.outputs.governance }}"
+          FUNDS="${{ steps.funds.outcome }}"
+          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$GOVERNANCE" == "pass" && "$FUNDS" == "success" ]]; then
+            HEADER=":white_check_mark: *Emergency pause readiness — all checks passed*"
+          else
+            HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
+          fi
+          # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches on every production diamond\n• %s Timelock + Safe governance can drive the unpause\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+            "$HEADER" "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$GOVERNANCE")" "$(icon "$FUNDS")" "$RUN_URL")
+          {
+            echo "text<<SLACK_EOF"
+            echo "$TEXT"
+            echo "SLACK_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack with readiness status
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+            }
