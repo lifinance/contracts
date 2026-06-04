@@ -102,7 +102,9 @@ jobs:
         id: funds
         if: ${{ github.event_name != 'pull_request' }}
         continue-on-error: true
-        run: bash script/utils/checkPauserFunds.sh
+        # TEMPORARY (revert before merge): scoped to a single healthy network so funds passes and we
+        # can see the all-✅ Slack message; production runs the full sweep (no args).
+        run: bash script/utils/checkPauserFunds.sh base
 
       # Restore the red check that continue-on-error suppressed: fail the job if either check
       # failed. On PR runs the funds step is skipped (outcome 'skipped'), so only the readiness
