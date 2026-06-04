@@ -44,6 +44,7 @@ on:
 
 permissions:
   contents: read # required to checkout the repository and read config/deploy logs
+  actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
 
 jobs:
   verify-emergency-pause-readiness:
@@ -125,8 +126,17 @@ jobs:
       - name: Compose readiness status message
         id: status_msg
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (steps.readiness.outcome == 'failure' || steps.funds.outcome == 'failure'))) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Deep-link straight to THIS job (…/runs/<run>/job/<job_id>) so the Slack link lands on the
+          # job (and its failing step) rather than the run overview. github.job is the job key, not the
+          # numeric id the URL needs, so resolve the job's html_url via the jobs API; fall back to the
+          # run overview if it can't be read.
+          RUN_OVERVIEW="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null)
+          RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
           # Per-check emoji: pass/success -> check; skipped (e.g. the on-chain checks not reached
           # because the secret check fail-fasted) -> fast-forward; anything else (failure / missing
           # output) -> cross.
