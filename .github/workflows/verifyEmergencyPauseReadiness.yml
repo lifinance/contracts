@@ -7,11 +7,13 @@
 #   that derived address, read via the real `universalCast "call"` (EVM + Tron).
 # - Governance checks (on-chain, the unpause path), reported as two separate checks: (a)
 #   LiFiTimelockController.diamond() matches the deploy-log diamond, and (b) the Safe holds
-#   TIMELOCK_ADMIN_ROLE (so it can execute unpauseDiamond()). Skipped on testnets/Tron.
+#   TIMELOCK_ADMIN_ROLE (so it can execute unpauseDiamond()). Skipped on testnets/Tron and on any
+#   network with no deployed timelock or configured Safe.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
-#   wallet can afford pauseDiamond() on every production EVM chain. A CRITICAL network (cannot fund a
-#   single pause) fails the run and shows as a red cross in the consolidated Slack status. Skipped on
-#   PRs: funding is live operational state, independent of the code under review.
+#   wallet can afford pauseDiamond() on every production EVM chain, and reports the native TOP-UP
+#   needed to reach OK. A CRITICAL network (cannot fund a single pause) — or a fully-blind sweep where
+#   every network errors — fails the run and shows as a red cross in the consolidated Slack status.
+#   Skipped on PRs: funding is live operational state, independent of the code under review.
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.
 # - Slack: ONE consolidated status (a green check / red cross / fast-forward per check, with a link
