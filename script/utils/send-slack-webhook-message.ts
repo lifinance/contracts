@@ -43,7 +43,13 @@ async function main(): Promise<void> {
     process.exit(2)
   }
 
-  const text = readFileSync(messageFile, 'utf8').trimEnd()
+  let text: string
+  try {
+    text = readFileSync(messageFile, 'utf8').trimEnd()
+  } catch (err) {
+    consola.error(`cannot read message file ${messageFile}:`, err)
+    process.exit(1)
+  }
   if (!text) {
     consola.error(`message file ${messageFile} is empty`)
     process.exit(1)
