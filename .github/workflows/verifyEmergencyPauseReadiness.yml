@@ -21,7 +21,7 @@
 #   or fail — so a green week is confirmed, a silently-broken cron shows up as a missing message, and a
 #   manual run always reports back. PR runs post nothing.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
-# - Triggers: weekly cron (Thu 09:00 UTC) + workflow_dispatch (manual) + pull_request limited to the
+# - Triggers: weekly cron (Thu 07:00 UTC ≈ 09:00 CEST / 08:00 CET) + workflow_dispatch (manual) + pull_request limited to the
 #   paths below (config/global.json, config/networks.json, the involved scripts, this workflow).
 # - Known limitations: needs RPCs (MongoDB) + deploy logs. Transient RPC errors are retried before
 #   failing — the readiness checks via rpcCallWithRetry, the funds path via estimatePauseCost +
@@ -31,7 +31,7 @@ name: Verify Emergency Pause Readiness
 
 on:
   schedule:
-    - cron: '0 9 * * 4' # 09:00 UTC every Thursday
+    - cron: '0 7 * * 4' # 07:00 UTC every Thursday (≈09:00 CEST summer / 08:00 CET winter — cron is UTC, no DST)
   workflow_dispatch: # manual trigger (e.g. after rotating the key or before a drill)
   pull_request:
     paths:
