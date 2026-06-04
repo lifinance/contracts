@@ -140,9 +140,10 @@ jobs:
           # Per-check results published by verifyEmergencyPauseReadinessGitHub.sh; funds is its own step.
           SECRET="${{ steps.readiness.outputs.secret }}"
           PAUSER="${{ steps.readiness.outputs.pauser }}"
-          GOVERNANCE="${{ steps.readiness.outputs.governance }}"
+          TIMELOCK_DIAMOND="${{ steps.readiness.outputs.timelockDiamond }}"
+          SAFE_ROLE="${{ steps.readiness.outputs.safeAdminRole }}"
           FUNDS="${{ steps.funds.outcome }}"
-          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$GOVERNANCE" == "pass" && "$FUNDS" == "success" ]]; then
+          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$FUNDS" == "success" ]]; then
             HEADER=":white_check_mark: *Emergency pause readiness — all checks passed*"
           else
             HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
@@ -152,8 +153,8 @@ jobs:
             HEADER=":test_tube: [TEST — PR #1868 branch run, please ignore] $HEADER"
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
-          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches on every production diamond\n• %s Timelock + Safe governance can drive the unpause\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
-            "$HEADER" "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$GOVERNANCE")" "$(icon "$FUNDS")" "$RUN_URL")
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+            "$HEADER" "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" "$(icon "$FUNDS")" "$RUN_URL")
           {
             echo "text<<SLACK_EOF"
             echo "$TEXT"

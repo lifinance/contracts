@@ -177,12 +177,17 @@ function verifyPauserOnNetwork() {
   return 0
 }
 
-# verifyGovernanceOnNetwork: governance check — verify the UNPAUSE path's governance wiring:
-#   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond, and
-#   (2) the Safe holds TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond()).
-# Read-only. Applies only to mainnet (non-testnet, non-Tron) networks that have a deployed
-# timelock AND a configured Safe; everything else is skipped with a notice. Returns 0 on
-# pass/skip, 1 on a real mismatch / missing role / RPC exhausted.
+# verifyGovernanceOnNetwork: governance checks — verify the UNPAUSE path's wiring with two
+# INDEPENDENT on-chain assertions:
+#   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond
+#       (the timelock controls the right diamond), and
+#   (2) the Safe holds TIMELOCK_ADMIN_ROLE on the timelock (so it can execute unpauseDiamond()).
+# Read-only. Applies only to non-testnet, non-Tron networks with a deployed timelock AND a
+# configured Safe; everything else is skipped with a notice. The exit code BIT-ENCODES which
+# assertion failed so the caller can report the two separately:
+#   bit 0 (1) = timelock.diamond() mismatch / unreadable,  bit 1 (2) = Safe missing the role / unreadable.
+# Returns 0 on all-pass or skip. If the production diamond is missing from the deploy log neither
+# assertion can run, so both bits are set (3).
 #
 # Usage: verifyGovernanceOnNetwork NETWORK
 function verifyGovernanceOnNetwork() {
@@ -211,34 +216,34 @@ function verifyGovernanceOnNetwork() {
   local DIAMOND_ADDRESS
   DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond")
   if [[ $? -ne 0 || -z "$DIAMOND_ADDRESS" ]]; then
-    error "[network: $NETWORK] governance: production LiFiDiamond not found in deploy log."
-    return 1
+    error "[network: $NETWORK] governance: production LiFiDiamond not found in deploy log; cannot verify either assertion."
+    return 3
   fi
 
   local RC=0
 
-  # (1) timelock.diamond() must point at the production diamond
+  # (1) timelock.diamond() must point at the production diamond  (bit 0)
   sleep "$RPC_CALL_DELAY_SECONDS"
   local TIMELOCK_DIAMOND
   if ! TIMELOCK_DIAMOND=$(rpcCallWithRetry "[$NETWORK] timelock.diamond()" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "diamond() returns (address)"); then
     error "[network: $NETWORK] governance: failed to read LiFiTimelockController.diamond() after $RPC_MAX_ATTEMPTS attempts: $TIMELOCK_DIAMOND"
-    RC=1
+    RC=$((RC | 1))
   elif [[ "$(echo "$TIMELOCK_DIAMOND" | tr '[:upper:]' '[:lower:]')" != "$(echo "$DIAMOND_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
     error "[network: $NETWORK] governance: timelock.diamond() ($TIMELOCK_DIAMOND) does not match deploy-log LiFiDiamond ($DIAMOND_ADDRESS)"
-    RC=1
+    RC=$((RC | 1))
   else
     success "[network: $NETWORK] governance: timelock.diamond() matches the production diamond"
   fi
 
-  # (2) Safe must hold TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond())
+  # (2) Safe must hold TIMELOCK_ADMIN_ROLE (so it can drive unpauseDiamond())  (bit 1)
   sleep "$RPC_CALL_DELAY_SECONDS"
   local HAS_ROLE
   if ! HAS_ROLE=$(rpcCallWithRetry "[$NETWORK] timelock.hasRole(admin,safe)" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "hasRole(bytes32,address) returns (bool)" "$TIMELOCK_ADMIN_ROLE" "$SAFE_ADDRESS"); then
     error "[network: $NETWORK] governance: failed to read hasRole(TIMELOCK_ADMIN_ROLE, safe) after $RPC_MAX_ATTEMPTS attempts: $HAS_ROLE"
-    RC=1
+    RC=$((RC | 2))
   elif [[ "$HAS_ROLE" != "true" ]]; then
     error "[network: $NETWORK] governance: Safe ($SAFE_ADDRESS) does NOT hold TIMELOCK_ADMIN_ROLE on the timelock (hasRole=$HAS_ROLE)"
-    RC=1
+    RC=$((RC | 2))
   else
     success "[network: $NETWORK] governance: Safe holds TIMELOCK_ADMIN_ROLE"
   fi
@@ -246,35 +251,41 @@ function verifyGovernanceOnNetwork() {
   return $RC
 }
 
-# verifyNetwork: run both on-chain per-network checks for one network (the pauser check +
-# the governance check). Runs both even if the first fails, so a network reports all problems.
-# The exit code BIT-ENCODES which check failed so main() can aggregate the two checks
-# separately (for the per-check status report) from each background job's `wait` status:
-#   bit 0 (1) = pauser check failed,  bit 1 (2) = governance check failed.
+# verifyNetwork: run every on-chain per-network check for one network (the pauser check + the two
+# governance assertions). Runs them all even if one fails, so a network reports all problems. The
+# exit code BIT-ENCODES which check failed so main() can aggregate each separately (for the per-check
+# status report) from each background job's `wait` status:
+#   bit 0 (1) = pauser check failed,
+#   bit 1 (2) = governance: timelock.diamond() check failed,
+#   bit 2 (4) = governance: Safe TIMELOCK_ADMIN_ROLE check failed.
+# (verifyGovernanceOnNetwork returns its own two-bit code; we shift it left past the pauser bit.)
 #
 # Usage: verifyNetwork NETWORK EXPECTED_PAUSER_ADDRESS
-# Returns: 0 (both ok) | 1 (pauser failed) | 2 (governance failed) | 3 (both failed).
+# Returns: 0..7 — the OR of the bits above.
 function verifyNetwork() {
   local NETWORK="$1"
   local EXPECTED_PAUSER="$2"
   local RC=0
   verifyPauserOnNetwork "$NETWORK" "$EXPECTED_PAUSER" || RC=$((RC | 1))
-  verifyGovernanceOnNetwork "$NETWORK" || RC=$((RC | 2))
+  local GOV_RC=0
+  verifyGovernanceOnNetwork "$NETWORK" || GOV_RC=$?
+  RC=$((RC | (GOV_RC << 1)))
   return $RC
 }
 
-# emitCheckStatus: when running inside GitHub Actions, publish each check's result as a step
-# output (secret / pauser / governance, each one of pass | fail | skipped) so the workflow can
-# render an accurate per-check Slack status. No-op locally (GITHUB_OUTPUT unset). OUTPUT ONLY —
-# never affects which checks run or the exit code.
+# emitCheckStatus: when running inside GitHub Actions, publish each check's result as a step output
+# (secret / pauser / timelockDiamond / safeAdminRole, each one of pass | fail | skipped) so the
+# workflow can render an accurate per-check Slack status. No-op locally (GITHUB_OUTPUT unset).
+# OUTPUT ONLY — never affects which checks run or the exit code.
 #
-# Usage: emitCheckStatus SECRET_STATUS PAUSER_STATUS GOVERNANCE_STATUS
+# Usage: emitCheckStatus SECRET_STATUS PAUSER_STATUS TIMELOCK_DIAMOND_STATUS SAFE_ADMIN_ROLE_STATUS
 function emitCheckStatus() {
   [[ -n "${GITHUB_OUTPUT:-}" ]] || return 0
   {
     echo "secret=$1"
     echo "pauser=$2"
-    echo "governance=$3"
+    echo "timelockDiamond=$3"
+    echo "safeAdminRole=$4"
   } >>"$GITHUB_OUTPUT"
 }
 
@@ -283,11 +294,11 @@ function main {
   # not hit chains with a wrong key), so on a secret-check failure the on-chain checks stay
   # "skipped". emitCheckStatus publishes these as step outputs in CI; it is output-only and never
   # changes the exit code below.
-  local SECRET_STATUS="fail" PAUSER_STATUS="skipped" GOVERNANCE_STATUS="skipped"
+  local SECRET_STATUS="fail" PAUSER_STATUS="skipped" TIMELOCK_DIAMOND_STATUS="skipped" SAFE_ROLE_STATUS="skipped"
 
   if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
     error "PRIVATE_KEY_PAUSER_WALLET is empty or not set. Cannot verify emergency pause readiness."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
 
@@ -304,19 +315,19 @@ function main {
   EXPECTED_TRON=$(jq -r '.tronWallets.pauserWallet // empty' config/global.json)
   if [[ -z "$EXPECTED_EVM" || -z "$EXPECTED_TRON" ]]; then
     error "pauserWallet / tronWallets.pauserWallet missing or null in config/global.json."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
   if [[ "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED_EVM" | tr '[:upper:]' '[:lower:]')" ]]; then
     error "secret-derived address ($PRIV_KEY_ADDRESS) does not match config pauserWallet ($EXPECTED_EVM)."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
   local DERIVED_TRON
   DERIVED_TRON=$(evmToTronBase58 "$PRIV_KEY_ADDRESS")
   if [[ "$DERIVED_TRON" != "$EXPECTED_TRON" ]]; then
     error "secret-derived Tron address ($DERIVED_TRON) does not match config tronWallets.pauserWallet ($EXPECTED_TRON)."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
   SECRET_STATUS="pass"
@@ -340,20 +351,22 @@ function main {
     verifyNetwork "$NETWORK" "$PRIV_KEY_ADDRESS" &
     PIDS+=("$!")
   done
-  local PAUSER_FAILED=0 GOVERNANCE_FAILED=0 PID_RC
+  local PAUSER_FAILED=0 TIMELOCK_DIAMOND_FAILED=0 SAFE_ROLE_FAILED=0 PID_RC
   for PID in "${PIDS[@]}"; do
     wait "$PID"
     PID_RC=$?
     ((PID_RC & 1)) && PAUSER_FAILED=1
-    ((PID_RC & 2)) && GOVERNANCE_FAILED=1
+    ((PID_RC & 2)) && TIMELOCK_DIAMOND_FAILED=1
+    ((PID_RC & 4)) && SAFE_ROLE_FAILED=1
   done
   [[ "$PAUSER_FAILED" -eq 0 ]] && PAUSER_STATUS="pass" || PAUSER_STATUS="fail"
-  [[ "$GOVERNANCE_FAILED" -eq 0 ]] && GOVERNANCE_STATUS="pass" || GOVERNANCE_STATUS="fail"
+  [[ "$TIMELOCK_DIAMOND_FAILED" -eq 0 ]] && TIMELOCK_DIAMOND_STATUS="pass" || TIMELOCK_DIAMOND_STATUS="fail"
+  [[ "$SAFE_ROLE_FAILED" -eq 0 ]] && SAFE_ROLE_STATUS="pass" || SAFE_ROLE_STATUS="fail"
 
   local RETURN=0
-  [[ "$PAUSER_FAILED" -eq 1 || "$GOVERNANCE_FAILED" -eq 1 ]] && RETURN=1
+  [[ "$PAUSER_FAILED" -eq 1 || "$TIMELOCK_DIAMOND_FAILED" -eq 1 || "$SAFE_ROLE_FAILED" -eq 1 ]] && RETURN=1
 
-  emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$GOVERNANCE_STATUS"
+  emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
 
   echo "-------------------------------------------------------------------------------------"
   if [[ "$RETURN" -ne 0 ]]; then
