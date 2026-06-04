@@ -591,6 +591,21 @@ contract MayanFacetTest is TestBaseFacet {
             "parse hypercore receiver: createOrderWithToken customPayload[0:20]"
         );
 
+        // Exercises _parseReceiver's early return: routed via the HyperCore chain id, a genuine
+        // deposit returns the customPayload receiver (the `if (receiver != 0) return` branch)
+        // rather than falling through to the destAddr handler.
+        assertEq(
+            address(
+                uint160(
+                    uint256(
+                        testFacet.testParseReceiverForChain(protocolData, 1337)
+                    )
+                )
+            ),
+            expectedReceiver,
+            "_parseReceiver returns customPayload receiver for genuine hypercore deposit"
+        );
+
         // createOrderWithSig (0x6147435b) carries the same OrderParams + customPayload layout
         bytes memory customPayload = abi.encodePacked(
             expectedReceiver,
@@ -662,26 +677,78 @@ contract MayanFacetTest is TestBaseFacet {
             "non-HCDepositor destAddr must yield zero receiver"
         );
 
+        // A Swift v2 order to the genuine handler but with a non-HyperCore payloadType (!= 2) must
+        // yield zero, so the caller's receiver check reverts rather than trusting customPayload for
+        // an order type the HCDepositor would not treat as a deposit.
+        order.destAddr = bytes32(
+            uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
+        );
+        order.payloadType = 1;
+
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            receiver,
+            bytes32(0),
+            "non-deposit payloadType must yield zero receiver"
+        );
+
+        // A Swift v2 order to the genuine handler with payloadType 2 but a non-HyperEVM destChainId
+        // (!= 47) must yield zero, so it falls through to standard destAddr validation rather than
+        // trusting customPayload for an order not bound for the HyperCore handler chain.
+        order.payloadType = 2;
+        order.destChainId = 1;
+
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        );
+
+        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+
+        assertEq(
+            receiver,
+            bytes32(0),
+            "non-HyperEVM destChainId must yield zero receiver"
+        );
+
+        // A Swift v2 order under the HyperCore chain id but to a real user destAddr with a
+        // non-deposit payloadType is treated as an ordinary order: _parseHypercoreReceiver yields
+        // 0 (gates fail) and _parseReceiver falls through to standard destAddr parsing, so the
+        // user's destAddr is what gets validated against bridgeData.receiver.
+        order.destAddr = bytes32(uint256(uint160(expectedReceiver)));
+        order.payloadType = 1;
+        order.destChainId = 1;
+
+        protocolData = abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        );
+
+        assertEq(
+            address(
+                uint160(
+                    uint256(
+                        testFacet.testParseReceiverForChain(protocolData, 1337)
+                    )
+                )
+            ),
+            expectedReceiver,
+            "non-deposit order under hypercore chainId falls through to destAddr validation"
+        );
+
         // Non-canonical encoding: customPayload placed one word later than canonical, with the
         // head word 16 offset pointer updated to match. A fixed-offset parser would read the
         // wrong word; following the pointer locates the receiver Mayan actually decodes. destAddr
-        // (head word 4) is set to the handler so the gate passes.
-        bytes memory nonCanonical = abi.encodePacked(
-            bytes4(0xa3a30834),
-            new bytes(4 * 32), // head words 0..3 (tokenIn, amountIn, payloadType, trader) filler
-            bytes32(
-                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
-            ), // word 4: destAddr = handler
-            new bytes(11 * 32), // head words 5..15 filler
-            uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
-            new bytes(32), // extra padding word before customPayload
-            uint256(32), // customPayload length
-            expectedReceiver,
-            uint32(0),
-            uint64(0)
+        // (head word 4) and destChainId (head word 5) are set so the gate passes.
+        receiver = testFacet.testParseHypercoreReceiver(
+            _buildNonCanonicalHypercoreOrder(expectedReceiver)
         );
-
-        receiver = testFacet.testParseHypercoreReceiver(nonCanonical);
 
         assertEq(
             address(uint160(uint256(receiver))),
@@ -706,6 +773,34 @@ contract MayanFacetTest is TestBaseFacet {
             0xBD55C2F306C97Fd1d3E7A023f7c4834a2F472834,
             "HCDepositInitiator under hypercore chainId must fall through to fixed-offset parsing"
         );
+    }
+
+    /// @dev Builds a createOrderWithToken order whose customPayload sits one word later than the
+    ///      canonical position, with the head word 16 offset pointer updated to match. Extracted
+    ///      to its own function to keep test_ParseHypercoreReceiver under the stack limit.
+    function _buildNonCanonicalHypercoreOrder(
+        address expectedReceiver
+    ) private pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                bytes4(0xa3a30834),
+                new bytes(2 * 32), // head words 0..1 (tokenIn, amountIn) filler
+                uint256(2), // word 2: payloadType = 2
+                new bytes(32), // word 3: trader filler
+                bytes32(
+                    uint256(
+                        uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33)
+                    )
+                ), // word 4: destAddr = handler
+                uint256(47), // word 5: destChainId = HyperEVM
+                new bytes(10 * 32), // head words 6..15 filler
+                uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
+                new bytes(32), // extra padding word before customPayload
+                uint256(32), // customPayload length
+                expectedReceiver,
+                uint32(0),
+                uint64(0)
+            );
     }
 
     function test_ParseReceiver() public {

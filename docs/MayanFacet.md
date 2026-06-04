@@ -21,9 +21,24 @@ Before forwarding to Mayan, the facet validates that the order's destination rec
 
 For direct deposits to Hyperliquid HyperCore, Mayan crafts a Swift order (`createOrderWithToken` / `createOrderWithSig`, `payloadType == 2`) whose `destAddr` is **Mayan's `HCDepositor` handler contract**, not the end user. The real receiver is encoded as a left-aligned 20-byte address in `customPayload[0:20]` (`HCDepositor.parseCustomPayload`: `userWallet = customPayload[0:20]`).
 
-These orders are identified by `BridgeData.destinationChainId == 1337` (the HyperCore chain id). For them the facet reads the receiver from `customPayload` instead of `destAddr`, but **only after verifying that `destAddr` equals the hardcoded `MAYAN_HYPERCORE_DEPOSITOR` handler** (`0x56032241C0AdAb58A29b13E94fb595a4bc414e33`). Any other `destAddr` falls through to the standard `destAddr` validation, so the `customPayload` receiver is trusted only for genuine `HCDepositor` orders and `LiFiTransferStarted.receiver` is the real user.
+These orders are routed into the `customPayload` path by `BridgeData.destinationChainId == 1337`, which is **LI.FI's internal identifier** for HyperCore as a destination — it does not appear anywhere in Mayan's calldata, so it is only a routing hint, not a security gate. The actual trust decision is made entirely from the order calldata: the facet reads the receiver from `customPayload` instead of `destAddr` **only after verifying all three of the fields Mayan recommends** —
 
-Mayan has confirmed this is the sole `HCDepositor` handler and will announce any change in advance. Because the address is hardcoded, rotating it requires a facet upgrade.
+- `destAddr` equals the hardcoded `MAYAN_HYPERCORE_DEPOSITOR` handler (`0x56032241C0AdAb58A29b13E94fb595a4bc414e33`),
+- `payloadType == 2`, and
+- `destChainId == 47` (Mayan's chain id for HyperEVM, where the handler lives).
+
+If any gate fails, the order falls through to the standard `destAddr` validation, so the `customPayload` receiver is trusted only for genuine `HCDepositor` deposit orders and `LiFiTransferStarted.receiver` is the real user. Because the gate is calldata-based rather than dependent on the caller-supplied `1337`, a mistagged or spoofed order fails closed regardless of the `destinationChainId` it claims.
+
+To stay consistent with how Mayan/`HCDepositor` actually decode the order, the facet follows the dynamic `customPayload` offset pointer (head word 16) rather than a fixed slot, so it reads the exact bytes the handler will use as the receiver.
+
+### Trust assumptions
+
+On-chain, the facet enforces `customPayload[0:20] == BridgeData.receiver`, so a caller cannot make the emitted/validated receiver differ from the address encoded in the order. Two assumptions are **not** enforceable on-chain and are inherited from Mayan:
+
+- **The handler is single-purpose.** `0x56032241C0AdAb58A29b13E94fb595a4bc414e33` is only ever used as the `HCDepositor` handler for HyperCore deposits — never as a `destAddr` for another order type that interprets `customPayload` differently. If it were reused, a `chainId == 1337` order could pass the receiver check while the handler routed funds elsewhere.
+- **The handler's decode is stable.** It always treats `customPayload[0:20]` as the user wallet and is not an upgradeable proxy that could silently change that decode under the same address.
+
+Mayan has confirmed (Jun 2026): this is the **sole** `HCDepositor` handler; the receiver is **always** `customPayload[0:20]` (followed by a 4-byte destination dex and an 8-byte relayer fee); `payloadType` is **always** `2` for HyperCore deposits; `destChainId` is `47` (HyperEVM); and they will announce any change to the handler in advance. Because the handler address is hardcoded, rotating it requires a facet upgrade.
 
 ## Public Methods
 
