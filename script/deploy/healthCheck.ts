@@ -631,9 +631,15 @@ const main = defineCommand({
       environment === 'staging' ? 'whitelist.staging.json' : 'whitelist.json'
     const whitelistPath = path.join(process.cwd(), 'config', whitelistFileName)
     if (existsSync(whitelistPath)) {
-      whitelistConfig = JSON.parse(
-        readFileSync(whitelistPath, 'utf8')
-      ) as IWhitelistConfig
+      try {
+        whitelistConfig = JSON.parse(
+          readFileSync(whitelistPath, 'utf8')
+        ) as IWhitelistConfig
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        logError(`Failed to parse ${whitelistFileName}: ${errorMessage}`)
+      }
     } else if (environment === 'staging') {
       consola.info(
         'whitelist.staging.json not found, skipping whitelist checks'
