@@ -47,6 +47,12 @@ source script/helperFunctions.sh
 readonly WARN_MULT_NUM=5
 readonly WARN_MULT_DEN=2
 
+# Retry transient RPC read failures (throttling/timeouts) a few times before marking a network
+# ERROR, so a brief blip on one chain doesn't show as a spurious ERROR row. (estimatePauseCost
+# retries its own estimate/gas-price reads; this covers the balance read here.)
+readonly RPC_READ_MAX_ATTEMPTS=3
+readonly RPC_READ_RETRY_SLEEP_SECONDS=2
+
 # fmtAmount: show a wei value in native units rounded to 3 significant figures — enough to
 # eyeball funding; full 18-digit precision isn't useful here. %g may switch to scientific
 # notation for extreme values (e.g. near-zero gas costs).
@@ -164,13 +170,18 @@ function checkNetwork() {
     return
   fi
 
-  local RPC_URL BALANCE
+  local RPC_URL BALANCE BAL_ATTEMPT=1
   RPC_URL=$(resolveRpc "$NETWORK")
-  BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
-  if ! [[ "$BALANCE" =~ ^[0-9]+$ ]]; then
-    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
-    return
-  fi
+  while :; do
+    BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
+    [[ "$BALANCE" =~ ^[0-9]+$ ]] && break
+    if [[ $BAL_ATTEMPT -ge $RPC_READ_MAX_ATTEMPTS ]]; then
+      echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
+      return
+    fi
+    sleep "$RPC_READ_RETRY_SLEEP_SECONDS"
+    BAL_ATTEMPT=$((BAL_ATTEMPT + 1))
+  done
 
   local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
@@ -240,6 +251,19 @@ if ! {
 fi
 
 echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
+
+# Blind-sweep guard: if we audited in-scope networks but EVERY one returned ERROR — no
+# OK/WARNING/CRITICAL/PAUSED answer anywhere (e.g. a broad RPC outage, or a misconfigured pauser
+# making every estimate revert) — the check assessed nothing, so fail rather than report a
+# false-green "all fine". A few ERRORs alongside real answers do NOT trip this (one flaky RPC
+# shouldn't page). Categories: 0=ERROR, 1=DATA(OK/WARNING/CRITICAL), 2=PAUSED, 3=SKIP.
+ERROR_COUNT=$(printf '%s\n' "${ROWS[@]}" | grep -cE '^0[|]')
+EVALUATED_COUNT=$(printf '%s\n' "${ROWS[@]}" | grep -cE '^[12][|]')
+if [[ "$ERROR_COUNT" -gt 0 && "$EVALUATED_COUNT" -eq 0 ]]; then
+  echo "" >&2
+  error "every audited network returned ERROR ($ERROR_COUNT) — funding could not be assessed on any chain (RPC/estimation failures)" >&2
+  exit 1
+fi
 
 if [[ $HAS_CRITICAL -eq 1 ]]; then
   # Summary alert to stderr (keeps stdout = table only); exit code is the machine signal.
