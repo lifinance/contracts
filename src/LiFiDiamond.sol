@@ -10,6 +10,7 @@ import { LibUtil } from "./Libraries/LibUtil.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Base EIP-2535 Diamond Proxy Contract.
 /// @custom:version 1.0.0
+/// @dev Changelog test: minor doc bump for demo run
 contract LiFiDiamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
         LibDiamond.setContractOwner(_contractOwner);

@@ -9,7 +9,7 @@ import { LibAsset } from "../Libraries/LibAsset.sol";
 /// @title Ownership Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Manages ownership of the LiFi Diamond contract for admin purposes
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract OwnershipFacet is IERC173 {
     /// Storage ///
 
@@ -77,6 +77,13 @@ contract OwnershipFacet is IERC173 {
     /// @return owner_ The current owner address
     function owner() external view override returns (address owner_) {
         owner_ = LibDiamond.contractOwner();
+    }
+
+    /// @notice Return the pending owner address (if a transfer is in progress).
+    /// @return pendingOwner_ The address that will become owner after confirmOwnershipTransfer(), or address(0) if none.
+    function pendingOwner() external view returns (address pendingOwner_) {
+        Storage storage s = getStorage();
+        pendingOwner_ = s.newOwner;
     }
 
     /// Private Methods ///
