@@ -1,6 +1,7 @@
 {
   "IMPORTANT DEV NOTICE": "after adding a new mapping, call initSuperset (first deploy) or setChainIdToEid (incremental update) on every diamond where SupersetFacet is deployed",
   "Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts": {},
+  "Source for Superset PoolManager addresses: https://github.com/superset-finance/deployments/blob/main/manifests/mainnet.json": {},
   "poolManager": {
     "arbitrum": "0xcC687ed9155F5e49719D5f3147F79FD5F177961c",
     "base": "0x57C155a15a9CA0A6C1F759ac6988b4fCa3663Ea4",
