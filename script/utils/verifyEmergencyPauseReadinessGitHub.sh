@@ -124,15 +124,6 @@ function verifyPauserOnNetwork() {
   local NETWORK="$1"
   local EXPECTED_PAUSER="$2"
 
-  # skip any non-prod networks (mirrors diamondEMERGENCYPauseGitHub.sh exactly so this
-  # check covers precisely the networks the real pause acts on)
-  case "$NETWORK" in
-    "bsc-testnet" | "localanvil" | "sepolia" | "mumbai" | "lineatest")
-      echo "skipping $NETWORK (Testnet)"
-      return 0
-      ;;
-  esac
-
   # A network with no production LiFiDiamond is simply not in scope ("verify every
   # production diamond" — there isn't one here), so skip with a visible notice rather
   # than failing. networks.json lists more networks (e.g. tronshasta) than have a prod
