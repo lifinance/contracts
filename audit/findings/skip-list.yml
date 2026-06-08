@@ -63,9 +63,13 @@
 #   equality/inequality checks (the guard), and inside
 #   LibUtil.validateReceiver(...). Also excludes _bridgeData.receiver
 #   (canonical parent — only flags bridge-SPECIFIC structs).
-# - lf-053-loop-msg-value — requires an enclosing for/while/do-while
-#   loop. Eliminates the single-swap FP class.
+# - lf-053-loop-msg-value — RULE DELETED. Slither ships an upstream-
+#   maintained equivalent (`msg-value-loop`, Medium impact, detector
+#   since Slither 0.10.x). Our LI.FI rule was a straight duplicate;
+#   keeping it added maintenance burden without unique coverage. The
+#   LF-053 LF-NNN entry in audit/knowledge/findings.json stays — it's
+#   the historical knowledge; only the Semgrep rule file was removed.
 #
 # Validation: total semgrep findings across PR #1715/#1731/#1711 dropped
-# from 19 → 3 (84%). Remaining 3 are legitimate concerns routed to
-# fp-check.
+# from 19 → 3 (84%) — that delta still holds because lf-053 had been
+# tuned to zero matches in the dry-run set before deletion.
