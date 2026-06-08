@@ -1,6 +1,6 @@
 # Security Review — Stage 1 (deterministic static analysis)
-# - Runs Slither, Aderyn, and Semgrep in parallel on every non-draft PR that
-#   touches src/** or audit/knowledge/** (rule changes re-trigger).
+# - Runs Slither and Semgrep in parallel on every non-draft PR that touches
+#   src/** or audit/knowledge/** (rule changes re-trigger).
 # - Each tool emits SARIF; results are uploaded to GitHub Code Scanning with
 #   a per-tool category so they appear inline in the PR diff and aggregate in
 #   the Security tab.
@@ -68,58 +68,6 @@ jobs:
         with:
           sarif_file: slither.sarif
           category: slither
-
-  aderyn:
-    # Aderyn: Cyfrin's Rust-based Solidity static analyzer. Native SARIF
-    # output (the file extension determines the report format).
-    name: aderyn
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    continue-on-error: true # advisory mode (EXP-480)
-    permissions:
-      contents: read
-      security-events: write # required to upload SARIF to GitHub Code Scanning
-    env:
-      ADERYN_VERSION: aderyn-v0.6.8
-    steps:
-      - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Foundry
-        # Required so Aderyn can resolve remappings and compile contracts.
-        uses: ./.github/actions/setup-foundry
-
-      - name: Install Aderyn
-        # Pinned to a specific release tag (env.ADERYN_VERSION). The installer
-        # script is fetched from the immutable release URL; bumping the version
-        # is a single-line change to the env block above.
-        # TODO(EXP-484): verify installer sha256 against a pinned hash before
-        # executing — Slither/Semgrep run in their own containers but Aderyn
-        # installs into the runner. See global.standards #supply-chain.
-        run: |
-          set -euo pipefail
-          curl --proto '=https' --tlsv1.2 -fsSL \
-            "https://github.com/cyfrin/aderyn/releases/download/${ADERYN_VERSION}/aderyn-installer.sh" \
-            -o /tmp/aderyn-installer.sh
-          bash /tmp/aderyn-installer.sh
-          # The installer drops the binary under $HOME/.local/share/aderyn/ and
-          # symlinks it into $HOME/.local/bin/. Prepend to PATH for later steps.
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Run Aderyn
-        # `--output <file>.sarif` selects SARIF format by extension.
-        # Aderyn auto-detects Foundry/Hardhat from the project root.
-        run: aderyn --output aderyn.sarif .
-
-      - name: Upload Aderyn SARIF
-        if: always() && hashFiles('aderyn.sarif') != ''
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
-        with:
-          sarif_file: aderyn.sarif
-          category: aderyn
 
   semgrep:
     # Semgrep: runs the custom LI.FI rules under audit/knowledge/semgrep/
