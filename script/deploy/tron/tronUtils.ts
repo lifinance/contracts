@@ -42,7 +42,6 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-
 import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
 import type { IDiamondRegistrationResult } from './types'
 

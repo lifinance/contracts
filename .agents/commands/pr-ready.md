@@ -203,7 +203,7 @@ If none of those help, capture the full CLI output (`coderabbit auth login -v` i
        Suggested location: .agents/rules/<NNN>-<name>.md (matching scope: <glob>)
    ```
 
-   The agent **never** writes to `.agents/rules/` from inside `/pr-ready`. Promotion is a separate, explicit step the dev runs via `/add-new-rule`.
+   The agent **never** writes to `.agents/rules/` from inside `/pr-ready`. Promotion is a separate, explicit step the dev runs via `/add-rule-or-skill`.
 
 6. **Re-run until clean**
 
@@ -254,7 +254,7 @@ Rejected (<N>):
   <file>:<line>  <one-line summary>  — <rationale, e.g. conflicts with rule 105-security>
   ...
 
-Repeat patterns (<N>) — candidates for promotion via /add-new-rule:
+Repeat patterns (<N>) — candidates for promotion via /add-rule-or-skill:
   "<short tag>"  seen in <K> branches  — suggested scope: <glob>
   ...
 

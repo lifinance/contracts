@@ -1,0 +1,1 @@
+../../.agents/rules/010-agents-authoring.md

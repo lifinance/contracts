@@ -706,7 +706,6 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
   return `0x${hex.padEnd(64, '0')}`
 }
 
-
 /**
  * Normalize a private key to ensure it starts with "0x".
  * If the private key already starts with "0x", it is returned unchanged.
