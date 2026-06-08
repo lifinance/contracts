@@ -10,7 +10,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { DeadlineExpired, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
@@ -286,7 +286,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         if (block.timestamp > _supersetData.deadline) {
-            revert InvalidConfig();
+            revert DeadlineExpired();
         }
 
         // Ensure backend-supplied `toEid` resolves to the same LayerZero endpoint

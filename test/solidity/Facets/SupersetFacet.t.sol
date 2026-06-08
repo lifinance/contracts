@@ -7,7 +7,7 @@ import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import { DeadlineExpired, InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -401,7 +401,7 @@ contract SupersetFacetTest is TestBaseFacet {
         bridgeData.minAmount = defaultUSDCAmount;
         validSupersetData.deadline = block.timestamp - 1;
 
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(DeadlineExpired.selector);
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
