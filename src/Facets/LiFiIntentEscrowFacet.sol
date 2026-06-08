@@ -59,7 +59,7 @@ contract LiFiIntentEscrowFacet is
     /// @param outputOracle Address of the validation layer used on the output chain
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
-    /// @param outputAmount The API-quoted destination amount paired with the worst-case swap output (`bridgeData.minAmount` at call time). On the swap entrypoint, the on-chain outputAmount is scaled linearly with the realized swap output so positive slippage is preserved into the intent rather than refunded. On the non-swap entrypoint, this value is committed as-is.
+    /// @param outputAmount The API-quoted destination amount, quoted against `_bridgeData.minAmount` (the worst-case swap output). On the swap entrypoint it is scaled to the realized swap output (`outputAmount * swapOutcome / minAmount`); on the non-swap entrypoint it is committed as-is. See `swapAndStartBridgeTokensViaLiFiIntentEscrow` and the "Output Amount Scaling" section in `docs/LiFiIntentEscrowFacet.md`.
     /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
@@ -118,6 +118,13 @@ contract LiFiIntentEscrowFacet is
     }
 
     /// @notice Performs a swap before bridging via LIFIIntent
+    /// @dev On the swap path `_bridgeData.minAmount` must equal the exact
+    ///      worst-case swap output that `_lifiIntentData.outputAmount` was
+    ///      quoted against: it is both the swap slippage floor and the
+    ///      denominator that scales the committed output to the realized swap
+    ///      result. Use only LI.FI backend-generated calldata; see "Output
+    ///      Amount Scaling" in `docs/LiFiIntentEscrowFacet.md` for the
+    ///      linear-scaling tradeoff.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
@@ -139,24 +146,25 @@ contract LiFiIntentEscrowFacet is
         if (depositAndRefundAddress == address(0))
             revert InvalidDepositAndRefundAddress();
 
-        // _bridgeData.minAmount here is the worst-case expected swap output
-        // that the backend paired with _lifiIntentData.outputAmount when
-        // quoting. Capture it before _depositAndSwap so we can use it as the
-        // scaling denominator.
-        uint256 swapMinAmountOut = _bridgeData.minAmount;
+        // Capture before `_bridgeData.minAmount` is overwritten with the
+        // realized output below; this is the denominator the committed output
+        // is scaled against.
+        uint256 worstCaseSwapOutput = _bridgeData.minAmount;
+
+        // Enforced floor: `_depositAndSwap` reverts unless the realized output
+        // is >= worstCaseSwapOutput, so swapOutcome >= worstCaseSwapOutput.
         uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
-            swapMinAmountOut,
+            worstCaseSwapOutput,
             _swapData,
             payable(depositAndRefundAddress)
         );
 
-        // The full swap output funds the intent; scale outputAmount linearly
-        // so the on-chain input/output ratio matches the backend's quote.
-        // Mirrors AcrossFacetV4's positive-slippage handling, but derives the
-        // multiplier from _bridgeData.minAmount instead of an extra field.
+        // Positive slippage funds the intent rather than being refunded;
+        // scaling holds the committed output at the backend's quoted
+        // input/output ratio.
         uint256 effectiveOutputAmount = (swapOutcome *
-            _lifiIntentData.outputAmount) / swapMinAmountOut;
+            _lifiIntentData.outputAmount) / worstCaseSwapOutput;
         _bridgeData.minAmount = swapOutcome;
 
         _startBridge(_bridgeData, _lifiIntentData, effectiveOutputAmount);
