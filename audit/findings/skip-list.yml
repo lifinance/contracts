@@ -12,7 +12,7 @@
 # Tuning is tracked in EXP-484.
 #
 # Schema:
-#   - tool: slither | aderyn | semgrep
+#   - tool: slither | semgrep
 #     rule: <rule-id from the tool>
 #     action: drop | demote
 #     rationale: |
@@ -74,47 +74,13 @@
 #   ⚠️ Currently still goes through fp-check.
 
 # ---- Aderyn -------------------------------------------------------------
-
-- tool: aderyn
-  rule: todo
-  action: drop
-  rationale: |
-    TODO comments are project-managed, not security findings.
-
-- tool: aderyn
-  rule: unused-import
-  action: drop
-  rationale: |
-    Style check; covered by solhint in the regular lint pipeline.
-
-- tool: aderyn
-  rule: state-variable-could-be-immutable
-  action: drop
-  rationale: |
-    Storage-vs-immutable trade-offs are deployment-specific (some
-    facets need post-deploy updates via timelock). Not security.
-
-- tool: aderyn
-  rule: state-variable-could-be-constant
-  action: drop
-  rationale: |
-    Same reasoning as could-be-immutable.
-
-- tool: aderyn
-  rule: centralization-risk
-  action: drop
-  rationale: |
-    LI.FI uses admin keys and timelocked governance by design. The
-    centralization is documented in docs/governance.md; flagging it
-    on every PR is pure noise.
-
-- tool: aderyn
-  rule: push-zero-opcode
-  action: demote
-  rationale: |
-    PUSH0 support depends on EVM target version configured in
-    foundry.toml. LI.FI deploys to many chains with mixed EVM
-    versions; this is handled at build-config level, not facet code.
+#
+# Aderyn was originally part of Stage 1 but was removed in EXP-484 after
+# dry-run evidence showed it contributes only ~1 finding per PR beyond
+# Slither's coverage on the same code. The marginal value didn't justify
+# the supply-chain attack surface of its installer step or the extra CI
+# job. If a second-opinion pass is wanted, it belongs in EXP-486
+# (nightly deep scan), not per-PR Stage 1.
 
 # ---- Semgrep (LI.FI custom rules from audit/knowledge/semgrep/) ---------
 

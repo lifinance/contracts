@@ -26,10 +26,10 @@ and the CI/Code-Scanning plumbing.
 
 ```
                   ┌─────────── Stage 1: deterministic ────────────┐
-                  │  Slither    Aderyn    Semgrep (LI.FI rules)   │
-                  │     │         │           │                   │
-                  │     ▼         ▼           ▼                   │
-                  │   slither.sarif  aderyn.sarif  semgrep.sarif  │
+                  │  Slither              Semgrep (LI.FI rules)   │
+                  │     │                       │                  │
+                  │     ▼                       ▼                  │
+                  │   slither.sarif         semgrep.sarif          │
                   └─────────────────┬─────────────────────────────┘
                                     │
    ┌──────────────────────────────  Stage 2: AI orchestration ────────────┐
@@ -118,7 +118,8 @@ impact, won't get better with rule tightening — add a waiver to
 
 - The rule is too noisy in general — fix the rule under
   `audit/knowledge/semgrep/` (Semgrep) or open an EXP-484 follow-up for
-  Slither/Aderyn config tuning. Don't suppress per-finding.
+  Slither config tuning (or the relevant detector's exclusion via the
+  `--exclude-<level>` flag). Don't suppress per-finding.
 - The finding is real but accepted as an admin-only risk — leave it. It's
   documented as "centralization-risk by design" elsewhere.
 - The tool will probably fix this in the next release — let it.
