@@ -4278,6 +4278,14 @@
             }
           }
         ],
+        "arc": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
         "arctestnet": [
           {
             "address": "0x956df8424b556f0076e8abf5481605f5a791cc7f",
@@ -10129,7 +10137,7 @@
       },
       {
         "name": "FeeForwarder",
-        "address": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ",
+        "address": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
