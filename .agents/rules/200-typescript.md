@@ -73,6 +73,17 @@ paths:
 
 - When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
 
+### Parallelize independent async work [CONV:PARALLEL-WORK]
+
+When the same async operation runs over many independent items (per-network balance/price
+fetches, per-chain queries), use `Promise.all` — or `Promise.allSettled` when one failure must
+not reject the whole batch — instead of `await`-ing in a sequential loop; most of the cost is
+network latency, so this turns minutes into seconds. If you hit provider rate limits, bound
+concurrency (chunk the array or use a small pool) rather than reverting to sequential. See
+`script/balances.ts` for the simple `Promise.all` case, and
+`script/tasks/moveNativeFundsToNewWallet.ts` for batched concurrency bounded by
+`MAX_CONCURRENT_JOBS`.
+
 ## Demo Scripts
 
 - When referring to "demo script", this means scripts in `script/demoScripts/`. They follow similar structural patterns (e.g., `main()` function, `setupEnvironment()`, helpers from `demoScriptHelpers`). See `demoLidoWrapper.ts`, `demoUnit.ts`, `demoEco.ts` as reference examples.

@@ -89,6 +89,22 @@ When the same multi-condition decision (e.g. "Safe-propose vs direct-send") is c
 
 When adding a new condition (testnet, zkEVM, etc.) to a routing decision, update the predicate definition only — never duplicate the new clause across every gate.
 
+### Parallelize independent per-item work [CONV:PARALLEL-WORK]
+
+When the same operation runs over many independent items (per-network sweeps, per-contract
+checks) and the cost is mostly RPC/IO latency, do NOT use a plain sequential `for` loop — it
+turns seconds into minutes and lets one slow item stall the rest. Run items as throttled
+background jobs and aggregate after `wait`.
+
+- Throttle with `MAX_CONCURRENT_JOBS` (the repo's shared knob), not an ad-hoc number.
+- A backgrounded subshell **cannot** write back to parent-shell variables. Have each worker
+  write its result to a file (or stdout → a per-item file); derive any aggregate (counts,
+  "any failures?", "any CRITICAL?") from the collected results **after** `wait`, never from
+  inside the loop.
+- Copy an existing pattern rather than reinventing the throttle/wait/merge plumbing:
+  - `processNetworkLine` worker + throttle + `wait` (`helperFunctions.sh`)
+  - `( … > "$FILE" ) &` → `wait` → merge per-item files (`helperFunctions.sh`)
+  - `executeNetworkInGroup` (`multiNetworkExecution.sh`)
 
 ### Function Documentation Format
 
