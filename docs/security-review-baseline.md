@@ -51,27 +51,36 @@ classification.
 
 ## Headline numbers
 
-| Tool    | Total findings | Skip-list FP | Informational | Likely TP | TP rate |
-| ------- | -------------- | ------------ | ------------- | --------- | ------- |
-| Slither | 1,037          | 674 (65%)    | 114 (11%)     | ~187 (18%) | ~5–10%¹ |
-| Aderyn  | 33             | 16 (48%)     | 4 (12%)       | 13 (40%)  | ~40%    |
-| Semgrep | 241            | 0²           | ~40 (17%)     | ~50 (20%) | ~15–20% |
-| **Total** | **1,311**    | **~690 (53%)** | **~158 (12%)** | **~250 (19%)** | **~10–15%** |
+| Tool      | Total findings | Skip-list FP   | Informational  | Likely TP      | Other³        | TP rate |
+| --------- | -------------: | -------------: | -------------: | -------------: | ------------: | ------- |
+| Slither   |          1,137 |     674 (59%)  |     114 (10%)  |    ~187 (16%)¹ |    162 (14%)³ | ~5–10%¹ |
+| Aderyn    |             33 |       16 (48%) |        4 (12%) |       13 (40%) |             0 | ~40%    |
+| Semgrep   |            241 |       0²       |     ~40 (17%)  |     ~50 (20%)  |   ~151 (63%)⁴ | ~15–20% |
+| **Total** |      **1,411** | **~690 (49%)** | **~158 (11%)** | **~250 (18%)** | **~313 (22%)** | **~10–15%** |
 
 ¹ Slither's "Likely TP" bucket includes a Mixed sub-bucket where ~50% of
 findings are real after closer inspection. Net TP rate after manual review is
-lower than the 18% upper bound. <br>
+lower than the 16% upper bound. <br>
 ² Semgrep runs only our own LI.FI rules. By construction none match the
-skip-list patterns. Noise comes from rule over-broadness, not topic relevance.
+skip-list patterns. Noise comes from rule over-broadness, not topic relevance. <br>
+³ "Other" for Slither captures the 62 long-tail detectors aggregated as
+`_other_` in the per-rule breakdown (avg ~2.6 findings/rule). Most are
+additional skip-list FPs; a tail-end fraction is genuinely uncategorized
+pending per-finding triage in EXP-484. <br>
+⁴ "Other" for Semgrep is the rule-over-broadness FP class — findings where
+the rule matched a pattern that, in context, is not exploitable. Distinct
+from "skip-list FP" (which is a topic-relevance bucket that doesn't apply
+to LI.FI custom rules). Estimated from per-rule FP-rate calls in the
+Semgrep section below.
 
-**Bottom line**: out of 1,311 raw findings on the current codebase, an
-estimated 130–200 are worth a human's attention. The other ~1,100 are noise
+**Bottom line**: out of 1,411 raw findings on the current codebase, an
+estimated 130–200 are worth a human's attention. The other ~1,200 are noise
 the AI triage layer (EXP-483) and rule-config tuning (EXP-484) must suppress
 before enforcement (EXP-485) is safe.
 
 ---
 
-## Slither — 1,037 findings
+## Slither — 1,137 findings
 
 Slither produces the largest volume. Most is style and code-quality.
 
@@ -112,7 +121,27 @@ Add `slither.config.json` at the repo root with:
 }
 ```
 
-Expected reduction: 1037 → ~250 findings (~75% noise removed in one config change).
+Expected reduction:
+
+```
+  Before:               1,137 findings
+  Exclude (sum):         −788
+    naming-convention    454
+    unused-state         129
+    too-many-digits       91
+    reentrancy-events     60
+    assembly              34
+    low-level-calls       20
+  After config change:    349
+  Less Mixed/_other_
+    that survive but
+    are likely FP:        ~99
+  Net reviewable:        ~250 findings
+```
+
+That's ~78% raw-volume reduction in one config change. EXP-484 follow-on
+work (per-rule precision tuning + Mixed-bucket triage) is what turns the
+~250 into the ~50–80 truly-actionable findings the agent should surface.
 
 ---
 
