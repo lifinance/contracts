@@ -1,8 +1,8 @@
 # Security Review — Stages 1 + 2 + 3 (deterministic static analysis + AI triage + publish)
-# - Stage 1: Slither and Semgrep run in parallel on every non-draft PR
-#   touching src/** or audit/knowledge/**. Each emits SARIF to Code Scanning
-#   (raw findings visible immediately) AND uploads it as an artifact so Stage 2
-#   can consume it.
+# - Stage 1: Slither and Semgrep run in parallel on every non-draft PR touching
+#   src/** or audit/knowledge/**. Each emits SARIF to Code Scanning (raw
+#   findings visible immediately) AND uploads it as an artifact so Stage 2 can
+#   consume it.
 # - Stage 2 (EXP-483): the lifi-pr-review job depends on Stage 1, downloads the
 #   SARIF artifacts, and invokes the /lifi-pr-review skill via
 #   anthropics/claude-code-action. The skill triages static findings through

@@ -46,7 +46,6 @@ CC-BY-SA-4.0 (see NOTICE).
 | Path                       | Source                                  | Notes                                           |
 | -------------------------- | --------------------------------------- | ----------------------------------------------- |
 | `${SARIF_DIR}/slither.sarif` | Stage 1 slither job                   | May be empty if Slither errored                 |
-| `${SARIF_DIR}/aderyn.sarif`  | Stage 1 aderyn job                    | "                                               |
 | `${SARIF_DIR}/semgrep.sarif` | Stage 1 semgrep job                   | "                                               |
 | `${DIFF_FILE}`             | `git diff <base>...<head> -- src/`      | PR diff against merge base, scoped to `src/`    |
 | `${PR_FILES}`               | Newline-delimited list of changed src/ files | Used to scope `by-area/*.md` loading      |
@@ -199,7 +198,6 @@ Step 5) into our existing schema:
 
 ### Tools that contributed
 - Slither:           X raw → Y after skip-list → Z confirmed by fp-check
-- Aderyn:            X raw → Y after skip-list → Z confirmed by fp-check
 - Semgrep:           X raw → Y after skip-list → Z confirmed by fp-check
 - differential-review: N new findings (M confirmed by fp-check)
 - variant-analysis:  K sibling findings hunted from confirmed TPs
