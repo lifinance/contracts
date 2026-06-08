@@ -62,6 +62,7 @@
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "0xdC09BA167DB66DEF66390EE956e6B5D30B05Fd49",
       "LidoWrapper": "",
+      "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "0xC55CB7741da5519f0AdF5f13E9609311e7097A24",
       "ReceiverAcrossV3": "",

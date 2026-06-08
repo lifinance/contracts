@@ -712,7 +712,9 @@
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
-    "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208"
+    "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
+    "gasPrice": 3000000000,
+    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast"
   },
   "lens": {
     "name": "lens",
@@ -1184,6 +1186,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xE2cb61f7e383270c9153563C6e5A18E5A7A43397",
+    "gasEstimateMultiplier": 10000,
     "devNotes": "deployments only worked with extra large gas multiplier (used 10000)"
   },
   "soneium": {
@@ -1367,6 +1370,7 @@
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000",
+    "noLegacy": true,
     "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path.",
     "skipHealthcheck": true
   },

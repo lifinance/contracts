@@ -248,12 +248,34 @@ deploySingleContract() {
     # Add network-specific deploy flags from networks.json (customDeployFlags)
     ADDITIONAL_FLAGS=""
     local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    local LEGACY_FLAG="--legacy"
     if [[ -f "$NETWORKS_JSON" ]]; then
       ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
+      # noLegacy:true means the chain requires EIP-1559 txs (e.g. AA chains) — omit --legacy
+      local NO_LEGACY
+      NO_LEGACY=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].noLegacy // false' "$NETWORKS_JSON" 2>/dev/null || echo "false")
+      if [[ "$NO_LEGACY" == "true" ]]; then
+        LEGACY_FLAG=""
+      fi
     fi
     # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
     if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
       SKIP_SIMULATION_FLAG=""
+    fi
+
+    # Override gas estimate multiplier with network-specific value from networks.json (e.g. Somnia needs 10000)
+    NETWORK_GAS_MULTIPLIER=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasEstimateMultiplier // empty' "$NETWORKS_JSON" 2>/dev/null || true)
+    if [[ -n "$NETWORK_GAS_MULTIPLIER" ]]; then
+      GAS_ESTIMATE_MULTIPLIER="$NETWORK_GAS_MULTIPLIER"
+    fi
+
+    # Override gas price via ETH_GAS_PRICE env var when networks.json has a gasPrice field.
+    # --gas-price flag only affects simulation; ETH_GAS_PRICE is what forge reads for broadcast.
+    NETWORK_GAS_PRICE=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasPrice // empty' "$NETWORKS_JSON" 2>/dev/null || true)
+    ETH_GAS_PRICE_ENV=""
+    if [[ -n "$NETWORK_GAS_PRICE" ]]; then
+      ETH_GAS_PRICE_ENV="ETH_GAS_PRICE=\"$NETWORK_GAS_PRICE\""
+      echoDebug "Using network-specific gas price: $NETWORK_GAS_PRICE wei (ETH_GAS_PRICE set)"
     fi
 
     # forge >=1.6 validates the simulation sender's balance against gas_estimate * gas_price;
@@ -269,7 +291,7 @@ deploySingleContract() {
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "$ETH_GAS_PRICE_ENV DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast $LEGACY_FLAG --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 
