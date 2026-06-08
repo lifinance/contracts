@@ -44,7 +44,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..')
 const AUDIT_LOG = path.join(REPO_ROOT, 'audit', 'auditLog.json')
 const FINDINGS = path.join(REPO_ROOT, 'audit', 'knowledge', 'findings.json')
 
-type AuditLogEntry = {
+interface IAuditLogEntry {
   auditCompletedOn: string
   auditedBy: string
   auditorGitHandle?: string
@@ -52,24 +52,28 @@ type AuditLogEntry = {
   auditCommitHash?: string
 }
 
-type AuditLog = {
-  audits: Record<string, AuditLogEntry>
+interface IAuditLog {
+  audits: Record<string, IAuditLogEntry>
 }
 
-type StatusHistoryEntry = {
+interface IStatusHistoryEntry {
   audit_id: string
   source_label: string
   status: string
 }
 
-type Finding = {
+interface IFinding {
   id: string
-  status_history: StatusHistoryEntry[]
+  status_history: IStatusHistoryEntry[]
 }
 
-type FindingsCorpus = {
+interface IFindingsCorpus {
   schema_version: string
-  findings: Record<string, Finding>
+  // Schema 1.1+: audits considered (even those with 0 keepable findings).
+  // The coverage check treats an audit as covered if EITHER it appears
+  // here OR it has findings in the corpus.
+  processed_audits?: string[]
+  findings: Record<string, IFinding>
 }
 
 function readJson<T>(p: string): T {
@@ -92,11 +96,11 @@ function main(): void {
   const newAudits = parseNewAudits()
   const prMode = newAudits !== null
 
-  let log: AuditLog
-  let corpus: FindingsCorpus
+  let log: IAuditLog
+  let corpus: IFindingsCorpus
   try {
-    log = readJson<AuditLog>(AUDIT_LOG)
-    corpus = readJson<FindingsCorpus>(FINDINGS)
+    log = readJson<IAuditLog>(AUDIT_LOG)
+    corpus = readJson<IFindingsCorpus>(FINDINGS)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`error: could not read coverage inputs: ${msg}`)
@@ -105,6 +109,9 @@ function main(): void {
 
   const logIds = new Set(Object.keys(log.audits ?? {}))
   const corpusIds = new Set<string>()
+  // Schema 1.1+: audits processed but yielding zero findings are still
+  // covered (we considered them — recorded as a no-op).
+  for (const id of corpus.processed_audits ?? []) corpusIds.add(id)
   for (const f of Object.values(corpus.findings ?? {})) {
     for (const h of f.status_history ?? []) {
       if (h.audit_id) corpusIds.add(h.audit_id)
