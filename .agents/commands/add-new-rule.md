@@ -1,6 +1,6 @@
 ---
 name: add-new-rule
-description: Standardize adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure)
+description: Guides adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure); use when authoring or revising an agent rule or command.
 usage: /add-new-rule
 ---
 

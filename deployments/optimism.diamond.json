@@ -153,9 +153,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x7167AcC53c891272b3BE0943906Ab3d165065a43": {
+      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",
@@ -172,8 +172,8 @@
       "FeeCollector": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
       "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
+      "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
