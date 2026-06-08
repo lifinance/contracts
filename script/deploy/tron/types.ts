@@ -1,7 +1,6 @@
 import type { TronTvmNetworkName } from '@lifi/tron-devkit'
 import type { Hex } from 'viem'
 
-
 export type { TronTvmNetworkName }
 
 /** Options for the propose-to-safe-tron CLI script. */

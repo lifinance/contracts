@@ -89,11 +89,13 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
      - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
   4. **Not found** — offer to create a new Linear ticket before falling back. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
      - Propose in chat (filling in the placeholders with the actual derived values):
+
        ```
        No Linear ticket found. Create one in EXSC and rename branch?
          • Ticket: team=SmartContract, title="<derived title>"
          • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
        ```
+
        - `e` (default) — show the proposed title (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
        - `y` — create the ticket with the proposed title as-is **and** rename the branch.
        - `s` — skip; proceed without a ticket and leave the branch as-is.
