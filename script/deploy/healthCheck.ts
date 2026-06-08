@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'fs'
+import path from 'path'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -621,21 +624,26 @@ const main = defineCommand({
     //          ╭─────────────────────────────────────────────────────────╮
     //          │                   Check whitelisted addresses           │
     //          ╰─────────────────────────────────────────────────────────╯
-    // Load whitelist config (staging or production)
-    // whitelist.staging.json is gitignored, so gracefully skip if unavailable in staging
+    // Load whitelist config (staging or production).
+    // whitelist.staging.json is gitignored — read from disk so TS/ESLint need not resolve it.
     let whitelistConfig: unknown = { DEXS: [], PERIPHERY: {} }
-    if (environment === 'staging') {
+    const whitelistFileName =
+      environment === 'staging' ? 'whitelist.staging.json' : 'whitelist.json'
+    const whitelistPath = path.join(process.cwd(), 'config', whitelistFileName)
+    if (existsSync(whitelistPath)) {
       try {
-        const mod = await import('../../config/whitelist.staging.json')
-        whitelistConfig = mod.default
-      } catch {
-        consola.info(
-          'whitelist.staging.json not found, skipping whitelist checks'
-        )
+        whitelistConfig = JSON.parse(
+          readFileSync(whitelistPath, 'utf8')
+        ) as IWhitelistConfig
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        logError(`Failed to parse ${whitelistFileName}: ${errorMessage}`)
       }
-    } else {
-      const mod = await import('../../config/whitelist.json')
-      whitelistConfig = mod.default
+    } else if (environment === 'staging') {
+      consola.info(
+        'whitelist.staging.json not found, skipping whitelist checks'
+      )
     }
 
     // Check if whitelist configuration exists for this network

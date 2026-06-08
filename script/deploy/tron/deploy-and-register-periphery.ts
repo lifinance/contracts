@@ -23,9 +23,7 @@ import { consola } from 'consola'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import {
   getEnvVar,
@@ -42,7 +40,6 @@ import {
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
-
 
 import {
   REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,

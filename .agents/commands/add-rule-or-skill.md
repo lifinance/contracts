@@ -1,12 +1,12 @@
 ---
-name: add-new-rule
-description: Guides adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure); use when authoring or revising an agent rule or command.
-usage: /add-new-rule
+name: add-rule-or-skill
+description: Standardize adding/updating rules & commands/skills in this repo (scoping, dedupe, naming, DRY symlink structure); use when authoring or revising an agent rule or command.
+usage: /add-rule-or-skill
 ---
 
 # Rule & Command Authoring (LI.FI Contracts)
 
-> **Usage**: `/add-new-rule`
+> **Usage**: `/add-rule-or-skill`
 
 This command is the single workflow for adding/updating **rules** and **commands/skills** in this repo.
 
@@ -75,63 +75,17 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
   - GitHub Actions: `.github/workflows/**/*.yml` / `**/*.yaml`
   - Audits: `audit/**/*.json`, `audit/**/*.pdf`
 
-## No-Duplication (single source of truth)
+## No-Duplication, Naming, Size, Cross-References
 
-Before adding a new guideline:
+These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/rules/*.md` or `.agents/commands/*.md`). See that rule for the full list. Key reminders:
 
-- Search existing rules/commands for the same concept (keywords and anchors):
-  - Examples: "NatSpec", "LiFiTransferStarted", "timelock", "viem", "expectRevert", "auditReportPath".
-- Decide the **single owning file** by scope:
-  - Universal → a `000-*` always-apply rule.
-  - Language-specific → the language rule (`100-*`, `200-*`, `300-*`).
-  - Directory-specific → the narrowest directory rule (facets/receivers/interfaces/tests).
-  - Workflow/runbook → a **command** (only if it's invoked explicitly and not tied to file editing).
-- Remove duplicates rather than "keep both in sync".
-
-## Cross-Reference Minimization
-
-- Avoid "see also" pointers.
-- Prefer: "this rule is always active" or "this activates via globs" over linking another file.
-- If a workflow truly must live in a command (explicitly invoked), keep rules minimal and avoid circular references.
-- **Avoid "Related Files" sections**: Only include file references if the rule directly depends on specific file locations or the files are explicitly mentioned in the rule's requirements.
-
-## Keep Implementation Details Separate
-
-- **Rules define "what" and "why", not "how"**: Rules state requirements, constraints, and behaviors. Implementation details (CI workflows, tooling setup) do NOT belong in the rule.
-- **Report implementation suggestions separately**: When creating a rule, if you identify helpful implementation approaches, report these back to the user as suggestions, but do NOT include them in the rule file.
-- **What belongs in rules**: requirements/constraints, example code and anti-patterns, behavioral expectations, agent behavior instructions, rationale.
-- **What to exclude**: CI workflow code, detailed tooling setup, optional enforcement mechanisms.
-
-## Referencing MCP Tools
-
-When a rule, command, or skill mentions an MCP tool, use the **client-agnostic name** — never the fully-qualified namespace ID.
-
-- ✅ Good: Linear MCP `list_issues`, Slack MCP `send_message`, the Notion MCP `search` tool
-- ❌ Bad: `mcp__claude_ai_Linear__list_issues`, `mcp__Slack__slack_send_message`
-
-The `mcp__<client>_<server>__<tool>` prefix is the runtime tool ID Claude Code injects for the Claude.ai integration. Cursor, Gemini, and other MCP clients use different prefixes; integration renames (e.g. `claude_ai` → `claude-ai`) silently break any baked-in IDs. The client-agnostic form survives both.
-
-## Naming Conventions + Uniqueness Check
-
-- Follow `.agents/rules/README.md` as the **single source of truth** for numbering ranges and naming.
-- Uniqueness checks before committing:
-  - No duplicate numeric prefixes (e.g., no two `105-*` files).
-  - `name:` fields are unique within `.agents/rules/` and within `.agents/commands/`.
-  - Globs don't unintentionally overlap.
-
-## Rule Size Limits & Split/Merge Guidance
-
-- Keep each rule focused on **one concern**.
-- Split when:
-  - You're mixing unrelated scopes (e.g., Solidity + TS in one rule).
-  - The rule becomes a multi-topic checklist that's hard to apply.
-- Merge when:
-  - Two rules always apply together and one is just a pointer.
-  - A rule only repeats a requirement already covered by a broader rule always active in the same contexts.
+- Search before adding — pick a single owning file, remove duplicates.
+- Rules define "what/why", not "how"; report CI/tooling suggestions separately.
+- Follow `.agents/README.md` for numbering ranges.
 
 ## Adding a New Rule (step by step)
 
-1. Determine scope → pick numbering range from `.agents/rules/README.md`.
+1. Determine scope → pick numbering range from `.agents/README.md`.
 2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
 3. Create the Cursor and Claude Code symlinks:
 
@@ -140,13 +94,14 @@ The `mcp__<client>_<server>__<tool>` prefix is the runtime tool ID Claude Code i
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
    ```
 
-4. Update `.agents/rules/README.md` table (name, range, description).
+4. Update `.agents/README.md` table (name, range, description).
 5. Run validation steps below.
 
 ## Adding a New Command/Skill (step by step)
 
-1. Create `.agents/commands/<name>.md` with the command content.
-2. Create the Cursor and Claude Code symlinks:
+1. Run `/skill-creator` (Anthropic built-in) to draft the skill content — it enforces ≤500 lines, progressive disclosure, and other best practices automatically.
+2. Save the output to `.agents/commands/<name>.md`.
+3. Create the Cursor and Claude Code symlinks:
 
    ```bash
    ln -sf "../../.agents/commands/<name>.md" ".cursor/commands/<name>.md"
@@ -154,13 +109,27 @@ The `mcp__<client>_<server>__<tool>` prefix is the runtime tool ID Claude Code i
    ln -sf "../../../.agents/commands/<name>.md" ".claude/skills/<name>/SKILL.md"
    ```
 
-3. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
+4. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
+
+## Modifying an Existing Rule or Command
+
+All constraints (no-duplication, size, naming, validation) apply equally on edits. `010-agents-authoring` enforces them automatically — no need to repeat them here. No symlink work is needed unless you renamed the file.
+
+## Helper script exit codes
+
+When a skill shells out to a project script (e.g. via `bunx tsx script/utils/foo.ts`), use this exit-code convention so the orchestrating skill can branch independently per target:
+
+- **`0`** — success.
+- **`1`** — real error (network, API, malformed input). Report stderr to the user and stop. Do **not** retry. Do **not** write a fallback artifact.
+- **`2`** — recoverable misconfig (env var missing, optional credential absent). Fall through to an alternative path (manual fallback file, degraded mode) and tell the user which env var to set.
+
+This split lets the skill process N targets independently — if one channel/network/recipient succeeds and another exits `2`, the skill continues for the survivors and only writes a fallback for the failed one.
 
 ## Validation Steps (PR-ready)
 
 - **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
 - **Skill symlinks**: `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- **README accuracy**: `.agents/rules/README.md` table reflects all files in `.agents/rules/`.
+- **README accuracy**: `.agents/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
 - **Stale references**: grep `.agents/rules/` and `.agents/commands/` for references to removed files.
 - **Activation sanity check**:
   - Editing a facet (`src/Facets/*.sol`) → pulls facet + Solidity baseline + architecture/security.
