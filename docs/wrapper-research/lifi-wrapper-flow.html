@@ -411,6 +411,15 @@
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+<style>
+  .arch-legend { font-size: 13px; margin: 0 0 6px; display: flex; gap: 16px; flex-wrap: wrap; font-family: ui-monospace, Menlo, monospace; color: var(--muted); }
+  .arch-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.2); vertical-align: middle; margin-right: 6px; }
+  .arch-stage { width: 100%; overflow-x: auto; padding: 8px 0; }
+  #archsvg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  #archsvg text { font-family: 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive; }
+  #archsvg text.iface { font-family: ui-monospace, Menlo, Consolas, monospace; }
+</style>
 </head>
 <body>
 <div class="container">
@@ -783,6 +792,138 @@ function <span class="key">totalAssets()</span> public view override returns (ui
 
 
   <!-- ============== PHASE 0: FACTORY DEPLOYMENT ============== -->
+  </details>
+
+  <details class="section-block" open>
+    <summary class="section">Contract architecture — boxes &amp; interfaces</summary>
+
+  <p class="subtitle" style="margin-bottom: 16px;">Every contract in the V1 system and the interface it exposes. Solid arrow = a call; dashed = a view/read. Colour = layer. Fees (4 types) live inside the wrapper clone.</p>
+  <div class="arch-legend">
+    <span><i style="background:#f3effd;border-color:#6741d9"></i>governance</span>
+    <span><i style="background:#e7f0ff;border-color:#1971c2"></i>factory / upgrade</span>
+    <span><i style="background:#ebfbee;border-color:#2f9e44"></i>wrapper clone</span>
+    <span><i style="background:#fff9db;border-color:#f08c00"></i>external</span>
+    <span><i style="background:#f1f3f5;border-color:#495057"></i>actor</span>
+  </div>
+  <div class="arch-stage"><svg id="archsvg" viewBox="0 0 1180 1000" width="1180" height="1000"></svg></div>
+  <script>
+  (function(){
+    const LAYER = {
+      gov:   {fill:'#f3effd', stroke:'#6741d9'},
+      fac:   {fill:'#e7f0ff', stroke:'#1971c2'},
+      core:  {fill:'#ebfbee', stroke:'#2f9e44'},
+      ext:   {fill:'#fff9db', stroke:'#f08c00'},
+      actor: {fill:'#f1f3f5', stroke:'#495057'},
+    };
+    const boxes = {
+      multisig: {x:70,y:30,w:190,h:72, layer:'gov', title:'LI.FI Multisig',
+        lines:['proposer / canceller']},
+      timelock: {x:360,y:22,w:235,h:98, layer:'gov', title:'WrapperTimelock · 48h',
+        lines:['schedule()','execute() · anyone +48h','cancel()']},
+      factory: {x:330,y:188,w:305,h:150, layer:'fac', title:'LiFiVaultWrapperFactory',
+        lines:['deploy() → clone','setUnderlyingAllowed()','setFeeBounds / setDefaultSplit','globalPause() · globalPaused()']},
+      beacon: {x:735,y:198,w:235,h:104, layer:'fac', title:'UpgradeableBeacon',
+        lines:['implementation()','upgradeTo(newImpl)']},
+      user: {x:40,y:470,w:230,h:150, layer:'actor', title:'User / Composer',
+        lines:['deposit(assets, receiver)','withdraw / redeem(…, owner)','permit / depositFor']},
+      wrapper: {x:365,y:400,w:400,h:410, layer:'core', title:'LiFiVaultWrapper (clone)',
+        lines:['— ERC-4626 (users) —','deposit / mint','withdraw / redeem','preview* / convert*','asset() / underlyingVault()',
+                '— fees: perf · mgmt · deposit · withdrawal —','setFeeRate(type,bps) / setFeeEnabled',
+                'setSplit (LI.FI / integrator, per type)','accrue on every deposit/withdraw (no harvest)',
+                'sweep() → receivers · anyone',
+                '— admin (integrator) —','setAccessMode / setSanctionsOracle','pause / unpause · setTosHash']},
+      underlying: {x:855,y:410,w:285,h:120, layer:'ext', title:'Underlying ERC-4626',
+        lines:['deposit / redeem','maxWithdraw / totalAssets']},
+      receivers: {x:855,y:600,w:285,h:118, layer:'ext', title:'Fee receivers',
+        lines:['LI.FI treasury','integrator wallets 1..5']},
+      accesslist: {x:365,y:865,w:235,h:96, layer:'ext', title:'IAccessList',
+        lines:['isAllowed(addr)','isDenied(addr)']},
+      oracle: {x:635,y:875,w:235,h:80, layer:'ext', title:'ISanctionsOracle',
+        lines:['isSanctioned(addr)']},
+    };
+    const edges = [
+      {f:'multisig',  fs:'r',ff:.5, t:'timelock',  ts:'l',tf:.5, label:'schedule'},
+      {f:'timelock',  fs:'b',ff:.4, t:'factory',   ts:'t',tf:.4, label:'48h gate'},
+      {f:'timelock',  fs:'b',ff:.75,t:'beacon',    ts:'t',tf:.45,label:'upgradeTo'},
+      {f:'factory',   fs:'r',ff:.4, t:'beacon',    ts:'l',tf:.5, label:'reads impl', dashed:true},
+      {f:'factory',   fs:'b',ff:.35,t:'wrapper',   ts:'t',tf:.28,label:'deploy'},
+      {f:'beacon',    fs:'b',ff:.4, t:'wrapper',   ts:'t',tf:.72,label:'implementation'},
+      {f:'wrapper',   fs:'t',ff:.62,t:'factory',   ts:'b',tf:.68,label:'globalPaused', dashed:true},
+      {f:'user',      fs:'r',ff:.5, t:'wrapper',   ts:'l',tf:.45,label:'deposit / redeem'},
+      {f:'wrapper',   fs:'r',ff:.2, t:'underlying',ts:'l',tf:.5, label:'deposit / redeem'},
+      {f:'wrapper',   fs:'r',ff:.72,t:'receivers', ts:'l',tf:.4, label:'sweep'},
+      {f:'wrapper',   fs:'b',ff:.25,t:'accesslist',ts:'t',tf:.5, label:'isAllowed / isDenied', dashed:true},
+      {f:'wrapper',   fs:'b',ff:.6, t:'oracle',    ts:'t',tf:.4, label:'isSanctioned', dashed:true},
+    ];
+
+    const svg = document.getElementById('archsvg');
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const rc = (typeof rough !== 'undefined') ? rough.svg(svg) : null;
+
+    function el(name, attrs, text){
+      const e = document.createElementNS(SVGNS, name);
+      for(const k in attrs) e.setAttribute(k, attrs[k]);
+      if(text != null) e.textContent = text;
+      return e;
+    }
+    function rect(x,y,w,h,opt){
+      if(rc){ svg.appendChild(rc.rectangle(x,y,w,h,opt)); }
+      else { svg.appendChild(el('rect',{x,y,width:w,height:h,rx:6,
+        fill:opt.fill,stroke:opt.stroke,'stroke-width':opt.strokeWidth||1.8})); }
+    }
+    function line(x1,y1,x2,y2,dashed){
+      if(rc){
+        svg.appendChild(rc.line(x1,y1,x2,y2,{roughness:1.1,stroke:'#495057',strokeWidth:1.6,
+          strokeLineDash: dashed?[7,6]:undefined}));
+      } else {
+        svg.appendChild(el('line',{x1,y1,x2,y2,stroke:'#495057','stroke-width':1.6,
+          'stroke-dasharray': dashed?'7,6':'0'}));
+      }
+    }
+    function arrow(x,y,ang){
+      const s=10, a1=ang-0.42, a2=ang+0.42;
+      const p=`M${x},${y} L${x-s*Math.cos(a1)},${y-s*Math.sin(a1)} L${x-s*Math.cos(a2)},${y-s*Math.sin(a2)} Z`;
+      svg.appendChild(el('path',{d:p,fill:'#495057'}));
+    }
+    function anchor(b,side,frac){
+      frac = (frac==null)?.5:frac;
+      if(side==='l') return {x:b.x,        y:b.y+b.h*frac};
+      if(side==='r') return {x:b.x+b.w,    y:b.y+b.h*frac};
+      if(side==='t') return {x:b.x+b.w*frac,y:b.y};
+      return {x:b.x+b.w*frac, y:b.y+b.h};
+    }
+
+    edges.forEach(e=>{
+      const p1=anchor(boxes[e.f], e.fs, e.ff);
+      const p2=anchor(boxes[e.t], e.ts, e.tf);
+      line(p1.x,p1.y,p2.x,p2.y, e.dashed);
+      arrow(p2.x,p2.y, Math.atan2(p2.y-p1.y, p2.x-p1.x));
+      if(e.label){
+        const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2;
+        const w=e.label.length*6.4+8;
+        svg.appendChild(el('rect',{x:mx-w/2,y:my-10,width:w,height:18,fill:'#fafafa',opacity:.92,rx:3}));
+        const tx=el('text',{x:mx,y:my+3,'text-anchor':'middle','font-size':11,fill:'#495057'});
+        tx.setAttribute('class','iface'); tx.textContent=e.label; svg.appendChild(tx);
+      }
+    });
+
+    for(const id in boxes){
+      const b=boxes[id], c=LAYER[b.layer];
+      rect(b.x,b.y,b.w,b.h,{roughness:1.3,stroke:c.stroke,strokeWidth:1.9,fill:c.fill,fillStyle:'solid'});
+      svg.appendChild(el('text',{x:b.x+14,y:b.y+25,'font-size':15,'font-weight':'bold',fill:'#1e1e1e'}, b.title));
+      let yy=b.y+47;
+      const step=(b.h-40)/Math.max(b.lines.length,1);
+      const lh=Math.min(step,27);
+      b.lines.forEach(ln=>{
+        const dim = ln.charAt(0)==='—';
+        const t=el('text',{x:b.x+16,y:yy,'font-size': dim?11:12.5, fill: dim?'#868e96':'#343a40'});
+        t.setAttribute('class','iface'); t.textContent=ln; svg.appendChild(t);
+        yy+=lh;
+      });
+    }
+  })();
+  </script>
+
   </details>
 
   <details class="section-block" open>
