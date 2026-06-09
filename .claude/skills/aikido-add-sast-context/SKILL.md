@@ -1,1 +1,0 @@
-../../../.agents/commands/aikido-add-sast-context.md

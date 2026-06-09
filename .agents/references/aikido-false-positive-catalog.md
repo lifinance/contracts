@@ -1,6 +1,6 @@
 # Aikido False Positive Catalog — lifinance/contracts
 
-Shared by `/aikido-add-sast-context` and `/aikido-address-findings`.
+Used by `/aikido-address-findings` (auto-triage on scan) and `/aikido-update-false-positive-catalog` (add new patterns).
 
 Each pattern has:
 
