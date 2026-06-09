@@ -1,6 +1,6 @@
 ---
 name: request-audit
-description: Prepares and sends a smart contract audit request to Slack (Sujith or burrasec team); use when a PR is ready for external audit review.
+description: Prepares a smart contract audit request and drafts it to Slack as you (Sujith or burrasec team) for one-click send; use when a PR is ready for external audit review.
 usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 ---
 
@@ -8,30 +8,39 @@ usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 
 > **Usage**: `/request-audit <PR_NUMBER_OR_URL> [--urgent]`
 
-Fetch a PR, extract scope + context, draft an audit request (parent post + thread reply),
-let the user pick the channel(s) and optionally edit, then post to Slack only after explicit
-confirmation.
+Fetch a PR, extract scope + context, compose an audit request, let the user pick the
+channel(s) and optionally edit, then create a Slack **draft** (via the Slack MCP) that posts
+**as the user** — the user reviews it in Slack and clicks Send.
+
+Why a draft, not a direct post: the audit channels are **Slack Connect** (externally shared)
+channels. Slack blocks every integration — including user-OAuth — from *writing* to them
+(`mcp_externally_shared_channel_restricted`), so a direct `slack_send_message` fails. But
+`slack_send_message_draft` is permitted: it lands an attached draft in the user's Slack that
+they send manually, so the message goes out under their name rather than a bot's. The webhook
+path (Step 6 fallback) is the only zero-touch option but posts as the app — prefer the draft.
 
 ---
 
 ## Channels
 
-| Alias | Channel | Mention ID | Display name (manual fallback) | Greeting position |
-|---|---|---|---|---|
-| **sujith** | `#dev-sc-audit` | `<@U05GN6XH57T>` | `@Sujith Somraaj` | greeting **before** PR/Commit |
-| **burrasec** | `#dev-sc-audit-burrasec` | `<@U094M720QDP>` | `@Josip Koncurat` | PR/Commit **before** greeting |
+| Alias | Channel | Channel ID | Mention ID | Display name (manual fallback) | Greeting position |
+|---|---|---|---|---|---|
+| **sujith** | `#dev-sc-audit` | `C08CJ4FEHQA` | `<@U05GN6XH57T>` | `@Sujith Somraaj` | greeting **before** PR/Commit |
+| **burrasec** | `#dev-sc-audit-burrasec` | `C094C46JSDP` | `<@U094M720QDP>` | `@Josip Koncurat` | PR/Commit **before** greeting |
 
-### .env (one-time per developer)
+If a channel ID ever changes, resolve it with `slack_search_channels` (the audit channels may
+be private — pass `channel_types: public_channel,private_channel`).
 
-Convention: a channel `#X` is posted to via env var `WEBHOOK_X` (uppercase, hyphens → underscores).
-URLs live in 1Password vault **Developers Smart Contract**, item **Webhooks SC Channels**.
+### .env (optional — only for the webhook fallback)
+
+The draft path needs no `.env`. The Step 6 webhook *fallback* posts to a channel `#X` via env
+var `WEBHOOK_X` (uppercase, hyphens → underscores); URLs live in 1Password vault **Developers
+Smart Contract**, item **Webhooks SC Channels**.
 
 ```
 WEBHOOK_DEV_SC_AUDIT=https://hooks.slack.com/services/...
 WEBHOOK_DEV_SC_AUDIT_BURRASEC=https://hooks.slack.com/services/...
 ```
-
-If a var is unset, that channel falls back to a manual file (see Step 6, exit 2).
 
 ---
 
@@ -97,30 +106,11 @@ inclusions), and merge-order / multi-PR sequencing if step N of M.
 "urgent" / "time pressure" / "blocker" / "ASAP" / "today" or carry an urgency label, the
 Linear ticket has `priority: 1` (Urgent), or the Linear ticket's `dueDate` is within ~3 days.
 
-## Step 3 — Build the messages
+## Step 3 — Build the message
 
-### Parent (channel post)
-
-```
-Audit: {scope_summary} {urgency_suffix} :thread:
-```
-
-- `scope_summary` — plain text, no backticks. 2–3 contracts: list all comma-separated. 4+
-  contracts: `{first} + N more`, e.g. `GenericSwapFacetV3 v2.0.0 + 6 more`.
-- `urgency_suffix` — `(urgent)` if urgent, else omit the placeholder entirely.
-
-Examples:
-
-```
-Audit: DeBridgeDlnFacet v1.1.0 :thread:
-Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:
-Audit: Patcher v1.0.1 (urgent) :thread:
-```
-
-### Thread reply (one template, two variants by channel)
-
-Both channels use the same blocks — greeting (with mention), PR + Commit, Scope, Context —
-in two orderings:
+One self-contained message per channel that posts **as-is** — no `Audit: …` headline, no
+`:thread:` ornament, no separate parent — so the user can send the draft with zero edits. Same
+blocks (greeting with mention, PR + Commit, Scope, Context), two orderings by channel:
 
 **Sujith** (greeting first):
 
@@ -154,7 +144,8 @@ Scope: {full_scope_list}
   contract change to audit." Append urgency: "It's a bit urgent — are you able to review this
   today?"
 - `full_scope_list` — comma-separated, **every** contract with its version. Backticks per the
-  code-style rule below when posting via webhook; plain text in the manual-fallback file.
+  code-style rule below (a draft renders inline code when sent); plain text only in the
+  manual-paste fallback file.
 - `context` — see next section.
 
 ### Composing the context paragraph
@@ -176,15 +167,16 @@ boundaries — auditors need to know what's out of scope as much as what's in.
 Linear ticket or Slack thread had a long discussion, extract only the decision-relevant parts;
 drop back-and-forth, emoji reactions, administrative replies.
 
-**Code style** (applies to webhook posts; the manual-fallback file deliberately uses plain
-text — see Step 6 exit 2). Wrap in backticks every function, variable, contract, repo, error,
+**Code style** (applies to the draft and webhook posts; only the manual-paste fallback file
+uses plain text — see Step 6). Wrap in backticks every function, variable, contract, repo, error,
 constant, selector, and version string — `transfer()`, `safeTransfer`, `LibAsset.transferERC20`,
 `LibAsset.sol`, `contracts-tron`, `TransferFailed`, `contractSelectorIsAllowed`, `v2.1.3`. Plain
 prose words (the, this, PR, etc.) are never wrapped.
 
 ## Step 4 — Preview and confirm
 
-Show the full preview using markdown code blocks so the user sees exactly what will be posted:
+Show the full preview using markdown code blocks so the user sees exactly what will be drafted —
+one ready-to-send message per channel (this is verbatim what the draft will contain):
 
 ````
 ## Audit Request Preview
@@ -197,28 +189,16 @@ Show the full preview using markdown code blocks so the user sees exactly what w
 
 ### Option 1: Sujith (#dev-sc-audit)
 
-**Parent message:**
 ```
-{parent_message}
-```
-
-**Thread reply:**
-```
-{thread_reply_sujith}
+{message_sujith}
 ```
 
 ---
 
 ### Option 2: Burrasec (#dev-sc-audit-burrasec)
 
-**Parent message:**
 ```
-{parent_message}
-```
-
-**Thread reply:**
-```
-{thread_reply_burrasec}
+{message_burrasec}
 ```
 
 ---
@@ -227,37 +207,65 @@ Show the full preview using markdown code blocks so the user sees exactly what w
 Then ask:
 
 ```
-Where should I send this?
+Where should I draft this?
   1 — Sujith only
   2 — Burrasec only
   3 — Both channels
   4 — Cancel
 
-Reply 1/2/3/4, or suggest edits to the message text before I send.
+Reply 1/2/3/4, or suggest edits to the message text before I create the draft.
 ```
 
 **Stop. Wait for the reply.**
 
 ## Step 5 — Apply edits (if requested)
 
-Apply, show the updated message, confirm before sending:
+Apply, show the updated message, confirm before drafting:
 
 ```
 Updated message:
 […]
-Ready to send? (yes / cancel)
+Ready to create the draft? (yes / cancel)
 ```
 
-## Step 6 — Send
+## Step 6 — Create the draft (default path — posts as the user)
+
+The Step 3 message is one self-contained Slack message that posts **as the user**: they review
+the draft in Slack and click Send with no edits. Do **not** post directly — `slack_send_message`
+to a Connect channel fails with `mcp_externally_shared_channel_restricted`.
 
 For each chosen channel, **independently** (one channel failing must not abort siblings):
 
-1. Build the combined message: parent + blank line + thread reply, with `:thread:` dropped
-   from the parent — incoming webhooks can't thread, so we collapse to one self-contained
-   message. Use the backtick code style.
-2. Write it to a temp file (multi-line text mustn't be shell-quoted):
+1. Take the Step 3 message **verbatim** (greeting-led, no `Audit:` headline, no `:thread:`).
+   Keep the backtick code style and the `<@…>` API mention — a draft renders both correctly
+   when sent.
+2. Create the draft via the Slack MCP, using the **Channel ID** from the Channels table:
+
+   ```
+   slack_send_message_draft(channel_id = <id>, message = <the Step 3 message>)
+   ```
+
+   (`<id>` = `C08CJ4FEHQA` for sujith, `C094C46JSDP` for burrasec.)
+3. Interpret the result:
+
+| Result | Action |
+|---|---|
+| draft created | `✅ Draft ready in #{channel} (posts as you) — review & hit Send: {channel_link}` |
+| `draft_already_exists` | Tell the user a draft is already attached to #{channel}; they should send or discard it in Slack, then re-run for that channel. Do **not** fall back to the webhook. |
+| any other error | Drafting is unavailable (MCP down / no access) — fall back to the webhook (see below). |
+
+After drafting all chosen channels, remind the user the messages are **not sent yet** — they
+must open each channel and click Send.
+
+### Fallback 1 — webhook (posts as the app/bot, not the user)
+
+Use **only** if drafting errored for a non-`draft_already_exists` reason (e.g. the Slack MCP
+isn't connected). This posts as the webhook app, so prefer the draft path. For each affected
+channel:
+
+1. Write the Step 3 message to a temp file (multi-line text mustn't be shell-quoted):
    `/tmp/audit-{pr_number}-{channel}.txt`
-3. Run:
+2. Run:
 
    ```bash
    bunx tsx script/utils/send-slack-webhook-message.ts \
@@ -266,52 +274,42 @@ For each chosen channel, **independently** (one channel failing must not abort s
    ```
 
    where `{channel}` is `dev-sc-audit` (sujith) or `dev-sc-audit-burrasec` (burrasec).
-4. Interpret exit code:
+3. Interpret exit code:
 
 | Exit | Meaning | Action |
 |---|---|---|
-| `0` | sent | `✅ Sent to #{channel}` |
-| `2` | `WEBHOOK_*` env var not set for that channel | Manual fallback for **this channel only** — see below |
-| `1` | Slack / network error | Report stderr, do **not** retry, do **not** write fallback |
+| `0` | sent | `✅ Sent to #{channel} (via webhook — posted as the app)` |
+| `2` | `WEBHOOK_*` env var not set for that channel | Fall back to the manual-paste file (below) for **this channel only** |
+| `1` | Slack / network error | Report stderr, do **not** retry, do **not** write the manual file |
 
-### Exit 2 — manual fallback (per channel)
+### Fallback 2 — manual-paste file (last resort)
 
-Two transforms from the webhook version: **display-name mentions** instead of `<@…>` (Slack
-only resolves API mentions through its API, not when pasted), and **plain text** (no
-backticks — Slack doesn't render inline code from externally-pasted content).
+Reached only when both drafting and the webhook are unavailable. Two transforms from the
+draft/webhook version: **display-name mentions** instead of `<@…>` (Slack only resolves API
+mentions through its API, not when a human pastes text), and **plain text** (no backticks —
+Slack doesn't render inline code from pasted content).
 
-Build the full file content first (one block per fallback channel; omit any channel that
-already posted), then write **once** to `/tmp/audit-request-{pr_number}.md` — never write one
-channel and overwrite with another. Format:
+Build the full file content first (one block per affected channel; omit any channel that
+already drafted/posted), then write **once** to `/tmp/audit-request-{pr_number}.md` — never
+write one channel and overwrite with another. Format:
 
 ```markdown
 # Audit Request — PR #{pr_number}
 
 ## #{channel_name}
-
-### Parent message
 Post this as a new message in the channel:
 
 ---
-{parent message — display name mentions — plain text}
----
-
-### Thread reply
-Reply to the parent message with this (click the reply icon on the parent):
-
----
-{thread reply — display name mentions — plain text}
+{message — display name mentions — plain text}
 ---
 ```
 
-Tell the user, naming only the channel(s) that fell back. Print one line per failed channel,
-substituting `{webhook_var}` with the exact missing env var (`WEBHOOK_DEV_SC_AUDIT` or
-`WEBHOOK_DEV_SC_AUDIT_BURRASEC`):
+Tell the user, naming only the channel(s) that fell back this far, and why (e.g. `{webhook_var}
+unset` for that channel):
 
 ```
-⚠️ {webhook_var} is not set in .env — wrote manual fallback for #{channel} to
-   /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password -> Developers
-   Smart Contract -> Webhooks SC Channels) to post automatically next time.
+⚠️ Could not draft or webhook-post to #{channel} — wrote a manual-paste version to
+   /tmp/audit-request-{pr_number}.md. Open it and paste it into the channel.
 ```
 
 ---
@@ -323,8 +321,9 @@ substituting `{webhook_var}` with the exact missing env var (`WEBHOOK_DEV_SC_AUD
 | PR not found | Report and stop |
 | Scope can't be determined | List changed `src/` files, ask user to confirm scope |
 | User replies with anything other than 1–4 at the confirm step | Ask again |
+| `slack_send_message` rejected with `mcp_externally_shared_channel_restricted` | Expected for Connect channels — use the draft path (Step 6), never direct send |
 
-(Helper exit codes `0`/`1`/`2` are handled in Step 6.)
+(Draft results and webhook exit codes `0`/`1`/`2` are handled in Step 6.)
 
 ---
 
@@ -342,9 +341,7 @@ GenericSwapFacetV3 v2.0.0, WithdrawablePeriphery v2.0.0, LiFiDEXAggregator v1.13
 ReceiverAcrossV3 v1.2.0, ReceiverChainflip v1.1.0, ReceiverStargateV2 v1.2.0, TokenWrapper v1.3.0
 ```
 
-**Step 3 parent:** `Audit: GenericSwapFacetV3 v2.0.0 + 6 more :thread:`
-
-**Step 3 Sujith thread reply:**
+**Step 3 Sujith message** (single, ready-to-send — opens with the greeting, no headline):
 
 ```
 Hey <@U05GN6XH57T>! I have a new audit for you.
@@ -357,10 +354,12 @@ Scope: `GenericSwapFacetV3 v2.0.0`, `WithdrawablePeriphery v2.0.0`, `LiFiDEXAggr
 Tron's canonical USDT contract declares `transfer()` as `returns (bool)` but omits the actual `return true` — the EVM returns 32 zero bytes, which Solady's `safeTransfer` interprets as `false` and reverts. Rather than ship Tron-specific bytecode to 60+ EVM chains, the team maintains a `contracts-tron` fork where the actual bypass lives inside `LibAsset.transferERC20`. This PR is step 1 of a two-part audit sequence: it routes every periphery ERC20 transfer through `LibAsset` so that the single fork-level change covers all call sites automatically — `LibAsset.sol` is not modified here (stays at `v2.1.3`) and the PR contains no Tron-specific code. Once this PR is audited and merged, a second audit will follow for the `contracts-tron` fork PR #9 where `LibAsset` receives the Tron USDT bypass. The same audit cycle is also used to land two breaking changes: `GenericSwapFacetV3` migrates from the legacy `contractIsAllowed` + `selectorIsAllowed` pair to the stricter `contractSelectorIsAllowed`, and `WithdrawablePeriphery` adds a `ZeroAmount` revert plus routes native transfers through `LibAsset.transferAsset`. Approval and native-ETH paths are intentionally out of scope — the Tron USDT issue is `transfer()`-only.
 ```
 
-(Burrasec reply is structurally identical, just `PR/Commit` first, then `Hey @Josip Koncurat. …`, same scope and same context paragraph.)
+(Burrasec message is structurally identical, just `PR/Commit` first, then `Hey @Josip Koncurat. …`, same scope and same context paragraph.)
 
-**Step 6:** Helper sends to `dev-sc-audit` (`WEBHOOK_DEV_SC_AUDIT`); exit `0` → ✅. If unset
-→ exit `2` → manual fallback for that channel only.
+**Step 6:** Take the message above verbatim and `slack_send_message_draft(channel_id =
+"C08CJ4FEHQA", message = …)` → `✅ Draft ready in #dev-sc-audit (posts as you) — review & hit
+Send`. Only if the Slack MCP is unavailable does it fall back to the `WEBHOOK_DEV_SC_AUDIT`
+webhook (posts as the app).
 
 This example calibrates two things abstract rules can't: the **prose density** of the context
 paragraph (5–7 sentences of compressed reasoning, never bullet-listed) and the **exact template
