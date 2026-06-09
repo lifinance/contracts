@@ -439,10 +439,10 @@
 
       <table class="balances">
         <tr><th>What integrators want</th><th>Why</th></tr>
-        <tr><td>A configurable performance fee</td><td>Earn revenue on user yield (e.g. 10% perf fee → integrator keeps ~9%, LI.FI keeps ~1%).</td></tr>
-        <tr><td>Optional KYC / whitelist gate</td><td>Regulated partners can require off-chain identity checks before users deposit.</td></tr>
-        <tr><td>Sanctions blacklist</td><td>Block sanctioned addresses (e.g. OFAC list).</td></tr>
-        <tr><td>Emergency deposit pause</td><td>Halt new deposits if something's wrong with the underlying; existing users can always withdraw.</td></tr>
+        <tr><td>A configurable fee suite</td><td>Four independent fee types — performance, management, deposit, withdrawal — each optional, each within an immutable cap, each with its own LI.FI/integrator revenue split.</td></tr>
+        <tr><td>Access control</td><td>Whitelist (KYB gate), blacklist (deny list), or both — plus an optional sanctions oracle (Chainalysis) for real-time OFAC screening.</td></tr>
+        <tr><td>Pause controls</td><td>Per-instance deposit pause, plus a factory-wide circuit-breaker LI.FI can trip across every instance at once. Withdrawals are never pausable.</td></tr>
+        <tr><td>Referrer attribution</td><td>Deposits can carry a referrer id to credit partners who drive volume.</td></tr>
         <tr><td>Custom branding</td><td>"Coinbase Earn USDC" rather than a generic underlying vault name.</td></tr>
       </table>
 
@@ -464,10 +464,10 @@
         <tr><td>5. Setup</td><td>What happens when an integrator deploys a new wrapper instance — factory call, params, deployment topology.</td></tr>
         <tr><td>6. Lifecycle walkthrough</td><td>A complete walkthrough — deposit → yield → fee accrual → second user → withdrawal → fee payout — with concrete numbers at every step.</td></tr>
         <tr><td>7. Compounded fees</td><td>What happens when the underlying vault ALSO charges its own fee on yield — common in production, since most curated vaults (MetaMorpho, Yearn V3) take a curator fee.</td></tr>
-        <tr><td>8. APY</td><td>What APY actually means, how it's derived from PPS history, where it should be computed (on-chain view vs integrator backend vs UI text), and the multi-layer fee composition between gross borrower interest and the user's effective rate.</td></tr>
+        <tr><td>8. APY</td><td>What APY actually means, how it's derived from PPS history, the split between the real APY (computed off-chain) and the integrator-set displayed value, and the multi-layer fee composition between gross borrower interest and the user's effective rate.</td></tr>
         <tr><td>9. Whitelist / KYC gating</td><td>How the optional KYC gate works, including the share-transfer coupling that closes the OTC-bypass loophole.</td></tr>
         <tr><td>10. Sanctions + rescue</td><td>What happens when a user gets sanctioned mid-position — the wrapper blocks them, and anyone can call forceWithdraw to return their funds.</td></tr>
-        <tr><td>11. Admin operations</td><td>Two admin levers — perf-fee changes (with the "accrue at old rate first" subtlety) and the deposit pause.</td></tr>
+        <tr><td>11. Admin operations</td><td>Admin levers — fee-rate changes (with the "accrue at old rate first" subtlety), the per-instance deposit pause, and the factory-wide circuit-breaker.</td></tr>
       </table>
     </div>
 
@@ -478,7 +478,7 @@
 
       <table class="balances">
         <tr><th>Component</th><th>Value</th></tr>
-        <tr><td>Wrapper</td><td>10% performance fee on yield</td></tr>
+        <tr><td>Wrapper</td><td>10% performance fee on yield (the one fee type this walkthrough follows; the full suite — performance / management / deposit / withdrawal — is in the architecture diagram)</td></tr>
         <tr><td>Underlying vault</td><td>MetaMorpho USDC (a real production vault on Ethereum)</td></tr>
         <tr><td>Underlying starting state</td><td>~50M USDC TVL, already running for months with prior depositors</td></tr>
         <tr><td>Users</td><td>Alice (first depositor) and Bob (second depositor)</td></tr>
@@ -657,11 +657,11 @@
     </div>
     <table class="balances">
       <tr><th>Feature</th><th>Why integrators want it</th></tr>
-      <tr><td>Configurable performance fee</td><td>The integrator earns revenue on yield (e.g. 10%); LI.FI gets a small cut of that.</td></tr>
-      <tr><td>Optional whitelist (KYC gate)</td><td>Regulated partners can require know-your-customer checks before users deposit. <i>KYC</i> = the integrator has verified the user's identity off-chain.</td></tr>
-      <tr><td>Blacklist (sanctions)</td><td>Block sanctioned addresses. Typically backed by an OFAC oracle — OFAC is the US Treasury list of sanctioned entities.</td></tr>
-      <tr><td>Deposit pause</td><td>Allow ops to halt new deposits in an emergency (withdrawals always remain open).</td></tr>
-      <tr><td>Custom branding (name, symbol)</td><td>"Coinbase Earn USDC" rather than the generic underlying vault name.</td></tr>
+      <tr><td>Configurable fee suite (4 types)</td><td>Performance, management, deposit and withdrawal fees — each optional, each capped, each with its own LI.FI/integrator split. The integrator earns revenue; LI.FI takes a cut of each.</td></tr>
+      <tr><td>Access mode (whitelist / blacklist / both)</td><td>Gate deposits by an allow-list (KYB — the integrator verified identity off-chain), a deny-list, or both. Backed by a Merkle root, on-chain mapping, or an external list contract.</td></tr>
+      <tr><td>Sanctions oracle (optional)</td><td>A separate real-time OFAC check (Chainalysis) layered on top of the access mode; disableable per instance.</td></tr>
+      <tr><td>Pause + circuit-breaker</td><td>Per-instance deposit pause, plus a factory-wide halt LI.FI can trip across all instances. Withdrawals always remain open.</td></tr>
+      <tr><td>Referrer + custom branding</td><td>Optional referrer id on deposits; "Coinbase Earn USDC" rather than the generic underlying vault name.</td></tr>
     </table>
   </div>
 
@@ -771,20 +771,20 @@ function <span class="key">totalAssets()</span> public view override returns (ui
 
     <div class="arch-card step3">
       <div class="arch-num">3</div>
-      <div class="arch-title">Fee Crystallization</div>
+      <div class="arch-title">Fee Payout (sweep)</div>
       <div class="arch-body">
-        <code>collectFees()</code> burns the wrapper's own fee-shares, redeems the equivalent USDC from MetaMorpho, and forwards it to the <code>FeeDispatcher</code> contract that splits 20% LI.FI / 80% integrator.
+        <code>sweep()</code> burns the wrapper's accrued fee-shares, redeems the equivalent assets from the underlying, and sends each fee type's amount to the LI.FI treasury and the integrator's 1..5 receiver wallets, per that fee type's own split. No external dispatcher and no caller reward — funds only ever go to the pre-configured receivers.
         <div class="meta">
           <b>Trigger:</b> permissionless (anyone can call)<br>
           <b>Gas:</b> ~80k<br>
-          <b>Payer:</b> caller (compensated by a small reward in basis points, "bps")
+          <b>Payer:</b> caller (no reward; payouts go to configured receivers)
         </div>
       </div>
     </div>
   </div>
 
   <div class="note info">
-    <b>Key insight:</b> step 1 has no on-chain step in our wrapper — it's already done by the underlying. Step 2 happens on every user touch (predictable gas, always-truthful PPS). Step 3 is only cashflow — affects no user's economic balance, just converts the wrapper's own fee-shares into USDC for the treasury.
+    <b>Key insight:</b> step 1 has no on-chain step in our wrapper — it's already done by the underlying. Step 2 happens on every user touch (predictable gas, always-truthful PPS). Step 3 is only cashflow — affects no user's economic balance, just converts the wrapper's own fee-shares into assets for the LI.FI treasury and the integrator's receiver wallets.<br><br><b>Which fees flow where:</b> the <b>performance</b> and <b>management</b> fees accrue as fee-shares in step 2 (share-side dilution). The <b>deposit</b> and <b>withdrawal</b> fees are taken asset-side at the moment of the deposit/withdraw — they never move share price. This walkthrough follows the performance fee; the other three use the same plumbing.
   </div>
 
   <!-- ============== MORPHO YIELD MECHANICS ============== -->
@@ -825,7 +825,7 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       beacon: {x:735,y:198,w:235,h:104, layer:'fac', title:'UpgradeableBeacon',
         lines:['implementation()','upgradeTo(newImpl)']},
       user: {x:40,y:470,w:230,h:150, layer:'actor', title:'User / Composer',
-        lines:['deposit(assets, receiver)','withdraw / redeem(…, owner)','permit / depositFor']},
+        lines:['deposit(assets, receiver, referrer?)','withdraw / redeem(…, owner)','permit / depositFor']},
       wrapper: {x:365,y:400,w:400,h:410, layer:'core', title:'LiFiVaultWrapper (clone)',
         lines:['— ERC-4626 (users) —','deposit / mint','withdraw / redeem','preview* / convert*','asset() / underlyingVault()',
                 '— fees: perf · mgmt · deposit · withdrawal —','setFeeRate(type,bps) / setFeeEnabled',
@@ -959,7 +959,7 @@ function <span class="key">totalAssets()</span> public view override returns (ui
         <div class="actor-body" style="font-size: 12px;">
           <div class="row"><span>beacon</span><b>0xBEACON…</b></div>
           <div class="row"><span>impl</span><b>WrapperVault v1</b></div>
-          <div class="row"><span>maxFeeBps cap</b></span><b>2000</b></div>
+          <div class="row"><span>fee caps (per type)</span><b>50/10/20/20%</b></div>
         </div>
       </div>
       <div class="arrow">
@@ -979,18 +979,18 @@ function <span class="key">totalAssets()</span> public view override returns (ui
 
     <div class="math"><span class="comment">// VaultFactory.createVault — relevant params for the new instance</span>
 struct InitParams {
-    <span class="key">underlying</span>:        IERC4626    = MetaMorpho_USDC (0xdd0f…)   <span class="comment">// immutable post-deploy</span>
-    <span class="key">name</span>:              string      = "Coinbase Earn USDC"
-    <span class="key">symbol</span>:            string      = "cbEarnUSDC"
-    <span class="key">perfFeeBps</span>:        uint256     = 1000                         <span class="comment">// 10%, ≤ factory cap (A10) ≤ _MAX_FEE_BPS (A11)</span>
-    <span class="key">admin</span>:             address     = Coinbase multisig             <span class="comment">// DEFAULT_ADMIN_ROLE</span>
-    <span class="key">feeManager</span>:        address     = Coinbase multisig             <span class="comment">// can change perfFee within cap</span>
-    <span class="key">sanctionsManager</span>:  address     = LI.FI sanctions multisig      <span class="comment">// updates blacklist</span>
-    <span class="key">pauser</span>:            address     = LI.FI ops OR integrator       <span class="comment">// either can pause (deposit-pause only)</span>
-    <span class="key">unpauser</span>:          address     = LI.FI ops OR integrator       <span class="comment">// either can unpause</span>
-    <span class="key">feeDispatcher</span>:     IFeeDispatcher = 0xFEED…                  <span class="comment">// 20% LI.FI / 80% integrator split</span>
-    <span class="key">whitelist</span>:         IWhitelist  = 0xWHIT…  (or address(0))    <span class="comment">// optional KYC gate</span>
-    <span class="key">blacklist</span>:         IBlacklist  = 0xBLOCK…                    <span class="comment">// OFAC sanctions list</span>
+    <span class="key">underlying</span>:        IERC4626   = MetaMorpho_USDC (0xdd0f…)   <span class="comment">// immutable; asset() is derived from it</span>
+    <span class="key">name / symbol</span>:     string     = "Coinbase Earn USDC" / "cbEarnUSDC"
+    <span class="key">fees[4]</span>:           {enabled, rateBps} per {perf, mgmt, deposit, withdrawal}  <span class="comment">// rate ≤ factory bound (A10) ≤ immutable cap (A11)</span>
+    <span class="key">feeSplits[4]</span>:      LI.FI/integrator bps, per fee type        <span class="comment">// default 20/80, mutable via timelock (Q1.13)</span>
+    <span class="key">receivers / bps</span>:   integrator's 1..5 wallets (Σ = integrator share)  <span class="comment">// native split, no external dispatcher (I25)</span>
+    <span class="key">admin</span>:             address    = Coinbase multisig             <span class="comment">// instance admin</span>
+    <span class="key">feeManager</span>:        address    = Coinbase multisig             <span class="comment">// sets fee rates within caps</span>
+    <span class="key">accessMode</span>:        NONE | WHITELIST | BLACKLIST | BOTH       <span class="comment">// couples to share transferability</span>
+    <span class="key">accessList</span>:        IAccessList = Merkle / mapping / external  <span class="comment">// backs whitelist/blacklist</span>
+    <span class="key">sanctionsOracle</span>:   ISanctionsOracle = 0xCHAINALYSIS… (or address(0))  <span class="comment">// optional, separate layer</span>
+    <span class="key">pauser / unpauser</span>: address    = LI.FI ops OR integrator       <span class="comment">// either party; deposit-pause only</span>
+    <span class="key">chainLockId</span>:       uint256    = optional single-chain lock    <span class="comment">// deposits revert off this chain</span>
 }
 
 <span class="key">salt</span> = keccak256(integrator, underlying, chainLockId, nonce)   <span class="comment">// same-address-across-chains</span></div>
@@ -1019,7 +1019,7 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
         <tr><th>Entity</th><th>Address</th><th>Role</th></tr>
         <tr><td><span class="dot d-wrap"></span>WrapperVault instance</td><td>0xWRAP…</td><td>BeaconProxy, <code>asset() = USDC</code> (derived from MetaMorpho), ready to accept deposits</td></tr>
         <tr><td><span class="dot" style="background:#475569;"></span>Beacon</td><td>0xBEACON…</td><td>Holds impl address; upgradable by LI.FI timelock</td></tr>
-        <tr><td><span class="dot d-fee"></span>FeeDispatcher</td><td>0xFEED…</td><td>Receives accumulated fees on every collectFees() call; splits 20% LI.FI / 80% integrator.</td></tr>
+        <tr><td><span class="dot d-fee"></span>Fee receivers</td><td>config</td><td>LI.FI treasury + the integrator's 1..5 wallets. Each fee type pays out per its own LI.FI/integrator split when <code>sweep()</code> is called. No external splitter contract.</td></tr>
       </table>
     </div>
 
@@ -1285,11 +1285,11 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
     <div class="step-header">
       <span class="step-day">Day 65</span>
       <span class="step-tag step3">Step 3 · Fee Crystallization</span>
-      <h2 class="step-title">Anyone calls <code>collectFees()</code> — permissionless</h2>
+      <h2 class="step-title">Anyone calls <code>sweep()</code> — permissionless</h2>
     </div>
-    <p class="step-desc">Cashflow realization. The wrapper burns its own fee-shares, redeems the proportional underlying, and forwards USDC to FeeDispatcher (20% LI.FI / 80% integrator). Affects no user's economic balance — only converts wrapper-owned shares into treasury USDC.</p>
+    <p class="step-desc">Cashflow realization. The wrapper burns its accrued fee-shares, redeems the proportional underlying, and sends the proceeds to the LI.FI treasury and the integrator's receiver wallets per the fee's split (here the performance fee's default 20/80). No caller reward; affects no user's economic balance.</p>
 
-    <div class="math"><span class="comment">// collectFees() — separate from user flow</span>
+    <div class="math"><span class="comment">// sweep() — separate from user flow</span>
 <span class="key">burn</span>    0.917 wshares from address(this)
 <span class="key">redeem</span>  0.917 × PPS_wrap ≈ <b>1.00 USDC</b> from underlying
 <span class="key">split</span>   0.20 USDC → LI.FI treasury
@@ -1313,10 +1313,10 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
         <svg width="100" height="20"><line x1="0" y1="10" x2="92" y2="10" stroke="#1a1a1f" stroke-width="1.5"/><polygon points="92,4 100,10 92,16" fill="#1a1a1f"/></svg>
       </div>
       <div class="actor actor-dispatcher">
-        <div class="actor-label">FeeDispatcher</div>
+        <div class="actor-label">Receivers</div>
         <div class="actor-body">
           <div class="row"><span>received</span><b>1.00 USDC</b></div>
-          <div class="row muted"><span>split 20/80</span><b></b></div>
+          <div class="row muted"><span>perf split 20/80</span><b></b></div>
         </div>
       </div>
       <div class="arrow">
@@ -1482,16 +1482,16 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
     <div class="step-header">
       <h2 class="step-title">Where can APY be computed?</h2>
     </div>
-    <p class="step-desc" style="margin-bottom: 16px;">Two options, each with tradeoffs:</p>
+    <p class="step-desc" style="margin-bottom: 16px;">Two distinct numbers — the design separates them deliberately:</p>
 
     <table class="balances">
-      <tr><th>Where</th><th>How it works</th><th>Tradeoff</th></tr>
-      <tr><td><b>(a) Off-chain in the integrator's backend</b></td><td>Integrator's indexer reads historical <code>totalAssets()</code> from RPC archives or events, computes APR/APY in their own backend, displays in the app.</td><td>Zero on-chain overhead, full control over window/smoothing. Each integrator can compute it slightly differently. <b>Default choice for most integrators.</b></td></tr>
-      <tr><td><b>(b) Marketing fixed number in the UI</b></td><td>App hardcodes "Earn up to 4.5% APY!" regardless of real yield.</td><td>Trivially possible (it's just UI text), but if real yield is 3% and the app says 5%, users feel misled and the integrator eats legal/reputational risk. Not recommended; would only make sense if combined with a guaranteed-rate product, which is a different SC design entirely (Maple/Anchor-style fixed-rate vaults).</td></tr>
+      <tr><th>Number</th><th>How it works</th><th>Notes</th></tr>
+      <tr><td><b>Real APY</b> — computed off-chain</td><td>The LI.FI API (or the integrator's indexer) reads historical <code>totalAssets()</code> / PPS from RPC archives or events and computes APR/APY over a chosen window. There is no on-chain APY getter — production vaults (MetaMorpho, Yearn V3, Sky) all expect this off-chain too.</td><td>The truthful, measured number.</td></tr>
+      <tr><td><b>Displayed APY</b> — off-chain</td><td>The integrator sets the headline figure they want shown; it lives in PartnerPortal / the LI.FI API as configuration — <b>not</b> on the wrapper. The contract has no APY field and does no APY math.</td><td>A product/marketing figure (e.g. a trailing average or net-of-fees rate). The API <b>flags when displayed diverges materially from real</b> (Q8.2 / U12); disclosure is a Legal/API concern.</td></tr>
     </table>
 
     <div class="note">
-      <b>Current recommendation:</b> the smart contract exposes the primitives (<code>totalAssets</code>, <code>convertToAssets(1e18)</code>, <code>perfFeeBps</code>) so option (a) is always available. Production vaults (MetaMorpho, Yearn V3, Sky) don't expose an on-chain APY getter — they all expect this to be computed off-chain. Option (b) is an integrator UI decision, outside SC scope.
+      <b>Decision:</b> APY is entirely off-chain. The contract neither computes nor stores any APY — it just exposes the primitives (<code>totalAssets</code>, <code>convertToAssets(1e18)</code>, fee rates) so the real APY can be computed off-chain, while the integrator's displayed figure lives in PartnerPortal / the LI.FI API. The honesty check — displayed vs. real — lives at the API layer.
     </div>
   </div>
 
@@ -1702,28 +1702,28 @@ function transfer(...) {
     <div class="step-header">
       <span class="step-day">Admin</span>
       <span class="step-tag step2">Fee change</span>
-      <h2 class="step-title">Integrator drops the perf fee from 10% → 5%</h2>
+      <h2 class="step-title">Integrator drops the performance fee from 10% → 5%</h2>
     </div>
-    <p class="step-desc" style="margin-bottom: 16px;">The subtle requirement: between the previous fee-accrual checkpoint and the rate change, some yield has accrued at the OLD rate. If we change the rate first and then accrue, the new rate would retroactively apply to that old yield — under-charging users or over-charging them depending on direction. The fix is to accrue at the old rate first, then change the rate.</p>
+    <p class="step-desc" style="margin-bottom: 16px;">Shown for the performance fee; the management fee works the same way. The subtle requirement: between the previous fee-accrual checkpoint and the rate change, some yield has accrued at the OLD rate. If we change the rate first and then accrue, the new rate would retroactively apply to that old yield — under- or over-charging depending on direction. The fix is to accrue at the old rate first, then change the rate.</p>
 
-    <div class="math"><span class="comment">// Wrapper.setPerfFee</span>
-function setPerfFee(uint256 newBps) external onlyRole(FEE_MANAGER) {
-    require(newBps <= MAX_FEE_BPS);
+    <div class="math"><span class="comment">// Wrapper.setFeeRate — one entrypoint for all four fee types</span>
+function setFeeRate(FeeType t, uint256 newBps) external onlyRole(FEE_MANAGER) {
+    require(newBps <= feeCap[t]);          <span class="comment">// per-type immutable cap (perf 50%, mgmt 10%, dep/wd 20%)</span>
 
     <span class="step2">_accrueFee();</span>           <span class="comment">// 1) crystallise pending fee at OLD rate (10%)</span>
-    <span class="key">perfFeeBps = newBps;</span>      <span class="comment">// 2) NOW the rate flips to 5%</span>
-                                <span class="comment">// 3) subsequent yield will accrue at 5%</span>
+    <span class="key">feeRate[t] = newBps;</span>      <span class="comment">// 2) NOW the rate flips to 5%</span>
+                                <span class="comment">// 3) subsequent yield accrues at 5%</span>
 }</div>
 
     <table class="balances">
-      <tr><th>Phase</th><th>perfFeeBps</th><th>What gets fee'd at this rate</th></tr>
+      <tr><th>Phase</th><th>perf rate</th><th>What gets fee'd at this rate</th></tr>
       <tr><td>Before call</td><td>1000 (10%)</td><td>—</td></tr>
       <tr><td>Inside _accrueFee()</td><td>1000 (10%)</td><td>All yield since the last accrual</td></tr>
-      <tr><td>After perfFeeBps = 500</td><td>500 (5%)</td><td>All yield from this point on</td></tr>
+      <tr><td>After setFeeRate = 500</td><td>500 (5%)</td><td>All yield from this point on</td></tr>
     </table>
 
     <div class="note info">
-      <b>Why the order matters:</b> without the accrue-first step, a fee cut would retroactively apply to historical yield (integrator loses revenue they'd already earned). A fee hike would do the opposite (users get charged retroactively). Either way is unfair and breaks the property that "the fee in effect <i>when</i> the yield happened is what gets charged."
+      <b>Why the order matters:</b> without the accrue-first step, a fee cut would retroactively apply to historical yield (integrator loses revenue they'd already earned). A fee hike would do the opposite (users get charged retroactively). Either way is unfair and breaks the property that "the fee in effect <i>when</i> the yield happened is what gets charged." This accrue-first rule applies to the <b>share-side</b> fees (performance, management). <b>Deposit and withdrawal</b> fees are charged asset-side at tx time, so a rate change simply applies to future deposits/withdrawals — no retroactive question.
     </div>
   </div>
 
@@ -1733,27 +1733,28 @@ function setPerfFee(uint256 newBps) external onlyRole(FEE_MANAGER) {
       <span class="step-tag step2">Pause</span>
       <h2 class="step-title">Pauser halts deposits (withdrawals stay open)</h2>
     </div>
-    <p class="step-desc" style="margin-bottom: 16px;">Used when something is wrong with the underlying (e.g. MetaMorpho looks like it might suffer bad debt, or there's a question mark on a downstream Morpho Blue market) and we want to stop new users from entering until things are clarified. <b>Withdrawals are never pausable</b> — existing users must always be able to exit.</p>
+    <p class="step-desc" style="margin-bottom: 16px;">Used when something is wrong with the underlying (e.g. MetaMorpho looks like it might suffer bad debt, or there's a question mark on a downstream Morpho Blue market) and we want to stop new users from entering until things are clarified. Two tiers exist: a <b>per-instance</b> deposit pause (either LI.FI or the integrator may pause and unpause), and a <b>factory-wide circuit-breaker</b> (LI.FI emergency multisig only) that halts deposits across every instance at once for a shared-bytecode emergency. <b>Withdrawals are never pausable</b> by either tier — existing users must always be able to exit.</p>
 
     <table class="balances">
-      <tr><th>Operation</th><th>Before pause</th><th>After pause</th></tr>
+      <tr><th>Operation</th><th>Before pause</th><th>After pause (instance or factory)</th></tr>
       <tr><td><code>deposit()</code> / <code>mint()</code></td><td>✓ allowed</td><td>✗ revert <code>DepositsPaused()</code></td></tr>
       <tr><td><code>withdraw()</code> / <code>redeem()</code></td><td>✓ allowed</td><td>✓ still allowed</td></tr>
-      <tr><td><code>transfer()</code> (if whitelist off)</td><td>✓ allowed</td><td>✓ still allowed</td></tr>
-      <tr><td><code>collectFees()</code></td><td>✓ allowed</td><td>✓ still allowed</td></tr>
+      <tr><td><code>transfer()</code> (if access mode off)</td><td>✓ allowed</td><td>✓ still allowed</td></tr>
+      <tr><td><code>sweep()</code></td><td>✓ allowed</td><td>✓ still allowed</td></tr>
       <tr><td><code>forceWithdraw()</code></td><td>✓ allowed (if blocked)</td><td>✓ still allowed</td></tr>
     </table>
 
-    <div class="math" style="margin-top: 16px;"><span class="comment">// Wrapper.pauseDeposits / unpauseDeposits</span>
-function pauseDeposits() external onlyRole(PAUSER) {
-    depositPaused = true;
-}
-function unpauseDeposits() external onlyRole(UNPAUSER) {
-    depositPaused = false;
+    <div class="math" style="margin-top: 16px;"><span class="comment">// Per-instance pause — LI.FI ops OR integrator may call either function</span>
+function pauseDeposits()   external onlyRole(PAUSER)   { depositPaused = true;  }
+function unpauseDeposits() external onlyRole(UNPAUSER) { depositPaused = false; }
+
+<span class="comment">// The deposit path also reads the factory-wide breaker:</span>
+function _beforeDeposit() internal view {
+    require(!depositPaused && !factory.globalPaused(), "DepositsPaused");
 }
 
-<span class="comment">// Note: distinct roles by design (PAUSER vs UNPAUSER) so that pausing</span>
-<span class="comment">// is easy / fast but unpausing requires a more deliberate process.</span></div>
+<span class="comment">// factory.globalPause() — LI.FI emergency multisig only, no timelock —</span>
+<span class="comment">// trips globalPaused() across every instance in one transaction.</span></div>
   </div>
 
   </details>
@@ -1762,7 +1763,7 @@ function unpauseDeposits() external onlyRole(UNPAUSER) {
     <div class="legend-item"><span class="dot d-alice"></span>Alice (depositor)</div>
     <div class="legend-item"><span class="dot d-bob"></span>Bob (second depositor)</div>
     <div class="legend-item"><span class="dot d-wrap"></span>Wrapper</div>
-    <div class="legend-item"><span class="dot d-fee"></span>Fee bucket / dispatcher</div>
+    <div class="legend-item"><span class="dot d-fee"></span>Fee bucket / receivers</div>
     <div class="legend-item"><span class="dot d-curator"></span>Curator (underlying)</div>
     <div class="legend-item"><span class="dot" style="background:var(--under);"></span>Underlying ERC-4626</div>
   </div>
