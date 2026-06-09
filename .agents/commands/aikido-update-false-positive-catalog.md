@@ -16,9 +16,8 @@ No API permissions required — reads code, writes a local file.
 
 - **file-path**: the file Aikido flagged (required)
 - **rule-name**: the Aikido rule / finding title (required)
-- **issue-id**: Aikido issue ID from the feed (optional — included in the entry if provided)
 
-If either required input is missing, ask for it before proceeding.
+If either input is missing, ask for it before proceeding.
 
 ---
 
