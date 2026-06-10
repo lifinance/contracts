@@ -238,6 +238,7 @@ export interface IProposeToSafeOptions {
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
+  nonce?: bigint
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */
