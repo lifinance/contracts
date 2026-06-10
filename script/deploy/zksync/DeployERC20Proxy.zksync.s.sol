@@ -31,58 +31,14 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        address predictedExecutor = _getPredictedExecutorAddressForZkSync(
-            refundWalletAddress
-        );
-
-        emit log_named_address(
-            "LI.FI: Predicted Executor Address: ",
-            predictedExecutor
-        );
-
-        return abi.encode(refundWalletAddress, predictedExecutor);
-    }
-
-    /// @dev zkSync CREATE2 addresses depend on constructor args; resolve the ERC20Proxy/Executor fixed point.
-    function _getPredictedExecutorAddressForZkSync(
-        address refundWalletAddress
-    ) internal returns (address predictedExecutor) {
-        string memory erc20SaltPrefix = vm.envString("DEPLOYSALT");
-        string memory executorSaltPrefix = vm.envString("EXECUTOR_DEPLOYSALT");
-        bytes32 erc20BytecodeHash = getZkSyncBytecodeHash("ERC20Proxy");
-        bytes32 executorBytecodeHash = getZkSyncBytecodeHash("Executor");
-        bytes32 erc20Salt = keccak256(
-            abi.encodePacked(erc20SaltPrefix, "ERC20Proxy")
-        );
-        bytes32 executorSalt = keccak256(
-            abi.encodePacked(executorSaltPrefix, "Executor")
-        );
-
-        address erc20Proxy;
-        predictedExecutor = address(0);
-
-        for (uint256 i = 0; i < 8; ) {
-            erc20Proxy = predictCreate2Address(
-                erc20BytecodeHash,
-                erc20Salt,
-                abi.encode(refundWalletAddress, predictedExecutor)
-            );
-
-            address nextExecutor = predictCreate2Address(
-                executorBytecodeHash,
-                executorSalt,
-                abi.encode(erc20Proxy, refundWalletAddress)
-            );
-
-            if (nextExecutor == predictedExecutor && i > 0) {
-                break;
-            }
-
-            predictedExecutor = nextExecutor;
-
-            unchecked {
-                ++i;
-            }
-        }
+        // zkSync CREATE2 addresses depend on the constructor args, which makes the ERC20Proxy and
+        // Executor addresses mutually dependent (each constructor takes the other's address). Unlike
+        // EVM CREATE3 — where the address is independent of constructor args — there is no convergent
+        // way to predict the Executor address before it is deployed, so the Executor cannot be
+        // pre-authorized at construction here. Deploy without pre-authorization (executor =
+        // address(0)); refundWallet (the ERC20Proxy owner) authorizes the Executor afterwards via
+        // setAuthorizedCaller. deployAllContracts handles this as a dedicated zkEVM step, since the
+        // deploy wallet does not hold the refundWallet key.
+        return abi.encode(refundWalletAddress, address(0));
     }
 }

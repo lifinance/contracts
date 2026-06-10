@@ -409,10 +409,18 @@ deployAllContracts() {
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Verify ERC20Proxy authorization"
 
-    # ERC20Proxy >= 1.2.0 pre-authorizes Executor at deploy time via predicted CREATE3 address.
-    # This stage verifies the linkage; legacy deployments require refundWallet to call setAuthorizedCaller.
-    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
-    checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
+    # ERC20Proxy >= 1.2.0 pre-authorizes Executor at deploy time via the predicted CREATE3 address.
+    # On zkEVM, CREATE2 addresses depend on constructor args, so the Executor address cannot be
+    # predicted and pre-authorization is skipped (executor = address(0)) — the owner (refundWallet)
+    # must authorize the Executor manually. That branch funds refundWallet for the one tx and prints
+    # the command; the deploy wallet cannot send it (setAuthorizedCaller is onlyOwner = refundWallet).
+    if isZkEvmNetwork "$NETWORK"; then
+      authorizeExecutorOnZkEvm "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "zkEVM Executor authorization step on $NETWORK"
+    else
+      updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
+    fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi

@@ -207,14 +207,6 @@ deploySingleContract() {
       # Create salt that is used to deploy contract (same logic as non-zkEVM path)
       local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
-      # ERC20Proxy deploy pre-authorizes the predicted Executor CREATE3 address
-      local EXECUTOR_DEPLOYSALT=""
-      if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
-        local EXECUTOR_BYTECODE
-        EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
-        EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
-      fi
-
       # Get predicted contract address for zksync deployment
       # Note: zksync uses CREATE2-like deterministic addressing
       # We need to check if this address already has code deployed
@@ -280,7 +272,7 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
