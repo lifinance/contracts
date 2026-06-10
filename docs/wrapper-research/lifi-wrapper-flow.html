@@ -774,7 +774,7 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       <div class="arch-num">3</div>
       <div class="arch-title">Fee Payout (sweep)</div>
       <div class="arch-body">
-        <code>sweep()</code> burns the wrapper's accrued fee-shares, redeems the equivalent assets from the underlying, and sends each fee type's amount to the LI.FI treasury and the integrator's 1..5 receiver wallets, per that fee type's own split. No external dispatcher and no caller reward — funds only ever go to the pre-configured receivers.
+        <code>sweep()</code> burns the wrapper's accrued fee-shares, redeems the equivalent assets from the underlying, and sends each fee type's amount to the LI.FI treasury and the integrator's 1..N receiver wallets, per that fee type's own split. No external dispatcher and no caller reward — funds only ever go to the pre-configured receivers.
         <div class="meta">
           <b>Trigger:</b> permissionless (anyone can call)<br>
           <b>Gas:</b> ~80k<br>
@@ -830,7 +830,7 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       userDirect: {x:40,y:470,w:215,h:86, layer:'actor', title:'User',
         lines:['msg.sender = user','(direct path)']},
       composer: {x:40,y:580,w:215,h:118, layer:'actor', title:'Composer proxy',
-        lines:['msg.sender = proxy','receiver = user','(alt: via Composer)']},
+        lines:['msg.sender = proxy','receiver / owner = user','redeem via allowance']},
       integrator: {x:40,y:720,w:215,h:130, layer:'actor', title:'Integrator (admin)',
         lines:['setFeeRate / setFeeEnabled','setReceivers / setSplit','setAccessMode / setSanctionsOracle','pause/unpause · setTosHash']},
       wrapper: {x:330,y:455,w:400,h:400, layer:'core', title:'Wrapper clone · BeaconProxy',
@@ -844,7 +844,7 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       lifiWallet: {x:860,y:663,w:215,h:72, layer:'ext', title:'LI.FI treasury',
         lines:['LI.FI fee share']},
       intWallets: {x:860,y:753,w:215,h:86, layer:'ext', title:'Integrator wallets',
-        lines:['1..5 wallets, by bps']},
+        lines:['1..N wallets, by bps']},
       underlying: {x:330,y:915,w:400,h:110, layer:'ext', title:'Underlying ERC-4626',
         lines:['deposit / redeem','totalAssets / maxWithdraw','permissionless · sees only wrapper']},
     };
@@ -1003,7 +1003,7 @@ struct InitParams {
     <span class="key">name / symbol</span>:     string     = "Coinbase Earn USDC" / "cbEarnUSDC"
     <span class="key">fees[4]</span>:           {enabled, rateBps} per {perf, mgmt, deposit, withdrawal}  <span class="comment">// rate ≤ factory bound (A10) ≤ immutable cap (A11)</span>
     <span class="key">feeSplits[4]</span>:      LI.FI/integrator bps, per fee type        <span class="comment">// default 20/80, mutable via timelock (Q1.13)</span>
-    <span class="key">receivers / bps</span>:   integrator's 1..5 wallets (Σ = integrator share)  <span class="comment">// native split, no external dispatcher (I25)</span>
+    <span class="key">receivers / bps</span>:   integrator's 1..N wallets (Σ = integrator share)  <span class="comment">// native split, no external dispatcher (I25)</span>
     <span class="key">admin</span>:             address    = Coinbase multisig             <span class="comment">// instance admin</span>
     <span class="key">feeManager</span>:        address    = Coinbase multisig             <span class="comment">// sets fee rates within caps</span>
     <span class="key">accessMode</span>:        NONE | WHITELIST | BLACKLIST | BOTH       <span class="comment">// couples to share transferability</span>
@@ -1039,7 +1039,7 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
         <tr><th>Entity</th><th>Address</th><th>Role</th></tr>
         <tr><td><span class="dot d-wrap"></span>WrapperVault instance</td><td>0xWRAP…</td><td>BeaconProxy, <code>asset() = USDC</code> (derived from MetaMorpho), ready to accept deposits</td></tr>
         <tr><td><span class="dot" style="background:#475569;"></span>Beacon</td><td>0xBEACON…</td><td>Holds impl address; upgradable by LI.FI timelock</td></tr>
-        <tr><td><span class="dot d-fee"></span>Fee receivers</td><td>config</td><td>LI.FI treasury + the integrator's 1..5 wallets. Each fee type pays out per its own LI.FI/integrator split when <code>sweep()</code> is called. No external splitter contract.</td></tr>
+        <tr><td><span class="dot d-fee"></span>Fee receivers</td><td>config</td><td>LI.FI treasury + the integrator's 1..N wallets. Each fee type pays out per its own LI.FI/integrator split when <code>sweep()</code> is called. No external splitter contract.</td></tr>
       </table>
     </div>
 
@@ -1575,7 +1575,7 @@ function <span class="key">initialize</span>(InitParams calldata p) external ini
 
     <div class="math"><span class="comment">// Wrapper.deposit() internals</span>
 function deposit(uint256 assets, address receiver) {
-    require(<span class="key">whitelist.isAllowed(msg.sender)</span>, "AddressNotWhitelisted");
+    <span class="comment">// access checks validate the share receiver (the end user), not msg.sender (I29 / Q3.2(b))</span>
     require(<span class="key">whitelist.isAllowed(receiver)</span>, "AddressNotWhitelisted");
     <span class="comment">// ... rest of deposit logic ...</span>
 }
@@ -1585,6 +1585,10 @@ function deposit(uint256 assets, address receiver) {
 
     <div class="note">
       <b>What this stops:</b> Charlie cannot deposit USDC into the wrapper. Deposit fails before any state change.
+    </div>
+
+    <div class="note info">
+      <b>Composer does not skip the whitelist.</b> The check is on the share <b>receiver / owner</b> (the end user), never on <code>msg.sender</code>. So when a deposit arrives through the LI.FI Composer proxy (<code>msg.sender = proxy</code>, <code>receiver = user</code>), the <i>end user</i> is still validated — the proxy itself never needs to be whitelisted, and an un-whitelisted user is still rejected exactly like Charlie above (U5 / I29 / Q3.2(b)).
     </div>
   </div>
 
@@ -1609,6 +1613,10 @@ function _update(address from, address to, uint256 value) internal override {
 
     <div class="note info">
       <b>Mint/burn still work:</b> the gate fires only on user→user transfers. Internal mints (deposit) and burns (withdraw, fee crystallization) bypass the check because their "other side" is <code>address(0)</code> or the wrapper itself.
+    </div>
+
+    <div class="note info">
+      <b>Redeem-by-allowance still works:</b> non-transferability blocks user→user <code>transfer()</code> only — not allowance-based redeem. The end user (not the Composer proxy) is the share <b>owner</b>; on the withdraw leg the proxy calls <code>redeem(shares, receiver, owner = user)</code> and burns the user's shares under a standard ERC-4626 allowance. So soulbound shares stay fully redeemable through Composer (Q5.7).
     </div>
   </div>
 
@@ -1644,19 +1652,23 @@ alice.balanceOf(wrapper)    == 100 wshares (worth ~109 USDC)</div>
       <h2 class="step-title">All of Alice's own calls now revert</h2>
     </div>
 
-    <div class="math"><span class="comment">// Wrapper checks blacklist at every entry point</span>
-function deposit(...) {
-    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+    <div class="math"><span class="comment">// Wrapper checks blacklist at every entry point — on the share receiver / owner, not msg.sender (I29)</span>
+function deposit(uint256 assets, address receiver) {
+    require(<span class="key">!blacklist.isBlocked(receiver)</span>);          <span class="step3">↳ revert AddressBlocked</span>
 }
-function withdraw(...) {
-    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+function withdraw(uint256 assets, address receiver, address owner) {
+    require(<span class="key">!blacklist.isBlocked(owner)</span>);             <span class="step3">↳ revert AddressBlocked</span>
 }
-function transfer(...) {
-    require(<span class="key">!blacklist.isBlocked(msg.sender)</span>);   <span class="step3">↳ revert AddressBlocked</span>
+function _update(address from, address to, uint256 value) {  <span class="comment">// transfer hook</span>
+    require(<span class="key">!blacklist.isBlocked(from) && !blacklist.isBlocked(to)</span>);  <span class="step3">↳ revert AddressBlocked</span>
 }</div>
 
     <div class="note">
-      <b>What this means for Alice:</b> she can no longer move her own funds. If we stopped here, her 109 USDC would be permanently stuck — bad outcome.
+      <b>What this means for Alice:</b> she can no longer move her own funds (her address is the receiver/owner on her own calls). If we stopped here, her 109 USDC would be permanently stuck — bad outcome.
+    </div>
+
+    <div class="note info">
+      <b>Same rule via Composer:</b> because the check is on the share receiver/owner — never <code>msg.sender</code> — a blacklisted user can't slip in behind the Composer proxy either. A deposit with <code>receiver = alice</code> or a redeem with <code>owner = alice</code> reverts regardless of who submits the transaction (I29).
     </div>
   </div>
 
@@ -1707,6 +1719,10 @@ function transfer(...) {
 
     <div class="note">
       <b>Edge case — OFAC vs internal blacklist:</b> if Alice is sanctioned by the OFAC oracle (not just our internal list), the rescue is typically gated — sending the underlying back to her wallet might itself be a sanctioned transfer. Real implementations layer this: internal-only blocks get the rescue, OFAC-sanctioned positions get a freeze that only sanctions-cleared admin actions can move.
+    </div>
+
+    <div class="note" style="border-left-color:#d97706;">
+      <b>⚠ Open dependency — U20 / legal Topic 4.</b> This flow blocks a blacklisted user's own <code>withdraw</code> and relies on a <code>forceWithdraw(alice)</code> rescue to return funds. That cuts against <b>U20</b> ("the access list never gates withdrawals — the exit path is structurally guaranteed"), and <code>forceWithdraw</code> is exactly <b>legal Topic 4 (force-withdraw)</b>, where the current SC direction is <i>no</i> forced withdrawal. Both the withdraw-gating and the rescue mechanism here are provisional and may be reworked once Legal resolves Topic 4.
     </div>
   </div>
 
