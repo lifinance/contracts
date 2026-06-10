@@ -10,7 +10,6 @@ import { TestBasicToken } from "../utils/TestBasicToken.sol";
 import { TestConverterWithDecimals } from "../utils/TestConverterWithDecimals.sol";
 
 contract TokenWrapperTest is Test {
-    // solhint-disable immutable-vars-naming
     TokenWrapper private tokenWrapper;
     ERC20 private wrappedToken;
 

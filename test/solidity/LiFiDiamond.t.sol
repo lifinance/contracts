@@ -9,7 +9,6 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 
 contract LiFiDiamondTest is Test {
-    // solhint-disable immutable-vars-naming
     LiFiDiamond public diamond;
     DiamondCutFacet public diamondCutFacet;
     OwnershipFacet public ownershipFacet;

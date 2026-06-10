@@ -57,7 +57,6 @@ contract MockGateway {
 }
 
 contract ExecutorTest is Test {
-    // solhint-disable immutable-vars-naming
     Executor internal executor;
     TestAMM internal amm;
     Vault internal vault;

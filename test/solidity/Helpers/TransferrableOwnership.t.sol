@@ -7,7 +7,6 @@ import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract TransferrableOwnershipTest is Test {
     TransferrableOwnership internal ownable;
-    // solhint-disable immutable-vars-naming
 
     error NoNullOwner();
     error NewOwnerMustNotBeSelf();

@@ -7,7 +7,6 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeCollectorTest is Test {
-    // solhint-disable immutable-vars-naming
     FeeCollector private feeCollector;
     ERC20 private feeToken;
 
