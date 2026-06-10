@@ -17,9 +17,11 @@ contract ERC20Proxy is WithdrawablePeriphery {
     event AuthorizationChanged(address indexed caller, bool authorized);
 
     /// @param _owner The owner of the contract (typically refundWallet)
-    /// @param _executorAddress Predicted CREATE3 address of the Executor deployed after this contract.
-    /// Executor must be authorized to call transferFrom, but only the owner can call setAuthorizedCaller
-    /// and the deploy wallet does not hold the refundWallet key — so authorization is set here at deploy time.
+    /// @param _executorAddress Predicted CREATE3 address of the Executor. The Executor is deployed
+    /// *after* this proxy (its constructor needs the proxy address), but its CREATE3 address is known
+    /// beforehand — so we authorize it here at construction and the proxy is fully configured from the
+    /// start. This avoids a post-deploy setAuthorizedCaller, which is onlyOwner (= refundWallet) and so
+    /// cannot be sent by the deploy wallet.
     constructor(
         address _owner,
         address _executorAddress
