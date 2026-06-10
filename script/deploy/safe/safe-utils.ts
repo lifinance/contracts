@@ -1792,16 +1792,22 @@ function getContractNameFromSelectorsInOut(
   }
 }
 
-/** Base URL for 4byte signature lookup (Sourcify; openchain.xyz-compatible API). */
-const FOURBYTE_LOOKUP_BASE =
-  'https://api.4byte.sourcify.dev/signature-database/v1/lookup'
+/**
+ * Signature-database lookup endpoints, tried in order. openchain.xyz is the
+ * canonical source `cast 4byte` queries; the Sourcify mirror is a fallback for
+ * when openchain is unreachable or has no match. Both share the same API shape.
+ */
+const FOURBYTE_LOOKUP_BASES = [
+  'https://api.openchain.xyz/signature-database/v1/lookup',
+  'https://api.4byte.sourcify.dev/signature-database/v1/lookup',
+] as const
 
-/** Item from 4byte/Sourcify signature lookup result (function name) */
+/** Item from openchain signature lookup result (function name) */
 interface IFourByteLookupResultItem {
   name: string
 }
 
-/** 4byte lookup API response shape for type-safe parsing (same as openchain.xyz) */
+/** openchain lookup API response shape for type-safe parsing */
 interface IFourByteLookupResponse {
   ok?: boolean
   result?: {
@@ -1821,30 +1827,33 @@ function isFourByteLookupResponse(
 }
 
 /**
- * Looks up a function selector via Sourcify 4byte signature database (api.4byte.sourcify.dev).
+ * Looks up a function selector via the openchain.xyz signature database, falling
+ * back to the Sourcify mirror when openchain is unreachable or has no match.
  * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
  * @returns Function signature string if found, null otherwise
  */
 async function lookupSelectorFromFourByte(
   selector: string
 ): Promise<string | null> {
-  try {
-    const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
-    const url = `${FOURBYTE_LOOKUP_BASE}?function=${normalized}&filter=true`
-    const response = await fetchWithTimeout(
-      url,
-      undefined,
-      DEFAULT_FETCH_TIMEOUT_MS
-    )
-    if (!response.ok) return null
-    const raw: unknown = await response.json()
-    if (!isFourByteLookupResponse(raw)) return null
-    const first = raw.result?.function?.[normalized]?.[0]
-    if (first?.name && typeof first.name === 'string') return first.name
-    return null
-  } catch {
-    return null
+  const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
+  for (const base of FOURBYTE_LOOKUP_BASES) {
+    try {
+      const url = `${base}?function=${normalized}&filter=true`
+      const response = await fetchWithTimeout(
+        url,
+        undefined,
+        DEFAULT_FETCH_TIMEOUT_MS
+      )
+      if (!response.ok) continue
+      const raw: unknown = await response.json()
+      if (!isFourByteLookupResponse(raw)) continue
+      const first = raw.result?.function?.[normalized]?.[0]
+      if (first?.name && typeof first.name === 'string') return first.name
+    } catch {
+      continue
+    }
   }
+  return null
 }
 
 /**
@@ -2000,7 +2009,7 @@ export async function decodeDiamondCut(
             )
             if (fourByteName)
               consola.info(
-                `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+                `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(openchain.xyz)\u001b[0m`
               )
             else consola.warn(`${pre}Unknown function [${selector}]`)
           }

@@ -32,6 +32,22 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { decodeDiamondCut } from './safe-utils'
 
+/**
+ * Signature-database lookup endpoints, tried in order. openchain.xyz is the
+ * canonical source `cast 4byte` queries; the Sourcify mirror is a fallback for
+ * when openchain is unreachable or has no match. Both share the same API shape.
+ */
+const SIGNATURE_LOOKUP_ENDPOINTS = [
+  {
+    label: 'openchain.xyz',
+    base: 'https://api.openchain.xyz/signature-database/v1/lookup',
+  },
+  {
+    label: '4byte.sourcify.dev',
+    base: 'https://api.4byte.sourcify.dev/signature-database/v1/lookup',
+  },
+] as const
+
 export interface IFormatDecodedTxContext {
   chainId: number
   network: string
@@ -616,43 +632,37 @@ export async function decodeTransactionData(
       consola.warn(`Error reading diamond ABI: ${error}`)
     }
 
-    // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
-    consola.info(
-      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
-    )
-    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetchWithTimeout(url)
-    const responseData = (await response.json()) as unknown
-
-    const resultFn = (
-      responseData as {
-        result?: {
-          function?: Record<string, { name: string; args?: unknown }[]>
-        }
-      } | null
-    )?.result?.function?.[selector]
-    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
-    if (
-      typeof responseData === 'object' &&
-      responseData !== null &&
-      (responseData as { ok?: boolean }).ok &&
-      fn?.name
-    ) {
-      const functionName = fn.name
-
+    // Fallback to external signature database. openchain.xyz is the canonical
+    // source `cast 4byte` queries; the Sourcify mirror is tried only when
+    // openchain is unreachable or has no match. Both expose the same response
+    // shape and filter=true suppresses spam/collision signatures.
+    for (const { label, base } of SIGNATURE_LOOKUP_ENDPOINTS) {
+      consola.info(`${pre}No local ABI found, fetching from ${label}...`)
       try {
-        const decodedData = {
-          functionName,
-          args: fn.args,
-        }
+        const url = `${base}?function=${selector}&filter=true`
+        const response = await fetchWithTimeout(url)
+        const responseData = (await response.json()) as unknown
 
-        return {
-          functionName,
-          decodedData,
-        }
+        const resultFn = (
+          responseData as {
+            result?: {
+              function?: Record<string, { name: string; args?: unknown }[]>
+            }
+          } | null
+        )?.result?.function?.[selector]
+        const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
+        if (
+          typeof responseData === 'object' &&
+          responseData !== null &&
+          (responseData as { ok?: boolean }).ok &&
+          fn?.name
+        )
+          return {
+            functionName: fn.name,
+            decodedData: { functionName: fn.name, args: fn.args },
+          }
       } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
+        consola.warn(`${pre}Lookup via ${label} failed: ${error}`)
       }
     }
 
