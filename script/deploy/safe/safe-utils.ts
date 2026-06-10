@@ -1975,100 +1975,37 @@ export async function decodeDiamondCut(
       consola.info(`${pre}${facetLine}`)
       consola.info(`${pre}Action: ${actionMap[actionValue] ?? actionValue}`)
 
-      // Use selector map for efficient lookup
-      if (selectorMap) {
-        let contractName = network
-          ? getContractNameFromNetworkDeployments(network, facetAddress)
-          : 'Unknown'
-        // Remove (2): facet address is not a live deployable contract and the
-        // selector list may be a partial subset — superset matching is unsafe.
-        if (contractName === 'Unknown' && actionNum !== 2)
-          contractName = getContractNameFromSelectorsInOut(selectors)
-        consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
+      let contractName = network
+        ? getContractNameFromNetworkDeployments(network, facetAddress)
+        : 'Unknown'
+      // Remove (2): facet address is the zero address (no live contract) and
+      // the selector list may be a partial subset — superset matching is unsafe.
+      if (contractName === 'Unknown' && actionNum !== 2)
+        contractName = getContractNameFromSelectorsInOut(selectors)
+      consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
-        for (const selector of selectors) {
-          const normalizedSelector =
-            typeof selector === 'string' ? selector.toLowerCase() : selector
-          const functionInfo = selectorMap.get(normalizedSelector)
-          if (functionInfo) {
-            consola.info(
-              `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
-            )
-          } else {
-            const fourByteName = await lookupSelectorFromFourByte(
-              normalizedSelector
-            )
-            if (fourByteName)
-              consola.info(
-                `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
-              )
-            else consola.warn(`${pre}Unknown function [${selector}]`)
-          }
-        }
-      } else {
-        // Fallback to external API if selector map not available
-        consola.info(`${pre}No diamond ABI found, fetching from anyabi.xyz...`)
-        const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-        const response = await fetch(url)
-        const resData = await response.json()
-
-        if (resData && resData.abi) {
+      // Resolve each selector's name from the local diamond ABI first, then the
+      // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
+      // Remove uses the zero address, and per-selector lookup covers every action
+      // without depending on a live facet contract.
+      for (const selector of selectors) {
+        const normalizedSelector =
+          typeof selector === 'string' ? selector.toLowerCase() : selector
+        const functionInfo = selectorMap?.get(normalizedSelector)
+        if (functionInfo) {
           consola.info(
-            `${pre}Contract Name: \u001b[34m${
-              resData.name || 'unknown'
-            }\u001b[0m`
+            `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
           )
-
-          for (const selector of selectors)
-            try {
-              // Find matching function in ABI
-              const matchingFunction = resData.abi.find(
-                (abiItem: {
-                  type?: string
-                  name?: string
-                  inputs?: unknown[]
-                  outputs?: unknown[]
-                  stateMutability?: string
-                }) => {
-                  if (abiItem.type !== 'function' || !abiItem.name) return false
-                  try {
-                    // Create a proper ABI function for toFunctionSelector
-                    const abiFunction = {
-                      type: 'function' as const,
-                      name: abiItem.name,
-                      inputs: (abiItem.inputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      outputs: (abiItem.outputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      stateMutability:
-                        (abiItem.stateMutability as
-                          | 'pure'
-                          | 'view'
-                          | 'nonpayable'
-                          | 'payable') || 'nonpayable',
-                    }
-                    const calculatedSelector = toFunctionSelector(abiFunction)
-                    return calculatedSelector === selector
-                  } catch {
-                    return false
-                  }
-                }
-              )
-
-              if (matchingFunction)
-                consola.info(
-                  `${pre}Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-                )
-              else consola.warn(`${pre}Unknown function [${selector}]`)
-            } catch (error) {
-              consola.warn(`${pre}Failed to decode selector: ${selector}`)
-            }
-        } else
-          consola.info(`${pre}Could not fetch ABI for facet ${facetAddress}`)
+          continue
+        }
+        const fourByteName = await lookupSelectorFromFourByte(
+          normalizedSelector
+        )
+        if (fourByteName)
+          consola.info(
+            `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+          )
+        else consola.warn(`${pre}Unknown function [${selector}]`)
       }
     } catch (error) {
       consola.error(`${pre}Error processing facet ${facetAddress}:`, error)
