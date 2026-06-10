@@ -188,7 +188,11 @@ deploySingleContract() {
       # ensure the pinned foundry-zksync binary is installed (no-op if version matches)
       install_foundry_zksync || {
         error "failed to install foundry-zksync"
-        return 1
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
       }
 
       # Build zksync artifacts first
