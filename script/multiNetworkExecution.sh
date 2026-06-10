@@ -1383,6 +1383,49 @@ function getProgressSummary() {
   echo "=========================================="
 }
 
+# notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
+# summarizing how many proposals were created and on which chains, with a reminder to sign.
+# Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
+# least one network succeeded. Reuses sendMessageToSlackSmartContractsChannel (helperFunctions.sh),
+# which posts via SLACK_WEBHOOK_SC_GENERAL from .env.
+#
+# Usage: notifyProposalsCreatedToSlack
+#
+# Returns: 0 always (a failed notification must never fail the run)
+function notifyProposalsCreatedToSlack() {
+    if [[ -z "${PROGRESS_TRACKING_FILE:-}" || ! -f "$PROGRESS_TRACKING_FILE" ]]; then
+        return 0
+    fi
+
+    if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+        return 0
+    fi
+
+    local ACTION_TYPE=$(jq -r '.actionType // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+    if [[ "$ACTION_TYPE" != "proposal" ]]; then
+        return 0
+    fi
+
+    local -a SUCCESSFUL_NETWORKS=($(jq -r '.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "success") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true))
+    local PROPOSAL_COUNT=${#SUCCESSFUL_NETWORKS[@]}
+
+    if [[ "$PROPOSAL_COUNT" -eq 0 ]]; then
+        logWithTimestamp "No proposals were created in this run - skipping Slack notification"
+        return 0
+    fi
+
+    local PROPOSAL_CONTRACT=$(jq -r '.contract // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+    local CHAIN_LIST=$(printf '%s, ' "${SUCCESSFUL_NETWORKS[@]}")
+    CHAIN_LIST="${CHAIN_LIST%, }"
+
+    local MESSAGE="🚀 $PROPOSAL_COUNT proposal(s) created for $PROPOSAL_CONTRACT across chains [$CHAIN_LIST]. Ready for signing — please sign now."
+
+    logWithTimestamp "Posting proposal-creation summary to Slack..."
+    sendMessageToSlackSmartContractsChannel "$MESSAGE" || logWithTimestamp "Warning: Failed to send proposal-creation Slack notification"
+
+    return 0
+}
+
 function cleanupProgressTracking() {
     # Only clean up if all networks are successful
     if [[ -n "$PROGRESS_TRACKING_FILE" && -f "$PROGRESS_TRACKING_FILE" ]]; then
@@ -2463,6 +2506,10 @@ function executeNetworksByGroup() {
         fi
     }
 
+    # For proposal runs: post a single Slack summary (count + chains + sign reminder)
+    # Called exactly once per run, before cleanupProgressTracking removes the progress file
+    notifyProposalsCreatedToSlack
+
     # Check actual progress file state to determine success
     # Success means: no failed, no pending, and no in_progress networks
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
@@ -3060,6 +3107,7 @@ export -f executeAllNetworksForContract
 export -f executeNetworksByEvmVersion
 export -f groupNetworksByExecutionGroup
 export -f getProgressSummary
+export -f notifyProposalsCreatedToSlack
 export -f iterateAllNetworksOriginal
 export -f iterateAllNetworksGrouped
 export -f handleNetworkOriginal
