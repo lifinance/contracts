@@ -5129,6 +5129,10 @@ function updateDiamondLogs() {
 # Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
 # Idempotent: returns immediately if the installed binary already matches the expected
 # version; on mismatch the binaries are removed and re-downloaded.
+# Note: a freshly installed forge shows a one-time telemetry consent prompt on first run,
+# but only in interactive terminals — in CI or piped/agent shells it is skipped and
+# telemetry auto-disabled (matter-labs/zksync-telemetry src/utils.rs is_interactive()),
+# so unattended runs need no stdin handling.
 # Arguments:
 #   $1 - Installation directory (optional, defaults to ./foundry-zksync)
 #   FOUNDRY_ZKSYNC_VERSION - Optional: env override of the version pinned in
