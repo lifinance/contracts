@@ -15,6 +15,11 @@ import { MongoClient, type Db, type Collection, type Filter } from 'mongodb'
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../utils/utils'
 
+import {
+  type IBatchQuerier,
+  executeBatchQueries,
+  parseBatchQueries,
+} from './shared/batch-deployment-queries'
 import { CachedDeploymentQuerier } from './shared/cached-deployment-querier'
 import {
   type IDeploymentRecord,
@@ -1009,6 +1014,80 @@ const getCommand = defineCommand({
   },
 })
 
+// Define batch command (multiple lookups in one process / few MongoDB round-trips)
+const batchCommand = defineCommand({
+  meta: {
+    name: 'batch',
+    description:
+      'Run multiple lookups (get/latest/find/exists/history) in one invocation. ' +
+      'Pass a JSON array of query objects via --queries (use "-" to read from stdin).',
+  },
+  args: {
+    env: {
+      type: 'string',
+      description:
+        'Default environment for queries without a per-query env (staging or production)',
+      default: 'production',
+    },
+    queries: {
+      type: 'string',
+      description:
+        'JSON array of queries: [{id?, op, env?, contract?, network?, version?, address?}]. ' +
+        'Use --queries=- to read the JSON from stdin (equals form required; ' +
+        'citty parses a bare "-" after a flag as empty).',
+      required: true,
+    },
+    useCache: {
+      type: 'boolean',
+      description:
+        'Use local cache (default: true, use --no-use-cache to disable)',
+      default: true,
+    },
+  },
+  async run({ args }) {
+    // Validate environment
+    if (args.env !== 'staging' && args.env !== 'production') {
+      consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+    const defaultEnv = args.env as keyof typeof EnvironmentEnum
+
+    let queriesJson = args.queries
+    if (queriesJson === '-') {
+      let input = ''
+      process.stdin.setEncoding('utf8')
+      for await (const chunk of process.stdin) input += chunk
+      queriesJson = input
+    }
+
+    // One DeploymentLogQuerier per environment is shared across all direct (no-cache)
+    // queries in the batch; track them so connections are closed on exit.
+    const directQueriers: DeploymentLogQuerier[] = []
+    let exitCode = 0
+    try {
+      const requests = parseBatchQueries(queriesJson)
+      const results = await executeBatchQueries(
+        requests,
+        defaultEnv,
+        async (env): Promise<IBatchQuerier> => {
+          if (args.useCache) return new CachedDeploymentQuerier(config, env)
+          const querier = new DeploymentLogQuerier(config, env)
+          await querier.connect()
+          directQueriers.push(querier)
+          return querier
+        }
+      )
+      outputJSON(results)
+    } catch (error) {
+      consola.error('Batch query failed:', error)
+      exitCode = 1
+    } finally {
+      await Promise.all(directQueriers.map((querier) => querier.disconnect()))
+    }
+    if (exitCode !== 0) process.exit(exitCode)
+  },
+})
+
 // Main command with subcommands
 const main = defineCommand({
   meta: {
@@ -1024,6 +1103,7 @@ const main = defineCommand({
     history: historyCommand,
     exists: existsCommand,
     get: getCommand,
+    batch: batchCommand,
   },
 })
 

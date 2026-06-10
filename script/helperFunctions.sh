@@ -484,6 +484,67 @@ function getLatestMongoDeployment() {
   return $?
 }
 
+# batchQueryMongoDeployments: Run multiple deployment-log lookups in a single
+# query-deployment-logs.ts invocation (one process spawn, one or few MongoDB round-trips)
+# instead of one process per lookup.
+#
+# Usage: batchQueryMongoDeployments QUERIES_JSON [ENVIRONMENT]
+#   QUERIES_JSON - JSON array of query objects: [{id?, op, env?, contract?, network?, version?, address?}]
+#                  Supported ops: get, latest, find, exists, history
+#   ENVIRONMENT  - Optional: default environment for queries without a per-query env (default: production)
+#
+# Returns: JSON array of {id, op, found, data} objects on stdout; exit 0 on success, 1 on failure
+# Example: batchQueryMongoDeployments '[{"id":"a","op":"get","contract":"Executor","network":"mainnet","version":"2.0.0"}]' "production"
+function batchQueryMongoDeployments() {
+  local QUERIES_JSON="$1"
+  local ENVIRONMENT="${2:-production}"
+
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    return 1
+  fi
+
+  if [[ -z "$QUERIES_JSON" ]]; then
+    error "batchQueryMongoDeployments requires a JSON array of queries"
+    return 1
+  fi
+
+  local ATTEMPT=1
+  local RETRY_DELAY=1
+  while [[ $ATTEMPT -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB (batch) with $(echo "$QUERIES_JSON" | jq 'length' 2>/dev/null || echo "?") queries (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+    local BATCH_RESULT
+    local EXIT_CODE
+    # Queries are passed via stdin to avoid argv length limits for large batches.
+    # NOTE: must use --queries=- (equals form); citty parses a bare "-" after a flag as empty
+    BATCH_RESULT=$(echo "$QUERIES_JSON" | bun script/deploy/query-deployment-logs.ts batch \
+      --env="$ENVIRONMENT" \
+      --queries=- 2>/dev/null)
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -eq 0 && -n "$BATCH_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. cache/consola output) so jq sees only the array
+      BATCH_RESULT=$(echo "$BATCH_RESULT" | sed -n '/^\[/,$p')
+      if echo "$BATCH_RESULT" | jq empty >/dev/null 2>&1; then
+        echo "$BATCH_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB batch query returned invalid JSON (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+      fi
+    fi
+
+    if [[ $ATTEMPT -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB batch query failed, retrying in ${RETRY_DELAY}s (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+
+  return 1
+}
+
 function getUnverifiedContractsFromMongo() {
   local ENVIRONMENT="$1"
 
@@ -751,13 +812,45 @@ function getConstructorArgsFromMasterLog() {
     return 1
   fi
 
-  # If version is not provided, get the highest deployed version
+  # If version is not provided, resolve the highest deployed version AND its constructor
+  # args from ONE batch history lookup instead of two separate query-deployment-logs.ts
+  # invocations (highest-version filter + get)
   if [ -z "$VERSION" ]; then
-    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    local BATCH_QUERIES
+    # NOTE: $ENV is a jq builtin (process environment) and shadows --arg ENV, so use $ENVIRON
+    BATCH_QUERIES=$(jq -n --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRON "$ENVIRONMENT" \
+      '[{id: "history", op: "history", contract: $CONTRACT, network: $NETWORK, env: $ENVIRON}]')
+
+    local BATCH_RESULT
+    if ! BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT"); then
+      echo ""
+      return 1
+    fi
+
+    local HISTORY
+    HISTORY=$(echo "$BATCH_RESULT" | jq -c '[.[] | select(.id == "history" and .found == true)][0].data // empty' 2>/dev/null)
+    if [[ -z "$HISTORY" || "$HISTORY" == "null" ]]; then
+      echo ""
+      return 1
+    fi
+
+    VERSION=$(echo "$HISTORY" | jq -r '.[].version' 2>/dev/null | grep -v '^null$' | grep -v '^$' | sort -V | tail -1)
     if [ -z "$VERSION" ]; then
       echo ""
       return 1
     fi
+
+    # records are sorted newest-first; take the newest record of the highest version.
+    # Accept both keys (MongoDB/cache may use constructorArgs or CONSTRUCTOR_ARGS)
+    local CONSTRUCTOR_ARGS
+    CONSTRUCTOR_ARGS=$(echo "$HISTORY" | jq -r --arg VERSION "$VERSION" '[.[] | select(.version == $VERSION)][0] | .CONSTRUCTOR_ARGS // .constructorArgs // empty' 2>/dev/null)
+    if [[ -n "$CONSTRUCTOR_ARGS" && "$CONSTRUCTOR_ARGS" != "null" ]]; then
+      echo "$CONSTRUCTOR_ARGS"
+      return 0
+    fi
+
+    echo ""
+    return 1
   fi
 
   local attempt=1
@@ -889,11 +982,71 @@ function saveDiamondFacets() {
     CONCURRENCY=10
   fi
 
-  # resolve each facet in parallel and write individual JSON files
+  # resolve all facets in ONE query-deployment-logs.ts invocation (batch API) instead of
+  # one process + MongoDB round-trip per facet address. Facet addresses are sometimes
+  # shared across staging/production on the same chain, so query both environments
+  # (requested env wins), mirroring findContractInMasterLogByAddress.
+  local OTHER_ENV
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    OTHER_ENV="production"
+  else
+    OTHER_ENV="staging"
+  fi
+
+  local BATCH_QUERIES="[]"
+  local BATCH_RESULT=""
+  local BATCH_OK="false"
+  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+    [[ -z "$FACET_ADDRESS" ]] && continue
+    BATCH_QUERIES=$(echo "$BATCH_QUERIES" | jq \
+      --arg ADDR "$FACET_ADDRESS" \
+      --arg NET "$NETWORK" \
+      --arg ENV1 "$ENVIRONMENT" \
+      --arg ENV2 "$OTHER_ENV" \
+      '. + [{id: ($ADDR + "::" + $ENV1), op: "find", env: $ENV1, network: $NET, address: $ADDR},
+            {id: ($ADDR + "::" + $ENV2), op: "find", env: $ENV2, network: $NET, address: $ADDR}]')
+  done
+
+  if [[ "$BATCH_QUERIES" != "[]" ]] && isMongoLoggingEnabled; then
+    BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT") && BATCH_OK="true"
+  fi
+
+  if [[ "$BATCH_OK" == "true" ]]; then
+    local ENV_TRY BATCH_ENTRY BATCH_NAME BATCH_VERSION
+    for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
+      FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
+      [[ -z "$FACET_ADDRESS" ]] && continue
+      for ENV_TRY in "$ENVIRONMENT" "$OTHER_ENV"; do
+        BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
+        [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
+        BATCH_NAME=$(echo "$BATCH_ENTRY" | jq -r '.contractName // empty')
+        # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+        BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
+        if [[ -n "$BATCH_NAME" ]]; then
+          if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
+            echoDebug "saveDiamondFacets: resolved $FACET_ADDRESS ($BATCH_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
+          fi
+          # Facet object key must match facetAddresses() casing from the caller (FACET_ADDRESS)
+          echo "{\"$FACET_ADDRESS\": {\"Name\": \"$BATCH_NAME\", \"Version\": \"${BATCH_VERSION:-}\"}}" >"$FACETS_DIR/${FACET_ADDRESS}.json"
+          break
+        fi
+      done
+    done
+  fi
+
+  # complete remaining facets in parallel: per-address MongoDB lookup only if the batch
+  # call failed entirely; otherwise (batch succeeded but address not in MongoDB) fall
+  # straight through to the local fallbacks
   for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
     # sanitize address (strip quotes, spaces)
     FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
     if [[ -z "$FACET_ADDRESS" ]]; then
+      continue
+    fi
+
+    # skip facets already resolved via the batch query
+    if [[ -s "$FACETS_DIR/${FACET_ADDRESS}.json" ]]; then
       continue
     fi
 
@@ -903,8 +1056,11 @@ function saveDiamondFacets() {
     done
 
     (
-      JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-      if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
+      JSON_ENTRY=""
+      if [[ "$BATCH_OK" != "true" ]]; then
+        JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS") || JSON_ENTRY=""
+      fi
+      if [[ -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
         NAME=""
         VERSION=""
@@ -5301,25 +5457,44 @@ getContractDeploymentStatusSummary() {
   printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
   printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
 
+  # Resolve all networks in ONE query-deployment-logs.ts invocation (batch API) instead
+  # of one process + MongoDB round-trip per network
+  local BATCH_QUERIES BATCH_RESULT
+  local BATCH_OK="false"
+  # NOTE: $ENV is a jq builtin (process environment) and shadows --arg ENV, so use $ENVIRON
+  BATCH_QUERIES=$(printf '%s\n' "${NETWORKS[@]}" | jq -R . | jq -s --arg CONTRACT "$CONTRACT" --arg VERSION "$VERSION" --arg ENVIRON "$ENVIRONMENT" \
+    '[.[] | select(. != "") | {id: ., op: "get", contract: $CONTRACT, network: ., version: $VERSION, env: $ENVIRON}]')
+  if BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT"); then
+    BATCH_OK="true"
+  fi
+
   # Check each network
   for network in "${NETWORKS[@]}"; do
     # Check if contract is deployed - use a more robust approach
     local LOG_ENTRY=""
     local FIND_RESULT=1
 
-    # Try to find the contract and capture both output and exit code
-    LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
-    FIND_RESULT=$?
+    if [[ "$BATCH_OK" == "true" ]]; then
+      LOG_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "$network" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
+      if [[ -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
+        FIND_RESULT=0
+      fi
+    else
+      # Fallback: per-network lookup (batch invocation failed)
+      LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
+      FIND_RESULT=$?
 
-    # Additional check: if LOG_ENTRY contains error message, treat as not found
-    if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
-      FIND_RESULT=1
+      # Additional check: if LOG_ENTRY contains error message, treat as not found
+      if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
+        FIND_RESULT=1
+      fi
     fi
 
     if [[ $FIND_RESULT -eq 0 && -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
-      # Contract is deployed
-      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS" 2>/dev/null)
-      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED" 2>/dev/null)
+      # Contract is deployed (accept both key casings: Mongo records use lowercase,
+      # legacy master-log entries use uppercase)
+      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r '.ADDRESS // .address // empty' 2>/dev/null)
+      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r '.VERIFIED // .verified // false' 2>/dev/null)
 
       # Handle cases where jq fails or returns null
       if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
