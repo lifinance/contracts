@@ -5461,34 +5461,49 @@ function estimatePauseCost() {
     fi
   fi
 
+  # RPCs throttle/time out transiently (especially across a cross-chain sweep), so retry the reads
+  # a few times before giving up — mirrors the resilience of diamondEMERGENCYPauseGitHub.sh's
+  # rpcCallWithRetry. The "already paused" revert is a DEFINITIVE answer, not a transient error, so
+  # it returns immediately (rc 2) without retrying.
+  local ESTIMATE_MAX_ATTEMPTS=3 ESTIMATE_RETRY_SLEEP_SECONDS=2
+
   # Capture stdout and stderr separately: foundry emits warnings to stderr even on success,
   # and revert data (DiamondIsPaused selector) also comes via stderr.
-  local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC
+  local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC CAST_ERR ATTEMPT=1
   GAS_ESTIMATE_ERR=$(mktemp)
   # RETURN trap removes the temp file on every exit path (verified contained: without
   # functrace it fires only on this function's return, not the caller's).
   trap 'rm -f "$GAS_ESTIMATE_ERR"' RETURN
-  GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
-  if [[ $CAST_ESTIMATE_RC -ne 0 ]]; then
-    local CAST_ERR
+  while :; do
+    GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
+    if [[ $CAST_ESTIMATE_RC -eq 0 && "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
+      break
+    fi
     CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
+    # Definitive (not transient): diamond already paused — do not retry.
     if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
       return 2
     fi
-    error "estimatePauseCost: cast estimate failed for $NETWORK: $CAST_ERR" >&2
-    return 1
-  fi
-  if ! [[ "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
-    error "estimatePauseCost: unexpected gas estimate for $NETWORK: $GAS_ESTIMATE" >&2
-    return 1
-  fi
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
 
   local GAS_PRICE
-  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null) || GAS_PRICE=""
-  if ! [[ "$GAS_PRICE" =~ ^[0-9]+$ ]]; then
-    error "estimatePauseCost: could not read gas price for $NETWORK: $GAS_PRICE" >&2
-    return 1
-  fi
+  ATTEMPT=1
+  while :; do
+    GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null) || GAS_PRICE=""
+    [[ "$GAS_PRICE" =~ ^[0-9]+$ ]] && break
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: could not read gas price for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $GAS_PRICE" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
 
   # wei overflows 64-bit bash arithmetic; use bc for the multiplication
   local COST
