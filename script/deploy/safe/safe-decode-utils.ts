@@ -34,8 +34,10 @@ import { decodeDiamondCut } from './safe-utils'
 
 /**
  * Signature-database lookup endpoints, tried in order. openchain.xyz is the
- * canonical source `cast 4byte` queries; the Sourcify mirror is a fallback for
- * when openchain is unreachable or has no match. Both share the same API shape.
+ * database Foundry's `cast 4byte` uses; since this repo is Foundry-native,
+ * aligning on it gives the most complete, consistent decoding. The Sourcify
+ * mirror is a fallback for when openchain is unreachable or has no match. Both
+ * share the same API shape.
  */
 const SIGNATURE_LOOKUP_ENDPOINTS = [
   {
@@ -632,10 +634,11 @@ export async function decodeTransactionData(
       consola.warn(`Error reading diamond ABI: ${error}`)
     }
 
-    // Fallback to external signature database. openchain.xyz is the canonical
-    // source `cast 4byte` queries; the Sourcify mirror is tried only when
-    // openchain is unreachable or has no match. Both expose the same response
-    // shape and filter=true suppresses spam/collision signatures.
+    // Fallback to external signature database. openchain.xyz is the database
+    // Foundry's `cast 4byte` uses; since this repo is Foundry-native, aligning
+    // on it gives the most complete, consistent decoding. The Sourcify mirror
+    // is tried only when openchain is unreachable or has no match. Both expose
+    // the same response shape and filter=true suppresses spam/collision sigs.
     for (const { label, base } of SIGNATURE_LOOKUP_ENDPOINTS) {
       consola.info(`${pre}No local ABI found, fetching from ${label}...`)
       try {

@@ -1794,8 +1794,10 @@ function getContractNameFromSelectorsInOut(
 
 /**
  * Signature-database lookup endpoints, tried in order. openchain.xyz is the
- * canonical source `cast 4byte` queries; the Sourcify mirror is a fallback for
- * when openchain is unreachable or has no match. Both share the same API shape.
+ * database Foundry's `cast 4byte` uses; since this repo is Foundry-native,
+ * aligning on it gives the most complete, consistent decoding. The Sourcify
+ * mirror is a fallback for when openchain is unreachable or has no match. Both
+ * share the same API shape.
  */
 const FOURBYTE_LOOKUP_BASES = [
   'https://api.openchain.xyz/signature-database/v1/lookup',
