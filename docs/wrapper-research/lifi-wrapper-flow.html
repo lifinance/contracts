@@ -837,13 +837,13 @@ function <span class="key">totalAssets()</span> public view override returns (ui
         lines:['— ERC-4626 (users) —','deposit / mint','withdraw / redeem','preview* / convert*','asset() / underlyingVault()',
                 '— fees (4 types) —','perf + mgmt: share-side accrual','deposit + wd: asset-side at tx','sweep() · anyone → receivers',
                 '— proxy —','delegatecall → impl']},
-      accesslist: {x:800,y:455,w:215,h:92, layer:'ext', title:'IAccessList',
+      accesslist: {x:860,y:455,w:215,h:92, layer:'ext', title:'IAccessList',
         lines:['isAllowed(addr)','isDenied(addr)']},
-      oracle: {x:800,y:565,w:215,h:80, layer:'ext', title:'ISanctionsOracle',
+      oracle: {x:860,y:565,w:215,h:80, layer:'ext', title:'ISanctionsOracle',
         lines:['isSanctioned(addr)']},
-      lifiWallet: {x:800,y:663,w:215,h:72, layer:'ext', title:'LI.FI treasury',
+      lifiWallet: {x:860,y:663,w:215,h:72, layer:'ext', title:'LI.FI treasury',
         lines:['LI.FI fee share']},
-      intWallets: {x:800,y:753,w:215,h:86, layer:'ext', title:'Integrator wallets',
+      intWallets: {x:860,y:753,w:215,h:86, layer:'ext', title:'Integrator wallets',
         lines:['1..5 wallets, by bps']},
       underlying: {x:330,y:915,w:400,h:110, layer:'ext', title:'Underlying ERC-4626',
         lines:['deposit / redeem','totalAssets / maxWithdraw','permissionless · sees only wrapper']},
@@ -864,8 +864,8 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       {f:'integrator', fs:'r',ff:.4, t:'wrapper',   ts:'l',tf:.78,label:'admin config'},
       {f:'wrapper',    fs:'r',ff:.12,t:'accesslist',ts:'l',tf:.5, label:'isAllowed / isDenied', dashed:true},
       {f:'wrapper',    fs:'r',ff:.32,t:'oracle',    ts:'l',tf:.5, label:'isSanctioned', dashed:true},
-      {f:'wrapper',    fs:'r',ff:.55,t:'lifiWallet',ts:'l',tf:.5, label:'sweep: LI.FI share'},
-      {f:'wrapper',    fs:'r',ff:.78,t:'intWallets',ts:'l',tf:.5, label:'sweep: integ. share'},
+      {f:'wrapper',    fs:'r',ff:.55,t:'lifiWallet',ts:'l',tf:.5, label:'sweep (LI.FI)'},
+      {f:'wrapper',    fs:'r',ff:.78,t:'intWallets',ts:'l',tf:.5, label:'sweep (integ.)'},
       {f:'wrapper',    fs:'b',ff:.3, t:'underlying',ts:'t',tf:.25,label:'deposit'},
       {f:'wrapper',    fs:'b',ff:.5, t:'underlying',ts:'t',tf:.5, label:'redeem'},
       {f:'wrapper',    fs:'b',ff:.7, t:'underlying',ts:'t',tf:.75,label:'totalAssets()', dashed:true},
@@ -908,19 +908,12 @@ function <span class="key">totalAssets()</span> public view override returns (ui
       return {x:b.x+b.w*frac, y:b.y+b.h};
     }
 
+    // pass 1 — edge lines + arrowheads
     edges.forEach(e=>{
-      const p1=anchor(boxes[e.f], e.fs, e.ff);
-      const p2=anchor(boxes[e.t], e.ts, e.tf);
-      line(p1.x,p1.y,p2.x,p2.y, e.dashed);
-      arrow(p2.x,p2.y, Math.atan2(p2.y-p1.y, p2.x-p1.x));
-      if(e.label){
-        const lp=(e.lp==null)?.5:e.lp;
-        const mx=p1.x+(p2.x-p1.x)*lp+(e.ldx||0), my=p1.y+(p2.y-p1.y)*lp+(e.ldy||0);
-        const w=e.label.length*5.8+12;
-        svg.appendChild(el('rect',{x:mx-w/2,y:my-9.5,width:w,height:18,rx:4,fill:'#ffffff',stroke:'#d7d9de','stroke-width':1}));
-        const tx=el('text',{x:mx,y:my+3.5,'text-anchor':'middle','font-size':11,fill:'#2a2a2a'});
-        tx.setAttribute('class','elabel'); tx.textContent=e.label; svg.appendChild(tx);
-      }
+      e._p1=anchor(boxes[e.f], e.fs, e.ff);
+      e._p2=anchor(boxes[e.t], e.ts, e.tf);
+      line(e._p1.x,e._p1.y,e._p2.x,e._p2.y, e.dashed);
+      arrow(e._p2.x,e._p2.y, Math.atan2(e._p2.y-e._p1.y, e._p2.x-e._p1.x));
     });
 
     for(const id in boxes){
@@ -937,6 +930,17 @@ function <span class="key">totalAssets()</span> public view override returns (ui
         yy+=lh;
       });
     }
+
+    // pass 3 — edge labels on top, so boxes never clip them
+    edges.forEach(e=>{
+      if(!e.label) return;
+      const lp=(e.lp==null)?.5:e.lp;
+      const mx=e._p1.x+(e._p2.x-e._p1.x)*lp+(e.ldx||0), my=e._p1.y+(e._p2.y-e._p1.y)*lp+(e.ldy||0);
+      const w=e.label.length*5.8+12;
+      svg.appendChild(el('rect',{x:mx-w/2,y:my-9.5,width:w,height:18,rx:4,fill:'#ffffff',stroke:'#d7d9de','stroke-width':1}));
+      const tx=el('text',{x:mx,y:my+3.5,'text-anchor':'middle','font-size':11,fill:'#2a2a2a'});
+      tx.setAttribute('class','elabel'); tx.textContent=e.label; svg.appendChild(tx);
+    });
   })();
   </script>
 
