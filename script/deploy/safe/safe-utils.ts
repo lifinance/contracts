@@ -1990,7 +1990,12 @@ export async function decodeDiamondCut(
       // without depending on a live facet contract.
       for (const selector of selectors) {
         const normalizedSelector =
-          typeof selector === 'string' ? selector.toLowerCase() : selector
+          typeof selector === 'string'
+            ? (selector.startsWith('0x')
+                ? selector
+                : `0x${selector}`
+              ).toLowerCase()
+            : `0x${Buffer.from(selector).toString('hex')}`.toLowerCase()
         const functionInfo = selectorMap?.get(normalizedSelector)
         if (functionInfo) {
           consola.info(
