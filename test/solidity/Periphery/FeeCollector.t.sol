@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
-contract FeeCollectorTest is DSTest {
+contract FeeCollectorTest is Test {
     // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     FeeCollector private feeCollector;
     ERC20 private feeToken;
 

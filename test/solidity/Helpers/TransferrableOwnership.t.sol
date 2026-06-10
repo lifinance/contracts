@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
-contract TransferrableOwnershipTest is DSTest {
+contract TransferrableOwnershipTest is Test {
     TransferrableOwnership internal ownable;
     // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
 
     error NoNullOwner();
     error NewOwnerMustNotBeSelf();
