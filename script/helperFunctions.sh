@@ -2003,6 +2003,12 @@ function verifyContract() {
       return 1
     }
 
+    # fail loudly instead of verifying with the toolchain's default zksolc
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      error "zksolc pin not found in foundry.toml [external.zksync]"
+      return 1
+    fi
+
     # Set environment variable for zkEVM
     export FOUNDRY_PROFILE=zksync
     VERIFY_CMD=(
