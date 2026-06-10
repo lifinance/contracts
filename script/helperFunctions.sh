@@ -20,9 +20,8 @@ ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
 
 # zksolc version pin for foundry-zksync. Passed via env instead of foundry.toml because
-# vanilla forge emits an "unknown `zksync` config" warning for a zksync key in any profile
-# (and silently ignored the previous [profile.default.zksync] block anyway). Only
-# foundry-zksync reads FOUNDRY_ZKSYNC; vanilla forge ignores env-provided unknown keys.
+# vanilla forge emits an "unknown `zksync` config" warning for a zksync key in any profile.
+# Only foundry-zksync reads FOUNDRY_ZKSYNC; vanilla forge ignores env-provided unknown keys.
 ZKSOLC_VERSION="1.5.15"
 export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
 RED='\033[0;31m'   # Red color
