@@ -3903,7 +3903,7 @@ function isTempoNetwork() {
   return 1
 }
 
-# Prefix for forge/cast invocations on Tempo; enables [profile.tempo] (tempo = true in foundry.toml).
+# Prefix for forge/cast invocations on Tempo; enables [profile.tempo] (network = "tempo" in foundry.toml).
 # Trailing space is included when non-empty so it can precede VAR=value or command names.
 #
 # Usage: getTempoForgeProfilePrefix NETWORK
