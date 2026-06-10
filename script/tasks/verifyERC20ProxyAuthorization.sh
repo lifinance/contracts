@@ -1,6 +1,6 @@
 #!/bin/bash
 
-updateERC20Proxy() {
+verifyERC20ProxyAuthorization() {
 	source .env
   source script/helperFunctions.sh
 

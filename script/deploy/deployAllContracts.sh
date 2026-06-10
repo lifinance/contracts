@@ -12,7 +12,7 @@ deployAllContracts() {
   source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
-  source script/tasks/updateERC20Proxy.sh
+  source script/tasks/verifyERC20ProxyAuthorization.sh
   source script/tasks/updateFacetConfig.sh
 
   # read function arguments into variables
@@ -418,7 +418,7 @@ deployAllContracts() {
       authorizeExecutorOnZkEvm "$NETWORK" "$ENVIRONMENT"
       checkFailure $? "zkEVM Executor authorization step on $NETWORK"
     else
-      updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+      verifyERC20ProxyAuthorization "$NETWORK" "$ENVIRONMENT"
       checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
     fi
 
