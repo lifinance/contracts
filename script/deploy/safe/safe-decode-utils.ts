@@ -644,6 +644,7 @@ export async function decodeTransactionData(
       try {
         const url = `${base}?function=${selector}&filter=true`
         const response = await fetchWithTimeout(url)
+        if (!response.ok) continue
         const responseData = (await response.json()) as unknown
 
         const resultFn = (
