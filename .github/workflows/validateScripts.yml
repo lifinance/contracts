@@ -1,0 +1,130 @@
+# Validate Scripts (EXSC-331)
+# - Static validation (no script execution) of TS scripts under script/
+# - Type check: `tsc-files --noEmit` over changed TS files under script/ —
+#   removing a used import (TS2304) or a dependency a script imports (TS2307)
+#   fails fast instead of breaking at runtime
+# - Import resolution: when package.json / bun.lock / tsconfig.json change,
+#   every bare import in script TS files must resolve to a declared or
+#   installed package (catches "dependency removed while still imported"
+#   even when no .ts file was touched)
+# - Path-gated: the heavy job runs only when scripts or dependency manifests
+#   change. A `validate-scripts-required` aggregator job always reports a
+#   final status so this workflow can be registered as a required check on
+#   `main` branch protection (see .agents/rules/500-github-actions.md)
+# - TypeChain types are generated before the type check because several
+#   scripts import generated typechain/ types (requires foundry + forge build)
+# - Local counterpart: the .husky/pre-push hook runs the same validator for
+#   fast feedback; this workflow is the enforcement backstop since git hooks
+#   can be bypassed with --no-verify
+
+name: Validate Scripts
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  # Allows to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+
+jobs:
+  detect-changes:
+    # Determines whether files that can influence script validity were touched.
+    # Always runs (cheap) so the downstream validate-scripts-required can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      scripts: ${{ steps.filter.outputs.scripts }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            scripts:
+              - 'script/**/*.ts'
+              - 'package.json'
+              - 'bun.lock'
+              - 'tsconfig.json'
+              - '.github/workflows/validateScripts.yml'
+
+  validate-scripts:
+    # Runs on PRs (once out of draft) and on workflow_dispatch.
+    # For non-PR events `github.event.pull_request` is null, so the draft check
+    # is gated behind an event-name guard.
+    needs: detect-changes
+    if: >-
+      ${{
+        needs.detect-changes.outputs.scripts == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          # Full history so the validator can compute the merge-base with the
+          # PR base branch; submodules for `forge build src` (TypeChain input)
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Install forge Dependencies
+        run: forge install
+
+      - name: Generate TypeChain types
+        # Several scripts (e.g. script/demoScripts/**, script/deploy/tron/**)
+        # import generated typechain/ types; without them the type check would
+        # fail with false TS2307 errors
+        run: bun typechain:incremental
+
+      - name: Validate scripts
+        shell: bash
+        run: |
+          ##### Diff against the PR base branch (merge-base is computed inside
+          ##### the validator); workflow_dispatch has no base ref, so the
+          ##### validator falls back to the merge-base with origin/main
+          if [[ -n "$BASE_REF" ]]; then
+            bunx tsx ./script/utils/validateScripts.ts --base "origin/$BASE_REF"
+          else
+            bunx tsx ./script/utils/validateScripts.ts
+          fi
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  validate-scripts-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `validate-scripts`) as the required status check on `main`.
+    needs: [detect-changes, validate-scripts]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `validate-scripts`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          validate_result="${{ needs.validate-scripts.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31mvalidate-scripts-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$validate_result" == "success" || "$validate_result" == "skipped" ]]; then
+            echo -e "\033[32mvalidate-scripts-required OK (validate-scripts=$validate_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mvalidate-scripts-required FAILED (validate-scripts=$validate_result)\033[0m" >&2
+          exit 1
