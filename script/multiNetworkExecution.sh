@@ -486,7 +486,7 @@ function updateFoundryTomlForGroup() {
             forge build || true
             ;;
         "$GROUP_ZKEVM")
-            # zkEVM networks use the [profile.zksync] section with zksolc
+            # zkEVM networks use the [profile.zksync] section; zksolc is pinned via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No need to update the main solc_version or evm_version settings
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts
             ;;

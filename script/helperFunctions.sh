@@ -18,6 +18,13 @@ source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+
+# zksolc version pin for foundry-zksync. Passed via env instead of foundry.toml because
+# vanilla forge emits an "unknown `zksync` config" warning for a zksync key in any profile
+# (and silently ignored the previous [profile.default.zksync] block anyway). Only
+# foundry-zksync reads FOUNDRY_ZKSYNC; vanilla forge ignores env-provided unknown keys.
+ZKSOLC_VERSION="1.5.15"
+export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -550,8 +557,7 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from default.zksync profile section
-    grep -A 10 "^\[profile\.default\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    echo "$ZKSOLC_VERSION"
   else
     echo ""
   fi

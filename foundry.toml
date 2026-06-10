@@ -27,10 +27,6 @@ out = "out/zksync"
 [lint]
 lint_on_build = false
 
-# zksolc needs to be defined here as foundry can't detect it if it's under [profile.zksync]
-[profile.default.zksync]
-zksync = { zksolc = '1.5.15' }
-
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
 0g = "${ETH_NODE_URI_0G}"
