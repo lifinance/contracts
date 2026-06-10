@@ -1149,6 +1149,11 @@ function diamondSyncWhitelist {
       done
 
       if [[ "$BATCH_SUCCESS" == "false" ]]; then
+        # Combined route: the deferred removal calldata is only submitted in Stage 4c,
+        # which is skipped on failure — nothing was proposed yet, so a re-run recovers
+        if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" && -n "$PENDING_PROPOSAL_CALLDATAS" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Combined proposal NOT submitted - the deferred removal was not proposed either; re-run the sync after fixing the failed batches"
+        fi
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Some batches failed - check logs above"
         return 1
       fi
