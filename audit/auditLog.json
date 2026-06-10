@@ -601,6 +601,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.06.03_OutputValidator(v1.0.0).pdf",
       "auditCommitHash": "c1caf50af84b3fecc854dbd0960dd2d8940c498c"
+    },
+    "audit20260608": {
+      "auditCompletedOn": "08.06.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.06.08_LiFiIntentEscrowFacet(v1.1.2).pdf",
+      "auditCommitHash": "828dc476547730a11f06fec77ef84478c8c9af07"
     }
   },
   "auditedContracts": {
@@ -826,7 +833,8 @@
       "1.0.0": ["audit20251119"],
       "1.1.0": ["audit20260130"],
       "1.0.1": ["audit20260205"],
-      "1.1.1": ["audit20260205"]
+      "1.1.1": ["audit20260205"],
+      "1.1.2": ["audit20260608"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],

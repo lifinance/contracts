@@ -47,6 +47,12 @@ source script/helperFunctions.sh
 readonly WARN_MULT_NUM=5
 readonly WARN_MULT_DEN=2
 
+# Retry transient RPC read failures (throttling/timeouts) a few times before marking a network
+# ERROR, so a brief blip on one chain doesn't show as a spurious ERROR row. (estimatePauseCost
+# retries its own estimate/gas-price reads; this covers the balance read here.)
+readonly RPC_READ_MAX_ATTEMPTS=3
+readonly RPC_READ_RETRY_SLEEP_SECONDS=2
+
 # fmtAmount: show a wei value in native units rounded to 3 significant figures — enough to
 # eyeball funding; full 18-digit precision isn't useful here. %g may switch to scientific
 # notation for extreme values (e.g. near-zero gas costs).
@@ -101,11 +107,12 @@ readonly CAT_DATA=1
 readonly CAT_PAUSED=2
 readonly CAT_SKIP=3
 
-# fmtRow: join the 6 table columns with tabs (column -t aligns them at the end).
-# Usage: fmtRow NETWORK COST REQUIRED BALANCE PAUSES STATUS
+# fmtRow: join the 7 table columns with tabs (column -t aligns them at the end). STATUS stays last
+# so colorizeStatus can match it at end-of-line.
+# Usage: fmtRow NETWORK COST REQUIRED BALANCE PAUSES TOPUP STATUS
 function fmtRow() {
-  local NETWORK="$1" COST="$2" REQUIRED="$3" BALANCE="$4" PAUSES="$5" STATUS="$6"
-  printf '%s\t%s\t%s\t%s\t%s\t%s' "$NETWORK" "$COST" "$REQUIRED" "$BALANCE" "$PAUSES" "$STATUS"
+  local NETWORK="$1" COST="$2" REQUIRED="$3" BALANCE="$4" PAUSES="$5" TOPUP="$6" STATUS="$7"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$NETWORK" "$COST" "$REQUIRED" "$BALANCE" "$PAUSES" "$TOPUP" "$STATUS"
 }
 
 # colorizeStatus: color the trailing STATUS word of each row. Applied AFTER `column -t` so the
@@ -133,13 +140,13 @@ function checkNetwork() {
   local NETWORK="$1"
 
   if isTestnetNetwork "$NETWORK" >/dev/null 2>&1 || isTronNetwork "$NETWORK" >/dev/null 2>&1; then
-    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "SKIP")"
     return
   fi
   # output suppressed: isNetworkActive logs "not found" for unknown args, which would
   # otherwise land on stdout and pollute the table.
   if ! isNetworkActive "$NETWORK" >/dev/null 2>&1; then
-    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "SKIP")"
     return
   fi
 
@@ -148,7 +155,7 @@ function checkNetwork() {
   local SYMBOL
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
   if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
-    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "SKIP")"
+    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "SKIP")"
     return
   fi
 
@@ -156,21 +163,26 @@ function checkNetwork() {
   COST=$(estimatePauseCost "$NETWORK")
   RC=$?
   if [[ $RC -eq 2 ]]; then
-    echo "$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "PAUSED")"
+    echo "$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "PAUSED")"
     return
   fi
   if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ || "$COST" == "0" ]]; then
-    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
+    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
     return
   fi
 
-  local RPC_URL BALANCE
+  local RPC_URL BALANCE BAL_ATTEMPT=1
   RPC_URL=$(resolveRpc "$NETWORK")
-  BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
-  if ! [[ "$BALANCE" =~ ^[0-9]+$ ]]; then
-    echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "ERROR")"
-    return
-  fi
+  while :; do
+    BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
+    [[ "$BALANCE" =~ ^[0-9]+$ ]] && break
+    if [[ $BAL_ATTEMPT -ge $RPC_READ_MAX_ATTEMPTS ]]; then
+      echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
+      return
+    fi
+    sleep "$RPC_READ_RETRY_SLEEP_SECONDS"
+    BAL_ATTEMPT=$((BAL_ATTEMPT + 1))
+  done
 
   local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
@@ -185,6 +197,16 @@ function checkNetwork() {
     STATUS="OK"
   fi
 
+  # TOP-UP TO OK: native amount to send to reach OK (balance ≥ REQUIRED = 2.5× cost). Positive for
+  # CRITICAL/WARNING (balance < REQUIRED); "-" for OK (already funded).
+  local TOPUP_WEI TOPUP_DISP
+  TOPUP_WEI=$(echo "$REQUIRED - $BALANCE" | bc)
+  if [[ $(echo "$TOPUP_WEI > 0" | bc) -eq 1 ]]; then
+    TOPUP_DISP="$(fmtAmount "$TOPUP_WEI") ${SYMBOL}"
+  else
+    TOPUP_DISP="-"
+  fi
+
   local COST_N REQ_N BAL_N PAUSES_DISP
   COST_N=$(fmtAmount "$COST")
   REQ_N=$(fmtAmount "$REQUIRED")
@@ -193,7 +215,7 @@ function checkNetwork() {
   # RATIO as the sort key so ordering stays exact.
   PAUSES_DISP=$(printf '%g' "$RATIO")
 
-  echo "$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$PAUSES_DISP" "$STATUS")"
+  echo "$CAT_DATA|$RATIO|$(fmtRow "$NETWORK" "${COST_N} ${SYMBOL}" "${REQ_N} ${SYMBOL}" "${BAL_N} ${SYMBOL}" "$PAUSES_DISP" "$TOPUP_DISP" "$STATUS")"
 }
 
 # Run the sweep in parallel: networks are independent and most of the time is RPC latency, so
@@ -231,7 +253,7 @@ fi
 # pipefail is set, so a failure in any render stage (sort/cut/column/colorize) surfaces as the
 # pipeline's exit status; fail loudly rather than printing nothing and still exiting 0.
 if ! {
-  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "NUM OF PAUSES" "STATUS"
+  fmtRow "NETWORK" "COST(1x)" "REQUIRED(2.5x)" "BALANCE" "NUM OF PAUSES" "TOP-UP TO OK" "STATUS"
   printf '\n'
   printf '%s\n' "${ROWS[@]}" | sort -t'|' -k1,1n -k2,2g | cut -d'|' -f3-
 } | column -t -s "$(printf '\t')" | colorizeStatus; then
@@ -240,6 +262,19 @@ if ! {
 fi
 
 echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
+
+# Blind-sweep guard: if we audited in-scope networks but EVERY one returned ERROR — no
+# OK/WARNING/CRITICAL/PAUSED answer anywhere (e.g. a broad RPC outage, or a misconfigured pauser
+# making every estimate revert) — the check assessed nothing, so fail rather than report a
+# false-green "all fine". A few ERRORs alongside real answers do NOT trip this (one flaky RPC
+# shouldn't page). Categories: 0=ERROR, 1=DATA(OK/WARNING/CRITICAL), 2=PAUSED, 3=SKIP.
+ERROR_COUNT=$(printf '%s\n' "${ROWS[@]}" | grep -cE '^0[|]')
+EVALUATED_COUNT=$(printf '%s\n' "${ROWS[@]}" | grep -cE '^[12][|]')
+if [[ "$ERROR_COUNT" -gt 0 && "$EVALUATED_COUNT" -eq 0 ]]; then
+  echo "" >&2
+  error "every audited network returned ERROR ($ERROR_COUNT) — funding could not be assessed on any chain (RPC/estimation failures)" >&2
+  exit 1
+fi
 
 if [[ $HAS_CRITICAL -eq 1 ]]; then
   # Summary alert to stderr (keeps stdout = table only); exit code is the machine signal.
