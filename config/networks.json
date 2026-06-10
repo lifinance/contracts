@@ -48,7 +48,7 @@
     "status": "active",
     "type": "mainnet",
     "rpcUrl": "https://api.mainnet.abs.xyz",
-    "verificationType": "etherscan",
+    "verificationType": "zksync",
     "explorerUrl": "https://abscan.org",
     "explorerApiUrl": "https://api.etherscan.io/v2/api?chainid=2741",
     "multicallAddress": "0xAa4De41dba0Ca5dCBb288b7cC6b708F3aaC759E7",
