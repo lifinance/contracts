@@ -3,10 +3,14 @@ pragma solidity ^0.8.17;
 
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { DSTest } from "ds-test/test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 contract ERC20ProxyTest is DSTest {
+    // solhint-disable-next-line immutable-vars-naming
+    Vm internal immutable vm = Vm(HEVM_ADDRESS);
     ERC20Proxy public erc20Proxy;
     address public proxyOwner;
     address public executorAddress;
@@ -21,6 +25,11 @@ contract ERC20ProxyTest is DSTest {
         erc20Proxy = new ERC20Proxy(proxyOwner, address(0));
 
         assertEq(erc20Proxy.owner(), proxyOwner);
+    }
+
+    function testRevert_CannotDeployWithZeroOwner() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new ERC20Proxy(address(0), executorAddress);
     }
 
     function test_ExecutorAddressIsAuthorizedAtDeploy() public {
