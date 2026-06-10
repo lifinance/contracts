@@ -579,7 +579,8 @@ function getZkSolcVersion() {
 
   if isZkEvmNetwork "$NETWORK"; then
     if [[ -z "$ZKSOLC_VERSION" ]]; then
-      error "zksolc pin not found in foundry.toml [external.zksync]"
+      # callers capture stdout via $(...), so the error must go to stderr
+      error "zksolc pin not found in foundry.toml [external.zksync]" >&2
       return 1
     fi
     echo "$ZKSOLC_VERSION"
