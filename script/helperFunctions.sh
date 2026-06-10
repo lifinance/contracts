@@ -5166,8 +5166,8 @@ install_foundry_zksync() {
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
       echo "forge and cast binaries found in ${install_dir}"
 
-      # Check the version of the existing binary
-      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+      # Check the version of the existing binary (handles both vX.Y.Z and nightly-<sha> tags)
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-[^[:space:]]+' | sed 's/^foundry-zksync-//')
 
       # If we couldn't extract version or it doesn't match expected version
       if [ -z "$CURRENT_VERSION" ]; then
