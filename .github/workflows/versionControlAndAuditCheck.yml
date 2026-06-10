@@ -17,6 +17,9 @@
 # - checks include:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added at the logged path
+#   - ensuring that the logged audit commit hash is part of the PR's commit list (skipped for revert PRs,
+#     i.e. titles starting with "Revert" or containing "[Revert]", since the audited commit lives in the
+#     reverted PR's history, not the revert PR's)
 # - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
 # - KNOWN LIMITATIONS
 #   - multiple audits can be registered per contract (in a specific version)
@@ -451,6 +454,8 @@ jobs:
       - name: Check Audit Log
         id: check-audit-log
         if: ${{ always() && env.AUDIT_REQUIRED == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }} # passed via env (not inline interpolation) to prevent shell injection through PR titles
         run: |
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
@@ -588,22 +593,25 @@ jobs:
               fi
               echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
 
-            # NOTE: This check is disabled because it can cause issues when reverting PRs.
-            # For example, if a PR is mistakenly merged and needs to be reverted,
-            # the revert PR would fail this check since the audit commit hash would not be
-            # part of the revert PR's commit history. This would make it impossible to
-            # revert changes through the normal PR process. - WAS USED FOR SINGLE AUDIT CHECK
-            # echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-            # ##### Fetch the list of commits associated with the PR
-            # COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
+              ##### make sure that the audited commit is part of this PR's commit list
+              ##### skipped for revert PRs (title starts with "Revert" or contains "[Revert]"):
+              ##### a revert PR cannot contain the originally audited commit, and the check
+              ##### would otherwise make it impossible to revert through the normal PR process
+              if [[ "$PR_TITLE" == Revert* || "$PR_TITLE" == *"[Revert]"* ]]; then
+                echo "PR title indicates a revert PR. Skipping audit commit hash verification for audit $AUDIT_ID."
+              else
+                echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
+                ##### Fetch the list of commits associated with the PR
+                COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
 
-            # ##### Check if the target commit is in the list
-            # if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
-            #   echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-            # else
-            #   echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-            #   exit 1
-            # fi
+                ##### Check if the target commit is in the list
+                if echo "$COMMIT_LIST" | grep -q "$AUDIT_COMMIT_HASH"; then
+                  echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
+                else
+                  echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
+                  exit 1
+                fi
+              fi
 
             ##### Check if the auditor git handle exists on github
             echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
