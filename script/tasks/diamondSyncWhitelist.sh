@@ -953,6 +953,9 @@ function diamondSyncWhitelist {
             echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
             echo ""
           } >> "$FAILED_LOG_FILE"
+          # Abort: proceeding to Stage 4b would add new pairs while obsolete ones
+          # remain whitelisted, breaking the remove-before-add ordering invariant
+          return 1
         else
           # Brief wait for state to propagate
           sleep 2
