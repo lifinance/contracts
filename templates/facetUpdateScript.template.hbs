@@ -33,7 +33,7 @@ contract DeployScript is UpdateScriptBase {
     //     return
     //         abi.encodeWithSelector(
     //             {{properCase name}}Facet.init{{properCase name}}.selector,
-    //             json.readAddress(".example")
+    //             json.readAddress(string.concat(".example.", network))
     //         );
     // }
 }
