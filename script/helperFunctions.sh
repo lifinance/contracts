@@ -19,11 +19,33 @@ source script/universalCast.sh
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
 
-# zksolc version pin for foundry-zksync. Passed via env instead of foundry.toml because
-# vanilla forge emits an "unknown `zksync` config" warning for a zksync key in any profile.
-# Only foundry-zksync reads FOUNDRY_ZKSYNC; vanilla forge ignores env-provided unknown keys.
-ZKSOLC_VERSION="1.5.15"
-export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
+# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
+# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
+# foundry.toml even though only our scripts consume them.
+#
+# Usage: getZkToolchainPin KEY
+#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
+#
+# Returns: The pinned version string (empty if not found)
+# Example: getZkToolchainPin "zksolc"
+function getZkToolchainPin() {
+  local KEY="$1"
+
+  awk -v key="$KEY" '
+    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
+    /^\[/ { IN_SECTION = 0 }
+    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
+  ' foundry.toml
+}
+
+# zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
+# Passed to foundry-zksync via env because a real `zksync` key in any profile makes
+# vanilla forge emit an "unknown `zksync` config" warning; vanilla forge ignores
+# env-provided unknown keys.
+ZKSOLC_VERSION=$(getZkToolchainPin "zksolc")
+if [[ -n "$ZKSOLC_VERSION" ]]; then
+  export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
+fi
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -556,6 +578,10 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      error "zksolc pin not found in foundry.toml [external.zksync]"
+      return 1
+    fi
     echo "$ZKSOLC_VERSION"
   else
     echo ""
@@ -1970,6 +1996,12 @@ function verifyContract() {
 
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
+    # ensure the pinned foundry-zksync binary is present (no-op if version matches)
+    install_foundry_zksync >/dev/null || {
+      error "failed to install foundry-zksync"
+      return 1
+    }
+
     # Set environment variable for zkEVM
     export FOUNDRY_PROFILE=zksync
     VERIFY_CMD=(
@@ -5093,28 +5125,30 @@ function updateDiamondLogs() {
 }
 
 # Function: install_foundry_zksync
-# Description: Downloads and installs the zkSync version of foundry tools (forge and cast)
+# Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
+# Idempotent: returns immediately if the installed binary already matches the expected
+# version; on mismatch the binaries are removed and re-downloaded.
 # Arguments:
 #   $1 - Installation directory (optional, defaults to ./foundry-zksync)
-#   FOUNDRY_ZKSYNC_VERSION - Environment variable to specify version
+#   FOUNDRY_ZKSYNC_VERSION - Optional: env override of the version pinned in
+#                            foundry.toml [external.zksync] (e.g. to test a new version)
 # Example Versions:
 #   FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
 install_foundry_zksync() {
-  # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.32"
+  # env override takes precedence over the pin in foundry.toml [external.zksync]
+  local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
-  # Verify that FOUNDRY_ZKSYNC_VERSION is set
-  if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+  if [ -z "${EXPECTED_VERSION}" ]; then
+    echo "Error: foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)"
     return 1
   fi
 
-  echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
+  echo "Using Foundry zkSync version: ${EXPECTED_VERSION}"
 
   # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
@@ -5130,15 +5164,15 @@ install_foundry_zksync() {
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      elif [ "$CURRENT_VERSION" != "${EXPECTED_VERSION}" ]; then
           echo "Version mismatch detected!"
-          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Expected: ${EXPECTED_VERSION}"
           echo "  Current:  ${CURRENT_VERSION}"
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
       else
-          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Version matches expected ${EXPECTED_VERSION}"
           echo "Skipping download and installation"
           return 0
       fi
@@ -5173,8 +5207,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${EXPECTED_VERSION}"
+  local filename="foundry_zksync_${EXPECTED_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

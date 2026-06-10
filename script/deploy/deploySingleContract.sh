@@ -185,6 +185,12 @@ deploySingleContract() {
       fi
     fi
   else
+      # ensure the pinned foundry-zksync binary is installed (no-op if version matches)
+      install_foundry_zksync || {
+        error "failed to install foundry-zksync"
+        return 1
+      }
+
       # Build zksync artifacts first
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
