@@ -1,4 +1,10 @@
-import { parseAbi, toFunctionSelector } from 'viem'
+import {
+  encodeFunctionData,
+  parseAbi,
+  toFunctionSelector,
+  type Address,
+  type Hex,
+} from 'viem'
 
 /**
  * TimelockController ABIs + selectors shared across Safe scripts.
@@ -13,3 +19,45 @@ export const TIMELOCK_SCHEDULE_BATCH_ABI = parseAbi([
 export const TIMELOCK_SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
 )
+
+const ZERO_PREDECESSOR =
+  // pre-commit-checker: not a secret — zero bytes32 means "no predecessor"
+  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
+
+/**
+ * Encodes a `scheduleBatch` call for the TimelockController from one or more
+ * inner calls. Inner calls execute in array order, so callers control ordering
+ * (e.g. whitelist removals before additions) via the order of `targets`/`payloads`.
+ * @param targets - Target contract address per inner call (parallel to `payloads`)
+ * @param payloads - Calldata per inner call (parallel to `targets`)
+ * @param salt - Unique salt for the timelock operation id
+ * @param minDelay - Timelock delay in seconds
+ * @returns The encoded `scheduleBatch` calldata
+ * @throws If `targets` is empty or `targets` and `payloads` differ in length
+ */
+export function encodeTimelockScheduleBatch(
+  targets: Address[],
+  payloads: Hex[],
+  salt: Hex,
+  minDelay: bigint
+): Hex {
+  if (targets.length === 0)
+    throw new Error('encodeTimelockScheduleBatch requires at least one call')
+  if (targets.length !== payloads.length)
+    throw new Error(
+      `encodeTimelockScheduleBatch: targets (${targets.length}) and payloads (${payloads.length}) must have the same length`
+    )
+
+  return encodeFunctionData({
+    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+    functionName: 'scheduleBatch',
+    args: [
+      targets,
+      targets.map(() => 0n), // values
+      payloads,
+      ZERO_PREDECESSOR,
+      salt,
+      minDelay,
+    ],
+  })
+}

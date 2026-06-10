@@ -10,6 +10,11 @@
  *
  * Or run directly from the CLI:
  *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0x... --timelock --privateKey 0x...
+ *
+ * Multiple calls can be combined into a single timelock scheduleBatch proposal by
+ * repeating --to/--calldata pairs (requires --timelock); inner calls execute in the
+ * order they are passed:
+ *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0xREMOVE --to 0x... --calldata 0xADD --timelock --privateKey 0x...
  */
 
 import 'dotenv/config'
@@ -39,6 +44,40 @@ import {
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
+  // Normalize to/calldata into parallel call arrays (multiple --to/--calldata pairs are allowed)
+  const targets = (
+    Array.isArray(options.to) ? options.to : [options.to]
+  ) as Address[]
+
+  let calldatas: Hex[]
+  if (options.calldataFile) {
+    if (Array.isArray(options.calldata) || targets.length > 1)
+      throw new Error(
+        '--calldataFile cannot be combined with multiple --to/--calldata pairs'
+      )
+    if (!fs.existsSync(options.calldataFile))
+      throw new Error(`Calldata file not found: ${options.calldataFile}`)
+    calldatas = [fs.readFileSync(options.calldataFile, 'utf8').trim() as Hex]
+    consola.info(`Loaded calldata from file: ${options.calldataFile}`)
+  } else if (options.calldata && options.calldata.length > 0) {
+    calldatas = (
+      Array.isArray(options.calldata) ? options.calldata : [options.calldata]
+    ) as Hex[]
+  } else {
+    throw new Error('Either --calldata or --calldataFile must be provided')
+  }
+
+  if (targets.length !== calldatas.length)
+    throw new Error(
+      `Number of --to addresses (${targets.length}) must match number of --calldata values (${calldatas.length})`
+    )
+
+  // Multiple calls are only combinable via the timelock's scheduleBatch
+  if (targets.length > 1 && !options.timelock)
+    throw new Error(
+      'Multiple --to/--calldata pairs require --timelock (combined into a single scheduleBatch proposal)'
+    )
+
   // Set up signing options
   const useLedger = options.ledger || false
   let privateKey: string | undefined
@@ -97,21 +136,8 @@ export async function runPropose(options: IProposeToSafeOptions) {
     process.exit(1)
   }
 
-  // Handle timelock wrapping if requested
-  let finalTo = options.to as Address
-
-  // Get calldata from file or argument
+  let finalTo: Address
   let finalCalldata: Hex
-  if (options.calldataFile) {
-    if (!fs.existsSync(options.calldataFile))
-      throw new Error(`Calldata file not found: ${options.calldataFile}`)
-    finalCalldata = fs.readFileSync(options.calldataFile, 'utf8').trim() as Hex
-    consola.info(`Loaded calldata from file: ${options.calldataFile}`)
-  } else if (options.calldata) {
-    finalCalldata = options.calldata as Hex
-  } else {
-    throw new Error('Either --calldata or --calldataFile must be provided')
-  }
 
   if (options.timelock) {
     // Look for timelock controller address in deployments (always use production)
@@ -138,12 +164,16 @@ export async function runPropose(options: IProposeToSafeOptions) {
       options.network,
       options.rpcUrl || '',
       getAddress(timelockAddress),
-      finalTo,
-      finalCalldata
+      targets,
+      calldatas
     )
 
     finalTo = wrappedTransaction.targetAddress
     finalCalldata = wrappedTransaction.calldata
+  } else {
+    // Single direct (non-timelock) proposal — validated above to be exactly one call
+    finalTo = targets[0] as Address
+    finalCalldata = calldatas[0] as Hex
   }
 
   // Get MongoDB collection
@@ -181,8 +211,10 @@ export async function runPropose(options: IProposeToSafeOptions) {
   consola.info('Nonce', nextNonce.toString())
   consola.info('Proposing transaction to', finalTo)
   if (options.timelock) {
-    consola.info('Original target was', options.to)
-    consola.info('Transaction wrapped in timelock schedule call')
+    consola.info('Original target(s):', targets.join(', '))
+    consola.info(
+      `Wrapped ${targets.length} call(s) in a single timelock scheduleBatch proposal`
+    )
   }
 
   // Store transaction in MongoDB using the utility function
@@ -241,12 +273,14 @@ const main = defineCommand({
     },
     to: {
       type: 'string',
-      description: 'To address',
+      description:
+        'To address (repeatable; pair each with a --calldata to combine multiple calls into one timelock proposal)',
       required: true,
     },
     calldata: {
       type: 'string',
-      description: 'Calldata',
+      description:
+        'Calldata (repeatable; pair each with a --to, calls execute in the given order)',
       required: false,
     },
     calldataFile: {
@@ -293,8 +327,9 @@ const main = defineCommand({
 
     await runPropose({
       network: args.network,
-      to: args.to,
-      calldata: (args.calldata ?? '') as Hex,
+      // citty returns a string for a single flag and an array when the flag is repeated
+      to: args.to as unknown as string | string[],
+      calldata: (args.calldata ?? '') as unknown as Hex | Hex[],
       calldataFile: args.calldataFile,
       timelock: args.timelock,
       privateKey: args.privateKey,

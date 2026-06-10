@@ -3738,9 +3738,16 @@ function getPrivateKey() {
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
-#   network, environment, target, calldata: required
+#   network, environment, target: required
+#   calldata: single 0x calldata, or multiple comma-separated 0x calldatas (processed in the given order)
 #   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Routing/Behavior for multiple calldatas:
+#   - EVM propose route with timelock=true: combined into ONE timelock scheduleBatch proposal (single signing round)
+#   - All other routes (direct send, Tron propose, propose without timelock): processed sequentially, one tx/proposal each
+#
+# Returns: 0 on success; non-zero (first failing call) otherwise
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3755,18 +3762,27 @@ function sendOrPropose() {
     return 1
   fi
 
+  # Split comma-separated calldatas (calldata is hex, so commas are unambiguous separators)
+  local CALLDATAS=()
+  IFS=',' read -ra CALLDATAS <<< "$CALLDATA"
+
   # Validate calldata format
-  if [[ ! "$CALLDATA" =~ ^0x ]]; then
-    error "sendOrPropose: Calldata must start with 0x"
-    return 1
-  fi
+  local CD
+  for CD in "${CALLDATAS[@]}"; do
+    if [[ ! "$CD" =~ ^0x ]]; then
+      error "sendOrPropose: Calldata must start with 0x"
+      return 1
+    fi
+  done
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
+    for CD in "${CALLDATAS[@]}"; do
+      universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CD" "$PRIVATE_KEY_OVERRIDE" || return $?
+    done
+    return 0
   fi
 
   # Resolve private key
@@ -3780,38 +3796,49 @@ function sendOrPropose() {
     }
   fi
 
-  # Tron: propose to Safe via tron script
+  # Tron: propose to Safe via tron script (no batch support - one proposal per calldata)
   if isTronNetwork "$NETWORK"; then
-    local PROPOSE_TRON_CMD=(
-      bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$SAFE_SIGNER_KEY"
-    )
-    if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_TRON_CMD+=(--timelock)
-    else
-      PROPOSE_TRON_CMD+=(--direct)
-    fi
-    "${PROPOSE_TRON_CMD[@]}"
-    return $?
+    for CD in "${CALLDATAS[@]}"; do
+      local PROPOSE_TRON_CMD=(
+        bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+        --to "$TARGET"
+        --calldata "$CD"
+        --privateKey "$SAFE_SIGNER_KEY"
+      )
+      if [[ "$TIMELOCK" == "true" ]]; then
+        PROPOSE_TRON_CMD+=(--timelock)
+      else
+        PROPOSE_TRON_CMD+=(--direct)
+      fi
+      "${PROPOSE_TRON_CMD[@]}" || return $?
+    done
+    return 0
   fi
 
   # EVM: propose to Safe
-  local PROPOSE_CMD=(
-    bunx tsx script/deploy/safe/propose-to-safe.ts
-    --network "$NETWORK"
-    --to "$TARGET"
-    --calldata "$CALLDATA"
-    --privateKey "$SAFE_SIGNER_KEY"
-  )
-
   if [[ "$TIMELOCK" == "true" ]]; then
-    PROPOSE_CMD+=(--timelock)
+    # Combine all calls into a single timelock scheduleBatch proposal (one signing round)
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+    )
+    for CD in "${CALLDATAS[@]}"; do
+      PROPOSE_CMD+=(--to "$TARGET" --calldata "$CD")
+    done
+    PROPOSE_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
+    "${PROPOSE_CMD[@]}"
+    return $?
   fi
 
-  "${PROPOSE_CMD[@]}"
-  return $?
+  # Without timelock wrapping there is no batch mechanism - one proposal per calldata
+  for CD in "${CALLDATAS[@]}"; do
+    bunx tsx script/deploy/safe/propose-to-safe.ts \
+      --network "$NETWORK" \
+      --to "$TARGET" \
+      --calldata "$CD" \
+      --privateKey "$SAFE_SIGNER_KEY" || return $?
+  done
+  return 0
 }
 
 function isZkEvmNetwork() {
