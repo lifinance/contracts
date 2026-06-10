@@ -26,7 +26,7 @@ const deploymentsCache = new Map<string, Promise<DeploymentsFileModule>>()
 export const getDeployments = async (
   chain: SupportedChain,
   environment: EnvironmentEnum = EnvironmentEnum.staging
-) => {
+): Promise<DeploymentsFileModule> => {
   const cacheKey = `${chain}:${environment}`
   const cached = deploymentsCache.get(cacheKey)
   if (cached) return cached

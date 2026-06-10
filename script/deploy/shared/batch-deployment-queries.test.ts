@@ -330,6 +330,36 @@ describe('executeBatchQueries', () => {
     expect(results[0]?.error).toBe('string failure')
   })
 
+  it('reports querier init failure as per-query errors without failing other environments', async () => {
+    const results = await executeBatchQueries(
+      [
+        { id: 'p1', op: 'latest', contract: 'Executor', network: 'mainnet' },
+        {
+          id: 's1',
+          op: 'latest',
+          env: 'staging',
+          contract: 'Receiver',
+          network: 'mainnet',
+        },
+      ],
+      'production',
+      (env) => {
+        if (env === 'staging') throw new Error('staging connect refused')
+        return makeQuerier([record])
+      }
+    )
+
+    expect(results[0]).toMatchObject({ id: 'p1', found: true })
+    expect(results[0]?.data).toEqual(record)
+    expect(results[1]).toMatchObject({
+      id: 's1',
+      found: false,
+      data: null,
+      error:
+        "Failed to initialize querier for environment 'staging': staging connect refused",
+    })
+  })
+
   it('reports an unsupported op that bypassed parsing as an error result', async () => {
     const results = await executeBatchQueries(
       [

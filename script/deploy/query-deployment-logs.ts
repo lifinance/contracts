@@ -1084,7 +1084,10 @@ const batchCommand = defineCommand({
     } finally {
       await Promise.all(directQueriers.map((querier) => querier.disconnect()))
     }
-    if (exitCode !== 0) process.exit(exitCode)
+    // Always exit explicitly: shell callers capture this command via $(...) and
+    // block until the process exits, so any stray handle (e.g. a leaked MongoDB
+    // monitor socket) would otherwise hang the calling deploy script forever.
+    process.exit(exitCode)
   },
 })
 

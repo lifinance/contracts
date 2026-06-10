@@ -237,28 +237,39 @@ export async function executeBatchQueries(
   ) => Promise<IBatchQuerier> | IBatchQuerier
 ): Promise<IBatchQueryResult[]> {
   const queriers = new Map<keyof typeof EnvironmentEnum, IBatchQuerier>()
-
-  const resolveQuerier = async (
-    env: keyof typeof EnvironmentEnum
-  ): Promise<IBatchQuerier> => {
-    const existing = queriers.get(env)
-    if (existing) return existing
-    const querier = await getQuerier(env)
-    queriers.set(env, querier)
-    return querier
-  }
+  const querierErrors = new Map<keyof typeof EnvironmentEnum, string>()
 
   // Resolve queriers sequentially first so each environment is initialized exactly once,
   // then run all lookups in parallel against the shared querier instances.
+  // An environment that fails to initialize must not reject the whole batch:
+  // its queries are reported as per-query error results so requests against
+  // other environments still return data (mixed staging/production callers).
   const environments = [...new Set(requests.map((r) => r.env ?? defaultEnv))]
-  for (const env of environments) await resolveQuerier(env)
+  for (const env of environments)
+    try {
+      queriers.set(env, await getQuerier(env))
+    } catch (error) {
+      querierErrors.set(
+        env,
+        error instanceof Error ? error.message : String(error)
+      )
+    }
 
   return Promise.all(
-    requests.map(async (request) =>
-      executeSingleQuery(
-        request,
-        await resolveQuerier(request.env ?? defaultEnv)
-      )
-    )
+    requests.map(async (request) => {
+      const env = request.env ?? defaultEnv
+      const querier = queriers.get(env)
+      if (!querier)
+        return {
+          id: request.id ?? '',
+          op: request.op,
+          found: false,
+          data: null,
+          error: `Failed to initialize querier for environment '${env}': ${
+            querierErrors.get(env) ?? 'unknown error'
+          }`,
+        }
+      return executeSingleQuery(request, querier)
+    })
   )
 }

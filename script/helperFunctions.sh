@@ -5474,13 +5474,24 @@ getContractDeploymentStatusSummary() {
     local LOG_ENTRY=""
     local FIND_RESULT=1
 
+    # A successful batch invocation can still carry a per-network error (e.g. a
+    # transient cache/Mongo failure); treat that as a failed lookup and fall back
+    # to the per-network path instead of misreporting the network as not deployed.
+    local BATCH_ITEM_ERROR=""
     if [[ "$BATCH_OK" == "true" ]]; then
+      BATCH_ITEM_ERROR=$(echo "$BATCH_RESULT" | jq -r --arg ID "$network" '[.[] | select(.id == $ID)][0].error // empty' 2>/dev/null)
+    fi
+
+    if [[ "$BATCH_OK" == "true" && -z "$BATCH_ITEM_ERROR" ]]; then
       LOG_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "$network" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
       if [[ -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
         FIND_RESULT=0
       fi
     else
-      # Fallback: per-network lookup (batch invocation failed)
+      # Fallback: per-network lookup (batch invocation or this network's query failed)
+      if [[ -n "$BATCH_ITEM_ERROR" ]]; then
+        echoDebug "batch lookup for $CONTRACT on $network returned an error ($BATCH_ITEM_ERROR), falling back to per-network lookup"
+      fi
       LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
       FIND_RESULT=$?
 

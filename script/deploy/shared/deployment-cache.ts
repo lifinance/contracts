@@ -9,15 +9,12 @@ import {
 import path from 'path'
 
 import { consola } from 'consola'
+import { MongoClient } from 'mongodb'
 
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
-import {
-  type IDeploymentRecord,
-  DatabaseConnectionManager,
-  type IConfig,
-} from './mongo-log-utils'
+import { type IDeploymentRecord, type IConfig } from './mongo-log-utils'
 
 /**
  * Metadata for the deployment cache
@@ -435,12 +432,18 @@ export class DeploymentCache {
 
       consola.info(`Refreshing ${environment} cache from MongoDB...`)
 
-      const dbManager = DatabaseConnectionManager.getInstance(this.mongoConfig)
+      // Use a dedicated client per refresh instead of the shared
+      // DatabaseConnectionManager singleton: concurrent refreshes of different
+      // environments (e.g. a batch query spanning staging + production) would
+      // race on the singleton's internal client field, leaking an unclosed
+      // MongoClient that keeps the process's event loop alive forever.
+      const client = new MongoClient(this.mongoConfig.mongoUri)
 
       try {
-        await dbManager.connect()
-        const collection =
-          dbManager.getCollection<IDeploymentRecord>(environment)
+        await client.connect()
+        const collection = client
+          .db(this.mongoConfig.databaseName)
+          .collection<IDeploymentRecord>(environment)
 
         // Fetch all records from MongoDB
         const records = await collection.find({}).toArray()
@@ -465,7 +468,7 @@ export class DeploymentCache {
 
         throw error
       } finally {
-        await dbManager.disconnect()
+        await client.close()
       }
     })
   }
