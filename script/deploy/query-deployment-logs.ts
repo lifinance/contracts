@@ -1020,7 +1020,7 @@ const batchCommand = defineCommand({
     name: 'batch',
     description:
       'Run multiple lookups (get/latest/find/exists/history) in one invocation. ' +
-      'Pass a JSON array of query objects via --queries (use "-" to read from stdin).',
+      'Pass a JSON array of query objects via --queries (use --queries=- to read from stdin).',
   },
   args: {
     env: {
