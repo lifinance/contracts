@@ -12,7 +12,9 @@ contract DeployScript is UpdateScriptBase {
     }
 
     // If you need to exclude selectors from the diamond cut (e.g. init functions
-    // or selectors that clash with other facets), override getExcludes():
+    // or selectors that clash with other facets), import the facet
+    // (import { {{properCase name}}Facet } from "lifi/Facets/{{properCase name}}Facet.sol";)
+    // and override getExcludes():
     //
     // function getExcludes() internal pure override returns (bytes4[] memory) {
     //     bytes4[] memory excludes = new bytes4[](1);
