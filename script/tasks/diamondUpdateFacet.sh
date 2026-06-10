@@ -79,10 +79,8 @@ diamondUpdateFacet() {
     return 1
   fi
 
-  # make sure GAS_ESTIMATE_MULTIPLIER is set
-  if [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]]; then
-    GAS_ESTIMATE_MULTIPLIER=130 # this is foundry's default value
-  fi
+  # make sure GAS_ESTIMATE_MULTIPLIER is set (env value wins; Tempo defaults to 550, others to 130)
+  GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
 
   # if no SCRIPT was passed to this function, ask user to select it
   if [[ -z "$SCRIPT" ]]; then

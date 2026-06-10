@@ -85,10 +85,13 @@ updateFacetConfig() {
       TEMPO_PROFILE_PREFIX=$(getTempoForgeProfilePrefix "$NETWORK")
       local LEGACY_CLI_FLAG
       LEGACY_CLI_FLAG=$(getForgeLegacyCliFlag "$NETWORK")
+      # per-network multiplier (env value wins; Tempo defaults to 550, others to 130)
+      local EFFECTIVE_GAS_ESTIMATE_MULTIPLIER
+      EFFECTIVE_GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
 
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "${TEMPO_PROFILE_PREFIX}NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast ${LEGACY_CLI_FLAG}$SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "${TEMPO_PROFILE_PREFIX}NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast ${LEGACY_CLI_FLAG}$SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\"" \
         "true" \
         "forge script failed for $SCRIPT on network $NETWORK" \
         "continue"; then

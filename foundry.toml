@@ -20,7 +20,7 @@ cache = true
 # semantics; bash helpers omit --legacy for this network (see getForgeLegacyCliFlag).
 # Inherits unspecified keys from [profile.default] (Foundry profile merge).
 [profile.tempo]
-tempo = true
+network = "tempo"
 
 [profile.zksync]
 solc_version = '0.8.29'

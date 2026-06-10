@@ -3938,6 +3938,29 @@ function getTempoFeeTokenCliFlag() {
   fi
 }
 
+# getEffectiveGasEstimateMultiplier: Resolves the gas estimate multiplier for a network.
+# An explicit GAS_ESTIMATE_MULTIPLIER from .env always wins. Tempo defaults to 550 because
+# its gas estimation underestimates heavily (see networks.json tempo devNotes); all other
+# networks fall back to the caller-provided default.
+#
+# Usage: getEffectiveGasEstimateMultiplier NETWORK [FALLBACK]
+#   NETWORK  - Network name as defined in networks.json
+#   FALLBACK - Optional: multiplier used for non-Tempo networks when env is unset (default: 130)
+#
+# Returns: Prints the multiplier (percent) to stdout
+# Example: GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
+function getEffectiveGasEstimateMultiplier() {
+  local NETWORK="$1"
+  local FALLBACK="${2:-130}"
+  if [[ -n "${GAS_ESTIMATE_MULTIPLIER:-}" ]]; then
+    printf '%s' "$GAS_ESTIMATE_MULTIPLIER"
+  elif isTempoNetwork "$NETWORK"; then
+    printf '%s' "550"
+  else
+    printf '%s' "$FALLBACK"
+  fi
+}
+
 function getTronEnv() {
   # read function arguments into variables
   local NETWORK="$1"

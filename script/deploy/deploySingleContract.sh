@@ -119,7 +119,8 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
-  GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
+  # env value wins; Tempo defaults to 550, all other networks to foundry's default of 130
+  GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
 
   # logging for debug purposes
   echo ""

@@ -39,7 +39,8 @@ deployAndStoreCREATE3Factory() {
   echo "Trying to deploy CREATE3Factory now"
   echo ""
 
-  [[ -z "$GAS_ESTIMATE_MULTIPLIER" ]] && GAS_ESTIMATE_MULTIPLIER=200
+  # env value wins; Tempo defaults to 550, all other networks to 200
+  GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 200)
   SKIP_SIMULATION_FLAG=$(getSkipSimulationFlag)
 
   local TEMPO_PROFILE_PREFIX
