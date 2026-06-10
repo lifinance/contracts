@@ -116,11 +116,14 @@ export function parseBatchQueries(json: string): IBatchQueryRequest[] {
     const stringField = (name: string): string | undefined => {
       const value = query[name]
       if (value === undefined) return undefined
-      if (typeof value !== 'string' || value.trim() === '')
+      const trimmed = typeof value === 'string' ? value.trim() : ''
+      if (trimmed === '')
         throw new Error(
           `Query at index ${index} has invalid '${name}' (expected non-empty string)`
         )
-      return value
+      // Return the trimmed value: whitespace-padded fields would pass
+      // validation but never match the stored contract/network names
+      return trimmed
     }
 
     const request: IBatchQueryRequest = {
