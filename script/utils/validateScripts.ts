@@ -3,7 +3,8 @@
  *
  * Guards against changes that silently break TS scripts (EXSC-331):
  * 1. Type check: runs `tsc-files --noEmit` over the TS files under `script/`
- *    changed between a base ref and HEAD. Removing a used import (TS2304) or
+ *    changed between a base and a head ref (default HEAD). Removing a used
+ *    import (TS2304) or
  *    a dependency a script imports (TS2307) fails the check — no execution,
  *    no fixtures.
  * 2. Import resolution: when dependency manifests (package.json / bun.lock /
