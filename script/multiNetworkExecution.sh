@@ -1386,8 +1386,9 @@ function getProgressSummary() {
 # notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
 # summarizing how many proposals were created and on which chains, with a reminder to sign.
 # Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
-# least one network succeeded. Reuses sendMessageToSlackSmartContractsChannel (helperFunctions.sh),
-# which posts via SLACK_WEBHOOK_SC_GENERAL from .env.
+# least one network succeeded. Posts to #dev-sc-multisig-proposals via
+# script/utils/send-slack-webhook-message.ts (requires WEBHOOK_DEV_SC_MULTISIG_PROPOSALS in .env;
+# the sender warns and exits non-zero if it is missing — the run is never failed by this).
 #
 # Usage: notifyProposalsCreatedToSlack
 #
@@ -1420,8 +1421,12 @@ function notifyProposalsCreatedToSlack() {
 
     local MESSAGE="🚀 $PROPOSAL_COUNT proposal(s) created for $PROPOSAL_CONTRACT across chains [$CHAIN_LIST]. Ready for signing — please sign now."
 
-    logWithTimestamp "Posting proposal-creation summary to Slack..."
-    sendMessageToSlackSmartContractsChannel "$MESSAGE" || logWithTimestamp "Warning: Failed to send proposal-creation Slack notification"
+    logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
+    local MESSAGE_FILE
+    MESSAGE_FILE=$(mktemp)
+    printf '%s\n' "$MESSAGE" >"$MESSAGE_FILE"
+    bunx tsx script/utils/send-slack-webhook-message.ts --channel dev-sc-multisig-proposals --message-file "$MESSAGE_FILE" || logWithTimestamp "Warning: Failed to send proposal-creation Slack notification"
+    rm -f "$MESSAGE_FILE"
 
     return 0
 }
