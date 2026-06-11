@@ -111,6 +111,8 @@ contract MayanFacetTest is TestBaseFacet {
     bytes32 internal constant ACTUAL_SOL_ADDR =
         hex"4cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d"; // [pre-commit-checker: not a secret]
     bytes32 internal constant EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
+    address internal constant HYPERCORE_RECEIVER =
+        0xd01e6A41E4DE4032830C99aa79c0206753De628A;
 
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
@@ -800,6 +802,85 @@ contract MayanFacetTest is TestBaseFacet {
                 expectedReceiver,
                 uint32(0),
                 uint64(0)
+            );
+    }
+
+    function test_CanBridgeTokensToHyperCore() public {
+        // End-to-end of the bug path: the full startBridgeTokensViaMayan -> _startBridge flow for a
+        // HyperCore deposit (destinationChainId == 1337) where bridgeData.receiver is the
+        // customPayload[0:20] receiver. Before the fix the receiver was validated against destAddr
+        // (the HCDepositor handler), so this reverted with InvalidReceiver. Mayan's forwarder
+        // behavior is out of scope, so forwardERC20 is stubbed to isolate the facet's validation.
+        bridgeData.receiver = HYPERCORE_RECEIVER;
+        bridgeData.destinationChainId = 1337;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        MayanFacet.MayanData memory hyperCoreData = MayanFacet.MayanData(
+            "",
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
+            _hyperCoreProtocolData()
+        );
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, hyperCoreData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HyperCoreReceiverDoesNotMatchCustomPayload() public {
+        // Same HyperCore flow, but bridgeData.receiver != customPayload[0:20]; the full _startBridge
+        // must revert before forwarding, proving the customPayload receiver is enforced end-to-end.
+        address wrongReceiver = address(0xBEEF);
+
+        bridgeData.receiver = wrongReceiver;
+        bridgeData.destinationChainId = 1337;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        MayanFacet.MayanData memory hyperCoreData = MayanFacet.MayanData(
+            "",
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
+            _hyperCoreProtocolData()
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidReceiver.selector,
+                wrongReceiver,
+                HYPERCORE_RECEIVER
+            )
+        );
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, hyperCoreData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Real on-chain HyperCore deposit calldata (createOrderWithToken 0xa3a30834,
+    ///      payloadType 2, destChainId 47): destAddr is Mayan's HCDepositor handler and the real
+    ///      receiver is customPayload[0:20] (HYPERCORE_RECEIVER). Source tx:
+    ///      0x7077760ccec417b7057267465e933f163545c82ce5808798c17be068860eeb29
+    function _hyperCoreProtocolData() private pure returns (bytes memory) {
+        return
+            vm.parseBytes(
+                "0xa3a30834000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004c1a6c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000000000056032241c0adab58a29b13e94fb595a4bc414e33000000000000000000000000000000000000000000000000000000000000002f000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cd000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f00000000000000000000000000000000000000000000000000000000004479bf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001250a000000000000000000000000000000000000000000000000000000000000d107000000000000000000000000000000000000000000000000000000006a1ec3f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d72eef3486e6427a1820fced5ec5ea59bdc4f4efd88f471e3660fec52cfd7de00000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000020d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000007a120"
             );
     }
 
