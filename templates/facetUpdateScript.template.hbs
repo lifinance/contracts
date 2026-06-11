@@ -11,10 +11,13 @@ contract DeployScript is UpdateScriptBase {
         return update("{{properCase name}}Facet");
     }
 
-    // If you need to exclude selectors from the diamond cut (e.g. init functions
-    // or selectors that clash with other facets), import the facet
+    // The generated facet sets its config via constructor immutables and has no
+    // init function, so no overrides are needed by default.
+    //
+    // If you add an init function to your facet (or need to keep selectors that
+    // clash with other facets out of the diamond cut), import the facet
     // (import { {{properCase name}}Facet } from "lifi/Facets/{{properCase name}}Facet.sol";)
-    // and override getExcludes():
+    // and override getExcludes(), referencing the function you added, e.g.:
     //
     // function getExcludes() internal pure override returns (bytes4[] memory) {
     //     bytes4[] memory excludes = new bytes4[](1);
@@ -23,8 +26,9 @@ contract DeployScript is UpdateScriptBase {
     //     return excludes;
     // }
     //
-    // If your facet needs initialization calldata that is executed when adding
-    // the facet to the diamond, override getCallData():
+    // If that init function must be called with calldata when the facet is
+    // added to the diamond, also override getCallData() (path and json are
+    // inherited from ScriptBase/UpdateScriptBase):
     //
     // function getCallData() internal override returns (bytes memory) {
     //     path = string.concat(root, "/config/{{kebabCase name}}.json");

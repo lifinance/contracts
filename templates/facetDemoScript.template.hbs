@@ -86,6 +86,8 @@ async function main() {
 
   await ensureBalance(srcTokenContract, signerAddress, amount, publicClient)
 
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
+
   await ensureAllowance(
     srcTokenContract,
     signerAddress,
@@ -117,7 +119,6 @@ async function main() {
   }
 
   // === Start bridging ===
-  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
   await executeTransaction(
     () =>
       walletClient.writeContract({
