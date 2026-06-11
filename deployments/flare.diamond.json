@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x70e272A93bc8344277a1f4390Ea6153A1D5fe450": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x662BCADB7A2CBb22367b2471d8A91E5b13FCe96B": {
         "Name": "AccessManagerFacet",
@@ -49,21 +49,13 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x5a627e444Ee25eB6e7E897A66483A127ECEE2578": {
-        "Name": "GlacisFacet",
+      "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0xdEf2DFaAec9CE0DE50efc0663Cd2962C6bc88498": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
-      },
-      "0x73388a39CC5bb0fe45c12231727D33f2B2ef4DF7": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -74,6 +66,7 @@
       "GasZipPeriphery": "0x324de98D989705fe26A40B3009ca7e9aC21305aB",
       "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
       "LidoWrapper": "",
+      "OutputValidator": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
       "Patcher": "",
       "Permit2Proxy": "0xac08C219Fd4856A33a090503BCbc14733d588588",
       "ReceiverAcrossV3": "",
