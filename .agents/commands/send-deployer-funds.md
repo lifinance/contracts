@@ -119,7 +119,7 @@ Render a one-block summary and require explicit confirmation before broadcasting
 ```text
 ⚠️  About to broadcast a REAL native transfer. This is irreversible.
 
-  Network:            outlaw  (chainId 793073 — verified via cast chain-id)
+  Network:            outlaw  (chainId 4663 — verified via cast chain-id)
   RPC source:         ETH_NODE_URI_OUTLAW            (URL not shown — may embed API key)
   Sender:             0x492E267321E863fA45Bc9d97c9f64Fa9Df70d4c4  (derived from PRIVATE_KEY_PRODUCTION)
   Sender balance:     980845853615340000 wei  (0.98084585… ETH)
