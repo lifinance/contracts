@@ -813,9 +813,19 @@ function diamondSyncWhitelist {
       fi
     fi
 
-    # Finalize the combined-proposal route now that both pair lists are known
+    # Finalize the combined-proposal route now that both pair lists are known.
+    # Size cap: executeBatch runs ALL inner calls in ONE transaction, so an
+    # unbounded combination would undo Stage 4b's 150-pair gas batching and can
+    # exceed block gas limits on low-limit chains — producing a scheduled-but-
+    # unexecutable proposal that atomically blocks the removal (recoverable only
+    # by cancel + re-propose). Above the cap, use the sequential-proposal flow.
+    local COMBINED_PROPOSAL_MAX_PAIRS=300
     if [[ "$IS_TRON" == "false" && "$TIMELOCK_FLAG" == "true" && ${#REMOVED_PAIRS[@]} -gt 0 && ${#NEW_PAIRS[@]} -gt 0 ]]; then
-      COMBINE_REMOVE_ADD_PROPOSAL=true
+      if ((${#REMOVED_PAIRS[@]} + ${#NEW_PAIRS[@]} <= COMBINED_PROPOSAL_MAX_PAIRS)); then
+        COMBINE_REMOVE_ADD_PROPOSAL=true
+      else
+        printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] $((${#REMOVED_PAIRS[@]} + ${#NEW_PAIRS[@]})) total pairs exceeds the combined-proposal cap ($COMBINED_PROPOSAL_MAX_PAIRS) - using separate sequential proposals to stay within block gas limits"
+      fi
     fi
 
     # Remove obsolete contract-selector pairs (process removals first)
@@ -897,16 +907,23 @@ function diamondSyncWhitelist {
       local REMOVAL_DEFERRED=false
       if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" ]]; then
         local REMOVE_CALLDATA
-        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" "false" 2>&1)
-        if [[ "$REMOVE_CALLDATA" =~ ^0x ]]; then
+        # stdout only (stderr may carry foundry warnings/update notices that would
+        # corrupt the value); strict single-line hex match so any stray text after
+        # the calldata takes the safe fallback path instead of poisoning the batch
+        local CAST_STDERR_FILE
+        CAST_STDERR_FILE=$(mktemp)
+        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" "false" 2>"$CAST_STDERR_FILE")
+        if [[ "$REMOVE_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
           PENDING_PROPOSAL_CALLDATAS="$REMOVE_CALLDATA"
           REMOVAL_DEFERRED=true
           printf '\033[0;36m%s\033[0m\n' "🧩 [$NETWORK] Removal of $REMOVE_COUNT pairs will be combined with additions into a single timelock proposal"
         else
           printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Failed to build removal calldata for combined proposal - falling back to separate proposals"
-          echoSyncDebug "cast calldata output: $REMOVE_CALLDATA"
+          echoSyncDebug "cast calldata stdout: $REMOVE_CALLDATA"
+          echoSyncDebug "cast calldata stderr: $(cat "$CAST_STDERR_FILE")"
           COMBINE_REMOVE_ADD_PROPOSAL=false
         fi
+        rm -f "$CAST_STDERR_FILE"
       fi
 
       if [[ "$REMOVAL_DEFERRED" == "false" ]]; then
@@ -1084,13 +1101,17 @@ function diamondSyncWhitelist {
         # timelock proposal (submitted in Stage 4c, after the removal calldata)
         if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" ]]; then
           local ADD_CALLDATA
-          ADD_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" "true" 2>&1)
-          if [[ "$ADD_CALLDATA" =~ ^0x ]]; then
+          # stdout only + strict single-line hex match (see removal-side comment)
+          local ADD_CAST_STDERR_FILE
+          ADD_CAST_STDERR_FILE=$(mktemp)
+          ADD_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" "true" 2>"$ADD_CAST_STDERR_FILE")
+          if [[ "$ADD_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
             PENDING_PROPOSAL_CALLDATAS+=",$ADD_CALLDATA"
             echoSyncStep "🧩 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES added to combined proposal ($BATCH_COUNT pairs)"
           else
             printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to build addition calldata for batch $BATCH_NUM/$TOTAL_BATCHES"
-            echoSyncDebug "cast calldata output: $ADD_CALLDATA"
+            echoSyncDebug "cast calldata stdout: $ADD_CALLDATA"
+            echoSyncDebug "cast calldata stderr: $(cat "$ADD_CAST_STDERR_FILE")"
             BATCH_SUCCESS=false
             {
               echo "[$NETWORK] Error: Failed to build addition calldata for combined proposal (batch $BATCH_NUM/$TOTAL_BATCHES)"
@@ -1098,6 +1119,7 @@ function diamondSyncWhitelist {
               echo ""
             } >> "$FAILED_LOG_FILE"
           fi
+          rm -f "$ADD_CAST_STDERR_FILE"
           continue
         fi
 
