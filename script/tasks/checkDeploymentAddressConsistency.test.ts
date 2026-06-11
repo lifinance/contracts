@@ -7,6 +7,7 @@ import {
 
 import {
   affectedNetworks,
+  changedWhitelistNetworks,
   findMismatches,
   type INetworkSources,
 } from './checkDeploymentAddressConsistency'
@@ -108,5 +109,33 @@ describe('affectedNetworks', () => {
       []
     )
     expect([...result]).toEqual([])
+  })
+})
+
+describe('changedWhitelistNetworks', () => {
+  it('detects an address change for a network', () => {
+    const staged = { arbitrum: [{ name: 'Foo', address: '0xAAA' }] }
+    const head = { arbitrum: [{ name: 'Foo', address: '0xBBB' }] }
+    expect(changedWhitelistNetworks(staged, head)).toEqual(['arbitrum'])
+  })
+
+  it('ignores entry reordering, selector changes, and address case', () => {
+    const staged = {
+      arbitrum: [
+        { name: 'Foo', address: '0xAAA', selectors: [{ selector: '0x1' }] },
+        { name: 'Bar', address: '0xCCC' },
+      ],
+    }
+    const head = {
+      arbitrum: [
+        { name: 'Bar', address: '0xccc' },
+        { name: 'Foo', address: '0xaaa', selectors: [{ selector: '0x2' }] },
+      ],
+    }
+    expect(changedWhitelistNetworks(staged, head)).toEqual([])
+  })
+
+  it('flags a network present in only one version', () => {
+    expect(changedWhitelistNetworks({ base: [] }, {})).toEqual(['base'])
   })
 })

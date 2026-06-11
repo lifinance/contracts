@@ -215,7 +215,45 @@ function report(mismatches: IMismatch[]): void {
 }
 
 /**
+ * Determines which networks' periphery whitelist entries changed between two
+ * `PERIPHERY` maps, comparing only each contract's name + (lowercased) address.
+ * Ignores entry ordering, object-key ordering, selector changes, and address case,
+ * so reformatting the file does not spuriously widen the gate's scope.
+ *
+ * @param staged - PERIPHERY object from the staged whitelist (network -> entries[]).
+ * @param head - PERIPHERY object from the HEAD whitelist.
+ * @returns Names of networks whose name->address projection differs.
+ */
+export function changedWhitelistNetworks(
+  staged: Record<string, unknown>,
+  head: Record<string, unknown>
+): string[] {
+  // Returns null when the network key is absent (distinguishes "missing" from
+  // "present but empty"), otherwise a stable JSON fingerprint of name+address pairs.
+  const project = (
+    map: Record<string, unknown>,
+    network: string
+  ): string | null => {
+    if (!(network in map)) return null
+    const entries = map[network]
+    const list = Array.isArray(entries)
+      ? (entries as { name?: string; address?: string }[])
+      : []
+    return JSON.stringify(
+      list
+        .map((e) => [e.name ?? '', (e.address ?? '').toLowerCase()] as const)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+    )
+  }
+  const networks = new Set([...Object.keys(staged), ...Object.keys(head)])
+  return [...networks].filter((n) => project(staged, n) !== project(head, n))
+}
+
+/**
  * Returns the list of repo-relative paths that are staged in the git index.
+ *
+ * @returns Array of repo-relative file paths currently staged for commit.
+ * @throws When not run inside a git repository.
  */
 function getStagedPaths(): string[] {
   return execSync('git diff --cached --name-only --diff-filter=ACMR', {
@@ -244,18 +282,13 @@ function getChangedWhitelistNetworks(stagedPaths: string[]): string[] {
       return {}
     }
   }
-  const staged = parsePeriphery(':') // staged/index version
-  const head = parsePeriphery('HEAD') // previous committed version
-  const networks = new Set([...Object.keys(staged), ...Object.keys(head)])
-  return [...networks].filter(
-    (n) => JSON.stringify(staged[n]) !== JSON.stringify(head[n])
-  )
+  return changedWhitelistNetworks(parsePeriphery(':'), parsePeriphery('HEAD'))
 }
 
 if (import.meta.main) {
   try {
     const staged = process.argv.includes('--staged')
-    let mismatches
+    let mismatches: IMismatch[]
     if (staged) {
       const stagedPaths = getStagedPaths()
       const scope = affectedNetworks(
@@ -263,7 +296,7 @@ if (import.meta.main) {
         getChangedWhitelistNetworks(stagedPaths)
       )
       if (scope.size === 0) {
-        consola.success('No staged whitelist/deployment files to check.')
+        consola.info('No staged whitelist/deployment files to check.')
         process.exit(0)
       }
       mismatches = findMismatches(loadSources(REPO_ROOT, scope))
