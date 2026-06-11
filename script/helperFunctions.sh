@@ -3723,11 +3723,11 @@ function deployAndAddContractToDiamond() {
   if [[ "$CONTRACT" == *"Facet"* ]]; then
     # deploying a facet
     deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
-    return 0
+    return $?
   elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
     # deploying a diamond
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
-    return 0
+    return $?
   else
     # deploy periphery contract
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
