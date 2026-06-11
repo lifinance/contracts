@@ -66,44 +66,87 @@ redeployed but not yet cut). Committed logs should be consistent, so it remains 
 valid commit-time gate; this is noted so a future reader understands why a
 transient local divergence is possible.
 
+## Scope: only the networks being touched
+
+Running checks A + B across **all** networks reveals ~26 pre-existing mismatches on
+`main` (≈16 facet log-vs-diamond divergences from normal upgrade windows, plus
+periphery mismatches mostly on deprecated testnets). A gate that blocks on any of
+those would block essentially every deployment-file commit until unrelated debt is
+cleaned up. So the **commit gate only checks the networks whose staged files this
+commit actually changes**:
+
+- A staged `deployments/<network>.json` or `deployments/<network>.diamond.json` →
+  that `<network>` is in scope.
+- A staged `config/whitelist.json` → only the networks whose `PERIPHERY` entry
+  differs between the staged content and `HEAD` are in scope (compared by parsing
+  both versions, not by diff-line heuristics).
+
+This still catches the PR #1890 bug class (you stage the network you're editing, so
+its mismatch is checked) and orphan addresses (an address belonging to no network is
+caught when that network's whitelist section is in scope), while ignoring unrelated
+pre-existing mismatches in networks you did not touch. The manual/CI invocation
+(`bun check:addresses`, no flag) still scans **all** networks for full audits.
+
 ## Component
 
 A single offline TypeScript script (no RPC), per repo convention (TS under
 `script/**`, no Python):
 
 - **Path:** `script/tasks/checkDeploymentAddressConsistency.ts`
-- **Behaviour:** scans every network that has a `deployments/<network>.diamond.json`
-  (pure JSON parsing — fast), runs checks A and B, prints a report grouped by
-  network and check type showing each conflicting address and the file it came from.
-- **Exit code:** `1` on any mismatch, `0` otherwise.
+- **Pure core:** `findMismatches(sources)` runs checks A + B over the provided
+  per-network sources; `affectedNetworks(stagedPaths, changedWhitelistNetworks)`
+  derives the in-scope network set from staged paths. Both are unit-tested.
+- **Loader:** `loadSources(repoRoot, filter?)` reads the working-tree JSON files,
+  optionally restricted to a network filter.
+- **CLI:** default (no flag) scans all networks; `--staged` derives the affected
+  networks via git (staged file list + staged-vs-HEAD whitelist comparison) and
+  checks only those — exiting `0` immediately when nothing relevant is staged.
+- **Exit code:** `1` on any in-scope mismatch, `0` otherwise.
 - **Address normalization:** lowercase both sides before comparing. Safe for
   EVM hex and for Tron base58 (equality is preserved when both sides are lowercased
   identically).
+- **Both checks block:** periphery and facet mismatches both cause a non-zero exit.
+  The facet soft-edge friction is bounded by the staged-network scoping above — you
+  are only confronted with a facet divergence on a network you are actively editing.
 
 ## Enforcement
 
 Wired into `.husky/pre-commit` only:
 
 - The hook already computes `STAGED_FILES`. If any staged path is
-  `config/whitelist.json` or under `deployments/`, run the validator over **all**
-  networks (the full scan is cheap and also catches cross-network copy-paste).
-- Follow the hook's existing `print_status` / parallel-task conventions.
+  `config/whitelist.json` or under `deployments/`, run the validator in `--staged`
+  mode (which scopes itself to the touched networks).
+- Follow the hook's existing `print_status` conventions.
 - A non-zero exit aborts the commit. Covers humans and agents alike.
 - Not bypassed via `--no-verify` policy — same expectation as the rest of the hook.
 
 ## Testing & Verification
 
-- **Unit test** (`bun test:ts`): feed fixture JSON with (a) a clean set → exit 0,
-  (b) a periphery mismatch → exit 1, (c) a facet mismatch → exit 1, (d) empty-string
-  and absent entries → ignored (exit 0).
-- **Live repo run:** execute against the current repository — must pass now that the
-  `optimismsepolia` OutputValidator entry is fixed.
-- **Negative live run:** temporarily reintroduce the `0x293BEf…` orphan, confirm the
-  script exits 1 and names `optimismsepolia` / OutputValidator, then revert.
-- Both outputs shown before the work is called done.
+- **Unit tests** (`bun test`): `findMismatches` over fixture sources — (a) clean set,
+  (b) periphery mismatch, (c) facet mismatch, (d) empty/absent ignored; plus
+  `affectedNetworks` — deployment paths map to networks, changed-whitelist networks
+  included, non-deployment/`_deployments_log_file.json`/`.staging` paths excluded.
+- **Live full run:** `bun check:addresses` (no flag) scans all networks — used to
+  surface the pre-existing mismatches below; not run by the commit gate.
+- **Scoped run:** with only one network's files staged, `--staged` checks just that
+  network; inject a one-char mismatch in a staged file → exit 1; revert → exit 0.
+- Outputs shown before the work is called done.
+
+## Pre-existing mismatches (surfaced, not fixed here)
+
+A full scan of `main` reports ~26 mismatches: ~16 facet log-vs-diamond divergences
+(arbitrum/NEARIntentsFacet, bsc/MayanFacet, optimism/AmarokFacet, zksync/AcrossFacetV4,
+metis, boba, taiko, stable, worldchain, …) and ~10 periphery, mostly on deprecated
+testnets (goerli, lineatest, okx, nova, mumbai). The only active-mainnet periphery
+ones are **mantle/Permit2Proxy** and **worldchain/ReceiverAcrossV3**. These are
+out of scope for this feature (and whitelist edits must go via PRs targeting `main`
+per rule 502); they are flagged for separate human triage.
 
 ## Out-of-scope follow-ups (noted, not built)
 
-- Mirroring the same check in CI as an authoritative backstop.
-- Extending to flag "present in diamond/whitelist but absent from the flat log"
-  as a warning (currently skipped under "agree where present").
+- Mirroring the same check in CI as an authoritative backstop (would need a strategy
+  for the pre-existing mismatches, e.g. an allowlist or a "no new mismatches" diff).
+- A `--staged` variant that fails only on mismatches this commit *introduces*
+  (staged-vs-HEAD), rather than any mismatch on a touched network.
+- Triage + fix of the pre-existing mismatches above.
+- Extending to flag "present in diamond/whitelist but absent from the flat log".

@@ -4,7 +4,9 @@
 
 **Goal:** Block any commit that introduces a contract-address mismatch between `config/whitelist.json`, `deployments/<network>.json`, and `deployments/<network>.diamond.json`.
 
-**Architecture:** A single offline TypeScript script exposes a pure `findMismatches()` core (unit-tested with fixtures) plus a `loadSources()` file reader and a CLI entrypoint that exits `1` on any mismatch. A husky pre-commit step invokes it only when whitelist/deployment files are staged. No RPC, no CI, no Claude gate.
+**Architecture:** A single offline TypeScript script exposes a pure `findMismatches()` core (unit-tested with fixtures), an `affectedNetworks()` helper that derives the in-scope networks from staged paths, a `loadSources()` file reader (optionally filtered), and a CLI entrypoint. Default invocation scans all networks (manual/CI audit); `--staged` scopes to only the networks whose staged files changed and is what the husky pre-commit step calls. Both periphery and facet mismatches block. No RPC, no CI, no Claude gate.
+
+**Note on execution:** Tasks 1 and 2 are already implemented (commits e6f8c00e, e80d1a84, 56ab004e, ae7ccb6a). Task 2's live run surfaced ~26 pre-existing mismatches on `main`, which drove the scoping decision now captured in the spec's "Scope" section and in Task 2.5 below. The repo-root resolution uses `fileURLToPath(import.meta.url)` (not `import.meta.dir`) for `bunx tsx` compatibility.
 
 **Tech Stack:** TypeScript run via `bunx tsx`, `bun:test` for unit tests, `consola` for output, husky/bash pre-commit hook.
 
@@ -347,6 +349,80 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
+## Task 2.5: Scope checks to the networks the commit touches (`--staged`)
+
+Added after Task 2's live run found ~26 pre-existing mismatches on `main`. The commit
+gate must only check networks whose staged files changed; the default (no-flag) run
+still scans all networks for manual/CI audits. Both periphery and facet checks block.
+
+**Files:**
+
+- Modify: `script/tasks/checkDeploymentAddressConsistency.ts`
+- Test: `script/tasks/checkDeploymentAddressConsistency.test.ts`
+
+**What to add (TDD — write the failing tests first):**
+
+- A pure helper `affectedNetworks(stagedPaths: string[], changedWhitelistNetworks: string[]): Set<string>`:
+  - For each path matching `^deployments/(.+)\.diamond\.json$` → add capture group.
+  - For each path matching `^deployments/(.+)\.json$` (NOT `.diamond.json`, NOT `_deployments_log_file.json`, NOT containing `.staging`) → add capture group.
+  - Add every entry of `changedWhitelistNetworks`.
+  - Returns the union as a `Set<string>`.
+- `loadSources(repoRoot?, filter?: Set<string>)` — when `filter` is provided, only build sources for networks in the filter.
+- Git helpers (impure, used only by the CLI; do NOT import in tests):
+  - `getStagedPaths(): string[]` → `git diff --cached --name-only --diff-filter=ACMR`, split on newlines, drop empties.
+  - `getChangedWhitelistNetworks(): string[]` → if `config/whitelist.json` is staged, parse `git show :config/whitelist.json` (staged) and `git show HEAD:config/whitelist.json` (previous; treat a non-zero exit / missing file as "all whitelist networks changed"), then return the network keys whose `PERIPHERY[network]` array differs by `JSON.stringify`. If whitelist.json is not staged, return `[]`.
+  - Use `execSync` from `node:child_process`; run with `cwd: REPO_ROOT`.
+- CLI: parse `process.argv`. If `--staged` is present, compute `const scope = affectedNetworks(getStagedPaths(), getChangedWhitelistNetworks())`; if `scope.size === 0`, log a short "nothing to check" success and exit 0; otherwise `findMismatches(loadSources(REPO_ROOT, scope))`. Without `--staged`, keep the existing all-networks behaviour. Keep the existing try/catch + `consola` + `process.exit(1)`-on-mismatch.
+
+**Unit tests to add** to the existing `describe`/new `describe` (alongside the 4 `findMismatches` tests):
+
+```typescript
+describe('affectedNetworks', () => {
+  it('maps deployment and diamond paths to network names', () => {
+    const result = affectedNetworks(
+      ['deployments/arbitrum.json', 'deployments/base.diamond.json'],
+      []
+    )
+    expect([...result].sort()).toEqual(['arbitrum', 'base'])
+  })
+
+  it('includes changed whitelist networks', () => {
+    const result = affectedNetworks(['config/whitelist.json'], ['optimism'])
+    expect([...result]).toEqual(['optimism'])
+  })
+
+  it('ignores non-deployment paths, the deployments log, and staging files', () => {
+    const result = affectedNetworks(
+      [
+        'src/Foo.sol',
+        'deployments/_deployments_log_file.json',
+        'deployments/arbitrum.staging.json',
+        'README.md',
+      ],
+      []
+    )
+    expect([...result]).toEqual([])
+  })
+})
+```
+
+**Verify:**
+
+- `bun test script/tasks/checkDeploymentAddressConsistency.test.ts` → all pass (7 tests).
+- `bunx eslint <both files> && bunx tsc-files --noEmit <both files>` → exit 0.
+- Scoped behaviour: with nothing staged, `bunx tsx script/tasks/checkDeploymentAddressConsistency.ts --staged; echo exit=$?` → exits 0 ("nothing to check"). Stage one untouched-but-clean network's deployment file and confirm it does not report the 26 unrelated mismatches.
+
+**Commit** (only the two script/test files):
+
+```bash
+git add script/tasks/checkDeploymentAddressConsistency.ts script/tasks/checkDeploymentAddressConsistency.test.ts
+git commit -m "feat(scripts): add --staged scoping to address consistency check
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
 ## Task 3: Wire the check into the husky pre-commit hook
 
 **Files:**
@@ -395,12 +471,12 @@ Insert this block immediately BEFORE that `printf` line:
 
 ```bash
 # Deployment address consistency: whitelist.json <-> deployment logs.
-# Runs only when whitelist or deployment files are staged; scans all networks
-# from the working tree. Pure JSON, no RPC.
+# Runs only when whitelist or deployment files are staged. `--staged` scopes
+# the check to the networks this commit touches. Pure JSON, no RPC.
 if [ "$HAS_ADDRESS_FILES" = "yes" ]; then
   print_status "info" "Checking deployment address consistency..."
   ADDRESS_OUTPUT="$TEMP_DIR/address-consistency.out"
-  if bunx tsx "$GIT_ROOT/script/tasks/checkDeploymentAddressConsistency.ts" > "$ADDRESS_OUTPUT" 2>&1; then
+  if bunx tsx "$GIT_ROOT/script/tasks/checkDeploymentAddressConsistency.ts" --staged > "$ADDRESS_OUTPUT" 2>&1; then
     print_status "success" "Deployment address consistency passed"
   else
     printf '\n'
