@@ -250,14 +250,15 @@ export function changedWhitelistNetworks(
 }
 
 /**
- * Returns the list of repo-relative paths that are staged in the git index.
+ * Repo-relative paths staged in the git index (ACMR filter).
  *
- * @returns Array of repo-relative file paths currently staged for commit.
+ * @param repoRoot - Repository root to run git in. Defaults to this repo.
+ * @returns Staged paths, newline-split, empties removed.
  * @throws When not run inside a git repository.
  */
-function getStagedPaths(): string[] {
+export function getStagedPaths(repoRoot: string = REPO_ROOT): string[] {
   return execSync('git diff --cached --name-only --diff-filter=ACMR', {
-    cwd: REPO_ROOT,
+    cwd: repoRoot,
     encoding: 'utf8',
   })
     .split('\n')
@@ -265,16 +266,21 @@ function getStagedPaths(): string[] {
 }
 
 /**
- * Returns network names whose `PERIPHERY` entries differ between the staged
- * `config/whitelist.json` and the HEAD version. Returns `[]` when the file is
- * not staged.
+ * Networks whose `config/whitelist.json` PERIPHERY entry changed between the
+ * staged index version and HEAD. Empty when whitelist.json is not staged.
+ *
+ * @param stagedPaths - Output of `getStagedPaths`.
+ * @param repoRoot - Repository root to run git in. Defaults to this repo.
  */
-function getChangedWhitelistNetworks(stagedPaths: string[]): string[] {
+export function getChangedWhitelistNetworks(
+  stagedPaths: string[],
+  repoRoot: string = REPO_ROOT
+): string[] {
   if (!stagedPaths.includes('config/whitelist.json')) return []
-  const parsePeriphery = (ref: string): Record<string, unknown> => {
+  const parsePeriphery = (revSpec: string): Record<string, unknown> => {
     try {
-      const raw = execSync(`git show ${ref}:config/whitelist.json`, {
-        cwd: REPO_ROOT,
+      const raw = execSync(`git show ${revSpec}`, {
+        cwd: repoRoot,
         encoding: 'utf8',
       })
       return (JSON.parse(raw).PERIPHERY ?? {}) as Record<string, unknown>
@@ -282,7 +288,10 @@ function getChangedWhitelistNetworks(stagedPaths: string[]): string[] {
       return {}
     }
   }
-  return changedWhitelistNetworks(parsePeriphery(':'), parsePeriphery('HEAD'))
+  return changedWhitelistNetworks(
+    parsePeriphery(':config/whitelist.json'),
+    parsePeriphery('HEAD:config/whitelist.json')
+  )
 }
 
 if (import.meta.main) {

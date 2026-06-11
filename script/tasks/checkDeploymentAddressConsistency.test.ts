@@ -1,3 +1,8 @@
+import { execSync } from 'child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
   describe,
   expect,
@@ -9,6 +14,7 @@ import {
   affectedNetworks,
   changedWhitelistNetworks,
   findMismatches,
+  getChangedWhitelistNetworks,
   type INetworkSources,
 } from './checkDeploymentAddressConsistency'
 
@@ -137,5 +143,74 @@ describe('changedWhitelistNetworks', () => {
 
   it('flags a network present in only one version', () => {
     expect(changedWhitelistNetworks({ base: [] }, {})).toEqual(['base'])
+  })
+})
+
+describe('getChangedWhitelistNetworks (integration)', () => {
+  const writeWhitelist = (dir: string, periphery: unknown) => {
+    mkdirSync(join(dir, 'config'), { recursive: true })
+    writeFileSync(
+      join(dir, 'config', 'whitelist.json'),
+      JSON.stringify({ PERIPHERY: periphery }, null, 2) + '\n'
+    )
+  }
+  const git = (dir: string, cmd: string) =>
+    execSync(`git ${cmd}`, { cwd: dir, encoding: 'utf8' })
+
+  const setupRepo = (initial: unknown): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'addr-gate-'))
+    git(dir, 'init -q')
+    git(dir, 'config user.email test@example.com')
+    git(dir, 'config user.name test')
+    git(dir, 'config commit.gpgsign false')
+    writeWhitelist(dir, initial)
+    git(dir, 'add -A')
+    git(dir, 'commit -q -m initial')
+    return dir
+  }
+
+  it('returns only the network whose address changed (not all networks)', () => {
+    const dir = setupRepo({
+      base: [{ name: 'FeeCollector', address: '0xAAA' }],
+      arbitrum: [{ name: 'FeeCollector', address: '0xBBB' }],
+    })
+    try {
+      writeWhitelist(dir, {
+        base: [{ name: 'FeeCollector', address: '0xCCC' }], // changed
+        arbitrum: [{ name: 'FeeCollector', address: '0xBBB' }], // unchanged
+      })
+      git(dir, 'add config/whitelist.json')
+      expect(
+        getChangedWhitelistNetworks(['config/whitelist.json'], dir)
+      ).toEqual(['base'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns [] when a reformat changes no name/address', () => {
+    const dir = setupRepo({
+      base: [
+        { name: 'FeeCollector', address: '0xAAA', selectors: [{ s: '0x1' }] },
+      ],
+    })
+    try {
+      // reorder keys + change selectors only + lowercase address
+      writeWhitelist(dir, {
+        base: [
+          { address: '0xaaa', selectors: [{ s: '0x2' }], name: 'FeeCollector' },
+        ],
+      })
+      git(dir, 'add config/whitelist.json')
+      expect(
+        getChangedWhitelistNetworks(['config/whitelist.json'], dir)
+      ).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns [] when whitelist.json is not staged', () => {
+    expect(getChangedWhitelistNetworks(['deployments/base.json'])).toEqual([])
   })
 })
