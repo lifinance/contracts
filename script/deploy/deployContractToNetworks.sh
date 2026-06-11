@@ -38,11 +38,13 @@ EOF
 function deployContractToNetworks() {
   trap 'cleanupBackgroundJobs' SIGINT
 
-  local CONTRACT=""
-  local DIAMOND_CONTRACT_NAME="LiFiDiamond"
+  # TARGET_-prefixed names are deliberate: the sourced framework assigns generic
+  # names (CONTRACT, NETWORK, VERSION, ...) without 'local', which would clobber ours mid-run
+  local TARGET_CONTRACT=""
+  local TARGET_DIAMOND_NAME="LiFiDiamond"
   local UPDATE_DIAMOND=true
   local PRODUCTION_FLAG=false
-  local NETWORKS=()
+  local TARGET_NETWORKS=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -59,7 +61,7 @@ function deployContractToNetworks() {
         error "--diamond requires a value (LiFiDiamond or LiFiDiamondImmutable)"
         exit 1
       fi
-      DIAMOND_CONTRACT_NAME="$2"
+      TARGET_DIAMOND_NAME="$2"
       shift 2
       ;;
     --no-diamond-update)
@@ -72,46 +74,46 @@ function deployContractToNetworks() {
       exit 1
       ;;
     *)
-      if [[ -z "$CONTRACT" ]]; then
-        CONTRACT="$1"
+      if [[ -z "$TARGET_CONTRACT" ]]; then
+        TARGET_CONTRACT="$1"
       else
-        NETWORKS+=("$1")
+        TARGET_NETWORKS+=("$1")
       fi
       shift
       ;;
     esac
   done
 
-  if [[ -z "$CONTRACT" ]]; then
+  if [[ -z "$TARGET_CONTRACT" ]]; then
     error "missing CONTRACT argument"
     printUsage
     exit 1
   fi
-  if [[ ${#NETWORKS[@]} -eq 0 ]]; then
+  if [[ ${#TARGET_NETWORKS[@]} -eq 0 ]]; then
     error "missing NETWORK argument(s)"
     printUsage
     exit 1
   fi
-  if [[ "$DIAMOND_CONTRACT_NAME" != "LiFiDiamond" && "$DIAMOND_CONTRACT_NAME" != "LiFiDiamondImmutable" ]]; then
-    error "invalid --diamond value: '$DIAMOND_CONTRACT_NAME' (must be LiFiDiamond or LiFiDiamondImmutable)"
+  if [[ "$TARGET_DIAMOND_NAME" != "LiFiDiamond" && "$TARGET_DIAMOND_NAME" != "LiFiDiamondImmutable" ]]; then
+    error "invalid --diamond value: '$TARGET_DIAMOND_NAME' (must be LiFiDiamond or LiFiDiamondImmutable)"
     exit 1
   fi
 
   # resolve environment: .env PRODUCTION and --production must agree, replacing
   # scriptMaster's interactive "last chance" prompt with a double opt-in
-  local ENVIRONMENT
+  local TARGET_ENVIRONMENT
   if [[ "$PRODUCTION_FLAG" == "true" ]]; then
     if [[ "$PRODUCTION" != "true" ]]; then
       error "--production requires PRODUCTION=true in .env"
       exit 1
     fi
-    ENVIRONMENT="production"
+    TARGET_ENVIRONMENT="production"
   else
     if [[ "$PRODUCTION" == "true" ]]; then
       error "PRODUCTION=true is set in .env but --production was not passed - pass --production to deploy to production or set PRODUCTION=false for staging"
       exit 1
     fi
-    ENVIRONMENT="staging"
+    TARGET_ENVIRONMENT="staging"
   fi
 
   if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
@@ -120,18 +122,18 @@ function deployContractToNetworks() {
 
   # validate all networks against networks.json before deploying anything
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-  local NETWORK
-  for NETWORK in "${NETWORKS[@]}"; do
-    if ! jq -e --arg NETWORK "$NETWORK" 'has($NETWORK)' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
-      error "unknown network '$NETWORK' (not found in $NETWORKS_JSON_FILE_PATH)"
+  local TARGET_NETWORK
+  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
+    if ! jq -e --arg TARGET_NETWORK "$TARGET_NETWORK" 'has($TARGET_NETWORK)' "$NETWORKS_JSON_FILE_PATH" >/dev/null; then
+      error "unknown network '$TARGET_NETWORK' (not found in $NETWORKS_JSON_FILE_PATH)"
       exit 1
     fi
   done
 
   # validate contract name + resolve current version
-  local VERSION
-  VERSION=$(getCurrentContractVersion "$CONTRACT") || {
-    error "could not determine version of contract '$CONTRACT' - check the contract name"
+  local TARGET_VERSION
+  TARGET_VERSION=$(getCurrentContractVersion "$TARGET_CONTRACT") || {
+    error "could not determine version of contract '$TARGET_CONTRACT' - check the contract name"
     exit 1
   }
 
@@ -141,57 +143,57 @@ function deployContractToNetworks() {
   fi
 
   echo ""
-  echo "[info] deploying $CONTRACT v$VERSION to ${#NETWORKS[@]} network(s) in $ENVIRONMENT environment: ${NETWORKS[*]}"
-  echo "[info] deployer address: $(getDeployerAddress "" "$ENVIRONMENT")"
+  echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment: ${TARGET_NETWORKS[*]}"
+  echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"
 
   local FAILED_NETWORKS=()
   local SUCCEEDED_NETWORKS=()
   local BALANCE
 
-  for NETWORK in "${NETWORKS[@]}"; do
+  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying $CONTRACT to $NETWORK..."
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying $TARGET_CONTRACT to $TARGET_NETWORK..."
 
-    if ! checkRequiredVariablesInDotEnv "$NETWORK"; then
-      warning "missing required .env variables for $NETWORK - skipping this network"
-      FAILED_NETWORKS+=("$NETWORK")
+    if ! checkRequiredVariablesInDotEnv "$TARGET_NETWORK"; then
+      warning "missing required .env variables for $TARGET_NETWORK - skipping this network"
+      FAILED_NETWORKS+=("$TARGET_NETWORK")
       continue
     fi
 
-    BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
-    echo "[info] deployer wallet balance on $NETWORK: $BALANCE"
+    BALANCE=$(getDeployerBalance "$TARGET_NETWORK" "$TARGET_ENVIRONMENT")
+    echo "[info] deployer wallet balance on $TARGET_NETWORK: $BALANCE"
 
     local DEPLOY_RC
     if [[ "$UPDATE_DIAMOND" == "true" ]]; then
-      deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
+      deployAndAddContractToDiamond "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_DIAMOND_NAME" "$TARGET_VERSION"
       DEPLOY_RC=$?
     else
-      deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+      deploySingleContract "$TARGET_CONTRACT" "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_VERSION" false
       DEPLOY_RC=$?
     fi
 
     if [[ $DEPLOY_RC -eq 0 ]]; then
-      SUCCEEDED_NETWORKS+=("$NETWORK")
-      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $NETWORK done"
+      SUCCEEDED_NETWORKS+=("$TARGET_NETWORK")
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $TARGET_NETWORK done"
     else
-      FAILED_NETWORKS+=("$NETWORK")
-      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $NETWORK FAILED"
+      FAILED_NETWORKS+=("$TARGET_NETWORK")
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $TARGET_NETWORK FAILED"
     fi
   done
 
   echo ""
   echo "[info] ==================== SUMMARY ===================="
-  echo "[info] contract:    $CONTRACT v$VERSION"
-  echo "[info] environment: $ENVIRONMENT"
+  echo "[info] contract:    $TARGET_CONTRACT v$TARGET_VERSION"
+  echo "[info] environment: $TARGET_ENVIRONMENT"
   local DEPLOYED_ADDRESS
-  for NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
-    if [[ -n "$NETWORK" ]]; then
-      DEPLOYED_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT") || DEPLOYED_ADDRESS="address not found in deployment log"
-      success "$NETWORK: OK ($DEPLOYED_ADDRESS)"
+  for TARGET_NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
+    if [[ -n "$TARGET_NETWORK" ]]; then
+      DEPLOYED_ADDRESS=$(getContractAddressFromDeploymentLogs "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT") || DEPLOYED_ADDRESS="address not found in deployment log"
+      success "$TARGET_NETWORK: OK ($DEPLOYED_ADDRESS)"
     fi
   done
-  for NETWORK in "${FAILED_NETWORKS[@]:-}"; do
-    [[ -n "$NETWORK" ]] && error "$NETWORK: FAILED"
+  for TARGET_NETWORK in "${FAILED_NETWORKS[@]:-}"; do
+    [[ -n "$TARGET_NETWORK" ]] && error "$TARGET_NETWORK: FAILED"
   done
   echo ""
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
