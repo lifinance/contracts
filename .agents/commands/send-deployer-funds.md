@@ -1,7 +1,7 @@
 ---
 name: send-deployer-funds
 usage: /send-deployer-funds
-description: Send native gas funds directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send`. Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move native funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only.
+description: Send native gas funds directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send`. Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move native funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only. Only on an explicit user request — never invoke proactively, and the pre-send report must be confirmed by the human user.
 ---
 
 # Send Deployer Funds
@@ -20,6 +20,14 @@ Skip when:
 - The user wants funds sent **TO** one of our wallets (deployer top-up, refill, "I need gas on …") → that is the `request-dev-funds` skill (PR against `lifinance/automate-wallet-dev-fees`). This skill is the opposite direction: a direct `cast send` **FROM** our own keys.
 - The user wants to send an ERC-20 token → out of scope (v1 is native gas only). Say so and stop.
 - The target chain is non-EVM (Solana / TRON / BTC / SUI) → unsupported. Say so and stop.
+- No explicit user instruction to send funds exists in the current conversation (see Authorization below).
+
+## Authorization (explicit user request + human review, non-negotiable)
+
+This skill moves real funds with no reviewer pipeline behind it, so two hard rules apply on top of the confirmation gate:
+
+- **Explicit user request only.** Run this skill solely when the user has explicitly asked, in the current conversation, to send these funds. Never invoke it proactively as a sub-step of another flow (deployment, network setup, troubleshooting, "the target wallet needs gas") — in those cases, state that funds need to be moved and let the user decide whether to invoke this skill.
+- **Human review of every send.** The pre-send report (Step 5) must be reviewed and confirmed by the human user. An agent or sub-agent must never answer the confirmation prompt itself, batch-approve sends, or treat a broad task description ("get the deployment working") as standing permission.
 
 ## Side effects and required permissions
 
