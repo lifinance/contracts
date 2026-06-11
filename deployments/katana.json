@@ -26,5 +26,5 @@
   "RelayDepositoryFacet": "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b",
   "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
   "WhitelistManagerFacet": "0x36d7709C1AC38365cBE04374C929DC9173d84A83",
-  "LiFiIntentEscrowFacet": "0x87686a8503cEac1219d82CFA02b13659333762Cb"
+  "LiFiIntentEscrowFacet": "0xc6299f6b43a7A20a18Ef0A595e62C09fdd7AD5e3"
 }
