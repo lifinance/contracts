@@ -87,7 +87,8 @@ Key selection follows the same convention as `getPrivateKey()` in `script/helper
 **Always derive the sender address from the key itself** — inside a subshell, without echoing the key:
 
 ```bash
-SENDER=$(set +x; KEY=$(grep -E '^PRIVATE_KEY_PRODUCTION=' .env | cut -d= -f2- | tr -d '"'); cast wallet address --private-key "$KEY")
+if [[ "$ENVIRONMENT" == "staging" ]]; then KEY_VAR="PRIVATE_KEY"; else KEY_VAR="PRIVATE_KEY_PRODUCTION"; fi
+SENDER=$(set +x; KEY=$(grep -E "^${KEY_VAR}=" .env | cut -d= -f2- | tr -d '"'); cast wallet address --private-key "$KEY")
 ```
 
 Do **NOT** use `config/global.json`'s `deployerWallet` for the sender address or for balance checks. The key and the config can diverge: on `outlaw` (2026-06-11) the key derived to `0x492E267321E863fA45Bc9d97c9f64Fa9Df70d4c4` while `global.json` listed `0xb137683965ADC470f140df1a1D05B0D25C14E269` — an address with zero balance and nonce 0 on that chain. Checking the wrong address makes a funded wallet look empty (or vice versa).
