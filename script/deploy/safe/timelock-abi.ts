@@ -1,5 +1,7 @@
 import {
   encodeFunctionData,
+  isAddress,
+  isHex,
   parseAbi,
   toFunctionSelector,
   type Address,
@@ -33,7 +35,8 @@ const ZERO_PREDECESSOR =
  * @param salt - Unique salt for the timelock operation id
  * @param minDelay - Timelock delay in seconds
  * @returns The encoded `scheduleBatch` calldata
- * @throws If `targets` is empty or `targets` and `payloads` differ in length
+ * @throws If `targets` is empty, `targets` and `payloads` differ in length, a
+ *         target is not a valid address, or a payload is not well-formed hex
  */
 export function encodeTimelockScheduleBatch(
   targets: Address[],
@@ -47,6 +50,20 @@ export function encodeTimelockScheduleBatch(
     throw new Error(
       `encodeTimelockScheduleBatch: targets (${targets.length}) and payloads (${payloads.length}) must have the same length`
     )
+
+  // viem's encodeFunctionData silently zero-pads non-hex strings (e.g. a missing
+  // 0x prefix) into valid-looking bytes that only fail at executeBatch time,
+  // after signing and the timelock delay — so reject malformed inputs here
+  for (const [i, target] of targets.entries())
+    if (!isAddress(target, { strict: false }))
+      throw new Error(
+        `encodeTimelockScheduleBatch: target at index ${i} is not a valid address: ${target}`
+      )
+  for (const [i, payload] of payloads.entries())
+    if (!isHex(payload, { strict: true }))
+      throw new Error(
+        `encodeTimelockScheduleBatch: payload at index ${i} is not well-formed hex: ${payload}`
+      )
 
   return encodeFunctionData({
     abi: TIMELOCK_SCHEDULE_BATCH_ABI,

@@ -98,4 +98,21 @@ describe('encodeTimelockScheduleBatch', () => {
       )
     ).toThrow('must have the same length')
   })
+
+  it('throws on a non-hex payload instead of letting viem zero-pad it', () => {
+    expect(() =>
+      encodeTimelockScheduleBatch([DIAMOND], ['deadbeef' as never], SALT, 3600n)
+    ).toThrow('not well-formed hex')
+  })
+
+  it('throws on an invalid target address', () => {
+    expect(() =>
+      encodeTimelockScheduleBatch(
+        ['0xnot-an-address' as never],
+        [REMOVE_CALLDATA],
+        SALT,
+        3600n
+      )
+    ).toThrow('not a valid address')
+  })
 })

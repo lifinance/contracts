@@ -39,6 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { normalizeProposeCalls } from './propose-calls'
 import {
   OperationTypeEnum,
   getNextNonce,
@@ -55,39 +56,7 @@ import {
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
-  // Normalize to/calldata into parallel call arrays (multiple --to/--calldata pairs are allowed)
-  const targets = (
-    Array.isArray(options.to) ? options.to : [options.to]
-  ) as Address[]
-
-  let calldatas: Hex[]
-  if (options.calldataFile) {
-    if (Array.isArray(options.calldata) || targets.length > 1)
-      throw new Error(
-        '--calldataFile cannot be combined with multiple --to/--calldata pairs'
-      )
-    if (!fs.existsSync(options.calldataFile))
-      throw new Error(`Calldata file not found: ${options.calldataFile}`)
-    calldatas = [fs.readFileSync(options.calldataFile, 'utf8').trim() as Hex]
-    consola.info(`Loaded calldata from file: ${options.calldataFile}`)
-  } else if (options.calldata && options.calldata.length > 0) {
-    calldatas = (
-      Array.isArray(options.calldata) ? options.calldata : [options.calldata]
-    ) as Hex[]
-  } else {
-    throw new Error('Either --calldata or --calldataFile must be provided')
-  }
-
-  if (targets.length !== calldatas.length)
-    throw new Error(
-      `Number of --to addresses (${targets.length}) must match number of --calldata values (${calldatas.length})`
-    )
-
-  // Multiple calls are only combinable via the timelock's scheduleBatch
-  if (targets.length > 1 && !options.timelock)
-    throw new Error(
-      'Multiple --to/--calldata pairs require --timelock (combined into a single scheduleBatch proposal)'
-    )
+  const { targets, calldatas } = normalizeProposeCalls(options)
 
   // Set up signing options
   const useLedger = options.ledger || false
@@ -364,6 +333,25 @@ const main = defineCommand({
   async run({ args }) {
     if (!args.calldata && !args.calldataFile)
       throw new Error('Either --calldata or --calldataFile must be provided')
+
+    // Guard the load-bearing citty contract: repeated flags must parse to arrays.
+    // citty 0.1.x does this; 0.2.x silently keeps only the LAST value, which
+    // would drop all but one inner call (e.g. propose the addition WITHOUT the
+    // whitelist removal). Cross-check against the raw argv so a citty upgrade
+    // fails loudly here instead of producing a wrong proposal.
+    for (const [flag, value] of [
+      ['--to', args.to],
+      ['--calldata', args.calldata],
+    ] as const) {
+      const argvCount = process.argv.filter(
+        (a) => a === flag || a.startsWith(`${flag}=`)
+      ).length
+      const parsedCount = Array.isArray(value) ? value.length : value ? 1 : 0
+      if (argvCount > 0 && argvCount !== parsedCount)
+        throw new Error(
+          `${flag} was passed ${argvCount} times but the argument parser produced ${parsedCount} value(s) — repeated-flag parsing is broken (citty upgrade?); aborting to avoid proposing an incomplete call batch`
+        )
+    }
 
     await runPropose({
       network: args.network,
