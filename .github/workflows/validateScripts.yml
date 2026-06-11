@@ -4,8 +4,8 @@
 #   removing a used import (TS2304) or a dependency a script imports (TS2307)
 #   fails fast instead of breaking at runtime
 # - Import resolution: when package.json / bun.lock / tsconfig.json change,
-#   every bare import in script TS files must resolve to a declared or
-#   installed package (catches "dependency removed while still imported"
+#   every bare import in script TS files must resolve to a package declared
+#   in package.json (catches "dependency removed while still imported"
 #   even when no .ts file was touched)
 # - Path-gated: the heavy job runs only when scripts or dependency manifests
 #   change. A `validate-scripts-required` aggregator job always reports a
@@ -38,6 +38,9 @@ jobs:
       scripts: ${{ steps.filter.outputs.scripts }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          # Read-only job — no authenticated git operations after checkout
+          persist-credentials: false
       - name: Detect relevant changes
         id: filter
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2

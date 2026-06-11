@@ -208,13 +208,11 @@ const runImportResolutionCheck = (repoRoot: string): boolean => {
     for (const specifier of collectBareImportSpecifiers(join(repoRoot, file))) {
       if (isBuiltinSpecifier(specifier)) continue
       const packageName = getPackageName(specifier)
-      // A package installed transitively via the lockfile (e.g. bs58 through
-      // @layerzerolabs/lz-v2-utilities) still resolves at runtime, so only
-      // flag packages that are neither declared nor installed.
-      if (
-        !declared.has(packageName) &&
-        !existsSync(join(repoRoot, 'node_modules', packageName))
-      )
+      // Strict declared-only policy: relying on a transitively installed
+      // package (present in node_modules via another dependency's lockfile
+      // entry) breaks silently when that dependency drops it, so every
+      // runtime import must be declared in package.json itself.
+      if (!declared.has(packageName))
         missing.push({ file, specifier, packageName })
     }
 
