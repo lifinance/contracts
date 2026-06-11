@@ -121,7 +121,17 @@ BALANCE_WEI=$(cast balance "$SENDER" --rpc-url "$RPC")
 
 - **Absolute** ("0.1 ETH"): `AMOUNT_WEI=$(cast to-wei "0.1" ether)`.
 - **Relative** ("10% of holdings"): compute in wei with integer arithmetic — `AMOUNT_WEI=$(echo "$BALANCE_WEI * 10 / 100" | bc)`. Never do the percentage math in floating-point ETH units.
-- **Gas headroom**: the send must leave enough for its own gas. Estimate `GAS_COST ≈ 21000 × gas price` (`cast gas-price --rpc-url "$RPC"`) with a safety margin (e.g. 2×). If `AMOUNT_WEI + GAS_COST > BALANCE_WEI`, reduce a relative amount accordingly, or refuse an absolute amount and report the shortfall. "100% of holdings" means balance minus the gas headroom, not the literal balance.
+- **Gas headroom**: the send must leave enough for its own gas. "100% of holdings" means balance minus the gas headroom, not the literal balance. Do all comparisons via `bc` — wei values overflow bash's 64-bit integers above ~9.2 ETH:
+
+```bash
+GAS_PRICE=$(cast gas-price --rpc-url "$RPC")
+GAS_COST=$(echo "21000 * $GAS_PRICE * 2" | bc)   # 2x safety margin
+MAX_SENDABLE=$(echo "$BALANCE_WEI - $GAS_COST" | bc)
+if [[ $(echo "$AMOUNT_WEI > $MAX_SENDABLE" | bc) -eq 1 ]]; then
+  # relative amount → cap at MAX_SENDABLE; absolute amount → refuse and report the shortfall
+  ...
+fi
+```
 
 ### 5. Pre-send report + explicit confirmation
 
