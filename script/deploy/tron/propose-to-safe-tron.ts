@@ -71,7 +71,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const networks = JSON.parse(fs.readFileSync(networksPath, 'utf8'))
   const safeAddressBase58 = networks[networkName]?.safeAddress
   if (!safeAddressBase58)
-    throw new Error(`${networkName}.safeAddress not set in config/networks.json`)
+    throw new Error(
+      `${networkName}.safeAddress not set in config/networks.json`
+    )
 
   const genericMode = Boolean(options.to && options.calldata)
   if ((options.to && !options.calldata) || (!options.to && options.calldata)) {

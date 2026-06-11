@@ -12,9 +12,7 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -29,7 +27,6 @@ import {
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
-
 
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
@@ -201,7 +198,10 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     if (!dryRun)
       await proposeDiamondCut({
         facetName: 'AllBridgeFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        facetAddressHex: tronAddressToHex(
+          tronWeb,
+          facetAddress
+        ) as `0x${string}`,
         diamondAddress,
         network: network,
       })

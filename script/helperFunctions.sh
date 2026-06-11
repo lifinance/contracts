@@ -18,6 +18,40 @@ source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+
+# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
+# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
+# foundry.toml even though only our scripts consume them.
+#
+# Usage: getZkToolchainPin KEY
+#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
+#
+# Returns: The pinned version string (empty if not found)
+# Example: getZkToolchainPin "zksolc"
+function getZkToolchainPin() {
+  local KEY="$1"
+  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
+  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
+
+  if [[ ! -f "$FOUNDRY_TOML" ]]; then
+    return 1
+  fi
+
+  awk -v key="$KEY" '
+    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
+    /^\[/ { IN_SECTION = 0 }
+    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
+  ' "$FOUNDRY_TOML"
+}
+
+# zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
+# Passed to foundry-zksync via env because a real `zksync` key in any profile makes
+# vanilla forge emit an "unknown `zksync` config" warning; vanilla forge ignores
+# env-provided unknown keys.
+ZKSOLC_VERSION=$(getZkToolchainPin "zksolc")
+if [[ -n "$ZKSOLC_VERSION" ]]; then
+  export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
+fi
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -550,8 +584,12 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from default.zksync profile section
-    grep -A 10 "^\[profile\.default\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      # callers capture stdout via $(...), so the error must go to stderr
+      error "zksolc pin not found in foundry.toml [external.zksync]" >&2
+      return 1
+    fi
+    echo "$ZKSOLC_VERSION"
   else
     echo ""
   fi
@@ -1965,6 +2003,18 @@ function verifyContract() {
 
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
+    # ensure the pinned foundry-zksync binary is present (no-op if version matches)
+    install_foundry_zksync >/dev/null || {
+      error "failed to install foundry-zksync"
+      return 1
+    }
+
+    # fail loudly instead of verifying with the toolchain's default zksolc
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      error "zksolc pin not found in foundry.toml [external.zksync]"
+      return 1
+    fi
+
     # Set environment variable for zkEVM
     export FOUNDRY_PROFILE=zksync
     VERIFY_CMD=(
@@ -3208,9 +3258,7 @@ function getContractAddressFromSalt() {
   local NETWORK=$2
   local CONTRACT_NAME=$3
   local ENVIRONMENT=$4
-
-  # get RPC URL
-  local RPC_URL=$(getRPCUrl "$NETWORK")
+  local CREATE3_FACTORY_ADDRESS=$5
 
   # get deployer address
   local DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
@@ -3223,8 +3271,8 @@ function getContractAddressFromSalt() {
 
   # return address
   echo "$RESULT"
-
 }
+
 function getDeployerAddress() {
   # read function arguments into variables
   local NETWORK=$1
@@ -3452,17 +3500,16 @@ function doesAddressContainBytecode() {
     return 1
   fi
 
-  # make sure address is in correct checksum format
-  CHECKSUM_ADDRESS=$(cast to-check-sum-address "$ADDRESS")
-
   # get CONTRACT code from ADDRESS using
-  contract_code=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
+  CONTRACT_CODE=$(cast code "$ADDRESS" --rpc-url "$RPC_URL")
 
-  # return ƒalse if ADDRESS does not contain CONTRACT code, otherwise true
-  if [[ "$contract_code" == "0x" || "$contract_code" == "" ]]; then
+  # return false if ADDRESS does not contain CONTRACT code, otherwise true
+  if [[ $? -ne 0 || "$CONTRACT_CODE" == "0x" || "$CONTRACT_CODE" == "" ]]; then
     echo "false"
+    return 1
   else
     echo "true"
+    return 0
   fi
 }
 function getFacetAddressFromDiamond() {
@@ -5091,36 +5138,43 @@ function updateDiamondLogs() {
 }
 
 # Function: install_foundry_zksync
-# Description: Downloads and installs the zkSync version of foundry tools (forge and cast)
+# Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
+# Idempotent: returns immediately if the installed binary already matches the expected
+# version; on mismatch the binaries are removed and re-downloaded.
+# Note: a freshly installed forge shows a one-time telemetry consent prompt on first run,
+# but only in interactive terminals — in CI or piped/agent shells it is skipped and
+# telemetry auto-disabled (matter-labs/zksync-telemetry src/utils.rs is_interactive()),
+# so unattended runs need no stdin handling.
 # Arguments:
 #   $1 - Installation directory (optional, defaults to ./foundry-zksync)
-#   FOUNDRY_ZKSYNC_VERSION - Environment variable to specify version
+#   FOUNDRY_ZKSYNC_VERSION - Optional: env override of the version pinned in
+#                            foundry.toml [external.zksync] (e.g. to test a new version)
 # Example Versions:
 #   FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
 install_foundry_zksync() {
-  # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.32"
+  # env override takes precedence over the pin in foundry.toml [external.zksync]
+  local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
-  # Verify that FOUNDRY_ZKSYNC_VERSION is set
-  if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+  if [[ -z "$EXPECTED_VERSION" ]]; then
+    # stderr so the cause survives callers that suppress stdout (e.g. verifyContract)
+    error "foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)" >&2
     return 1
   fi
 
-  echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
+  echo "Using Foundry zkSync version: ${EXPECTED_VERSION}"
 
   # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
       echo "forge and cast binaries found in ${install_dir}"
 
-      # Check the version of the existing binary
-      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+      # Check the version of the existing binary (handles both vX.Y.Z and nightly-<sha> tags)
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-[^[:space:]]+' | sed 's/^foundry-zksync-//')
 
       # If we couldn't extract version or it doesn't match expected version
       if [ -z "$CURRENT_VERSION" ]; then
@@ -5128,15 +5182,15 @@ install_foundry_zksync() {
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      elif [ "$CURRENT_VERSION" != "${EXPECTED_VERSION}" ]; then
           echo "Version mismatch detected!"
-          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Expected: ${EXPECTED_VERSION}"
           echo "  Current:  ${CURRENT_VERSION}"
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
       else
-          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Version matches expected ${EXPECTED_VERSION}"
           echo "Skipping download and installation"
           return 0
       fi
@@ -5171,8 +5225,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${EXPECTED_VERSION}"
+  local filename="foundry_zksync_${EXPECTED_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist
@@ -5417,4 +5471,104 @@ function removeNetworkFromTargetStateJSON() {
     rm "$FILE_PATH.tmp" >/dev/null 2>&1
     return 1
   fi
+}
+
+# estimatePauseCost: echo the wei cost of one pauseDiamond() (gasEstimate × gasPrice) for the
+# production LiFiDiamond on NETWORK. EVM only; optional PAUSER_ADDRESS overrides the --from
+# (defaults to config/global.json .pauserWallet).
+# Exit: 0 = cost on stdout · 2 = diamond already paused · 1 = any other failure (reason on stderr).
+function estimatePauseCost() {
+  local NETWORK="${1:-}"
+  local PAUSER_ADDRESS="${2:-}"
+  # DiamondIsPaused() selector; matched in cast's revert output (cast lacks the ABI here,
+  # so it surfaces the raw selector rather than the decoded name).
+  local PAUSED_SELECTOR="0x0149422e"
+
+  if [[ -z "$NETWORK" ]]; then
+    error "estimatePauseCost: NETWORK argument is required" >&2
+    return 1
+  fi
+
+  if isTronNetwork "$NETWORK"; then
+    error "estimatePauseCost: $NETWORK is a Tron network; this helper is EVM-only" >&2
+    return 1
+  fi
+
+  # Resolve RPC: prefer the ETH_NODE_URI_* env var (used everywhere else); fall back to the
+  # rpcUrl in networks.json so a cross-chain sweep works without every env var set.
+  local RPC_URL
+  if ! RPC_URL=$(getRPCUrl "$NETWORK" 2>/dev/null); then
+    if ! RPC_URL=$(getRpcUrlFromNetworksJson "$NETWORK"); then
+      error "estimatePauseCost: could not resolve an RPC URL for $NETWORK" >&2
+      return 1
+    fi
+  fi
+
+  local DIAMOND_ADDRESS
+  if ! DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "production" "LiFiDiamond"); then
+    error "estimatePauseCost: no LiFiDiamond address in production deploy log for $NETWORK" >&2
+    return 1
+  fi
+
+  if [[ -z "$PAUSER_ADDRESS" ]]; then
+    PAUSER_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    if [[ -z "$PAUSER_ADDRESS" ]]; then
+      error "estimatePauseCost: could not read pauserWallet from config/global.json" >&2
+      return 1
+    fi
+  fi
+
+  # RPCs throttle/time out transiently (especially across a cross-chain sweep), so retry the reads
+  # a few times before giving up — mirrors the resilience of diamondEMERGENCYPauseGitHub.sh's
+  # rpcCallWithRetry. The "already paused" revert is a DEFINITIVE answer, not a transient error, so
+  # it returns immediately (rc 2) without retrying.
+  local ESTIMATE_MAX_ATTEMPTS=3 ESTIMATE_RETRY_SLEEP_SECONDS=2
+
+  # Capture stdout and stderr separately: foundry emits warnings to stderr even on success,
+  # and revert data (DiamondIsPaused selector) also comes via stderr.
+  local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC CAST_ERR ATTEMPT=1
+  GAS_ESTIMATE_ERR=$(mktemp)
+  # RETURN trap removes the temp file on every exit path (verified contained: without
+  # functrace it fires only on this function's return, not the caller's).
+  trap 'rm -f "$GAS_ESTIMATE_ERR"' RETURN
+  while :; do
+    GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
+    if [[ $CAST_ESTIMATE_RC -eq 0 && "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
+      break
+    fi
+    CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
+    # Definitive (not transient): diamond already paused — do not retry.
+    if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
+      return 2
+    fi
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+
+  local GAS_PRICE
+  ATTEMPT=1
+  while :; do
+    GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null) || GAS_PRICE=""
+    [[ "$GAS_PRICE" =~ ^[0-9]+$ ]] && break
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: could not read gas price for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $GAS_PRICE" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+
+  # wei overflows 64-bit bash arithmetic; use bc for the multiplication
+  local COST
+  COST=$(echo "$GAS_ESTIMATE * $GAS_PRICE" | bc) || COST=""
+  if ! [[ "$COST" =~ ^[0-9]+$ ]]; then
+    error "estimatePauseCost: failed to compute pause cost for $NETWORK (gas=$GAS_ESTIMATE, price=$GAS_PRICE)" >&2
+    return 1
+  fi
+  echo "$COST"
+  return 0
 }

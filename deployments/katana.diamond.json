@@ -73,9 +73,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x87686a8503cEac1219d82CFA02b13659333762Cb": {
+      "0xc6299f6b43a7A20a18Ef0A595e62C09fdd7AD5e3": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
+        "Version": "1.1.2"
       }
     },
     "Periphery": {

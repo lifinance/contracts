@@ -572,33 +572,13 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_PositiveSlippageReturnedToUser() external {
-        LiFiIntentEscrowFacet.LiFiIntentEscrowData
-            memory validLIFIIntentData = _validLIFIIntentData();
-        // Setup: User swaps DAI -> USDC and bridges USDC
-        vm.startPrank(USER_SENDER);
-        address refundAddress = makeAddr("refundAddress");
-        validLIFIIntentData.depositAndRefundAddress = refundAddress;
-
-        // Prepare swap data DAI -> USDC
+    function _setupDaiToUsdcSwap(
+        uint256 _amountIn,
+        uint256 _quotedSwapOut
+    ) internal {
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
-
-        uint256 amountIn = 100 * 10 ** 18; // 100 DAI
-
-        // Get expected output from Uniswap (this will be the minimum)
-        uint256[] memory expectedAmounts = uniswap.getAmountsOut(
-            amountIn,
-            path
-        );
-        uint256 expectedUSDCOut = expectedAmounts[1];
-        uint256 minAmount = expectedUSDCOut - 1;
-
-        // Setup bridge data to use USDC (output of swap)
-        bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = minAmount; // Minimum USDC expected from swap
-        bridgeData.hasSourceSwaps = true;
 
         delete swapData;
         swapData.push(
@@ -607,11 +587,11 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
                 approveTo: ADDRESS_UNISWAP,
                 sendingAssetId: ADDRESS_DAI,
                 receivingAssetId: ADDRESS_USDC,
-                fromAmount: amountIn,
+                fromAmount: _amountIn,
                 callData: abi.encodeWithSelector(
                     uniswap.swapExactTokensForTokens.selector,
-                    amountIn,
-                    minAmount,
+                    _amountIn,
+                    _quotedSwapOut,
                     path,
                     address(lifiIntentEscrowFacet),
                     block.timestamp + 20 minutes
@@ -620,48 +600,170 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
             })
         );
 
-        // Fund user with DAI and approve
-        deal(ADDRESS_DAI, USER_SENDER, amountIn);
-        dai.approve(address(lifiIntentEscrowFacet), amountIn);
+        deal(ADDRESS_DAI, USER_SENDER, _amountIn);
+        dai.approve(address(lifiIntentEscrowFacet), _amountIn);
+    }
 
-        // Simulate a scenario where the actual swap output is BETTER than expected
-        // We'll manipulate this by dealing extra USDC to the facet during swap execution
-        // In reality, this would happen due to favorable market conditions
+    // Helper function that setups a expectEmit with appropriate information.
+    function _expectOpenWithScaledOutput(
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData memory _intentData,
+        uint256 _intentInput,
+        uint256 _expectedOutputAmount
+    ) internal {
+        MandateOutput[] memory outputs = new MandateOutput[](1);
+        outputs[0] = MandateOutput({
+            oracle: _intentData.outputOracle,
+            settler: _intentData.outputSettler,
+            chainId: bridgeData.destinationChainId,
+            token: _intentData.outputToken,
+            amount: _expectedOutputAmount,
+            recipient: _intentData.recipient,
+            callbackData: hex"",
+            context: _intentData.outputContext
+        });
+        uint256[2][] memory idsAndAmounts = new uint256[2][](1);
+        idsAndAmounts[0] = [
+            uint256(uint160(bridgeData.sendingAssetId)),
+            _intentInput
+        ];
+        StandardOrder memory order = StandardOrder({
+            user: _intentData.depositAndRefundAddress,
+            nonce: _intentData.nonce,
+            originChainId: block.chainid,
+            expires: _intentData.expires,
+            fillDeadline: _intentData.fillDeadline,
+            inputOracle: _intentData.inputOracle,
+            inputs: idsAndAmounts,
+            outputs: outputs
+        });
 
-        // Execute swap and bridge
+        bytes32 orderId = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
+            .orderIdentifier(order);
+
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
+        emit Open(orderId, order);
+    }
+
+    function test_PositiveSlippageScalesOutputAmount() external {
+        // Backend pairs the worst-case swap output (`quotedSwapOut`) with the
+        // API-quoted destination output. On positive slippage the facet must
+        // scale outputAmount up linearly, not refund the excess.
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
+        address refundAddress = makeAddr("refundAddress");
+        validLIFIIntentData.depositAndRefundAddress = refundAddress;
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 amountIn = 100 * 10 ** 18; // 100 DAI
+        uint256 expectedUSDCOut;
+        uint256 quotedSwapOut;
+        {
+            address[] memory path = new address[](2);
+            path[0] = ADDRESS_DAI;
+            path[1] = ADDRESS_USDC;
+            expectedUSDCOut = uniswap.getAmountsOut(amountIn, path)[1];
+            quotedSwapOut = expectedUSDCOut - 1;
+        }
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = quotedSwapOut;
+        bridgeData.hasSourceSwaps = true;
+
+        _setupDaiToUsdcSwap(amountIn, quotedSwapOut);
+
+        uint256 refundBalanceBefore = usdc.balanceOf(refundAddress);
+
+        _expectOpenWithScaledOutput(
+            validLIFIIntentData,
+            expectedUSDCOut,
+            (expectedUSDCOut * validLIFIIntentData.outputAmount) /
+                quotedSwapOut
+        );
+
         lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             swapData,
             validLIFIIntentData
         );
 
-        // Check that positive slippage was returned to depositAndRefundAddress
-        uint256 positiveSlippage = usdc.balanceOf(refundAddress);
+        // Full swap output funds the intent, not the user.
         assertEq(
-            positiveSlippage,
-            expectedUSDCOut - minAmount,
-            "Positive slippage not returned to user"
+            usdc.balanceOf(refundAddress),
+            refundBalanceBefore,
+            "No positive-slippage refund should be issued"
         );
 
         vm.stopPrank();
     }
 
-    function test_ExactSlippageNoExcessReturned() external {
+    function test_ExactSwapOutNoScaling() external {
+        // When realized swap output equals the backend's worst-case quote,
+        // outputAmount passes through unchanged and no refund is issued.
         LiFiIntentEscrowFacet.LiFiIntentEscrowData
             memory validLIFIIntentData = _validLIFIIntentData();
-        // Test that when swap output equals minimum, no excess is returned
+        address refundAddress = makeAddr("refundAddress");
+        validLIFIIntentData.depositAndRefundAddress = refundAddress;
+
+        vm.startPrank(USER_SENDER);
+
+        uint256 amountIn = 100 * 10 ** 18;
+        uint256 expectedUSDCOut;
+        {
+            address[] memory path = new address[](2);
+            path[0] = ADDRESS_DAI;
+            path[1] = ADDRESS_USDC;
+            expectedUSDCOut = uniswap.getAmountsOut(amountIn, path)[1];
+        }
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = expectedUSDCOut;
+        bridgeData.hasSourceSwaps = true;
+
+        _setupDaiToUsdcSwap(amountIn, expectedUSDCOut);
+
+        uint256 refundBalanceBefore = usdc.balanceOf(refundAddress);
+
+        _expectOpenWithScaledOutput(
+            validLIFIIntentData,
+            expectedUSDCOut,
+            validLIFIIntentData.outputAmount
+        );
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
+            bridgeData,
+            swapData,
+            validLIFIIntentData
+        );
+
+        assertEq(
+            usdc.balanceOf(refundAddress),
+            refundBalanceBefore,
+            "No refund should be issued on exact-quote swap"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ScaledOutputAmountZero() external {
+        // outputAmount == 0 on the swap path makes the scaled
+        // effectiveOutputAmount == 0; InvalidAmount must still trip.
+        LiFiIntentEscrowFacet.LiFiIntentEscrowData
+            memory validLIFIIntentData = _validLIFIIntentData();
         vm.startPrank(USER_SENDER);
 
         address[] memory path = new address[](2);
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
 
-        uint256 amountIn = 100 * 10 ** 18; // 100 DAI
+        uint256 amountIn = 100 * 10 ** 18;
         uint256[] memory expectedAmounts = uniswap.getAmountsOut(
             amountIn,
             path
         );
         uint256 expectedUSDCOut = expectedAmounts[1];
+
+        validLIFIIntentData.outputAmount = 0;
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = expectedUSDCOut;
@@ -690,21 +792,12 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
         deal(ADDRESS_DAI, USER_SENDER, amountIn);
         dai.approve(address(lifiIntentEscrowFacet), amountIn);
 
-        uint256 userUSDCBalanceBefore = usdc.balanceOf(USER_SENDER);
+        vm.expectRevert(InvalidAmount.selector);
 
         lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrow(
             bridgeData,
             swapData,
             validLIFIIntentData
-        );
-
-        uint256 userUSDCBalanceAfter = usdc.balanceOf(USER_SENDER);
-
-        // When swap output equals minimum, no USDC should be returned to user
-        assertEq(
-            userUSDCBalanceAfter,
-            userUSDCBalanceBefore,
-            "No excess should be returned when swap output equals minimum"
         );
 
         vm.stopPrank();

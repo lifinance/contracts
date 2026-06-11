@@ -139,7 +139,7 @@ deploySingleContract() {
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
     BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
-
+    
     # get CREATE3_FACTORY_ADDRESS
     CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
     checkFailure $? "retrieve create3Factory address from networks.json"
@@ -167,7 +167,7 @@ deploySingleContract() {
     if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
       CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
     else
-      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT")
+      CONTRACT_ADDRESS=$(getContractAddressFromSalt "$DEPLOYSALT" "$NETWORK" "$CONTRACT" "$ENVIRONMENT" "$CREATE3_FACTORY_ADDRESS")
     fi
 
     # check if address already contains code (=> are we deploying or re-running the script again?)
@@ -185,6 +185,26 @@ deploySingleContract() {
       fi
     fi
   else
+      # ensure the pinned foundry-zksync binary is installed (no-op if version matches)
+      install_foundry_zksync || {
+        error "failed to install foundry-zksync"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
+      # fail loudly instead of building with the toolchain's default zksolc
+      if [[ -z "$ZKSOLC_VERSION" ]]; then
+        error "zksolc pin not found in foundry.toml [external.zksync]"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      fi
+
       # Build zksync artifacts first
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test

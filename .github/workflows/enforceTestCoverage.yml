@@ -59,10 +59,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
 
       - name: Install dev dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Fetch RPC endpoints from MongoDB
         run: |
