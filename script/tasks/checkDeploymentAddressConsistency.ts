@@ -6,11 +6,12 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from 'fs'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
 
-const REPO_ROOT = resolve(import.meta.dir, '../..')
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 export interface INetworkSources {
   network: string
