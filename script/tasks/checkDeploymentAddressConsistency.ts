@@ -1,3 +1,10 @@
+/**
+ * Validates that contract addresses are consistent across `config/whitelist.json`,
+ * `deployments/<network>.json`, and `deployments/<network>.diamond.json`.
+ * Import `findMismatches`/`loadSources` for programmatic use, or run directly as a CLI
+ * (exits 1 on any mismatch).
+ */
+
 import { existsSync, readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
@@ -38,6 +45,19 @@ function checkContract(
   return disagrees ? { network, kind, contract, addresses: present } : null
 }
 
+/**
+ * Finds address mismatches across the provided network sources.
+ *
+ * @param sources - Array of per-network source data produced by `loadSources`.
+ * @returns Array of mismatches found; empty array means all addresses are consistent.
+ *
+ * @remarks
+ * A contract is only flagged when **two or more** sources have a non-empty address that
+ * disagree with each other — empty or absent entries are silently ignored ("agree where
+ * present" semantics). For facets, the cross-check is driven by the set of facets
+ * installed in the diamond (`diamondFacets`); a facet that appears only in the flat
+ * deployment log but has not yet been cut into the diamond will not be cross-checked.
+ */
 export function findMismatches(sources: INetworkSources[]): IMismatch[] {
   const mismatches: IMismatch[] = []
   for (const s of sources) {
@@ -83,6 +103,15 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T
 }
 
+/**
+ * Loads per-network address data from the repo's config and deployment files.
+ *
+ * @param repoRoot - Absolute path to the repository root. Defaults to the repo root
+ *   relative to this file's location.
+ * @returns Array of `INetworkSources`, one entry per network discovered in either
+ *   `config/whitelist.json` or any `deployments/<network>.diamond.json` file.
+ * @throws If `config/whitelist.json` is missing or contains malformed JSON.
+ */
 export function loadSources(repoRoot: string = REPO_ROOT): INetworkSources[] {
   const whitelistByNetwork =
     readJson<{
@@ -140,18 +169,27 @@ export function loadSources(repoRoot: string = REPO_ROOT): INetworkSources[] {
 function report(mismatches: IMismatch[]): void {
   for (const m of mismatches) {
     consola.error(`[${m.network}] ${m.kind} "${m.contract}" address mismatch:`)
-    for (const a of m.addresses) consola.log(`    ${a.address}  (${a.source})`)
+    const reference = normalize(m.addresses[0]?.address ?? '')
+    for (const a of m.addresses) {
+      const prefix = normalize(a.address) !== reference ? '  ✗ ' : '    '
+      consola.log(`${prefix}${a.address}  (${a.source})`)
+    }
   }
 }
 
 if (import.meta.main) {
-  const mismatches = findMismatches(loadSources())
-  if (mismatches.length > 0) {
-    report(mismatches)
-    consola.error(
-      `Found ${mismatches.length} address mismatch(es) across deployment files.`
-    )
+  try {
+    const mismatches = findMismatches(loadSources())
+    if (mismatches.length > 0) {
+      report(mismatches)
+      consola.error(
+        `Found ${mismatches.length} address mismatch(es) across deployment files.`
+      )
+      process.exit(1)
+    }
+    consola.success('Deployment address consistency check passed.')
+  } catch (error) {
+    consola.error('Failed to run deployment address consistency check:', error)
     process.exit(1)
   }
-  consola.success('Deployment address consistency check passed.')
 }
