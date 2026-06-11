@@ -213,7 +213,8 @@
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
       "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
-      "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
+      "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
     }
   }
 }
