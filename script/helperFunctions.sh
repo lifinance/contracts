@@ -1919,6 +1919,30 @@ function extractFromVerificationOutput() {
   fi
 }
 
+# isVerificationOutputSuccessful: Returns 0 when forge verify-contract output indicates success.
+# Etherscan-style APIs print "Response:" / "Details:"; Sourcify prints different success lines.
+function isVerificationOutputSuccessful() {
+  local OUTPUT="$1"
+
+  if echo "$OUTPUT" | grep -qiE "(is already verified|already fully verified|Contract successfully verified|Successfully verified)"; then
+    return 0
+  fi
+
+  if echo "$OUTPUT" | grep -qiE "Status:[[:space:]]*\`?exact_match\`?"; then
+    return 0
+  fi
+
+  local RESPONSE
+  RESPONSE=$(extractFromVerificationOutput "$OUTPUT" "Response")
+  local DETAILS
+  DETAILS=$(extractFromVerificationOutput "$OUTPUT" "Details")
+  if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
 function verifyContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -2141,29 +2165,26 @@ function verifyContract() {
       continue
     fi
 
-    # Check if contract is already verified
-    if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+    if isVerificationOutputSuccessful "$VERIFY_OUTPUT"; then
+      if echo "$VERIFY_OUTPUT" | grep -qiE "(is already verified|already fully verified)"; then
+        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+      else
+        echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
+      fi
       return 0
     fi
 
-    # Parse the final verification response from --watch output more robustly
-    local RESPONSE=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Response")
-    local DETAILS=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Details")
+    # Parse Etherscan-style response for failure diagnostics
+    local RESPONSE
+    RESPONSE=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Response")
+    local DETAILS
+    DETAILS=$(extractFromVerificationOutput "$VERIFY_OUTPUT" "Details")
 
-    # Log parsed values for debugging
     echoDebug "Parsed initial response - Response: '$RESPONSE', Details: '$DETAILS'"
 
-    # If no response found in output, display raw output for debugging
     if [ -z "$RESPONSE" ] && [ -z "$DETAILS" ]; then
       warning "Could not parse verification response from output. Raw output:"
       echo "$VERIFY_OUTPUT"
-    fi
-
-    # Determine success from the --watch response already parsed above
-    if [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Pass"* || "$DETAILS" == *"Verified"* || "$DETAILS" == *"Success"*) ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
-      return 0
     elif [[ "$RESPONSE" == "OK" && ("$DETAILS" == *"Fail"* || "$DETAILS" == *"Unable to verify"* || "$DETAILS" == *"not verified"*) ]]; then
       warning "Verification failed for $CONTRACT on $NETWORK: Response=$RESPONSE, Details=$DETAILS"
     else
@@ -3938,24 +3959,21 @@ function getTempoFeeTokenCliFlag() {
   fi
 }
 
-# getEffectiveGasEstimateMultiplier: Resolves the gas estimate multiplier for a network.
-# An explicit GAS_ESTIMATE_MULTIPLIER from .env always wins. Tempo defaults to 550 because
-# its gas estimation underestimates heavily (see networks.json tempo devNotes); all other
-# networks fall back to the caller-provided default.
+# getEffectiveGasEstimateMultiplier: Resolves the gas estimate multiplier for a deploy command.
+# Uses GAS_ESTIMATE_MULTIPLIER from .env when set to a non-empty value; otherwise the caller
+# fallback (typically 130, Foundry's default). NETWORK is accepted for call-site consistency
+# but is not used for per-network overrides — tune via .env instead (see tempo devNotes).
 #
 # Usage: getEffectiveGasEstimateMultiplier NETWORK [FALLBACK]
-#   NETWORK  - Network name as defined in networks.json
-#   FALLBACK - Optional: multiplier used for non-Tempo networks when env is unset (default: 130)
+#   NETWORK  - Network name (reserved; not used for multiplier selection)
+#   FALLBACK - Optional: multiplier when env is unset (default: 130)
 #
 # Returns: Prints the multiplier (percent) to stdout
 # Example: GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
 function getEffectiveGasEstimateMultiplier() {
-  local NETWORK="$1"
   local FALLBACK="${2:-130}"
   if [[ -n "${GAS_ESTIMATE_MULTIPLIER:-}" ]]; then
     printf '%s' "$GAS_ESTIMATE_MULTIPLIER"
-  elif isTempoNetwork "$NETWORK"; then
-    printf '%s' "550"
   else
     printf '%s' "$FALLBACK"
   fi
