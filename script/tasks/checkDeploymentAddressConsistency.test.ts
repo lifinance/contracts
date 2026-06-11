@@ -159,14 +159,19 @@ describe('getChangedWhitelistNetworks (integration)', () => {
 
   const setupRepo = (initial: unknown): string => {
     const dir = mkdtempSync(join(tmpdir(), 'addr-gate-'))
-    git(dir, 'init -q')
-    git(dir, 'config user.email test@example.com')
-    git(dir, 'config user.name test')
-    git(dir, 'config commit.gpgsign false')
-    writeWhitelist(dir, initial)
-    git(dir, 'add -A')
-    git(dir, 'commit -q -m initial')
-    return dir
+    try {
+      git(dir, 'init -q')
+      git(dir, 'config user.email test@example.com')
+      git(dir, 'config user.name test')
+      git(dir, 'config commit.gpgsign false')
+      writeWhitelist(dir, initial)
+      git(dir, 'add -A')
+      git(dir, 'commit -q -m initial')
+      return dir
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true })
+      throw err
+    }
   }
 
   it('returns only the network whose address changed (not all networks)', () => {
