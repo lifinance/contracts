@@ -185,6 +185,26 @@ deploySingleContract() {
       fi
     fi
   else
+      # ensure the pinned foundry-zksync binary is installed (no-op if version matches)
+      install_foundry_zksync || {
+        error "failed to install foundry-zksync"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
+      # fail loudly instead of building with the toolchain's default zksolc
+      if [[ -z "$ZKSOLC_VERSION" ]]; then
+        error "zksolc pin not found in foundry.toml [external.zksync]"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      fi
+
       # Build zksync artifacts first
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
