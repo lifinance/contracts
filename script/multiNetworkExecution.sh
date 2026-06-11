@@ -1419,7 +1419,8 @@ function notifyProposalsCreatedToSlack() {
     local CHAIN_LIST=$(printf '%s, ' "${SUCCESSFUL_NETWORKS[@]}")
     CHAIN_LIST="${CHAIN_LIST%, }"
 
-    local MESSAGE="🚀 $PROPOSAL_COUNT proposal(s) created for $PROPOSAL_CONTRACT across chains [$CHAIN_LIST]. Ready for signing — please sign now."
+    # message format follows the #dev-sc-multisig-proposals house style: "<N>x <what> ..."
+    local MESSAGE="${PROPOSAL_COUNT}x proposal created: $PROPOSAL_CONTRACT across [$CHAIN_LIST] — please sign 🙏"
 
     logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
     local MESSAGE_FILE
