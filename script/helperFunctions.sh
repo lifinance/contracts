@@ -30,12 +30,18 @@ TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
 # Example: getZkToolchainPin "zksolc"
 function getZkToolchainPin() {
   local KEY="$1"
+  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
+  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
+
+  if [[ ! -f "$FOUNDRY_TOML" ]]; then
+    return 1
+  fi
 
   awk -v key="$KEY" '
     /^\[external\.zksync\]/ { IN_SECTION = 1; next }
     /^\[/ { IN_SECTION = 0 }
     IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
-  ' foundry.toml
+  ' "$FOUNDRY_TOML"
 }
 
 # zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
@@ -5154,8 +5160,9 @@ install_foundry_zksync() {
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
-  if [ -z "${EXPECTED_VERSION}" ]; then
-    echo "Error: foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)"
+  if [[ -z "$EXPECTED_VERSION" ]]; then
+    # stderr so the cause survives callers that suppress stdout (e.g. verifyContract)
+    error "foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)" >&2
     return 1
   fi
 
