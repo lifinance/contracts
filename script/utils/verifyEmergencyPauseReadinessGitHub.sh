@@ -11,7 +11,7 @@
 #                      that derived address, read via the real `universalCast "call"`.
 #   Governance check (on-chain, per Safe/timelock-governed diamond — the UNPAUSE path): the
 #                      LiFiTimelockController's diamond() points at the production diamond,
-#                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
+#                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets (EOA-owned).
 #
 # It performs NO transactions (no pause / unpause / send). A non-zero exit means the
 # emergency pause/unpause would not work as configured and must be investigated.
@@ -112,6 +112,24 @@ function evmToTronBase58() {
   printf "%s" "$OUT"
 }
 
+# addressesMatch: compare two addresses that are already in the SAME network's native form.
+# Tron base58 is case-SENSITIVE, so compare it verbatim; EVM 0x-hex casing is cosmetic (EIP-55),
+# so compare it case-insensitively. Both arguments must be the same representation (both base58
+# on Tron, both hex on EVM) — this does no cross-encoding.
+#
+# Usage: addressesMatch NETWORK ADDR_A ADDR_B
+# Returns: 0 if equal, 1 otherwise.
+function addressesMatch() {
+  local NETWORK="$1"
+  local ADDR_A="$2"
+  local ADDR_B="$3"
+  if isTronNetwork "$NETWORK"; then
+    [[ "$ADDR_A" == "$ADDR_B" ]]
+  else
+    [[ "$(echo "$ADDR_A" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDR_B" | tr '[:upper:]' '[:lower:]')" ]]
+  fi
+}
+
 # verifyPauserOnNetwork: pauser check — read the on-chain pauserWallet() of a network's
 # production LiFiDiamond and assert it equals the derived pauser address. Read-only.
 # Mirrors diamondEMERGENCYPauseGitHub.sh's comparison exactly (lowercase string compare),
@@ -173,7 +191,7 @@ function verifyPauserOnNetwork() {
 #   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond
 #       (the timelock controls the right diamond), and
 #   (2) the Safe holds TIMELOCK_ADMIN_ROLE on the timelock (so it can execute unpauseDiamond()).
-# Read-only. Applies only to non-testnet, non-Tron networks with a deployed timelock AND a
+# Read-only. Applies to any non-testnet network (EVM or Tron) with a deployed timelock AND a
 # configured Safe; everything else is skipped with a notice. The exit code BIT-ENCODES which
 # assertion failed so the caller can report the two separately:
 #   bit 0 (1) = timelock.diamond() mismatch / unreadable,  bit 1 (2) = Safe missing the role / unreadable.
@@ -184,9 +202,10 @@ function verifyPauserOnNetwork() {
 function verifyGovernanceOnNetwork() {
   local NETWORK="$1"
 
-  # Testnets are EOA-owned (no Safe/timelock); Tron's governance model differs. Skip both.
-  if isTestnetNetwork "$NETWORK" || isTronNetwork "$NETWORK"; then
-    echo "skipping $NETWORK governance checks (testnet or Tron - no Safe/timelock)"
+  # Testnets are EOA-owned (no Safe/timelock). Tron runs the same Safe+timelock governance and
+  # IS checked: addressesMatch handles base58 comparison and troncast accepts the base58 Safe.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "skipping $NETWORK governance checks (testnet - EOA-owned, no Safe/timelock)"
     return 0
   fi
 
@@ -219,7 +238,7 @@ function verifyGovernanceOnNetwork() {
   if ! TIMELOCK_DIAMOND=$(rpcCallWithRetry "[$NETWORK] timelock.diamond()" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "diamond() returns (address)"); then
     error "[network: $NETWORK] governance: failed to read LiFiTimelockController.diamond() after $RPC_MAX_ATTEMPTS attempts: $TIMELOCK_DIAMOND"
     RC=$((RC | 1))
-  elif [[ "$(echo "$TIMELOCK_DIAMOND" | tr '[:upper:]' '[:lower:]')" != "$(echo "$DIAMOND_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+  elif ! addressesMatch "$NETWORK" "$TIMELOCK_DIAMOND" "$DIAMOND_ADDRESS"; then
     error "[network: $NETWORK] governance: timelock.diamond() ($TIMELOCK_DIAMOND) does not match deploy-log LiFiDiamond ($DIAMOND_ADDRESS)"
     RC=$((RC | 1))
   else
