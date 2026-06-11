@@ -157,12 +157,16 @@ Accept only `yes`, `proceed`, or `confirm` (case-insensitive); reject bare `y` a
 ### 6. Send
 
 ```bash
-(set +x; KEY=$(grep -E '^PRIVATE_KEY_PRODUCTION=' .env | cut -d= -f2- | tr -d '"'); \
+SEND_OUTPUT=$( (set +x; KEY=$(grep -E "^${KEY_VAR}=" .env | cut -d= -f2- | tr -d '"'); \
   cast send "$RECIPIENT" --value "$AMOUNT_WEI" --private-key "$KEY" --rpc-url "$RPC") \
-  2>&1 | grep -vE 'private|PRIVATE|key' | sed "s|$RPC|<rpc>|g"
+  2>&1 | grep -vE 'private|PRIVATE|key' | sed "s|$RPC|<rpc>|g" )
+echo "$SEND_OUTPUT"
+
+TX_HASH=$(echo "$SEND_OUTPUT" | grep -i 'transactionHash' | grep -oE '0x[0-9a-fA-F]{64}' | head -n1)
+[[ -n "$TX_HASH" ]] || { echo "could not extract tx hash from cast send output"; exit 1; }
 ```
 
-The subshell keeps the key out of the calling shell's state; the filter strips any line mentioning the key and redacts the RPC URL from the printed output. Capture the transaction hash and receipt status from the output.
+The subshell keeps the key out of the calling shell's state; the filter strips any line mentioning the key and redacts the RPC URL from the printed output. `cast send` also prints the receipt `status` — check it here and again in Step 7.
 
 ### 7. Post-send verification
 
