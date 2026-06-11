@@ -6,6 +6,7 @@ import {
 } from 'bun:test'
 
 import {
+  affectedNetworks,
   findMismatches,
   type INetworkSources,
 } from './checkDeploymentAddressConsistency'
@@ -79,5 +80,33 @@ describe('findMismatches', () => {
       },
     ]
     expect(findMismatches(sources)).toEqual([])
+  })
+})
+
+describe('affectedNetworks', () => {
+  it('maps deployment and diamond paths to network names', () => {
+    const result = affectedNetworks(
+      ['deployments/arbitrum.json', 'deployments/base.diamond.json'],
+      []
+    )
+    expect([...result].sort()).toEqual(['arbitrum', 'base'])
+  })
+
+  it('includes changed whitelist networks', () => {
+    const result = affectedNetworks(['config/whitelist.json'], ['optimism'])
+    expect([...result]).toEqual(['optimism'])
+  })
+
+  it('ignores non-deployment paths, the deployments log, and staging files', () => {
+    const result = affectedNetworks(
+      [
+        'src/Foo.sol',
+        'deployments/_deployments_log_file.json',
+        'deployments/arbitrum.staging.json',
+        'README.md',
+      ],
+      []
+    )
+    expect([...result]).toEqual([])
   })
 })
