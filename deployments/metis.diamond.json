@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x5eBcD07ba73f32de389cc5F7B0a34989A1422cAE": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xfB48b4001512a613037832924d33Bf33cDf35c89": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x6BC529A247af67735A7c0a2459d7df0b6A49AA0C": {
         "Name": "AccessManagerFacet",
@@ -33,29 +33,29 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xaF11A4c4e07df3286b896047cfeE7f2439432b7E": {
-        "Name": "StandardizedCallFacet",
+      "0xD5734b44Bb7Ada52ea6503088612E70a2a612371": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0x49aC4f4Be1838090fc02AFb109DD08Da458b4227": {
-        "Name": "AmarokFacet",
-        "Version": "3.0.0"
-      },
-      "0x898Ae46530bAF99FBEe16225db8e9771B580DC0D": {
-        "Name": "StargateFacet",
-        "Version": "2.2.0"
-      },
-      "0x20aaBc10646dF4740279cd5C2a035519cac4E328": {
-        "Name": "AmarokFacetPacked",
+      "0x9fCFD2F51726a8Be04217967Ab25B797947825ef": {
+        "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0xCb667deA2894ab64e8e75EACB0d5d027AC672e25": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
+      },
+      "0x3e33b8AF89eCd766728993356026f9306C7d5778": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x93f6D08Cd61605897eD6105b96777E720Fff5d38": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0x25B14BB3C349cc8B4076B5D75bfF2Ddebc7daE6D": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.0"
       },
       "0xECb6035CD0393ebE016821EAE28bA9c57efBd5c6": {
         "Name": "GenericSwapFacetV3",
@@ -64,34 +64,6 @@
       "0x7865919678265435472756b59D5141D0F76312E1": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
-      },
-      "0xCb667deA2894ab64e8e75EACB0d5d027AC672e25": {
-        "Name": "StargateFacetV2",
-        "Version": "1.0.1"
-      },
-      "0xD5734b44Bb7Ada52ea6503088612E70a2a612371": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
-      "0x3e33b8AF89eCd766728993356026f9306C7d5778": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0x25B14BB3C349cc8B4076B5D75bfF2Ddebc7daE6D": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.0"
-      },
-      "0x44a1f8744c85665553eFb8C24fd4428B1D3D8e1B": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0x9fCFD2F51726a8Be04217967Ab25B797947825ef": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0xfB48b4001512a613037832924d33Bf33cDf35c89": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {

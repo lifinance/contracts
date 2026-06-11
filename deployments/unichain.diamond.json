@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x668442675e54Af64E6cD551CB1C061EF5f26C237": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xcdEC3efD307BaC9dD88c7EdD962F7681C79eD90E": {
         "Name": "AccessManagerFacet",
@@ -49,8 +49,8 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0x20F6BcAdd0e285816b6FF301e6cBe1601fc2e4Fd": {
-        "Name": "RelayFacet",
+      "0x920616F16A55B86Edf39A70217bDB45900cC328f": {
+        "Name": "GardenFacet",
         "Version": "1.0.0"
       },
       "0xC15121CdbC053D94F27D67459f307Ec1cdd71453": {
@@ -69,9 +69,9 @@
         "Name": "MayanFacet",
         "Version": "1.2.4"
       },
-      "0xc222572289a6bB7e03D448F05Ac4EBf31D7FBf32": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
+      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
       "0x62804857bAF590fB271c1F77435a492A6fa64DBa": {
         "Name": "StargateFacetV2",
@@ -103,18 +103,6 @@
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x920616F16A55B86Edf39A70217bDB45900cC328f": {
-        "Name": "GardenFacet",
-        "Version": "1.0.0"
-      },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
-      },
-      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
-        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       }
     },

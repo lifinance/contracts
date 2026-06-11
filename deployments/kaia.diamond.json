@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xCD500825d5fbac2A5686474287D8292B3EC03535": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x0A28554Eed38F37cB62EB0503957262aA930cA1D": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x7953BF679A052FBeD11C414afBDdD46fF4D71B3a": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x9995C5B347a2DD869c8356cC256B11Be2f966374": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0x7AbF00987740d6db0d1180171B6ad41bE2b6b85C": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x1b5b4097ecA753c3F202c22A0D26bA3893EC1a43": {
         "Name": "GenericSwapFacet",
@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0xa5d9075424d0FCB81de1745c2b191DdC2cD6CE27": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0x5b4dd05850A3f373500e7fC90E94b581A45ACBFa": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       },
       "0x88174029c74B247657FEB4d1F552436407826afC": {
         "Name": "CalldataVerificationFacet",
@@ -60,18 +60,6 @@
       "0xaFC4b6A093F2066c314922E92Fe2118d569C73aB": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
-      },
-      "0x5b4dd05850A3f373500e7fC90E94b581A45ACBFa": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
-      "0x7AbF00987740d6db0d1180171B6ad41bE2b6b85C": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0x0A28554Eed38F37cB62EB0503957262aA930cA1D": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {

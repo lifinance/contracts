@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x668442675e54Af64E6cD551CB1C061EF5f26C237": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xcdEC3efD307BaC9dD88c7EdD962F7681C79eD90E": {
         "Name": "AccessManagerFacet",
@@ -53,8 +53,8 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0x672087FD5cc3534496E4Ad23FB4b24B5Ae258913": {
-        "Name": "RelayFacet",
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0x6183613979316548806a861E431D4eCe933Ea7F2": {
@@ -88,14 +88,6 @@
       "0x64d6B0993C4002E671f828BA35F0c53aF9eaA37a": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
-      },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {

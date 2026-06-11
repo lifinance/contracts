@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x8158CB90bd860ff75a8FA152611bff0Db3b28360": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
       "0xF72c17d1e3b047Ff8f7e9617c6b7E4c9c335eD08": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x1172FAF198C05121e858a9e504EF68f2bAe38833": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       },
       "0x2e640bB8452aA810ED8c259054661E9BE3f2704B": {
         "Name": "GenericSwapFacet",
@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0x6408794f2752e0e8a389813D47cFc5452A4133Aa": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       },
       "0x70A18260Be23D9E154cad53e049A55B95221EA82": {
         "Name": "CalldataVerificationFacet",
@@ -61,41 +61,21 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xd9aeA8f746888739B0A063Fd608851e1195AF8F3": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
+      "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x8D4cE7275C269FA5a7E9ca76EA146e01bc0fC540": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
-        "Name": "GlacisFacet",
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
         "Name": "AllBridgeFacet",
         "Version": "2.1.2"
-      },
-      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
-        "Name": "EcoFacet",
-        "Version": "1.1.0"
-      },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
       }
     },
     "Periphery": {

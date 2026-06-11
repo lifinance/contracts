@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x20f6A4cAa10f46e237273d0b3996C882e18E936A": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
         "Name": "EmergencyPauseFacet",
@@ -52,10 +52,6 @@
       "0xa75C9F0c40936968f4Ee1CB8d9666600EF14ddBe": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
-      },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {

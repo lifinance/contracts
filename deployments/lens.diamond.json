@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x56b8A6E7a8f058f74C42d26936F335fC65fe3962": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x061517Ae0a172C760AF6B4D50f3Da836bA55Df1b": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xa9347E8f6Fa500D27b0E3482525dA6b95bED1684": {
         "Name": "AccessManagerFacet",
@@ -67,10 +67,6 @@
       },
       "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x061517Ae0a172C760AF6B4D50f3Da836bA55Df1b": {
-        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       }
     },

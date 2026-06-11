@@ -21,9 +21,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xE7e54B632c4E9d1A7702b7C3BF69ffAa86f89ED2": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x59c404B9D10f6d4831F4eD5d0Aa1fa2f0e9E318f": {
         "Name": "GasZipFacet",
@@ -56,10 +56,6 @@
       "0xF94484deAD7dC9C19F1a56a2d6C1C761A4EBd494": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
-      },
-      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {

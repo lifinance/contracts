@@ -49,16 +49,12 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x830DAfBCAE31141f1f1BfDF96D6Ad545D4cc9bB4": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
+      "0xCDA650d97F35928f740544E9854f03a1e1c2b81E": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       },
       "0xcFDe3d0c9d2Ced6cC5731439Ac8944De0E029Ce4": {
         "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0xCDA650d97F35928f740544E9854f03a1e1c2b81E": {
-        "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       }
     },

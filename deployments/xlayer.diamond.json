@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xaCDcb85b8446FAAaC9C5C8256B9d475E41BcA16A": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       },
       "0xE3540478Cc5093DfB60141d6Df77aff86eAC9544": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x445f0c0143210a40835A55Fe357D8eadC7A9B899": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x2460bE223c78495d78Fe4d767f36D3F5c5B36dFE": {
         "Name": "GenericSwapFacet",
@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0x3D86672E044b6263883D59DAdE2c837540089D5c": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x7c2003Db4a3E2a9b8D03Fd72b2BF4A9ceC53A625": {
         "Name": "CalldataVerificationFacet",
@@ -59,18 +59,6 @@
       },
       "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
-      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
-        "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       }
     },
