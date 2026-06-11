@@ -3949,34 +3949,51 @@ function getForgeLegacyCliFlag() {
 }
 
 # Tempo mainnet pathUSD (TIP-20) for --tempo.fee-token on forge/cast; trailing space when non-empty.
+# The address is read from customDeployFlags in networks.json (single source of truth); the
+# pathUSD predeploy is used as a safety net if the flag is missing there.
 # See https://docs.tempo.xyz/quickstart/predeployed-contracts
 #
 # Usage: getTempoFeeTokenCliFlag NETWORK
 function getTempoFeeTokenCliFlag() {
   local NETWORK="$1"
   if isTempoNetwork "$NETWORK"; then
-    printf '%s' "--tempo.fee-token 0x20c0000000000000000000000000000000000000 "
+    local FEE_TOKEN
+    FEE_TOKEN=$(jq -r --arg network "$NETWORK" '.[$network].customDeployFlags // ""' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null | sed -n -E 's/.*--tempo\.fee-token[[:space:]]+(0x[0-9a-fA-F]{40}).*/\1/p')
+    if [[ -z "$FEE_TOKEN" ]]; then
+      warning "no --tempo.fee-token found in customDeployFlags for '$NETWORK' in networks.json, falling back to the pathUSD predeploy" >&2
+      FEE_TOKEN="0x20c0000000000000000000000000000000000000"
+    fi
+    printf '%s' "--tempo.fee-token ${FEE_TOKEN} "
   fi
 }
 
 # getEffectiveGasEstimateMultiplier: Resolves the gas estimate multiplier for a deploy command.
-# Uses GAS_ESTIMATE_MULTIPLIER from .env when set to a non-empty value; otherwise the caller
-# fallback (typically 130, Foundry's default). NETWORK is accepted for call-site consistency
-# but is not used for per-network overrides — tune via .env instead (see tempo devNotes).
+# Precedence: GAS_ESTIMATE_MULTIPLIER from .env (must be a positive integer percent; invalid
+# values are ignored with a warning) > Tempo default of 550 (forge's estimation under-counts
+# on Tempo, see tempo devNotes in networks.json) > caller fallback (typically 130, Foundry's
+# default).
 #
 # Usage: getEffectiveGasEstimateMultiplier NETWORK [FALLBACK]
-#   NETWORK  - Network name (reserved; not used for multiplier selection)
-#   FALLBACK - Optional: multiplier when env is unset (default: 130)
+#   NETWORK  - Network name (selects the Tempo default of 550)
+#   FALLBACK - Optional: multiplier for non-Tempo networks when env is unset (default: 130)
 #
 # Returns: Prints the multiplier (percent) to stdout
 # Example: GAS_ESTIMATE_MULTIPLIER=$(getEffectiveGasEstimateMultiplier "$NETWORK" 130)
 function getEffectiveGasEstimateMultiplier() {
+  local NETWORK="${1:-}"
   local FALLBACK="${2:-130}"
-  if [[ -n "${GAS_ESTIMATE_MULTIPLIER:-}" ]]; then
-    printf '%s' "$GAS_ESTIMATE_MULTIPLIER"
-  else
-    printf '%s' "$FALLBACK"
+  local DEFAULT="$FALLBACK"
+  if isTempoNetwork "$NETWORK"; then
+    DEFAULT=550
   fi
+  if [[ -n "${GAS_ESTIMATE_MULTIPLIER:-}" ]]; then
+    if [[ "$GAS_ESTIMATE_MULTIPLIER" =~ ^[0-9]+$ && "$GAS_ESTIMATE_MULTIPLIER" -gt 0 ]]; then
+      printf '%s' "$GAS_ESTIMATE_MULTIPLIER"
+      return 0
+    fi
+    warning "invalid GAS_ESTIMATE_MULTIPLIER='${GAS_ESTIMATE_MULTIPLIER}' (expected positive integer percent), using default ${DEFAULT}" >&2
+  fi
+  printf '%s' "$DEFAULT"
 }
 
 function getTronEnv() {

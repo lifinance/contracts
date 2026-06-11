@@ -1367,7 +1367,7 @@
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000 --tempo.fee-token 0x20c0000000000000000000000000000000000000",
-    "devNotes": "Tempo is an account-abstraction chain with token-based gas (fees paid in pathUSD, passed via --tempo.fee-token in customDeployFlags). Deploy scripts use FOUNDRY_PROFILE=tempo and omit --legacy. Gas estimation can under-count on Tempo — raise GAS_ESTIMATE_MULTIPLIER in .env if deploys OOG (empirically ~500–550 for large contracts such as LiFiDEXAggregator). We use a dummy wrapped native address for AcrossFacetV4 because the native path is not activated.",
+    "devNotes": "Tempo is an account-abstraction chain with token-based gas (fees paid in pathUSD, passed via --tempo.fee-token in customDeployFlags). Deploy scripts use FOUNDRY_PROFILE=tempo and omit --legacy. Gas estimation can under-count on Tempo — deploy scripts therefore default GAS_ESTIMATE_MULTIPLIER to 550 on this network (empirically needed for large contracts such as LiFiDEXAggregator); set GAS_ESTIMATE_MULTIPLIER in .env to override. We use a dummy wrapped native address for AcrossFacetV4 because the native path is not activated.",
     "skipHealthcheck": true
   },
   "unichain": {
