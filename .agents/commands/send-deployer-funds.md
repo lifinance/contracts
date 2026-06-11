@@ -109,7 +109,7 @@ if [[ "$ENVIRONMENT" == "staging" ]]; then KEY_VAR="PRIVATE_KEY"; else KEY_VAR="
 SENDER=$(set +x; KEY=$(grep -E "^${KEY_VAR}=" .env | cut -d= -f2- | tr -d '"'); cast wallet address --private-key "$KEY")
 ```
 
-Do **NOT** use `config/global.json`'s `deployerWallet` for the sender address or for balance checks. The key and the config can diverge: on `outlaw` (2026-06-11) the key derived to `0x492E267321E863fA45Bc9d97c9f64Fa9Df70d4c4` while `global.json` listed `0xb137683965ADC470f140df1a1D05B0D25C14E269` — an address with zero balance and nonce 0 on that chain. Checking the wrong address makes a funded wallet look empty (or vice versa).
+Do **NOT** use `config/global.json`'s `deployerWallet` for the sender address or for balance checks — the key and the config can diverge, and checking the wrong address makes a funded wallet look empty (or vice versa). Don't assume — derive.
 
 If the env var is missing from `.env`, stop and tell the user which variable is missing — never fall back to another key silently.
 
@@ -209,4 +209,4 @@ Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_
 
 - Direction matters: `request-dev-funds` moves funds **into** our wallets via a reviewed PR pipeline; this skill moves funds **out** of our own keys with no reviewer — hence the mandatory chain-id verification, derived-sender rule, and explicit confirmation gate.
 - All resolutions (RPC, chainId, sender address, balances) happen at runtime from canonical sources (`config/networks.json`, `.env`, the chain itself). The skill body holds zero addresses and zero secrets.
-- The sender address is always derived from the private key because `config/global.json` describes the *intended* deployer, not necessarily the key in the local `.env` — and on fresh networks they have diverged in practice.
+- The sender address is always derived from the private key because `config/global.json` describes the *intended* deployer, not necessarily the key in the local `.env`.
