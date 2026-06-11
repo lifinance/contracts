@@ -55,7 +55,11 @@ function deployContractToNetworks() {
       shift
       ;;
     --diamond)
-      DIAMOND_CONTRACT_NAME="${2:-}"
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        error "--diamond requires a value (LiFiDiamond or LiFiDiamondImmutable)"
+        exit 1
+      fi
+      DIAMOND_CONTRACT_NAME="$2"
       shift 2
       ;;
     --no-diamond-update)
@@ -157,13 +161,16 @@ function deployContractToNetworks() {
     BALANCE=$(getDeployerBalance "$NETWORK" "$ENVIRONMENT")
     echo "[info] deployer wallet balance on $NETWORK: $BALANCE"
 
+    local DEPLOY_RC
     if [[ "$UPDATE_DIAMOND" == "true" ]]; then
       deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
+      DEPLOY_RC=$?
     else
       deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
+      DEPLOY_RC=$?
     fi
 
-    if [[ $? -eq 0 ]]; then
+    if [[ $DEPLOY_RC -eq 0 ]]; then
       SUCCEEDED_NETWORKS+=("$NETWORK")
       echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $NETWORK done"
     else
@@ -176,8 +183,12 @@ function deployContractToNetworks() {
   echo "[info] ==================== SUMMARY ===================="
   echo "[info] contract:    $CONTRACT v$VERSION"
   echo "[info] environment: $ENVIRONMENT"
+  local DEPLOYED_ADDRESS
   for NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
-    [[ -n "$NETWORK" ]] && success "$NETWORK: OK ($(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT"))"
+    if [[ -n "$NETWORK" ]]; then
+      DEPLOYED_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$CONTRACT") || DEPLOYED_ADDRESS="address not found in deployment log"
+      success "$NETWORK: OK ($DEPLOYED_ADDRESS)"
+    fi
   done
   for NETWORK in "${FAILED_NETWORKS[@]:-}"; do
     [[ -n "$NETWORK" ]] && error "$NETWORK: FAILED"
@@ -196,6 +207,11 @@ function deployContractToNetworks() {
 # all framework paths are relative to the repo root
 if [[ ! -f "script/helperFunctions.sh" ]]; then
   echo "[error] this script must be run from the repository root (e.g. ./script/deploy/deployContractToNetworks.sh ...)"
+  exit 1
+fi
+
+if [[ ! -f ".env" ]]; then
+  echo "[error] .env file not found in repository root - copy .env.example to .env and configure it"
   exit 1
 fi
 
