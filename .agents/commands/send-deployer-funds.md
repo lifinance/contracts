@@ -113,10 +113,11 @@ If the env var is missing from `.env`, stop and tell the user which variable is 
 
 ### 4. Compute the amount in wei
 
-Read the sender balance first:
+Read both pre-send balances first and keep them — the post-send verification (Step 7) reports the deltas:
 
 ```bash
 BALANCE_WEI=$(cast balance "$SENDER" --rpc-url "$RPC")
+RECIPIENT_BALANCE_BEFORE=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
 ```
 
 - **Absolute** ("0.1 ETH"): `AMOUNT_WEI=$(cast to-wei "0.1" ether)`.
@@ -165,15 +166,15 @@ The subshell keeps the key out of the calling shell's state; the filter strips a
 
 ### 7. Post-send verification
 
-- Confirm the receipt has `status 1` (`cast receipt <txhash> status --rpc-url "$RPC"` if not already shown by `cast send`).
-- Re-read both balances and report the deltas:
+- Confirm the receipt has `status 1` (`cast receipt "$TX_HASH" status --rpc-url "$RPC"` if not already shown by `cast send`).
+- Re-read both balances and report the deltas (Step 4 saved the before-values):
 
 ```bash
-cast balance "$SENDER" --rpc-url "$RPC"
-cast balance "$RECIPIENT" --rpc-url "$RPC"
+SENDER_AFTER=$(cast balance "$SENDER" --rpc-url "$RPC")
+RECIPIENT_AFTER=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
 ```
 
-Report to the user: tx hash, status, sender balance before → after, recipient balance before → after.
+Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_AFTER`, recipient balance `$RECIPIENT_BALANCE_BEFORE` → `$RECIPIENT_AFTER` (deltas via `bc`).
 
 ## Failure modes
 
