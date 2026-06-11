@@ -83,7 +83,6 @@
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
     "healthcheck": "bunx tsx ./script/deploy/healthCheck.ts",
-    "check:addresses": "bunx tsx ./script/tasks/checkDeploymentAddressConsistency.ts",
     "lint:js": "eslint \"**/*.{js,ts,tsx}\"",
     "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "lint:sol": "solhint \"src/**/*.sol\"",
