@@ -29,6 +29,12 @@ export interface IMismatch {
   addresses: { source: string; address: string }[]
 }
 
+export interface ICoverageGap {
+  network: string
+  contract: string
+  address: string
+}
+
 const isEmpty = (address?: string): boolean => !address || address.trim() === ''
 const normalize = (address: string): string => address.trim().toLowerCase()
 
@@ -99,6 +105,33 @@ export function findMismatches(sources: INetworkSources[]): IMismatch[] {
     }
   }
   return mismatches
+}
+
+/**
+ * Finds whitelist-eligible periphery contracts that are deployed (present and
+ * non-empty in `<network>.diamond.json`) but missing from `config/whitelist.json`.
+ *
+ * @param sources - Per-network source data from `loadSources`.
+ * @param whitelistEligible - Periphery names that are expected to be whitelisted
+ *   (the keys of `config/global.json` → `whitelistPeripheryFunctions`).
+ * @returns One gap per eligible, deployed-but-unwhitelisted periphery; empty if none.
+ * @remarks Only periphery names in `whitelistEligible` are considered, so contracts
+ *   that are intentionally never whitelisted (Receivers, proxies, Executor) are ignored.
+ */
+export function findCoverageGaps(
+  sources: INetworkSources[],
+  whitelistEligible: Set<string>
+): ICoverageGap[] {
+  const gaps: ICoverageGap[] = []
+  for (const s of sources) {
+    for (const [name, address] of Object.entries(s.diamondPeriphery)) {
+      if (!whitelistEligible.has(name)) continue
+      if (!address || address.trim() === '') continue
+      if (isEmpty(s.whitelistPeriphery[name]))
+        gaps.push({ network: s.network, contract: name, address })
+    }
+  }
+  return gaps
 }
 
 /**
@@ -203,6 +236,21 @@ export function loadSources(
   return sources
 }
 
+/**
+ * Reads the set of whitelist-eligible periphery names from
+ * `config/global.json` → `whitelistPeripheryFunctions`.
+ * @param repoRoot - Repository root. Defaults to this repo.
+ * @returns Set of eligible periphery contract names (empty if the key is absent).
+ */
+export function loadWhitelistEligible(
+  repoRoot: string = REPO_ROOT
+): Set<string> {
+  const fns = readJson<{
+    whitelistPeripheryFunctions?: Record<string, unknown>
+  }>(`${repoRoot}/config/global.json`).whitelistPeripheryFunctions
+  return new Set(Object.keys(fns ?? {}))
+}
+
 function report(mismatches: IMismatch[]): void {
   for (const m of mismatches) {
     consola.error(`[${m.network}] ${m.kind} "${m.contract}" address mismatch:`)
@@ -212,6 +260,13 @@ function report(mismatches: IMismatch[]): void {
       consola.log(`${prefix}${a.address}  (${a.source})`)
     }
   }
+}
+
+function reportCoverageGaps(gaps: ICoverageGap[]): void {
+  for (const g of gaps)
+    consola.error(
+      `[${g.network}] periphery "${g.contract}" (${g.address}) is in deployments/${g.network}.diamond.json but missing from config/whitelist.json`
+    )
 }
 
 /**
@@ -297,7 +352,8 @@ export function getChangedWhitelistNetworks(
 if (import.meta.main) {
   try {
     const staged = process.argv.includes('--staged')
-    let mismatches: IMismatch[]
+    const eligible = loadWhitelistEligible()
+    let sources: INetworkSources[]
     if (staged) {
       const stagedPaths = getStagedPaths()
       const scope = affectedNetworks(
@@ -308,14 +364,17 @@ if (import.meta.main) {
         consola.info('No staged whitelist/deployment files to check.')
         process.exit(0)
       }
-      mismatches = findMismatches(loadSources(REPO_ROOT, scope))
+      sources = loadSources(REPO_ROOT, scope)
     } else {
-      mismatches = findMismatches(loadSources())
+      sources = loadSources()
     }
-    if (mismatches.length > 0) {
-      report(mismatches)
+    const mismatches = findMismatches(sources)
+    const gaps = findCoverageGaps(sources, eligible)
+    report(mismatches)
+    reportCoverageGaps(gaps)
+    if (mismatches.length > 0 || gaps.length > 0) {
       consola.error(
-        `Found ${mismatches.length} address mismatch(es) across deployment files.`
+        `Found ${mismatches.length} address mismatch(es) and ${gaps.length} whitelist coverage gap(s).`
       )
       process.exit(1)
     }

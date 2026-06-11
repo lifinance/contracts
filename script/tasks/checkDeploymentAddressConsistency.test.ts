@@ -13,6 +13,7 @@ import {
 import {
   affectedNetworks,
   changedWhitelistNetworks,
+  findCoverageGaps,
   findMismatches,
   getChangedWhitelistNetworks,
   type INetworkSources,
@@ -217,5 +218,70 @@ describe('getChangedWhitelistNetworks (integration)', () => {
 
   it('returns [] when whitelist.json is not staged', () => {
     expect(getChangedWhitelistNetworks(['deployments/base.json'])).toEqual([])
+  })
+})
+
+describe('findCoverageGaps', () => {
+  const eligible = new Set(['OutputValidator', 'FeeCollector'])
+
+  it('flags an eligible periphery in the diamond but missing from whitelist', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible
+    )
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({
+      network: 'testnet',
+      contract: 'OutputValidator',
+      address: '0xABC',
+    })
+  })
+
+  it('does not flag when the eligible periphery is whitelisted', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          whitelistPeriphery: { OutputValidator: '0xABC' },
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible
+    )
+    expect(gaps).toEqual([])
+  })
+
+  it('does not flag peripheries that are not whitelist-eligible', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          whitelistPeriphery: {},
+          diamondPeriphery: { ERC20Proxy: '0xABC', ReceiverAcrossV3: '0xDEF' },
+        },
+      ],
+      eligible
+    )
+    expect(gaps).toEqual([])
+  })
+
+  it('ignores eligible peripheries with an empty diamond address (not deployed)', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '' },
+        },
+      ],
+      eligible
+    )
+    expect(gaps).toEqual([])
   })
 })
