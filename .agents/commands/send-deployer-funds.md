@@ -66,7 +66,17 @@ RPC_VAR="ETH_NODE_URI_$(echo "$NETWORK" | tr '[:lower:]' '[:upper:]')"
 RPC=$(grep -E "^${RPC_VAR}=" .env | cut -d= -f2- | tr -d '"')
 ```
 
-In the fallback case there is no chainId in `networks.json` — get the expected chainId from the user or from the in-flight branch's `networks.json` before proceeding. **Never send without a chainId expectation.**
+In the fallback case there is no chainId in the checked-out `networks.json` — obtain the expected chainId before proceeding, in this order:
+
+1. The in-flight branch's config, if the network's `deploy-network-<name>` branch exists locally:
+
+   ```bash
+   EXPECTED_CHAIN_ID=$(git show "deploy-network-${NETWORK}:config/networks.json" 2>/dev/null | jq -r --arg n "$NETWORK" '.[$n].chainId // empty')
+   ```
+
+2. Otherwise ask the user for the expected chainId (validate it is a positive integer).
+
+**Never send without a chainId expectation** — skipping the verification in the fallback case defeats its purpose, since fresh networks are exactly where a stale or mistyped RPC env var is most likely.
 
 Then verify the RPC actually serves that chain:
 
