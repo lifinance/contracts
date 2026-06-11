@@ -1,7 +1,7 @@
 ---
 name: send-deployer-funds
 usage: /send-deployer-funds
-description: Send native gas funds directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send`. Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move native funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry) and `jq`. EVM only.
+description: Send native gas funds directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send`. Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move native funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only.
 ---
 
 # Send Deployer Funds
@@ -182,7 +182,7 @@ Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_
 
 ## Failure modes
 
-- **`cast` missing** → tell the user to install Foundry (`foundryup`); do not substitute another tool.
+- **`cast` missing** → tell the user to install Foundry (`foundryup`); do not substitute another tool. **`bc` missing** → tell the user to install it; do not fall back to bash integer arithmetic (overflows on wei values).
 - **Env var (key or RPC) missing from `.env`** → name the missing variable and stop. Never guess or fall back silently.
 - **Chain-id mismatch** → stop, show expected vs. actual. The RPC is pointing at the wrong chain.
 - **Checksum mismatch on recipient** → refuse, ask for a re-paste.
