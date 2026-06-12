@@ -16,6 +16,7 @@ Always edit in `.agents/rules/` or `.agents/commands/` — never the symlinks in
 ## No-Duplication
 
 Before adding any guideline, search existing rules/commands for the same concept (keywords and anchors). Decide the single owning file by scope:
+
 - Universal → `000-*` always-apply rule.
 - Language-specific → the language rule (`100-*`, `200-*`, `300-*`).
 - Directory-specific → the narrowest directory rule.
@@ -53,7 +54,7 @@ Remove duplicates rather than keeping both in sync.
 - Consistent terminology — pick one term per concept.
 - Don't offer multiple options without a clear default.
 - `name`: lowercase, hyphenated. Gerund form preferred (`requesting-audit`) but noun form acceptable when clearer (`request-audit`, `add-network`). Max 64 chars.
-- `description`: third person, present tense; include *what* and *when* to use it.
+- `description`: third person, present tense; include _what_ and _when_ to use it.
 
 ## Frontmatter (rules only)
 
@@ -86,6 +87,7 @@ Remove duplicates rather than keeping both in sync.
 ## README update triggers
 
 Update `.agents/README.md`:
+
 - Rule changes: if `name`, `description`, or `globs` changed.
 - Command changes: always update the Custom Commands table.
 
