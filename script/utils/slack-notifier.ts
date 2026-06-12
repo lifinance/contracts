@@ -50,13 +50,27 @@ interface IProcessingStats {
   duration?: number
 }
 
+// Slack rejects any single block text element longer than 3000 chars with
+// `invalid_blocks`. Cap error/detail text below that so an oversized RPC error
+// (e.g. a Tron broadcast failure that echoes the whole raw transaction) still
+// posts instead of being dropped.
+const SLACK_TEXT_LIMIT = 2900
+
 export class SlackNotifier {
   private webhookUrl: string
   private startTime: Date
+  private runUrl?: string
 
-  public constructor(webhookUrl: string) {
+  /**
+   * @param webhookUrl - Slack incoming-webhook URL to post to.
+   * @param runUrl - Optional CI run/job URL; when set, failure and summary
+   *   notifications include a "View workflow run" deep-link so an on-call
+   *   engineer can jump straight to the failing job and its logs.
+   */
+  public constructor(webhookUrl: string, runUrl?: string) {
     this.webhookUrl = webhookUrl
     this.startTime = new Date()
+    this.runUrl = runUrl
   }
 
   /**
@@ -269,6 +283,8 @@ export class SlackNotifier {
       ],
     }
 
+    this.appendRunLink(message)
+
     await this.sendNotificationWithRetry(message)
   }
 
@@ -442,10 +458,12 @@ export class SlackNotifier {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*Failed Networks:*\n${failureDetails}`,
+            text: `*Failed Networks:*\n${this.truncateText(failureDetails)}`,
           },
         })
     }
+
+    this.appendRunLink(message)
 
     await this.sendNotificationWithRetry(message)
   }
@@ -517,6 +535,8 @@ export class SlackNotifier {
         },
       })
 
+    this.appendRunLink(message)
+
     await this.sendNotificationWithRetry(message)
   }
 
@@ -565,6 +585,33 @@ export class SlackNotifier {
   }
 
   /**
+   * Append a compact "View workflow run" deep-link to the message when a run
+   * URL was configured. No-op otherwise, so local/manual runs stay link-free.
+   */
+  private appendRunLink(message: ISlackMessage): void {
+    if (!this.runUrl || !message.blocks) return
+
+    message.blocks.push({
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `<${this.runUrl}|View workflow run>`,
+        },
+      ],
+    })
+  }
+
+  /**
+   * Clamp arbitrary text to Slack's per-block limit so an oversized payload
+   * cannot trigger an `invalid_blocks` rejection.
+   */
+  private truncateText(text: string, max = SLACK_TEXT_LIMIT): string {
+    if (text.length <= max) return text
+    return `${text.slice(0, max - 1)}…`
+  }
+
+  /**
    * Helper to truncate hash for display
    */
   private truncateHash(hash: string): string {
@@ -586,21 +633,21 @@ export class SlackNotifier {
   private extractErrorMessage(error: unknown): string {
     if (!error) return 'Unknown error'
 
-    if (typeof error === 'string') return error
+    if (typeof error === 'string') return this.truncateText(error)
 
     const errorObj = error as Record<string, unknown>
 
     if (errorObj.message && typeof errorObj.message === 'string')
-      return errorObj.message
+      return this.truncateText(errorObj.message)
 
     if (errorObj.reason && typeof errorObj.reason === 'string')
-      return errorObj.reason
+      return this.truncateText(errorObj.reason)
 
     if (errorObj.shortMessage && typeof errorObj.shortMessage === 'string')
-      return errorObj.shortMessage
+      return this.truncateText(errorObj.shortMessage)
 
     if (errorObj.details && typeof errorObj.details === 'string')
-      return errorObj.details
+      return this.truncateText(errorObj.details)
 
     return JSON.stringify(error).slice(0, 500)
   }
