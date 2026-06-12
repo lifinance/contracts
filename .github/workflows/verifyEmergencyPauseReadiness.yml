@@ -50,6 +50,10 @@ permissions:
 
 jobs:
   verify-emergency-pause-readiness:
+    # Upstream-only: this readiness/funds/Slack check needs lifinance/contracts' secrets,
+    # RPCs and production diamonds. On forks (e.g. contracts-tron) the guard is false, so the
+    # job is skipped (neutral, not failed) across schedule / workflow_dispatch / pull_request.
+    if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
