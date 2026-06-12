@@ -1,8 +1,10 @@
 # Enforce LibAsset Routing
 # - enforces the architectural invariant that all ERC20 value-flow in src/ goes through LibAsset
 #   (audit follow-up: Sujith finding #4 on PR #1715 / Tron USDT routing migration, ticket EXSC-300)
-# - fails the build if any .sol file in src/ outside the allowlist calls .safeTransfer( or
-#   .safeTransferFrom( directly (Solmate / Solady / OZ SafeTransferLib-style calls)
+# - fails the build if any .sol file in src/ outside the allowlist calls .safeTransfer(,
+#   .safeTransferFrom( (Solmate / Solady / OZ SafeTransferLib-style calls) or raw .transfer( /
+#   .transferFrom( directly (the original Tron USDT bug class: raw transfer with unchecked or
+#   non-standard return data)
 # - native-ETH transfers via safeTransferETH( remain allowed everywhere
 # - pre-existing offenders are grandfathered via an explicit allowlist in the check step;
 #   new files (or new call sites in previously clean files) are rejected
@@ -31,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ##### Files allowed to call .safeTransfer( / .safeTransferFrom( directly.
+          ##### Files allowed to call .safeTransfer( / .safeTransferFrom( / .transfer( / .transferFrom( directly.
           ##### Everything else in src/ must route ERC20 transfers through LibAsset.
           ALLOWLIST=(
             # canonical implementation - this is where ERC20 transfers are supposed to live
@@ -50,10 +52,18 @@ jobs:
             "src/Periphery/ReceiverChainflip.sol"
             "src/Periphery/ReceiverStargateV2.sol"
             "src/Periphery/TokenWrapper.sol"
+            # pre-existing raw IERC20.transfer/transferFrom call sites on stETH/wstETH,
+            # explicitly named in audit finding Sujith #4 (EXSC-300); grandfathered, not endorsed
+            "src/Periphery/LidoWrapper.sol"
+            # false positive: calls transferFrom on our own ERC20Proxy contract (which itself
+            # routes through LibAsset.transferFromERC20), not on a token - text-based grep
+            # cannot tell these apart
+            "src/Periphery/Executor.sol"
           )
 
-          ##### Matches .safeTransfer( and .safeTransferFrom( but NOT .safeTransferETH(
-          PATTERN='\.safeTransfer(From)?\('
+          ##### Matches .safeTransfer(, .safeTransferFrom( and raw .transfer(, .transferFrom(
+          ##### but NOT .safeTransferETH(
+          PATTERN='\.(safeT|t)ransfer(From)?\('
 
           ##### Initialize empty variables
           VIOLATIONS=""
@@ -72,7 +82,7 @@ jobs:
 
           ##### fail with the offending lines if any non-allowlisted file matched
           if [[ -n "$VIOLATIONS" ]]; then
-            echo -e "\033[31mError: direct ERC20 .safeTransfer/.safeTransferFrom calls found outside LibAsset:\033[0m"
+            echo -e "\033[31mError: direct ERC20 transfer/transferFrom/safeTransfer/safeTransferFrom calls found outside LibAsset:\033[0m"
             while IFS= read -r FILE; do
               if [[ -n "$FILE" ]]; then
                 echo -e "\033[31m  $FILE\033[0m"
@@ -85,4 +95,4 @@ jobs:
             exit 1
           fi
 
-          echo -e "\033[32mNo direct ERC20 safeTransfer/safeTransferFrom calls outside LibAsset and the allowlist. All good.\033[0m"
+          echo -e "\033[32mNo direct ERC20 transfer/transferFrom/safeTransfer/safeTransferFrom calls outside LibAsset and the allowlist. All good.\033[0m"
