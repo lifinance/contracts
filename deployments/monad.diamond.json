@@ -57,9 +57,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0xa8462E13Bc9D97666f9e33BAe91281Ab341cdCAa": {
+      "0x10dcB9fC2A7523f189Cb584B6723BFfa2a67C2Aa": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       },
       "0x960B7a177dAaD7D1beA69354d023984Af6b75847": {
         "Name": "AcrossFacetV4",

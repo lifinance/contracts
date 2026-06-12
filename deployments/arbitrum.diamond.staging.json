@@ -117,10 +117,6 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xc5C34A7A86e9C6B37A8E9F266c26660d5A12f5dD": {
-        "Name": "MayanFacet",
-        "Version": "1.2.4"
-      },
       "0xdaD5da5FB53EAe15f490Fb31F4573e56277b59CA": {
         "Name": "",
         "Version": ""
@@ -217,17 +213,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0963eC6B2C1fd1836248DEf4F48a4f6993728a4b": {
-        "Name": "MayanFacet",
-        "Version": "1.3.0"
-      },
-      "0x4C3a34B950B26e67Dfd09e58EF2467eeB42F1dFE": {
-        "Name": "MayanFacet",
-        "Version": "1.3.0"
-      },
       "0x54AEC552Acc3218b0B3991FD61cA12b3A4fD222D": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
+      },
+      "0xEB6803A40B8350286e1E8684068E28c5c57a94AE": {
+        "Name": "MayanFacet",
+        "Version": "1.3.0"
       }
     },
     "Periphery": {
@@ -236,8 +228,9 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
+      "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
@@ -245,8 +238,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "0x55C74AdB64A9C11EFA5637dF58AC17Bc77D5c911",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
-      "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133"
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
 }
