@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x6fb1E935cE4DCb458f0c019434E426aF669793fe": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0xD762cC68D689374D3e8c1f49Bf99d5bc50eEBa2f": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
       "0xbA1201E531C11DEfB602B35398e753f148A762f1": {
         "Name": "AccessManagerFacet",
@@ -45,13 +45,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x7B8837786aE9A2b6DCEbcB2572B348E0bfa5dC08": {
-        "Name": "GlacisFacet",
+      "0xeEBaF3A093FF4B8D7c8E22486562e8369c1ecBB7": {
+        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0xDb14E1938f226189CbB35189577Fa245D10e19B5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
+      "0x6cbd9EdEE4920c861b7becd2f7a1355D8261b33b": {
+        "Name": "EcoFacet",
+        "Version": "1.1.0"
       },
       "0xd1059C492eC2472220fca8Dc358a7A587500b1Ab": {
         "Name": "SymbiosisFacet",
@@ -88,18 +88,6 @@
       "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
-      },
-      "0xD762cC68D689374D3e8c1f49Bf99d5bc50eEBa2f": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
-      },
-      "0x6cbd9EdEE4920c861b7becd2f7a1355D8261b33b": {
-        "Name": "EcoFacet",
-        "Version": "1.1.0"
-      },
-      "0xeEBaF3A093FF4B8D7c8E22486562e8369c1ecBB7": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -110,6 +98,7 @@
       "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
       "LidoWrapper": "",
+      "OutputValidator": "0x905F229f14Ec9e7Dd7428417CfBe7DBf1e1FD386",
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
       "ReceiverAcrossV3": "",
