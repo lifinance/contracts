@@ -1384,7 +1384,8 @@ function getProgressSummary() {
 }
 
 # notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
-# summarizing how many proposals were created and on which chains, with a reminder to sign.
+# summarizing how many proposals were created (naming the network when there is exactly one,
+# otherwise just counting the networks), with a reminder to sign.
 # Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
 # least one network succeeded. Posts to #dev-sc-multisig-proposals via
 # script/utils/send-slack-webhook-message.ts (requires WEBHOOK_DEV_SC_MULTISIG_PROPOSALS in .env;
@@ -1416,11 +1417,15 @@ function notifyProposalsCreatedToSlack() {
     fi
 
     local PROPOSAL_CONTRACT=$(jq -r '.contract // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
-    local CHAIN_LIST=$(printf '%s, ' "${SUCCESSFUL_NETWORKS[@]}")
-    CHAIN_LIST="${CHAIN_LIST%, }"
 
     # message format follows the #dev-sc-multisig-proposals house style: "<N>x <what> ..."
-    local MESSAGE="${PROPOSAL_COUNT}x proposal created: $PROPOSAL_CONTRACT across [$CHAIN_LIST] — please sign 🙏"
+    # one network: name it; multiple: count them instead of listing (keeps the message short)
+    local MESSAGE
+    if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
+        MESSAGE="1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign 🙏"
+    else
+        MESSAGE="${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign 🙏"
+    fi
 
     logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
     local MESSAGE_FILE
