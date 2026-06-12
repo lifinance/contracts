@@ -25,5 +25,6 @@
   "RelayDepositoryFacet": "0x136928f3d4251840FbF44ce42ffe9D5928a812AF",
   "GardenFacet": "0x48781133DE32CEA9dA957B89bA36868FF9A7E628",
   "FeeForwarder": "0x32ca3c43c2807EbB7d82212BeeC31c1b7BaaD146",
-  "WhitelistManagerFacet": "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2"
+  "WhitelistManagerFacet": "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2",
+  "OutputValidator": "0x95443EF1F6ABace3809037a13f007aEEa5029e66"
 }

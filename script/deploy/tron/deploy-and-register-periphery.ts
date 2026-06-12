@@ -3,13 +3,10 @@
 import { resolve } from 'path'
 
 import {
-  DEFAULT_SAFETY_MARGIN,
-  REGISTRATION_RETRY_DELAY_MS,
   REGISTRATION_RPC_DELAY_MS,
   TRON_ZERO_ADDRESS,
   TronContractDeployer,
   createTronWeb,
-  estimateEnergyAndFeeLimit,
   loadForgeArtifact,
   promptEnergyRentalReminder,
   tronAddressLikeToBase58,
@@ -20,6 +17,7 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { encodeFunctionData } from 'viem'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -41,12 +39,21 @@ import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-import {
-  REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
-  REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
-} from './constants.js'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import { getTronWallet } from './tronUtils.js'
+
+const PERIPHERY_REGISTRY_ABI = [
+  {
+    name: 'registerPeripheryContract',
+    type: 'function' as const,
+    inputs: [
+      { name: '_name', type: 'string' },
+      { name: '_contractAddress', type: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -192,11 +199,12 @@ async function deployAndRegisterPeripheryImpl(options: {
       consola.info('3. Deploy FeeCollector')
       consola.info('4. Deploy FeeForwarder')
       consola.info('5. Deploy TokenWrapper')
+      consola.info('6. Deploy OutputValidator')
       consola.info(
-        '6. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
+        '7. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
       )
       consola.info(
-        '7. Register periphery contracts with PeripheryRegistryFacet\n'
+        '8. Register periphery contracts with PeripheryRegistryFacet\n'
       )
 
       if (!dryRun) await promptEnergyRentalReminder()
@@ -818,7 +826,99 @@ async function deployAndRegisterPeripheryImpl(options: {
           }
       }
 
-      // 6. Deploy LiFiTimelockController (same phase as EVM Stage 6; not registered with Diamond)
+      // 6. Deploy OutputValidator
+      if (!onlyContracts || onlyContracts.includes('OutputValidator')) {
+        consola.info('\n Deploying OutputValidator...')
+
+        try {
+          const outputValidatorDeployment = await checkExistingDeployment(
+            network,
+            'OutputValidator',
+            dryRun
+          )
+
+          if (
+            outputValidatorDeployment.exists &&
+            outputValidatorDeployment.address &&
+            !outputValidatorDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing OutputValidator at: ${outputValidatorDeployment.address}`
+            )
+            deployedContracts['OutputValidator'] =
+              outputValidatorDeployment.address
+
+            const version = await getContractVersion('OutputValidator')
+            deploymentResults.push({
+              contract: 'OutputValidator',
+              address: outputValidatorDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Constructor: owner address (deployer)
+            const artifact = await loadForgeArtifact('OutputValidator')
+            const version = await getContractVersion('OutputValidator')
+            const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
+            const constructorArgs = [ownerHex]
+
+            consola.info(
+              ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
+            )
+            consola.info(`Version: ${version}`)
+
+            const result = await deployer.deployContract(
+              artifact,
+              constructorArgs
+            )
+
+            deployedContracts['OutputValidator'] = result.contractAddress
+            deploymentResults.push({
+              contract: 'OutputValidator',
+              address: result.contractAddress,
+              txId: result.transactionId,
+              cost: result.actualCost.trxCost,
+              version,
+            })
+
+            consola.success(
+              ` OutputValidator deployed to: ${result.contractAddress}`
+            )
+            consola.info(`Transaction: ${result.transactionId}`)
+            consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+            if (!dryRun) {
+              await logDeployment(
+                'OutputValidator',
+                network,
+                result.contractAddress,
+                version,
+                '0x',
+                false
+              )
+              await saveContractAddress(
+                network,
+                'OutputValidator',
+                result.contractAddress
+              )
+            }
+          }
+
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy OutputValidator:`, error.message)
+          deploymentResults.push({
+            contract: 'OutputValidator',
+            address: 'FAILED',
+            txId: 'FAILED',
+            cost: 0,
+            version: '0.0.0',
+          })
+        }
+      }
+
+      // 7. Deploy LiFiTimelockController (same phase as EVM Stage 7; not registered with Diamond)
       if (!onlyContracts || onlyContracts.includes('LiFiTimelockController')) {
         consola.info(
           '\n Deploying LiFiTimelockController (if Safe configured)...'
@@ -959,197 +1059,96 @@ async function deployAndRegisterPeripheryImpl(options: {
       }
     }
 
-    // Register all periphery contracts with the diamond (LiFiTimelockController is not registered)
+    // Register all periphery contracts with the diamond via Safe proposals
+    // (LiFiTimelockController is a governance contract and is never registered)
     consola.info(
-      '\n Registering periphery contracts with PeripheryRegistryFacet...'
+      '\n Registering periphery contracts with PeripheryRegistryFacet (via Safe proposals)...'
     )
 
-    if (!dryRun) {
-      // Load the PeripheryRegistryFacet ABI to interact with the diamond
-      const peripheryRegistryArtifact = await loadForgeArtifact(
-        'PeripheryRegistryFacet'
-      )
-      const diamond = tronWeb.contract(
-        peripheryRegistryArtifact.abi,
-        diamondAddress
-      )
+    // Load PeripheryRegistryFacet artifact for read-only "already registered" checks
+    const peripheryRegistryArtifact = await loadForgeArtifact(
+      'PeripheryRegistryFacet'
+    )
+    const diamond = tronWeb.contract(
+      peripheryRegistryArtifact.abi,
+      diamondAddress
+    )
 
-      await sleep(REGISTRATION_RPC_DELAY_MS)
+    await sleep(REGISTRATION_RPC_DELAY_MS)
 
-      for (const [name, address] of Object.entries(deployedContracts)) {
-        if (name === 'LiFiTimelockController') continue // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
-        if (address && address !== 'FAILED')
-          try {
-            consola.info(`\n Registering ${name}...`)
+    for (const [name, address] of Object.entries(deployedContracts)) {
+      if (name === 'LiFiTimelockController') continue // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
+      if (!address || address === 'FAILED' || address === 'SKIPPED') continue
 
-            await sleep(REGISTRATION_RPC_DELAY_MS)
-            // Check if already registered (retry on 429)
-            const registered = await retryWithRateLimit(
-              () => diamond.getPeripheryContract(name).call(),
-              3,
-              REGISTRATION_RETRY_DELAY_MS,
-              (attempt, delay) =>
-                consola.warn(
-                  `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
-                    delay / 1000
-                  }s...`
-                )
+      try {
+        consola.info(`\n Registering ${name}...`)
+
+        await sleep(REGISTRATION_RPC_DELAY_MS)
+        // Skip if already registered at the same address (retry on 429)
+        const registered = await retryWithRateLimit(
+          () => diamond.getPeripheryContract(name).call(),
+          3,
+          REGISTRATION_RPC_DELAY_MS,
+          (attempt, delay) =>
+            consola.warn(
+              `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+                delay / 1000
+              }s...`
             )
+        )
 
-            if (
-              registered &&
-              typeof registered === 'string' &&
-              registered !== TRON_ZERO_ADDRESS
-            ) {
-              const registeredBase58 = tronAddressLikeToBase58(
-                tronWeb,
-                registered
-              )
-              const currentBase58 = tronAddressLikeToBase58(tronWeb, address)
+        if (
+          registered &&
+          typeof registered === 'string' &&
+          registered !== TRON_ZERO_ADDRESS
+        ) {
+          const registeredBase58 = tronAddressLikeToBase58(tronWeb, registered)
+          const currentBase58 = tronAddressLikeToBase58(tronWeb, address)
 
-              if (registeredBase58 === currentBase58) {
-                consola.info(`${name} already correctly registered`)
-                continue
-              } else {
-                consola.warn(`  ${name} registered with different address:`)
-                consola.warn(`   Current: ${registeredBase58}`)
-                consola.warn(`   New: ${currentBase58}`)
-
-                const shouldUpdate = await consola.prompt(
-                  `Update registration for ${name}?`,
-                  {
-                    type: 'confirm',
-                    initial: true,
-                  }
-                )
-
-                if (!shouldUpdate) {
-                  consola.info(`Keeping existing registration for ${name}`)
-                  continue
-                }
-              }
-            }
-
-            // Estimate energy and set fee limit so delegated energy is used first
-            let feeLimitSun = REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN
-            try {
-              const addressHex = tronRegistrationAddressToEvmHex(
-                tronWeb,
-                address
-              )
-              const registerParamsHex = tronWeb.utils.abi.encodeParams(
-                ['string', 'address'],
-                [name, addressHex]
-              )
-              await sleep(REGISTRATION_RPC_DELAY_MS)
-              const result = await retryWithRateLimit<
-                Awaited<ReturnType<typeof estimateEnergyAndFeeLimit>>
-              >(
-                () =>
-                  estimateEnergyAndFeeLimit({
-                    fullHost: rpcUrl,
-                    tronWeb,
-                    contractAddressBase58: diamondAddress,
-                    functionSelector:
-                      'registerPeripheryContract(string,address)',
-                    parameterHex: registerParamsHex,
-                    safetyMargin: DEFAULT_SAFETY_MARGIN,
-                    minFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN,
-                    maxFeeLimitSun: REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN,
-                    label: `  ${name}`,
-                  }),
-                3,
-                REGISTRATION_RETRY_DELAY_MS,
-                (attempt, delay) =>
-                  consola.warn(
-                    `Rate limit (429), retry ${attempt}/3 in ${
-                      delay / 1000
-                    }s...`
-                  )
-              )
-              feeLimitSun = result.feeLimitSun
-            } catch (err: unknown) {
-              consola.warn(
-                `  Energy estimate failed, using ${
-                  feeLimitSun / 1_000_000
-                } TRX limit:`,
-                err instanceof Error ? err.message : err
-              )
-            }
-
-            // Register the contract (retry on 429)
-            await sleep(REGISTRATION_RPC_DELAY_MS)
-            const tx = (await retryWithRateLimit(
-              () =>
-                diamond.registerPeripheryContract(name, address).send({
-                  feeLimit: feeLimitSun,
-                  shouldPollResponse: true,
-                }),
-              3,
-              REGISTRATION_RETRY_DELAY_MS,
-              (attempt, delay) =>
-                consola.warn(
-                  `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
-                    delay / 1000
-                  }s...`
-                )
-            )) as string | { txid?: string; transaction?: { txID?: string } }
-
-            consola.success(`${name} registered successfully`)
-            // TronWeb returns the transaction ID directly when shouldPollResponse is true
-            const txId =
-              typeof tx === 'string'
-                ? tx
-                : tx.txid || tx.transaction?.txID || String(tx)
-            consola.info(`   Transaction: ${txId}`)
-          } catch (error: any) {
-            consola.error(` Failed to register ${name}:`, error.message)
+          if (registeredBase58 === currentBase58) {
+            consola.info(`${name} already correctly registered`)
+            continue
           }
-      }
 
-      // Verify registrations
-      consola.info('\n Verifying registrations...')
-
-      for (const name of getTronCorePeriphery())
-        try {
-          await sleep(REGISTRATION_RPC_DELAY_MS)
-          const registered = await retryWithRateLimit(
-            () => diamond.getPeripheryContract(name).call(),
-            3,
-            REGISTRATION_RETRY_DELAY_MS,
-            (attempt, delay) =>
-              consola.warn(
-                `Rate limit (429) verifying ${name}, retry ${attempt}/3 in ${
-                  delay / 1000
-                }s...`
-              )
-          )
-
-          if (
-            registered &&
-            typeof registered === 'string' &&
-            registered !== TRON_ZERO_ADDRESS
-          ) {
-            const registeredBase58 = tronAddressLikeToBase58(
-              tronWeb,
-              registered
-            )
-            consola.success(`${name}: ${registeredBase58}`)
-
-            // Update tron.diamond.json with successfully registered periphery contract
-            const deployedAddress = deployedContracts[name]
-            if (deployedAddress && deployedAddress !== 'FAILED') {
-              const addressToSave = tronAddressLikeToBase58(
-                tronWeb,
-                deployedAddress
-              )
-
-              await updateDiamondJsonPeriphery(addressToSave, name, network)
-            }
-          } else consola.warn(`  ${name}: Not registered`)
-        } catch (error: any) {
-          consola.error(` Failed to verify ${name}:`, error.message)
+          consola.warn(`  ${name} registered with different address:`)
+          consola.warn(`   Current: ${registeredBase58}`)
+          consola.warn(`   New: ${currentBase58}`)
         }
+
+        const addressHex = tronRegistrationAddressToEvmHex(
+          tronWeb,
+          address
+        ) as `0x${string}`
+        const calldata = encodeFunctionData({
+          abi: PERIPHERY_REGISTRY_ABI,
+          functionName: 'registerPeripheryContract',
+          args: [name, addressHex],
+        })
+
+        // Registration goes through the Safe → Timelock governance flow: this
+        // creates a pending proposal in MongoDB rather than sending a direct tx,
+        // so other Safe owners can co-sign before it executes on-chain.
+        const { runPropose } = await import('./propose-to-safe-tron.js')
+        await runPropose({
+          network: tvmKey,
+          to: diamondAddress,
+          calldata,
+          timelock: true,
+          dryRun,
+        })
+
+        // Record the pending registration in tron.diamond.json
+        await updateDiamondJsonPeriphery(
+          tronAddressLikeToBase58(tronWeb, address),
+          name,
+          network
+        )
+      } catch (err: unknown) {
+        consola.error(
+          ` Failed to propose registration for ${name}:`,
+          err instanceof Error ? err.message : err
+        )
+      }
     }
 
     // Print summary

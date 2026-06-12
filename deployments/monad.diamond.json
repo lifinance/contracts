@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x20f6A4cAa10f46e237273d0b3996C882e18E936A": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
       "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
         "Name": "EmergencyPauseFacet",
@@ -65,9 +65,9 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xA8e7e5B35507C873865bd512d0A97E362e6A6e10": {
         "Name": "RelayDepositoryFacet",
@@ -84,14 +84,6 @@
       "0xb86FaE3FB05841d84377c2eD0f1606784300445e": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
-      },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
-      },
-      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -102,6 +94,7 @@
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "",

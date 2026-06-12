@@ -13,9 +13,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x20f6A4cAa10f46e237273d0b3996C882e18E936A": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0xd6e617208E42153806cF2bf05Ab2cb3941d325Ec": {
+        "Name": "UnitFacet",
+        "Version": "1.0.1"
       },
       "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
         "Name": "EmergencyPauseFacet",
@@ -57,9 +57,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x27b913F669bB0492e4A878A7Ce1741C8Df491Ebc": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",
@@ -84,14 +84,6 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0xd6e617208E42153806cF2bf05Ab2cb3941d325Ec": {
-        "Name": "UnitFacet",
-        "Version": "1.0.1"
-      },
-      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -102,6 +94,7 @@
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "0x2cE98D2879Ec036183Aae242CACC0Dc37554d969",

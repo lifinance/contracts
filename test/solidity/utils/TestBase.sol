@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { DSTest } from "ds-test/test.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
@@ -20,7 +19,7 @@ contract TestFacet is TestWhitelistManagerBase {
     constructor() {}
 }
 
-contract ReentrancyChecker is DSTest {
+contract ReentrancyChecker {
     address private _facetAddress;
     bytes private _callData;
 

@@ -1,0 +1,100 @@
+# Enforce LibAsset Routing
+# - enforces the architectural invariant that all ERC20 value-flow in src/ goes through LibAsset
+#   (audit follow-up: Sujith finding #4 on PR #1715 / Tron USDT routing migration, ticket EXSC-300)
+# - fails the build if any .sol file in src/ outside the allowlist calls .safeTransfer(,
+#   .safeTransferFrom( (Solmate / Solady / OZ SafeTransferLib-style calls) or raw .transfer( /
+#   .transferFrom( directly (the original Tron USDT bug class: raw transfer with unchecked or
+#   non-standard return data)
+# - native-ETH transfers via safeTransferETH( remain allowed everywhere
+# - pre-existing offenders are grandfathered via an explicit allowlist in the check step;
+#   new files (or new call sites in previously clean files) are rejected
+# - known limitations: text-based grep, so a match inside a comment or string literal would
+#   also be flagged (acceptable as a backstop; remove the comment or route through LibAsset)
+
+name: Enforce LibAsset Routing
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  enforce-libasset-routing:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      # Step 2: Scan src/ for direct ERC20 safeTransfer / safeTransferFrom calls
+      - name: Check for direct ERC20 transfers bypassing LibAsset
+        run: |
+          set -euo pipefail
+
+          ##### Files allowed to call .safeTransfer( / .safeTransferFrom( / .transfer( / .transferFrom( directly.
+          ##### Everything else in src/ must route ERC20 transfers through LibAsset.
+          ALLOWLIST=(
+            # canonical implementation - this is where ERC20 transfers are supposed to live
+            "src/Libraries/LibAsset.sol"
+            # gas-optimized packed facets bypass LibAsset by design (audit: Sujith #4, EXSC-300);
+            # migrating them is explicitly out of scope - see EXSC-300
+            "src/Facets/AcrossFacetPacked.sol"
+            "src/Facets/AcrossFacetPackedV3.sol"
+            "src/Facets/CBridgeFacetPacked.sol"
+            "src/Facets/HopFacetPacked.sol"
+            # pre-existing direct call sites grandfathered when this check was introduced (EXSC-300);
+            # do NOT add new files here without an explicit architectural decision
+            "src/Helpers/WithdrawablePeriphery.sol"
+            "src/Periphery/LiFiDEXAggregator.sol"
+            "src/Periphery/ReceiverAcrossV3.sol"
+            "src/Periphery/ReceiverChainflip.sol"
+            "src/Periphery/ReceiverStargateV2.sol"
+            "src/Periphery/TokenWrapper.sol"
+            # pre-existing raw IERC20.transfer/transferFrom call sites on stETH/wstETH,
+            # explicitly named in audit finding Sujith #4 (EXSC-300); grandfathered, not endorsed
+            "src/Periphery/LidoWrapper.sol"
+            # false positive: calls transferFrom on our own ERC20Proxy contract (which itself
+            # routes through LibAsset.transferFromERC20), not on a token - text-based grep
+            # cannot tell these apart
+            "src/Periphery/Executor.sol"
+          )
+
+          ##### Matches .safeTransfer(, .safeTransferFrom( and raw .transfer(, .transferFrom(
+          ##### but NOT .safeTransferETH(
+          PATTERN='\.(safeT|t)ransfer(From)?\('
+
+          ##### Initialize empty variables
+          VIOLATIONS=""
+
+          ##### collect every src/ Solidity file containing a direct ERC20 transfer call
+          ##### (grep exits 1 when nothing matches, which is fine - the loop body just never runs)
+          while IFS= read -r FILE; do
+            ##### skip allowlisted files
+            for ALLOWED in "${ALLOWLIST[@]}"; do
+              if [[ "$FILE" == "$ALLOWED" ]]; then
+                continue 2
+              fi
+            done
+            VIOLATIONS="${VIOLATIONS}${FILE}"$'\n'
+          done < <(grep -rlE "$PATTERN" src --include='*.sol' || true)
+
+          ##### fail with the offending lines if any non-allowlisted file matched
+          if [[ -n "$VIOLATIONS" ]]; then
+            echo -e "\033[31mError: direct ERC20 transfer/transferFrom/safeTransfer/safeTransferFrom calls found outside LibAsset:\033[0m"
+            while IFS= read -r FILE; do
+              if [[ -n "$FILE" ]]; then
+                echo -e "\033[31m  $FILE\033[0m"
+                grep -nE "$PATTERN" "$FILE" | sed 's/^/    /'
+              fi
+            done <<< "$VIOLATIONS"
+            echo -e "\033[31mAll ERC20 value-flow must go through LibAsset (src/Libraries/LibAsset.sol).\033[0m"
+            echo -e "\033[31mNative-ETH transfers via safeTransferETH are allowed. If this file is a deliberate,\033[0m"
+            echo -e "\033[31mreviewed exception, add it to the allowlist in .github/workflows/enforceLibAssetRouting.yml with a comment.\033[0m"
+            exit 1
+          fi
+
+          echo -e "\033[32mNo direct ERC20 transfer/transferFrom/safeTransfer/safeTransferFrom calls outside LibAsset and the allowlist. All good.\033[0m"

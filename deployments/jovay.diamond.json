@@ -21,9 +21,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x759D3cdfFD753F6e057e09CA23FF3a4D07A31469": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
         "Name": "EmergencyPauseFacet",
@@ -56,10 +56,6 @@
       "0xdFE4De6Af0E906CAd6f52B84D820d74FA5b57E4d": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.2"
-      },
-      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
       }
     },
     "Periphery": {
@@ -68,8 +64,9 @@
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+      "LidoWrapper": "",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x4F6be713467F6122b40Ec881A0bA44fd0fC52989",
       "ReceiverAcrossV3": "",
@@ -77,7 +74,8 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06"
     }
   }
 }

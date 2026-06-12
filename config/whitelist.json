@@ -9357,7 +9357,7 @@
       },
       {
         "name": "OutputValidator",
-        "address": "0x293BEf168Ca1310C12aeDbDcd8bFD05ab6f0b0C7",
+        "address": "0x1581cA9890E178E38FC05b44D541a781bb1810ae",
         "selectors": [
           {
             "selector": "0x27444dab",

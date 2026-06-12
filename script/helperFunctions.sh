@@ -110,7 +110,7 @@ function logContractDeploymentInfo {
 
   # Build MongoDB command as array for safe execution
   local MONGO_CMD=(
-    bun script/deploy/update-deployment-logs.ts add
+    bunx tsx script/deploy/update-deployment-logs.ts add
     --env "$ENVIRONMENT"
     --contract "$CONTRACT"
     --network "$NETWORK"
@@ -317,12 +317,12 @@ function findContractInMasterLogByAddress() {
       fi
 
       if [[ "$USE_CACHE" == "true" ]]; then
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" 2>/dev/null)
       else
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" \
@@ -384,7 +384,7 @@ function getContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
       --env="$ENVIRONMENT" \
       --network="$NETWORK" \
       --address="$TARGET_ADDRESS" 2>/dev/null)
@@ -434,7 +434,7 @@ function getHighestDeployedContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts filter \
       --env="$ENVIRONMENT" \
       --contract="$CONTRACT" \
       --network="$NETWORK" \
@@ -484,7 +484,7 @@ function queryMongoDeployment() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts get \
+  bunx tsx script/deploy/query-deployment-logs.ts get \
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
@@ -498,7 +498,7 @@ function checkMongoDeploymentExists() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts exists \
+  bunx tsx script/deploy/query-deployment-logs.ts exists \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
@@ -511,7 +511,7 @@ function getLatestMongoDeployment() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
 
-  bun script/deploy/query-deployment-logs.ts latest \
+  bunx tsx script/deploy/query-deployment-logs.ts latest \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" 2>/dev/null
@@ -523,7 +523,7 @@ function getUnverifiedContractsFromMongo() {
 
   echoDebug "Getting unverified contracts from MongoDB"
 
-  bun script/deploy/query-deployment-logs.ts filter \
+  bunx tsx script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
     --limit=1000 2>/dev/null
@@ -803,7 +803,7 @@ function getConstructorArgsFromMasterLog() {
     echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts get \
       --env "$ENVIRONMENT" \
       --contract "$CONTRACT" \
       --network "$NETWORK" \

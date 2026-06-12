@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x22B31a1a81d5e594315c866616db793E799556c5": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
       "0x4bDCd7FC26078E492b89763871163CCBca62c6D6": {
         "Name": "AccessManagerFacet",
@@ -29,17 +29,17 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x8B3673b9b757aFc8a86010889cd8657AF5c34f06": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0x381e58bB5EE59184a3380293bf1Bb86c92C278fD": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x4A3F6C791716F3EB7dE82CfA798b4bc8166B11D4": {
         "Name": "GenericSwapFacet",
         "Version": "2.0.0"
       },
-      "0xeB98530f99e1c4406d24FdE4b590C96Ac7143aEe": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x0687F1B49E7d536adb8ab7EfC80E934175dF4dA9": {
         "Name": "CalldataVerificationFacet",
@@ -61,33 +61,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
       },
-      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0xe9d919Bf268a6dca3cf8D80183d0446D6009Ce57": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
-      },
-      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x381e58bB5EE59184a3380293bf1Bb86c92C278fD": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
       }
     },
     "Periphery": {
@@ -98,6 +78,7 @@
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
       "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "LidoWrapper": "",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
