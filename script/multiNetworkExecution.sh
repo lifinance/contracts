@@ -1385,7 +1385,7 @@ function getProgressSummary() {
 
 # notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
 # summarizing how many proposals were created (naming the network when there is exactly one,
-# otherwise just counting the networks), with a reminder to sign.
+# otherwise just counting the networks), with a reminder to sign and schedule.
 # Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
 # least one network succeeded. Posts to #dev-sc-multisig-proposals via
 # script/utils/send-slack-webhook-message.ts (requires WEBHOOK_DEV_SC_MULTISIG_PROPOSALS in .env;
@@ -1422,9 +1422,9 @@ function notifyProposalsCreatedToSlack() {
     # one network: name it; multiple: count them instead of listing (keeps the message short)
     local MESSAGE
     if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
-        MESSAGE="1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign 🙏"
+        MESSAGE="1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign and schedule 🙏"
     else
-        MESSAGE="${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign 🙏"
+        MESSAGE="${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign and schedule 🙏"
     fi
 
     logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
@@ -2517,7 +2517,7 @@ function executeNetworksByGroup() {
         fi
     }
 
-    # For proposal runs: post a single Slack summary (count + chains + sign reminder)
+    # For proposal runs: post a single Slack summary (count + chains + sign-and-schedule reminder)
     # Called exactly once per run, before cleanupProgressTracking removes the progress file
     notifyProposalsCreatedToSlack
 
