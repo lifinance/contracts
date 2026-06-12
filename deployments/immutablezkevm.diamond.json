@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x38aDe624ebAF11ee35190046fbdF2d42e03e869a": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0xdD6CEa60F2Bb19fA5a03F0856054E2803221c3E4": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x75F9eaC5c368Ed9277b8952C83A063e435051332": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0xa27992F9ef326527F85898E645AFF1d99E9609E3": {
         "Name": "GenericSwapFacet",
@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0x4CA4226Ea534F2Ece75A4FcDAD0bBe5AbaEA9820": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.0"
       },
       "0x93b22CF8C50f87C394837DdE0fD84E8add3100e9": {
         "Name": "CalldataVerificationFacet",
@@ -51,18 +51,6 @@
       },
       "0xB6faa3155683d6856ae196c4f3847D68D478E5eA": {
         "Name": "SquidFacet",
-        "Version": "1.0.0"
-      },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
-      },
-      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
-        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
     },
@@ -74,6 +62,7 @@
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
       "LiFiDEXAggregator": "0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF",
       "LidoWrapper": "",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",

@@ -486,7 +486,7 @@ function updateFoundryTomlForGroup() {
             forge build || true
             ;;
         "$GROUP_ZKEVM")
-            # zkEVM networks use the [profile.zksync] section with zksolc
+            # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No need to update the main solc_version or evm_version settings
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts
             ;;
@@ -1381,6 +1381,60 @@ function getProgressSummary() {
   fi
 
   echo "=========================================="
+}
+
+# notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
+# summarizing how many proposals were created (naming the network when there is exactly one,
+# otherwise just counting the networks), with a reminder to sign and schedule.
+# Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
+# least one network succeeded. Posts to #dev-sc-multisig-proposals via
+# script/utils/send-slack-webhook-message.ts (requires WEBHOOK_DEV_SC_MULTISIG_PROPOSALS in .env;
+# the sender warns and exits non-zero if it is missing — the run is never failed by this).
+#
+# Usage: notifyProposalsCreatedToSlack
+#
+# Returns: 0 always (a failed notification must never fail the run)
+function notifyProposalsCreatedToSlack() {
+    if [[ -z "${PROGRESS_TRACKING_FILE:-}" || ! -f "$PROGRESS_TRACKING_FILE" ]]; then
+        return 0
+    fi
+
+    if ! jq empty "$PROGRESS_TRACKING_FILE" 2>/dev/null; then
+        return 0
+    fi
+
+    local ACTION_TYPE=$(jq -r '.actionType // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+    if [[ "$ACTION_TYPE" != "proposal" ]]; then
+        return 0
+    fi
+
+    local -a SUCCESSFUL_NETWORKS=($(jq -r '.networks | to_entries[] | select(.key | contains(" ") | not) | select(.value.status == "success") | .key' "$PROGRESS_TRACKING_FILE" 2>/dev/null || true))
+    local PROPOSAL_COUNT=${#SUCCESSFUL_NETWORKS[@]}
+
+    if [[ "$PROPOSAL_COUNT" -eq 0 ]]; then
+        logWithTimestamp "No proposals were created in this run - skipping Slack notification"
+        return 0
+    fi
+
+    local PROPOSAL_CONTRACT=$(jq -r '.contract // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
+
+    # message format follows the #dev-sc-multisig-proposals house style: "<N>x <what> ..."
+    # one network: name it; multiple: count them instead of listing (keeps the message short)
+    local MESSAGE
+    if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
+        MESSAGE="1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign and schedule 🙏"
+    else
+        MESSAGE="${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign and schedule 🙏"
+    fi
+
+    logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
+    local MESSAGE_FILE
+    MESSAGE_FILE=$(mktemp)
+    printf '%s\n' "$MESSAGE" >"$MESSAGE_FILE"
+    bunx tsx script/utils/send-slack-webhook-message.ts --channel dev-sc-multisig-proposals --message-file "$MESSAGE_FILE" || logWithTimestamp "Warning: Failed to send proposal-creation Slack notification"
+    rm -f "$MESSAGE_FILE"
+
+    return 0
 }
 
 function cleanupProgressTracking() {
@@ -2463,6 +2517,10 @@ function executeNetworksByGroup() {
         fi
     }
 
+    # For proposal runs: post a single Slack summary (count + chains + sign-and-schedule reminder)
+    # Called exactly once per run, before cleanupProgressTracking removes the progress file
+    notifyProposalsCreatedToSlack
+
     # Check actual progress file state to determine success
     # Success means: no failed, no pending, and no in_progress networks
     if [[ -f "$PROGRESS_TRACKING_FILE" ]]; then
@@ -3060,6 +3118,7 @@ export -f executeAllNetworksForContract
 export -f executeNetworksByEvmVersion
 export -f groupNetworksByExecutionGroup
 export -f getProgressSummary
+export -f notifyProposalsCreatedToSlack
 export -f iterateAllNetworksOriginal
 export -f iterateAllNetworksGrouped
 export -f handleNetworkOriginal

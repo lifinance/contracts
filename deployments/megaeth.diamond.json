@@ -21,9 +21,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x759D3cdfFD753F6e057e09CA23FF3a4D07A31469": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
         "Name": "EmergencyPauseFacet",
@@ -57,9 +57,9 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.2"
       },
-      "0x29eB89410ED9C0F45C563d941b15aBF69B2A0f50": {
-        "Name": "RelayFacet",
-        "Version": "1.0.1"
+      "0x8163C2Ca79046E4789DC978d82836EDBdaf71b4B": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       },
       "0xfEAC5Eb2d620c23578b353B04248cd75734E7405": {
         "Name": "RelayDepositoryFacet",
@@ -76,14 +76,6 @@
       "0xFe95e509A5AB8C633831183216b10DBc431F41Fa": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.1"
-      },
-      "0x8163C2Ca79046E4789DC978d82836EDBdaf71b4B": {
-        "Name": "GardenFacet",
-        "Version": "1.0.0"
-      },
-      "0x19Fee51e721B1337354aeEe875dD303E859AB430": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -92,8 +84,9 @@
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
+      "LidoWrapper": "",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x700f1874314A4dF3bb9A10f7B5eA187A39d8dE74",
       "ReceiverAcrossV3": "",
@@ -101,7 +94,8 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06"
     }
   }
 }
