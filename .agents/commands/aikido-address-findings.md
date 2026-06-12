@@ -1,45 +1,67 @@
 ---
 name: aikido-address-findings
-description: Full Aikido triage for the current branch — scans changed files, fetches live feed issues, identifies false positives and real findings, bulk-ignores false positives via aikido_ignore_issue, applies code fixes for real findings (NoSQL injection, GH Actions template injection, vulnerable dependencies, unpinned Actions), annotates each commit with the Aikido finding ID, and optionally hands off to /create-pr. Use when Aikido comments appear on a PR, when asked to "address aikido findings", "fix aikido issues", or "triage aikido", or after finishing a feature branch before opening a PR.
-usage: /aikido-address-findings [repo-name] — defaults to "contracts"
+description: Full Aikido triage for a PR or repo. In PR scope (default) it reads the aikido-pr-checks[bot] inline review comments on the PR; in repo/single-issue scope it reads the aikido_issues_list feed. Identifies false positives and real findings, ignores false positives (by replying "@AikidoSec ignore:" on the PR comment, or via aikido_ignore_issue for feed scope), applies code fixes for real findings (NoSQL injection, GH Actions template injection, vulnerable dependencies, unpinned Actions), and optionally hands off to /create-pr. Use when Aikido comments appear on a PR, when asked to "address aikido findings", "fix aikido issues", or "triage aikido", or after finishing a feature branch before opening a PR.
+usage: /aikido-address-findings [<issue-id> | all | pr] [repo-name] — scope defaults to "pr" (current branch's PR), repo defaults to the current git repo
 ---
 
 # Aikido Address Findings
 
-Single entry point for all Aikido triage on the current branch. Handles both false positives (ignore + SAST context) and real findings (code fixes).
+Single entry point for all Aikido triage. Handles both false positives (ignore + SAST context) and real findings (code fixes), scoped to the current PR, a single finding, or the whole repo.
 
 ---
 
-## Preflight — verify MCP is authenticated
+## Scope — what gets triaged
 
-Call `aikido-mcp:aikido_full_scan` with a minimal test payload:
+The first argument selects scope (default `pr`). A second optional argument overrides the repo name (default: the current git repo).
 
-- files: `[{ path: "test.js", content: "// test" }]`
+| Argument | Scope | Source of findings |
+|----------|-------|--------------------|
+| _(none)_ or `pr` | Findings on the current branch's open PR | `aikido-pr-checks[bot]` inline review comments on the PR |
+| `all` | Every open SAST finding in the repo | `aikido_issues_list` feed (no filter) |
+| `<issue-id>` (numeric) | One specific finding | `aikido_issues_list` feed, filtered to that `issue_id` |
 
-If it fails or the tool is not found, stop:
-> The Aikido MCP server is not available or not authenticated.
-> Run `/aikido:setup` — get your API key from **https://app.aikido.dev → Settings → Integrations → IDE Plugins**, then restart Claude Code.
+The two scopes use different identifiers and different ignore mechanisms: **`pr`** works off PR review-comment IDs and ignores via a GitHub comment reply; **`all`/`<issue-id>`** work off Aikido feed `issue_id`s and ignore via the MCP. They don't mix.
+
+---
+
+## Preflight
+
+- **`pr` mode**: needs `gh` authenticated against the PR's repo. No MCP call required — the findings come from PR comments.
+- **`all` / `<issue-id>` mode**: needs the Aikido MCP. Verify with `aikido-mcp:aikido_full_scan` on `[{ path: "test.js", content: "// test" }]`. If it fails or is missing, stop:
+  > The Aikido MCP server is not available or not authenticated.
+  > Run `/aikido:setup` — get your API key from **https://app.aikido.dev → Settings → Integrations → IDE Plugins**, then restart Claude Code.
 
 ---
 
 ## Phase 1 — Collect findings
 
-### 1.1 Get changed files
+### `pr` mode (default) — read the PR bot comments
 
-Run `git diff --name-only main...HEAD` (or `origin/main...HEAD` if the remote ref is needed) to get the list of files changed on this branch.
+The Aikido GitHub app (`aikido-pr-checks[bot]`) scans the PR diff and posts one **inline review comment** per finding. These are authoritative for the PR — use them, not the feed. The feed is tagged to `main` and both misses findings the PR introduces and includes `main` findings on files the PR doesn't touch.
 
-### 1.2 Scan changed files
+1. **Resolve the PR.** `gh pr view --json number,url` finds the PR for the *current* branch. If it prints "no pull requests found" — you're not on the PR's head branch (e.g. testing from another branch) — ask the user for the PR number or URL; do not guess. Owner/repo come from `gh` automatically (the `origin` remote). Never hardcode the repo: this repo and its upstream share most code under **different** Aikido repo names (`contracts-tron` vs `contracts`), so querying the wrong one returns the wrong findings.
+2. **Fetch the bot's findings** — they are **review comments**, not issue comments, and each finding root has `in_reply_to_id == null`:
 
-Call `aikido-mcp:aikido_full_scan` with the content of every changed file. Stay within the 50-file limit — batch into multiple calls if needed.
+   ```
+   gh api repos/{owner}/{repo}/pulls/<N>/comments --paginate \
+     --jq '.[] | select(.user.login=="aikido-pr-checks[bot]" and .in_reply_to_id==null) | {id, path, line, body}'
+   ```
 
-### 1.3 Fetch live feed issues
+   Each is one finding. Record `id` (needed to reply when ignoring), `path:line`, title + severity (first line of `body`), the `Show fix` ` ```suggestion ` block if present, and the `More info` link.
+3. **Skip already-handled findings (idempotency).** Re-running must not double-post. A finding is already actioned if its thread has a reply starting with `@AikidoSec ignore:`. Collect those roots and exclude them:
 
-Call `aikido-mcp:aikido_issues_list` filtered to:
+   ```
+   gh api repos/{owner}/{repo}/pulls/<N>/comments --paginate \
+     --jq '.[] | select(.body | startswith("@AikidoSec ignore:")) | .in_reply_to_id'
+   ```
 
-- Repository: the repo name the user specified, or `contracts` by default
-- Issue type: `sast`
+   Report excluded findings as "already ignored"; triage only the remainder.
 
-Merge with scan results. Deduplicate by file + rule so each finding is triaged once.
+If the bot has not commented yet (scan still running), say so and stop — do not silently fall back to the `main` feed, which reports the wrong findings.
+
+### `all` / `<issue-id>` mode — read the feed
+
+Call `aikido-mcp:aikido_issues_list` with issue type `sast` and the repo name. Derive the name from `gh repo view --json name -q .name` (the `origin` repo, e.g. `contracts-tron`) — don't hardcode it; the upstream shares code under the `contracts` repo name. For `<issue-id>`, keep only the finding whose `issue_id` matches the argument; if none matches, report `issue <id> not found in the feed` and stop. For `all`, keep every finding.
 
 ---
 
@@ -47,36 +69,58 @@ Merge with scan results. Deduplicate by file + rule so each finding is triaged o
 
 Read `.agents/references/aikido-false-positive-catalog.md` for the full pattern catalog.
 
-For each finding decide:
+Analyze **each finding individually** — don't just bucket it into a category. Read the flagged code at `<file>:<line>` (the file is local; for `pr` mode the bot comment already quotes the line and often a `Show fix` suggestion). For every finding, output this block:
 
-| Decision | Criteria |
-|----------|----------|
-| **FALSE POSITIVE** | Matches a pattern in the catalog |
-| **REAL — fix** | Known fix recipe exists (see Phase 4) |
-| **REAL — manual** | Real finding, no automated fix available |
+> **#N — \<title>** · `<file>:<line>` · \<severity>
+>
+> - **Problem** — what Aikido flagged and the risk it points at, in one plain sentence (e.g. "a CLI-supplied path is read with `fs.readFileSync`, so a crafted `../` could read files outside the intended dir").
+> - **Assessment** — is it actually exploitable *in this codebase*? Where does the input come from, and what's the threat model (HTTP-exposed vs internal CLI/CI, allow-listed vs free-form, sanitizer-wrapped)? Name the matching catalog pattern if it's a known false positive.
+> - **If fixed** — the concrete change that would resolve it (the Phase 4 recipe, or the bot's `Show fix` suggestion). Show this **even when recommending ignore**, so the user can weigh ignore-vs-fix.
+> - **Recommendation** — **Ignore** / **Fix** / **Manual review**, plus a one-line why.
 
-Present the triage table and ask for confirmation before acting:
+Decision rule for the recommendation:
+
+| Recommendation | When |
+|----------------|------|
+| **Ignore** | Matches a false-positive pattern in the catalog — not exploitable in this codebase |
+| **Fix** | Real finding with a known fix recipe (Phase 4) |
+| **Manual review** | Real finding with no automated fix, or a judgment call the user should make |
+
+Then print a one-line-per-finding summary table and the confirmation prompt:
 
 ```
-| # | Finding | Severity | File | Decision | Category |
-|---|---------|----------|------|----------|----------|
-| 1 | Path traversal | medium | script/deploy/tron/tronUtils.ts | FALSE POSITIVE | path_traversal_scripts |
-| 2 | NoSQL injection | high | script/deploy/safe/execute-pending-timelock-tx.ts | REAL — fix | nosql_no_sanitizer |
-| 3 | Template injection | critical | .github/workflows/generateContractChangelog.yml | REAL — fix | template_injection_gha |
-| 4 | Unpinned Action | medium | .github/workflows/deploy-smoke-test.yml | REAL — fix | unpinned_action |
-| 5 | Vulnerable dep: handlebars | critical | bun.lock | REAL — fix | vulnerable_dependency |
+| # | Finding | Sev | File | Recommendation | Pattern / Recipe |
+|---|---------|-----|------|----------------|------------------|
+| 1 | Path traversal | med | script/tasks/foo.ts:76 | Ignore | path_traversal_scripts |
+| 2 | NoSQL injection | high | script/deploy/x.ts:40 | Fix | nosql_no_sanitizer |
+| 3 | Unpinned Action | high | .github/workflows/x.yml:81 | Fix | unpinned_action |
+| 4 | Broad GH permissions | med | .github/workflows/y.yml:7 | Manual review | — |
 ```
 
-Ask: "Proceed? I'll ignore X false positives and fix Y real findings."
+Ask: "Proceed? I'll ignore X false positives and fix Y real findings (Z need manual review)."
+
+If a finding looks like a false positive but matches **no** catalog pattern, recommend **Manual review** and offer `/aikido-update-false-positive-catalog` to add a pattern — never invent an ignore reason that isn't grounded in the catalog.
 
 ---
 
 ## Phase 3 — Ignore false positives
 
-For each confirmed false positive, call `aikido-mcp:aikido_ignore_issue` with:
+### `pr` mode — reply to the bot comment
 
-- `issue_id`: the ID from the feed
-- `reason`: the `ignore_reason` from the catalog entry
+The Aikido bot ignores a finding when it sees a reply starting with `@AikidoSec ignore:` on that finding's comment thread. Reply to each false-positive comment **that was not already excluded in Phase 1 step 3** with the catalog `ignore_reason`:
+
+```
+gh api -X POST repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies \
+  -f body="@AikidoSec ignore: <ignore_reason from catalog>"
+```
+
+`<comment-id>` is the finding root's `id`, not its `in_reply_to_id`. This is the GitHub path; it does **not** depend on the MCP ignore permission. Report each reply URL.
+
+### `all` / `<issue-id>` mode — ignore via MCP
+
+For each confirmed false positive call `aikido-mcp:aikido_ignore_issue` with `issue_id` (from the feed) and `reason` (the catalog `ignore_reason`).
+
+If it returns `400 - Feature is disabled for this workspace`, the MCP ignore permission is off for this workspace. Stop calling it, point the user to **https://app.aikido.dev/settings/integrations/ide/mcp/permissions** (or ask an Aikido admin), and output the `issue_id`s + reasons for manual ignore in the UI.
 
 Report which succeeded and which failed.
 
@@ -84,7 +128,7 @@ Report which succeeded and which failed.
 
 ## Phase 4 — Fix real findings
 
-Apply fixes in this order: dependencies first (least risky), then GH Actions, then source code. For each fix, commit immediately with a message that includes the Aikido finding ID.
+Apply fixes in this order: dependencies first (least risky), then GH Actions, then source code. For each fix, commit immediately with a message that includes the Aikido finding ID. In `pr` mode, the bot comment usually carries a `Show fix` ` ```suggestion ` block — use it as the starting point, but still verify it against the recipes below (the auto-suggestion is sometimes over-broad).
 
 **Commit message format:**
 
