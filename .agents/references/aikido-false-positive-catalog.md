@@ -103,6 +103,20 @@ Each pattern has:
 
 ---
 
+## `gha_permissions_trusted_workflow`
+
+**Matches when**: issue title contains "Overly Broad Permissions" (GitHub Actions); the workflow grants only specific, inline-documented permission(s) it demonstrably needs (NOT `write-all` / `read-all`); AND it is triggered only by trusted events (`push`, `workflow_dispatch`, `schedule`, or same-repo `pull_request`).
+
+**Does NOT match** (these are REAL — review/fix, do not ignore): `write-all` / `read-all`; or any workflow triggered by `pull_request_target`, `workflow_run`, or `issue_comment` that can act on untrusted fork input — there a broad permission is a genuine privilege-escalation risk.
+
+**ignore_reason**:
+> False positive — the workflow grants only the specific, inline-documented permission it needs (e.g. `contents: write # Needed to push new tags`), per this repo's convention (.agents/rules/500-github-actions.md) of declaring minimal, commented, least-privilege permissions. It runs only on trusted triggers (push / workflow_dispatch / schedule), so no untrusted or fork-supplied input can reach the elevated permission. Aikido's heuristic flags any workflow-level write scope, but a single minimal documented permission on a trusted-trigger workflow is the intended hardened state, not over-broad. Not applicable to write-all/read-all or to pull_request_target / workflow_run / issue_comment workflows.
+
+**sast_context** (UI: Overly Broad Permissions rule → Custom Code Context):
+> GitHub Actions workflows in this repo follow a least-privilege convention: each workflow declares the minimal permission scopes it needs at the workflow or job level, with an inline comment explaining why (e.g. `contents: write # Needed to push new tags`). A workflow that grants only the specific scopes it uses, is triggered solely by trusted events (push, workflow_dispatch, schedule, or same-repo pull_request), and never checks out or executes untrusted fork input, is correctly hardened — not over-broad. Treat `write-all`/`read-all`, or any broad scope on pull_request_target / workflow_run / issue_comment workflows that handle fork input, as real findings requiring review.
+
+---
+
 ## Patterns NOT auto-ignored (require manual review or a real fix)
 
 | Pattern | Why | Action |
