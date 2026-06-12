@@ -129,9 +129,9 @@
         "Name": "PolymerCCTPFacet",
         "Version": "2.1.0"
       },
-      "0x347F16802E9EB023a55b1d8f1e00c2664Ca7d60a": {
+      "0x0B1dcD1e7BA87E3ab9315f33b7661648b6669C7f": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       }
     },
     "Periphery": {

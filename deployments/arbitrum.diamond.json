@@ -121,9 +121,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
+      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
@@ -178,7 +178,8 @@
       "ReceiverChainflip": "0x37F584941242C8eada60bd6D8480cC0B6E36a0Cf",
       "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
     }
   }
 }

@@ -94,7 +94,8 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
+      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06"
     }
   }
 }
