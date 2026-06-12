@@ -5,7 +5,7 @@
  * process invocation with one or few MongoDB round-trips.
  */
 
-import type { EnvironmentEnum } from '../../common/types'
+import { EnvironmentEnum } from '../../common/types'
 
 import type { IDeploymentRecord } from './mongo-log-utils'
 
@@ -74,7 +74,10 @@ function isValidOp(value: unknown): value is BatchQueryOp {
 }
 
 function isValidEnv(value: unknown): value is keyof typeof EnvironmentEnum {
-  return value === 'staging' || value === 'production'
+  return (
+    typeof value === 'string' &&
+    Object.values<string>(EnvironmentEnum).includes(value)
+  )
 }
 
 /**

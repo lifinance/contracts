@@ -993,20 +993,26 @@ function saveDiamondFacets() {
     OTHER_ENV="staging"
   fi
 
+  # sanitize facet addresses ONCE (strip quotes/spaces, drop empties) so the
+  # build/parse/fallback passes below can reuse the cleaned values
+  local CLEAN_FACET_ADDRESSES=()
+  while IFS= read -r FACET_ADDRESS; do
+    [[ -n "$FACET_ADDRESS" ]] && CLEAN_FACET_ADDRESSES+=("$FACET_ADDRESS")
+  done < <(printf '%s\n' "${FACET_ADDRESSES[@]}" | tr -d '" ')
+
+  # build the batch payload in a single jq pass (mirrors getContractDeploymentStatusSummary)
   local BATCH_QUERIES="[]"
   local BATCH_RESULT=""
   local BATCH_OK="false"
-  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-    [[ -z "$FACET_ADDRESS" ]] && continue
-    BATCH_QUERIES=$(echo "$BATCH_QUERIES" | jq \
-      --arg ADDR "$FACET_ADDRESS" \
+  if [[ ${#CLEAN_FACET_ADDRESSES[@]} -gt 0 ]]; then
+    BATCH_QUERIES=$(printf '%s\n' "${CLEAN_FACET_ADDRESSES[@]}" | jq -R . | jq -s \
       --arg NET "$NETWORK" \
       --arg ENV1 "$ENVIRONMENT" \
       --arg ENV2 "$OTHER_ENV" \
-      '. + [{id: ($ADDR + "::" + $ENV1), op: "find", env: $ENV1, network: $NET, address: $ADDR},
-            {id: ($ADDR + "::" + $ENV2), op: "find", env: $ENV2, network: $NET, address: $ADDR}]')
-  done
+      '[.[] | select(. != "") | . as $ADDR |
+        {id: ($ADDR + "::" + $ENV1), op: "find", env: $ENV1, network: $NET, address: $ADDR},
+        {id: ($ADDR + "::" + $ENV2), op: "find", env: $ENV2, network: $NET, address: $ADDR}]')
+  fi
 
   if [[ "$BATCH_QUERIES" != "[]" ]] && isMongoLoggingEnabled; then
     BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT") && BATCH_OK="true"
@@ -1014,9 +1020,7 @@ function saveDiamondFacets() {
 
   if [[ "$BATCH_OK" == "true" ]]; then
     local ENV_TRY BATCH_ENTRY BATCH_NAME BATCH_VERSION
-    for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-      FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-      [[ -z "$FACET_ADDRESS" ]] && continue
+    for FACET_ADDRESS in "${CLEAN_FACET_ADDRESSES[@]}"; do
       for ENV_TRY in "$ENVIRONMENT" "$OTHER_ENV"; do
         BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
         [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
@@ -1038,13 +1042,7 @@ function saveDiamondFacets() {
   # complete remaining facets in parallel: per-address MongoDB lookup only if the batch
   # call failed entirely; otherwise (batch succeeded but address not in MongoDB) fall
   # straight through to the local fallbacks
-  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-    # sanitize address (strip quotes, spaces)
-    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-    if [[ -z "$FACET_ADDRESS" ]]; then
-      continue
-    fi
-
+  for FACET_ADDRESS in "${CLEAN_FACET_ADDRESSES[@]}"; do
     # skip facets already resolved via the batch query
     if [[ -s "$FACETS_DIR/${FACET_ADDRESS}.json" ]]; then
       continue
@@ -1084,9 +1082,7 @@ function saveDiamondFacets() {
 
   # merge all facet JSON entries into a single object preserving original order
   local MERGE_FILES=()
-  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-    ADDR=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-    [[ -z "$ADDR" ]] && continue
+  for ADDR in "${CLEAN_FACET_ADDRESSES[@]}"; do
     FILEPATH="$FACETS_DIR/${ADDR}.json"
     if [[ -s "$FILEPATH" ]]; then
       MERGE_FILES+=("$FILEPATH")
