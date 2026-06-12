@@ -27,6 +27,37 @@ const ZERO_PREDECESSOR =
   '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
 
 /**
+ * Validates parallel target/payload call arrays element-wise. viem's
+ * encodeFunctionData silently zero-pads non-hex strings (e.g. a missing 0x
+ * prefix) into valid-looking bytes that only fail at execution time, after
+ * signing (and any timelock delay) — so reject malformed inputs early. Shared
+ * by the CLI input boundary (normalizeProposeCalls) and the encoding boundary
+ * (encodeTimelockScheduleBatch), which have different sets of callers.
+ * @param targets - Target address per call (parallel to `payloads`)
+ * @param payloads - Calldata per call (parallel to `targets`)
+ * @param targetLabel - Error-message label for a target entry (e.g. `--to`)
+ * @param payloadLabel - Error-message label for a payload entry (e.g. `--calldata`)
+ * @throws If a target is not a valid address or a payload is not well-formed hex
+ */
+export function validateCallPairs(
+  targets: readonly string[],
+  payloads: readonly string[],
+  targetLabel: string,
+  payloadLabel: string
+): void {
+  for (const [i, target] of targets.entries())
+    if (!isAddress(target, { strict: false }))
+      throw new Error(
+        `${targetLabel} at index ${i} is not a valid address: ${target}`
+      )
+  for (const [i, payload] of payloads.entries())
+    if (!isHex(payload, { strict: true }))
+      throw new Error(
+        `${payloadLabel} at index ${i} is not well-formed hex: ${payload}`
+      )
+}
+
+/**
  * Encodes a `scheduleBatch` call for the TimelockController from one or more
  * inner calls. Inner calls execute in array order, so callers control ordering
  * (e.g. whitelist removals before additions) via the order of `targets`/`payloads`.
@@ -51,19 +82,15 @@ export function encodeTimelockScheduleBatch(
       `encodeTimelockScheduleBatch: targets (${targets.length}) and payloads (${payloads.length}) must have the same length`
     )
 
-  // viem's encodeFunctionData silently zero-pads non-hex strings (e.g. a missing
-  // 0x prefix) into valid-looking bytes that only fail at executeBatch time,
-  // after signing and the timelock delay — so reject malformed inputs here
-  for (const [i, target] of targets.entries())
-    if (!isAddress(target, { strict: false }))
-      throw new Error(
-        `encodeTimelockScheduleBatch: target at index ${i} is not a valid address: ${target}`
-      )
-  for (const [i, payload] of payloads.entries())
-    if (!isHex(payload, { strict: true }))
-      throw new Error(
-        `encodeTimelockScheduleBatch: payload at index ${i} is not well-formed hex: ${payload}`
-      )
+  // Defensive re-validation at the encoding boundary: today's only caller
+  // (normalizeProposeCalls) validates already, but this module is the shared
+  // encoder for any future caller (e.g. Tron batch proposals)
+  validateCallPairs(
+    targets,
+    payloads,
+    'encodeTimelockScheduleBatch: target',
+    'encodeTimelockScheduleBatch: payload'
+  )
 
   return encodeFunctionData({
     abi: TIMELOCK_SCHEDULE_BATCH_ABI,

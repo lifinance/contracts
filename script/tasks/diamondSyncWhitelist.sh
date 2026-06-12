@@ -243,8 +243,10 @@ function diamondSyncWhitelist {
     # Combined remove+add proposal route [CONV:ROUTING-PREDICATE]:
     # When a sync needs BOTH removals and additions on the EVM timelock-proposal route,
     # all calldatas are wrapped into ONE timelock scheduleBatch proposal (single signing
-    # round, removals execute before additions). Tron is excluded (propose-to-safe-tron.ts
-    # has no batch support). The flag is finalized once REMOVED_PAIRS/NEW_PAIRS are known.
+    # round, removals execute before additions). Tron batching is deferred: the Tron
+    # timelock (scheduleBatch) and execute-pending-timelock-tx.ts already handle arrays,
+    # but propose-to-safe-tron.ts takes a single call today, so Tron stays on the
+    # sequential route. The flag is finalized once REMOVED_PAIRS/NEW_PAIRS are known.
     local COMBINE_REMOVE_ADD_PROPOSAL=false
     local PENDING_PROPOSAL_CALLDATAS=""
 

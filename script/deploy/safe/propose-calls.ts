@@ -1,9 +1,11 @@
 import * as fs from 'fs'
 
 import { consola } from 'consola'
-import { isAddress, isHex, type Address, type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
+
+import { validateCallPairs } from './timelock-abi'
 
 /**
  * Normalizes and validates the to/calldata propose options into parallel call
@@ -54,22 +56,15 @@ export function normalizeProposeCalls(
 
   // Reject malformed inputs here, before signing: viem would silently zero-pad
   // non-hex calldata into valid-looking bytes that only fail at execution time
-  for (const [i, target] of targets.entries())
-    if (!isAddress(target, { strict: false }))
-      throw new Error(`--to at index ${i} is not a valid address: ${target}`)
-  for (const [i, calldata] of calldatas.entries()) {
-    if (!isHex(calldata, { strict: true }))
-      throw new Error(
-        `--calldata at index ${i} is not well-formed hex: ${calldata}`
-      )
-    // An empty payload in a multi-call batch is almost certainly an upstream
-    // bug (e.g. comma-splitting); plain 0x stays allowed for single calls
-    // (legitimate for e.g. nonce-gap filler self-calls)
+  validateCallPairs(targets, calldatas, '--to', '--calldata')
+  // An empty payload in a multi-call batch is almost certainly an upstream
+  // bug (e.g. comma-splitting); plain 0x stays allowed for single calls
+  // (legitimate for e.g. nonce-gap filler self-calls)
+  for (const [i, calldata] of calldatas.entries())
     if (calldatas.length > 1 && calldata === '0x')
       throw new Error(
         `--calldata at index ${i} is empty (0x); empty payloads are not allowed in multi-call proposals`
       )
-  }
 
   return { targets, calldatas }
 }
