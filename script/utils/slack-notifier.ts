@@ -649,7 +649,14 @@ export class SlackNotifier {
     if (errorObj.details && typeof errorObj.details === 'string')
       return this.truncateText(errorObj.details)
 
-    return JSON.stringify(error).slice(0, 500)
+    // JSON.stringify throws on circular/non-serializable payloads (e.g. some
+    // viem error objects); fall back to String() so the failure notification
+    // still assembles instead of throwing on the error path.
+    try {
+      return this.truncateText(JSON.stringify(error), 500)
+    } catch {
+      return this.truncateText(String(error), 500)
+    }
   }
 
   /**

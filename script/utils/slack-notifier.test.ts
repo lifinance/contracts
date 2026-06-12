@@ -108,4 +108,21 @@ describe('SlackNotifier payload safety', () => {
     expect(errorBlock).toBeDefined()
     expect(errorBlock?.text?.text.length ?? 0).toBeLessThanOrEqual(3000)
   })
+
+  it('does not throw when the error is a circular, non-serializable object', async () => {
+    const getPayload = mockFetchCapturing()
+    const circular: Record<string, unknown> = {}
+    circular.self = circular // JSON.stringify would throw on this
+
+    await new SlackNotifier(WEBHOOK).notifyOperationFailed({
+      network: 'tron',
+      operation: baseOp,
+      status: 'failed',
+      error: circular,
+    })
+
+    const blocks = (getPayload().blocks ?? []) as unknown as ICapturedBlock[]
+    const errorBlock = blocks.find((b) => b.text?.text?.includes('*Error:*'))
+    expect(errorBlock).toBeDefined()
+  })
 })
