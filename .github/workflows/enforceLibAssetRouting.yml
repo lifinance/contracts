@@ -27,6 +27,8 @@ jobs:
       # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       # Step 2: Scan src/ for direct ERC20 safeTransfer / safeTransferFrom calls
       - name: Check for direct ERC20 transfers bypassing LibAsset
