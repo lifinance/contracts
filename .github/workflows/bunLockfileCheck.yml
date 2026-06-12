@@ -1,0 +1,38 @@
+# Bun Lockfile Check
+# - Fails the build if `bun.lock` is out of sync with `package.json`.
+# - Runs `bun install --frozen-lockfile` (errors if the lock cannot satisfy
+#   package.json without changes), then `git diff --exit-code bun.lock` as a
+#   belt-and-braces guard against any in-place rewrite.
+# - Uses the bun version pinned in package.json's `packageManager` field so the
+#   resolver matches local installs and every other workflow.
+# - Triggers: every PR (any changed files) + push to main. This is intentionally
+#   NOT path-gated so a drifted lock can never slip in via a PR that only touches
+#   unrelated files.
+
+name: Bun Lockfile Check
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  bun-lockfile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Verify bun.lock is in sync
+        run: |
+          bun install --frozen-lockfile
+          git diff --exit-code bun.lock

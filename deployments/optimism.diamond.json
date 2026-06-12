@@ -17,9 +17,9 @@
         "Name": "PioneerFacet",
         "Version": "1.0.0"
       },
-      "0x22B31a1a81d5e594315c866616db793E799556c5": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.1.2"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -73,12 +73,12 @@
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
-      "0xbd8D369470169f9976c5bCc60318955836843a71": {
-        "Name": "AmarokFacet",
-        "Version": "1.0.1"
+      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "2.1.0"
       },
-      "0xE4Ebb306D162D78eAfA5aA0D525129785A778D4a": {
-        "Name": "GlacisFacet",
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
       "0x8dFDaeBB42655a4A4e2b89687dd117074AE8c665": {
@@ -101,12 +101,12 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x7025CFF3A412c0E8f35e3318f541158382C10F59": {
+      "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
-      "0xd23b6ac2004ebA0F225c86bf46Ae400e0587EE91": {
-        "Name": "RelayFacet",
+      "0x8FF9A6Ed7844a808E11d046de48B0259e79F86b1": {
+        "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
       "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
@@ -144,26 +144,6 @@
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
-        "Name": "CelerCircleBridgeFacet",
-        "Version": "2.0.0"
-      },
-      "0x8FF9A6Ed7844a808E11d046de48B0259e79F86b1": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
-      },
-      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
-      },
-      "0xcB4F095E9c9eD6BC26c36275DCDdc84AaE9e0e17": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
       }
     },
     "Periphery": {
@@ -174,6 +154,7 @@
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
       "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
@@ -181,7 +162,8 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0x16Fab807095Ecd8DB8aEC7ff84f0e659043dF9f1",
-      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
+      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
     }
   }
 }
