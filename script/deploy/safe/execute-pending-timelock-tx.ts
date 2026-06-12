@@ -32,6 +32,7 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
+import { confirmTimelockExecution } from './confirm-timelock-execution'
 import { createChainCaller } from './executors/create-chain-caller'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import {
@@ -664,6 +665,7 @@ async function processNetwork(
 
         const result = await executeOperation(
           chainCaller,
+          publicClient,
           timelockAddress,
           operation,
           isDryRun,
@@ -1052,6 +1054,7 @@ async function getPendingOperations(
 
 async function executeOperation(
   chainCaller: IChainCaller,
+  publicClient: PublicClient,
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean,
@@ -1179,10 +1182,54 @@ async function executeOperation(
         `${networkPrefix}    Transaction hash: ${result.hash}${txExplorerSuffix}`
       )
 
-      if (result.receipt && result.receipt.status !== 'success') {
+      // A missing receipt (confirmation timeout, or chains without synchronous
+      // receipts like Tron) must not count as success — only flip the queue row
+      // once isOperationDone confirms the op on-chain (EXSC-503).
+      const confirmation = await confirmTimelockExecution({
+        receipt: result.receipt,
+        isOperationDone: () =>
+          publicClient.readContract({
+            address: timelockAddress,
+            abi: TIMELOCK_ABI,
+            functionName: 'isOperationDone',
+            args: [operation.id],
+          }),
+      })
+
+      if (confirmation === 'reverted') {
         consola.error(
           `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
         )
+        return 'failed'
+      }
+
+      if (confirmation === 'unconfirmed') {
+        consola.warn(
+          `${networkPrefix} ⚠️ Execution of operation ${operation.id} not confirmed on-chain (tx ${result.hash}); leaving queue row 'queued' for retry`
+        )
+        if (slackNotifier && networkName)
+          try {
+            await slackNotifier.notifyOperationFailed({
+              network: networkName,
+              operation: {
+                id: operation.id,
+                target: primaryTarget,
+                value: primaryValue,
+                data: primaryPayload,
+                functionName: operation.functionName,
+              },
+              status: 'failed',
+              error: new Error(
+                `executeBatch tx ${result.hash} not confirmed on-chain; operation left queued for retry`
+              ),
+            })
+          } catch (notifyError) {
+            consola.warn(
+              'Failed to send operation failure notification:',
+              notifyError
+            )
+          }
+
         return 'failed'
       }
 
