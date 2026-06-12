@@ -118,7 +118,10 @@ function deployContractToNetworks() {
 
   if [[ "$COMPILE_ON_STARTUP" == "true" ]]; then
     echo "[info] compiling contracts"
-    forge build
+    if ! forge build; then
+      error "forge build failed - aborting before any deployment"
+      exit 1
+    fi
   fi
 
   echo ""
@@ -202,7 +205,7 @@ source script/deploy/deploySingleContract.sh
 source script/deploy/deployFacetAndAddToDiamond.sh
 for TASK_SCRIPT in script/tasks/*.sh; do
   # shellcheck disable=SC1090
-  [ -f "$TASK_SCRIPT" ] && source "$TASK_SCRIPT"
+  [[ -f "$TASK_SCRIPT" ]] && source "$TASK_SCRIPT"
 done
 
 deployContractToNetworks "$@"
