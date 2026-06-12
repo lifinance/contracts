@@ -430,7 +430,10 @@ export class DeploymentCache {
         }
       }
 
-      consola.info(`Refreshing ${environment} cache from MongoDB...`)
+      // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs batch)
+      process.stderr.write(
+        `[info] Refreshing ${environment} cache from MongoDB...\n`
+      )
 
       // Use a dedicated client per refresh instead of the shared
       // DatabaseConnectionManager singleton: concurrent refreshes of different
@@ -448,7 +451,10 @@ export class DeploymentCache {
         // Fetch all records from MongoDB
         const records = await collection.find({}).toArray()
 
-        consola.info(`Fetched ${records.length} records from MongoDB`)
+        // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs batch)
+        process.stderr.write(
+          `[info] Fetched ${records.length} records from MongoDB\n`
+        )
 
         // Write to cache
         this.writeCache(environment, records)

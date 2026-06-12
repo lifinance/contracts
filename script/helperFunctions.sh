@@ -518,7 +518,7 @@ function batchQueryMongoDeployments() {
     local EXIT_CODE
     # Queries are passed via stdin to avoid argv length limits for large batches.
     # NOTE: must use --queries=- (equals form); citty parses a bare "-" after a flag as empty
-    BATCH_RESULT=$(echo "$QUERIES_JSON" | bun script/deploy/query-deployment-logs.ts batch \
+    BATCH_RESULT=$(echo "$QUERIES_JSON" | bunx tsx script/deploy/query-deployment-logs.ts batch \
       --env="$ENVIRONMENT" \
       --queries=- 2>/dev/null)
     EXIT_CODE=$?
