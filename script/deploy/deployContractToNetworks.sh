@@ -4,7 +4,7 @@
 #
 # Non-interactive equivalent of scriptMaster.sh use case 1 ("Deploy one specific
 # contract to one network"), repeated over multiple networks in one invocation.
-# Deploys the contract and (by default) registers it in the diamond:
+# Deploys the contract and registers it in the LiFiDiamond:
 #   - facets:    deploy + Update<Facet> script (Safe proposal in production)
 #   - periphery: deploy + diamondUpdatePeriphery
 #
@@ -16,7 +16,7 @@ function printUsage() {
   cat <<'EOF'
 Usage: ./script/deploy/deployContractToNetworks.sh CONTRACT NETWORK [NETWORK...] [OPTIONS]
 
-Deploys CONTRACT to each NETWORK and registers it in the diamond.
+Deploys CONTRACT to each NETWORK and registers it in the LiFiDiamond.
 Same flow as scriptMaster.sh use case 1, without interactive prompts.
 
 Arguments:
@@ -25,8 +25,6 @@ Arguments:
 
 Options:
   --production         deploy to production (also requires PRODUCTION=true in .env)
-  --diamond NAME       diamond to update: LiFiDiamond (default) or LiFiDiamondImmutable
-  --no-diamond-update  deploy only, do not register in any diamond
   -h, --help           show this help
 
 Examples:
@@ -41,8 +39,6 @@ function deployContractToNetworks() {
   # TARGET_-prefixed names are deliberate: the sourced framework assigns generic
   # names (CONTRACT, NETWORK, VERSION, ...) without 'local', which would clobber ours mid-run
   local TARGET_CONTRACT=""
-  local TARGET_DIAMOND_NAME="LiFiDiamond"
-  local UPDATE_DIAMOND=true
   local PRODUCTION_FLAG=false
   local TARGET_NETWORKS=()
 
@@ -54,18 +50,6 @@ function deployContractToNetworks() {
       ;;
     --production)
       PRODUCTION_FLAG=true
-      shift
-      ;;
-    --diamond)
-      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
-        error "--diamond requires a value (LiFiDiamond or LiFiDiamondImmutable)"
-        exit 1
-      fi
-      TARGET_DIAMOND_NAME="$2"
-      shift 2
-      ;;
-    --no-diamond-update)
-      UPDATE_DIAMOND=false
       shift
       ;;
     -*)
@@ -94,11 +78,6 @@ function deployContractToNetworks() {
     printUsage
     exit 1
   fi
-  if [[ "$TARGET_DIAMOND_NAME" != "LiFiDiamond" && "$TARGET_DIAMOND_NAME" != "LiFiDiamondImmutable" ]]; then
-    error "invalid --diamond value: '$TARGET_DIAMOND_NAME' (must be LiFiDiamond or LiFiDiamondImmutable)"
-    exit 1
-  fi
-
   # resolve environment: .env PRODUCTION and --production must agree, replacing
   # scriptMaster's interactive "last chance" prompt with a double opt-in
   local TARGET_ENVIRONMENT
@@ -164,13 +143,8 @@ function deployContractToNetworks() {
     echo "[info] deployer wallet balance on $TARGET_NETWORK: $BALANCE"
 
     local DEPLOY_RC
-    if [[ "$UPDATE_DIAMOND" == "true" ]]; then
-      deployAndAddContractToDiamond "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_DIAMOND_NAME" "$TARGET_VERSION"
-      DEPLOY_RC=$?
-    else
-      deploySingleContract "$TARGET_CONTRACT" "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_VERSION" false
-      DEPLOY_RC=$?
-    fi
+    deployAndAddContractToDiamond "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "LiFiDiamond" "$TARGET_VERSION"
+    DEPLOY_RC=$?
 
     if [[ $DEPLOY_RC -eq 0 ]]; then
       SUCCEEDED_NETWORKS+=("$TARGET_NETWORK")
