@@ -1071,6 +1071,30 @@ async function executeOperation(
   const primaryPayload = operation.payloads[0]
   if (!primaryTarget || primaryValue === undefined || !primaryPayload)
     throw new Error('Invalid operation: missing target/value/payload')
+
+  const notifyFailure = async (error: unknown): Promise<void> => {
+    if (!slackNotifier || !networkName) return
+    try {
+      await slackNotifier.notifyOperationFailed({
+        network: networkName,
+        operation: {
+          id: operation.id,
+          target: primaryTarget,
+          value: primaryValue,
+          data: primaryPayload,
+          functionName: operation.functionName,
+        },
+        status: 'failed',
+        error,
+      })
+    } catch (notifyError) {
+      consola.warn(
+        'Failed to send operation failure notification:',
+        notifyError
+      )
+    }
+  }
+
   consola.info(
     `\n${networkPrefix} ⚡ Processing operation: ${operation.id} (batch of ${callCount} calls)`
   )
@@ -1200,6 +1224,9 @@ async function executeOperation(
         consola.error(
           `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
         )
+        await notifyFailure(
+          new Error(`executeBatch tx ${result.hash} reverted on-chain`)
+        )
         return 'failed'
       }
 
@@ -1207,29 +1234,11 @@ async function executeOperation(
         consola.warn(
           `${networkPrefix} ⚠️ Execution of operation ${operation.id} not confirmed on-chain (tx ${result.hash}); leaving queue row 'queued' for retry`
         )
-        if (slackNotifier && networkName)
-          try {
-            await slackNotifier.notifyOperationFailed({
-              network: networkName,
-              operation: {
-                id: operation.id,
-                target: primaryTarget,
-                value: primaryValue,
-                data: primaryPayload,
-                functionName: operation.functionName,
-              },
-              status: 'failed',
-              error: new Error(
-                `executeBatch tx ${result.hash} not confirmed on-chain; operation left queued for retry`
-              ),
-            })
-          } catch (notifyError) {
-            consola.warn(
-              'Failed to send operation failure notification:',
-              notifyError
-            )
-          }
-
+        await notifyFailure(
+          new Error(
+            `executeBatch tx ${result.hash} not confirmed on-chain; operation left queued for retry`
+          )
+        )
         return 'failed'
       }
 
@@ -1297,27 +1306,7 @@ async function executeOperation(
       error
     )
 
-    // Send Slack notification for failure if enabled
-    if (slackNotifier && networkName && !isDryRun)
-      try {
-        await slackNotifier.notifyOperationFailed({
-          network: networkName,
-          operation: {
-            id: operation.id,
-            target: primaryTarget,
-            value: primaryValue,
-            data: primaryPayload,
-            functionName: operation.functionName,
-          },
-          status: 'failed',
-          error,
-        })
-      } catch (notifyError) {
-        consola.warn(
-          'Failed to send operation failure notification:',
-          notifyError
-        )
-      }
+    if (!isDryRun) await notifyFailure(error)
 
     return 'failed'
   }
