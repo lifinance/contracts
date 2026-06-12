@@ -917,6 +917,38 @@ async function getPendingOperations(
           await timelockQueue.updateOne(byOperationId(networkName, opId), {
             $set: { status: 'executed', executedAt: now, updatedAt: now },
           })
+
+          // Close the alert loop: a row left 'queued' by an unconfirmed run
+          // already emitted a failure notification, so the retroactive
+          // discovery of its success must be announced too (EXSC-503).
+          const primaryTarget = targets[0]
+          const primaryValue = values[0]
+          const primaryPayload = payloads[0]
+          if (
+            slackNotifier &&
+            primaryTarget &&
+            primaryValue !== undefined &&
+            primaryPayload
+          )
+            try {
+              await slackNotifier.notifyOperationExecuted({
+                network: networkName,
+                operation: {
+                  id: opId,
+                  target: primaryTarget,
+                  value: primaryValue,
+                  data: primaryPayload,
+                  functionName: `batch (${targets.length} calls) — found already executed on-chain`,
+                },
+                status: 'success',
+                transactionHash: row.executionTxHash,
+              })
+            } catch (error) {
+              consola.warn(
+                'Failed to send reconciled-execution notification:',
+                error
+              )
+            }
           continue
         }
 
