@@ -70,13 +70,24 @@ function diamondSyncWhitelist {
   # no need to distinguish between mutable and immutable anymore
   DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
-  # Determine which networks to process
+  # Determine which networks to process. NETWORK may contain multiple
+  # space-separated networks (e.g. "arbitrum base mainnet") - see
+  # script/tasks/syncWhitelistToNetworks.sh for the non-interactive entry point.
   RUN_FOR_ALL_NETWORKS=false
   if [[ "$NETWORK" == "All (non-excluded) Networks" ]]; then
     RUN_FOR_ALL_NETWORKS=true
     NETWORKS=($(getIncludedNetworksArray))
   else
-    NETWORKS=("$NETWORK")
+    read -ra NETWORKS <<<"$NETWORK"
+  fi
+
+  # MULTI_NETWORK_RUN gates output verbosity only (quiet per-network logs to
+  # avoid interleaved clutter from parallel jobs). RUN_FOR_ALL_NETWORKS
+  # additionally gates the isNetworkActive filter, which must NOT apply to an
+  # explicit network list (explicitly requested networks are always synced).
+  MULTI_NETWORK_RUN=false
+  if [[ "$RUN_FOR_ALL_NETWORKS" == "true" || ${#NETWORKS[@]} -gt 1 ]]; then
+    MULTI_NETWORK_RUN=true
   fi
 
   # Function to check if an address is a token contract
@@ -183,26 +194,26 @@ function diamondSyncWhitelist {
     fi
   }
   # Controlled debug logging for this script:
-  # - When running against all networks, suppress noisy debug output
+  # - When running against multiple networks, suppress noisy debug output
   # - When running against a single network, keep full debug logs for easier troubleshooting
   function echoSyncDebug {
-    if [[ "$RUN_FOR_ALL_NETWORKS" == "true" ]]; then
+    if [[ "$MULTI_NETWORK_RUN" == "true" ]]; then
       return
     fi
     echoDebug "$@"
   }
 
   function echoSyncVerbose {
-    if [[ "$RUN_FOR_ALL_NETWORKS" == "true" ]]; then
+    if [[ "$MULTI_NETWORK_RUN" == "true" ]]; then
       return
     fi
     echo "$@"
   }
 
   # Info / stage logging helpers:
-  # - Only print for single-network runs to avoid clutter in "all networks" mode
+  # - Only print for single-network runs to avoid clutter from parallel jobs
   function echoSyncStage {
-    if [[ "$RUN_FOR_ALL_NETWORKS" == "true" ]]; then
+    if [[ "$MULTI_NETWORK_RUN" == "true" ]]; then
       return
     fi
     echo ""
@@ -210,7 +221,7 @@ function diamondSyncWhitelist {
   }
 
   function echoSyncStep {
-    if [[ "$RUN_FOR_ALL_NETWORKS" == "true" ]]; then
+    if [[ "$MULTI_NETWORK_RUN" == "true" ]]; then
       return
     fi
     printf '\033[0;35m%s\033[0m\n' "$@"
@@ -898,7 +909,7 @@ function diamondSyncWhitelist {
         local REMOVE_EXIT_CODE=$?
 
         # Print output in verbose mode
-        if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
+        if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
 
         if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
           if [[ "$TIMELOCK_FLAG" == "true" ]]; then
@@ -1063,7 +1074,7 @@ function diamondSyncWhitelist {
           OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
 
-          if [[ "$RUN_FOR_ALL_NETWORKS" != "true" ]]; then echo "$OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$OUTPUT"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
             if [[ "$TIMELOCK_FLAG" == "true" ]]; then
