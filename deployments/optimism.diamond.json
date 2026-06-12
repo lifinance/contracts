@@ -85,9 +85,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
+      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       },
       "0xA4E107e0C31EF3fF390BD6AaaaDDe0a929ca9645": {
         "Name": "CBridgeFacetPacked",
