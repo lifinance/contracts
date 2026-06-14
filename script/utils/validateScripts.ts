@@ -7,12 +7,15 @@
  *    import (TS2304) or
  *    a dependency a script imports (TS2307) fails the check — no execution,
  *    no fixtures.
- * 2. Import resolution: when dependency manifests (package.json / bun.lock /
- *    tsconfig.json) changed, every bare import specifier in ALL TS files
- *    under `script/` must resolve to a package declared in
- *    package.json (or a node/bun builtin). This catches "dependency removed
- *    from package.json while a script still imports it" even when no .ts
- *    file was touched.
+ * 2. Import resolution: when script files OR dependency manifests
+ *    (package.json / bun.lock / tsconfig.json) changed, every bare import
+ *    specifier in ALL TS files under `script/` must resolve to a package
+ *    declared in package.json (or a node/bun builtin). Running it on script
+ *    changes catches an undeclared import at introduction (the package is
+ *    physically present via a transitive dependency, so the type check passes);
+ *    running it on manifest changes catches "dependency removed from
+ *    package.json while a script still imports it" even when no .ts file was
+ *    touched.
  *
  * Used by the `.husky/pre-push` hook (fast local feedback) and the
  * `validateScripts.yml` CI workflow (enforcement backstop).
@@ -202,7 +205,7 @@ const runImportResolutionCheck = (repoRoot: string): boolean => {
   const missing: IMissingImport[] = []
   const allScriptFiles = listScriptFiles(repoRoot)
   consola.info(
-    `Dependency manifest changed — verifying bare imports of ${allScriptFiles.length} script file(s) against package.json`
+    `Verifying bare imports of ${allScriptFiles.length} script file(s) against package.json`
   )
   for (const file of allScriptFiles)
     for (const specifier of collectBareImportSpecifiers(join(repoRoot, file))) {
@@ -267,7 +270,12 @@ const main = defineCommand({
     let passed = true
     if (changedScriptFiles.length > 0)
       passed = runTypeCheck(repoRoot, changedScriptFiles) && passed
-    if (manifestsChanged) passed = runImportResolutionCheck(repoRoot) && passed
+    // Sweep on script changes too (not just manifest changes): an undeclared
+    // import added in a script resolves fine for the type check (the package is
+    // installed transitively) but must be caught now, not deferred to whenever
+    // an unrelated manifest edit next trips the sweep.
+    if (manifestsChanged || changedScriptFiles.length > 0)
+      passed = runImportResolutionCheck(repoRoot) && passed
 
     if (!passed) {
       consola.error('Script validation failed')
