@@ -21,6 +21,26 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
     ///      in an init function called during a diamondCut().
     address public immutable EXAMPLE;
 
+    /// @dev OPTIONAL — delete if this facet only needs immutable config.
+    ///      For mutable, owner-updatable config use the EIP-2535 namespaced
+    ///      diamond-storage pattern below (requires importing LibDiamond). The
+    ///      unique NAMESPACE slot avoids storage collisions with other facets;
+    ///      seed it via an init function (see Admin Methods) during diamondCut().
+    // bytes32 internal constant NAMESPACE =
+    //     keccak256("com.lifi.facets.{{kebabCase name}}");
+    //
+    // struct Storage {
+    //     // mutable per-chain config
+    // }
+    //
+    // function _getStorage() private pure returns (Storage storage s) {
+    //     bytes32 ns = NAMESPACE;
+    //     // solhint-disable-next-line no-inline-assembly
+    //     assembly {
+    //         s.slot := ns
+    //     }
+    // }
+
     /// Types ///
 
     /// @dev Optional bridge specific struct
@@ -28,6 +48,14 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
     struct {{properCase name}}Data {
         string exampleParam;
     }
+
+    /// Errors ///
+
+    // error {{properCase name}}Error(); // facet-local; reusable ones live in GenericErrors
+
+    /// Events ///
+
+    // event {{properCase name}}Event(uint256 indexed value);
 
     /// Constructor ///
 
@@ -39,6 +67,21 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
         }
         EXAMPLE = _example;
     }
+
+    /// Admin Methods ///
+
+    /// @dev OPTIONAL — only needed alongside the namespaced Storage block above.
+    ///      Restrict every state-changing admin method with
+    ///      LibDiamond.enforceIsContractOwner() (requires importing LibDiamond).
+    // function init{{properCase name}}(/* ... */) external {
+    //     LibDiamond.enforceIsContractOwner();
+    //     // ... write to _getStorage()
+    // }
+    //
+    // function set{{properCase name}}Config(/* ... */) external {
+    //     LibDiamond.enforceIsContractOwner();
+    //     // ... update _getStorage()
+    // }
 
     /// External Methods ///
 
