@@ -13,6 +13,8 @@ Drives the production rollout lifecycle in two modes:
 
 Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing to the user → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
+**Signing model** (Safe threshold is 3): the deployer key auto-signs every proposal at creation (signature 1). The user running this skill adds their hardware-wallet signature (signature 2). The Slack thread then recruits a final signer, who adds signature 3 and executes the transaction. So the verification gate before posting is "the runner has signed" — 2 signatures — *not* enough to execute on its own. That's the whole point of the Slack ask.
+
 ## Hard rails
 
 - **Never run `confirm-safe-tx.ts` yourself.** Signing uses the user's hardware wallet; only the human can do it. Your job ends at giving the exact command.
@@ -20,7 +22,6 @@ Both modes converge on the same tail: capture proposals → (deploy mode only) d
 - **Production double opt-in**: both entry scripts require `--production` on the CLI *and* `PRODUCTION=true` in `.env`. Do not edit `.env` to satisfy this — if it mismatches, stop and tell the user.
 - `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` must NOT be `true` (it would bypass the Safe). Abort if set.
 - Confirm the resolved plan (contract/version/networks or PR/networks) with the user before executing — deployments cost gas and mint Safe proposals on many chains.
-- Tron networks: `confirm-safe-tx.ts` supports them, but signing/funding quirks are common — if a Tron network appears in the target list, call it out explicitly instead of silently including it.
 
 ## Phase 0 — Preflight
 
@@ -110,7 +111,7 @@ Give the user (VPN required; Ledger is the default signer):
 bunx tsx script/deploy/safe/confirm-safe-tx.ts
 ```
 
-Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation). They will sign each proposal (deployer signature is already on it → 2/N after theirs). Then **stop and wait** for the user to say they're done.
+Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation). They will sign each proposal — the deployer signature is already on it, so theirs makes 2 of the 3 required (the final signer comes from the Slack thread). Then **stop and wait** for the user to say they're done.
 
 ## Phase 7 — Verify signatures
 
@@ -118,7 +119,7 @@ Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountInd
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --status all --maxAgeHours 24 --json
 ```
 
-Gate, per target network: a matching proposal that is `executed`/`submitted`, or `pending` with `signatureCount >= 2`. List any network that fails the gate (still 1 signature, or no row) and go back to Phase 6 for those. Only proceed when every network passes.
+Gate, per target network: a matching proposal that is `pending` with `signatureCount >= 2` (deployer + the runner's HW wallet — the runner has done their part, ready to recruit the final signer), or already `submitted`/`executed` (a fast final signer beat the Slack post — fine, post anyway as a record). A network still at `signatureCount: 1` (or with no row) means the runner's signature didn't land — go back to Phase 6 for those. Only proceed when every network passes.
 
 ## Phase 8 — Slack thread
 
