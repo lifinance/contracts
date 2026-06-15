@@ -129,7 +129,8 @@ trivial. Expected size ~300 lines (network loop + checks + dispatch + summary).
      - Resolve diamond from the deploy log.
      - Pre-checks: `cast wallet address` → pauser address; `cast balance` > 0;
        `cast call owner()` to detect already-paused (`DiamondIsPaused` selector
-       `0x0149422e`); `cast call pauserWallet()` matches the pauser address.
+       `0x0149422e`, i.e. `bytes4(keccak256("DiamondIsPaused()"))` — `owner()` reverts with
+       this once the diamond is paused); `cast call pauserWallet()` matches the pauser address.
      - Dispatch: `cast send <diamond> <pauseDiamond-calldata> --rpc-url … --private-key …
        --legacy --gas-price <buffered> --confirmations 1` (verbatim from
        `universalSendRaw`'s EVM branch, incl. the `GAS_ESTIMATE_MULTIPLIER` gas buffer).
