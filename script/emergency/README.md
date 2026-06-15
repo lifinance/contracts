@@ -31,14 +31,14 @@ requires review (`.github/workflows/protectSecurityRelevantCode.yml` protects `s
 
 ## How to change it safely
 
-- **Do not** "DRY it up" by re-importing the shared library — the guard will fail the PR, and
-  that coupling is the exact risk this directory exists to remove.
+- **Do not** "DRY it up" by re-importing the shared library — that coupling is the exact risk
+  this directory exists to remove, and a reviewer will reject it.
 - Adding a new prod **EVM** chain needs **no change** here (read from deploy logs). Validate by
   pausing that diamond during onboarding, before it is backend-integrated, then unpausing.
 - Adding a new **non-EVM ecosystem**, or changing the `troncast` invocation, **does** require a
   change here — update the dispatch branch and run the onboarding live-test on the new diamond.
-- After any change, run the offline checks (`bash -n`, the isolation guard) and a staging dry-run
-  before relying on the script.
+- After any change, run the offline checks (`bash -n`) and a staging dry-run before relying on
+  the script.
 
 ## Usage
 
