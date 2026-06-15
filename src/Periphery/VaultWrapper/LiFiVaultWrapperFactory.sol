@@ -140,7 +140,8 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         emit FeeBoundsSet(_feeType, _minBps, _maxBps);
     }
 
-    /// @notice Set the default LI.FI share (bps) applied to new instances for a fee type.
+    /// @notice Set the default LI.FI fee share (bps) for a fee type, exposed for
+    ///         clones to read when applying the LI.FI/integrator split (see S1).
     function setDefaultSplit(
         FeeType _feeType,
         uint16 _lifiBps

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+/// @custom:version 1.0.0
+
 /// @notice Fee categories charged by a wrapper instance.
 enum FeeType {
     Performance,
