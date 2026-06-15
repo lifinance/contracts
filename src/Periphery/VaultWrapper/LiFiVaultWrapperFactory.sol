@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { TransferrableOwnership } from "../../Helpers/TransferrableOwnership.sol";
 import { InvalidConfig, InvalidContract, UnAuthorized } from "../../Errors/GenericErrors.sol";
 import { FeeType, FeeBounds } from "./LiFiVaultWrapperTypes.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 /// @title LiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
@@ -194,7 +195,31 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         return globalPaused;
     }
 
+    /// Views ///
+
+    /// @notice The deterministic address a clone will have for the given key.
+    function predictAddress(
+        address _integrator,
+        address _underlying,
+        uint256 _nonce
+    ) external view returns (address) {
+        return
+            LibClone.predictDeterministicAddressERC1967BeaconProxy(
+                beacon,
+                _salt(_integrator, _underlying, _nonce),
+                address(this)
+            );
+    }
+
     /// Internal ///
+
+    function _salt(
+        address _integrator,
+        address _underlying,
+        uint256 _nonce
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_integrator, _underlying, _nonce));
+    }
 
     function _cap(FeeType _feeType) internal pure returns (uint16) {
         if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;

@@ -135,4 +135,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.expectRevert(UnAuthorized.selector);
         factory.setIntegratorApproved(integrator, true); // old manager lost power
     }
+
+    function test_PredictAddressIsDeterministicAndNonceVaries() public {
+        address u = makeAddr("underlying");
+        address a = factory.predictAddress(integrator, u, 0);
+        address b = factory.predictAddress(integrator, u, 0);
+        address c = factory.predictAddress(integrator, u, 1);
+        assertEq(a, b);
+        assertTrue(a != c);
+        assertTrue(a != address(0));
+    }
 }
