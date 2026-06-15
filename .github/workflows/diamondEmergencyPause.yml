@@ -70,7 +70,9 @@ jobs:
               if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
               if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
               echo "::add-mask::$value"
-              echo "$line" >> "$GITHUB_ENV"
+              # Write the UNQUOTED value so GITHUB_ENV matches the masked value — a quoted .env
+              # value would otherwise be stored with quotes and escape the ::add-mask:: redaction.
+              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
             fi
           done < ".env"
         env:
