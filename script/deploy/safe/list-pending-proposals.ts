@@ -191,7 +191,14 @@ const main = defineCommand({
       consola.error(`Failed to query proposals: ${errorMsg}`)
       process.exit(1)
     } finally {
-      await mongoClient.close(true)
+      // A cleanup-only failure must not flip an otherwise-successful run
+      try {
+        await mongoClient.close(true)
+      } catch (closeError: unknown) {
+        const closeMsg =
+          closeError instanceof Error ? closeError.message : String(closeError)
+        consola.warn(`Failed to close MongoDB connection: ${closeMsg}`)
+      }
     }
   },
 })
