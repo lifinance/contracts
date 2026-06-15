@@ -3749,6 +3749,49 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
+
+# normalizePrivateKey: Normalize a hex private key to canonical lowercase, 0x-prefixed,
+# 64-hex-char form and validate it. Accepts the key with or without a leading 0x and
+# tolerates surrounding whitespace/newlines that can sneak in from a secret store
+# (GitHub Actions secrets / 1Password). Used by the emergency-pause scripts, which
+# consume PRIVATE_KEY_PAUSER_WALLET directly and are sensitive to prefix drift — a
+# malformed value is invisible until the workflow runs (i.e. during an incident), so
+# this fails loud and early, before any network work begins.
+#
+# Usage: KEY=$(normalizePrivateKey "$RAW_KEY" "PRIVATE_KEY_PAUSER_WALLET") || exit 1
+#   RAW_KEY  - the raw secret value to normalize
+#   VAR_NAME - Optional: source variable name, used only in error messages (default: "private key")
+#
+# Returns: prints the normalized 0x-prefixed key on stdout and returns 0 on success;
+#          prints nothing to stdout and returns 1 on empty/malformed input (error logged to stderr).
+function normalizePrivateKey() {
+  local RAW="$1"
+  local VAR_NAME="${2:-private key}"
+
+  # trim leading/trailing whitespace (incl. stray newlines from secret stores)
+  RAW="${RAW#"${RAW%%[![:space:]]*}"}"
+  RAW="${RAW%"${RAW##*[![:space:]]}"}"
+
+  if [[ -z "$RAW" ]]; then
+    # error() prints to stdout; redirect to stderr so $(...) capture stays clean
+    error "$VAR_NAME is empty or not set. Cannot continue." >&2
+    return 1
+  fi
+
+  # strip a single optional 0x/0X prefix, then lowercase the hex body
+  local HEX="${RAW#0x}"
+  HEX="${HEX#0X}"
+  HEX=$(echo "$HEX" | tr '[:upper:]' '[:lower:]')
+
+  if ! [[ "$HEX" =~ ^[0-9a-f]{64}$ ]]; then
+    error "$VAR_NAME is not a valid 32-byte hex private key (expected 64 hex chars, with or without a 0x prefix). Cannot continue." >&2
+    return 1
+  fi
+
+  printf '0x%s' "$HEX"
+  return 0
+}
+
 function getPrivateKey() {
   # read function arguments into variables
   NETWORK="$1"
@@ -5519,7 +5562,7 @@ function estimatePauseCost() {
   fi
 
   # RPCs throttle/time out transiently (especially across a cross-chain sweep), so retry the reads
-  # a few times before giving up — mirrors the resilience of diamondEMERGENCYPauseGitHub.sh's
+  # a few times before giving up — mirrors the resilience of the emergency-pause scripts'
   # rpcCallWithRetry. The "already paused" revert is a DEFINITIVE answer, not a transient error, so
   # it returns immediately (rc 2) without retrying.
   local ESTIMATE_MAX_ATTEMPTS=3 ESTIMATE_RETRY_SLEEP_SECONDS=2

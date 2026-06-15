@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # this script is designed to be called by a Github action ("Verify Emergency Pause Readiness")
-# it is the READ-ONLY companion to diamondEMERGENCYPauseGitHub.sh: it verifies that the
-# emergency pause CAN fire on every production diamond, WITHOUT firing it.
+# it is the READ-ONLY companion to the break-glass pause script
+# (script/emergency/emergencyPauseBreakGlass.sh): it verifies that the emergency pause CAN fire
+# on every production diamond, WITHOUT firing it.
 #
 # Checks:
 #   Secret check (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
@@ -21,20 +22,18 @@
 source ./script/helperFunctions.sh
 
 # ---------------------------------------------------------------------------------------
-# INTENTIONAL DUPLICATION (temporary) — keep in sync with diamondEMERGENCYPauseGitHub.sh
+# INTENTIONAL DUPLICATION — mirrors the frozen break-glass pause script
 # ---------------------------------------------------------------------------------------
 # rpcCallWithRetry + the RPC pacing constants below, and the per-network read+compare in
-# verifyPauserOnNetwork(), are duplicated near-verbatim from
-# script/utils/diamondEMERGENCYPauseGitHub.sh.
+# verifyPauserOnNetwork(), are duplicated near-verbatim from the break-glass pause script
+# (script/emergency/emergencyPauseBreakGlass.sh).
 #
-# Why duplicated and not shared: that script is security-critical (it sends the real
-# pauseDiamond() transaction). We deliberately did NOT refactor it as a side effect of
-# adding this read-only check, to avoid any risk to the live pause path.
-#
-# CONSOLIDATION PLAN: the next time diamondEMERGENCYPauseGitHub.sh is modified, extract
-# rpcCallWithRetry + the pauser comparison into a shared sourceable helper (e.g.
-# script/utils/emergencyPauseShared.sh) and have BOTH scripts source it. Until then,
-# any change here must be mirrored there (and vice-versa).
+# Why duplicated and not shared: the break-glass script is incident-critical and deliberately
+# FROZEN/ISOLATED — it must not source the shared library (enforced by emergencyPauseGuard.yml),
+# so there is intentionally no shared helper to consolidate into. This read-only companion keeps
+# its own copy on purpose; a divergence here is not catastrophic (it only mis-reports readiness),
+# whereas coupling the pause path to shared code is exactly the EXSC-367 risk we removed. When
+# the break-glass read/compare logic changes, mirror it here too.
 # ---------------------------------------------------------------------------------------
 
 # RPC pacing for read calls. RPCs can throttle reads under load (paid tiers included),
@@ -132,7 +131,7 @@ function addressesMatch() {
 
 # verifyPauserOnNetwork: pauser check — read the on-chain pauserWallet() of a network's
 # production LiFiDiamond and assert it equals the derived pauser address. Read-only.
-# Mirrors diamondEMERGENCYPauseGitHub.sh's comparison exactly (lowercase string compare),
+# Mirrors the break-glass script's comparison exactly (lowercase string compare),
 # which also handles Tron's address form the same proven way the live pause does.
 #
 # Usage: verifyPauserOnNetwork NETWORK EXPECTED_PAUSER_ADDRESS
@@ -306,13 +305,16 @@ function main {
   # changes the exit code below.
   local SECRET_STATUS="fail" PAUSER_STATUS="skipped" TIMELOCK_DIAMOND_STATUS="skipped" SAFE_ROLE_STATUS="skipped"
 
-  if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
-    error "PRIVATE_KEY_PAUSER_WALLET is empty or not set. Cannot verify emergency pause readiness."
+  # Normalize + validate the pauser key (accept it with or without a 0x prefix, fail loud on
+  # empty/malformed) via the shared helper, so this readiness check reports a clean mismatch
+  # rather than tripping over a prefix-induced format fault — the same normalization the pause
+  # script applies (EXSC-507).
+  if ! PRIVATE_KEY_PAUSER_WALLET=$(normalizePrivateKey "$PRIVATE_KEY_PAUSER_WALLET" "PRIVATE_KEY_PAUSER_WALLET"); then
     emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
 
-  # derive the pauser address from the secret (mirrors diamondEMERGENCYPauseGitHub.sh:303;
+  # derive the pauser address from the (normalized) secret (mirrors the break-glass script;
   # the key is passed as an argument because cast has no env/stdin path for a raw key, is
   # never echoed, and GitHub masks the secret in logs)
   local PRIV_KEY_ADDRESS
@@ -358,7 +360,7 @@ function main {
   # verifyNetwork's bit-encoded exit code to a per-network file; we aggregate after `wait`. A
   # failure on one diamond does NOT abort the others.
   #
-  # NOTE: this intentionally DIVERGES from diamondEMERGENCYPauseGitHub.sh's unbounded fan-out — that
+  # NOTE: this intentionally DIVERGES from the break-glass script's unbounded fan-out — that
   # live script fires every network at once because an incident can't wait; this read-only weekly
   # check has no such urgency and is gentler on RPCs when throttled.
   local MAX_JOBS=${MAX_CONCURRENT_JOBS:-10}

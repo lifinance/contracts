@@ -1,3 +1,18 @@
+# EMERGENCY >> Pause STAGING diamonds (multi-network test)
+# - Manually-triggered (workflow_dispatch) end-to-end test of the emergency-pause WRITE path
+#   against the STAGING diamonds on bsc/arbitrum/optimism/base. Runs the frozen break-glass
+#   script (script/emergency/emergencyPauseBreakGlass.sh) with ENVIRONMENT=staging — the exact
+#   same script and write path prod uses.
+# - Purpose (EXSC-368 option c): the write path is NOT covered by the read-only
+#   verifyEmergencyPauseReadiness workflow, so this exercises the real direct-send dispatch the
+#   prod pause relies on — continuous proof the frozen break-glass path works on real chains.
+# - Does NOT auto-unpause: a human runs this as a drill and unpauses staging manually afterwards.
+# - Slack: posts a TEST-prefixed status (success/failure) with a GH run link and the runbook URL
+#   (EMERGENCY_PAUSE_RUNBOOK_URL repository variable) to a dedicated staging-drill test channel
+#   (SLACK_WEBHOOK_PAUSE_STAGING_TEST secret) on every run, so the drill never spams SC-general.
+# - Known limitations: needs RPCs (MongoDB) + staging deploy logs + the PRIV_KEY_PAUSER_WALLET_STAGING
+#   secret. DiamondPauser team-membership check is intentionally disabled for the staging drill.
+
 name: EMERGENCY >> Pause STAGING diamonds (multi-network test)
 
 on:
@@ -20,6 +35,8 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
 
       - name: Install dev dependencies
         run: bun install
@@ -76,8 +93,11 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Pause Diamond
-        run: bash script/utils/diamondEMERGENCYPauseStagingGitHub.sh
+        # Same frozen break-glass script as prod, run with ENVIRONMENT=staging so this dry-run
+        # exercises the identical write path on the staging diamonds (EXSC-368 c).
+        run: bash script/emergency/emergencyPauseBreakGlass.sh
         env:
+          ENVIRONMENT: staging
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET_STAGING }}
 
       # Resolve a deep-link to the current job's log view so the Slack message
@@ -99,18 +119,21 @@ jobs:
           fi
           echo "url=${url}" >> "$GITHUB_OUTPUT"
 
-      - name: Notify Slack SC-general channel of pause execution
+      - name: Notify Slack staging-drill test channel of pause execution
         # always() so the alert fires even when the pause script exits non-zero
         # (per-network isolation now lets the script partially succeed and still
         # return 1 — on-call must still be paged in that case).
         if: ${{ always() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_PAUSE_STAGING_TEST }}
           webhook-type: incoming-webhook
           # JSON payload so the inline ternary for status emoji interpolates
-          # cleanly without YAML's single-quote escaping.
+          # cleanly without YAML's single-quote escaping. \n produces line breaks in
+          # the rendered Slack message. Runbook URL comes from the EMERGENCY_PAUSE_RUNBOOK_URL
+          # repository variable (shared with the prod workflow) so moving the runbook never
+          # needs a workflow edit (EXSC-371/EXSC-432).
           payload: |
             {
-              "text": "TEST TEST TEST ATTENTION - the emergency diamond pause action was just executed on STAGING (bsc/arbitrum/optimism/base) by ${{ github.actor }} — ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }} — ${{ steps.jobinfo.outputs.url }}"
+              "text": "TEST TEST TEST ATTENTION - the emergency diamond pause action was just executed on STAGING (bsc/arbitrum/optimism/base) by ${{ github.actor }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable (EXSC-371/EXSC-432)' }}"
             }
