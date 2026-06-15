@@ -241,21 +241,31 @@ function bgSendPause() {
 
   local USE_ASYNC
   USE_ASYNC=$(bgCastSendAsync "$NETWORK")
-  local GAS_PRICE
-  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
-  local GAS_PRICE_BUF=$((GAS_PRICE * GAS_ESTIMATE_MULTIPLIER / 100))
-  [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
+
   local CAST_EXTRA=()
   if [[ "$USE_ASYNC" == "true" ]]; then
     CAST_EXTRA+=(--async)
   else
     CAST_EXTRA+=(--confirmations 1)
   fi
+
+  # Buffer the gas price above base fee (helps on L2s). If the gas-price read fails or returns 0,
+  # OMIT --gas-price and let cast auto-estimate — never send an unusable 1-wei tx, which would
+  # burn every retry during an incident.
+  local GAS_PRICE
+  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
+  if [[ "$GAS_PRICE" =~ ^[0-9]+$ && "$GAS_PRICE" -gt 0 ]]; then
+    local GAS_PRICE_BUF=$((GAS_PRICE * GAS_ESTIMATE_MULTIPLIER / 100))
+    [[ "$GAS_PRICE_BUF" -lt 1 ]] && GAS_PRICE_BUF=1
+    CAST_EXTRA+=(--gas-price "$GAS_PRICE_BUF")
+  else
+    bgWarning "[network: $NETWORK] gas-price unavailable; letting cast auto-estimate"
+  fi
+
   cast send "$DIAMOND" "$CALLDATA" \
     --rpc-url "$RPC_URL" \
     --private-key "$KEY" \
     --legacy \
-    --gas-price "$GAS_PRICE_BUF" \
     "${CAST_EXTRA[@]}"
   local CAST_EXIT=$?
   if [[ $CAST_EXIT -eq 0 && "$USE_ASYNC" == "true" ]]; then
