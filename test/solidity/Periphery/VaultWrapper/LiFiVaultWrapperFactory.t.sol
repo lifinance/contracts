@@ -5,8 +5,9 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/Periphery/VaultWrapper/mocks/MockVaultWrapper.sol";
-import { FeeType } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, DeployParams, FeeConfig } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
@@ -144,5 +145,70 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(a, b);
         assertTrue(a != c);
         assertTrue(a != address(0));
+    }
+
+    MockERC4626Underlying internal underlying;
+    address internal assetToken = makeAddr("asset");
+
+    function _enableUnderlyingAndBounds() internal {
+        underlying = new MockERC4626Underlying(assetToken);
+        vm.startPrank(owner);
+        factory.setUnderlyingAllowed(address(underlying), true);
+        factory.setFeeBounds(FeeType.Performance, 0, 5000);
+        vm.stopPrank();
+    }
+
+    function _params(
+        address integrator_,
+        uint256 nonce_
+    ) internal view returns (DeployParams memory p) {
+        uint16[4] memory rates = [uint16(1000), 0, 0, 0];
+        bool[4] memory enabled = [true, false, false, false];
+        p = DeployParams({
+            integrator: integrator_,
+            underlying: address(underlying),
+            chainLockId: 0,
+            nonce: nonce_,
+            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            initData: hex"1234"
+        });
+    }
+
+    function test_OnboardingManagerDeploysAndWiresClone() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+
+        address predicted = factory.predictAddress(
+            integrator,
+            address(underlying),
+            0
+        );
+
+        vm.prank(onboarder);
+        address instance = factory.deploy(p);
+
+        assertEq(instance, predicted);
+        assertTrue(factory.isInstance(instance));
+
+        MockVaultWrapper w = MockVaultWrapper(instance);
+        assertTrue(w.initialized());
+        assertEq(w.asset(), assetToken);
+        assertEq(w.underlying(), address(underlying));
+        assertEq(w.integrator(), integrator);
+        assertEq(w.chainLockId(), 0);
+        assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
+        assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
+        assertEq(w.initData(), hex"1234");
+    }
+
+    function test_ApprovedIntegratorSelfDeploys() public {
+        _enableUnderlyingAndBounds();
+        vm.prank(onboarder);
+        factory.setIntegratorApproved(integrator, true);
+
+        DeployParams memory p = _params(integrator, 0);
+        vm.prank(integrator);
+        address instance = factory.deploy(p);
+        assertTrue(factory.isInstance(instance));
     }
 }

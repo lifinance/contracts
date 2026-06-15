@@ -3,7 +3,9 @@ pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "../../Helpers/TransferrableOwnership.sol";
 import { InvalidConfig, InvalidContract, UnAuthorized } from "../../Errors/GenericErrors.sol";
-import { FeeType, FeeBounds } from "./LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
 /// @title LiFiVaultWrapperFactory
@@ -226,5 +228,91 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
         if (_feeType == FeeType.Deposit) return CAP_DEPOSIT_BPS;
         return CAP_WITHDRAWAL_BPS;
+    }
+
+    /// @notice Deploy a new wrapper instance for an integrator.
+    /// @dev Caller must be the onboarding manager, or an approved integrator
+    ///      deploying for itself (`_params.integrator == msg.sender`).
+    /// @param _params The deployment parameters.
+    /// @return instance The address of the newly deployed wrapper clone.
+    function deploy(
+        DeployParams calldata _params
+    ) external returns (address instance) {
+        if (msg.sender != onboardingManager) {
+            if (!approvedIntegrator[msg.sender]) revert UnAuthorized();
+            if (_params.integrator != msg.sender) revert IntegratorMismatch();
+        }
+        if (_params.integrator == address(0)) revert InvalidConfig();
+        if (!allowedUnderlying[_params.underlying])
+            revert UnderlyingNotAllowed();
+
+        address asset = _probeUnderlying(_params.underlying);
+
+        if (_params.chainLockId != 0 && _params.chainLockId != block.chainid)
+            revert ChainLockMismatch();
+
+        _validateFees(_params.fees);
+
+        bytes32 salt = _salt(
+            _params.integrator,
+            _params.underlying,
+            _params.nonce
+        );
+        if (instanceBySalt[salt] != address(0)) revert InstanceAlreadyExists();
+
+        instance = LibClone.deployDeterministicERC1967BeaconProxy(
+            beacon,
+            salt
+        );
+
+        instanceBySalt[salt] = instance;
+        isInstance[instance] = true;
+        allInstances.push(instance);
+
+        ILiFiVaultWrapper(instance).initialize(
+            asset,
+            _params.underlying,
+            _params.integrator,
+            _params.chainLockId,
+            _params.fees,
+            _params.initData
+        );
+
+        emit WrapperDeployed(
+            instance,
+            _params.integrator,
+            _params.underlying,
+            _params.chainLockId,
+            _params.nonce,
+            salt
+        );
+    }
+
+    function _probeUnderlying(
+        address _underlying
+    ) internal view returns (address asset) {
+        if (_underlying.code.length == 0) revert UnderlyingProbeFailed();
+        try IERC4626(_underlying).asset() returns (address a) {
+            if (a == address(0)) revert UnderlyingProbeFailed();
+            asset = a;
+        } catch {
+            revert UnderlyingProbeFailed();
+        }
+        try IERC4626(_underlying).totalAssets() returns (uint256) {} catch {
+            revert UnderlyingProbeFailed();
+        }
+    }
+
+    function _validateFees(FeeConfig calldata _fees) internal view {
+        for (uint8 i; i < 4; ++i) {
+            if (!_fees.enabled[i]) {
+                if (_fees.rateBps[i] != 0) revert DisabledFeeMustBeZero();
+                continue;
+            }
+            uint16 rate = _fees.rateBps[i];
+            if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();
+            FeeBounds memory b = feeBounds[FeeType(i)];
+            if (rate < b.minBps || rate > b.maxBps) revert FeeRateAboveBound();
+        }
     }
 }
