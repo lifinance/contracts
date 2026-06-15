@@ -112,4 +112,94 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
             defaultLifiShareBps[FeeType(i)] = DEFAULT_LIFI_SHARE_BPS;
         }
     }
+
+    /// Config (owner / timelock) ///
+
+    /// @notice Add or remove an ERC4626 vault from the deploy allowlist.
+    function setUnderlyingAllowed(
+        address _underlying,
+        bool _allowed
+    ) external onlyOwner {
+        if (_underlying == address(0)) revert InvalidConfig();
+        allowedUnderlying[_underlying] = _allowed;
+        emit UnderlyingAllowedSet(_underlying, _allowed);
+    }
+
+    /// @notice Set adjustable min/max bps bounds for a fee type (within the immutable cap).
+    function setFeeBounds(
+        FeeType _feeType,
+        uint16 _minBps,
+        uint16 _maxBps
+    ) external onlyOwner {
+        if (_minBps > _maxBps || _maxBps > _cap(_feeType))
+            revert InvalidConfig();
+        feeBounds[_feeType] = FeeBounds(_minBps, _maxBps);
+        emit FeeBoundsSet(_feeType, _minBps, _maxBps);
+    }
+
+    /// @notice Set the default LI.FI share (bps) applied to new instances for a fee type.
+    function setDefaultSplit(
+        FeeType _feeType,
+        uint16 _lifiBps
+    ) external onlyOwner {
+        if (_lifiBps > BPS_DENOMINATOR) revert InvalidConfig();
+        defaultLifiShareBps[_feeType] = _lifiBps;
+        emit DefaultSplitSet(_feeType, _lifiBps);
+    }
+
+    /// @notice Rotate the emergency pauser role.
+    function setEmergencyPauser(address _newPauser) external onlyOwner {
+        if (_newPauser == address(0)) revert InvalidConfig();
+        address prev = emergencyPauser;
+        emergencyPauser = _newPauser;
+        emit RoleRotated(ROLE_EMERGENCY_PAUSER, prev, _newPauser);
+    }
+
+    /// @notice Rotate the onboarding manager role.
+    function setOnboardingManager(address _newManager) external onlyOwner {
+        if (_newManager == address(0)) revert InvalidConfig();
+        address prev = onboardingManager;
+        onboardingManager = _newManager;
+        emit RoleRotated(ROLE_ONBOARDING_MANAGER, prev, _newManager);
+    }
+
+    /// Integrator onboarding (onboarding manager) ///
+
+    /// @notice Approve or revoke an integrator's right to self-deploy instances.
+    function setIntegratorApproved(
+        address _integrator,
+        bool _approved
+    ) external onlyOnboardingManager {
+        if (_integrator == address(0)) revert InvalidConfig();
+        approvedIntegrator[_integrator] = _approved;
+        emit IntegratorApprovedSet(_integrator, _approved);
+    }
+
+    /// Global circuit breaker (emergency pauser) ///
+
+    /// @notice Halt deposits across every clone.
+    function globalPause() external onlyEmergencyPauser {
+        globalPaused = true;
+        emit GlobalPauseSet(true, msg.sender);
+    }
+
+    /// @notice Resume deposits across every clone.
+    function globalUnpause() external onlyEmergencyPauser {
+        globalPaused = false;
+        emit GlobalPauseSet(false, msg.sender);
+    }
+
+    /// @notice Whether deposits are globally halted; read by every clone.
+    function isGlobalPaused() external view returns (bool) {
+        return globalPaused;
+    }
+
+    /// Internal ///
+
+    function _cap(FeeType _feeType) internal pure returns (uint16) {
+        if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;
+        if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
+        if (_feeType == FeeType.Deposit) return CAP_DEPOSIT_BPS;
+        return CAP_WITHDRAWAL_BPS;
+    }
 }
