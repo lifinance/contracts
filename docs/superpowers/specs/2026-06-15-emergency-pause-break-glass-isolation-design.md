@@ -17,7 +17,7 @@ through `propose-to-safe.ts` because production `sendOrPropose` unconditionally 
 to the Safe, even though the pauser is a non-Safe-owner EOA that must send directly.
 
 Static cross-reference (a PR comment listing callers) and a behavioural routing smoke
-test reduce the risk but do not eliminate it: the pause path still *rides on* the shared
+test reduce the risk but do not eliminate it: the pause path still _rides on_ the shared
 library, so any unmodelled change can still ship. The incident-critical "break glass"
 path needs a stronger guarantee than "we'll probably notice."
 
@@ -27,7 +27,7 @@ path needs a stronger guarantee than "we'll probably notice."
   not be able to alter the production emergency-pause behaviour — enforced mechanically,
   not by review vigilance.
 - **(B) Continuous confidence (secondary):** ongoing proof that the pause path actually
-  fires, exercising the *real* frozen code.
+  fires, exercising the _real_ frozen code.
 
 ### Non-goals
 
@@ -35,7 +35,7 @@ path needs a stronger guarantee than "we'll probably notice."
   `scriptMaster.sh`) wholesale. It does more than pause — **unpause** (`unpauseDiamond`
   via Safe/Timelock governance) and **remove-facet** (`removeFacet`) — and those
   owner/governance paths legitimately need the shared library's `sendOrPropose →
-  propose-to-safe` routing. Only its **pause** action is in scope here (see "Callers &
+propose-to-safe` routing. Only its **pause** action is in scope here (see "Callers &
   wiring": it delegates pause to the break-glass script). Its unpause / remove-facet
   actions are unchanged.
 - Changing the on-chain authorization model (`EmergencyPauseFacet` /
@@ -53,7 +53,7 @@ The isolation boundary is **code, not data**:
 
 Consequence: a newly-added production **EVM** diamond is **auto-covered** (read from the
 live deploy logs, no code edit), while the churny routing code cannot touch the pause
-path. The only residual drift is a rare *structural* change (e.g. the `troncast`
+path. The only residual drift is a rare _structural_ change (e.g. the `troncast`
 invocation, or a new non-EVM ecosystem), which is already caught by the team's practice
 of **live-testing the pause on a freshly-added production diamond during onboarding**,
 before that diamond is backend-integrated.
@@ -65,8 +65,8 @@ before that diamond is backend-integrated.
 2. **Tron is effectively broken in today's GitHub pause path.** `troncast` exposes only
    `address` / `call` / `code` / `send` — **no `balance`** — yet
    `diamondEMERGENCYPauseGitHub.sh` runs its pre-checks with EVM-only `cast wallet
-   address` + `cast balance --rpc-url`. For Tron that errors on RPC lookup or runs
-   `cast balance` against `api.trongrid.io` (not EVM JSON-RPC) and fails *before* the
+address` + `cast balance --rpc-url`. For Tron that errors on RPC lookup or runs
+   `cast balance` against `api.trongrid.io` (not EVM JSON-RPC) and fails _before_ the
    troncast dispatch. The isolated rewrite fixes this by branching every operation
    through `troncast` for Tron and skipping the unsupported native-balance pre-check.
 3. The same private key controls both the EVM pauser and the Tron pauser address (Tron
@@ -124,24 +124,15 @@ trivial. Expected size ~300 lines (network loop + checks + dispatch + summary).
    `networks.staging.json` is read — staging vs production differ only in this network set and in
    the deploy-log filename (step "Resolve diamond").
 2. Branch on a vendored `isTron` check (`tron` / `tronshasta`):
-   - **EVM:**
-     - Resolve RPC from `ETH_NODE_URI_<UPPER, "-"→"_">`.
-     - Resolve diamond from the deploy log.
-     - Pre-checks: `cast wallet address` → pauser address; `cast balance` > 0;
-       `cast call owner()` to detect already-paused (`DiamondIsPaused` selector
-       `0x0149422e`, i.e. `bytes4(keccak256("DiamondIsPaused()"))` — `owner()` reverts with
-       this once the diamond is paused); `cast call pauserWallet()` matches the pauser address.
-     - Dispatch: `cast send <diamond> <pauseDiamond-calldata> --rpc-url … --private-key …
-       --legacy --gas-price <buffered> --confirmations 1` (verbatim from
-       `universalSendRaw`'s EVM branch, incl. the `GAS_ESTIMATE_MULTIPLIER` gas buffer).
-   - **Tron:**
-     - `troncast --env <mainnet|testnet>` for all `call` / `send`.
-     - Pauser address via vendored `evmToTron` base58 conversion.
-     - **Native-balance pre-check skipped** (no `troncast balance`) — documented; the
-       final pause verification still confirms success.
-     - `owner()` / `pauserWallet()` checks via `troncast call`.
-     - Dispatch via `troncast send <diamond> "" --calldata <pauseDiamond-calldata>
-       --env <env> --private-key … --confirm`.
+   - **EVM:** - Resolve RPC from `ETH_NODE_URI_<UPPER, "-"→"_">`. - Resolve diamond from the deploy log. - Pre-checks: `cast wallet address` → pauser address; `cast balance` > 0;
+     `cast call owner()` to detect already-paused (`DiamondIsPaused` selector
+     `0x0149422e`, i.e. `bytes4(keccak256("DiamondIsPaused()"))` — `owner()` reverts with
+     this once the diamond is paused); `cast call pauserWallet()` matches the pauser address. - Dispatch: `cast send <diamond> <pauseDiamond-calldata> --rpc-url … --private-key …
+--legacy --gas-price <buffered> --confirmations 1` (verbatim from
+     `universalSendRaw`'s EVM branch, incl. the `GAS_ESTIMATE_MULTIPLIER` gas buffer).
+   - **Tron:** - `troncast --env <mainnet|testnet>` for all `call` / `send`. - Pauser address via vendored `evmToTron` base58 conversion. - **Native-balance pre-check skipped** (no `troncast balance`) — documented; the
+     final pause verification still confirms success. - `owner()` / `pauserWallet()` checks via `troncast call`. - Dispatch via `troncast send <diamond> "" --calldata <pauseDiamond-calldata>
+--env <env> --private-key … --confirm`.
 3. Final verification (both ecosystems): `owner()` must revert with `DiamondIsPaused`,
    with retries to cushion read-after-write lag. This is the canonical truth source for
    whether the diamond ended up paused (regardless of who paused it).
@@ -169,16 +160,26 @@ trivial. Expected size ~300 lines (network loop + checks + dispatch + summary).
 
 ## Callers & wiring
 
-The break-glass script is the **single source of truth for how we pause**. Three callers:
+The break-glass script is the **single source of truth for how we pause**. Two callers:
 
-- `diamondEmergencyPause.yml` "Pause Diamond" step → `bash
-  script/emergency/emergencyPauseBreakGlass.sh` (env defaults to `production`, all networks).
-- `diamondEmergencyPauseStaging.yml` → same script with `ENVIRONMENT=staging` and the
-  staging network subset.
+- `diamondEmergencyPause.yml` → `bash script/emergency/emergencyPauseBreakGlass.sh`. In its
+  permanent (production) form it runs with `ENVIRONMENT=production`, the prod pauser secret, the
+  SC-general Slack channel, and the DiamondPauser membership gate.
+  - **Pre-merge testing caveat (temporary):** to dry-run the new script on real staging chains
+    _before_ this branch merges, this workflow is — **on this branch only** — temporarily
+    hardcoded to `staging` (staging secret, staging-drill Slack channel, membership gate
+    disabled), every changed block tagged `TEMP-STAGING`. It is dispatched against this feature
+    branch ref (GitHub runs that ref's copy of the file). An `environment` _input_ can't serve
+    this because `workflow_dispatch` inputs are read from the **default branch**. **This staging
+    hardcode MUST be reverted to production before merge** (the workflow header lists the exact
+    revert steps); merging it as-is would neuter the prod pause button.
+  - **Open follow-up:** a permanent post-merge staging dry-run mechanism (re-introduce a
+    standalone staging workflow once it can register on `main`, or an `environment` input once
+    it lives on the default branch). Tracked under EXSC-368.
 - **CLI ops tool** (`script/tasks/diamondEMERGENCYPause.sh`): its **"pause entirely"**
   action stops calling `universalCast "send"` (the EXSC-367 trap) and instead invokes the
   break-glass script as a subprocess, passing the selected `NETWORK` (single or all) and
-  `ENVIRONMENT=production`. Because the dependency points *into* the frozen script (a
+  `ENVIRONMENT=production`. Because the dependency points _into_ the frozen script (a
   subprocess call), the break-glass script's isolation is preserved — it still sources
   nothing, and the grep-guard still passes. The CLI's **unpause** and **remove-facet**
   actions are unchanged (they keep using the shared lib's governance routing).
@@ -188,6 +189,10 @@ Removed:
 - **Delete** `script/utils/diamondEMERGENCYPauseGitHub.sh` and
   `script/utils/diamondEMERGENCYPauseStagingGitHub.sh` — both superseded by the break-glass
   script.
+- **Delete** the standalone `diamondEmergencyPauseStaging.yml` — it can't be `workflow_dispatch`-ed
+  until it's on `main`, so it's useless for the pre-merge dry-run. Staging is exercised instead via
+  the temporary `TEMP-STAGING` override of `diamondEmergencyPause.yml` on this branch (see "Callers
+  & wiring"); a permanent post-merge mechanism is an open follow-up.
 - **Drop** the `universalCastGuardrails.yml` workflow and
   `script/tasks/universalCastRoutingSmokeTest.sh` (the EXSC-368 (a) caller-check + (b)
   routing smoke test). They existed to protect a pause path that depended on `universalCast`;
@@ -197,7 +202,7 @@ Removed:
 Unchanged:
 
 - The EXSC-371 runbook Slack link (the `EMERGENCY_PAUSE_RUNBOOK_URL` repository variable)
-  stays in both workflows.
+  stays in the pause workflow (both the production and staging notification paths).
 
 ## Enforcement & protection
 
@@ -205,24 +210,25 @@ Unchanged:
   **non-comment** line in `script/emergency/*.sh` contains a `source ` statement or
   invokes `universalCast` / `universalSend` / `universalSendRaw` / `universalCall` /
   `universalCode` / `sendOrPropose` / references `helperFunctions`. Comment lines are
-  stripped first so a comment explaining *why* the script avoids the shared lib does not
+  stripped first so a comment explaining _why_ the script avoids the shared lib does not
   trip the guard. This is the mechanical guarantee behind Goal A.
 - **Anvil smoke test** for the isolated EVM dispatch: prove that the frozen `cast send`
   path actually signs and broadcasts against a local Anvil node (the pauser-key scenario).
   The break-glass script has no propose-vs-direct routing decision to assert — it always
   sends directly — so this test just proves the dispatch broadcasts.
-- **Staging dry-run** (`diamondEmergencyPauseStaging.yml`, manual `workflow_dispatch`):
-  runs the isolated script on real staging chains → continuous proof of the frozen path
-  (Goal B). No auto-unpause; a human unpauses staging after the drill. Note: the staging
-  subset is EVM-only (no staging Tron diamond), so the frozen **Tron** path is validated
-  by the Anvil/structural review and the onboarding live-test rather than the dry-run.
+- **Staging dry-run** (`diamondEmergencyPause.yml` under its temporary `TEMP-STAGING` override,
+  manual `workflow_dispatch` against this branch ref): runs the isolated script on real staging
+  chains → proof of the frozen path (Goal B) before merge. No auto-unpause; a human unpauses
+  staging after the drill. Note: the staging subset is EVM-only (no staging Tron diamond), so the
+  frozen **Tron** path is validated by the Anvil/structural review and the onboarding live-test
+  rather than the dry-run. (Permanent post-merge mechanism: open follow-up — see "Callers & wiring".)
 - **CODEOWNERS** for `script/emergency/` → SC-core team. No CODEOWNERS file exists today,
   so this creates a scoped one. Recommended; separable from the core change.
 - **Information Security Manager approval gate.** Extend
   `.github/workflows/protectSecurityRelevantCode.yml` so the `script/emergency/` directory
   joins `.github/` and `.husky/pre-commit` as protected paths. Today that workflow guards
-  only `.github/**` and `.husky/pre-commit`, so the pause *workflows* already require ISM
-  approval but the pause *scripts* (under `script/`) do not — this closes that gap for the
+  only `.github/**` and `.husky/pre-commit`, so the pause _workflows_ already require ISM
+  approval but the pause _scripts_ (under `script/`) do not — this closes that gap for the
   break-glass logic. Concretely, the protected-path match becomes
   `'^\.github/|^\.husky/pre-commit|^script/emergency/'`, and the workflow's header comment
   is updated to list the emergency-pause scripts. Any PR touching `script/emergency/*` then
@@ -239,7 +245,7 @@ Unchanged:
   **dropped** — the pause path no longer rides on `universalCast`, so guarding that layer
   for the pause's sake is moot. The ticket's intent ("make sure the critical scripts still
   work when dependencies change") is now met more strongly by **isolation + enforcement**:
-  the grep-guard (the pause path *cannot* depend on the churny layer), the break-glass
+  the grep-guard (the pause path _cannot_ depend on the churny layer), the break-glass
   Anvil dispatch test, and the staging dry-run (c) on the isolated script.
 
 ## Drift management
@@ -261,9 +267,9 @@ production diamond before it goes live.
 
 ## End-to-end testing checklist (manual — operator-run)
 
-> ⚠️ **HARD SAFETY RULE: never trigger the *production* pause workflow as a test.** It pauses
+> ⚠️ **HARD SAFETY RULE: never trigger the _production_ pause workflow as a test.** It pauses
 > every production diamond. The only real-chain pause tests are (1) the **staging** dry-run
-> and (2) the **onboarding live-test** on a brand-new prod diamond that is *not yet*
+> and (2) the **onboarding live-test** on a brand-new prod diamond that is _not yet_
 > backend-integrated. Every real pause MUST be followed by a verified **unpause**.
 
 ### Phase 0 — Preconditions (before any real-chain pause)
@@ -274,7 +280,7 @@ production diamond before it goes live.
 - [ ] Run the read-only **Verify Emergency Pause Readiness** workflow (`workflow_dispatch`)
       and confirm all checks are green: pauser secret matches config, on-chain `pauserWallet()`
       matches, timelock/Safe governance OK, pauser wallet funded. This validates secrets,
-      RPCs, and deploy-log lookups *without* pausing anything.
+      RPCs, and deploy-log lookups _without_ pausing anything.
 
 ### Phase 1 — Offline / local (safe; no real chains, no state change)
 
@@ -282,26 +288,32 @@ production diamond before it goes live.
 - [ ] **Isolation grep-guard** passes locally: the script contains no `source ` statement and
       no non-comment reference to `universalCast` / `universalSend*` / `universalCall` /
       `universalCode` / `sendOrPropose` / `helperFunctions`. (Then deliberately add one such
-      line in a scratch copy and confirm the guard *fails* — proves the guard works.)
+      line in a scratch copy and confirm the guard _fails_ — proves the guard works.)
 - [ ] **Anvil dispatch test** passes: against a local Anvil node, the script's EVM dispatch
       signs + broadcasts a real `pauseDiamond()` tx from the pauser-key path (nonce advances).
 - [ ] **EXSC-507 negative tests**: feed the script an empty key, a too-short key, and a
-      non-hex key → each fails *before* any network work with a clear, format-specific error.
+      non-hex key → each fails _before_ any network work with a clear, format-specific error.
       Feed a valid key with and without the `0x` prefix and with surrounding whitespace →
       both are accepted and derive the identical pauser address.
 
 ### Phase 2 — Staging dry-run (real chains; pauses STAGING only)
 
-- [ ] Trigger **"EMERGENCY >> Pause STAGING diamonds"** (`workflow_dispatch`, type
-      `UNDERSTOOD`). Confirm it runs the break-glass script with `ENVIRONMENT=staging`.
+- [ ] Trigger **"EMERGENCY >> Pause all PROD diamonds"** via `workflow_dispatch` with
+      `warning=UNDERSTOOD` and **`ref` set to this feature branch** (so GitHub runs this branch's
+      `TEMP-STAGING` copy, which pauses staging). Confirm it runs the break-glass script with
+      `ENVIRONMENT=staging`, uses the staging pauser secret, posts to the staging-drill Slack
+      channel, and that the DiamondPauser membership gate is skipped.
 - [ ] Each staging network (bsc/arbitrum/optimism/base): log shows pauser-balance OK,
       `pauserWallet()` match, pause tx sent **directly** (no `propose-to-safe` invocation in
       the logs), and final verification reports the diamond paused (`DiamondIsPaused`).
 - [ ] Re-run the workflow while staging is already paused → it detects "already paused" and
       exits cleanly (idempotent), no error.
-- [ ] **Slack (EXSC-371)**: the SC-general message renders on its own lines with `Status:`,
+- [ ] **Slack (EXSC-371)**: the staging-drill message renders on its own lines with `Status:`,
       `GH run:` (clickable), and `Runbook:` showing the `EMERGENCY_PAUSE_RUNBOOK_URL` value
       (or the explicit "not configured" fallback if the repo variable is unset).
+- [ ] **Before merge**: revert the `TEMP-STAGING` blocks in `diamondEmergencyPause.yml` back to
+      production (see the workflow header's revert checklist) and confirm the diff is
+      production-only.
 - [ ] **UNPAUSE staging** (CLI tool → "unpause the diamond", or the staging owner key) and
       verify every staging diamond is live again (`owner()` returns the address, no revert).
 
@@ -309,7 +321,7 @@ production diamond before it goes live.
 
 - [ ] In `scriptMaster.sh` → emergency pause, choose **one** staging network and the "pause
       entirely" action. Confirm the CLI invokes the break-glass script (not `universalCast
-      "send"`) and that single staging diamond pauses directly. **Unpause it afterwards.**
+  "send"`) and that single staging diamond pauses directly. **Unpause it afterwards.**
 - [ ] Confirm the CLI's **unpause** and **remove-facet** actions still work (unchanged,
       shared-lib governance path) — at minimum a dry/dispatch check that they route to the
       Safe/Timelock as before.
@@ -364,11 +376,11 @@ production diamond before it goes live.
 
 - **In-repo (not in this design's scope):** the CLI ops tool's **remove-facet** action
   (`removeFacet(address)` via `universalCast "send" … production … pauserKey`) carries the
-  *same* EXSC-367 trap as the old pause action — `removeFacet` is `OnlyPauserWalletOrOwner`,
+  _same_ EXSC-367 trap as the old pause action — `removeFacet` is `OnlyPauserWalletOrOwner`,
   so from the pauser EOA it should send directly, not propose to the Safe. Not fixed here
   (this branch's decision was scoped to the pause action); worth a follow-up ticket.
 - **Optional:** dropping `universalCastGuardrails.yml` also removes the advisory routing
-  guard for the *non-critical* `universalCast` callers (deploy / sync / update scripts).
+  guard for the _non-critical_ `universalCast` callers (deploy / sync / update scripts).
   They were never the EXSC-368 concern; if a routing-regression guard is wanted for them,
   it can be a separate, clearly-scoped ticket — not part of the break-glass isolation.
 - **Outside this repo:**
