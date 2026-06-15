@@ -29,8 +29,8 @@ source ./script/helperFunctions.sh
 # (script/emergency/emergencyPauseBreakGlass.sh).
 #
 # Why duplicated and not shared: the break-glass script is incident-critical and deliberately
-# FROZEN/ISOLATED — it must not source the shared library (enforced by emergencyPauseGuard.yml),
-# so there is intentionally no shared helper to consolidate into. This read-only companion keeps
+# FROZEN/ISOLATED — it must not source the shared library, so there is intentionally no shared
+# helper to consolidate into. This read-only companion keeps
 # its own copy on purpose; a divergence here is not catastrophic (it only mis-reports readiness),
 # whereas coupling the pause path to shared code is exactly the EXSC-367 risk we removed. When
 # the break-glass read/compare logic changes, mirror it here too.

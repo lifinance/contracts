@@ -12,9 +12,8 @@
 # `source` script/helperFunctions.sh or script/universalCast.sh, and MUST NOT call any of
 # universalCast / universalSend / universalSendRaw / universalCall / universalCode /
 # sendOrPropose. The emergency pause is incident-critical; coupling it to that churny routing
-# layer is exactly what caused the EXSC-367 Safe-proposal regression. A CI guard
-# (emergencyPauseGuard.yml) fails the build if this isolation is violated, and changes here
-# require Information Security Manager approval (protectSecurityRelevantCode.yml).
+# layer is exactly what caused the EXSC-367 Safe-proposal regression. Changes here require
+# Information Security Manager approval (protectSecurityRelevantCode.yml protects script/emergency/).
 # "Frozen code, live data": the dispatch logic is frozen, but the network list and diamond
 # addresses are read live from config/networks.json + deployments/* so newly-added prod EVM
 # diamonds are covered automatically. See script/emergency/README.md.

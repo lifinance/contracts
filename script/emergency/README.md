@@ -26,13 +26,8 @@ It still **reads live data** — `config/networks.json`, `deployments/*.json` �
 production **EVM** diamond is covered automatically without editing this script
 ("frozen code, live data").
 
-This isolation is enforced two ways:
-
-1. **CI guard** (`.github/workflows/emergencyPauseGuard.yml`) fails the build if any
-   `script/emergency/*.sh` gains a `source` statement or a reference to the shared routing
-   functions.
-2. **Information Security Manager approval** is required for any change here
-   (`.github/workflows/protectSecurityRelevantCode.yml` protects `script/emergency/`).
+This isolation is enforced by **Information Security Manager approval**: any change here
+requires review (`.github/workflows/protectSecurityRelevantCode.yml` protects `script/emergency/`).
 
 ## How to change it safely
 
@@ -42,8 +37,8 @@ This isolation is enforced two ways:
   pausing that diamond during onboarding, before it is backend-integrated, then unpausing.
 - Adding a new **non-EVM ecosystem**, or changing the `troncast` invocation, **does** require a
   change here — update the dispatch branch and run the onboarding live-test on the new diamond.
-- After any change, run the offline checks and the staging dry-run from the End-to-end testing
-  checklist in `docs/superpowers/specs/2026-06-15-emergency-pause-break-glass-isolation-design.md`.
+- After any change, run the offline checks (`bash -n`, the isolation guard) and a staging dry-run
+  before relying on the script.
 
 ## Usage
 
