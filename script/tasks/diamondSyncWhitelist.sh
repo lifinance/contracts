@@ -241,12 +241,12 @@ function diamondSyncWhitelist {
     local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
 
     # Combined remove+add proposal route [CONV:ROUTING-PREDICATE]:
-    # When a sync needs BOTH removals and additions on the EVM timelock-proposal route,
-    # all calldatas are wrapped into ONE timelock scheduleBatch proposal (single signing
-    # round, removals execute before additions). Tron batching is deferred: the Tron
-    # timelock (scheduleBatch) and execute-pending-timelock-tx.ts already handle arrays,
-    # but propose-to-safe-tron.ts takes a single call today, so Tron stays on the
-    # sequential route. The flag is finalized once REMOVED_PAIRS/NEW_PAIRS are known.
+    # When a sync needs BOTH removals and additions on the timelock-proposal route
+    # (EVM or Tron production), all calldatas are wrapped into ONE timelock
+    # scheduleBatch proposal (single signing round, removals execute before
+    # additions). Tron staging stays on the sequential route: its cast-calldata
+    # path needs hex-converted addresses, which only the Tron production branch
+    # produces. The flag is finalized once REMOVED_PAIRS/NEW_PAIRS are known.
     local COMBINE_REMOVE_ADD_PROPOSAL=false
     local PENDING_PROPOSAL_CALLDATAS=""
 
@@ -822,7 +822,10 @@ function diamondSyncWhitelist {
     # unexecutable proposal that atomically blocks the removal (recoverable only
     # by cancel + re-propose). Above the cap, use the sequential-proposal flow.
     local COMBINED_PROPOSAL_MAX_PAIRS=300
-    if [[ "$IS_TRON" == "false" && "$TIMELOCK_FLAG" == "true" && ${#REMOVED_PAIRS[@]} -gt 0 && ${#NEW_PAIRS[@]} -gt 0 ]]; then
+    # EVM on the timelock route, or Tron production (Tron staging stays sequential —
+    # its cast-calldata path only produces hex-converted addresses in production)
+    if [[ "$TIMELOCK_FLAG" == "true" && ${#REMOVED_PAIRS[@]} -gt 0 && ${#NEW_PAIRS[@]} -gt 0 ]] \
+       && [[ "$IS_TRON" == "false" || "$ENVIRONMENT" == "production" ]]; then
       if ((${#REMOVED_PAIRS[@]} + ${#NEW_PAIRS[@]} <= COMBINED_PROPOSAL_MAX_PAIRS)); then
         COMBINE_REMOVE_ADD_PROPOSAL=true
       else
@@ -914,7 +917,9 @@ function diamondSyncWhitelist {
         # the calldata takes the safe fallback path instead of poisoning the batch
         local CAST_STDERR_FILE
         CAST_STDERR_FILE=$(mktemp)
-        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$REMOVE_CONTRACTS_ARRAY]" "[$REMOVE_SELECTORS_ARRAY]" "false" 2>"$CAST_STDERR_FILE")
+        # Use CONTRACTS_FOR_SEND (hex-converted on Tron production; identical to the
+        # base58 array on EVM) so address[] ABI-encoding gets 20-byte hex addresses
+        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_SEND]" "[$REMOVE_SELECTORS_ARRAY]" "false" 2>"$CAST_STDERR_FILE")
         if [[ "$REMOVE_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
           PENDING_PROPOSAL_CALLDATAS="$REMOVE_CALLDATA"
           REMOVAL_DEFERRED=true
@@ -1106,7 +1111,9 @@ function diamondSyncWhitelist {
           # stdout only + strict single-line hex match (see removal-side comment)
           local ADD_CAST_STDERR_FILE
           ADD_CAST_STDERR_FILE=$(mktemp)
-          ADD_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$BATCH_CONTRACTS_ARRAY]" "[$BATCH_SELECTORS_ARRAY]" "true" 2>"$ADD_CAST_STDERR_FILE")
+          # CONTRACTS_FOR_SEND is hex-converted on Tron production (identical to the
+          # base58 array on EVM), so address[] ABI-encoding gets 20-byte hex addresses
+          ADD_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_SEND]" "[$BATCH_SELECTORS_ARRAY]" "true" 2>"$ADD_CAST_STDERR_FILE")
           if [[ "$ADD_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
             PENDING_PROPOSAL_CALLDATAS+=",$ADD_CALLDATA"
             echoSyncStep "🧩 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES added to combined proposal ($BATCH_COUNT pairs)"

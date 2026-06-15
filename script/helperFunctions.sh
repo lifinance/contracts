@@ -3744,8 +3744,8 @@ function getPrivateKey() {
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
 #
 # Routing/Behavior for multiple calldatas:
-#   - EVM propose route with timelock=true: combined into ONE timelock scheduleBatch proposal (single signing round)
-#   - All other routes (direct send, Tron propose, propose without timelock): multiple calldatas are REJECTED —
+#   - EVM or Tron propose route with timelock=true (production): combined into ONE timelock scheduleBatch proposal (single signing round)
+#   - All other routes (direct send, propose without timelock, staging/testnet): multiple calldatas are REJECTED —
 #     no caller needs sequential fan-out there, and untested generality around value-moving calls is a liability
 #
 # Returns: 0 on success; non-zero (first failing call) otherwise
@@ -3783,18 +3783,17 @@ function sendOrPropose() {
     fi
   done
 
-  # Multiple calldatas are only meaningful on the EVM propose-with-timelock
-  # route, where they combine into ONE scheduleBatch proposal. The only caller
-  # that passes multiple (diamondSyncWhitelist.sh Stage 4c) is gated on exactly
-  # that route; sequential fan-out on the other routes would be untested dead
-  # generality, so fail loudly instead of improvising semantics here.
+  # Multiple calldatas are only meaningful on the propose-with-timelock route
+  # (EVM or Tron), where they combine into ONE scheduleBatch proposal. The only
+  # caller that passes multiple (diamondSyncWhitelist.sh Stage 4c) is gated on
+  # exactly that route; sequential fan-out on the other routes would be untested
+  # dead generality, so fail loudly instead of improvising semantics here.
   if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
     if [[ "$TIMELOCK" != "true" ]] \
        || [[ "$ENVIRONMENT" != "production" ]] \
        || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-       || isTestnetNetwork "$NETWORK" \
-       || isTronNetwork "$NETWORK"; then
-      error "sendOrPropose: multiple calldatas are only supported on the EVM propose-with-timelock route (production + timelock)"
+       || isTestnetNetwork "$NETWORK"; then
+      error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
       return 1
     fi
   fi
@@ -3818,18 +3817,25 @@ function sendOrPropose() {
     }
   fi
 
-  # Tron: propose to Safe via tron script (no batch support)
+  # Tron: propose to Safe via tron script. On the timelock route, repeated
+  # --to/--calldata pairs combine into ONE scheduleBatch proposal (matching EVM);
+  # the direct route is single-call only (multi already rejected above).
   if isTronNetwork "$NETWORK"; then
     local PROPOSE_TRON_CMD=(
       bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-      --to "$TARGET"
-      --calldata "${CALLDATAS[0]}"
-      --privateKey "$SAFE_SIGNER_KEY"
     )
     if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_TRON_CMD+=(--timelock)
+      for CD in "${CALLDATAS[@]}"; do
+        PROPOSE_TRON_CMD+=(--to "$TARGET" --calldata "$CD")
+      done
+      PROPOSE_TRON_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
     else
-      PROPOSE_TRON_CMD+=(--direct)
+      PROPOSE_TRON_CMD+=(
+        --to "$TARGET"
+        --calldata "${CALLDATAS[0]}"
+        --privateKey "$SAFE_SIGNER_KEY"
+        --direct
+      )
     fi
     "${PROPOSE_TRON_CMD[@]}" || return $?
     return 0
