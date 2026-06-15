@@ -89,7 +89,7 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
     /// @param _bridgeData The core information needed for bridging
     /// @param _{{camelCase name}}Data Data specific to {{properCase name}}
     function startBridgeTokensVia{{properCase name}}(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         {{properCase name}}Data calldata _{{camelCase name}}Data
     )
         external
@@ -100,6 +100,9 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // OPTIONAL — facet-specific input checks. If added, call the same
+        // validator at the top of both entry points (see Internal Methods).
+        // _validate{{properCase name}}Data(_{{camelCase name}}Data);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -135,6 +138,13 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
 
     /// Internal Methods ///
 
+    /// @dev OPTIONAL — facet-specific validation called from the entry points.
+    // function _validate{{properCase name}}Data(
+    //     {{properCase name}}Data calldata _{{camelCase name}}Data
+    // ) internal view {
+    //     // TODO: facet-specific checks (zero-address / empty-bytes / deadline)
+    // }
+
     /// @dev Contains the business logic for the bridge via {{properCase name}}
     /// @param _bridgeData The core information needed for bridging
     /// @param _{{camelCase name}}Data Data specific to {{properCase name}}
@@ -144,7 +154,19 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
         {{properCase name}}Data calldata _{{camelCase name}}Data
     ) internal {
         // TODO: Implement business logic (remove the solhint-disable comment
-        // above once _{{camelCase name}}Data is used)
+        // above once _{{camelCase name}}Data is used). Most bridge facets approve
+        // the router to pull the deposited token, then call it — e.g.:
+        //
+        //   import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+        //   LibAsset.maxApproveERC20(
+        //       IERC20(_bridgeData.sendingAssetId),
+        //       ROUTER, // immutable router/pool address set in the constructor
+        //       _bridgeData.minAmount
+        //   );
+        //   // ... call the bridge here, consuming _bridgeData.minAmount
+        //
+        // For bridges that do not support native, add the
+        // noNativeAsset(_bridgeData) modifier to the entry points.
         emit LiFiTransferStarted(_bridgeData);
     }
 }
