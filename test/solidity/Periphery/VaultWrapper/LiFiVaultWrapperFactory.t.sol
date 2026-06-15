@@ -338,4 +338,19 @@ contract LiFiVaultWrapperFactoryTest is Test {
         );
         factory.deploy(p);
     }
+
+    function test_EnumeratesInstances() public {
+        _enableUnderlyingAndBounds();
+        vm.startPrank(onboarder);
+        address i0 = factory.deploy(_params(integrator, 0));
+        address i1 = factory.deploy(_params(integrator, 1));
+        vm.stopPrank();
+
+        assertEq(factory.instancesLength(), 2);
+        address[] memory all = factory.getAllInstances();
+        assertEq(all.length, 2);
+        assertEq(all[0], i0);
+        assertEq(all[1], i1);
+        assertTrue(i0 != i1);
+    }
 }

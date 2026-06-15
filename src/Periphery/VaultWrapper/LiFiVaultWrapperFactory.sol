@@ -199,6 +199,16 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     /// Views ///
 
+    /// @notice Number of wrapper instances deployed by this factory.
+    function instancesLength() external view returns (uint256) {
+        return allInstances.length;
+    }
+
+    /// @notice All wrapper instances deployed by this factory.
+    function getAllInstances() external view returns (address[] memory) {
+        return allInstances;
+    }
+
     /// @notice The deterministic address a clone will have for the given key.
     function predictAddress(
         address _integrator,
