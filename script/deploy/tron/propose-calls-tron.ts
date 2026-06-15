@@ -19,9 +19,12 @@ export function normalizeTronProposeCalls(
   calldata: Hex | Hex[] | undefined,
   timelock: boolean | undefined
 ): { targets: string[]; calldatas: Hex[] } {
+  // length === 0 covers both an empty array and an empty string
+  if (to === undefined || to.length === 0)
+    throw new Error('--to must be provided')
+
   const targets = (Array.isArray(to) ? to : [to]) as string[]
 
-  // length === 0 covers both an empty array and an empty string
   if (calldata === undefined || calldata.length === 0)
     throw new Error('--calldata must be provided')
 

@@ -51,6 +51,24 @@ describe('normalizeTronProposeCalls', () => {
     ).toThrow(/must match/)
   })
 
+  it('rejects missing to (undefined)', () => {
+    expect(() =>
+      normalizeTronProposeCalls(undefined, CALLDATA_REMOVE, false)
+    ).toThrow(/--to/)
+  })
+
+  it('rejects an empty to array', () => {
+    expect(() =>
+      normalizeTronProposeCalls([], [CALLDATA_REMOVE], false)
+    ).toThrow(/--to/)
+  })
+
+  it('rejects an empty to string', () => {
+    expect(() => normalizeTronProposeCalls('', CALLDATA_REMOVE, false)).toThrow(
+      /--to/
+    )
+  })
+
   it('rejects missing calldata', () => {
     expect(() => normalizeTronProposeCalls(TARGET_A, undefined, false)).toThrow(
       /--calldata/
