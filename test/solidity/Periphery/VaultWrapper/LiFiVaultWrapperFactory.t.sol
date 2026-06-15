@@ -211,4 +211,131 @@ contract LiFiVaultWrapperFactoryTest is Test {
         address instance = factory.deploy(p);
         assertTrue(factory.isInstance(instance));
     }
+
+    function test_RandomCallerCannotDeploy() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        vm.prank(makeAddr("random"));
+        vm.expectRevert(UnAuthorized.selector);
+        factory.deploy(p);
+    }
+
+    function test_ApprovedIntegratorCannotDeployForOther() public {
+        _enableUnderlyingAndBounds();
+        vm.prank(onboarder);
+        factory.setIntegratorApproved(integrator, true);
+        DeployParams memory p = _params(makeAddr("other"), 0);
+        vm.prank(integrator);
+        vm.expectRevert(LiFiVaultWrapperFactory.IntegratorMismatch.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnDisallowedUnderlying() public {
+        underlying = new MockERC4626Underlying(assetToken);
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 0, 5000);
+        DeployParams memory p = _params(integrator, 0);
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.UnderlyingNotAllowed.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnProbeFailureNoCode() public {
+        address notAVault = makeAddr("eoa");
+        vm.startPrank(owner);
+        factory.setUnderlyingAllowed(notAVault, true);
+        factory.setFeeBounds(FeeType.Performance, 0, 5000);
+        vm.stopPrank();
+        DeployParams memory p;
+        p.integrator = integrator;
+        p.underlying = notAVault;
+        uint16[4] memory rates = [uint16(0), 0, 0, 0];
+        bool[4] memory enabled = [false, false, false, false];
+        p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
+        vm.prank(onboarder);
+        vm.expectRevert(
+            LiFiVaultWrapperFactory.UnderlyingProbeFailed.selector
+        );
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnForeignChainLock() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        p.chainLockId = block.chainid + 1;
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.ChainLockMismatch.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployPassesWithMatchingChainLock() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        p.chainLockId = block.chainid;
+        vm.prank(onboarder);
+        address instance = factory.deploy(p);
+        assertEq(MockVaultWrapper(instance).chainLockId(), block.chainid);
+    }
+
+    function test_DeployRevertsOnFeeAboveBound() public {
+        _enableUnderlyingAndBounds(); // perf bounds 0..5000
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 0, 500); // tighten max to 5%
+        DeployParams memory p = _params(integrator, 0); // rate 1000 = 10%
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnFeeAboveCap() public {
+        underlying = new MockERC4626Underlying(assetToken);
+        vm.startPrank(owner);
+        factory.setUnderlyingAllowed(address(underlying), true);
+        factory.setFeeBounds(FeeType.Management, 0, 1000); // mgmt cap is 1000
+        vm.stopPrank();
+        DeployParams memory p;
+        p.integrator = integrator;
+        p.underlying = address(underlying);
+        uint16[4] memory rates = [uint16(0), 1500, 0, 0]; // 15% > 10% cap
+        bool[4] memory enabled = [false, true, false, false];
+        p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveCap.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnDisabledFeeWithNonZeroRate() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        p.fees.enabled[0] = false; // disabled but rate is 1000
+        vm.prank(onboarder);
+        vm.expectRevert(
+            LiFiVaultWrapperFactory.DisabledFeeMustBeZero.selector
+        );
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnEnabledFeeWithUnsetBounds() public {
+        // Underlying allowed, but Performance bounds never configured (default 0..0):
+        // an enabled non-zero rate must fail closed.
+        underlying = new MockERC4626Underlying(assetToken);
+        vm.prank(owner);
+        factory.setUnderlyingAllowed(address(underlying), true);
+        DeployParams memory p = _params(integrator, 0); // Performance rate 1000, enabled
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        factory.deploy(p);
+    }
+
+    function test_DuplicateDeployReverts() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        vm.prank(onboarder);
+        factory.deploy(p);
+        vm.prank(onboarder);
+        vm.expectRevert(
+            LiFiVaultWrapperFactory.InstanceAlreadyExists.selector
+        );
+        factory.deploy(p);
+    }
 }
