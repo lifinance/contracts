@@ -15,12 +15,13 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 
+import { getTargetName } from './safe-decode-utils'
 import {
+  getSafeMongoCollection,
   summarizeProposalDoc,
   type IProposalSummary,
-} from './proposal-status-utils'
-import { getTargetName } from './safe-decode-utils'
-import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
+  type ISafeTxDocument,
+} from './safe-utils'
 
 dotenv.config()
 
