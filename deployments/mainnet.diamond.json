@@ -2,11 +2,11 @@
   "LiFiDiamond": {
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
+        "Name": "DiamondCutFacet",
         "Version": ""
       },
       "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
-        "Name": "",
+        "Name": "DiamondLoupeFacet",
         "Version": ""
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
@@ -69,9 +69,9 @@
         "Name": "PolygonBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
+      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",

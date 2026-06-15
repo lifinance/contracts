@@ -50,7 +50,11 @@ import {
 } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
-import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
+import {
+  getDeployedFacetVersionFromLog,
+  getTargetStateFacetVersion,
+} from './facet-version-utils'
+import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
 
@@ -1893,6 +1897,53 @@ async function createSelectorMap(): Promise<Map<
 }
 
 /**
+ * Displays the to-be-added facet version (resolved from the deployment log)
+ * next to the target-state version and highlights a mismatch so the signer
+ * can catch an unintended version before signing. Display-only.
+ */
+function displayFacetVersionInfo(
+  pre: string,
+  contractName: string,
+  network: string,
+  facetAddressCandidates: string[]
+): void {
+  if (!network) {
+    consola.warn(`${pre}Facet Version: could not resolve (unknown network)`)
+    return
+  }
+
+  const knownName =
+    contractName && contractName.toLowerCase() !== 'unknown'
+      ? contractName
+      : null
+  const deployedVersion = getDeployedFacetVersionFromLog(
+    knownName,
+    network,
+    facetAddressCandidates
+  )
+  const targetVersion = knownName
+    ? getTargetStateFacetVersion(network, knownName)
+    : null
+
+  const deployedDisplay = deployedVersion
+    ? `\u001b[34m${deployedVersion}\u001b[0m`
+    : `\u001b[33munknown (address not found in deployment log)\u001b[0m`
+  const targetDisplay = targetVersion
+    ? `\u001b[34m${targetVersion}\u001b[0m`
+    : knownName
+    ? `\u001b[33mnot in target state\u001b[0m`
+    : `\u001b[33munknown (contract name unresolved)\u001b[0m`
+
+  consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
+  consola.info(`${pre}Target State Version:        ${targetDisplay}`)
+
+  if (deployedVersion && targetVersion && deployedVersion !== targetVersion)
+    consola.warn(
+      `${pre}\u001b[31m⚠️  VERSION MISMATCH: to-be-added facet is v${deployedVersion} but target state expects v${targetVersion}\u001b[0m`
+    )
+}
+
+/**
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
@@ -1983,6 +2034,12 @@ export async function decodeDiamondCut(
       if (contractName === 'Unknown' && actionNum !== 2)
         contractName = getContractNameFromSelectorsInOut(selectors)
       consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
+
+      if (actionNum === 0 || actionNum === 1)
+        displayFacetVersionInfo(pre, contractName, networkKey, [
+          String(facetAddress),
+          facetDisplay,
+        ])
 
       // Resolve each selector's name from the local diamond ABI first, then the
       // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
@@ -2075,15 +2132,31 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
 }
 
 /**
- * Helper function to wrap calldata in a timelock schedule call
+ * Wraps one or more calls in a single timelock `scheduleBatch` call.
+ * Inner calls are scheduled (and later executed) in array order, so callers
+ * control execution ordering via the order of `targetAddresses`/`originalCalldatas`.
+ * @param network - Network name
+ * @param rpcUrl - RPC URL (falls back to the chain default when empty)
+ * @param timelockAddress - Address of the timelock controller
+ * @param targetAddresses - Target contract address per inner call (parallel to `originalCalldatas`)
+ * @param originalCalldatas - Calldata per inner call (parallel to `targetAddresses`)
+ * @returns The `scheduleBatch` calldata and the timelock as the new target
+ * @throws If the call arrays are empty or differ in length
  */
 export async function wrapWithTimelockSchedule(
   network: string,
   rpcUrl: string,
   timelockAddress: Address,
-  targetAddress: Address,
-  originalCalldata: Hex
+  targetAddresses: Address[],
+  originalCalldatas: Hex[]
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
+  if (targetAddresses.length === 0)
+    throw new Error('wrapWithTimelockSchedule requires at least one call')
+  if (targetAddresses.length !== originalCalldatas.length)
+    throw new Error(
+      `wrapWithTimelockSchedule: targetAddresses (${targetAddresses.length}) and originalCalldatas (${originalCalldatas.length}) must have the same length`
+    )
+
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
@@ -2140,21 +2213,15 @@ export async function wrapWithTimelockSchedule(
   // Create a unique salt based on the current timestamp
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
 
-  const scheduleBatchCalldata = encodeFunctionData({
-    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-    functionName: 'scheduleBatch',
-    args: [
-      [targetAddress], // targets
-      [0n], // values
-      [originalCalldata], // payloads
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
-      salt, // salt
-      minDelay, // delay
-    ],
-  })
+  const scheduleBatchCalldata = encodeTimelockScheduleBatch(
+    targetAddresses,
+    originalCalldatas,
+    salt,
+    minDelay
+  )
 
   consola.info(
-    `Wrapped transaction in timelock scheduleBatch call (batch-of-one) with minimum delay of ${minDelay} seconds`
+    `Wrapped ${targetAddresses.length} call(s) in timelock scheduleBatch with minimum delay of ${minDelay} seconds`
   )
 
   return {

@@ -3723,11 +3723,11 @@ function deployAndAddContractToDiamond() {
   if [[ "$CONTRACT" == *"Facet"* ]]; then
     # deploying a facet
     deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
-    return 0
+    return $?
   elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
     # deploying a diamond
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
-    return 0
+    return $?
   else
     # deploy periphery contract
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
@@ -3788,9 +3788,17 @@ function getPrivateKey() {
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
-#   network, environment, target, calldata: required
+#   network, environment, target: required
+#   calldata: single 0x calldata, or multiple comma-separated 0x calldatas (processed in the given order)
 #   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Routing/Behavior for multiple calldatas:
+#   - EVM or Tron propose route with timelock=true (production): combined into ONE timelock scheduleBatch proposal (single signing round)
+#   - All other routes (direct send, propose without timelock, staging/testnet): multiple calldatas are REJECTED —
+#     no caller needs sequential fan-out there, and untested generality around value-moving calls is a liability
+#
+# Returns: 0 on success; non-zero (first failing call) otherwise
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3805,18 +3813,57 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Validate calldata format
-  if [[ ! "$CALLDATA" =~ ^0x ]]; then
-    error "sendOrPropose: Calldata must start with 0x"
+  # Whitespace (incl. newlines) means corrupted upstream output: `read` below
+  # would silently drop everything after the first line, so refuse instead
+  if [[ "$CALLDATA" =~ [[:space:]] ]]; then
+    error "sendOrPropose: Calldata contains whitespace - refusing (corrupted upstream output?)"
     return 1
+  fi
+
+  # Reject malformed comma delimiters before splitting: a trailing comma is
+  # silently dropped by `read` (e.g. "0x12," -> ["0x12"]), so a lost inner call
+  # would slip past the per-element hex check below. Leading/consecutive commas
+  # produce empty elements that the hex check would catch, but rejecting all
+  # three here keeps the intent explicit.
+  if [[ "$CALLDATA" == ,* || "$CALLDATA" == *, || "$CALLDATA" == *,,* ]]; then
+    error "sendOrPropose: Calldata has malformed comma delimiters (leading, trailing, or consecutive commas)"
+    return 1
+  fi
+
+  # Split comma-separated calldatas (calldata is hex, so commas are unambiguous separators)
+  local CALLDATAS=()
+  IFS=',' read -ra CALLDATAS <<< "$CALLDATA"
+
+  # Validate calldata format (strict hex per element)
+  local CD
+  for CD in "${CALLDATAS[@]}"; do
+    if [[ ! "$CD" =~ ^0x[0-9a-fA-F]*$ ]]; then
+      error "sendOrPropose: Calldata must be well-formed 0x-prefixed hex (got: $CD)"
+      return 1
+    fi
+  done
+
+  # Multiple calldatas are only meaningful on the propose-with-timelock route
+  # (EVM or Tron), where they combine into ONE scheduleBatch proposal. The only
+  # caller that passes multiple (diamondSyncWhitelist.sh Stage 4c) is gated on
+  # exactly that route; sequential fan-out on the other routes would be untested
+  # dead generality, so fail loudly instead of improvising semantics here.
+  if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
+    if [[ "$TIMELOCK" != "true" ]] \
+       || [[ "$ENVIRONMENT" != "production" ]] \
+       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+       || isTestnetNetwork "$NETWORK"; then
+      error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
+      return 1
+    fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
+    return 0
   fi
 
   # Resolve private key
@@ -3830,38 +3877,52 @@ function sendOrPropose() {
     }
   fi
 
-  # Tron: propose to Safe via tron script
+  # Tron: propose to Safe via tron script. On the timelock route, repeated
+  # --to/--calldata pairs combine into ONE scheduleBatch proposal (matching EVM);
+  # the direct route is single-call only (multi already rejected above).
   if isTronNetwork "$NETWORK"; then
     local PROPOSE_TRON_CMD=(
       bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$SAFE_SIGNER_KEY"
     )
     if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_TRON_CMD+=(--timelock)
+      for CD in "${CALLDATAS[@]}"; do
+        PROPOSE_TRON_CMD+=(--to "$TARGET" --calldata "$CD")
+      done
+      PROPOSE_TRON_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
     else
-      PROPOSE_TRON_CMD+=(--direct)
+      PROPOSE_TRON_CMD+=(
+        --to "$TARGET"
+        --calldata "${CALLDATAS[0]}"
+        --privateKey "$SAFE_SIGNER_KEY"
+        --direct
+      )
     fi
-    "${PROPOSE_TRON_CMD[@]}"
-    return $?
+    "${PROPOSE_TRON_CMD[@]}" || return $?
+    return 0
   fi
 
   # EVM: propose to Safe
-  local PROPOSE_CMD=(
-    bunx tsx script/deploy/safe/propose-to-safe.ts
-    --network "$NETWORK"
-    --to "$TARGET"
-    --calldata "$CALLDATA"
-    --privateKey "$SAFE_SIGNER_KEY"
-  )
-
   if [[ "$TIMELOCK" == "true" ]]; then
-    PROPOSE_CMD+=(--timelock)
+    # Combine all calls into a single timelock scheduleBatch proposal (one signing round)
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+    )
+    for CD in "${CALLDATAS[@]}"; do
+      PROPOSE_CMD+=(--to "$TARGET" --calldata "$CD")
+    done
+    PROPOSE_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
+    "${PROPOSE_CMD[@]}"
+    return $?
   fi
 
-  "${PROPOSE_CMD[@]}"
-  return $?
+  # Without timelock wrapping there is no batch mechanism (single calldata only)
+  bunx tsx script/deploy/safe/propose-to-safe.ts \
+    --network "$NETWORK" \
+    --to "$TARGET" \
+    --calldata "${CALLDATAS[0]}" \
+    --privateKey "$SAFE_SIGNER_KEY" || return $?
+  return 0
 }
 
 function isZkEvmNetwork() {

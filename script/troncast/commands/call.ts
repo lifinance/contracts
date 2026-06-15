@@ -8,6 +8,7 @@ import {
   parseFunctionSignature,
   parseArgument,
   isValidAddress,
+  extractCallParams,
 } from '../utils/parser'
 import { initTronWeb } from '../utils/tronweb'
 
@@ -67,10 +68,12 @@ export const callCommand = defineCommand({
 
       consola.debug(`Calling ${funcSig.name} on ${args.address}`)
 
-      // Parse parameters
-      const params = args.params
-        ? args.params.split(',').map((p) => p.trim())
-        : []
+      // Read every CLI positional after address + signature (see extractCallParams) so
+      // multi-argument calls work like `cast call`, which passes each arg as its own token.
+      const positionals = (args as unknown as { _?: unknown[] })._ ?? []
+      const params = extractCallParams(
+        Array.isArray(positionals) ? positionals : []
+      )
       if (params.length !== funcSig.inputs.length)
         throw new Error(
           `Expected ${funcSig.inputs.length} parameters, got ${params.length}`

@@ -2,7 +2,7 @@
   "LiFiDiamond": {
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
+        "Name": "DiamondCutFacet",
         "Version": ""
       },
       "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
@@ -121,9 +121,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x67043aaDa730BC7566149bac7A1806023E3c2801": {
+      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
         "Name": "MayanFacet",
-        "Version": "1.2.4"
+        "Version": "1.3.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
         "Name": "GenericSwapFacetV3",
