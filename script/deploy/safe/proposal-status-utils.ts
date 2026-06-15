@@ -67,10 +67,15 @@ export function getSelector(data: unknown): string {
  */
 export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
   const signers = getSigners(doc)
+  // Real documents always carry a Date; pass through a raw string as-is and
+  // use '' as the missing-sentinel rather than stringifying unexpected types
+  // into a misleading value.
   const timestamp =
     doc.timestamp instanceof Date
       ? doc.timestamp.toISOString()
-      : String(doc.timestamp ?? '')
+      : typeof doc.timestamp === 'string'
+      ? doc.timestamp
+      : ''
 
   const summary: IProposalSummary = {
     network: doc.network,
