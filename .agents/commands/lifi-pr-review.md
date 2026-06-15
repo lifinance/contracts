@@ -254,9 +254,8 @@ critical+high > 0.
 - `audit/knowledge/` — the corpus (output of EXP-478 / EXP-479)
 - `audit/findings/waived.yml` — explicit per-finding suppressions
 - `audit/findings/skip-list.yml` — rule-level suppressions for known-noisy
-  static-tool checks (e.g., Slither's `naming-convention`); see
-  `docs/security-review-baseline.md` for the current list and the
-  EXP-484 follow-ups for tuning
+  static-tool checks (e.g., Slither's `naming-convention`); see the file's
+  inline rationale and the EXP-484 follow-ups for tuning
 
 ## Files we DO NOT maintain (vendored, CC-BY-SA-4.0)
 
@@ -282,7 +281,6 @@ steady-state cost down ~70% after the first run of the day per repo.
 - `NOTICE` — third-party attribution + license terms
 - `docs/security-review.md` — operational manual (setup, waiver workflow,
   bumping the ToB submodule SHA)
-- `docs/security-review-baseline.md` — EXP-482 noise baseline
 - `audit/knowledge/lessons.md` — corpus index (input)
 - `.claude/vendor/tob-skills/plugins/fp-check/README.md` — gate review details
 - `.claude/vendor/tob-skills/plugins/differential-review/README.md` — 7-phase workflow

@@ -188,8 +188,8 @@ git commit -m "chore(security-review): bump tob-skills to <new-sha-short>"
 Bump deliberately — when there's a fix/feature we need or after a
 security advisory. Not opportunistically. Major bumps (any change to
 fp-check's gate count, differential-review's phase structure, or the
-sub-agent interfaces) require a re-run of EXP-482's noise baseline to
-catch regressions in our false-positive rate.
+sub-agent interfaces) require re-measuring Stage 1's noise rate against
+a sample of recent PRs to catch regressions in our false-positive rate.
 
 ## Cost & runtime
 
@@ -228,7 +228,6 @@ manual security review for those.
 - `EXP-478` — `extract-audit-knowledge` skill
 - `EXP-479` — corpus + seed Semgrep rules
 - `EXP-480` — Stage 1 workflow
-- `EXP-482` — noise baseline ([docs/security-review-baseline.md](security-review-baseline.md))
 - `EXP-483` — this skill + Stages 2 + 3 workflow
 - `EXP-484` — tune precision, retire waivers
 - `EXP-485` — flip from advisory to enforcing

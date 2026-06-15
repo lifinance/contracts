@@ -8,7 +8,6 @@
 # Use this for *rule-level* suppression. Use audit/findings/waived.yml
 # for *finding-level* suppression (specific file:line).
 #
-# Sourced from docs/security-review-baseline.md (EXP-482 noise baseline).
 # Tuning is tracked in EXP-484.
 #
 # Schema:
