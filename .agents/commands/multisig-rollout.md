@@ -8,12 +8,12 @@ usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR n
 
 Drives the production rollout lifecycle in two modes:
 
-- **deploy mode** — re-deploy a facet/periphery contract (version currently in the repo) to every production chain where it is live, and propose the diamond cuts to each chain's Safe.
+- **deploy mode** — deploy a facet/periphery contract (version currently in the repo) to a set of production chains — either the chains the user names (including a chain it isn't live on yet) or, by default, every chain where it's already live — and propose the diamond cuts to each chain's Safe.
 - **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
 Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing to the user → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
-**Signing model** (Safe threshold is 3): the deployer key auto-signs every proposal at creation (signature 1). The user running this skill adds their hardware-wallet signature (signature 2). The Slack thread then recruits a final signer, who adds signature 3 and executes the transaction. So the verification gate before posting is "the runner has signed" — 2 signatures — *not* enough to execute on its own. That's the whole point of the Slack ask.
+**Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
 ## Hard rails
 
@@ -36,7 +36,10 @@ Run from the repo root. Check and report (don't fix silently):
 
 ### deploy mode
 
-Chains where the contract is live in the production diamond, plus its deployed version (verified recipe):
+The target list comes from one of two sources:
+
+- **Explicit** — the user names the chains ("deploy MayanFacet to arbitrum, base, and sei"). Use exactly those, in the order given. This is how a facet reaches a **new** chain it isn't live on yet — discovery would never surface it. The only requirement is that each named chain already hosts a LiFiDiamond (`deployContractToNetworks.sh` adds the facet to an existing diamond; it does **not** stand up a brand-new network — that's `/add-network` + a full deploy). If a named chain has no diamond, flag it and drop it from the list.
+- **Discovery** (default when the user says "all chains where it's running" or names none) — chains where the contract is already live in the production diamond, plus its deployed version (verified recipe):
 
 ```bash
 for F in deployments/*.diamond.json; do
@@ -48,9 +51,11 @@ done
 
 For periphery contracts check `.LiFiDiamond.Periphery | has($N)` instead. The glob matches only production logs (`*.diamond.staging.json` and `*.diamond.immutable.json` do not end in `.diamond.json`).
 
-Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new version per chain; chains already on the repo version are usually still re-deployed only if the user asked for it — surface them and ask.
+Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new version per chain (a new chain shows no current version — that's expected). Chains already on the repo version are re-deployed only if the user asked — surface them and ask.
 
 ### whitelist mode
+
+If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
 
 The input PR must be **merged to main** (whitelist changes are main-only by policy; the sync reads the local file). If it's open, stop and point the user at the merge first. Then, on up-to-date main, derive affected networks from the PR's whitelist diff (verified recipe):
 
@@ -81,7 +86,7 @@ Run in the background (long-running; deploys retry and verify), monitor output, 
 ./script/tasks/syncWhitelistToNetworks.sh <network...> --production
 ```
 
-Both end with a per-network summary and exit `1` if any network failed. Failures don't block the survivors: continue the flow with the succeeded networks, report the failed ones, and offer to retry them individually with the same command. The deployer key signs each proposal at creation time, so every fresh proposal starts with 1 signature.
+Both end with a per-network summary and exit `1` if any network failed. Failures don't block the survivors: continue the flow with the succeeded networks, report the failed ones, and offer to retry them individually with the same command. Each proposal is created already carrying one signature, so every fresh proposal starts at `signatureCount: 1`.
 
 Whitelist note: a production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
 
@@ -91,7 +96,7 @@ Whitelist note: a production sync automatically re-syncs staging on the same net
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (proposer = deployer). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
@@ -111,7 +116,7 @@ Give the user (VPN required; Ledger is the default signer):
 bunx tsx script/deploy/safe/confirm-safe-tx.ts
 ```
 
-Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation). They will sign each proposal — the deployer signature is already on it, so theirs makes 2 of the 3 required (the final signer comes from the Slack thread). Then **stop and wait** for the user to say they're done.
+Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation). They will sign each proposal — one signature is already on it, so theirs makes 2 of the 3 required (the remaining signer comes from the Slack thread). Then **stop and wait** for the user to say they're done.
 
 ## Phase 7 — Verify signatures
 
@@ -119,7 +124,7 @@ Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountInd
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --status all --maxAgeHours 24 --json
 ```
 
-Gate, per target network: a matching proposal that is `pending` with `signatureCount >= 2` (deployer + the runner's HW wallet — the runner has done their part, ready to recruit the final signer), or already `submitted`/`executed` (a fast final signer beat the Slack post — fine, post anyway as a record). A network still at `signatureCount: 1` (or with no row) means the runner's signature didn't land — go back to Phase 6 for those. Only proceed when every network passes.
+Gate, per target network: a matching proposal that is `pending` with `signatureCount >= 2` (the runner has added their signature on top of the one from creation — ready to recruit the remaining signer), or already `submitted`/`executed` (a fast signer beat the Slack post — fine, post anyway as a record). A network still at `signatureCount: 1` (or with no row) means the runner's signature didn't land — go back to Phase 6 for those. Only proceed when every network passes.
 
 ## Phase 8 — Slack thread
 
