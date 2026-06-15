@@ -300,7 +300,7 @@ function handleNetwork() {
   if [[ "$IS_TRON" != "true" ]]; then
     local RPC_KEY
     RPC_KEY=$(bgRpcEnvVarName "$NETWORK")
-    eval "RPC_URL=\$$RPC_KEY"
+    RPC_URL="${!RPC_KEY:-}"
     if [[ -z "$RPC_URL" ]]; then
       bgError "[network: $NETWORK] could not find RPC_URL (env key: $RPC_KEY). Cannot continue."
       echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -446,7 +446,7 @@ function printStatus() {
   if ! bgIsTron "$NETWORK"; then
     local RPC_KEY
     RPC_KEY=$(bgRpcEnvVarName "$NETWORK")
-    eval "RPC_URL=\$$RPC_KEY"
+    RPC_URL="${!RPC_KEY:-}"
   fi
   local DIAMOND_ADDRESS
   if ! DIAMOND_ADDRESS=$(bgDiamondAddress "$NETWORK"); then
