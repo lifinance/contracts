@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
+import { Test } from "forge-std/Test.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
-contract ERC20ProxyTest is DSTest {
-    // solhint-disable-next-line immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+contract ERC20ProxyTest is Test {
     ERC20Proxy public erc20Proxy;
     address public proxyOwner;
     address public executorAddress;

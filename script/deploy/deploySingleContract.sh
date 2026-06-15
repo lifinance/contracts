@@ -193,6 +193,26 @@ deploySingleContract() {
       fi
     fi
   else
+      # ensure the pinned foundry-zksync binary is installed (no-op if version matches)
+      install_foundry_zksync || {
+        error "failed to install foundry-zksync"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
+      # fail loudly instead of building with the toolchain's default zksolc
+      if [[ -z "$ZKSOLC_VERSION" ]]; then
+        error "zksolc pin not found in foundry.toml [external.zksync]"
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      fi
+
       # Build zksync artifacts first
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
@@ -256,12 +276,37 @@ deploySingleContract() {
     # Add network-specific deploy flags from networks.json (customDeployFlags)
     ADDITIONAL_FLAGS=""
     local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
+    local LEGACY_FLAG="--legacy"
     if [[ -f "$NETWORKS_JSON" ]]; then
       ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
+      # noLegacy:true means the chain requires EIP-1559 txs (e.g. AA chains) — omit --legacy
+      local NO_LEGACY
+      NO_LEGACY=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].noLegacy // false' "$NETWORKS_JSON" 2>/dev/null || echo "false")
+      if [[ "$NO_LEGACY" == "true" ]]; then
+        LEGACY_FLAG=""
+      fi
     fi
     # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
     if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
       SKIP_SIMULATION_FLAG=""
+    fi
+
+    # Use a local effective multiplier so per-network overrides don't leak into subsequent calls.
+    local NETWORK_GAS_MULTIPLIER
+    NETWORK_GAS_MULTIPLIER=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasEstimateMultiplier // empty' "$NETWORKS_JSON" 2>/dev/null || true)
+    local EFFECTIVE_GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}"
+    if [[ -n "$NETWORK_GAS_MULTIPLIER" ]]; then
+      EFFECTIVE_GAS_ESTIMATE_MULTIPLIER="$NETWORK_GAS_MULTIPLIER"
+    fi
+
+    # Override gas price via ETH_GAS_PRICE env var when networks.json has a gasPrice field.
+    # --gas-price flag only affects simulation; ETH_GAS_PRICE is what forge reads for broadcast.
+    local NETWORK_GAS_PRICE
+    NETWORK_GAS_PRICE=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasPrice // empty' "$NETWORKS_JSON" 2>/dev/null || true)
+    local ETH_GAS_PRICE_ENV=""
+    if [[ -n "$NETWORK_GAS_PRICE" ]]; then
+      ETH_GAS_PRICE_ENV="ETH_GAS_PRICE=\"$NETWORK_GAS_PRICE\""
+      echoDebug "Using network-specific gas price: $NETWORK_GAS_PRICE wei (ETH_GAS_PRICE set)"
     fi
 
     # forge >=1.6 validates the simulation sender's balance against gas_estimate * gas_price;
@@ -272,12 +317,12 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
         "true"
     else
       # try to execute call
       executeAndParse \
-        "DEPLOYSALT=\"$DEPLOYSALT\" EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "$ETH_GAS_PRICE_ENV DEPLOYSALT=\"$DEPLOYSALT\" EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast $LEGACY_FLAG --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

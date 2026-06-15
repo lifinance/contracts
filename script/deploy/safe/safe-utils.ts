@@ -43,7 +43,6 @@ import {
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
-import { getEnvVar } from '../../utils/utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
@@ -51,6 +50,10 @@ import {
 } from '../../utils/viemScriptHelpers'
 
 import { SAFE_SINGLETON_ABI } from './config'
+import {
+  getDeployedFacetVersionFromLog,
+  getTargetStateFacetVersion,
+} from './facet-version-utils'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
 config()
@@ -579,9 +582,7 @@ export class SafeClient {
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)
       const hash = await this.getTransactionHash(safeTx)
-      consola.info(
-        `[safe-utils] Signing Safe tx hash (ENABLE_SAFE_TX_HASH_SIGNING=true): ${hash}`
-      )
+      consola.info(`[safe-utils] Signing Safe tx hash via eth_sign: ${hash}`)
 
       // 2) Sign the hash using eth_sign-compatible flow
       const sig = await this.signHash(hash)
@@ -601,10 +602,11 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
-    // Optional feature flag to switch between EIP-712 signing and hash signing.
-    // If ENABLE_SAFE_TX_HASH_SIGNING === 'true', we sign the Safe tx hash
-    // using eth_sign instead of constructing a large EIP-712 payload.
-    if (getEnvVar('ENABLE_SAFE_TX_HASH_SIGNING') === 'true') {
+    // Optional flag to force tx-hash signing from the start instead of EIP-712
+    // typed data. Read directly from process.env so an unset flag does not
+    // throw — tx-hash signing also runs automatically as a fallback whenever
+    // the EIP-712 path fails.
+    if (process.env.ENABLE_SAFE_TX_HASH_SIGNING === 'true') {
       return this.signTransactionWithHash(safeTx)
     }
 
@@ -668,8 +670,10 @@ export class SafeClient {
       return safeTx
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      console.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${errorMsg}`)
+      consola.warn(
+        `[safe-utils] EIP-712 signing failed, falling back to tx-hash signing. Caught error: ${errorMsg}`
+      )
+      return this.signTransactionWithHash(safeTx)
     }
   }
 
@@ -1893,6 +1897,53 @@ async function createSelectorMap(): Promise<Map<
 }
 
 /**
+ * Displays the to-be-added facet version (resolved from the deployment log)
+ * next to the target-state version and highlights a mismatch so the signer
+ * can catch an unintended version before signing. Display-only.
+ */
+function displayFacetVersionInfo(
+  pre: string,
+  contractName: string,
+  network: string,
+  facetAddressCandidates: string[]
+): void {
+  if (!network) {
+    consola.warn(`${pre}Facet Version: could not resolve (unknown network)`)
+    return
+  }
+
+  const knownName =
+    contractName && contractName.toLowerCase() !== 'unknown'
+      ? contractName
+      : null
+  const deployedVersion = getDeployedFacetVersionFromLog(
+    knownName,
+    network,
+    facetAddressCandidates
+  )
+  const targetVersion = knownName
+    ? getTargetStateFacetVersion(network, knownName)
+    : null
+
+  const deployedDisplay = deployedVersion
+    ? `\u001b[34m${deployedVersion}\u001b[0m`
+    : `\u001b[33munknown (address not found in deployment log)\u001b[0m`
+  const targetDisplay = targetVersion
+    ? `\u001b[34m${targetVersion}\u001b[0m`
+    : knownName
+    ? `\u001b[33mnot in target state\u001b[0m`
+    : `\u001b[33munknown (contract name unresolved)\u001b[0m`
+
+  consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
+  consola.info(`${pre}Target State Version:        ${targetDisplay}`)
+
+  if (deployedVersion && targetVersion && deployedVersion !== targetVersion)
+    consola.warn(
+      `${pre}\u001b[31m⚠️  VERSION MISMATCH: to-be-added facet is v${deployedVersion} but target state expects v${targetVersion}\u001b[0m`
+    )
+}
+
+/**
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
@@ -1975,100 +2026,48 @@ export async function decodeDiamondCut(
       consola.info(`${pre}${facetLine}`)
       consola.info(`${pre}Action: ${actionMap[actionValue] ?? actionValue}`)
 
-      // Use selector map for efficient lookup
-      if (selectorMap) {
-        let contractName = network
-          ? getContractNameFromNetworkDeployments(network, facetAddress)
-          : 'Unknown'
-        // Remove (2): facet address is not a live deployable contract and the
-        // selector list may be a partial subset — superset matching is unsafe.
-        if (contractName === 'Unknown' && actionNum !== 2)
-          contractName = getContractNameFromSelectorsInOut(selectors)
-        consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
+      let contractName = network
+        ? getContractNameFromNetworkDeployments(network, facetAddress)
+        : 'Unknown'
+      // Remove (2): facet address is the zero address (no live contract) and
+      // the selector list may be a partial subset — superset matching is unsafe.
+      if (contractName === 'Unknown' && actionNum !== 2)
+        contractName = getContractNameFromSelectorsInOut(selectors)
+      consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
-        for (const selector of selectors) {
-          const normalizedSelector =
-            typeof selector === 'string' ? selector.toLowerCase() : selector
-          const functionInfo = selectorMap.get(normalizedSelector)
-          if (functionInfo) {
-            consola.info(
-              `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
-            )
-          } else {
-            const fourByteName = await lookupSelectorFromFourByte(
-              normalizedSelector
-            )
-            if (fourByteName)
-              consola.info(
-                `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
-              )
-            else consola.warn(`${pre}Unknown function [${selector}]`)
-          }
-        }
-      } else {
-        // Fallback to external API if selector map not available
-        consola.info(`${pre}No diamond ABI found, fetching from anyabi.xyz...`)
-        const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-        const response = await fetch(url)
-        const resData = await response.json()
+      if (actionNum === 0 || actionNum === 1)
+        displayFacetVersionInfo(pre, contractName, networkKey, [
+          String(facetAddress),
+          facetDisplay,
+        ])
 
-        if (resData && resData.abi) {
+      // Resolve each selector's name from the local diamond ABI first, then the
+      // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
+      // Remove uses the zero address, and per-selector lookup covers every action
+      // without depending on a live facet contract.
+      for (const selector of selectors) {
+        const normalizedSelector =
+          typeof selector === 'string'
+            ? (selector.startsWith('0x')
+                ? selector
+                : `0x${selector}`
+              ).toLowerCase()
+            : `0x${Buffer.from(selector).toString('hex')}`.toLowerCase()
+        const functionInfo = selectorMap?.get(normalizedSelector)
+        if (functionInfo) {
           consola.info(
-            `${pre}Contract Name: \u001b[34m${
-              resData.name || 'unknown'
-            }\u001b[0m`
+            `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
           )
-
-          for (const selector of selectors)
-            try {
-              // Find matching function in ABI
-              const matchingFunction = resData.abi.find(
-                (abiItem: {
-                  type?: string
-                  name?: string
-                  inputs?: unknown[]
-                  outputs?: unknown[]
-                  stateMutability?: string
-                }) => {
-                  if (abiItem.type !== 'function' || !abiItem.name) return false
-                  try {
-                    // Create a proper ABI function for toFunctionSelector
-                    const abiFunction = {
-                      type: 'function' as const,
-                      name: abiItem.name,
-                      inputs: (abiItem.inputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      outputs: (abiItem.outputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      stateMutability:
-                        (abiItem.stateMutability as
-                          | 'pure'
-                          | 'view'
-                          | 'nonpayable'
-                          | 'payable') || 'nonpayable',
-                    }
-                    const calculatedSelector = toFunctionSelector(abiFunction)
-                    return calculatedSelector === selector
-                  } catch {
-                    return false
-                  }
-                }
-              )
-
-              if (matchingFunction)
-                consola.info(
-                  `${pre}Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-                )
-              else consola.warn(`${pre}Unknown function [${selector}]`)
-            } catch (error) {
-              consola.warn(`${pre}Failed to decode selector: ${selector}`)
-            }
-        } else
-          consola.info(`${pre}Could not fetch ABI for facet ${facetAddress}`)
+          continue
+        }
+        const fourByteName = await lookupSelectorFromFourByte(
+          normalizedSelector
+        )
+        if (fourByteName)
+          consola.info(
+            `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+          )
+        else consola.warn(`${pre}Unknown function [${selector}]`)
       }
     } catch (error) {
       consola.error(`${pre}Error processing facet ${facetAddress}:`, error)

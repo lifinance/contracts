@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
@@ -58,9 +57,7 @@ contract MockGateway {
     }
 }
 
-contract ExecutorTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+contract ExecutorTest is Test {
     Executor internal executor;
     TestAMM internal amm;
     Vault internal vault;
