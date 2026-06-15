@@ -1,14 +1,22 @@
 # LI.FI static-analysis rule skip list
 #
-# Suppresses categorically noisy rules from Stage 1 static tools BEFORE
-# any AI verification (fp-check) runs. This keeps the per-finding cost
-# of the AI triage down by eliminating known false-positive classes
-# without wasting LLM calls on them.
+# Two layers of FP suppression keep CI cost down:
 #
-# Use this for *rule-level* suppression. Use audit/findings/waived.yml
-# for *finding-level* suppression (specific file:line).
+#   1. TOOL-LEVEL  — Slither runs with `--exclude-informational --exclude-low`
+#                    (see .github/workflows/security-review.yml). This drops
+#                    pure-style + low-impact detectors at the source. Most of
+#                    Slither's noise (naming-convention, too-many-digits,
+#                    reentrancy-events, calls-loop, assembly, low-level-calls,
+#                    etc.) is eliminated here.
 #
-# Tuning is tracked in EXP-484.
+#   2. SKILL-LEVEL — This file. Only used for findings the tool config keeps
+#                    but we want to suppress (semgrep custom rules) or
+#                    findings we want to KEEP in SARIF for visibility but
+#                    NOT route through fp-check (cost).
+#
+# Use audit/findings/waived.yml for *finding-level* suppression (specific
+# file:line). Use audit/knowledge/semgrep/lf-*.yml to fix Semgrep rule
+# patterns when they're systematically over-broad (EXP-484).
 #
 # Schema:
 #   - tool: slither | semgrep
@@ -20,78 +28,48 @@
 
 # ---- Slither ------------------------------------------------------------
 
-- tool: slither
-  rule: naming-convention
-  action: drop
-  rationale: |
-    Style check, not security. LI.FI follows a documented naming
-    convention (see .agents/rules/) that doesn't match slither's
-    built-in expectations.
+# Note: most Slither noise is dropped by --exclude-informational --exclude-low
+# at the tool level. Entries here are only for detectors that survive the
+# tool filter but we've decided to suppress/demote for LI.FI-specific reasons.
 
-- tool: slither
-  rule: too-many-digits
-  action: drop
-  rationale: |
-    Style check. LI.FI uses unprefixed large literals in fixed-point
-    math (e.g., 1e18) which slither flags but is the standard idiom.
-
-- tool: slither
-  rule: assembly
-  action: demote
-  rationale: |
-    Inline assembly is used deliberately in LibAsset, LibBytes, and
-    select facets for gas / packed-encoding reasons. Demote to note
-    but keep visible so reviewers see context.
-
-- tool: slither
-  rule: low-level-calls
-  action: demote
-  rationale: |
-    Low-level calls are intentional in bridge facets (delegatecall to
-    bridge SDKs is the integration pattern). Demote to note; reviewer
-    judgment required per call site.
-
-- tool: slither
-  rule: reentrancy-events
-  action: demote
-  rationale: |
-    Event ordering after external calls is acceptable when the call
-    itself is the trusted bridge integration. Demote to note.
-
-# Slither rule candidates flagged by the EXP-483 dry-run (PR #1550) but
-# not yet promoted to the skip list — pending real-data review (EXP-484):
+# Currently no Slither entries — the tool config catches everything we want
+# to filter. If a Medium- or High-impact Slither detector turns out to be
+# systematically false-positive for LI.FI patterns, add it here.
 #
-# - uninitialized-local: Solidity auto-zero-initializes; the declared-
-#   then-conditionally-assigned pattern is intentional in our facets.
-#   ⚠️ Currently still goes through fp-check.
-# - missing-zero-check: many constructor params are documented as
-#   "can be address(0) on chains where upstream is unavailable".
-#   ⚠️ Currently still goes through fp-check.
-# - divide-before-multiply: matches our (a * BASE) / b fixed-point
-#   idiom (which is correctly multiply-before-divide); slither's AST
-#   match is over-broad.
-#   ⚠️ Currently still goes through fp-check.
-
-# ---- Aderyn -------------------------------------------------------------
+# Candidates flagged by past dry-runs but not yet promoted (pending real-PR
+# evidence under EXP-484):
 #
-# Aderyn was originally part of Stage 1 but was removed in EXP-484 after
-# dry-run evidence showed it contributes only ~1 finding per PR beyond
-# Slither's coverage on the same code. The marginal value didn't justify
-# the supply-chain attack surface of its installer step or the extra CI
-# job. If a second-opinion pass is wanted, it belongs in EXP-486
-# (nightly deep scan), not per-PR Stage 1.
+# - missing-zero-check (Medium impact): many LI.FI constructor params are
+#   documented as "can be address(0) on chains where upstream is unavailable".
+#   If this detector becomes the dominant cost driver, demote.
+#
+# - divide-before-multiply (Medium impact): matches our (a * BASE) / b
+#   fixed-point idiom (which is correctly multiply-before-divide); Slither's
+#   AST match is over-broad. Promote if cost-relevant.
 
-# ---- Semgrep (LI.FI custom rules from audit/knowledge/semgrep/) ---------
+# ---- Semgrep (LI.FI custom rules) ---------------------------------------
 
 # Semgrep findings come from our own LF-NNN-derived rules. We don't
-# suppress them here — if a rule is too noisy, fix the rule in
-# audit/knowledge/semgrep/ rather than suppress.
+# suppress them here — when a rule is systematically too noisy, fix the
+# rule pattern in audit/knowledge/semgrep/ rather than suppress per-finding.
 #
-# Open tuning items (EXP-484):
-# - lf-046-bytes32-nonevm-receiver — over-broad for protocols that
-#   natively use bytes32 receivers (Across V4, LayerZero, Wormhole).
-#   Needs `metavariable-pattern` scoping to non-EVM destinations only.
-# - lf-029-shared-modifier-parallel-fields — matches signed-payload-
-#   binding patterns where _bridgeData.receiver is included in
-#   keccak256(abi.encode(...)) for EIP-712. Needs `pattern-not-inside`
-#   to exclude.
+# Closed under EXP-484 (commits in feature/exp-483-lifi-pr-review-skill):
+# - lf-046-bytes32-nonevm-receiver — restructured to use `patterns:` AND-
+#   conjunction so the metavariable-regex constraint is actually applied;
+#   tightened regex to only match names containing "nonEvm/btc/bitcoin"
+#   + "receiver". Solana removed (Solana addresses safely fit in 32 bytes).
+# - lf-029-shared-modifier-parallel-fields — excludes reads inside
+#   keccak256/abi.encode/abi.encodePacked (signature binding), inside
+#   equality/inequality checks (the guard), and inside
+#   LibUtil.validateReceiver(...). Also excludes _bridgeData.receiver
+#   (canonical parent — only flags bridge-SPECIFIC structs).
+# - lf-053-loop-msg-value — RULE DELETED. Slither ships an upstream-
+#   maintained equivalent (`msg-value-loop`, Medium impact, detector
+#   since Slither 0.10.x). Our LI.FI rule was a straight duplicate;
+#   keeping it added maintenance burden without unique coverage. The
+#   LF-053 LF-NNN entry in audit/knowledge/findings.json stays — it's
+#   the historical knowledge; only the Semgrep rule file was removed.
+#
+# Validation: total semgrep findings across PR #1715/#1731/#1711 dropped
+# from 19 → 3 (84%) — that delta still holds because lf-053 had been
+# tuned to zero matches in the dry-run set before deletion.

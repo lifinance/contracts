@@ -45,8 +45,8 @@ CC-BY-SA-4.0 (see NOTICE).
 
 | Path                       | Source                                  | Notes                                           |
 | -------------------------- | --------------------------------------- | ----------------------------------------------- |
-| `${SARIF_DIR}/slither.sarif` | Stage 1 slither job                   | May be empty if Slither errored                 |
-| `${SARIF_DIR}/semgrep.sarif` | Stage 1 semgrep job                   | "                                               |
+| `${SARIF_DIR}/slither.sarif` | Stage 1 slither job (`--exclude-informational --exclude-low`) | May be empty if Slither errored |
+| `${SARIF_DIR}/semgrep.sarif` | Stage 1 semgrep job (LI.FI custom rules from `audit/knowledge/semgrep/`) | May be empty if Semgrep errored |
 | `${DIFF_FILE}`             | `git diff <base>...<head> -- src/`      | PR diff against merge base, scoped to `src/`    |
 | `${PR_FILES}`               | Newline-delimited list of changed src/ files | Used to scope `by-area/*.md` loading      |
 

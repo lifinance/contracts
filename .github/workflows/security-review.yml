@@ -86,6 +86,13 @@ jobs:
           path: slither.sarif
           retention-days: 7
 
+  # Aderyn was removed from Stage 1 on 2026-05-22 after the EXP-483 dry-run
+  # showed it adds ~1 finding per PR beyond what Slither already catches in
+  # the same code. The marginal value didn't justify the CI overhead +
+  # supply-chain attack surface of the installer step. If we ever want a
+  # second-opinion pass, it belongs in EXP-486 (nightly deep scan), not
+  # per-PR Stage 1.
+
   semgrep:
     # Semgrep: runs the custom LI.FI rules under audit/knowledge/semgrep/
     # (seeded in EXP-479). Each rule encodes a structural pattern from a

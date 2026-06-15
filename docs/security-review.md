@@ -26,7 +26,9 @@ and the CI/Code-Scanning plumbing.
 
 ```
                   ┌─────────── Stage 1: deterministic ────────────┐
-                  │  Slither              Semgrep (LI.FI rules)   │
+                  │  Slither              Semgrep (LI.FI rules)    │
+                  │  (--exclude-info      (audit/knowledge/        │
+                  │   --exclude-low)       semgrep/lf-*.yml)        │
                   │     │                       │                  │
                   │     ▼                       ▼                  │
                   │   slither.sarif         semgrep.sarif          │
@@ -57,7 +59,7 @@ Per-stage detail, source, and ownership:
 
 | Stage | Where it runs                                              | Source of truth                                       | Ticket           |
 | ----- | ---------------------------------------------------------- | ----------------------------------------------------- | ---------------- |
-| 1     | 3 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml`       | EXP-480          |
+| 1     | 2 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml`       | EXP-480          |
 | 2 (LI.FI layer)| `lifi-pr-review` job                              | `.agents/commands/lifi-pr-review.md` skill            | EXP-483          |
 | 2 (ToB layer)  | Same job, invoked by the LI.FI orchestrator       | `.claude/vendor/tob-skills/` (CC-BY-SA-4.0, see NOTICE) | upstream (pinned) |
 | 3     | Steps inside the `lifi-pr-review` job                      | Same workflow file                                    | EXP-483          |
@@ -118,8 +120,8 @@ impact, won't get better with rule tightening — add a waiver to
 
 - The rule is too noisy in general — fix the rule under
   `audit/knowledge/semgrep/` (Semgrep) or open an EXP-484 follow-up for
-  Slither config tuning (or the relevant detector's exclusion via the
-  `--exclude-<level>` flag). Don't suppress per-finding.
+  Slither config tuning (or the relevant detector's exclusion at the
+  `--exclude-<level>` level). Don't suppress per-finding.
 - The finding is real but accepted as an admin-only risk — leave it. It's
   documented as "centralization-risk by design" elsewhere.
 - The tool will probably fix this in the next release — let it.
@@ -190,6 +192,20 @@ security advisory. Not opportunistically. Major bumps (any change to
 fp-check's gate count, differential-review's phase structure, or the
 sub-agent interfaces) require re-measuring Stage 1's noise rate against
 a sample of recent PRs to catch regressions in our false-positive rate.
+
+## Why we don't run Aderyn
+
+Aderyn (Cyfrin's Rust-based static analyzer) was part of Stage 1 in the
+initial EXP-480 prototype but was removed on 2026-05-22 after dry-runs
+on PR #1715 + #1731 showed it added only ~1 finding per PR beyond what
+Slither already caught in the same code. The marginal value didn't
+justify the supply-chain attack surface of the installer step and the
+extra job in CI.
+
+Slither alone covers the same detector classes (with a different
+implementation), and the noise level is well-controlled by
+`--exclude-informational --exclude-low`. If we want a second-opinion
+pass, it belongs in EXP-486 (nightly deep scan), not per-PR Stage 1.
 
 ## Cost & runtime
 
