@@ -519,6 +519,7 @@ function main() {
   local PRIV_KEY_ADDRESS
   PRIV_KEY_ADDRESS=$(cast wallet address "$PRIVATE_KEY_PAUSER_WALLET")
   echo "Address PauserWallet (EVM): $PRIV_KEY_ADDRESS"
+  exit 0
   echo "Networks run in parallel; the log may appear interleaved. Watch for colored start/end markers."
 
   # Launch per-network in parallel; track PIDs explicitly so no failure is swallowed.
