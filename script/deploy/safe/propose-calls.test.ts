@@ -123,6 +123,25 @@ describe('normalizeProposeCalls', () => {
         })
       ).toThrow(/Calldata file not found/)
     })
+
+    it('rejects calldata and calldataFile provided together', () => {
+      expect(() =>
+        normalizeProposeCalls({
+          to: TARGET_A,
+          calldata: CALLDATA_REMOVE,
+          calldataFile: tmpFile,
+        })
+      ).toThrow(/either --calldata or --calldataFile, not both/)
+    })
+
+    it('treats an empty --calldata default as absent alongside calldataFile', () => {
+      const { calldatas } = normalizeProposeCalls({
+        to: TARGET_A,
+        calldata: '' as never,
+        calldataFile: tmpFile,
+      })
+      expect(calldatas).toEqual([CALLDATA_REMOVE])
+    })
   })
 
   // Pins the load-bearing citty contract the CLI relies on: repeated flags must

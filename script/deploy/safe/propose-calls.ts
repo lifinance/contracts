@@ -27,7 +27,11 @@ export function normalizeProposeCalls(
 
   let calldatas: Hex[]
   if (options.calldataFile) {
-    if (Array.isArray(options.calldata) || targets.length > 1)
+    // The CLI defaults --calldata to '' when omitted, so "provided" means a
+    // non-empty value (mirrors the else-if below) — empty string is not a clash
+    if (options.calldata && options.calldata.length > 0)
+      throw new Error('Provide either --calldata or --calldataFile, not both')
+    if (targets.length > 1)
       throw new Error(
         '--calldataFile cannot be combined with multiple --to/--calldata pairs'
       )

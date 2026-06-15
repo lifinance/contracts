@@ -63,10 +63,8 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
   const diamondAddressBase58 = deployments.LiFiDiamond
   const timelockAddressBase58 = deployments.LiFiTimelockController
-  if (!diamondAddressBase58 || !timelockAddressBase58)
-    throw new Error(
-      `LiFiDiamond or LiFiTimelockController missing in deployments/${networkName}.json`
-    )
+  if (!diamondAddressBase58)
+    throw new Error(`LiFiDiamond missing in deployments/${networkName}.json`)
 
   const networksPath = path.join(process.cwd(), 'config', 'networks.json')
   const networks = JSON.parse(fs.readFileSync(networksPath, 'utf8'))
@@ -84,6 +82,16 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   }
   if (options.direct && options.timelock)
     throw new Error('Use either --direct or --timelock, not both')
+
+  // Timelock is only used when wrapping in scheduleBatch (ownership mode, or
+  // generic mode without --direct). Direct mode must still succeed if the
+  // Timelock is undeployed or its RPC is unreachable, so validate + read it
+  // only on the paths that actually need it.
+  const useDirect = genericMode && options.direct === true
+  if (!useDirect && !timelockAddressBase58)
+    throw new Error(
+      `LiFiTimelockController missing in deployments/${networkName}.json`
+    )
 
   const privateKeyEnvVar =
     networkName === 'tron' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
@@ -103,16 +111,14 @@ async function runPropose(options: IProposeToSafeTronOptions) {
 
   const chainId = networks[networkName].chainId as number
   const safeAddressEvm = tronBase58ToEvm20Hex(tronWeb, safeAddressBase58)
-  const timelockAddressEvm = tronBase58ToEvm20Hex(
-    tronWeb,
-    timelockAddressBase58
-  )
   const diamondAddressEvm = tronBase58ToEvm20Hex(tronWeb, diamondAddressBase58)
   const proposerEvm = tronBase58ToEvm20Hex(tronWeb, proposerBase58)
 
   consola.info(`Network: ${networkName}`)
   consola.info(`Safe: ${safeAddressBase58}`)
-  consola.info(`Timelock: ${timelockAddressBase58}`)
+  consola.info(
+    `Timelock: ${timelockAddressBase58 ?? '(not required for --direct)'}`
+  )
   consola.info(`Diamond: ${diamondAddressBase58}`)
   consola.info(`Proposer: ${proposerBase58}`)
   if (genericMode) {
@@ -129,31 +135,34 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
   }
 
-  // 1) Get min delay from Timelock (needed for scheduleBatch)
-  const timelockAbi = [
-    {
-      inputs: [],
-      name: 'getMinDelay',
-      outputs: [{ type: 'uint256' }],
-      stateMutability: 'view',
-      type: 'function',
-    },
-  ]
-  const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
-  let minDelayBigInt: bigint
-  try {
-    const minDelayRes = await timelock.getMinDelay().call()
-    const valueStr =
-      typeof minDelayRes === 'string'
-        ? minDelayRes
-        : minDelayRes?.toString?.() ?? '0'
-    minDelayBigInt = BigInt(valueStr)
-  } catch (e) {
-    throw new Error(
-      `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
-        e instanceof Error ? e.message : String(e)
-      }`
-    )
+  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
+  // direct mode, which doesn't touch the Timelock.
+  let minDelayBigInt = 0n
+  if (!useDirect) {
+    const timelockAbi = [
+      {
+        inputs: [],
+        name: 'getMinDelay',
+        outputs: [{ type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ]
+    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
+    try {
+      const minDelayRes = await timelock.getMinDelay().call()
+      const valueStr =
+        typeof minDelayRes === 'string'
+          ? minDelayRes
+          : minDelayRes?.toString?.() ?? '0'
+      minDelayBigInt = BigInt(valueStr)
+    } catch (e) {
+      throw new Error(
+        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      )
+    }
   }
 
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
@@ -175,7 +184,6 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     dryRunDescription =
       'scheduleBatch(Diamond, confirmOwnershipTransfer selector)'
   } else {
-    const useDirect = options.direct === true
     const { targets, calldatas } = normalizeTronProposeCalls(
       options.to,
       options.calldata,
@@ -250,10 +258,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     chainNonceBigInt
   )
 
-  const safeTxToEvm =
-    safeTxToBase58 === timelockAddressBase58
-      ? timelockAddressEvm
-      : tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
+  const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
 
   const safeTxData = {
     to: safeTxToEvm,

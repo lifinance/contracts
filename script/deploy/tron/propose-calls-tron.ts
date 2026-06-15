@@ -25,6 +25,13 @@ export function normalizeTronProposeCalls(
 
   const targets = (Array.isArray(to) ? to : [to]) as string[]
 
+  // Reject blank elements within a repeated --to array (the container-level
+  // check above only catches a single empty string / empty array); a blank
+  // target would otherwise reach base58→EVM conversion as an invalid address
+  for (const [i, t] of targets.entries())
+    if (t.trim().length === 0)
+      throw new Error(`--to at index ${i} is empty or whitespace-only`)
+
   if (calldata === undefined || calldata.length === 0)
     throw new Error('--calldata must be provided')
 

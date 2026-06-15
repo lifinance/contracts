@@ -3820,6 +3820,16 @@ function sendOrPropose() {
     return 1
   fi
 
+  # Reject malformed comma delimiters before splitting: a trailing comma is
+  # silently dropped by `read` (e.g. "0x12," -> ["0x12"]), so a lost inner call
+  # would slip past the per-element hex check below. Leading/consecutive commas
+  # produce empty elements that the hex check would catch, but rejecting all
+  # three here keeps the intent explicit.
+  if [[ "$CALLDATA" == ,* || "$CALLDATA" == *, || "$CALLDATA" == *,,* ]]; then
+    error "sendOrPropose: Calldata has malformed comma delimiters (leading, trailing, or consecutive commas)"
+    return 1
+  fi
+
   # Split comma-separated calldatas (calldata is hex, so commas are unambiguous separators)
   local CALLDATAS=()
   IFS=',' read -ra CALLDATAS <<< "$CALLDATA"

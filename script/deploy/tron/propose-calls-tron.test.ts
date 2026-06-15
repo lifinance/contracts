@@ -69,6 +69,16 @@ describe('normalizeTronProposeCalls', () => {
     )
   })
 
+  it('rejects a blank element inside a repeated to array', () => {
+    expect(() =>
+      normalizeTronProposeCalls(
+        [TARGET_A, '   '],
+        [CALLDATA_REMOVE, CALLDATA_ADD],
+        true
+      )
+    ).toThrow(/--to at index 1 is empty or whitespace-only/)
+  })
+
   it('rejects missing calldata', () => {
     expect(() => normalizeTronProposeCalls(TARGET_A, undefined, false)).toThrow(
       /--calldata/
