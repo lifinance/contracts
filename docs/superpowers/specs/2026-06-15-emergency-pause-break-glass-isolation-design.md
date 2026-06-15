@@ -117,7 +117,12 @@ trivial. Expected size ~300 lines (network loop + checks + dispatch + summary).
 
 ### Behaviour (per network, in parallel; mirrors current orchestration)
 
-1. Enumerate networks from `config/networks.json`; skip `type=="testnet"` (read from data).
+1. Enumerate networks: when `ENVIRONMENT=production`, take all keys of `config/networks.json`;
+   when `ENVIRONMENT=staging`, take the hardcoded staging subset (`bsc/arbitrum/optimism/base`).
+   In both cases, filter to the optional single-`NETWORK` arg if set, then skip any whose
+   `type=="testnet"` (read from `networks.json`, not a hardcoded list). No separate
+   `networks.staging.json` is read — staging vs production differ only in this network set and in
+   the deploy-log filename (step "Resolve diamond").
 2. Branch on a vendored `isTron` check (`tron` / `tronshasta`):
    - **EVM:**
      - Resolve RPC from `ETH_NODE_URI_<UPPER, "-"→"_">`.
