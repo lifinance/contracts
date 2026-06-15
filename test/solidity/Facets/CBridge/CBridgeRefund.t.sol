@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
 import { DiamondTest, LiFiDiamond } from "../../utils/DiamondTest.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
@@ -11,7 +10,7 @@ import { UnAuthorized, NotAContract } from "lifi/Errors/GenericErrors.sol";
 // Actual refund was processed at 25085299(Feb-18-2022 03:24:09 PM +UTC)
 // Run `forge test --match-path test\solidity\Facets\CBridgeRefund.t.sol --fork-url POLYGON_RPC_URL --fork-block-number 25085298`
 // or `forge test --match-contract CBridgeRefundTest --fork-url POLYGON_RPC_URL --fork-block-number 25085298`
-contract CBridgeRefundTestPolygon is DSTest, DiamondTest {
+contract CBridgeRefundTestPolygon is DiamondTest {
     address internal constant CBRIDGE_ADDRESS =
         0x88DCDC47D2f83a99CF0000FDF667A468bB958a78;
     address internal constant LIFI_ADDRESS =

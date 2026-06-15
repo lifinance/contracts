@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xD1DB5abDA5918ca4aFb8982a49378D4A2Dfe5D5c": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0xa09f97e14C8351D16558b18891938aC873787652": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x42C1418917AE5505b5B3C79bdc1d1ba30177Ea06": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       },
       "0x5B73eFA1929c80D92C85512153392B799B022D18": {
         "Name": "GenericSwapFacet",
@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0x386bbbE35DF5E7bec5fff8aC4E74A6D7c5fDa482": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0xFf0dDC136bD881F3B8Eea805654Dd0D0d3bd800C": {
         "Name": "CalldataVerificationFacet",
@@ -60,22 +60,6 @@
       "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.0"
-      },
-      "0x88818fd5B60465965D9667Ba3dAe6D2E58D385b5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -86,6 +70,7 @@
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
       "ReceiverAcrossV3": "",

@@ -57,6 +57,7 @@
     "FeeForwarder",
     "GasZipPeriphery",
     "LiFiTimelockController",
+    "OutputValidator",
     "Permit2Proxy",
     "TokenWrapper"
   ],

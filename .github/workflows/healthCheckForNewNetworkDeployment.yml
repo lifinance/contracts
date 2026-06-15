@@ -87,9 +87,9 @@ jobs:
 
       - name: Install Bun
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        uses: oven-sh/setup-bun@f4d14e03ff726c06358e5557344e1da148b56cf7 # v1
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install Foundry (provides cast)
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
@@ -97,7 +97,7 @@ jobs:
 
       - name: Install dependencies
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Generate Typechain Types
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'

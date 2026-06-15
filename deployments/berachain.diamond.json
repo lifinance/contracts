@@ -13,9 +13,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xD0F9b85c78ee9260E96dA3D86095e1D82cf67D33": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0xF76b26aaDF1450684f99F702CFc2807504cD96F7": {
+        "Name": "NEARIntentsFacet",
+        "Version": "1.0.0"
       },
       "0x446DfC584888e6Da7Bda3a608f89B041Efa09cD2": {
         "Name": "AccessManagerFacet",
@@ -45,8 +45,8 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x2cA8aB6C4d344E3E1E97755C58c53e047ddcfda9": {
-        "Name": "RelayFacet",
+      "0x73f367d11ecfE15fe7E0Ab0C8077fA6c73b1Fe5e": {
+        "Name": "GardenFacet",
         "Version": "1.0.0"
       },
       "0x2021C1900709E2bfa428908055E0a2A4cF818944": {
@@ -61,8 +61,8 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x2E4E7beD12E1EeE5E98582EE41aDf36Ce40d2dE4": {
-        "Name": "GlacisFacet",
+      "0xF2a21389D7025e1C02e9C06f838C0189aFB7dAE4": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0xEa4B4a6b5CC829f636A40C67DBE1e300E6d918FC": {
@@ -72,18 +72,6 @@
       "0xc1fCF0Ea9949CC55fE8e82d444349ce25b1bE5E8": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
-      },
-      "0x73f367d11ecfE15fe7E0Ab0C8077fA6c73b1Fe5e": {
-        "Name": "GardenFacet",
-        "Version": "1.0.0"
-      },
-      "0xF2a21389D7025e1C02e9C06f838C0189aFB7dAE4": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xF76b26aaDF1450684f99F702CFc2807504cD96F7": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -94,6 +82,7 @@
       "GasZipPeriphery": "0xb4a7493A203d10459F70Cfe73DfaBc2a739d60C3",
       "LiFiDEXAggregator": "0x6295b30297C254108E0bF16C70D513d2043E3d45",
       "LidoWrapper": "",
+      "OutputValidator": "0x3Ed2C6abfa00031664E879A648ed2A71BA45a4Cb",
       "Patcher": "",
       "Permit2Proxy": "0x66C8F3F645Bc61ed1740067D381830f7c7925d98",
       "ReceiverAcrossV3": "",

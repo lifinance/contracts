@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
@@ -36,7 +35,7 @@ contract MockSwapperFacet {
     }
 }
 
-contract WhitelistManagerFacetTest is DSTest, DiamondTest {
+contract WhitelistManagerFacetTest is DiamondTest {
     address internal constant USER_PAUSER = address(0xdeadbeef);
     address internal constant USER_DIAMOND_OWNER = address(0x123456);
     address internal constant NOT_DIAMOND_OWNER = address(0xabc123456);
