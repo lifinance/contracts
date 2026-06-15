@@ -392,6 +392,10 @@ describe('getSelector', () => {
   it('returns 0x for non-hex strings', () => {
     expect(getSelector('1f931c1c00000000')).toBe('0x')
   })
+
+  it('returns 0x for 0x-prefixed non-hex characters', () => {
+    expect(getSelector('0xzzzzzzzz00000000')).toBe('0x')
+  })
 })
 
 describe('summarizeProposalDoc', () => {
