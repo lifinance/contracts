@@ -132,5 +132,5 @@ jobs:
           # when unset the message says so rather than rendering a broken link.
           payload: |
             {
-              "text": "ATTENTION - the PRODUCTION emergency diamond pause action was just executed across all production diamonds by ${{ github.actor }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable (EXSC-371/EXSC-432)' }}"
+              "text": "ATTENTION - the PRODUCTION emergency diamond pause action was just executed across all production diamonds by ${{ github.actor }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable' }}"
             }
