@@ -1,29 +1,32 @@
-# Ticket Linkage Metric
+# EMERGENCY >> Pause STAGING diamonds (drill)
 #
 # ============================================================================================
 # ⚠️  TEMPORARY HIJACK — DO NOT MERGE TO main IN THIS STATE  ⚠️
+# On main this file is the monthly ticket-linkage metric; on this branch it is temporarily
+# replaced with the break-glass pause logic so the STAGING drill can be dispatched against this
+# branch ref without merging. >>> REVERT BEFORE MERGE:
+#   git checkout main -- .github/workflows/ticketLinkageMetric.yml
 # ============================================================================================
-# On main this file is the monthly ticket-linkage metric. On this feature branch it has been
-# TEMPORARILY replaced with the emergency break-glass pause logic so the staging pause drill can
-# be dispatched WITHOUT merging anything to main: GitHub lets you dispatch an already-registered
-# workflow against a feature-branch ref and runs that ref's copy of the file.
 #
-# Why hijack the metric workflow instead of diamondEmergencyPause.yml: borrowing the prod pause
-# button risks neutering it on accidental merge. The ticket-linkage metric is non-critical and
-# schedule-driven (its monthly run always uses main's UNCHANGED copy), so an accidental merge of
-# this branch state only breaks a metric, never the prod pause.
-#
-# The `warning: UNDERSTOOD` gate is intentionally dropped: workflow_dispatch inputs are read from
-# the DEFAULT branch, and main's copy of this workflow defines no inputs — so the drill dispatches
-# with no inputs. It posts to the staging-drill test channel (SLACK_WEBHOOK_MICHAL_TEST).
-#
-# >>> TO REVERT (before merging): git checkout main -- .github/workflows/ticketLinkageMetric.yml
-# ============================================================================================
+# - Manually-triggered (workflow_dispatch) staging break-glass: pauses the STAGING LiFiDiamonds
+#   (bsc/arbitrum/optimism/base) resolved from deployments/<net>.staging.json, directly from the
+#   registered PauserWallet EOA.
+# - Runs the frozen, self-contained script/emergency/emergencyPauseBreakGlass.sh, which pauses
+#   DIRECTLY from the PauserWallet (EVM via cast, Tron via troncast) — never via a Safe proposal,
+#   and intentionally independent of universalCast/helperFunctions so routing churn cannot break it.
+# - Authorization: requires typing 'UNDERSTOOD' AND membership of the lifinance/DiamondPauser team.
+# - Slack: posts a TEST status (success/failure) with a GH run link and the runbook URL
+#   (EMERGENCY_PAUSE_RUNBOOK_URL repository variable) to the staging-drill test channel on every run.
+# - Known limitations: needs RPCs (MongoDB) + staging deploy logs + the PRIV_KEY_PAUSER_WALLET_STAGING secret.
 
-name: Ticket Linkage Metric
+name: EMERGENCY >> Pause STAGING diamonds (drill)
 
 on:
-  workflow_dispatch: # TEMP-HIJACK: manual dispatch only for the staging pause drill
+  workflow_dispatch:
+    inputs:
+      warning:
+        description: "By clicking the next button you are pausing the STAGING diamonds (bsc/arbitrum/optimism/base). Please proceed with caution !!! You must type 'UNDERSTOOD' to proceed"
+        required: true
 
 permissions:
   contents: read # required to fetch repository contents
@@ -43,6 +46,33 @@ jobs:
 
       - name: Install dev dependencies
         run: bun install
+
+      - name: Check input
+        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        run: |
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
+          exit 1
+
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+
+      - name: Check team membership
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        run: |
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+            exit 1
+          else
+            echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
+          fi
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
@@ -72,7 +102,6 @@ jobs:
       - name: Pause Diamond
         # Frozen, self-contained break-glass script (script/emergency/) — intentionally
         # independent of universalCast/helperFunctions so routing churn cannot break the pause.
-        # TEMP-HIJACK: hardcoded to staging for the pre-merge dry-run.
         run: bash script/emergency/emergencyPauseBreakGlass.sh
         env:
           ENVIRONMENT: staging
@@ -102,7 +131,6 @@ jobs:
         # (per-network isolation can partially succeed and still return 1).
         if: ${{ always() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        # TEMP-HIJACK: posts to the staging-drill test channel with a TEST message.
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_MICHAL_TEST }}
           webhook-type: incoming-webhook
