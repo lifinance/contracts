@@ -34,7 +34,7 @@ permissions:
   actions: read # required to resolve the current job ID for the Slack deep-link
 
 jobs:
-  diamond-emergency-pause:
+  diamond-emergency-pause-staging:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -56,26 +56,26 @@ jobs:
 
       # DiamondPauser team-membership gate intentionally disabled for the staging drill
       # (mirrors the original staging workflow). The production workflow keeps it enabled.
-      # - name: Authenticate git user (check membership in 'DiamondPauser' group)
-      #   if: ${{ inputs.warning == 'UNDERSTOOD' }}
-      #   id: authenticate-user
-      #   uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
-      #   with:
-      #     username: ${{ github.actor }}
-      #     organization: lifinance
-      #     team: diamondpauser
-      #     GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
-      #
-      # - name: Check team membership
-      #   if: ${{ inputs.warning == 'UNDERSTOOD' }}
-      #   run: |
-      #     if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
-      #       echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
-      #       echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
-      #       exit 1
-      #     else
-      #       echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
-      #     fi
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+      
+      - name: Check team membership
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        run: |
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+            exit 1
+          else
+            echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
+          fi
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
