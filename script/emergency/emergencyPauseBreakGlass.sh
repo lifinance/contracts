@@ -370,10 +370,14 @@ function handleNetwork() {
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
-  # EVM: 0x-hex casing is cosmetic, compare lowercased. Tron: base58 is case-SENSITIVE, compare verbatim.
+  # EVM: 0x-hex casing is cosmetic, compare lowercased. Tron: base58 is case-SENSITIVE, compare
+  # the exact trimmed value (troncast output is clean under CONSOLA_LEVEL=3; a substring match
+  # could false-positive on wrapped/error output).
   local MATCH="false"
   if [[ "$IS_TRON" == "true" ]]; then
-    [[ "$DIAMOND_PAUSER_WALLET" == *"$PRIV_KEY_ADDRESS"* ]] && MATCH="true"
+    local TRIMMED_PAUSER
+    TRIMMED_PAUSER=$(echo "$DIAMOND_PAUSER_WALLET" | tr -d '[:space:]')
+    [[ "$TRIMMED_PAUSER" == "$PRIV_KEY_ADDRESS" ]] && MATCH="true"
   else
     [[ "$(echo "$DIAMOND_PAUSER_WALLET" | tr '[:upper:]' '[:lower:]')" == "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]] && MATCH="true"
   fi
