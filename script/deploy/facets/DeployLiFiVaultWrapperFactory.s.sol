@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import { Script } from "forge-std/Script.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { LiFiVaultWrapperFactory } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/Periphery/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
+import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 
 /// @title DeployLiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)

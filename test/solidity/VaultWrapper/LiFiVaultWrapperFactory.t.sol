@@ -3,9 +3,9 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { LiFiVaultWrapperFactory } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/Periphery/VaultWrapper/mocks/MockVaultWrapper.sol";
-import { FeeType, DeployParams, FeeConfig } from "lifi/Periphery/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
+import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TransferrableOwnership } from "../../Helpers/TransferrableOwnership.sol";
-import { InvalidConfig, InvalidContract, UnAuthorized } from "../../Errors/GenericErrors.sol";
+import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { InvalidConfig, InvalidContract, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
