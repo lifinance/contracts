@@ -128,10 +128,10 @@ Expect one `pending` proposal per succeeded network with `signatureCount: 1` (th
 
 ## Phase 5 — Draft PR (deploy mode only)
 
-The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). Model the PR on #1917:
+The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If Phase 3b ran, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
 
-1. Branch (never commit to main), commit only deployment-log changes, push.
-2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Facet address | Safe nonce |` from Phase 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute.
+1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 3b, push. (`git status` after Phase 3b shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
+2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Facet address | Safe nonce |` from Phase 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
 3. Run `/pr-ready` before `gh pr create --draft` (the pre-PR gate enforces it).
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
