@@ -53,6 +53,14 @@ For periphery contracts check `.LiFiDiamond.Periphery | has($N)` instead. The gl
 
 Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new version per chain (a new chain shows no current version — that's expected). Chains already on the repo version are re-deployed only if the user asked — surface them and ask.
 
+**Diamond-called periphery needs a second proposal.** A periphery contract that the diamond invokes during swaps (e.g. `GasZipPeriphery`, `FeeCollector`, `LiFiDEXAggregator`) must be **both** registered in the diamond *and* added to the diamond's allowlist — registration alone (`PeripheryRegistry`) does not let the diamond call it. The deploy prints a reminder for these (`script/deploy/resources/contractSpecificReminders.sh`, "do not forget to add … to whitelisted DEXs"); **don't filter it out of the log.** Detect the case deterministically:
+
+```bash
+jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null && echo "needs whitelist sync"
+```
+
+If it matches, the rollout produces **two** proposals per network — the registration cut (Phase 3) and a whitelist update (Phase 3b). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
+
 ### whitelist mode
 
 If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
@@ -72,7 +80,7 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 ## Phase 2 — Confirm plan
 
-Present: mode, contract + version (or PR + summary), full network list, what will be created (one Safe proposal per chain, timelock-wrapped). Wait for explicit go-ahead.
+Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead.
 
 ## Phase 3 — Execute
 
@@ -90,13 +98,23 @@ Both end with a per-network summary and exit `1` if any network failed. Failures
 
 Whitelist note: a production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
 
+## Phase 3b — Whitelist a diamond-called periphery (deploy mode only)
+
+Run only when Phase 1 flagged the contract as a diamond-called periphery. After the deploy registered it, sync the allowlist on the same networks to propose the whitelist change:
+
+```bash
+./script/tasks/syncWhitelistToNetworks.sh <network...> --production
+```
+
+This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` (picking up the just-deployed address) and proposes a `batchSetContractSelectorWhitelist` cut — the second proposal per network. It's the same `confirm-safe-tx` / verify / Slack tail; just expect two proposals per network from here on. Skip entirely for facets and non-diamond-called periphery.
+
 ## Phase 4 — Capture proposals
 
 ```bash
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when Phase 3b ran (registration + whitelist). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means Phase 3b's whitelist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
