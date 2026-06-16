@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: Orchestrates a production multisig rollout end-to-end — facet/periphery re-deployment or whitelist sync across many chains, Safe proposal creation, draft PR with deployed addresses, hardware-wallet signing hand-off, signature verification in MongoDB, and the #dev-sc-multisig-proposals Slack thread. Use whenever the user asks to "re-deploy <Contract> to all chains where it is running", "roll out <Facet> vX.Y.Z", "create diamond cut proposals", "sync the whitelist for PR <N> and propose", or otherwise wants Safe multisig proposals produced and shepherded to signing. Requires VPN (MongoDB), gh, and the Slack MCP server.
+description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", or "sync the whitelist for PR <N> and propose". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires VPN (MongoDB), gh, and the Slack MCP server.
 usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -8,10 +8,10 @@ usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR n
 
 Drives the production rollout lifecycle in two modes:
 
-- **deploy mode** — deploy a facet/periphery contract (version currently in the repo) to a set of production chains — either the chains the user names (including a chain it isn't live on yet) or, by default, every chain where it's already live — and propose the diamond cuts to each chain's Safe.
+- **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist sync, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
 - **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
-Both modes converge on the same tail: (deploy mode only) verify the deployed contracts on their explorers via the `verify-contracts` skill → capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing to the user → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
+Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
@@ -19,49 +19,36 @@ Both modes converge on the same tail: (deploy mode only) verify the deployed con
 
 - **Never run `confirm-safe-tx.ts` yourself.** Signing uses the user's hardware wallet; only the human can do it. Your job ends at giving the exact command.
 - **Never post to Slack before the signature verification gate passes.** The Slack message asks the team to spend their time signing — it must be accurate.
-- **Production double opt-in**: both entry scripts require `--production` on the CLI *and* `PRODUCTION=true` in `.env`. Do not edit `.env` to satisfy this — if it mismatches, stop and tell the user.
+- **Production double opt-in**: the entry scripts (`deployContractToNetworks.sh` via `deploy-contract`, and `syncWhitelistToNetworks.sh`) require `--production` on the CLI *and* `PRODUCTION=true` in `.env`. Do not edit `.env` to satisfy this — if it mismatches, stop and tell the user.
 - `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` must NOT be `true` (it would bypass the Safe). Abort if set.
 - Confirm the resolved plan (contract/version/networks or PR/networks) with the user before executing — deployments cost gas and mint Safe proposals on many chains.
 
 ## Phase 0 — Preflight
 
-Run from the repo root. Check and report (don't fix silently):
+Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
-- `gh auth status` OK; Slack MCP connected (needed in Phase 6 — warn early if missing, posting falls to the user).
+- `gh auth status` OK; Slack MCP connected (needed in Phase 8 — warn early if missing, posting falls to the user).
 - Working tree clean enough to branch later (deploy mode creates a PR from deployment-log changes).
 - VPN: verified implicitly later — `list-pending-proposals.ts` exits `2` with a clear message when the VPN is down; relay that to the user when it happens.
 
-## Phase 1 — Resolve targets
+In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Foundry, deployer balances, the `.env`/`--production` agreement) before touching any network — don't duplicate that here.
 
-### deploy mode
+## Phase 1 — Deploy (deploy mode) / Resolve sync targets (whitelist mode)
 
-The target list comes from one of two sources:
+### deploy mode — delegate to `deploy-contract`
 
-- **Explicit** — the user names the chains ("deploy MayanFacet to arbitrum, base, and sei"). Use exactly those, in the order given. This is how a facet reaches a **new** chain it isn't live on yet — discovery would never surface it. The only requirement is that each named chain already hosts a LiFiDiamond (`deployContractToNetworks.sh` adds the facet to an existing diamond; it does **not** stand up a brand-new network — that's `/add-network` + a full deploy). If a named chain has no diamond, flag it and drop it from the list.
-- **Discovery** (default when the user says "all chains where it's running" or names none) — chains where the contract is already live in the production diamond, plus its deployed version (verified recipe):
+Invoke the `deploy-contract` skill in production:
 
-```bash
-for F in deployments/*.diamond.json; do
-  NET=$(basename "$F" .diamond.json)
-  V=$(jq -r --arg N "<Contract>" '(.LiFiDiamond.Facets // {}) | to_entries[] | select(.value.Name == $N) | .value.Version' "$F" 2>/dev/null | head -1)
-  [ -n "$V" ] && echo "$NET $V"
-done
+```text
+/deploy-contract <Contract> <network...> --production
 ```
 
-For periphery contracts check `.LiFiDiamond.Periphery | has($N)` instead. The glob matches only production logs (`*.diamond.staging.json` and `*.diamond.immutable.json` do not end in `.diamond.json`).
+If the user named explicit chains, pass them through; otherwise let `deploy-contract` discover every chain where the contract is already live (`deployments/*.diamond.json`). It resolves old → new version per network, deploys + verifies + registers (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), runs the allowlist sync for diamond-called periphery (a **second** proposal per network), and hands back a per-network table: contract, version, network, chainId, address, registration type, whether a proposal was created, and verification status. Confirm the plan with the user (Phase 2 below) **before** letting `deploy-contract` execute against production.
 
-Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new version per chain (a new chain shows no current version — that's expected). Chains already on the repo version are re-deployed only if the user asked — surface them and ask.
+Carry forward from its output: the deployed addresses (for the PR table), which networks succeeded/failed, and whether the periphery allowlist sync ran (two proposals per network if so). Files it changed on disk — `deployments/<net>.json`, plus `config/whitelist.json` / `config/whitelist.staging.json` when the allowlist synced — are committed in Phase 5.
 
-**Diamond-called periphery needs a second proposal.** A periphery contract that the diamond invokes during swaps (e.g. `GasZipPeriphery`, `FeeCollector`, `LiFiDEXAggregator`) must be **both** registered in the diamond *and* added to the diamond's allowlist — registration alone (`PeripheryRegistry`) does not let the diamond call it. The deploy prints a reminder for these (`script/deploy/resources/contractSpecificReminders.sh`, "do not forget to add … to whitelisted DEXs"); **don't filter it out of the log.** Detect the case deterministically:
-
-```bash
-jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null && echo "needs whitelist sync"
-```
-
-If it matches, the rollout produces **two** proposals per network — the registration cut (Phase 3) and a whitelist update (Phase 3b). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
-
-### whitelist mode
+### whitelist mode — resolve targets
 
 If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
 
@@ -80,43 +67,17 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 ## Phase 2 — Confirm plan
 
-Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead.
+Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead. In deploy mode this is the gate before `deploy-contract` executes.
 
-## Phase 3 — Execute
+## Phase 3 — Execute sync (whitelist mode only)
 
-Run in the background (long-running; deploys retry and verify), monitor output, report per-network results:
-
-```bash
-# deploy mode
-./script/deploy/deployContractToNetworks.sh <Contract> <network...> --production
-
-# whitelist mode
-./script/tasks/syncWhitelistToNetworks.sh <network...> --production
-```
-
-Both end with a per-network summary and exit `1` if any network failed. Failures don't block the survivors: continue the flow with the succeeded networks, report the failed ones, and offer to retry them individually with the same command. Each proposal is created already carrying one signature, so every fresh proposal starts at `signatureCount: 1`.
-
-Whitelist note: a production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
-
-## Phase 3b — Whitelist a diamond-called periphery (deploy mode only)
-
-Run only when Phase 1 flagged the contract as a diamond-called periphery. After the deploy registered it, sync the allowlist on the same networks to propose the whitelist change:
+deploy mode already executed via `deploy-contract` in Phase 1. For whitelist mode, run in the background, monitor output, report per-network results:
 
 ```bash
 ./script/tasks/syncWhitelistToNetworks.sh <network...> --production
 ```
 
-This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` (picking up the just-deployed address) and proposes a `batchSetContractSelectorWhitelist` cut — the second proposal per network. It's the same `confirm-safe-tx` / verify / Slack tail; just expect two proposals per network from here on. Skip entirely for facets and non-diamond-called periphery.
-
-## Phase 3c — Verify deployed contracts (deploy mode only)
-
-The deploy framework attempts explorer verification inline, but it can fail, and the MongoDB `verified` flag is written separately from on-chain verification. Before moving on, confirm every freshly deployed contract is verified on its network's block explorer by invoking the `verify-contracts` skill for each target network:
-
-```text
-/verify-contracts <network>
-```
-
-It verifies the deployment's addresses on the explorer and writes `verified:true` back to MongoDB (both must hold). Whitelist mode deploys nothing, so it skips this phase.
+Ends with a per-network summary and exits `1` if any network failed. Failures don't block survivors: continue with the succeeded networks, report the failed ones, and offer to retry them individually. Each proposal is created already carrying one signature (`signatureCount: 1`). A production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
 
 ## Phase 4 — Capture proposals
 
@@ -124,14 +85,14 @@ It verifies the deployment's addresses on the explorer and writes `verified:true
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when Phase 3b ran (registration + whitelist). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means Phase 3b's whitelist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when a diamond-called periphery's allowlist synced (registration + whitelist). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
-The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If Phase 3b ran, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
+The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If a diamond-called periphery's allowlist synced, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
 
-1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 3b, push. (`git status` after Phase 3b shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
-2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Facet address | Safe nonce |` from Phase 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
+1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 1's allowlist sync, push. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
+2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Facet address | Safe nonce |` from Phases 1 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
 3. Run `/pr-ready` before `gh pr create --draft` (the pre-PR gate enforces it).
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
@@ -188,6 +149,6 @@ Summarize: networks rolled out (+ failures and their state), proposal nonces, PR
 ## Failure modes
 
 - `list-pending-proposals.ts` exits `2` → VPN down or `SC_MONGODB_URI` missing — tell the user, retry after they fix it.
-- Deploy succeeded but no proposal row → propose step failed; check the deploy log for the network, re-run that single network.
+- Deploy succeeded but no proposal row → propose step failed; check the deploy log for the network, re-run that single network via `deploy-contract`.
 - Stale/future nonce warnings during signing → `confirm-safe-tx.ts` explains them inline; relay its guidance (usually: delete + re-propose, or execute the blocking nonce first).
 - Slack MCP missing → give the user both message texts verbatim to post manually; do not fall back to webhooks (wrong identity).
