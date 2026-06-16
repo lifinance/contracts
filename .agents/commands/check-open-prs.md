@@ -29,9 +29,29 @@ GitHub scope is env-overridable (LI.FI defaults baked in), so the script is org-
 bunx tsx script/utils/check-open-prs.ts --json
 ```
 
-(Add `--quick` for quick mode.) The script returns, per PR: repo/number/title/url, kind (`own`/`incoming`), bucket, draft, CI rollup + failing checks tagged `review/audit` vs `restartable` vs `core-dev-gate`, conflicts, reviewDecision, mergeStateStatus, last commit, last non-author human comment, my last review, and `slackCheck: true` where Slack thread state is needed to finish classification. Archived-repo PRs and stale incoming PRs are already excluded (listed under `excluded`).
+(Add `--quick` for quick mode.) The script returns, per PR: repo/number/title/url, kind (`own`/`incoming`), bucket, draft, CI rollup + failing checks tagged `review/audit` vs `restartable` vs `core-dev-gate`, conflicts, reviewDecision, mergeStateStatus, last commit, last non-author human comment, my last review (`myReview: {state, at, sha}` — `sha` is the commit my review was submitted against, used by Phase 2D), and `slackCheck: true` where Slack thread state is needed to finish classification. Archived-repo PRs and stale incoming PRs are already excluded (listed under `excluded`).
 
 **Refresh mode** ("refresh the dashboard"): just re-run the script — it's cheap. Never re-render from data fetched earlier in the conversation; a PR may have been replied to, merged, or re-pinged since. Stamp every dashboard with the script's `asOf` (convert to `+07`).
+
+### Bucket vocabulary (script native → dashboard display)
+
+The script assigns each PR exactly one **native bucket** (the `bucket` field). Rows flagged `slackCheck: true` are _provisional_ until Phase 1.5 resolves them into the display sections rendered in Phase 1.6; every other bucket maps 1:1 to its section with no enrichment. If Phase 1.5 is skipped, a `slackCheck` PR renders under its raw native bucket name.
+
+| Script native bucket                                     | Needs Phase 1.5 (Slack)?       | Phase 1.6 display section                                   |
+| -------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------- |
+| `WAITING-ON-TEAM`                                        | yes — 48h cooldown split       | 🔔 REMIND-DUE (`≥48h`) / ⏳ REMIND-RECENTLY-PINGED (`<48h`) |
+| `WAITING-ON-ME`                                          | yes — confirm ball-in-court    | 👀 YOUR-ACTION                                              |
+| `CI-RED`                                                 | no                             | 🔴 CI-RED                                                   |
+| `CONFLICTS`                                              | no                             | ⚔️ CONFLICTS                                                |
+| `APPROVED-BLOCKED`                                       | no                             | 🚧 APPROVED-BLOCKED                                         |
+| `READY-TO-MERGE`                                         | no                             | ✅ READY-TO-MERGE                                           |
+| `OWN-DRAFT/{READY-TO-FLIP,NEEDS-WORK,DORMANT,SYNC-PR}`   | no                             | 📝 OWN-DRAFTS                                               |
+| `STALE`                                                  | no                             | 🧹 STALE                                                    |
+| `INBOX-UNREVIEWED`                                       | no                             | 📥 INCOMING-UNREVIEWED                                      |
+| `MAYBE-REREVIEW`                                         | yes — confirm author hand-back | 🔁 INCOMING-REREVIEW (else suppressed)                      |
+| `WAITING-ON-AUTHOR` / `WAITING-ON-OTHERS` / `DONE-BY-ME` | no                             | suppressed counts (Phase 1.6 §6)                            |
+
+`--quick` filters at the **source** — the script omits the incoming queue entirely (`INBOX-UNREVIEWED` / `MAYBE-REREVIEW` / `WAITING-ON-AUTHOR` / `WAITING-ON-OTHERS` / `DONE-BY-ME` are never collected), and the skill then renders only display groups 1–2. It is not post-filtering of the full JSON.
 
 ## Phase 1.5 — Slack cross-reference (ONLY `slackCheck: true` PRs)
 
@@ -48,14 +68,14 @@ Skip this entirely for PRs without the flag. For the flagged set:
 
 1. **Never estimate a Slack timestamp** — every cooldown figure comes from an actual `Message TS` of the actual last reply.
 2. **Search-result context snippets are NOT thread content** — they preview only the FIRST replies and silently omit the newest. Discovery only; every classification needs a `slack_read_thread` from THIS invocation.
-3. **One audit line per Slack-classified PR**: `Audit: #1806 last_reply_ts=… (by=me, 0.4h ago) replies=4/4 → RECENTLY-PINGED`. A classification without one is a bug.
+3. **One audit line per Slack-classified PR** — emitted by _this skill layer_ (the script only sets `slackCheck: true`; it never produces audit lines) as a visible line in the conversation, printed during Phase 1.5 immediately above the Phase 1.6 dashboard, one per PR that carried `slackCheck`. Mandatory format and fields: `Audit: #<pr> last_reply_ts=<ISO Message TS> (by=<me|login>, <Δh> ago) replies=<read>/<reply_count> → <DISPLAY-BUCKET>`. Each field must trace to a `slack_read_thread` result from THIS invocation: `last_reply_ts` is a real `Message TS` (never estimated — invariant 1), `replies=<read>/<reply_count>` proves pagination was exhausted (`read` must equal the thread's `reply_count`), and `→ <DISPLAY-BUCKET>` is the resolved Phase 1.6 section. A Slack-classified PR rendered without its audit line — or with `read < reply_count` — is a bug.
 
 ## Phase 1.6 — render the dashboard
 
 Header: `As of <YYYY-MM-DD HH:MM +07> — full | quick | refresh`. Sections in order, tables with PR / title / key timestamps / notes:
 
 1. 🔔 **REMIND-DUE** · ⏳ **REMIND-RECENTLY-PINGED** · 👀 **YOUR-ACTION** (from Phase 1.5)
-2. 🔴 **CI-RED** (flag review/audit-gated vs restartable failures, from script) · ⚔️ **CONFLICTS** · 🚧 **APPROVED-BLOCKED** (approved + green but `mergeState != CLEAN`; render the script's `note` verbatim) · ✅ **READY-TO-MERGE** (only `mergeState == CLEAN` — actually mergeable now)
+2. 🔴 **CI-RED** (flag review/audit-gated vs restartable failures, from script) · ⚔️ **CONFLICTS** · 🚧 **APPROVED-BLOCKED** (approved + green but `mergeStateStatus != CLEAN`; render the script's `note` verbatim) · ✅ **READY-TO-MERGE** (only `mergeStateStatus == CLEAN` — actually mergeable now)
 3. 📝 **OWN-DRAFTS** (script sub-buckets: READY-TO-FLIP / NEEDS-WORK / DORMANT / SYNC-PR)
 4. 🧹 **STALE**
 5. 📥 **INCOMING-UNREVIEWED** · 🔁 **INCOMING-REREVIEW**
@@ -81,7 +101,7 @@ Immediately before posting, re-read each target thread; skip (and say why) if th
 friendly bump <!subteam^S096X6MCB0C>
 ```
 
-(The `<!subteam^…>` syntax is mandatory — plain `@smartcontract_core` doesn't notify.) Confirm each post with its permalink.
+(The `<!subteam^…>` syntax is mandatory — plain `@smartcontract_core` doesn't notify.) `S096X6MCB0C` is LI.FI's `@smartcontract_core` subteam ID — org-specific, like the `#dev-sc-review` channel this skill targets; another org swaps in its own reviewer subteam ID, looked up once via Slack `usergroups.list` (or the group's "Copy mention" handle). Confirm each post with its permalink.
 
 ## Phase 2B/2C — walk OWN-DRAFTS / STALE
 
@@ -93,7 +113,7 @@ Per PR, one short prompt with the script's bucket and suggested next step; execu
 ## Phase 2D — incoming queue
 
 - **INBOX-UNREVIEWED**: show link + 2-line preview; offer open-in-browser / sub-agent triage (≤200 words) / skip.
-- **INBOX-REREVIEW**: fetch diff since my last review (`gh pr diff <n> --commit-range <last_review_sha>..HEAD`), quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
+- **INBOX-REREVIEW**: fetch diff since my last review (`gh pr diff <n> --commit-range <sha>..HEAD`, where `<sha>` is the PR's `myReview.sha` from the script JSON — the commit my last review was submitted against). If `myReview.sha` is `null` (review predates the commit or it was detached), fall back to the full `gh pr diff <n>`. Quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
 
 Never auto-approve, auto-comment, or auto-request-changes — the skill routes; the human reviews.
 

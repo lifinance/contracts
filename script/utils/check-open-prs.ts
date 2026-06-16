@@ -73,6 +73,7 @@ const gh = (args: string[]): string =>
   execFileSync('gh', args, {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    timeout: 60_000, // fail fast instead of hanging on a stalled network / auth prompt
   })
 
 const days = (iso: string | null | undefined): number =>
@@ -189,7 +190,7 @@ const PR_FIELDS = `
   author { login }
   reviewDecision
   mergeable mergeStateStatus
-  reviews(last: 50) { nodes { author { login } state submittedAt } }
+  reviews(last: 50) { nodes { author { login } state submittedAt commit { oid } } }
   comments(last: 30) { nodes { author { login } createdAt } }
   commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
     state
@@ -242,7 +243,7 @@ interface IRow {
   mergeStateStatus: string | null
   lastCommitAt: string | null
   lastNonAuthorComment: { author: string; at: string } | null
-  myLastReview: { state: string; at: string } | null
+  myLastReview: { state: string; at: string; sha: string | null } | null
   createdAt: string
   updatedAt: string
   author: string
@@ -345,7 +346,11 @@ for (const s of seeds) {
       ? { author: lastNonAuthor.login, at: lastNonAuthor.at }
       : null,
     myLastReview: myLastReview
-      ? { state: myLastReview.state, at: myLastReview.submittedAt }
+      ? {
+          state: myLastReview.state,
+          at: myLastReview.submittedAt,
+          sha: myLastReview.commit?.oid ?? null,
+        }
       : null,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
@@ -450,7 +455,7 @@ if (JSON_MODE) {
     ciFail: r.ciFailures.length ? r.ciFailures : undefined,
     conflicts: r.conflicts || undefined,
     decision: r.reviewDecision ?? undefined,
-    mergeState: r.mergeStateStatus ?? undefined,
+    mergeStateStatus: r.mergeStateStatus ?? undefined,
     lastCommit: r.lastCommitAt ?? undefined,
     lastNonAuthor: r.lastNonAuthorComment ?? undefined,
     myReview: r.myLastReview ?? undefined,
