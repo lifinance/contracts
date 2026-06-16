@@ -179,7 +179,7 @@
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "castSendAsync": true,
-    "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap), so the automated periphery healthcheck cannot pass: skipHealthcheck is set and the healthcheck is run manually before merge to verify deployed addresses. GasZip was enabled post-launch (EXSC-509): GasZipV2 router and ShortID 525 are wired in gaszip.json and gasZipChainId.",
+    "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap), so the automated periphery healthcheck cannot pass: skipHealthcheck is set and the healthcheck is run manually before merge to verify deployed addresses.",
     "skipHealthcheck": true
   },
   "avalanche": {
