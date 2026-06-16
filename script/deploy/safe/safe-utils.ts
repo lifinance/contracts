@@ -54,7 +54,7 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
-import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
+import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
 
@@ -2132,15 +2132,31 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
 }
 
 /**
- * Helper function to wrap calldata in a timelock schedule call
+ * Wraps one or more calls in a single timelock `scheduleBatch` call.
+ * Inner calls are scheduled (and later executed) in array order, so callers
+ * control execution ordering via the order of `targetAddresses`/`originalCalldatas`.
+ * @param network - Network name
+ * @param rpcUrl - RPC URL (falls back to the chain default when empty)
+ * @param timelockAddress - Address of the timelock controller
+ * @param targetAddresses - Target contract address per inner call (parallel to `originalCalldatas`)
+ * @param originalCalldatas - Calldata per inner call (parallel to `targetAddresses`)
+ * @returns The `scheduleBatch` calldata and the timelock as the new target
+ * @throws If the call arrays are empty or differ in length
  */
 export async function wrapWithTimelockSchedule(
   network: string,
   rpcUrl: string,
   timelockAddress: Address,
-  targetAddress: Address,
-  originalCalldata: Hex
+  targetAddresses: Address[],
+  originalCalldatas: Hex[]
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
+  if (targetAddresses.length === 0)
+    throw new Error('wrapWithTimelockSchedule requires at least one call')
+  if (targetAddresses.length !== originalCalldatas.length)
+    throw new Error(
+      `wrapWithTimelockSchedule: targetAddresses (${targetAddresses.length}) and originalCalldatas (${originalCalldatas.length}) must have the same length`
+    )
+
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
@@ -2197,21 +2213,15 @@ export async function wrapWithTimelockSchedule(
   // Create a unique salt based on the current timestamp
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
 
-  const scheduleBatchCalldata = encodeFunctionData({
-    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-    functionName: 'scheduleBatch',
-    args: [
-      [targetAddress], // targets
-      [0n], // values
-      [originalCalldata], // payloads
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
-      salt, // salt
-      minDelay, // delay
-    ],
-  })
+  const scheduleBatchCalldata = encodeTimelockScheduleBatch(
+    targetAddresses,
+    originalCalldatas,
+    salt,
+    minDelay
+  )
 
   consola.info(
-    `Wrapped transaction in timelock scheduleBatch call (batch-of-one) with minimum delay of ${minDelay} seconds`
+    `Wrapped ${targetAddresses.length} call(s) in timelock scheduleBatch with minimum delay of ${minDelay} seconds`
   )
 
   return {
