@@ -434,7 +434,7 @@
             Controlled recovery
           </text>
           <text x="56" y="456" font-size="10" fill="#5b5f72">
-            pre-approved, multi-signature — once the threat is cleared
+            multi-signature — once the team confirms it is safe
           </text>
         </g>
       </svg>
@@ -470,10 +470,11 @@
         <strong>Phase 2 — human-controlled recovery (on the team's timeline).</strong> A paused
         protocol stays frozen; <strong>recovery is never automatic</strong>. The pause holds while
         the team investigates and confirms it is safe to resume. Only then is normal operation
-        restored, using <strong>pre-approved, multi-signature recovery transactions</strong>
-        prepared in advance so the step is fast and reliable the moment it is authorized. This
-        separation is deliberate: the freeze protects user funds for as long as needed, and the
-        protocol returns to service only on an explicit human decision.
+        restored, through a <strong>multi-signature recovery that no single person can perform
+        alone</strong>. The recovery path is engineered and rehearsed ahead of time, so once the
+        team authorizes it the protocol can be brought back promptly. This separation is
+        deliberate: the freeze protects user funds for as long as needed, and the protocol returns
+        to service only on an explicit human decision.
       </p>
     </section>
 
@@ -502,10 +503,11 @@
           deliberately chosen, low-traffic networks.
         </li>
         <li>
-          <strong>Pre-staged, pre-approved recovery.</strong> The recovery ("unpause")
-          transactions were prepared and signed off <strong>in advance</strong> by the required
-          signers, ready to execute the moment they were needed — so reversing the pause required
-          no scrambling.
+          <strong>Pre-staged recovery for a reversible test.</strong> Because this was a planned
+          exercise of a deliberate pause — not a response to a real threat — we prepared and
+          pre-signed the multi-signature recovery transactions in advance, purely so the test was
+          reversible within minutes and required no scrambling. (In a real incident, recovery is
+          signed and executed only after investigation; it is never pre-authorized.)
         </li>
         <li>
           <strong>Advance notice to all stakeholders</strong>, internal and external — including
@@ -542,9 +544,9 @@
         </li>
         <li>
           <strong>Controlled recovery</strong> — once the pause was confirmed, we restored normal
-          operation within minutes using the pre-approved, multi-signature recovery transactions,
-          confirming the deliberate, human-controlled exit path is fast and reliable when
-          authorized. Everything returned to its pre-test state.
+          operation within minutes using the multi-signature recovery transactions we had
+          pre-signed for this test, confirming the deliberate, human-controlled exit path is fast
+          and reliable when authorized. Everything returned to its pre-test state.
         </li>
       </ul>
       <p>
@@ -630,7 +632,7 @@
         <dt>On-chain monitoring</dt>
         <dd>Continuous, automated surveillance of smart-contract activity to detect threats in real time.</dd>
         <dt>Controlled recovery</dt>
-        <dd>The deliberate, human-controlled lifting of a pause. A paused protocol stays frozen until the team has investigated and decided it is safe to resume; recovery is never automatic. The recovery ("unpause") transactions are prepared and approved in advance by the required signers, so they can be executed immediately once that decision is made rather than assembled under pressure. LI.FI's most sensitive actions require approval from multiple independent signers (a multi-signature scheme).</dd>
+        <dd>The deliberate, human-controlled lifting of a pause. A paused protocol stays frozen until the team has investigated and decided it is safe to resume; recovery is never automatic and is never pre-authorized. Lifting the pause requires approval from multiple independent signers (a multi-signature scheme), so no individual can resume the protocol alone.</dd>
       </dl>
       <div class="hexagate">
         <strong>About Hexagate.</strong> Hexagate, a Chainalysis company, is a real-time on-chain

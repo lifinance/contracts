@@ -71,7 +71,7 @@ flowchart TD
     S -. in parallel .-> AL["Alerting — the team is notified by email, chat, and phone/SMS"]
     P --> G["The pause holds — the team investigates"]
     subgraph H["Human-controlled · after investigation"]
-        G --> R["Controlled recovery — pre-approved, multi-signature transactions restore normal operation once the threat is cleared"]
+        G --> R["Controlled recovery — a multi-signature transaction restores normal operation once the team confirms it is safe"]
     end
 ```
 
@@ -93,10 +93,10 @@ paging — so responders engage immediately, day or night.
 
 A paused protocol stays frozen; **recovery is never automatic**. The pause holds while the
 team investigates and confirms it is safe to resume. Only then is normal operation restored,
-using **pre-approved, multi-signature recovery transactions** prepared in advance so the step
-is fast and reliable the moment it is authorized. This separation is deliberate: the freeze
-protects user funds for as long as needed, and the protocol returns to service only on an
-explicit human decision.
+through a **multi-signature recovery that no single person can perform alone**. The recovery
+path is engineered and rehearsed ahead of time, so once the team authorizes it the protocol
+can be brought back promptly. This separation is deliberate: the freeze protects user funds for
+as long as needed, and the protocol returns to service only on an explicit human decision.
 
 ---
 
@@ -117,9 +117,11 @@ independent layers of control:
   detection and authorization chain in a mode where **no real pause was possible**, confirming
   the alarm and approval path worked end-to-end. Only then did we run a genuine pause — and only
   on a small set of deliberately chosen, low-traffic networks.
-- **Pre-staged, pre-approved recovery.** The recovery ("unpause") transactions were prepared
-  and signed off **in advance** by the required signers, ready to execute the moment they were
-  needed — so reversing the pause required no scrambling.
+- **Pre-staged recovery for a reversible test.** Because this was a planned exercise of a
+  deliberate pause — not a response to a real threat — we prepared and pre-signed the
+  multi-signature recovery transactions in advance, purely so the test was reversible within
+  minutes and required no scrambling. (In a real incident, recovery is signed and executed only
+  after investigation; it is never pre-authorized.)
 - **Advance notice to all stakeholders**, internal and external — including our external
   auditors — so the deliberately realistic alerts were never mistaken for a real incident.
 
@@ -140,9 +142,9 @@ performed as designed:
 - **Alerting** — the team was reached across every channel (email, chat, and phone/SMS paging),
   confirming responders would be engaged day or night.
 - **Controlled recovery** — once the pause was confirmed, we restored normal operation within
-  minutes using the pre-approved, multi-signature recovery transactions, confirming the
-  deliberate, human-controlled exit path is fast and reliable when authorized. Everything
-  returned to its pre-test state.
+  minutes using the multi-signature recovery transactions we had pre-signed for this test,
+  confirming the deliberate, human-controlled exit path is fast and reliable when authorized.
+  Everything returned to its pre-test state.
 
 We also confirmed the system's **fail-safe design**: where a precondition was not met, the
 safeguard correctly **declined to act rather than acting incorrectly** — precisely the
@@ -198,10 +200,9 @@ evidence-based discipline, and this exercise is one part of that ongoing commitm
   detect threats in real time.
 - **Controlled recovery** — the deliberate, human-controlled lifting of a pause. A paused
   protocol stays frozen until the team has investigated and decided it is safe to resume;
-  recovery is never automatic. The recovery ("unpause") transactions are prepared and approved
-  in advance by the required signers, so they can be executed immediately once that decision is
-  made rather than assembled under pressure. LI.FI's most sensitive actions require approval
-  from multiple independent signers (a multi-signature scheme).
+  recovery is never automatic and is never pre-authorized. Lifting the pause requires approval
+  from multiple independent signers (a multi-signature scheme), so no individual can resume the
+  protocol alone.
 
 ### About Hexagate
 
