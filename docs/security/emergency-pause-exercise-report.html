@@ -1,0 +1,588 @@
+<!doctype html>
+<!--
+  Branded HTML source for the external partner PDF.
+  Regenerate the PDF with Chrome headless:
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless --disable-gpu --no-pdf-header-footer \
+      --print-to-pdf="2026-05-28-emergency-pause-exercise-report.pdf" \
+      emergency-pause-exercise-report.html
+  Brand: Primary Blue #5C67FF, Primary Pink #F7C2FF (li.fi/brand-guidelines).
+  TODO for final: replace the text wordmark with the official LI.FI logo+icon lockup
+  and the brand typeface from the brand asset pack.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Production Emergency-Response Exercise — LI.FI</title>
+    <style>
+      :root {
+        --blue: #5c67ff;
+        --blue-deep: #3a43c4;
+        --pink: #f7c2ff;
+        --ink: #1b1d28;
+        --muted: #5b5f72;
+        --line: #e6e7ef;
+        --soft: #f6f7fb;
+      }
+
+      @page {
+        size: A4;
+        margin: 18mm 17mm 18mm 17mm;
+      }
+      @page cover {
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+          Arial, sans-serif;
+        color: var(--ink);
+        font-size: 10.7pt;
+        line-height: 1.5;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* ---------- Cover ---------- */
+      .cover {
+        page: cover;
+        height: 297mm;
+        background: linear-gradient(155deg, #5c67ff 0%, #4d57f2 55%, #3a43c4 100%);
+        color: #fff;
+        padding: 30mm 22mm 24mm 22mm;
+        display: flex;
+        flex-direction: column;
+        page-break-after: always;
+        position: relative;
+      }
+      .wordmark {
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        font-size: 20pt;
+      }
+      .wordmark .dot {
+        color: var(--pink);
+      }
+      .cover .accent {
+        width: 64px;
+        height: 6px;
+        background: var(--pink);
+        border-radius: 3px;
+        margin: 14mm 0 9mm 0;
+      }
+      .cover h1 {
+        font-size: 33pt;
+        line-height: 1.08;
+        font-weight: 800;
+        margin: 0 0 10px 0;
+        max-width: 16em;
+      }
+      .cover .subtitle {
+        font-size: 15pt;
+        font-weight: 600;
+        color: var(--pink);
+        margin: 0 0 26px 0;
+      }
+      .cover .lede {
+        font-size: 12pt;
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.92);
+        max-width: 30em;
+        font-style: italic;
+      }
+      .cover .meta {
+        margin-top: auto;
+        font-size: 10.5pt;
+        color: rgba(255, 255, 255, 0.9);
+        border-top: 1px solid rgba(255, 255, 255, 0.3);
+        padding-top: 12px;
+      }
+      .cover .meta strong {
+        color: #fff;
+      }
+
+      /* ---------- Content ---------- */
+      h2 {
+        font-size: 15pt;
+        color: var(--blue-deep);
+        font-weight: 800;
+        margin: 22px 0 8px 0;
+        padding-bottom: 5px;
+        border-bottom: 2px solid var(--pink);
+      }
+      h2:first-of-type {
+        margin-top: 0;
+      }
+      p {
+        margin: 0 0 9px 0;
+      }
+      strong {
+        color: var(--ink);
+      }
+      a {
+        color: var(--blue);
+        text-decoration: none;
+      }
+      ul,
+      ol {
+        margin: 0 0 9px 0;
+        padding-left: 20px;
+      }
+      li {
+        margin: 0 0 6px 0;
+      }
+      li::marker {
+        color: var(--blue);
+        font-weight: 700;
+      }
+      .section {
+        page-break-inside: avoid;
+      }
+
+      .result-callout {
+        background: var(--soft);
+        border-left: 4px solid var(--blue);
+        border-radius: 6px;
+        padding: 11px 14px;
+        margin: 6px 0 9px 0;
+      }
+
+      /* ---------- Flow diagram ---------- */
+      .flow {
+        width: 100%;
+        max-width: 520px;
+        display: block;
+        margin: 12px auto 6px auto;
+      }
+      .flow-caption {
+        text-align: center;
+        font-size: 8.8pt;
+        color: var(--muted);
+        margin: 0 0 12px 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 6px 0 10px 0;
+        font-size: 10pt;
+      }
+      thead th {
+        background: var(--blue);
+        color: #fff;
+        text-align: left;
+        padding: 8px 11px;
+        font-weight: 700;
+      }
+      thead th:last-child {
+        width: 26%;
+      }
+      tbody td {
+        padding: 8px 11px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) td {
+        background: #faf6ff;
+      }
+      .status {
+        color: var(--blue-deep);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .glossary dt {
+        font-weight: 700;
+        color: var(--blue-deep);
+        margin-top: 7px;
+      }
+      .glossary dd {
+        margin: 1px 0 0 0;
+        color: var(--ink);
+      }
+
+      .hexagate {
+        background: var(--soft);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-top: 6px;
+      }
+
+      .footer {
+        margin-top: 16px;
+        padding-top: 9px;
+        border-top: 1px solid var(--line);
+        font-size: 8.6pt;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+      }
+      .footer .wm {
+        font-weight: 800;
+        color: var(--blue-deep);
+      }
+      .footer .wm .dot {
+        color: var(--pink);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============ COVER ============ -->
+    <section class="cover">
+      <div class="wordmark">LI<span class="dot">.</span>FI</div>
+      <div class="accent"></div>
+      <h1>Production Emergency-Response Exercise</h1>
+      <div class="subtitle">Confirming LI.FI's Ability to Protect User Funds</div>
+      <p class="lede">
+        On 28 May 2026, LI.FI ran a full end-to-end test of its automated emergency-pause
+        capability in production - and confirmed it works as designed.
+      </p>
+      <div class="meta">
+        <strong>Prepared by the LI.FI Smart Contract Team</strong><br />
+        Security exercise report &nbsp;·&nbsp; 28 May 2026
+      </div>
+    </section>
+
+    <!-- ============ CONTENT ============ -->
+    <section class="section">
+      <h2>Executive summary</h2>
+      <p>
+        LI.FI operates an automated safeguard that can
+        <strong>pause the LI.FI Diamond - its core cross-chain bridging and swapping protocol -
+        within moments of a threat being detected</strong>, freezing activity to protect user
+        funds. The LI.FI Diamond is monitored by Hexagate, a Chainalysis company, and the
+        emergency-pause system is designed so that this monitoring can trigger the response
+        automatically.
+      </p>
+      <p>
+        On <strong>28 May 2026</strong> we tested that entire capability end-to-end, in
+        production. The exercise was meticulously planned around a detailed written runbook,
+        executed under a strict four-eyes principle, and deliberately staged so that it was
+        reversible at every step.
+      </p>
+      <div class="result-callout">
+        <strong>The result: the capability works.</strong> Threat detection, authorization, the
+        built-in safety stops, multi-channel team alerting, and rapid recovery all performed
+        exactly as designed. As with any rigorous exercise, we identified a small set of
+        operational refinements - and have since implemented all of them, further strengthening
+        an already-working system.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Why this capability matters</h2>
+      <p>
+        The LI.FI Diamond moves real user funds across chains. If it ever came under attack, the
+        most important defensive action is the ability to
+        <strong>pause it instantly</strong> - freezing activity before an attacker can cause harm
+        and buying time to respond.
+      </p>
+      <p>
+        A pause capability is only meaningful if it is
+        <strong>fast, reliable, and continuously ready</strong>. That means it cannot depend on
+        someone happening to be awake and at a keyboard: it must be backed by continuous
+        monitoring that can detect a threat and trigger the response automatically, and it must be
+        tested under realistic conditions so there are no surprises when it matters. This exercise
+        was designed to prove exactly that.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>How the emergency response works</h2>
+      <p>
+        The protection is an end-to-end chain. Each stage hands off to the next, and several
+        independent checks must pass before the protocol is touched:
+      </p>
+
+      <svg class="flow" viewBox="0 0 600 470" role="img"
+        aria-label="End-to-end emergency response flow">
+        <defs>
+          <linearGradient id="boxg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#5c67ff" />
+            <stop offset="1" stop-color="#4750e6" />
+          </linearGradient>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#5c67ff" />
+          </marker>
+        </defs>
+
+        <!-- connectors (drawn first, behind boxes) -->
+        <line x1="210" y1="92" x2="210" y2="128" stroke="#5c67ff" stroke-width="2.5"
+          marker-end="url(#arrow)" />
+        <line x1="210" y1="202" x2="210" y2="238" stroke="#5c67ff" stroke-width="2.5"
+          marker-end="url(#arrow)" />
+        <line x1="210" y1="312" x2="210" y2="348" stroke="#5c67ff" stroke-width="2.5"
+          marker-end="url(#arrow)" />
+        <line x1="380" y1="165" x2="424" y2="165" stroke="#b9aee8" stroke-width="2.2"
+          stroke-dasharray="5 4" marker-end="url(#arrow)" />
+
+        <!-- Stage 1 -->
+        <g>
+          <rect x="42" y="22" width="336" height="70" rx="11" fill="url(#boxg)" />
+          <circle cx="42" cy="57" r="16" fill="#f7c2ff" />
+          <text x="42" y="62" text-anchor="middle" font-size="15" font-weight="800"
+            fill="#3a43c4">1</text>
+          <text x="70" y="50" font-size="13" font-weight="800" fill="#ffffff">Detection</text>
+          <text x="70" y="70" font-size="10.5" fill="#e9ebff">
+            Hexagate monitors the LI.FI Diamond for on-chain threats
+          </text>
+        </g>
+
+        <!-- Stage 2 -->
+        <g>
+          <rect x="42" y="132" width="336" height="70" rx="11" fill="url(#boxg)" />
+          <circle cx="42" cy="167" r="16" fill="#f7c2ff" />
+          <text x="42" y="172" text-anchor="middle" font-size="15" font-weight="800"
+            fill="#3a43c4">2</text>
+          <text x="70" y="160" font-size="13" font-weight="800" fill="#ffffff">
+            Secured automation
+          </text>
+          <text x="70" y="180" font-size="10.5" fill="#e9ebff">
+            GitHub Actions pipeline · multiple authorization gates
+          </text>
+        </g>
+
+        <!-- Alerting (parallel) -->
+        <g>
+          <rect x="424" y="132" width="158" height="70" rx="11" fill="#ffffff"
+            stroke="#f0b9fb" stroke-width="2" />
+          <text x="436" y="158" font-size="12" font-weight="800" fill="#3a43c4">
+            Alerting
+          </text>
+          <text x="436" y="174" font-size="9.2" fill="#5b5f72">in parallel</text>
+          <text x="436" y="190" font-size="9.2" fill="#5b5f72">
+            email · chat · phone/SMS
+          </text>
+        </g>
+
+        <!-- Stage 3 -->
+        <g>
+          <rect x="42" y="242" width="336" height="70" rx="11" fill="url(#boxg)" />
+          <circle cx="42" cy="277" r="16" fill="#f7c2ff" />
+          <text x="42" y="282" text-anchor="middle" font-size="15" font-weight="800"
+            fill="#3a43c4">3</text>
+          <text x="70" y="270" font-size="13" font-weight="800" fill="#ffffff">
+            Controlled execution
+          </text>
+          <text x="70" y="290" font-size="10.5" fill="#e9ebff">
+            the LI.FI Diamond is paused on-chain
+          </text>
+        </g>
+
+        <!-- Stage 4 -->
+        <g>
+          <rect x="42" y="352" width="336" height="70" rx="11" fill="url(#boxg)" />
+          <circle cx="42" cy="387" r="16" fill="#f7c2ff" />
+          <text x="42" y="392" text-anchor="middle" font-size="15" font-weight="800"
+            fill="#3a43c4">4</text>
+          <text x="70" y="380" font-size="13" font-weight="800" fill="#ffffff">Recovery</text>
+          <text x="70" y="400" font-size="10.5" fill="#e9ebff">
+            pre-signed transactions restore normal operation
+          </text>
+        </g>
+      </svg>
+      <p class="flow-caption">
+        End-to-end response chain: detection → secured automation with authorization gates →
+        controlled on-chain pause → recovery, with the team alerted in parallel.
+      </p>
+
+      <ol>
+        <li>
+          <strong>Detection.</strong> Hexagate monitors the LI.FI Diamond for anomalous or
+          malicious on-chain activity.
+        </li>
+        <li>
+          <strong>Secured automation.</strong> A detection is handed to a secured automation
+          pipeline (built on GitHub Actions) that orchestrates the response.
+          <strong>Multiple independent authorization checks must pass before anything
+          executes</strong>, so no single component can trigger a pause on its own.
+        </li>
+        <li>
+          <strong>Controlled on-chain execution.</strong> Once the checks pass, the LI.FI Diamond
+          is paused on-chain, freezing activity.
+        </li>
+        <li>
+          <strong>Alerting (in parallel).</strong> The team is notified across multiple channels
+          - email, chat, and phone/SMS paging - so responders engage immediately, day or night.
+        </li>
+        <li>
+          <strong>Recovery.</strong> Pre-approved, pre-signed recovery transactions let the team
+          safely resume normal operation.
+        </li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>How we ensured a safe, controlled exercise</h2>
+      <p>Testing an emergency control in production demands discipline. We applied several layers of control:</p>
+      <ul>
+        <li>
+          <strong>A four-eyes principle, executed as a team.</strong> The entire smart contract
+          team, together with a member of the security team, ran the exercise in a single shared
+          session - working through every step of the runbook together rather than any one person
+          acting alone. Each sensitive action was independently verified by a second team member
+          before and after execution, so no critical step could be taken or missed by an
+          individual.
+        </li>
+        <li>
+          <strong>A detailed written runbook.</strong> Every action, expected result, and safety
+          check was documented and reviewed in advance. The team executed against the runbook step
+          by step rather than improvising.
+        </li>
+        <li>
+          <strong>A deliberately staged, two-phase design</strong> to bound any impact. We first
+          validated the detection and authorization chain in a mode where
+          <strong>no real pause was possible</strong>, confirming the alarm and approval path
+          worked end-to-end. Only then did we run a genuine pause - and only on a small set of
+          deliberately chosen, low-traffic networks.
+        </li>
+        <li>
+          <strong>Pre-staged, pre-approved recovery.</strong> The recovery ("unpause")
+          transactions were prepared and signed off <strong>in advance</strong>, ready to execute
+          the moment they were needed - so reversing the pause required no scrambling.
+        </li>
+        <li>
+          <strong>Advance notice to all stakeholders</strong>, internal and external, so the
+          deliberately realistic alerts were never mistaken for a real incident.
+        </li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>What we tested and confirmed</h2>
+      <p>
+        Following the runbook, we exercised the full chain shown above and confirmed every stage
+        performed as designed:
+      </p>
+      <ul>
+        <li>
+          <strong>Detection and automated dispatch</strong> - a Hexagate monitor detected a
+          designated on-chain event and initiated the response automatically, with no human
+          trigger, exercising the same automated path a production threat detection would follow.
+        </li>
+        <li>
+          <strong>Authorization</strong> - every independent authorization gate behaved
+          correctly; no single component could act on its own.
+        </li>
+        <li>
+          <strong>Controlled execution</strong> - the LI.FI Diamond was paused on-chain on the
+          selected low-traffic networks.
+        </li>
+        <li>
+          <strong>Alerting</strong> - the team was reached across every channel (email, chat, and
+          phone/SMS paging), day or night.
+        </li>
+        <li>
+          <strong>Recovery</strong> - the networks were unpaused within minutes using the
+          pre-approved recovery transactions, returning everything to its normal state.
+        </li>
+      </ul>
+      <p>
+        We also confirmed the system's <strong>fail-safe design</strong>: where a precondition was
+        not met, the safeguard correctly
+        <strong>declined to act rather than acting incorrectly</strong> - precisely the behaviour
+        an emergency control must guarantee. Throughout, an internal readiness tool verified the
+        exact state of the protocol on every network before, during, and after the exercise.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Continuous improvement</h2>
+      <p>
+        The core value of a controlled exercise is that it surfaces operational refinements while
+        the stakes are low - so they are never encountered for the first time during a real
+        incident. This test did exactly that, and
+        <strong>every improvement identified has since been implemented</strong>:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Improvement</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hardened funding checks across <strong>all</strong> production networks, with an automated guardrail so the pause transaction is always funded.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+          <tr>
+            <td>Introduced an <strong>automated weekly readiness check</strong> that continuously verifies the emergency-pause system is correctly configured, funded, and ready.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+          <tr>
+            <td>Confirmed and hardened the direct on-chain execution path so the pause runs without delay.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+          <tr>
+            <td>Refined alerting so every alert is delivered as its own incident, and reviewed on-call coverage.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+          <tr>
+            <td>Strengthened how operational secrets are validated, surfacing any issue well ahead of time.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+          <tr>
+            <td>Formalized that a security approver is present for the full duration of every live exercise, and that external auditors are notified in advance.</td>
+            <td class="status">✓ Implemented</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The exercise turned a previously one-time validation into an
+        <strong>ongoing, automated assurance process</strong> - the protocol's emergency-pause
+        readiness is now monitored continuously, not just at test time.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>In closing</h2>
+      <p>
+        The most important question - <em>can LI.FI pause the LI.FI Diamond to protect user funds
+        when it matters?</em> - is answered <strong>yes</strong>. The capability was tested
+        end-to-end in production, under disciplined controls, and confirmed working. The exercise
+        both proved the core safeguard and made it stronger. LI.FI treats the security of user
+        funds as a continuous, evidence-based discipline, and this exercise is one part of that
+        ongoing commitment.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Appendix</h2>
+      <dl class="glossary">
+        <dt>LI.FI Diamond</dt>
+        <dd>LI.FI's core cross-chain protocol: the on-chain smart contracts that power LI.FI's bridging and swapping, deployed across many networks. This report concerns the LI.FI Diamond specifically.</dd>
+        <dt>Emergency pause</dt>
+        <dd>An on-chain control that instantly freezes activity on the protocol to protect user funds during a suspected attack.</dd>
+        <dt>Four-eyes principle</dt>
+        <dd>A control requiring a second qualified person to independently verify each sensitive action, so no critical step is taken by one individual alone.</dd>
+        <dt>On-chain monitoring</dt>
+        <dd>Continuous, automated surveillance of smart-contract activity to detect threats in real time.</dd>
+        <dt>Pre-signed recovery</dt>
+        <dd>Recovery transactions prepared and approved in advance by the required signers, so they can be executed immediately when needed rather than assembled under pressure. LI.FI's most sensitive actions require approval from multiple independent signers (a multi-signature scheme).</dd>
+      </dl>
+      <div class="hexagate">
+        <strong>About Hexagate.</strong> Hexagate, a Chainalysis company, is a real-time on-chain
+        security platform that detects threats - exploits, key compromises, governance attacks, and
+        phishing - and can trigger automated responses such as contract pauses. Built on
+        Chainalysis's blockchain intelligence, it monitors the LI.FI Diamond continuously.
+        Learn more:
+        <a href="https://www.chainalysis.com/product/hexagate/">chainalysis.com/product/hexagate</a>.
+      </div>
+      <div class="footer">
+        <span><span class="wm">LI<span class="dot">.</span>FI</span> &nbsp;Smart Contract Team</span>
+        <span>Production Emergency-Response Exercise · 28 May 2026</span>
+      </div>
+    </section>
+  </body>
+</html>

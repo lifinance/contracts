@@ -10,20 +10,21 @@
 
 *On 28 May 2026, LI.FI ran a full end-to-end test of its automated emergency-pause capability in production - and confirmed it works as designed.*
 
-**Prepared by the LI.FI Smart Contract Security Team**
+**Prepared by the LI.FI Smart Contract Team**
 
 ---
 
 ## Executive summary
 
-LI.FI operates an automated safeguard that can **pause its production smart contracts within
-moments of a threat being detected**, freezing activity to protect user funds. The contracts
-are monitored around the clock by Hexagate, a Chainalysis company, which can trigger this
-response automatically.
+LI.FI operates an automated safeguard that can **pause the LI.FI Diamond - its core cross-chain
+bridging and swapping protocol - within moments of a threat being detected**, freezing activity
+to protect user funds. The LI.FI Diamond is monitored by Hexagate, a Chainalysis company, and
+the emergency-pause system is designed so that this monitoring can trigger the response
+automatically.
 
-On **28 May 2026** we tested that entire capability end-to-end, in production, for the first
-time. The exercise was meticulously planned around a detailed written runbook, executed under
-a strict four-eyes principle, and deliberately staged so that it was reversible at every step.
+On **28 May 2026** we tested that entire capability end-to-end, in production. The exercise was
+meticulously planned around a detailed written runbook, executed under a strict four-eyes
+principle, and deliberately staged so that it was reversible at every step.
 
 **The result: the capability works.** Threat detection, authorization, the built-in safety
 stops, multi-channel team alerting, and rapid recovery all performed exactly as designed. As
@@ -34,15 +35,42 @@ since implemented all of them, further strengthening an already-working system.
 
 ## Why this capability matters
 
-Smart contracts hold and move real user funds. If one ever came under attack, the single most
-important defensive action is the ability to **pause it instantly** - to freeze activity
-before an attacker can cause harm, buying time to respond.
+The LI.FI Diamond moves real user funds across chains. If it ever came under attack, the most
+important defensive action is the ability to **pause it instantly** - freezing activity before
+an attacker can cause harm and buying time to respond.
 
-A pause capability is only meaningful if it is **fast, reliable, and continuously ready**.
-That means it cannot depend on someone happening to be awake and at a keyboard: it must be
-backed by 24/7 monitoring that can detect a threat and trigger the response automatically,
-and it must be tested under realistic conditions so there are no surprises when it matters.
-This exercise was designed to prove exactly that.
+A pause capability is only meaningful if it is **fast, reliable, and continuously ready**. That
+means it cannot depend on someone happening to be awake and at a keyboard: it must be backed by
+continuous monitoring that can detect a threat and trigger the response automatically, and it
+must be tested under realistic conditions so there are no surprises when it matters. This
+exercise was designed to prove exactly that.
+
+---
+
+## How the emergency response works
+
+The protection is an end-to-end chain. Each stage hands off to the next, and several
+independent checks must pass before the protocol is touched:
+
+```mermaid
+flowchart TD
+    A["1 · Detection - Hexagate monitors the LI.FI Diamond for on-chain threats"] --> B["2 · Secured automation - a GitHub Actions pipeline with multiple independent authorization gates"]
+    B --> C["3 · Controlled execution - the LI.FI Diamond is paused on-chain"]
+    C --> D["4 · Recovery - pre-approved, pre-signed transactions restore normal operation"]
+    B -. in parallel .-> E["Alerting - the team is notified by email, chat, and phone/SMS"]
+```
+
+1. **Detection.** Hexagate monitors the LI.FI Diamond for anomalous or malicious on-chain
+   activity.
+2. **Secured automation.** A detection is handed to a secured automation pipeline (built on
+   GitHub Actions) that orchestrates the response. **Multiple independent authorization checks
+   must pass before anything executes**, so no single component can trigger a pause on its own.
+3. **Controlled on-chain execution.** Once the checks pass, the LI.FI Diamond is paused on-chain,
+   freezing activity.
+4. **Alerting (in parallel).** The team is notified across multiple channels - email, chat, and
+   phone/SMS paging - so responders engage immediately, day or night.
+5. **Recovery.** Pre-approved, pre-signed recovery transactions let the team safely resume
+   normal operation.
 
 ---
 
@@ -63,9 +91,9 @@ control:
   detection and authorization chain in a mode where **no real pause was possible**, confirming
   the alarm and approval path worked end-to-end. Only then did we run a genuine pause - and
   only on a small set of deliberately chosen, low-traffic networks.
-- **Pre-staged, pre-approved recovery.** The "unpause" recovery transactions were prepared and
-  signed off **in advance**, ready to execute within minutes. The exercise was reversible at
-  all times, with no scrambling required.
+- **Pre-staged, pre-approved recovery.** The recovery ("unpause") transactions were prepared
+  and signed off **in advance**, ready to execute the moment they were needed - so reversing
+  the pause required no scrambling.
 - **Advance notice to all stakeholders**, internal and external, so the deliberately realistic
   alerts were never mistaken for a real incident.
 
@@ -73,26 +101,25 @@ control:
 
 ## What we tested and confirmed
 
-The exercise validated the complete response chain, end to end:
+Following the runbook, we exercised the full chain shown above and confirmed every stage
+performed as designed:
 
-1. **Automated detection.** Hexagate detected a monitored on-chain event and initiated the
-   response automatically - no human trigger required.
-2. **Secured automation with layered authorization.** The response is orchestrated through a
-   secured automation pipeline (built on GitHub Actions). Crucially, **multiple independent
-   authorization checks must pass between detection and execution**, so no single component
-   can trigger a pause on its own - a deliberate defense-in-depth design. Every gate behaved
-   correctly.
-3. **Controlled on-chain execution.** With safeguards confirmed, a real pause was executed on
-   the selected low-traffic production networks.
-4. **Multi-channel alerting.** The team was notified across every channel - email, chat, and
-   phone/SMS paging - confirming that responders are reached immediately, day or night.
-5. **Rapid, pre-staged recovery.** The networks were unpaused within minutes using the
-   pre-approved recovery transactions, returning everything to its normal state.
+- **Detection and automated dispatch** - a Hexagate monitor detected a designated on-chain
+  event and initiated the response automatically, with no human trigger, exercising the same
+  automated path a production threat detection would follow.
+- **Authorization** - every independent authorization gate behaved correctly; no single
+  component could act on its own.
+- **Controlled execution** - the LI.FI Diamond was paused on-chain on the selected low-traffic
+  networks.
+- **Alerting** - the team was reached across every channel (email, chat, and phone/SMS paging),
+  day or night.
+- **Recovery** - the networks were unpaused within minutes using the pre-approved recovery
+  transactions, returning everything to its normal state.
 
 We also confirmed the system's **fail-safe design**: where a precondition was not met, the
 safeguard correctly **declined to act rather than acting incorrectly** - precisely the
 behaviour an emergency control must guarantee. Throughout, an internal readiness tool verified
-the exact state of every contract before, during, and after the exercise.
+the exact state of the protocol on every network before, during, and after the exercise.
 
 ---
 
@@ -112,17 +139,18 @@ test did exactly that, and **every improvement identified has since been impleme
 | Formalized that a security approver is present for the full duration of every live exercise, and that external auditors are notified in advance. | ✅ Implemented |
 
 The exercise turned a previously one-time validation into an **ongoing, automated assurance
-process** - the pause system's readiness is now monitored continuously, not just at test time.
+process** - the protocol's emergency-pause readiness is now monitored continuously, not just at
+test time.
 
 ---
 
 ## In closing
 
-The most important question - *can LI.FI pause its production contracts to protect user funds
-when it matters?* - is answered **yes**. The capability was tested end-to-end in production,
-under disciplined controls, and confirmed working. The exercise both proved the core
-safeguard and made it stronger. LI.FI treats the security of user funds as a continuous,
-evidence-based discipline, and this exercise is one part of that ongoing commitment.
+The most important question - *can LI.FI pause the LI.FI Diamond to protect user funds when it
+matters?* - is answered **yes**. The capability was tested end-to-end in production, under
+disciplined controls, and confirmed working. The exercise both proved the core safeguard and
+made it stronger. LI.FI treats the security of user funds as a continuous, evidence-based
+discipline, and this exercise is one part of that ongoing commitment.
 
 ---
 
@@ -130,8 +158,11 @@ evidence-based discipline, and this exercise is one part of that ongoing commitm
 
 ### Glossary
 
-- **Emergency pause** - an on-chain control that instantly freezes activity on a smart
-  contract to protect user funds during a suspected attack.
+- **LI.FI Diamond** - LI.FI's core cross-chain protocol: the on-chain smart contracts that
+  power LI.FI's bridging and swapping, deployed across many networks. This report concerns the
+  LI.FI Diamond specifically.
+- **Emergency pause** - an on-chain control that instantly freezes activity on the protocol to
+  protect user funds during a suspected attack.
 - **Four-eyes principle** - a control requiring a second qualified person to independently
   verify each sensitive action, so no critical step is taken by one individual alone.
 - **On-chain monitoring** - continuous, automated surveillance of smart-contract activity to
@@ -147,4 +178,4 @@ Hexagate, a Chainalysis company, is a real-time on-chain security platform that 
 
 - exploits, key compromises, governance attacks, and phishing - and can trigger automated
 responses such as contract pauses. Built on Chainalysis's blockchain intelligence, it monitors
-LI.FI's production contracts continuously. Learn more: <https://www.chainalysis.com/product/hexagate/>
+the LI.FI Diamond continuously. Learn more: <https://www.chainalysis.com/product/hexagate/>
