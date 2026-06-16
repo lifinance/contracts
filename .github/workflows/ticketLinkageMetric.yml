@@ -1,52 +1,137 @@
-# Monthly ticket-linkage metric
-# - computes % of merged PRs in the previous calendar month that reference a Linear ticket (or carry the `trivial` label)
-# - posts to Slack with a top-10 list of unlinked PRs + the full list of `trivial`-labelled PRs (for audit of carve-out misuse)
-# - known limitations: regex-only "has ticket" check (no Linear API call); caps PR window at 500 results
+# EMERGENCY >> Pause all STAGING diamonds
+#
+# - Manually-triggered (workflow_dispatch) staging break-glass: pauses the staging LiFiDiamonds
+#   (the STAGING_NETWORKS subset hard-coded in emergencyPauseBreakGlass.sh) resolved from
+#   deployments/<net>.staging.json, directly from the registered PauserWallet EOA.
+# - Runs the frozen, self-contained script/emergency/emergencyPauseBreakGlass.sh with
+#   ENVIRONMENT=staging, which pauses DIRECTLY from the PauserWallet (EVM via cast, Tron via
+#   troncast) — never via a Safe proposal, and intentionally independent of
+#   universalCast/helperFunctions so routing churn cannot break it.
+# - Authorization: requires typing 'UNDERSTOOD' AND membership of the lifinance/DiamondPauser team.
+# - Slack: posts a status (success/failure) with a GH run link and the runbook URL
+#   (EMERGENCY_PAUSE_RUNBOOK_URL repository variable) to the configured Slack channel on every run.
+# - Known limitations: needs RPCs (MongoDB) + staging deploy logs + the PRIV_KEY_PAUSER_WALLET_STAGING secret.
 
-name: Ticket Linkage Metric
+name: EMERGENCY >> Pause all STAGING diamonds
 
 on:
-  schedule:
-    - cron: '0 9 1 * *' # 09:00 UTC on the 1st of each month
-  workflow_dispatch: # manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      warning:
+        description: "By clicking the next button you are pausing all STAGING diamonds. Please proceed with caution !!! You must type 'UNDERSTOOD' to proceed"
+        required: true
 
 permissions:
-  contents: read # required to checkout the metric script
-  pull-requests: read # required for gh pr list
+  contents: read # required to fetch repository contents
+  actions: read # required to resolve the current job ID for the Slack deep-link
 
 jobs:
-  report:
+  diamond-emergency-pause-staging:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false # only `gh pr list` runs here; no git push/tag/submodule operations
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      - name: Compute linkage %
-        id: metric
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Check input
+        if: ${{ inputs.warning != 'UNDERSTOOD' }}
+        run: |
+          echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
+          exit 1
+
+      # DiamondPauser team-membership gate
+      - name: Authenticate git user (check membership in 'DiamondPauser' group)
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        id: authenticate-user
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
+        with:
+          username: ${{ github.actor }}
+          organization: lifinance
+          team: diamondpauser
+          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+
+      - name: Check team membership
+        if: ${{ inputs.warning == 'UNDERSTOOD' }}
+        run: |
+          if [[ "${{ steps.authenticate-user.outputs.isTeamMember }}" != "true" ]]; then
+            echo -e "\033[31mUser ${{ github.actor }} is not a member of the DiamondPauser team. Please ask one of the team members to execute this action:\033[0m"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+            exit 1
+          else
+            echo -e "\033[32mUser is a member of the DiamondPauser team and may execute this action\033[0m"
+          fi
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              # Write the UNQUOTED value so GITHUB_ENV matches the masked value — a quoted .env
+              # value would otherwise be stored with quotes and escape the ::add-mask:: redaction.
+              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Pause Diamond
+        # Frozen, self-contained break-glass script (script/emergency/) — intentionally
+        # independent of universalCast/helperFunctions so routing churn cannot break the pause.
+        run: bash script/emergency/emergencyPauseBreakGlass.sh
+        env:
+          ENVIRONMENT: staging
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET_STAGING }}
+
+      # Resolve a deep-link to the current job's log view so the Slack message
+      # lets on-call open logs in one click. Falls back to the run-level URL if
+      # the API call fails so the notification still contains a usable link.
+      - name: Resolve current job URL
+        if: ${{ always() }}
+        id: jobinfo
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/ticket-linkage-metric.sh
+        run: |
+          set -euo pipefail
+          job_id=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq ".jobs[] | select(.name == \"${{ github.job }}\") | .id" 2>/dev/null || true)
+          if [[ -n "${job_id}" ]]; then
+            url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${job_id}"
+          else
+            url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
 
-      - name: Post to Slack SC-general
+      - name: Notify Slack of pause execution
+        # always() so the alert fires even when the pause script exits non-zero
+        # (per-network isolation can partially succeed and still return 1).
+        if: ${{ always() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_MICHAL_TEST }}
           webhook-type: incoming-webhook
+          # JSON payload so the inline ternary for status emoji interpolates cleanly. \n produces
+          # line breaks. Runbook URL from the EMERGENCY_PAUSE_RUNBOOK_URL repository variable
+          # when unset the message says so rather than rendering a broken link.
           payload: |
             {
-              "text": ${{ toJSON(steps.metric.outputs.text) }}
-            }
-
-      # Silent missed reports defeat the purpose of a monthly forcing function — surface failures in the same channel.
-      - name: Notify Slack on failure
-        if: failure()
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":warning: ticket-linkage metric run failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
+              "text": "ATTENTION - the STAGING emergency diamond pause action was just executed across all staging diamonds by ${{ github.actor }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable' }}"
             }
