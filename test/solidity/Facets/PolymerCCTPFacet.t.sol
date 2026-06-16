@@ -7,7 +7,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
-import { InvalidConfig, InvalidReceiver, InvalidSendingToken, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Stub PolymerCCTPFacet Contract
@@ -17,13 +17,6 @@ contract TestPolymerCCTPFacet is PolymerCCTPFacet, TestWhitelistManagerBase {
         address _usdc,
         address _polymerFeeReceiver
     ) PolymerCCTPFacet(_tokenMessenger, _usdc, _polymerFeeReceiver) {}
-
-    // Expose internal function for testing
-    function chainIdToDomainId(
-        uint256 chainId
-    ) external pure returns (uint32) {
-        return _chainIdToDomainId(chainId);
-    }
 }
 
 contract PolymerCCTPFacetTest is TestBaseFacet {
@@ -32,6 +25,14 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         uint256 polymerFee,
         uint32 minFinalityThreshold
     );
+
+    event PolymerCCTPChainMappingsInitialized(
+        PolymerCCTPFacet.ChainIdConfig[] chainIdConfigs
+    );
+
+    event ChainIdToDomainIdSet(uint256 indexed chainId, uint32 domainId);
+
+    event ChainIdToDomainIdUnset(uint256 indexed chainId);
 
     TestPolymerCCTPFacet internal polymerCCTPFacet;
     address internal constant TOKEN_MESSENGER_V2_MAINNET =
@@ -45,6 +46,62 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         uint32 domainId;
     }
 
+    function _defaultChainMappings()
+        internal
+        pure
+        returns (ChainMapping[] memory mappings)
+    {
+        mappings = new ChainMapping[](21);
+        mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
+        mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
+        mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
+        mappings[3] = ChainMapping({ chainId: 42161, domainId: 3 }); // Arbitrum
+        mappings[4] = ChainMapping({ chainId: 1151111081099710, domainId: 5 }); // Solana
+        mappings[5] = ChainMapping({ chainId: 8453, domainId: 6 }); // Base
+        mappings[6] = ChainMapping({ chainId: 137, domainId: 7 }); // Polygon
+        mappings[7] = ChainMapping({ chainId: 130, domainId: 10 }); // Unichain
+        mappings[8] = ChainMapping({ chainId: 59144, domainId: 11 }); // Linea
+        mappings[9] = ChainMapping({ chainId: 81224, domainId: 12 }); // Codex
+        mappings[10] = ChainMapping({ chainId: 146, domainId: 13 }); // Sonic
+        mappings[11] = ChainMapping({ chainId: 480, domainId: 14 }); // World Chain
+        mappings[12] = ChainMapping({ chainId: 143, domainId: 15 }); // Monad
+        mappings[13] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
+        mappings[14] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
+        mappings[15] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
+        mappings[16] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
+        mappings[17] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
+        mappings[18] = ChainMapping({ chainId: 5042, domainId: 26 }); // Arc
+        mappings[19] = ChainMapping({ chainId: 1672, domainId: 31 }); // Pharos
+        mappings[20] = ChainMapping({
+            chainId: LIFI_CHAIN_ID_HYPERCORE,
+            domainId: 19
+        }); // HyperCore (same CCTP domain as HyperEVM)
+    }
+
+    function _toChainIdConfigs(
+        ChainMapping[] memory mappings
+    ) internal pure returns (PolymerCCTPFacet.ChainIdConfig[] memory) {
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory configs = new PolymerCCTPFacet.ChainIdConfig[](
+                mappings.length
+            );
+
+        for (uint256 i = 0; i < mappings.length; i++) {
+            configs[i] = PolymerCCTPFacet.ChainIdConfig({
+                chainId: mappings[i].chainId,
+                domainId: mappings[i].domainId
+            });
+        }
+
+        return configs;
+    }
+
+    function _initPolymerCCTP() internal {
+        polymerCCTPFacet.initPolymerCCTP(
+            _toChainIdConfigs(_defaultChainMappings())
+        );
+    }
+
     function setUp() public {
         customBlockNumberForForking = 23767209;
         initTestBase();
@@ -55,7 +112,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             polymerFeeReceiver
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](5);
+        bytes4[] memory functionSelectors = new bytes4[](7);
         functionSelectors[0] = polymerCCTPFacet
             .startBridgeTokensViaPolymerCCTP
             .selector;
@@ -65,14 +122,17 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         functionSelectors[2] = polymerCCTPFacet
             .addAllowedContractSelector
             .selector;
-        functionSelectors[3] = polymerCCTPFacet.chainIdToDomainId.selector;
+        functionSelectors[3] = polymerCCTPFacet.getChainIdToDomainId.selector;
         functionSelectors[4] = polymerCCTPFacet.initPolymerCCTP.selector;
+        functionSelectors[5] = polymerCCTPFacet.setChainIdToDomainId.selector;
+        functionSelectors[6] = polymerCCTPFacet
+            .unsetChainIdToDomainId
+            .selector;
 
         addFacet(diamond, address(polymerCCTPFacet), functionSelectors);
         polymerCCTPFacet = TestPolymerCCTPFacet(address(diamond));
-        // Initialize to set max approval (call as owner)
         vm.startPrank(USER_DIAMOND_OWNER);
-        polymerCCTPFacet.initPolymerCCTP();
+        _initPolymerCCTP();
         vm.stopPrank();
 
         polymerCCTPFacet.addAllowedContractSelector(
@@ -588,75 +648,224 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     }
 
     function test_ChainIdToDomainIdMapping() public {
-        ChainMapping[] memory mappings = new ChainMapping[](19);
-        mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
-        mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
-        mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
-        mappings[3] = ChainMapping({ chainId: 42161, domainId: 3 }); // Arbitrum
-        mappings[4] = ChainMapping({ chainId: 8453, domainId: 6 }); // Base
-        mappings[5] = ChainMapping({ chainId: 137, domainId: 7 }); // Polygon
-        mappings[6] = ChainMapping({ chainId: 130, domainId: 10 }); // Unichain
-        mappings[7] = ChainMapping({ chainId: 59144, domainId: 11 }); // Linea
-        mappings[8] = ChainMapping({ chainId: 81224, domainId: 12 }); // Codex
-        mappings[9] = ChainMapping({ chainId: 146, domainId: 13 }); // Sonic
-        mappings[10] = ChainMapping({ chainId: 480, domainId: 14 }); // World Chain
-        mappings[11] = ChainMapping({ chainId: 143, domainId: 15 }); // Monad
-        mappings[12] = ChainMapping({ chainId: 1329, domainId: 16 }); // Sei
-        mappings[13] = ChainMapping({ chainId: 50, domainId: 18 }); // XDC
-        mappings[14] = ChainMapping({ chainId: 999, domainId: 19 }); // HyperEVM
-        mappings[15] = ChainMapping({
-            chainId: LIFI_CHAIN_ID_HYPERCORE,
-            domainId: 19
-        }); // HyperCore (same domain as HyperEVM)
-        mappings[16] = ChainMapping({ chainId: 57073, domainId: 21 }); // Ink
-        mappings[17] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
-        mappings[18] = ChainMapping({ chainId: 1672, domainId: 31 }); // Pharos
+        ChainMapping[] memory mappings = _defaultChainMappings();
 
         for (uint256 i = 0; i < mappings.length; i++) {
             assertEq(
-                polymerCCTPFacet.chainIdToDomainId(mappings[i].chainId),
+                polymerCCTPFacet.getChainIdToDomainId(mappings[i].chainId),
                 mappings[i].domainId
             );
         }
     }
 
-    function testRevert_ChainIdToDomainIdWithUnsupportedChainId() public {
-        vm.expectRevert(InvalidCallData.selector);
+    function test_CanSetChainIdToDomainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
 
-        polymerCCTPFacet.chainIdToDomainId(99999); // Unsupported chainId
+        uint256 chainId = 5042002;
+        uint32 domainId = 26;
+
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
+            chainId: chainId,
+            domainId: domainId
+        });
+
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToDomainIdSet(chainId, domainId);
+
+        polymerCCTPFacet.setChainIdToDomainId(chainIdConfigs);
+
+        assertEq(polymerCCTPFacet.getChainIdToDomainId(chainId), domainId);
+
+        vm.stopPrank();
+    }
+
+    function test_CanSetMultipleChainIdsToDomainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](2);
+        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
+            chainId: 5042002,
+            domainId: 26
+        });
+        chainIdConfigs[1] = PolymerCCTPFacet.ChainIdConfig({
+            chainId: 5042003,
+            domainId: 27
+        });
+
+        polymerCCTPFacet.setChainIdToDomainId(chainIdConfigs);
+
+        assertEq(polymerCCTPFacet.getChainIdToDomainId(5042002), 26);
+        assertEq(polymerCCTPFacet.getChainIdToDomainId(5042003), 27);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailToSetChainIdToDomainIdFromNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
+            chainId: 5042002,
+            domainId: 26
+        });
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        polymerCCTPFacet.setChainIdToDomainId(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsToSetChainIdToDomainIdIfNotInitialized() public {
+        vm.startPrank(address(0));
+
+        TestPolymerCCTPFacet uninitializedFacet = new TestPolymerCCTPFacet(
+            TOKEN_MESSENGER_V2_MAINNET,
+            ADDRESS_USDC,
+            polymerFeeReceiver
+        );
+
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
+            chainId: 5042,
+            domainId: 26
+        });
+
+        vm.expectRevert(NotInitialized.selector);
+
+        uninitializedFacet.setChainIdToDomainId(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToDomainIdWithEmptyConfig() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        polymerCCTPFacet.setChainIdToDomainId(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
+    function test_CanUnsetChainIdToDomainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        uint256 chainId = 8453;
+
+        assertEq(polymerCCTPFacet.getChainIdToDomainId(chainId), 6);
+
+        vm.expectEmit(true, true, true, true);
+        emit ChainIdToDomainIdUnset(chainId);
+
+        polymerCCTPFacet.unsetChainIdToDomainId(chainId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, chainId)
+        );
+
+        polymerCCTPFacet.getChainIdToDomainId(chainId);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailToUnsetChainIdToDomainIdFromNotOwner() public {
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(OnlyContractOwner.selector);
+
+        polymerCCTPFacet.unsetChainIdToDomainId(8453);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_FailsToUnsetChainIdToDomainIdIfNotInitialized()
+        public
+    {
+        vm.startPrank(address(0));
+
+        TestPolymerCCTPFacet uninitializedFacet = new TestPolymerCCTPFacet(
+            TOKEN_MESSENGER_V2_MAINNET,
+            ADDRESS_USDC,
+            polymerFeeReceiver
+        );
+
+        vm.expectRevert(NotInitialized.selector);
+
+        uninitializedFacet.unsetChainIdToDomainId(8453);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_BridgeToUnsetChainIdReverts() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        polymerCCTPFacet.unsetChainIdToDomainId(8453);
+
+        vm.stopPrank();
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 8453)
+        );
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ChainIdToDomainIdWithUnsupportedChainId() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 99999)
+        );
+
+        polymerCCTPFacet.getChainIdToDomainId(99999);
     }
 
     function test_InitPolymerCCTP() public {
-        // Test the actual initPolymerCCTP function (not the overridden version)
-        // Create a new diamond with the actual PolymerCCTPFacet to test owner check
         LiFiDiamond testDiamond = createDiamond(
             USER_DIAMOND_OWNER,
             USER_PAUSER
         );
 
-        // Create actual facet (not the test version)
         PolymerCCTPFacet actualFacet = new PolymerCCTPFacet(
             TOKEN_MESSENGER_V2_MAINNET,
             ADDRESS_USDC,
             polymerFeeReceiver
         );
 
-        // Add it to the test diamond
-        bytes4[] memory functionSelectors = new bytes4[](1);
+        bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = actualFacet.initPolymerCCTP.selector;
+        functionSelectors[1] = actualFacet.getChainIdToDomainId.selector;
         addFacet(testDiamond, address(actualFacet), functionSelectors);
 
-        // Test as owner
-        vm.startPrank(USER_DIAMOND_OWNER);
-        PolymerCCTPFacet(address(testDiamond)).initPolymerCCTP();
+        PolymerCCTPFacet.ChainIdConfig[]
+            memory chainIdConfigs = _toChainIdConfigs(_defaultChainMappings());
 
-        // Verify approval was set
+        vm.startPrank(USER_DIAMOND_OWNER);
+        PolymerCCTPFacet(address(testDiamond)).initPolymerCCTP(chainIdConfigs);
+
         assertEq(
             IERC20(ADDRESS_USDC).allowance(
                 address(testDiamond),
                 TOKEN_MESSENGER_V2_MAINNET
             ),
             type(uint256).max
+        );
+        assertEq(
+            PolymerCCTPFacet(address(testDiamond)).getChainIdToDomainId(1),
+            0
         );
         vm.stopPrank();
     }

@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
+import { Test } from "forge-std/Test.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
 
-contract LiFiDiamondTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+contract LiFiDiamondTest is Test {
     LiFiDiamond public diamond;
     DiamondCutFacet public diamondCutFacet;
     OwnershipFacet public ownershipFacet;

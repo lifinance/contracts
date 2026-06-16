@@ -224,8 +224,10 @@ export interface IChainSimulateResult {
 /** Options for proposing a Safe transaction (EVM). */
 export interface IProposeToSafeOptions {
   network: string
-  to: string
-  calldata: Hex
+  /** Target address, or one address per call when proposing multiple calls. */
+  to: string | string[]
+  /** Calldata, or one calldata per call (parallel to `to`). Multiple calls require `timelock`. */
+  calldata: Hex | Hex[]
   timelock?: boolean
   dryRun?: boolean
   privateKey?: string
@@ -236,6 +238,7 @@ export interface IProposeToSafeOptions {
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
+  nonce?: bigint
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */

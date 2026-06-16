@@ -67,6 +67,7 @@ universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVAT
 You can also call `universalCall`, `universalSend`, `universalSendRaw`, or `universalCode` directly (they are what `universalCast` dispatches to). **Optional private key override**: For `universalSend`, `universalSendRaw`, and `sendOrPropose`, pass a hex private key as the last (optional) argument to use that key instead of `getPrivateKey(NETWORK, ENVIRONMENT)` (e.g. for pauser wallet or old/new owner flows).
 
 **For raw calldata transactions**, use `sendOrPropose` (internally uses `universalCast "sendRaw"` for Tron and EVM staging; EVM production uses propose-to-safe.ts):
+
 ```bash
 # sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
 CALLDATA=$(cast calldata "transfer(address,uint256)" "$TO" "$AMOUNT")
@@ -88,6 +89,22 @@ When the same multi-condition decision (e.g. "Safe-propose vs direct-send") is c
 
 When adding a new condition (testnet, zkEVM, etc.) to a routing decision, update the predicate definition only — never duplicate the new clause across every gate.
 
+### Parallelize independent per-item work [CONV:PARALLEL-WORK]
+
+When the same operation runs over many independent items (per-network sweeps, per-contract
+checks) and the cost is mostly RPC/IO latency, do NOT use a plain sequential `for` loop — it
+turns seconds into minutes and lets one slow item stall the rest. Run items as throttled
+background jobs and aggregate after `wait`.
+
+- Throttle with `MAX_CONCURRENT_JOBS` (the repo's shared knob), not an ad-hoc number.
+- A backgrounded subshell **cannot** write back to parent-shell variables. Have each worker
+  write its result to a file (or stdout → a per-item file); derive any aggregate (counts,
+  "any failures?", "any CRITICAL?") from the collected results **after** `wait`, never from
+  inside the loop.
+- Copy an existing pattern rather than reinventing the throttle/wait/merge plumbing:
+  - `processNetworkLine` worker + throttle + `wait` (`helperFunctions.sh`)
+  - `( … > "$FILE" ) &` → `wait` → merge per-item files (`helperFunctions.sh`)
+  - `executeNetworkInGroup` (`multiNetworkExecution.sh`)
 
 ### Function Documentation Format
 
@@ -114,6 +131,7 @@ function functionName() {
 ```
 
 **Key conventions**:
+
 - Parameter names in UPPERCASE in both documentation and code
 - Use `-` dash separator for parameter descriptions (not `:`)
 - Group optional parameters with `Optional:` prefix

@@ -21,10 +21,6 @@
         "Name": "DexManagerFacet",
         "Version": "1.0.2"
       },
-      "0x32aAa3d5a7541E2c845B00b6EEd5B9bdb8df7320": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
       "0x843A1AA0131CBD55F188de709806B8046848E392": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
@@ -64,6 +60,10 @@
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -81,7 +81,8 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0xCcC863C0BDae52EA076C44711f3C92D65f07DEb9",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
+      "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133"
     }
   }
 }

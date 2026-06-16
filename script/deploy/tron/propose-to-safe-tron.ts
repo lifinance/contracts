@@ -21,9 +21,15 @@ import 'dotenv/config'
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  createTronWebForTvmNetworkKey,
+  tronBase58ToEvm20Hex,
+  tronZeroAddressBase58,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { encodeFunctionData, type Address, type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
 import { getEnvVar } from '../../utils/utils'
@@ -35,18 +41,14 @@ import {
   OperationTypeEnum,
   storeTransactionInMongoDB,
 } from '../safe/safe-utils'
-import { TIMELOCK_SCHEDULE_BATCH_ABI } from '../safe/timelock-abi'
+import { encodeTimelockScheduleBatch } from '../safe/timelock-abi'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
-import { createTronWebForTvmNetworkKey } from './helpers/tronWebFactory.js'
-import {
-  tronBase58ToEvm20Hex,
-  tronZeroAddressBase58,
-} from './tronAddressHelpers.js'
-import type { IProposeToSafeTronOptions, TronTvmNetworkName } from './types.js'
+import { normalizeTronProposeCalls } from './propose-calls-tron.js'
+import type { IProposeToSafeTronOptions } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName: TronTvmNetworkName = options.network ?? 'tron'
@@ -61,16 +63,16 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'))
   const diamondAddressBase58 = deployments.LiFiDiamond
   const timelockAddressBase58 = deployments.LiFiTimelockController
-  if (!diamondAddressBase58 || !timelockAddressBase58)
-    throw new Error(
-      `LiFiDiamond or LiFiTimelockController missing in deployments/${networkName}.json`
-    )
+  if (!diamondAddressBase58)
+    throw new Error(`LiFiDiamond missing in deployments/${networkName}.json`)
 
   const networksPath = path.join(process.cwd(), 'config', 'networks.json')
   const networks = JSON.parse(fs.readFileSync(networksPath, 'utf8'))
   const safeAddressBase58 = networks[networkName]?.safeAddress
   if (!safeAddressBase58)
-    throw new Error(`${networkName}.safeAddress not set in config/networks.json`)
+    throw new Error(
+      `${networkName}.safeAddress not set in config/networks.json`
+    )
 
   const genericMode = Boolean(options.to && options.calldata)
   if ((options.to && !options.calldata) || (!options.to && options.calldata)) {
@@ -80,6 +82,16 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   }
   if (options.direct && options.timelock)
     throw new Error('Use either --direct or --timelock, not both')
+
+  // Timelock is only used when wrapping in scheduleBatch (ownership mode, or
+  // generic mode without --direct). Direct mode must still succeed if the
+  // Timelock is undeployed or its RPC is unreachable, so validate + read it
+  // only on the paths that actually need it.
+  const useDirect = genericMode && options.direct === true
+  if (!useDirect && !timelockAddressBase58)
+    throw new Error(
+      `LiFiTimelockController missing in deployments/${networkName}.json`
+    )
 
   const privateKeyEnvVar =
     networkName === 'tron' ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
@@ -99,20 +111,21 @@ async function runPropose(options: IProposeToSafeTronOptions) {
 
   const chainId = networks[networkName].chainId as number
   const safeAddressEvm = tronBase58ToEvm20Hex(tronWeb, safeAddressBase58)
-  const timelockAddressEvm = tronBase58ToEvm20Hex(
-    tronWeb,
-    timelockAddressBase58
-  )
   const diamondAddressEvm = tronBase58ToEvm20Hex(tronWeb, diamondAddressBase58)
   const proposerEvm = tronBase58ToEvm20Hex(tronWeb, proposerBase58)
 
   consola.info(`Network: ${networkName}`)
   consola.info(`Safe: ${safeAddressBase58}`)
-  consola.info(`Timelock: ${timelockAddressBase58}`)
+  consola.info(
+    `Timelock: ${timelockAddressBase58 ?? '(not required for --direct)'}`
+  )
   consola.info(`Diamond: ${diamondAddressBase58}`)
   consola.info(`Proposer: ${proposerBase58}`)
   if (genericMode) {
-    consola.info(`Mode: generic proposal → ${options.to}`)
+    const targetList = Array.isArray(options.to)
+      ? options.to.join(', ')
+      : options.to
+    consola.info(`Mode: generic proposal → ${targetList}`)
     consola.info(
       `Timelock wrap: ${
         options.direct ? 'no (--direct)' : 'yes (scheduleBatch)'
@@ -122,36 +135,37 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
   }
 
-  // 1) Get min delay from Timelock (needed for scheduleBatch)
-  const timelockAbi = [
-    {
-      inputs: [],
-      name: 'getMinDelay',
-      outputs: [{ type: 'uint256' }],
-      stateMutability: 'view',
-      type: 'function',
-    },
-  ]
-  const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
-  let minDelayBigInt: bigint
-  try {
-    const minDelayRes = await timelock.getMinDelay().call()
-    const valueStr =
-      typeof minDelayRes === 'string'
-        ? minDelayRes
-        : minDelayRes?.toString?.() ?? '0'
-    minDelayBigInt = BigInt(valueStr)
-  } catch (e) {
-    throw new Error(
-      `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
-        e instanceof Error ? e.message : String(e)
-      }`
-    )
+  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
+  // direct mode, which doesn't touch the Timelock.
+  let minDelayBigInt = 0n
+  if (!useDirect) {
+    const timelockAbi = [
+      {
+        inputs: [],
+        name: 'getMinDelay',
+        outputs: [{ type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ]
+    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
+    try {
+      const minDelayRes = await timelock.getMinDelay().call()
+      const valueStr =
+        typeof minDelayRes === 'string'
+          ? minDelayRes
+          : minDelayRes?.toString?.() ?? '0'
+      minDelayBigInt = BigInt(valueStr)
+    } catch (e) {
+      throw new Error(
+        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      )
+    }
   }
 
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
-  const predecessor =
-    '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex // [pre-commit-checker: not a secret]
 
   let safeTxToBase58: string
   let safeTxDataHex: Hex
@@ -159,51 +173,47 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   let dryRunDescription: string
 
   if (!genericMode) {
-    const scheduleBatchCalldata = encodeFunctionData({
-      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-      functionName: 'scheduleBatch',
-      args: [
-        [diamondAddressEvm],
-        [0n],
-        [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-        predecessor,
-        salt,
-        minDelayBigInt,
-      ],
-    })
+    safeTxDataHex = encodeTimelockScheduleBatch(
+      [diamondAddressEvm] as Address[],
+      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
+      salt,
+      minDelayBigInt
+    )
     safeTxToBase58 = timelockAddressBase58
-    safeTxDataHex = scheduleBatchCalldata
     hashToBase58 = timelockAddressBase58
     dryRunDescription =
       'scheduleBatch(Diamond, confirmOwnershipTransfer selector)'
   } else {
-    const innerCalldata = options.calldata as Hex
-    const targetBase58 = options.to as string
-    const targetEvm = tronBase58ToEvm20Hex(tronWeb, targetBase58)
-    const useDirect = options.direct === true
+    const { targets, calldatas } = normalizeTronProposeCalls(
+      options.to,
+      options.calldata,
+      !useDirect
+    )
 
     if (!useDirect) {
-      const scheduleBatchCalldata = encodeFunctionData({
-        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-        functionName: 'scheduleBatch',
-        args: [
-          [targetEvm],
-          [0n],
-          [innerCalldata],
-          predecessor,
-          salt,
-          minDelayBigInt,
-        ],
-      })
+      // Combine one or more inner calls into a single scheduleBatch proposal;
+      // inner calls execute in array order (e.g. whitelist removals before
+      // additions), matching the EVM combined route via the shared encoder
+      const targetsEvm = targets.map((t) =>
+        tronBase58ToEvm20Hex(tronWeb, t)
+      ) as Address[]
+      safeTxDataHex = encodeTimelockScheduleBatch(
+        targetsEvm,
+        calldatas,
+        salt,
+        minDelayBigInt
+      )
       safeTxToBase58 = timelockAddressBase58
-      safeTxDataHex = scheduleBatchCalldata
       hashToBase58 = timelockAddressBase58
-      dryRunDescription = `scheduleBatch(${targetBase58}, custom calldata)`
+      dryRunDescription = `scheduleBatch(${
+        targets.length
+      } call(s): ${targets.join(', ')})`
     } else {
-      safeTxToBase58 = targetBase58
-      safeTxDataHex = innerCalldata
-      hashToBase58 = targetBase58
-      dryRunDescription = `direct Safe → ${targetBase58} (no timelock)`
+      // Direct mode is single-call only (normalizeTronProposeCalls rejects >1 without timelock)
+      safeTxToBase58 = targets[0] as string
+      safeTxDataHex = calldatas[0] as Hex
+      hashToBase58 = targets[0] as string
+      dryRunDescription = `direct Safe → ${targets[0]} (no timelock)`
     }
   }
 
@@ -248,10 +258,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     chainNonceBigInt
   )
 
-  const safeTxToEvm =
-    safeTxToBase58 === timelockAddressBase58
-      ? timelockAddressEvm
-      : tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
+  const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
 
   const safeTxData = {
     to: safeTxToEvm,
@@ -350,7 +357,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   if (!result.acknowledged)
     throw new Error('MongoDB insert was not acknowledged')
   consola.success(
-    'Proposal stored in MongoDB. Other Safe owners can sign; then execute via confirm-safe-tx / execute-pending-timelock (when Tron execution is supported).'
+    'Proposal stored in MongoDB. Other Safe owners can sign; then execute via confirm-safe-tx / execute-pending-timelock-tx (Tron-aware).'
   )
 }
 
@@ -369,12 +376,13 @@ const main = defineCommand({
     to: {
       type: 'string',
       description:
-        'Base58 target contract for generic mode (required with --calldata)',
+        'Base58 target contract for generic mode (required with --calldata; repeatable to combine calls into one timelock proposal)',
       required: false,
     },
     calldata: {
       type: 'string',
-      description: 'Hex calldata for generic mode (required with --to)',
+      description:
+        'Hex calldata for generic mode (required with --to; repeatable, calls execute in the given order)',
       required: false,
     },
     timelock: {
@@ -398,12 +406,29 @@ const main = defineCommand({
   },
   async run({ args }) {
     try {
+      // Guard the load-bearing citty contract: repeated flags must parse to
+      // arrays. citty 0.1.x does this; 0.2.x silently keeps only the LAST value,
+      // which would drop all but one inner call (e.g. propose the addition
+      // WITHOUT the whitelist removal). Cross-check against the raw argv so a
+      // citty upgrade fails loudly here instead of producing a wrong proposal.
+      for (const [flag, value] of [
+        ['--to', args.to],
+        ['--calldata', args.calldata],
+      ] as const) {
+        const argvCount = process.argv.filter(
+          (a) => a === flag || a.startsWith(`${flag}=`)
+        ).length
+        const parsedCount = Array.isArray(value) ? value.length : value ? 1 : 0
+        if (argvCount > 0 && argvCount !== parsedCount)
+          throw new Error(
+            `${flag} was passed ${argvCount} times but the argument parser produced ${parsedCount} value(s) — repeated-flag parsing is broken (citty upgrade?); aborting to avoid proposing an incomplete call batch`
+          )
+      }
+
       const hasGeneric = Boolean(args.to && args.calldata)
       let timelockWrap: boolean | undefined
       let direct: boolean | undefined
       if (hasGeneric) {
-        if (!args.calldata.startsWith('0x'))
-          throw new Error('--calldata must start with 0x')
         if (args.timelock && args.direct)
           throw new Error('Use either --timelock or --direct, not both')
         if (args.direct) {
@@ -421,8 +446,9 @@ const main = defineCommand({
 
       await runPropose({
         dryRun: args.dryRun,
-        to: args.to,
-        calldata: args.calldata as Hex | undefined,
+        // citty returns a string for a single flag and an array when repeated
+        to: args.to as unknown as string | string[] | undefined,
+        calldata: args.calldata as unknown as Hex | Hex[] | undefined,
         timelock: timelockWrap,
         direct,
         privateKey: args.privateKey,

@@ -2,17 +2,14 @@
 
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
 import { TestWrappedConverter } from "../utils/TestWrappedConverter.sol";
 import { TestBasicToken } from "../utils/TestBasicToken.sol";
 import { TestConverterWithDecimals } from "../utils/TestConverterWithDecimals.sol";
 
-contract TokenWrapperTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+contract TokenWrapperTest is Test {
     TokenWrapper private tokenWrapper;
     ERC20 private wrappedToken;
 

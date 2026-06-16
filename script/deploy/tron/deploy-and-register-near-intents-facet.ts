@@ -1,13 +1,19 @@
 #!/usr/bin/env bun
 
+import {
+  MIN_BALANCE_WARNING,
+  TronContractDeployer,
+  createTronWeb,
+  tronAddressToHex,
+  type ITronDeploymentConfig,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -23,12 +29,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
-import { TronContractDeployer } from './TronContractDeployer'
-import { MIN_BALANCE_WARNING } from './constants'
-import { createTronWeb } from './helpers/tronWebFactory'
-import { tronAddressToHex } from './tronAddressHelpers'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
-import type { ITronDeploymentConfig, TronTvmNetworkName } from './types'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
   dryRun?: boolean
@@ -186,12 +187,17 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     if (!dryRun)
       await proposeDiamondCut({
         facetName: 'NEARIntentsFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        facetAddressHex: tronAddressToHex(
+          tronWeb,
+          facetAddress
+        ) as `0x${string}`,
         diamondAddress,
         network: network,
       })
     else
-      consola.info('Dry run - skipping diamondCut proposal for NEARIntentsFacet')
+      consola.info(
+        'Dry run - skipping diamondCut proposal for NEARIntentsFacet'
+      )
 
     printDeploymentSummary(deploymentResults, dryRun)
 

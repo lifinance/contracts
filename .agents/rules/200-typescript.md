@@ -10,9 +10,12 @@ paths:
 ## TypeScript Script Conventions
 
 - TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
+- **Update `.env.example` whenever you introduce a new env var.** Add a placeholder entry with a one-line comment explaining what it controls and where the value comes from (e.g. 1Password vault, generated, etc.). Keep `.env.example` and runtime env reads in sync. Use UPPERCASE names with underscores (e.g. `WEBHOOK_DEV_SC_AUDIT`, not `webhook_dev-sc-audit`) — POSIX env-var convention.
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
 - **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
+- **Verify callee signatures before passing new values**: When passing a new literal, argument, or variant into a function, helper, or type defined elsewhere, **read the callee's signature first** — don't infer the accepted set from how other callers use it. Existing callers may all happen to use the safe subset of accepted values, and "code-by-analogy" (copying a call site and substituting a new value) is the dominant source of cross-file type mismatches. Concrete example: `getPrivateKey(keyType, ...)` in `script/deploy/safe/safe-utils.ts` accepts only `'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'`; passing a new string like `'PRIVATE_KEY_STAGING'` is a TS error caught by `bunx tsc-files --noEmit` but invisible to grep-pattern review. Whenever you write `existingCall(NEW_VALUE)` and `NEW_VALUE` isn't already used elsewhere, grep the definition and verify acceptance before committing.
+- **Always run `bunx tsc-files --noEmit <file>` on every TS file you edit** before commit. The repo's `.agents/hooks/post-edit-validate.sh` runs this automatically when the Claude Code session is rooted in the repo, but does NOT fire when the session is rooted elsewhere and you're editing via absolute path — run it manually in that case.
 
 ## Code Quality
 
@@ -70,6 +73,17 @@ paths:
 ### Dynamic imports for chain modules
 
 - When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
+
+### Parallelize independent async work [CONV:PARALLEL-WORK]
+
+When the same async operation runs over many independent items (per-network balance/price
+fetches, per-chain queries), use `Promise.all` — or `Promise.allSettled` when one failure must
+not reject the whole batch — instead of `await`-ing in a sequential loop; most of the cost is
+network latency, so this turns minutes into seconds. If you hit provider rate limits, bound
+concurrency (chunk the array or use a small pool) rather than reverting to sequential. See
+`script/balances.ts` for the simple `Promise.all` case, and
+`script/tasks/moveNativeFundsToNewWallet.ts` for batched concurrency bounded by
+`MAX_CONCURRENT_JOBS`.
 
 ## Demo Scripts
 

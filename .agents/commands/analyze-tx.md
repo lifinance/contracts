@@ -87,17 +87,21 @@ usage: /analyze-tx <network> <tx_hash>
 ## Tron-Specific Analysis
 
 ### Tron RPC Limitations
+
 - `debug_traceTransaction` is **NOT available** on TronGrid public endpoints
 - `triggerconstantcontract` simulates state-changing functions in read-only mode — **return values are unreliable** for write functions (e.g., `transfer` may return `false` in simulation but succeed on-chain)
 - `eth_getTransactionCount` is **NOT supported**, so `cast call` fails; use `curl` with TronGrid native API instead
 
 ### Tron Address Encoding
+
 - Tron addresses are 21 bytes: `0x41` prefix + 20-byte EVM address
 - **On-chain (Solidity `address` type): always use 20-byte EVM format** (strip `0x41` prefix)
 - **In ABI-encoded parameters** for `triggerconstantcontract`: use 20-byte EVM format padded to 32 bytes (no `0x41`)
 
 ### Tron Transaction Fetching
+
 Use TronGrid native API instead of EVM RPC:
+
 ```bash
 # Full transaction data + internal transactions (pre-commit-checker: not a secret)
 curl -s -X POST https://api.trongrid.io/wallet/gettransactioninfobyid \
@@ -111,6 +115,7 @@ curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
 ```
 
 ### Tron `gettransactioninfobyid` Fields
+
 - `contractResult[0]`: **4-byte hex revert selector** (use `cast 4byte` to decode)
 - `resMessage`: hex-encoded revert message string (decode with `xxd -r -p`)
 - `internal_transactions[].rejected`: **ALL internal txs show `rejected: true` when outer tx reverts** — this does NOT mean each individual call failed; it means all effects were rolled back
@@ -270,6 +275,8 @@ When root transaction calls a contract other than LiFiDiamond:
 1. Identify function selector: `cast 4byte <SELECTOR>`
 2. Decode calldata: `cast calldata-decode "<FUNCTION_SIGNATURE>" <CALLDATA>`
 3. Extract nested calldata if router passes data to LiFiDiamond
+
+**Fallback for unverified contracts**: if the target is an unverified contract (no matching artifact in `out/`, `cast 4byte` returns nothing, and no signature can be resolved from the trace), run [`/analyze-unverified-contract <ADDRESS> <NETWORK>`](analyze-unverified-contract.md) to disassemble the bytecode, extract selectors, and enrich them against 4byte.directory. Use the resulting selectors file to identify the called function and proceed with `cast calldata-decode`.
 
 #### For LiFiDiamond Calls
 
