@@ -296,7 +296,7 @@
       </p>
       <div class="result-callout">
         <strong>The result: the capability works.</strong> Threat detection, authorization, the
-        built-in safety stops, multi-channel team alerting, and rapid recovery all performed
+        built-in safety stops, multi-channel team alerting, and controlled recovery all performed
         exactly as designed. As intended with any rigorous exercise, we identified a small set of
         operational refinements — and have since implemented all of them, further strengthening
         an already-working system.
@@ -324,12 +324,16 @@
     <section class="section">
       <h2>How the emergency response works</h2>
       <p>
-        The protection is an end-to-end chain. Each stage hands off to the next, and several
-        independent checks must pass before the protocol is ever touched:
+        The response has <strong>two distinct phases</strong>. The first is automated and
+        time-critical: it detects a threat and freezes the protocol within seconds, with no human
+        in the loop. The second is deliberate and human-controlled: the protocol stays frozen
+        while the team investigates, and normal operation is restored only once the team confirms
+        it is safe to do so. Several independent checks must pass before the protocol is ever
+        touched.
       </p>
 
-      <svg class="flow" viewBox="0 0 600 470" role="img"
-        aria-label="End-to-end emergency response flow">
+      <svg class="flow" viewBox="0 0 600 500" role="img"
+        aria-label="Two-phase emergency response: an automated freeze within seconds, then human-controlled recovery after investigation">
         <defs>
           <linearGradient id="boxg" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="#5c67ff" />
@@ -341,86 +345,106 @@
           </marker>
         </defs>
 
-        <!-- connectors (drawn first, behind boxes) -->
-        <line x1="210" y1="92" x2="210" y2="128" stroke="#5c67ff" stroke-width="2.5"
+        <!-- phase panels -->
+        <rect x="14" y="6" width="572" height="284" rx="14" fill="#eef0ff" />
+        <text x="30" y="27" font-size="11" font-weight="800" letter-spacing="0.6"
+          fill="#3a43c4">AUTOMATED RESPONSE · WITHIN SECONDS</text>
+        <rect x="14" y="304" width="420" height="184" rx="14" fill="#fcf3ff" />
+        <text x="30" y="325" font-size="11" font-weight="800" letter-spacing="0.6"
+          fill="#3a43c4">HUMAN-CONTROLLED</text>
+
+        <!-- connectors -->
+        <line x1="210" y1="102" x2="210" y2="120" stroke="#5c67ff" stroke-width="2.5"
           marker-end="url(#arrow)" />
-        <line x1="210" y1="202" x2="210" y2="238" stroke="#5c67ff" stroke-width="2.5"
+        <line x1="210" y1="182" x2="210" y2="200" stroke="#5c67ff" stroke-width="2.5"
           marker-end="url(#arrow)" />
-        <line x1="210" y1="312" x2="210" y2="348" stroke="#5c67ff" stroke-width="2.5"
+        <line x1="210" y1="262" x2="210" y2="336" stroke="#5c67ff" stroke-width="2.5"
           marker-end="url(#arrow)" />
-        <line x1="380" y1="165" x2="424" y2="165" stroke="#b9aee8" stroke-width="2.2"
+        <line x1="210" y1="390" x2="210" y2="410" stroke="#5c67ff" stroke-width="2.5"
+          marker-end="url(#arrow)" />
+        <line x1="380" y1="151" x2="408" y2="151" stroke="#b9aee8" stroke-width="2.2"
           stroke-dasharray="5 4" marker-end="url(#arrow)" />
 
-        <!-- Stage 1 -->
+        <!-- 1 Detection -->
         <g>
-          <rect x="42" y="22" width="336" height="70" rx="11" fill="url(#boxg)" />
-          <circle cx="42" cy="57" r="16" fill="#f7c2ff" />
-          <text x="42" y="62" text-anchor="middle" font-size="15" font-weight="800"
+          <rect x="40" y="40" width="340" height="62" rx="11" fill="url(#boxg)" />
+          <circle cx="40" cy="71" r="15" fill="#f7c2ff" />
+          <text x="40" y="76" text-anchor="middle" font-size="14" font-weight="800"
             fill="#3a43c4">1</text>
-          <text x="70" y="50" font-size="13" font-weight="800" fill="#ffffff">Detection</text>
-          <text x="70" y="70" font-size="10.5" fill="#e9ebff">
+          <text x="66" y="68" font-size="13" font-weight="800" fill="#ffffff">Detection</text>
+          <text x="66" y="86" font-size="10.5" fill="#e9ebff">
             Hexagate monitors the LI.FI Diamond for on-chain threats
           </text>
         </g>
 
-        <!-- Stage 2 -->
+        <!-- 2 Secured automation -->
         <g>
-          <rect x="42" y="132" width="336" height="70" rx="11" fill="url(#boxg)" />
-          <circle cx="42" cy="167" r="16" fill="#f7c2ff" />
-          <text x="42" y="172" text-anchor="middle" font-size="15" font-weight="800"
+          <rect x="40" y="120" width="340" height="62" rx="11" fill="url(#boxg)" />
+          <circle cx="40" cy="151" r="15" fill="#f7c2ff" />
+          <text x="40" y="156" text-anchor="middle" font-size="14" font-weight="800"
             fill="#3a43c4">2</text>
-          <text x="70" y="160" font-size="13" font-weight="800" fill="#ffffff">
+          <text x="66" y="148" font-size="13" font-weight="800" fill="#ffffff">
             Secured automation
           </text>
-          <text x="70" y="180" font-size="10.5" fill="#e9ebff">
-            GitHub Actions pipeline · multiple authorization gates
+          <text x="66" y="166" font-size="10.5" fill="#e9ebff">
+            multiple independent authorization gates
           </text>
         </g>
 
-        <!-- Alerting (parallel) -->
+        <!-- Alerting (parallel, human-facing) -->
         <g>
-          <rect x="424" y="132" width="158" height="70" rx="11" fill="#ffffff"
+          <rect x="408" y="120" width="166" height="62" rx="11" fill="#ffffff"
             stroke="#f0b9fb" stroke-width="2" />
-          <text x="436" y="158" font-size="12" font-weight="800" fill="#3a43c4">
-            Alerting
-          </text>
-          <text x="436" y="174" font-size="9.2" fill="#5b5f72">in parallel</text>
-          <text x="436" y="190" font-size="9.2" fill="#5b5f72">
-            email · chat · phone/SMS
-          </text>
+          <text x="422" y="146" font-size="12" font-weight="800" fill="#3a43c4">Alerting</text>
+          <text x="422" y="162" font-size="9.2" fill="#5b5f72">in parallel</text>
+          <text x="422" y="176" font-size="9.2" fill="#5b5f72">email · chat · phone/SMS</text>
         </g>
 
-        <!-- Stage 3 -->
+        <!-- 3 Controlled pause -->
         <g>
-          <rect x="42" y="242" width="336" height="70" rx="11" fill="url(#boxg)" />
-          <circle cx="42" cy="277" r="16" fill="#f7c2ff" />
-          <text x="42" y="282" text-anchor="middle" font-size="15" font-weight="800"
+          <rect x="40" y="200" width="340" height="62" rx="11" fill="url(#boxg)" />
+          <circle cx="40" cy="231" r="15" fill="#f7c2ff" />
+          <text x="40" y="236" text-anchor="middle" font-size="14" font-weight="800"
             fill="#3a43c4">3</text>
-          <text x="70" y="270" font-size="13" font-weight="800" fill="#ffffff">
-            Controlled execution
+          <text x="66" y="228" font-size="13" font-weight="800" fill="#ffffff">
+            Controlled pause
           </text>
-          <text x="70" y="290" font-size="10.5" fill="#e9ebff">
-            the LI.FI Diamond is paused on-chain
+          <text x="66" y="246" font-size="10.5" fill="#e9ebff">
+            the LI.FI Diamond is frozen on-chain
           </text>
         </g>
 
-        <!-- Stage 4 -->
+        <!-- Investigation gate (human) -->
         <g>
-          <rect x="42" y="352" width="336" height="70" rx="11" fill="url(#boxg)" />
-          <circle cx="42" cy="387" r="16" fill="#f7c2ff" />
-          <text x="42" y="392" text-anchor="middle" font-size="15" font-weight="800"
-            fill="#3a43c4">4</text>
-          <text x="70" y="380" font-size="13" font-weight="800" fill="#ffffff">Recovery</text>
-          <text x="70" y="400" font-size="10.5" fill="#e9ebff">
-            pre-signed transactions restore normal operation
+          <rect x="40" y="336" width="340" height="54" rx="11" fill="#ffffff"
+            stroke="#f0b9fb" stroke-width="2" stroke-dasharray="6 4" />
+          <text x="56" y="361" font-size="12" font-weight="800" fill="#3a43c4">
+            The pause holds
+          </text>
+          <text x="56" y="378" font-size="10" fill="#5b5f72">
+            the team investigates — recovery is never automatic
+          </text>
+        </g>
+
+        <!-- Controlled recovery (human) -->
+        <g>
+          <rect x="40" y="410" width="340" height="62" rx="11" fill="#ffffff"
+            stroke="#5c67ff" stroke-width="2" />
+          <text x="56" y="438" font-size="13" font-weight="800" fill="#3a43c4">
+            Controlled recovery
+          </text>
+          <text x="56" y="456" font-size="10" fill="#5b5f72">
+            pre-approved, multi-signature — once the threat is cleared
           </text>
         </g>
       </svg>
       <p class="flow-caption">
-        End-to-end response chain: detection → secured automation with authorization gates →
-        controlled on-chain pause → recovery, with the team alerted in parallel.
+        Two phases: an automated response that detects and freezes within seconds (blue), then a
+        human-controlled recovery that follows investigation (outlined). The team is alerted in
+        parallel.
       </p>
 
+      <p><strong>Phase 1 — automated response (within seconds):</strong></p>
       <ol>
         <li>
           <strong>Detection.</strong> Hexagate continuously monitors the LI.FI Diamond for
@@ -434,18 +458,23 @@
           defense-in-depth design.
         </li>
         <li>
-          <strong>Controlled on-chain execution.</strong> Once the checks pass, the LI.FI Diamond
-          is paused on-chain, freezing activity.
-        </li>
-        <li>
-          <strong>Alerting (in parallel).</strong> The team is notified across multiple channels —
-          email, chat, and phone/SMS paging — so responders engage immediately, day or night.
-        </li>
-        <li>
-          <strong>Recovery.</strong> Pre-approved, pre-signed recovery transactions let the team
-          safely restore normal operation within minutes.
+          <strong>Controlled pause.</strong> Once the checks pass, the LI.FI Diamond is paused
+          on-chain, freezing activity before an attacker can cause harm.
         </li>
       </ol>
+      <p>
+        In parallel, the team is alerted across multiple channels — email, chat, and phone/SMS
+        paging — so responders engage immediately, day or night.
+      </p>
+      <p>
+        <strong>Phase 2 — human-controlled recovery (on the team's timeline).</strong> A paused
+        protocol stays frozen; <strong>recovery is never automatic</strong>. The pause holds while
+        the team investigates and confirms it is safe to resume. Only then is normal operation
+        restored, using <strong>pre-approved, multi-signature recovery transactions</strong>
+        prepared in advance so the step is fast and reliable the moment it is authorized. This
+        separation is deliberate: the freeze protects user funds for as long as needed, and the
+        protocol returns to service only on an explicit human decision.
+      </p>
     </section>
 
     <section class="section">
@@ -466,7 +495,7 @@
           runbook step by step rather than improvising.
         </li>
         <li>
-          <strong>A deliberately staged, two-phase design</strong> to bound any impact. We first
+          <strong>A deliberately staged, two-stage design</strong> to bound any impact. We first
           validated the detection and authorization chain in a mode where
           <strong>no real pause was possible</strong>, confirming the alarm and approval path
           worked end-to-end. Only then did we run a genuine pause — and only on a small set of
@@ -512,9 +541,10 @@
           phone/SMS paging), confirming responders would be engaged day or night.
         </li>
         <li>
-          <strong>Recovery</strong> — the affected networks were restored to normal operation
-          within minutes using the pre-approved recovery transactions, returning everything to its
-          pre-test state.
+          <strong>Controlled recovery</strong> — once the pause was confirmed, we restored normal
+          operation within minutes using the pre-approved, multi-signature recovery transactions,
+          confirming the deliberate, human-controlled exit path is fast and reliable when
+          authorized. Everything returned to its pre-test state.
         </li>
       </ul>
       <p>
@@ -599,8 +629,8 @@
         <dd>A control requiring a second qualified person to independently verify each sensitive action, so no critical step is taken by one individual alone.</dd>
         <dt>On-chain monitoring</dt>
         <dd>Continuous, automated surveillance of smart-contract activity to detect threats in real time.</dd>
-        <dt>Pre-signed recovery</dt>
-        <dd>Recovery transactions prepared and approved in advance by the required signers, so they can be executed immediately when needed rather than assembled under pressure. LI.FI's most sensitive actions require approval from multiple independent signers (a multi-signature scheme).</dd>
+        <dt>Controlled recovery</dt>
+        <dd>The deliberate, human-controlled lifting of a pause. A paused protocol stays frozen until the team has investigated and decided it is safe to resume; recovery is never automatic. The recovery ("unpause") transactions are prepared and approved in advance by the required signers, so they can be executed immediately once that decision is made rather than assembled under pressure. LI.FI's most sensitive actions require approval from multiple independent signers (a multi-signature scheme).</dd>
       </dl>
       <div class="hexagate">
         <strong>About Hexagate.</strong> Hexagate, a Chainalysis company, is a real-time on-chain

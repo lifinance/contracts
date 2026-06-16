@@ -34,7 +34,7 @@ was meticulously planned around a detailed written runbook, executed under a str
 four-eyes principle, and deliberately staged so that it remained reversible at every step.
 
 **The result: the capability works.** Threat detection, authorization, the built-in safety
-stops, multi-channel team alerting, and rapid recovery all performed exactly as designed. As
+stops, multi-channel team alerting, and controlled recovery all performed exactly as designed. As
 intended with any rigorous exercise, we identified a small set of operational refinements —
 and have since implemented all of them, further strengthening an already-working system.
 
@@ -56,16 +56,26 @@ exercise was designed to demonstrate exactly that.
 
 ## How the emergency response works
 
-The protection is an end-to-end chain. Each stage hands off to the next, and several
-independent checks must pass before the protocol is ever touched:
+The response has **two distinct phases**. The first is automated and time-critical: it
+detects a threat and freezes the protocol within seconds, with no human in the loop. The
+second is deliberate and human-controlled: the protocol stays frozen while the team
+investigates, and normal operation is restored only once the team confirms it is safe to do
+so. Several independent checks must pass before the protocol is ever touched.
 
 ```mermaid
 flowchart TD
-    A["1 · Detection — Hexagate monitors the LI.FI Diamond for on-chain threats"] --> B["2 · Secured automation — a pipeline with multiple independent authorization gates"]
-    B --> C["3 · Controlled execution — the LI.FI Diamond is paused on-chain"]
-    C --> D["4 · Recovery — pre-approved, pre-signed transactions restore normal operation"]
-    B -. in parallel .-> E["Alerting — the team is notified by email, chat, and phone/SMS"]
+    subgraph A["Automated response · within seconds"]
+        D["1 · Detection — Hexagate monitors the LI.FI Diamond for on-chain threats"] --> S["2 · Secured automation — multiple independent authorization gates"]
+        S --> P["3 · Controlled pause — the LI.FI Diamond is frozen on-chain"]
+    end
+    S -. in parallel .-> AL["Alerting — the team is notified by email, chat, and phone/SMS"]
+    P --> G["The pause holds — the team investigates"]
+    subgraph H["Human-controlled · after investigation"]
+        G --> R["Controlled recovery — pre-approved, multi-signature transactions restore normal operation once the threat is cleared"]
+    end
 ```
+
+**Phase 1 — automated response (within seconds):**
 
 1. **Detection.** Hexagate continuously monitors the LI.FI Diamond for anomalous or malicious
    on-chain activity.
@@ -73,12 +83,20 @@ flowchart TD
    GitHub Actions) that orchestrates the response. **Multiple independent authorization checks
    must pass before anything executes**, so no single component can trigger a pause on its
    own — a deliberate defense-in-depth design.
-3. **Controlled on-chain execution.** Once the checks pass, the LI.FI Diamond is paused
-   on-chain, freezing activity.
-4. **Alerting (in parallel).** The team is notified across multiple channels — email, chat,
-   and phone/SMS paging — so responders engage immediately, day or night.
-5. **Recovery.** Pre-approved, pre-signed recovery transactions let the team safely restore
-   normal operation within minutes.
+3. **Controlled pause.** Once the checks pass, the LI.FI Diamond is paused on-chain, freezing
+   activity before an attacker can cause harm.
+
+In parallel, the team is alerted across multiple channels — email, chat, and phone/SMS
+paging — so responders engage immediately, day or night.
+
+**Phase 2 — human-controlled recovery (on the team's timeline):**
+
+A paused protocol stays frozen; **recovery is never automatic**. The pause holds while the
+team investigates and confirms it is safe to resume. Only then is normal operation restored,
+using **pre-approved, multi-signature recovery transactions** prepared in advance so the step
+is fast and reliable the moment it is authorized. This separation is deliberate: the freeze
+protects user funds for as long as needed, and the protocol returns to service only on an
+explicit human decision.
 
 ---
 
@@ -95,7 +113,7 @@ independent layers of control:
 - **A detailed written runbook.** Every action, its expected result, and each safety check was
   documented and reviewed in advance. The team executed against the runbook step by step rather
   than improvising.
-- **A deliberately staged, two-phase design** to bound any impact. We first validated the
+- **A deliberately staged, two-stage design** to bound any impact. We first validated the
   detection and authorization chain in a mode where **no real pause was possible**, confirming
   the alarm and approval path worked end-to-end. Only then did we run a genuine pause — and only
   on a small set of deliberately chosen, low-traffic networks.
@@ -121,8 +139,10 @@ performed as designed:
   networks.
 - **Alerting** — the team was reached across every channel (email, chat, and phone/SMS paging),
   confirming responders would be engaged day or night.
-- **Recovery** — the affected networks were restored to normal operation within minutes using
-  the pre-approved recovery transactions, returning everything to its pre-test state.
+- **Controlled recovery** — once the pause was confirmed, we restored normal operation within
+  minutes using the pre-approved, multi-signature recovery transactions, confirming the
+  deliberate, human-controlled exit path is fast and reliable when authorized. Everything
+  returned to its pre-test state.
 
 We also confirmed the system's **fail-safe design**: where a precondition was not met, the
 safeguard correctly **declined to act rather than acting incorrectly** — precisely the
@@ -176,10 +196,12 @@ evidence-based discipline, and this exercise is one part of that ongoing commitm
   verify each sensitive action, so no critical step is taken by one individual alone.
 - **On-chain monitoring** — continuous, automated surveillance of smart-contract activity to
   detect threats in real time.
-- **Pre-signed recovery** — recovery transactions prepared and approved in advance by the
-  required signers, so they can be executed immediately when needed rather than assembled under
-  pressure. LI.FI's most sensitive actions require approval from multiple independent signers
-  (a multi-signature scheme).
+- **Controlled recovery** — the deliberate, human-controlled lifting of a pause. A paused
+  protocol stays frozen until the team has investigated and decided it is safe to resume;
+  recovery is never automatic. The recovery ("unpause") transactions are prepared and approved
+  in advance by the required signers, so they can be executed immediately once that decision is
+  made rather than assembled under pressure. LI.FI's most sensitive actions require approval
+  from multiple independent signers (a multi-signature scheme).
 
 ### About Hexagate
 
