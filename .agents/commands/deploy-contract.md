@@ -12,7 +12,7 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 - **periphery** → `diamondUpdatePeriphery`
 - **diamond-called periphery** → the above **plus** an allowlist sync (a second proposal in production)
 
-It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). It does **not** draft a PR, drive hardware-wallet signing, or post to Slack — those belong to `multisig-rollout`.
+It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
 
 ## When to use this vs multisig-rollout
 
@@ -22,6 +22,8 @@ It stops once the contract is deployed, verified, and registered (production: pr
 | Production rollout needing Safe proposals signed & shepherded | **`multisig-rollout`** (it calls this skill) |
 
 **Hard rail — don't strand production proposals.** A standalone production deploy creates Safe proposals carrying a single signature and then stops; with no PR, no signing hand-off, and no Slack thread, those proposals sit forgotten below threshold. So: if this is a production deploy (`--production`) and you are **not** running it as a step inside `multisig-rollout`, stop and route the user to `/multisig-rollout`. Only proceed with `--production` here when `multisig-rollout` is driving the full lifecycle around you.
+
+**PR ownership.** The staging path opens its own deployment-log PR (Phase 4). The production PR is **not** this skill's job — when `multisig-rollout` drives, skip Phase 4; it opens the single combined PR (logs + nonce table) after capturing proposals.
 
 ## Environment
 
@@ -100,6 +102,39 @@ The deploy framework attempts explorer verification inline, but it can fail, and
 ```
 
 It verifies the deployment's addresses on the explorer and writes `verified:true` to MongoDB (both must hold).
+
+## Phase 4 — Commit logs & draft PR (staging path only)
+
+Skip this phase entirely when `multisig-rollout` is driving (production): the
+orchestrator opens one combined PR after capturing proposals, because that body
+needs the per-network Safe nonce table that doesn't exist until then. In the
+standalone staging path the deploy's only leftover is the deployment-log diff,
+and landing it shouldn't be a manual afterthought.
+
+1. Collect exactly what the deploy touched — **never `git add -A`**:
+
+   ```bash
+   git status --porcelain -- deployments/ 'config/whitelist*.json'
+   ```
+
+   The contract type need not be special-cased: a facet writes the diamond log's
+   Facets section + address map, periphery writes the Periphery section, a
+   diamond-called periphery also rewrites `config/whitelist.json` /
+   `config/whitelist.staging.json` (Phase 3b) — staging whatever changed covers
+   all of them. If the output is empty (idempotent re-deploy — same CREATE3
+   address, version already registered), there's nothing to land; skip.
+
+2. Delegate the branch / commit / template / `/pr-ready` / push / create mechanic
+   to `/create-pr`, passing:
+   - **files to stage**: exactly the paths from step 1.
+   - **body** (the "Why"): contract, version (old → new per network), network
+     list, environment (staging), and the registration note for the type —
+     `diamondCut` (facet) / `diamondUpdatePeriphery` (periphery) / `+ allowlist
+     sync, whitelist.json updated` (diamond-called periphery).
+
+`/create-pr` stages only the named files and has a confirm gate, so a routine
+staging deploy isn't force-PR'd — you approve before it pushes. Don't reimplement
+branching/commit/PR plumbing here; `/create-pr` owns it.
 
 ## Output
 
