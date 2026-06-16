@@ -60,6 +60,7 @@ source .env
 source script/helperFunctions.sh
 
 NETWORK=<network>
+ENVIRONMENT=production   # set to "staging" for a staging deploy — Step 5 reuses this
 DEPLOYMENTS="deployments/${NETWORK}.json"
 
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
@@ -78,14 +79,14 @@ These TS scripts need `node_modules` (`bun install`) and `MONGODB_URI` in `.env`
 
    ```bash
    bunx tsx script/deploy/query-deployment-logs.ts list \
-     --env production --network "$NETWORK" --limit 200 --no-use-cache --format json
+     --env "$ENVIRONMENT" --network "$NETWORK" --limit 200 --no-use-cache --format json
    ```
 
 2. For each contract you verified, partial-update the flag (touches only `verified`, preserves all other fields):
 
    ```bash
    bunx tsx script/deploy/update-deployment-logs.ts update \
-     --env production --network "$NETWORK" \
+     --env "$ENVIRONMENT" --network "$NETWORK" \
      --contract <Name> --version <ver> --address <addr> --verified true
    ```
 
@@ -97,7 +98,7 @@ Re-query with `--no-use-cache` and confirm the verified count matches the deploy
 
 ```bash
 bunx tsx script/deploy/query-deployment-logs.ts list \
-  --env production --network "$NETWORK" --limit 200 --no-use-cache --format json \
+  --env "$ENVIRONMENT" --network "$NETWORK" --limit 200 --no-use-cache --format json \
   | jq '[.[] | {contract, version, verified}]'
 ```
 
