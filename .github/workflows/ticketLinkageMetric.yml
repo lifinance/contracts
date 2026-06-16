@@ -47,15 +47,15 @@ jobs:
           exit 1
 
       # DiamondPauser team-membership gate
-      - name: Authenticate git user (check membership in 'DiamondPauser' group)
-        if: ${{ inputs.warning == 'UNDERSTOOD' }}
-        id: authenticate-user
-        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
-        with:
-          username: ${{ github.actor }}
-          organization: lifinance
-          team: diamondpauser
-          GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+      # - name: Authenticate git user (check membership in 'DiamondPauser' group)
+      #   if: ${{ inputs.warning == 'UNDERSTOOD' }}
+      #   id: authenticate-user
+      #   uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3.0.0
+      #   with:
+      #     username: ${{ github.actor }}
+      #     organization: lifinance
+      #     team: diamondpauser
+      #     GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
 
       - name: Check team membership
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
