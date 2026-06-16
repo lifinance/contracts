@@ -28,6 +28,7 @@
     "@types/pino": "^7.0.5",
     "@typescript-eslint/eslint-plugin": "^5.16.0",
     "@typescript-eslint/parser": "^7.10.0",
+    "bs58": "^4.0.1",
     "cross-env": "^7.0.2",
     "dotenv": "^16.0.0",
     "eslint": "^8.11.0",
@@ -115,6 +116,7 @@
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "typechain:incremental": "forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "unpause-all-diamonds": "bunx tsx ./script/tasks/unpauseAllDiamonds.ts",
+    "validate-scripts": "bunx tsx ./script/utils/validateScripts.ts",
     "balances": "bunx tsx ./script/balances.ts",
     "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
   },

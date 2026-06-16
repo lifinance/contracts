@@ -251,6 +251,16 @@ function diamondSyncWhitelist {
     # sendOrPropose: propose vs send is decided by SEND_PROPOSALS_DIRECTLY_TO_DIAMOND and environment. TIMELOCK_FLAG only used when proposing (wrap in timelock).
     local TIMELOCK_FLAG=$(getTimelockFlag "$NETWORK" "$ENVIRONMENT")
 
+    # Combined remove+add proposal route [CONV:ROUTING-PREDICATE]:
+    # When a sync needs BOTH removals and additions on the timelock-proposal route
+    # (EVM or Tron production), all calldatas are wrapped into ONE timelock
+    # scheduleBatch proposal (single signing round, removals execute before
+    # additions). Tron staging stays on the sequential route: its cast-calldata
+    # path needs hex-converted addresses, which only the Tron production branch
+    # produces. The flag is finalized once REMOVED_PAIRS/NEW_PAIRS are known.
+    local COMBINE_REMOVE_ADD_PROPOSAL=false
+    local PENDING_PROPOSAL_CALLDATAS=""
+
     # Fetch contract address
     DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
     local GET_ADDRESS_EXIT_CODE=$?
@@ -816,6 +826,24 @@ function diamondSyncWhitelist {
       fi
     fi
 
+    # Finalize the combined-proposal route now that both pair lists are known.
+    # Size cap: executeBatch runs ALL inner calls in ONE transaction, so an
+    # unbounded combination would undo Stage 4b's 150-pair gas batching and can
+    # exceed block gas limits on low-limit chains — producing a scheduled-but-
+    # unexecutable proposal that atomically blocks the removal (recoverable only
+    # by cancel + re-propose). Above the cap, use the sequential-proposal flow.
+    local COMBINED_PROPOSAL_MAX_PAIRS=300
+    # EVM on the timelock route, or Tron production (Tron staging stays sequential —
+    # its cast-calldata path only produces hex-converted addresses in production)
+    if [[ "$TIMELOCK_FLAG" == "true" && ${#REMOVED_PAIRS[@]} -gt 0 && ${#NEW_PAIRS[@]} -gt 0 ]] \
+       && [[ "$IS_TRON" == "false" || "$ENVIRONMENT" == "production" ]]; then
+      if ((${#REMOVED_PAIRS[@]} + ${#NEW_PAIRS[@]} <= COMBINED_PROPOSAL_MAX_PAIRS)); then
+        COMBINE_REMOVE_ADD_PROPOSAL=true
+      else
+        printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] $((${#REMOVED_PAIRS[@]} + ${#NEW_PAIRS[@]})) total pairs exceeds the combined-proposal cap ($COMBINED_PROPOSAL_MAX_PAIRS) - using separate sequential proposals to stay within block gas limits"
+      fi
+    fi
+
     # Remove obsolete contract-selector pairs (process removals first)
     if [[ ${#REMOVED_PAIRS[@]} -gt 0 ]]; then
       echoSyncStage "----- [$NETWORK] Stage 4a: Removing obsolete contract-selector pairs -----"
@@ -890,52 +918,83 @@ function diamondSyncWhitelist {
         SEND_ARGS="[$CONTRACTS_FOR_SEND] [$REMOVE_SELECTORS_ARRAY] false"
       fi
       
-      echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
-      local REMOVE_ATTEMPTS=1
-      local REMOVE_SUCCESS=false
-
-      while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
-        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
-
-        if [ $REMOVE_ATTEMPTS -gt 1 ]; then
-          echoSyncDebug "Waiting 3 seconds before retry..."
-          sleep 3
-        fi
-
-        echoSyncDebug "Send args for removal: $SEND_ARGS"
-
-        local REMOVE_OUTPUT
-        REMOVE_OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
-        local REMOVE_EXIT_CODE=$?
-
-        # Print output in verbose mode
-        if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
-
-        if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
-          if [[ "$TIMELOCK_FLAG" == "true" ]]; then
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal submitted successfully!"
-          else
-            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
-          fi
-          REMOVE_SUCCESS=true
-          break
+      # Combined route: defer the removal as the FIRST inner call of the single
+      # timelock proposal that is submitted after the addition batches (Stage 4c)
+      local REMOVAL_DEFERRED=false
+      if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" ]]; then
+        local REMOVE_CALLDATA
+        # stdout only (stderr may carry foundry warnings/update notices that would
+        # corrupt the value); strict single-line hex match so any stray text after
+        # the calldata takes the safe fallback path instead of poisoning the batch
+        local CAST_STDERR_FILE
+        CAST_STDERR_FILE=$(mktemp)
+        # Use CONTRACTS_FOR_SEND (hex-converted on Tron production; identical to the
+        # base58 array on EVM) so address[] ABI-encoding gets 20-byte hex addresses
+        REMOVE_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_SEND]" "[$REMOVE_SELECTORS_ARRAY]" "false" 2>"$CAST_STDERR_FILE")
+        if [[ "$REMOVE_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
+          PENDING_PROPOSAL_CALLDATAS="$REMOVE_CALLDATA"
+          REMOVAL_DEFERRED=true
+          printf '\033[0;36m%s\033[0m\n' "🧩 [$NETWORK] Removal of $REMOVE_COUNT pairs will be combined with additions into a single timelock proposal"
         else
-          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed (attempt $REMOVE_ATTEMPTS)"
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Failed to build removal calldata for combined proposal - falling back to separate proposals"
+          echoSyncDebug "cast calldata stdout: $REMOVE_CALLDATA"
+          echoSyncDebug "cast calldata stderr: $(cat "$CAST_STDERR_FILE")"
+          COMBINE_REMOVE_ADD_PROPOSAL=false
         fi
+        rm -f "$CAST_STDERR_FILE"
+      fi
 
-        REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
-      done
+      if [[ "$REMOVAL_DEFERRED" == "false" ]]; then
+        echoSyncStep "🚀 [$NETWORK] Starting removal execution..."
+        local REMOVE_ATTEMPTS=1
+        local REMOVE_SUCCESS=false
 
-      if [[ "$REMOVE_SUCCESS" == "false" ]]; then
-        printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
-        {
-          echo "[$NETWORK] Error: Could not remove obsolete pairs"
-          echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
-          echo ""
-        } >> "$FAILED_LOG_FILE"
-      else
-        # Brief wait for state to propagate
-        sleep 2
+        while [ $REMOVE_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+          printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Attempt $REMOVE_ATTEMPTS: Removing $REMOVE_COUNT pairs"
+
+          if [ $REMOVE_ATTEMPTS -gt 1 ]; then
+            echoSyncDebug "Waiting 3 seconds before retry..."
+            sleep 3
+          fi
+
+          echoSyncDebug "Send args for removal: $SEND_ARGS"
+
+          local REMOVE_OUTPUT
+          REMOVE_OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
+          local REMOVE_EXIT_CODE=$?
+
+          # Print output in verbose mode
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
+
+          if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
+            if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal proposal submitted successfully!"
+            else
+              printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Removal successful!"
+            fi
+            REMOVE_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Removal failed (attempt $REMOVE_ATTEMPTS)"
+          fi
+
+          REMOVE_ATTEMPTS=$((REMOVE_ATTEMPTS + 1))
+        done
+
+        if [[ "$REMOVE_SUCCESS" == "false" ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not remove ${#REMOVED_PAIRS[@]} pairs after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+          {
+            echo "[$NETWORK] Error: Could not remove obsolete pairs"
+            echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
+          # Abort: proceeding to Stage 4b would add new pairs while obsolete ones
+          # remain whitelisted, breaking the remove-before-add ordering invariant
+          return 1
+        else
+          # Brief wait for state to propagate
+          sleep 2
+        fi
       fi
     fi
 
@@ -1056,6 +1115,34 @@ function diamondSyncWhitelist {
           SEND_ARGS="[$CONTRACTS_FOR_SEND] [$BATCH_SELECTORS_ARRAY] true"
         fi
 
+        # Combined route: defer this addition batch as an inner call of the single
+        # timelock proposal (submitted in Stage 4c, after the removal calldata)
+        if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" ]]; then
+          local ADD_CALLDATA
+          # stdout only + strict single-line hex match (see removal-side comment)
+          local ADD_CAST_STDERR_FILE
+          ADD_CAST_STDERR_FILE=$(mktemp)
+          # CONTRACTS_FOR_SEND is hex-converted on Tron production (identical to the
+          # base58 array on EVM), so address[] ABI-encoding gets 20-byte hex addresses
+          ADD_CALLDATA=$(cast calldata "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "[$CONTRACTS_FOR_SEND]" "[$BATCH_SELECTORS_ARRAY]" "true" 2>"$ADD_CAST_STDERR_FILE")
+          if [[ "$ADD_CALLDATA" =~ ^0x[0-9a-fA-F]+$ ]]; then
+            PENDING_PROPOSAL_CALLDATAS+=",$ADD_CALLDATA"
+            echoSyncStep "🧩 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES added to combined proposal ($BATCH_COUNT pairs)"
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Failed to build addition calldata for batch $BATCH_NUM/$TOTAL_BATCHES"
+            echoSyncDebug "cast calldata stdout: $ADD_CALLDATA"
+            echoSyncDebug "cast calldata stderr: $(cat "$ADD_CAST_STDERR_FILE")"
+            BATCH_SUCCESS=false
+            {
+              echo "[$NETWORK] Error: Failed to build addition calldata for combined proposal (batch $BATCH_NUM/$TOTAL_BATCHES)"
+              echo "[$NETWORK] Pairs in failed batch: $BATCH_COUNT"
+              echo ""
+            } >> "$FAILED_LOG_FILE"
+          fi
+          rm -f "$ADD_CAST_STDERR_FILE"
+          continue
+        fi
+
         echoSyncStep "📤 [$NETWORK] Batch $BATCH_NUM/$TOTAL_BATCHES: Processing $BATCH_COUNT pairs..."
 
         local ATTEMPTS=1
@@ -1107,12 +1194,60 @@ function diamondSyncWhitelist {
       done
 
       if [[ "$BATCH_SUCCESS" == "false" ]]; then
+        # Combined route: the deferred removal calldata is only submitted in Stage 4c,
+        # which is skipped on failure — nothing was proposed yet, so a re-run recovers
+        if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" && -n "$PENDING_PROPOSAL_CALLDATAS" ]]; then
+          printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] Combined proposal NOT submitted - the deferred removal was not proposed either; re-run the sync after fixing the failed batches"
+        fi
         printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Some batches failed - check logs above"
         return 1
       fi
 
-      # All batches succeeded - verify final state
-      if [[ "$TIMELOCK_FLAG" == "true" ]]; then
+      # Stage 4c (combined route only): submit removal + addition calldatas as inner
+      # calls of ONE timelock scheduleBatch proposal (removal first, then additions)
+      if [[ "$COMBINE_REMOVE_ADD_PROPOSAL" == "true" && -n "$PENDING_PROPOSAL_CALLDATAS" ]]; then
+        echoSyncStage "----- [$NETWORK] Stage 4c: Submitting combined removal+addition proposal -----"
+        local COMBINED_CALL_COUNT=$(( $(echo "$PENDING_PROPOSAL_CALLDATAS" | tr -cd ',' | wc -c) + 1 ))
+        printf '\033[0;36m%s\033[0m\n' "📤 [$NETWORK] Proposing $COMBINED_CALL_COUNT calls (1 removal + $((COMBINED_CALL_COUNT - 1)) addition batch(es)) in a single timelock proposal"
+
+        local COMBINED_ATTEMPTS=1
+        local COMBINED_SUCCESS=false
+
+        while [ $COMBINED_ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+          if [ $COMBINED_ATTEMPTS -gt 1 ]; then
+            echoSyncDebug "Waiting 3 seconds before retry..."
+            sleep 3
+          fi
+
+          local COMBINED_OUTPUT
+          COMBINED_OUTPUT=$(sendOrPropose "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$PENDING_PROPOSAL_CALLDATAS" "$TIMELOCK_FLAG" 2>&1)
+          local COMBINED_EXIT_CODE=$?
+
+          # Print output in verbose mode
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$COMBINED_OUTPUT"; fi
+
+          if [[ $COMBINED_EXIT_CODE -eq 0 ]]; then
+            printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Combined removal+addition proposal submitted successfully!"
+            COMBINED_SUCCESS=true
+            break
+          else
+            printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Combined proposal failed (attempt $COMBINED_ATTEMPTS)"
+          fi
+
+          COMBINED_ATTEMPTS=$((COMBINED_ATTEMPTS + 1))
+        done
+
+        if [[ "$COMBINED_SUCCESS" == "false" ]]; then
+          printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] Could not submit combined proposal after $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION attempts"
+          {
+            echo "[$NETWORK] Error: Combined removal+addition proposal failed"
+            echo "[$NETWORK] Pairs to remove: ${REMOVED_PAIRS[*]}"
+            echo "[$NETWORK] New pairs: ${NEW_PAIRS[*]}"
+            echo ""
+          } >> "$FAILED_LOG_FILE"
+          return 1
+        fi
+      elif [[ "$TIMELOCK_FLAG" == "true" ]]; then
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batch proposals submitted successfully!"
       else
         printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] All $TOTAL_BATCHES batches completed successfully!"
