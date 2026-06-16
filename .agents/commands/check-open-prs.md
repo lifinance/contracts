@@ -37,7 +37,7 @@ bunx tsx script/utils/check-open-prs.ts --json
 
 Skip this entirely for PRs without the flag. For the flagged set:
 
-1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks) serves all contracts-repo PRs — match by PR URL. Backend-repo PRs route to `#dev-backend-expansion-review`. Fall back to `slack_search_public` (`in:#<channel> pull/<NUMBER>`) only for PRs not in the scraped window. No post found → mark "not posted for review yet".
+1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks) serves all contracts-repo PRs — match by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) only for PRs not in the scraped window. No post found → mark "not posted for review yet".
 2. **Read each found thread** with `slack_read_thread` (`response_format="detailed"`), batched 5–8 per message in parallel. Paginate until `reply_count` is exhausted — the missed reply is usually the newest, which decides the bucket.
 3. **Classify own PRs mechanically** by last human (non-bot) message author — content never overrides this rule:
    - Last author is the user → **REMIND**: `<48h` since that message → REMIND-RECENTLY-PINGED (cooldown), `≥48h` → REMIND-DUE. Zero replies → apply the 48h rule to the parent post.
@@ -81,7 +81,7 @@ Immediately before posting, re-read each target thread; skip (and say why) if th
 friendly bump <!subteam^S096X6MCB0C>
 ```
 
-(The `<!subteam^…>` syntax is mandatory — plain `@smartcontract_core` doesn't notify. For the backend channel use that channel's subteam ID or skip per convention.) Confirm each post with its permalink.
+(The `<!subteam^…>` syntax is mandatory — plain `@smartcontract_core` doesn't notify.) Confirm each post with its permalink.
 
 ## Phase 2B/2C — walk OWN-DRAFTS / STALE
 
