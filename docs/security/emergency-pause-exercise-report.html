@@ -7,8 +7,9 @@
       --print-to-pdf="2026-05-28-emergency-pause-exercise-report.pdf" \
       emergency-pause-exercise-report.html
   Brand: Primary Blue #5C67FF, Primary Pink #F7C2FF (li.fi/brand-guidelines).
-  TODO for final: replace the text wordmark with the official LI.FI logo+icon lockup
-  and the brand typeface from the brand asset pack.
+  LOGO: the official LI.FI icon+wordmark lockup is inlined as SVG — the white
+  (dark-background) variant on the cover, the black (light-background) variant in
+  the footer. Source: lifi_brand_assets/SVG/logo_lifi_{dark,light}_horizontal.svg.
 -->
 <html lang="en">
   <head>
@@ -71,6 +72,18 @@
       .wordmark .dot {
         color: var(--pink);
       }
+      /* Official logo lockup (inlined SVG) */
+      .logo {
+        display: block;
+        height: 43px;
+        width: 118px;
+        align-self: flex-start;
+      }
+      .footer-logo {
+        height: 14px;
+        width: auto;
+        vertical-align: -2px;
+      }
       .cover .accent {
         width: 64px;
         height: 6px;
@@ -107,6 +120,9 @@
       }
       .cover .meta strong {
         color: #fff;
+      }
+      .cover .meta .row {
+        margin-top: 3px;
       }
 
       /* ---------- Content ---------- */
@@ -238,17 +254,26 @@
   <body>
     <!-- ============ COVER ============ -->
     <section class="cover">
-      <div class="wordmark">LI<span class="dot">.</span>FI</div>
+      <svg class="logo" width="118" height="43" viewBox="0 0 132 48" fill="none"
+        xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LI.FI">
+        <path fill="#fff" d="m19.314 0 9.878 9.879a3 3 0 0 1 0 4.242L23.314 20l-4-4c-4.419-4.418-4.419-11.582 0-16Z"/>
+        <path fill="#fff" fill-rule="evenodd" d="m19.314 48-16-16c-4.419-4.418-4.419-11.582 0-16l13.878 13.879a3 3 0 0 0 4.243 0L35.314 16c4.418 4.418 4.418 11.582 0 16l-16 16Z" clip-rule="evenodd"/>
+        <path fill="#fff" d="M123.319 36s.034-21 0-22 .985-2 1.966-2h4.034v22c.035 1-.965 2-1.965 2h-4.035ZM99.32 14v22h6v-8h10c1 0 2-1 2-2v-4h-12v-4h12c1 0 2-1 2-2v-4h-18c-1 0-2 1-2 2Zm-9.998 18c0-1 1-2 2-2h2c1 0 2 1 2 2v2c0 1-1 2-2 2h-2c-1 0-2-1-2-2v-2Zm-10.001 4s.034-21 0-22 .985-2 1.966-2h4.034v22c.035 1-.965 2-1.965 2h-4.035ZM55.32 30V14c0-1 .87-2 2-2h4v18h14v4c0 1-1 2-2 2h-18v-6Z"/>
+      </svg>
       <div class="accent"></div>
       <h1>Production Emergency-Response Exercise</h1>
       <div class="subtitle">Confirming LI.FI's Ability to Protect User Funds</div>
       <p class="lede">
-        On 28 May 2026, LI.FI ran a full end-to-end test of its automated emergency-pause
-        capability in production - and confirmed it works as designed.
+        On 28 May 2026, LI.FI conducted a full end-to-end test of its automated
+        emergency-pause capability in live production — and confirmed it works exactly as
+        designed.
       </p>
       <div class="meta">
-        <strong>Prepared by the LI.FI Smart Contract Team</strong><br />
-        Security exercise report &nbsp;·&nbsp; 28 May 2026
+        <strong>Prepared by the LI.FI Smart Contract Team</strong>
+        <div class="row">Exercise date &nbsp;·&nbsp; 28 May 2026</div>
+        <div class="row">
+          For partners and integrators conducting security due diligence on LI.FI
+        </div>
       </div>
     </section>
 
@@ -257,23 +282,23 @@
       <h2>Executive summary</h2>
       <p>
         LI.FI operates an automated safeguard that can
-        <strong>pause the LI.FI Diamond - its core cross-chain bridging and swapping protocol -
+        <strong>pause the LI.FI Diamond — its core cross-chain bridging and swapping protocol —
         within moments of a threat being detected</strong>, freezing activity to protect user
-        funds. The LI.FI Diamond is monitored by Hexagate, a Chainalysis company, and the
-        emergency-pause system is designed so that this monitoring can trigger the response
-        automatically.
+        funds. The LI.FI Diamond is monitored around the clock by Hexagate, a Chainalysis
+        company, and the emergency-pause system is designed so that this monitoring can trigger
+        the response automatically, without waiting for a human at a keyboard.
       </p>
       <p>
         On <strong>28 May 2026</strong> we tested that entire capability end-to-end, in
         production. The exercise was meticulously planned around a detailed written runbook,
-        executed under a strict four-eyes principle, and deliberately staged so that it was
+        executed under a strict four-eyes principle, and deliberately staged so that it remained
         reversible at every step.
       </p>
       <div class="result-callout">
         <strong>The result: the capability works.</strong> Threat detection, authorization, the
         built-in safety stops, multi-channel team alerting, and rapid recovery all performed
-        exactly as designed. As with any rigorous exercise, we identified a small set of
-        operational refinements - and have since implemented all of them, further strengthening
+        exactly as designed. As intended with any rigorous exercise, we identified a small set of
+        operational refinements — and have since implemented all of them, further strengthening
         an already-working system.
       </div>
     </section>
@@ -283,16 +308,16 @@
       <p>
         The LI.FI Diamond moves real user funds across chains. If it ever came under attack, the
         most important defensive action is the ability to
-        <strong>pause it instantly</strong> - freezing activity before an attacker can cause harm
-        and buying time to respond.
+        <strong>pause it instantly</strong> — freezing activity before an attacker can cause harm,
+        and buying responders time to act.
       </p>
       <p>
         A pause capability is only meaningful if it is
-        <strong>fast, reliable, and continuously ready</strong>. That means it cannot depend on
-        someone happening to be awake and at a keyboard: it must be backed by continuous
-        monitoring that can detect a threat and trigger the response automatically, and it must be
-        tested under realistic conditions so there are no surprises when it matters. This exercise
-        was designed to prove exactly that.
+        <strong>fast, reliable, and continuously ready</strong>. It cannot depend on someone
+        happening to be awake and online: it must be backed by continuous monitoring that can
+        detect a threat and trigger the response automatically, and it must be proven under
+        realistic conditions so there are no surprises when it matters most. This exercise was
+        designed to demonstrate exactly that.
       </p>
     </section>
 
@@ -300,7 +325,7 @@
       <h2>How the emergency response works</h2>
       <p>
         The protection is an end-to-end chain. Each stage hands off to the next, and several
-        independent checks must pass before the protocol is touched:
+        independent checks must pass before the protocol is ever touched:
       </p>
 
       <svg class="flow" viewBox="0 0 600 470" role="img"
@@ -398,62 +423,65 @@
 
       <ol>
         <li>
-          <strong>Detection.</strong> Hexagate monitors the LI.FI Diamond for anomalous or
-          malicious on-chain activity.
+          <strong>Detection.</strong> Hexagate continuously monitors the LI.FI Diamond for
+          anomalous or malicious on-chain activity.
         </li>
         <li>
           <strong>Secured automation.</strong> A detection is handed to a secured automation
           pipeline (built on GitHub Actions) that orchestrates the response.
           <strong>Multiple independent authorization checks must pass before anything
-          executes</strong>, so no single component can trigger a pause on its own.
+          executes</strong>, so no single component can trigger a pause on its own — a deliberate
+          defense-in-depth design.
         </li>
         <li>
           <strong>Controlled on-chain execution.</strong> Once the checks pass, the LI.FI Diamond
           is paused on-chain, freezing activity.
         </li>
         <li>
-          <strong>Alerting (in parallel).</strong> The team is notified across multiple channels
-          - email, chat, and phone/SMS paging - so responders engage immediately, day or night.
+          <strong>Alerting (in parallel).</strong> The team is notified across multiple channels —
+          email, chat, and phone/SMS paging — so responders engage immediately, day or night.
         </li>
         <li>
           <strong>Recovery.</strong> Pre-approved, pre-signed recovery transactions let the team
-          safely resume normal operation.
+          safely restore normal operation within minutes.
         </li>
       </ol>
     </section>
 
     <section class="section">
       <h2>How we ensured a safe, controlled exercise</h2>
-      <p>Testing an emergency control in production demands discipline. We applied several layers of control:</p>
+      <p>Testing an emergency control in live production demands discipline. We applied several independent layers of control:</p>
       <ul>
         <li>
           <strong>A four-eyes principle, executed as a team.</strong> The entire smart contract
           team, together with a member of the security team, ran the exercise in a single shared
-          session - working through every step of the runbook together rather than any one person
+          session — working through every step of the runbook together rather than any one person
           acting alone. Each sensitive action was independently verified by a second team member
-          before and after execution, so no critical step could be taken or missed by an
+          before and after execution, so no critical step could be taken, or missed, by an
           individual.
         </li>
         <li>
-          <strong>A detailed written runbook.</strong> Every action, expected result, and safety
-          check was documented and reviewed in advance. The team executed against the runbook step
-          by step rather than improvising.
+          <strong>A detailed written runbook.</strong> Every action, its expected result, and each
+          safety check was documented and reviewed in advance. The team executed against the
+          runbook step by step rather than improvising.
         </li>
         <li>
           <strong>A deliberately staged, two-phase design</strong> to bound any impact. We first
           validated the detection and authorization chain in a mode where
           <strong>no real pause was possible</strong>, confirming the alarm and approval path
-          worked end-to-end. Only then did we run a genuine pause - and only on a small set of
+          worked end-to-end. Only then did we run a genuine pause — and only on a small set of
           deliberately chosen, low-traffic networks.
         </li>
         <li>
           <strong>Pre-staged, pre-approved recovery.</strong> The recovery ("unpause")
-          transactions were prepared and signed off <strong>in advance</strong>, ready to execute
-          the moment they were needed - so reversing the pause required no scrambling.
+          transactions were prepared and signed off <strong>in advance</strong> by the required
+          signers, ready to execute the moment they were needed — so reversing the pause required
+          no scrambling.
         </li>
         <li>
-          <strong>Advance notice to all stakeholders</strong>, internal and external, so the
-          deliberately realistic alerts were never mistaken for a real incident.
+          <strong>Advance notice to all stakeholders</strong>, internal and external — including
+          our external auditors — so the deliberately realistic alerts were never mistaken for a
+          real incident.
         </li>
       </ul>
     </section>
@@ -466,33 +494,36 @@
       </p>
       <ul>
         <li>
-          <strong>Detection and automated dispatch</strong> - a Hexagate monitor detected a
+          <strong>Detection and automated dispatch</strong> — a Hexagate monitor detected a
           designated on-chain event and initiated the response automatically, with no human
-          trigger, exercising the same automated path a production threat detection would follow.
+          trigger, exercising the exact automated path a real production threat detection would
+          follow.
         </li>
         <li>
-          <strong>Authorization</strong> - every independent authorization gate behaved
+          <strong>Authorization</strong> — every independent authorization gate behaved
           correctly; no single component could act on its own.
         </li>
         <li>
-          <strong>Controlled execution</strong> - the LI.FI Diamond was paused on-chain on the
+          <strong>Controlled execution</strong> — the LI.FI Diamond was paused on-chain on the
           selected low-traffic networks.
         </li>
         <li>
-          <strong>Alerting</strong> - the team was reached across every channel (email, chat, and
-          phone/SMS paging), day or night.
+          <strong>Alerting</strong> — the team was reached across every channel (email, chat, and
+          phone/SMS paging), confirming responders would be engaged day or night.
         </li>
         <li>
-          <strong>Recovery</strong> - the networks were unpaused within minutes using the
-          pre-approved recovery transactions, returning everything to its normal state.
+          <strong>Recovery</strong> — the affected networks were restored to normal operation
+          within minutes using the pre-approved recovery transactions, returning everything to its
+          pre-test state.
         </li>
       </ul>
       <p>
         We also confirmed the system's <strong>fail-safe design</strong>: where a precondition was
         not met, the safeguard correctly
-        <strong>declined to act rather than acting incorrectly</strong> - precisely the behaviour
-        an emergency control must guarantee. Throughout, an internal readiness tool verified the
-        exact state of the protocol on every network before, during, and after the exercise.
+        <strong>declined to act rather than acting incorrectly</strong> — precisely the behaviour
+        an emergency control must guarantee, and one of the most valuable assurances this exercise
+        produced. Throughout, an internal readiness tool verified the exact state of the protocol
+        on every network before, during, and after the exercise.
       </p>
     </section>
 
@@ -500,7 +531,7 @@
       <h2>Continuous improvement</h2>
       <p>
         The core value of a controlled exercise is that it surfaces operational refinements while
-        the stakes are low - so they are never encountered for the first time during a real
+        the stakes are low — so they are never encountered for the first time during a real
         incident. This test did exactly that, and
         <strong>every improvement identified has since been implemented</strong>:
       </p>
@@ -513,7 +544,7 @@
         </thead>
         <tbody>
           <tr>
-            <td>Hardened funding checks across <strong>all</strong> production networks, with an automated guardrail so the pause transaction is always funded.</td>
+            <td>Hardened funding checks across <strong>all</strong> production networks, with an automated guardrail ensuring the pause transaction is always funded.</td>
             <td class="status">✓ Implemented</td>
           </tr>
           <tr>
@@ -525,7 +556,7 @@
             <td class="status">✓ Implemented</td>
           </tr>
           <tr>
-            <td>Refined alerting so every alert is delivered as its own incident, and reviewed on-call coverage.</td>
+            <td>Refined alerting so every alert is delivered as its own distinct incident, and reviewed on-call coverage so every responder is reachable.</td>
             <td class="status">✓ Implemented</td>
           </tr>
           <tr>
@@ -533,14 +564,14 @@
             <td class="status">✓ Implemented</td>
           </tr>
           <tr>
-            <td>Formalized that a security approver is present for the full duration of every live exercise, and that external auditors are notified in advance.</td>
+            <td>Formalized that a security approver is present for the full duration of every live exercise, and that external auditors are notified in advance as a required step.</td>
             <td class="status">✓ Implemented</td>
           </tr>
         </tbody>
       </table>
       <p>
         The exercise turned a previously one-time validation into an
-        <strong>ongoing, automated assurance process</strong> - the protocol's emergency-pause
+        <strong>ongoing, automated assurance process</strong> — the protocol's emergency-pause
         readiness is now monitored continuously, not just at test time.
       </p>
     </section>
@@ -548,12 +579,12 @@
     <section class="section">
       <h2>In closing</h2>
       <p>
-        The most important question - <em>can LI.FI pause the LI.FI Diamond to protect user funds
-        when it matters?</em> - is answered <strong>yes</strong>. The capability was tested
-        end-to-end in production, under disciplined controls, and confirmed working. The exercise
-        both proved the core safeguard and made it stronger. LI.FI treats the security of user
-        funds as a continuous, evidence-based discipline, and this exercise is one part of that
-        ongoing commitment.
+        The most important question — <em>can LI.FI pause the LI.FI Diamond to protect user funds
+        when it matters?</em> — is answered <strong>yes</strong>. The capability was tested
+        end-to-end in live production, under disciplined controls, and confirmed working. The
+        exercise both proved the core safeguard and made it measurably stronger. LI.FI treats the
+        security of user funds as a continuous, evidence-based discipline, and this exercise is one
+        part of that ongoing commitment.
       </p>
     </section>
 
@@ -573,14 +604,21 @@
       </dl>
       <div class="hexagate">
         <strong>About Hexagate.</strong> Hexagate, a Chainalysis company, is a real-time on-chain
-        security platform that detects threats - exploits, key compromises, governance attacks, and
-        phishing - and can trigger automated responses such as contract pauses. Built on
+        security platform that detects threats — exploits, key compromises, governance attacks, and
+        phishing — and can trigger automated responses such as contract pauses. Built on
         Chainalysis's blockchain intelligence, it monitors the LI.FI Diamond continuously.
         Learn more:
         <a href="https://www.chainalysis.com/product/hexagate/">chainalysis.com/product/hexagate</a>.
       </div>
       <div class="footer">
-        <span><span class="wm">LI<span class="dot">.</span>FI</span> &nbsp;Smart Contract Team</span>
+        <span>
+          <svg class="footer-logo" width="38" height="14" viewBox="0 0 132 48" fill="none"
+            xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LI.FI">
+            <path fill="#000" d="m19.314 0 9.878 9.879a3 3 0 0 1 0 4.242L23.314 20l-4-4c-4.419-4.418-4.419-11.582 0-16Z"/>
+            <path fill="#000" fill-rule="evenodd" d="m19.314 48-16-16c-4.419-4.418-4.419-11.582 0-16l13.878 13.879a3 3 0 0 0 4.243 0L35.314 16c4.418 4.418 4.418 11.582 0 16l-16 16Z" clip-rule="evenodd"/>
+            <path fill="#000" d="M123.319 36s.034-21 0-22 .985-2 1.966-2h4.034v22c.035 1-.965 2-1.965 2h-4.035ZM99.32 14v22h6v-8h10c1 0 2-1 2-2v-4h-12v-4h12c1 0 2-1 2-2v-4h-18c-1 0-2 1-2 2Zm-9.998 18c0-1 1-2 2-2h2c1 0 2 1 2 2v2c0 1-1 2-2 2h-2c-1 0-2-1-2-2v-2Zm-10.001 4s.034-21 0-22 .985-2 1.966-2h4.034v22c.035 1-.965 2-1.965 2h-4.035ZM55.32 30V14c0-1 .87-2 2-2h4v18h14v4c0 1-1 2-2 2h-18v-6Z"/>
+          </svg>
+          &nbsp;Smart Contract Team</span>
         <span>Production Emergency-Response Exercise · 28 May 2026</span>
       </div>
     </section>
