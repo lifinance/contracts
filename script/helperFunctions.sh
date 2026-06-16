@@ -18,6 +18,40 @@ source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+
+# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
+# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
+# foundry.toml even though only our scripts consume them.
+#
+# Usage: getZkToolchainPin KEY
+#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
+#
+# Returns: The pinned version string (empty if not found)
+# Example: getZkToolchainPin "zksolc"
+function getZkToolchainPin() {
+  local KEY="$1"
+  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
+  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
+
+  if [[ ! -f "$FOUNDRY_TOML" ]]; then
+    return 1
+  fi
+
+  awk -v key="$KEY" '
+    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
+    /^\[/ { IN_SECTION = 0 }
+    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
+  ' "$FOUNDRY_TOML"
+}
+
+# zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
+# Passed to foundry-zksync via env because a real `zksync` key in any profile makes
+# vanilla forge emit an "unknown `zksync` config" warning; vanilla forge ignores
+# env-provided unknown keys.
+ZKSOLC_VERSION=$(getZkToolchainPin "zksolc")
+if [[ -n "$ZKSOLC_VERSION" ]]; then
+  export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
+fi
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -76,7 +110,7 @@ function logContractDeploymentInfo {
 
   # Build MongoDB command as array for safe execution
   local MONGO_CMD=(
-    bun script/deploy/update-deployment-logs.ts add
+    bunx tsx script/deploy/update-deployment-logs.ts add
     --env "$ENVIRONMENT"
     --contract "$CONTRACT"
     --network "$NETWORK"
@@ -283,12 +317,12 @@ function findContractInMasterLogByAddress() {
       fi
 
       if [[ "$USE_CACHE" == "true" ]]; then
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" 2>/dev/null)
       else
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" \
@@ -350,7 +384,7 @@ function getContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
       --env="$ENVIRONMENT" \
       --network="$NETWORK" \
       --address="$TARGET_ADDRESS" 2>/dev/null)
@@ -400,7 +434,7 @@ function getHighestDeployedContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts filter \
       --env="$ENVIRONMENT" \
       --contract="$CONTRACT" \
       --network="$NETWORK" \
@@ -450,7 +484,7 @@ function queryMongoDeployment() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts get \
+  bunx tsx script/deploy/query-deployment-logs.ts get \
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
@@ -464,7 +498,7 @@ function checkMongoDeploymentExists() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts exists \
+  bunx tsx script/deploy/query-deployment-logs.ts exists \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
@@ -477,7 +511,7 @@ function getLatestMongoDeployment() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
 
-  bun script/deploy/query-deployment-logs.ts latest \
+  bunx tsx script/deploy/query-deployment-logs.ts latest \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" 2>/dev/null
@@ -550,7 +584,7 @@ function getUnverifiedContractsFromMongo() {
 
   echoDebug "Getting unverified contracts from MongoDB"
 
-  bun script/deploy/query-deployment-logs.ts filter \
+  bunx tsx script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
     --limit=1000 2>/dev/null
@@ -611,8 +645,12 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from default.zksync profile section
-    grep -A 10 "^\[profile\.default\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      # callers capture stdout via $(...), so the error must go to stderr
+      error "zksolc pin not found in foundry.toml [external.zksync]" >&2
+      return 1
+    fi
+    echo "$ZKSOLC_VERSION"
   else
     echo ""
   fi
@@ -858,7 +896,7 @@ function getConstructorArgsFromMasterLog() {
     echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts get \
       --env "$ENVIRONMENT" \
       --contract "$CONTRACT" \
       --network "$NETWORK" \
@@ -2117,6 +2155,18 @@ function verifyContract() {
 
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
+    # ensure the pinned foundry-zksync binary is present (no-op if version matches)
+    install_foundry_zksync >/dev/null || {
+      error "failed to install foundry-zksync"
+      return 1
+    }
+
+    # fail loudly instead of verifying with the toolchain's default zksolc
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      error "zksolc pin not found in foundry.toml [external.zksync]"
+      return 1
+    fi
+
     # Set environment variable for zkEVM
     export FOUNDRY_PROFILE=zksync
     VERIFY_CMD=(
@@ -3825,11 +3875,11 @@ function deployAndAddContractToDiamond() {
   if [[ "$CONTRACT" == *"Facet"* ]]; then
     # deploying a facet
     deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
-    return 0
+    return $?
   elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
     # deploying a diamond
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
-    return 0
+    return $?
   else
     # deploy periphery contract
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
@@ -3890,9 +3940,17 @@ function getPrivateKey() {
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
-#   network, environment, target, calldata: required
+#   network, environment, target: required
+#   calldata: single 0x calldata, or multiple comma-separated 0x calldatas (processed in the given order)
 #   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Routing/Behavior for multiple calldatas:
+#   - EVM or Tron propose route with timelock=true (production): combined into ONE timelock scheduleBatch proposal (single signing round)
+#   - All other routes (direct send, propose without timelock, staging/testnet): multiple calldatas are REJECTED —
+#     no caller needs sequential fan-out there, and untested generality around value-moving calls is a liability
+#
+# Returns: 0 on success; non-zero (first failing call) otherwise
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3907,18 +3965,57 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Validate calldata format
-  if [[ ! "$CALLDATA" =~ ^0x ]]; then
-    error "sendOrPropose: Calldata must start with 0x"
+  # Whitespace (incl. newlines) means corrupted upstream output: `read` below
+  # would silently drop everything after the first line, so refuse instead
+  if [[ "$CALLDATA" =~ [[:space:]] ]]; then
+    error "sendOrPropose: Calldata contains whitespace - refusing (corrupted upstream output?)"
     return 1
+  fi
+
+  # Reject malformed comma delimiters before splitting: a trailing comma is
+  # silently dropped by `read` (e.g. "0x12," -> ["0x12"]), so a lost inner call
+  # would slip past the per-element hex check below. Leading/consecutive commas
+  # produce empty elements that the hex check would catch, but rejecting all
+  # three here keeps the intent explicit.
+  if [[ "$CALLDATA" == ,* || "$CALLDATA" == *, || "$CALLDATA" == *,,* ]]; then
+    error "sendOrPropose: Calldata has malformed comma delimiters (leading, trailing, or consecutive commas)"
+    return 1
+  fi
+
+  # Split comma-separated calldatas (calldata is hex, so commas are unambiguous separators)
+  local CALLDATAS=()
+  IFS=',' read -ra CALLDATAS <<< "$CALLDATA"
+
+  # Validate calldata format (strict hex per element)
+  local CD
+  for CD in "${CALLDATAS[@]}"; do
+    if [[ ! "$CD" =~ ^0x[0-9a-fA-F]*$ ]]; then
+      error "sendOrPropose: Calldata must be well-formed 0x-prefixed hex (got: $CD)"
+      return 1
+    fi
+  done
+
+  # Multiple calldatas are only meaningful on the propose-with-timelock route
+  # (EVM or Tron), where they combine into ONE scheduleBatch proposal. The only
+  # caller that passes multiple (diamondSyncWhitelist.sh Stage 4c) is gated on
+  # exactly that route; sequential fan-out on the other routes would be untested
+  # dead generality, so fail loudly instead of improvising semantics here.
+  if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
+    if [[ "$TIMELOCK" != "true" ]] \
+       || [[ "$ENVIRONMENT" != "production" ]] \
+       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+       || isTestnetNetwork "$NETWORK"; then
+      error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
+      return 1
+    fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
+    return 0
   fi
 
   # Resolve private key
@@ -3932,38 +4029,52 @@ function sendOrPropose() {
     }
   fi
 
-  # Tron: propose to Safe via tron script
+  # Tron: propose to Safe via tron script. On the timelock route, repeated
+  # --to/--calldata pairs combine into ONE scheduleBatch proposal (matching EVM);
+  # the direct route is single-call only (multi already rejected above).
   if isTronNetwork "$NETWORK"; then
     local PROPOSE_TRON_CMD=(
       bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$SAFE_SIGNER_KEY"
     )
     if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_TRON_CMD+=(--timelock)
+      for CD in "${CALLDATAS[@]}"; do
+        PROPOSE_TRON_CMD+=(--to "$TARGET" --calldata "$CD")
+      done
+      PROPOSE_TRON_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
     else
-      PROPOSE_TRON_CMD+=(--direct)
+      PROPOSE_TRON_CMD+=(
+        --to "$TARGET"
+        --calldata "${CALLDATAS[0]}"
+        --privateKey "$SAFE_SIGNER_KEY"
+        --direct
+      )
     fi
-    "${PROPOSE_TRON_CMD[@]}"
-    return $?
+    "${PROPOSE_TRON_CMD[@]}" || return $?
+    return 0
   fi
 
   # EVM: propose to Safe
-  local PROPOSE_CMD=(
-    bunx tsx script/deploy/safe/propose-to-safe.ts
-    --network "$NETWORK"
-    --to "$TARGET"
-    --calldata "$CALLDATA"
-    --privateKey "$SAFE_SIGNER_KEY"
-  )
-
   if [[ "$TIMELOCK" == "true" ]]; then
-    PROPOSE_CMD+=(--timelock)
+    # Combine all calls into a single timelock scheduleBatch proposal (one signing round)
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+    )
+    for CD in "${CALLDATAS[@]}"; do
+      PROPOSE_CMD+=(--to "$TARGET" --calldata "$CD")
+    done
+    PROPOSE_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
+    "${PROPOSE_CMD[@]}"
+    return $?
   fi
 
-  "${PROPOSE_CMD[@]}"
-  return $?
+  # Without timelock wrapping there is no batch mechanism (single calldata only)
+  bunx tsx script/deploy/safe/propose-to-safe.ts \
+    --network "$NETWORK" \
+    --to "$TARGET" \
+    --calldata "${CALLDATAS[0]}" \
+    --privateKey "$SAFE_SIGNER_KEY" || return $?
+  return 0
 }
 
 function isZkEvmNetwork() {
@@ -5240,36 +5351,43 @@ function updateDiamondLogs() {
 }
 
 # Function: install_foundry_zksync
-# Description: Downloads and installs the zkSync version of foundry tools (forge and cast)
+# Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
+# Idempotent: returns immediately if the installed binary already matches the expected
+# version; on mismatch the binaries are removed and re-downloaded.
+# Note: a freshly installed forge shows a one-time telemetry consent prompt on first run,
+# but only in interactive terminals — in CI or piped/agent shells it is skipped and
+# telemetry auto-disabled (matter-labs/zksync-telemetry src/utils.rs is_interactive()),
+# so unattended runs need no stdin handling.
 # Arguments:
 #   $1 - Installation directory (optional, defaults to ./foundry-zksync)
-#   FOUNDRY_ZKSYNC_VERSION - Environment variable to specify version
+#   FOUNDRY_ZKSYNC_VERSION - Optional: env override of the version pinned in
+#                            foundry.toml [external.zksync] (e.g. to test a new version)
 # Example Versions:
 #   FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
 install_foundry_zksync() {
-  # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.32"
+  # env override takes precedence over the pin in foundry.toml [external.zksync]
+  local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
-  # Verify that FOUNDRY_ZKSYNC_VERSION is set
-  if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+  if [[ -z "$EXPECTED_VERSION" ]]; then
+    # stderr so the cause survives callers that suppress stdout (e.g. verifyContract)
+    error "foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)" >&2
     return 1
   fi
 
-  echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
+  echo "Using Foundry zkSync version: ${EXPECTED_VERSION}"
 
   # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
       echo "forge and cast binaries found in ${install_dir}"
 
-      # Check the version of the existing binary
-      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+      # Check the version of the existing binary (handles both vX.Y.Z and nightly-<sha> tags)
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-[^[:space:]]+' | sed 's/^foundry-zksync-//')
 
       # If we couldn't extract version or it doesn't match expected version
       if [ -z "$CURRENT_VERSION" ]; then
@@ -5277,15 +5395,15 @@ install_foundry_zksync() {
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      elif [ "$CURRENT_VERSION" != "${EXPECTED_VERSION}" ]; then
           echo "Version mismatch detected!"
-          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Expected: ${EXPECTED_VERSION}"
           echo "  Current:  ${CURRENT_VERSION}"
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
       else
-          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Version matches expected ${EXPECTED_VERSION}"
           echo "Skipping download and installation"
           return 0
       fi
@@ -5320,8 +5438,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${EXPECTED_VERSION}"
+  local filename="foundry_zksync_${EXPECTED_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist

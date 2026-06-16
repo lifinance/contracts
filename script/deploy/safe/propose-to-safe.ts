@@ -11,6 +11,11 @@
  * Or run directly from the CLI:
  *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0x... --timelock --privateKey 0x...
  *
+ * Multiple calls can be combined into a single timelock scheduleBatch proposal by
+ * repeating --to/--calldata pairs (requires --timelock); inner calls execute in the
+ * order they are passed:
+ *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0xREMOVE --to 0x... --calldata 0xADD --timelock --privateKey 0x...
+ *
  * Recovering a skipped Safe nonce:
  *   The nonce is auto-derived by default (on-chain nonce + pending proposals).
  *   If a nonce gap appears in the queue — e.g. the queue holds 58/59/60 but the
@@ -34,6 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { normalizeProposeCalls } from './propose-calls'
 import {
   OperationTypeEnum,
   getNextNonce,
@@ -50,6 +56,8 @@ import {
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
+  const { targets, calldatas } = normalizeProposeCalls(options)
+
   // Set up signing options
   const useLedger = options.ledger || false
   let privateKey: string | undefined
@@ -108,21 +116,8 @@ export async function runPropose(options: IProposeToSafeOptions) {
     process.exit(1)
   }
 
-  // Handle timelock wrapping if requested
-  let finalTo = options.to as Address
-
-  // Get calldata from file or argument
+  let finalTo: Address
   let finalCalldata: Hex
-  if (options.calldataFile) {
-    if (!fs.existsSync(options.calldataFile))
-      throw new Error(`Calldata file not found: ${options.calldataFile}`)
-    finalCalldata = fs.readFileSync(options.calldataFile, 'utf8').trim() as Hex
-    consola.info(`Loaded calldata from file: ${options.calldataFile}`)
-  } else if (options.calldata) {
-    finalCalldata = options.calldata as Hex
-  } else {
-    throw new Error('Either --calldata or --calldataFile must be provided')
-  }
 
   if (options.timelock) {
     // Look for timelock controller address in deployments (always use production)
@@ -149,12 +144,16 @@ export async function runPropose(options: IProposeToSafeOptions) {
       options.network,
       options.rpcUrl || '',
       getAddress(timelockAddress),
-      finalTo,
-      finalCalldata
+      targets,
+      calldatas
     )
 
     finalTo = wrappedTransaction.targetAddress
     finalCalldata = wrappedTransaction.calldata
+  } else {
+    // Single direct (non-timelock) proposal — validated above to be exactly one call
+    finalTo = targets[0] as Address
+    finalCalldata = calldatas[0] as Hex
   }
 
   // Get MongoDB collection
@@ -215,8 +214,10 @@ export async function runPropose(options: IProposeToSafeOptions) {
   consola.info('Nonce', nextNonce.toString())
   consola.info('Proposing transaction to', finalTo)
   if (options.timelock) {
-    consola.info('Original target was', options.to)
-    consola.info('Transaction wrapped in timelock schedule call')
+    consola.info('Original target(s):', targets.join(', '))
+    consola.info(
+      `Wrapped ${targets.length} call(s) in a single timelock scheduleBatch proposal`
+    )
   }
 
   // Store transaction in MongoDB using the utility function
@@ -275,12 +276,14 @@ const main = defineCommand({
     },
     to: {
       type: 'string',
-      description: 'To address',
+      description:
+        'To address (repeatable; pair each with a --calldata to combine multiple calls into one timelock proposal)',
       required: true,
     },
     calldata: {
       type: 'string',
-      description: 'Calldata',
+      description:
+        'Calldata (repeatable; pair each with a --to, calls execute in the given order)',
       required: false,
     },
     calldataFile: {
@@ -331,10 +334,30 @@ const main = defineCommand({
     if (!args.calldata && !args.calldataFile)
       throw new Error('Either --calldata or --calldataFile must be provided')
 
+    // Guard the load-bearing citty contract: repeated flags must parse to arrays.
+    // citty 0.1.x does this; 0.2.x silently keeps only the LAST value, which
+    // would drop all but one inner call (e.g. propose the addition WITHOUT the
+    // whitelist removal). Cross-check against the raw argv so a citty upgrade
+    // fails loudly here instead of producing a wrong proposal.
+    for (const [flag, value] of [
+      ['--to', args.to],
+      ['--calldata', args.calldata],
+    ] as const) {
+      const argvCount = process.argv.filter(
+        (a) => a === flag || a.startsWith(`${flag}=`)
+      ).length
+      const parsedCount = Array.isArray(value) ? value.length : value ? 1 : 0
+      if (argvCount > 0 && argvCount !== parsedCount)
+        throw new Error(
+          `${flag} was passed ${argvCount} times but the argument parser produced ${parsedCount} value(s) — repeated-flag parsing is broken (citty upgrade?); aborting to avoid proposing an incomplete call batch`
+        )
+    }
+
     await runPropose({
       network: args.network,
-      to: args.to,
-      calldata: (args.calldata ?? '') as Hex,
+      // citty returns a string for a single flag and an array when the flag is repeated
+      to: args.to as unknown as string | string[],
+      calldata: (args.calldata ?? '') as unknown as Hex | Hex[],
       calldataFile: args.calldataFile,
       timelock: args.timelock,
       privateKey: args.privateKey,

@@ -44,6 +44,10 @@ node_modules/
 yalc.lock
 yarn-error.log
 
+# husky regenerates this directory on every `prepare`/`bun install`; only the
+# real hooks (e.g. .husky/pre-commit) are tracked.
+.husky/_/
+
 # -----------------------------------------------------------------------------
 # Environment and Secrets
 # -----------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
+import { Test } from "forge-std/Test.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
-import { DSTest } from "ds-test/test.sol";
 
-contract ERC20ProxyTest is DSTest {
+contract ERC20ProxyTest is Test {
     ERC20Proxy public erc20Proxy;
     address public proxyOwner;
 
