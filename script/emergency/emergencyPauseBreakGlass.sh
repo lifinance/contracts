@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# NOTE: `set -e` is deliberately NOT used. This script tolerates per-network failures and
+# aggregates exit codes (see main()'s PIDS/RETURN loop); `-e` would abort on the first failed
+# cast/troncast call and defeat the resilient per-network behavior. `set -u`/pipefail are also
+# omitted on purpose — this is frozen incident-only code that fails loud with its own explicit
+# error messages (e.g. normalizePrivateKey on an unset key), and strict mode would only add
+# untested implicit abort paths that could fire mid-incident. Do not "fix" by adding these.
+
 # emergencyPauseBreakGlass.sh
 #
 # FROZEN, SELF-CONTAINED emergency-pause "break glass" script. This is the single source of
@@ -452,8 +459,24 @@ function printStatus() {
     bgError "[network: $NETWORK] no diamond in deploy log."
     return 0
   fi
-  local RESPONSE
-  RESPONSE=$(bgOwnerCall "$NETWORK" "$DIAMOND_ADDRESS" "$RPC_URL")
+  # retry on unclear responses for parity with handleNetwork's pre/final checks — this recap
+  # runs under the same incident-load RPC throttling and a single blip must not misreport a
+  # correctly-paused diamond as NOT paused / RPC error.
+  local RESPONSE=""
+  local ATTEMPT=1
+  while [ "$ATTEMPT" -le "$RPC_MAX_ATTEMPTS" ]; do
+    RESPONSE=$(bgOwnerCall "$NETWORK" "$DIAMOND_ADDRESS" "$RPC_URL")
+    if [[ "$RESPONSE" =~ ^0x[0-9a-fA-F]{40}$ ]] \
+      || [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* ]] \
+      || [[ "$RESPONSE" == *"DiamondIsPaused"* ]] \
+      || [[ "$RESPONSE" == T* ]]; then
+      break
+    fi
+    if [ "$ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
+      sleep "$RPC_RETRY_SLEEP_SECONDS"
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+  done
   if [[ "$RESPONSE" == *"$DIAMOND_IS_PAUSED_SELECTOR"* || "$RESPONSE" == *"DiamondIsPaused"* ]]; then
     bgSuccess "[network: $NETWORK] diamond paused."
   elif [[ "$RESPONSE" =~ ^0x[0-9a-fA-F]{40}$ ]] || [[ "$RESPONSE" == T* ]]; then
