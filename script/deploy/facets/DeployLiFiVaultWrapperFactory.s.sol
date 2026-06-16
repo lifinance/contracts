@@ -31,6 +31,7 @@ contract DeployScript is Script {
 
         impl = new MockVaultWrapper();
         beacon = new UpgradeableBeacon(address(impl));
+        beacon.transferOwnership(owner);
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
             owner,
