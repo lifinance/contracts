@@ -11,7 +11,7 @@ Drives the production rollout lifecycle in two modes:
 - **deploy mode** — deploy a facet/periphery contract (version currently in the repo) to a set of production chains — either the chains the user names (including a chain it isn't live on yet) or, by default, every chain where it's already live — and propose the diamond cuts to each chain's Safe.
 - **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
-Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing to the user → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
+Both modes converge on the same tail: (deploy mode only) verify the deployed contracts on their explorers via the `verify-contracts` skill → capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing to the user → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
@@ -107,6 +107,16 @@ Run only when Phase 1 flagged the contract as a diamond-called periphery. After 
 ```
 
 This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` (picking up the just-deployed address) and proposes a `batchSetContractSelectorWhitelist` cut — the second proposal per network. It's the same `confirm-safe-tx` / verify / Slack tail; just expect two proposals per network from here on. Skip entirely for facets and non-diamond-called periphery.
+
+## Phase 3c — Verify deployed contracts (deploy mode only)
+
+The deploy framework attempts explorer verification inline, but it can fail, and the MongoDB `verified` flag is written separately from on-chain verification. Before moving on, confirm every freshly deployed contract is verified on its network's block explorer by invoking the `verify-contracts` skill for each target network:
+
+```text
+/verify-contracts <network>
+```
+
+It verifies the deployment's addresses on the explorer and writes `verified:true` back to MongoDB (both must hold). Whitelist mode deploys nothing, so it skips this phase.
 
 ## Phase 4 — Capture proposals
 
