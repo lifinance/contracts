@@ -58,6 +58,16 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Build contracts
+        # Pre-build with our pinned foundry so slither consumes the existing
+        # out/ artifacts. Without this, the slither-action's own compile path
+        # runs `npm install` (it detects package.json), which fails on the
+        # repo's pre-existing peer-dep conflict (npm ERESOLVE).
+        run: forge build --skip test --skip script
+
       - name: Run Slither
         uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
         id: slither
@@ -65,6 +75,7 @@ jobs:
           target: '.'
           sarif: slither.sarif
           fail-on: none # advisory mode: emit findings but do not fail the job
+          ignore-compile: true # use the forge artifacts built above; don't recompile
           slither-args: --exclude-informational --exclude-low
 
       - name: Upload Slither SARIF
@@ -124,7 +135,10 @@ jobs:
       - name: Install Semgrep
         run: |
           set -euo pipefail
-          python -m pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+          # Python 3.12 no longer bundles setuptools; semgrep imports
+          # pkg_resources (shipped by setuptools) at runtime, so install it
+          # explicitly or `semgrep --version` fails with ModuleNotFoundError.
+          python -m pip install --no-cache-dir setuptools "semgrep==${SEMGREP_VERSION}"
           semgrep --version
 
       - name: Skip if no custom rules
@@ -196,6 +210,7 @@ jobs:
       contents: read
       pull-requests: write # post/update the sticky summary comment
       security-events: write # upload curated.sarif to Code Scanning
+      id-token: write # claude-code-action fetches an OIDC token at startup
     env:
       SARIF_DIR: /tmp/sarif
       DIFF_FILE: /tmp/diff.patch
