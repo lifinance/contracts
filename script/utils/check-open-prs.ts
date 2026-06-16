@@ -108,6 +108,7 @@ const ownSeed: any[] = JSON.parse(
   ])
 )
 
+const excluded: string[] = []
 const incomingSeed: any[] = []
 if (!QUICK) {
   for (const repo of INCOMING_REPOS) {
@@ -139,7 +140,10 @@ if (!QUICK) {
           .map((r) => ({ ...r, repoFull: repo }))
       )
     } catch {
-      // repo may not exist / no access — skip, report in excluded
+      // repo may not exist / no access — skip but surface it for auditability
+      excluded.push(
+        `${repo} (incoming fetch failed — missing repo / no access)`
+      )
     }
   }
 }
@@ -247,7 +251,6 @@ interface IRow {
 }
 
 const rows: IRow[] = []
-const excluded: string[] = []
 
 for (const s of seeds) {
   const key = `${s.repoFull}#${s.number}`
