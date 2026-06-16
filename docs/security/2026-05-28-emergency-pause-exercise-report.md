@@ -4,7 +4,7 @@
   This markdown is the finalized text. LI.FI branding + PDF production is the downstream step.
 -->
 
-# Production Emergency-Response Exercise
+# Emergency-Response Exercise
 
 ## Confirming LI.FI's Ability to Protect User Funds
 
@@ -102,7 +102,7 @@ as long as needed, and the protocol returns to service only on an explicit human
 
 ## How we ensured a safe, controlled exercise
 
-Testing an emergency control in live production demands discipline. We applied several
+Testing an emergency control on a live system demands discipline. We applied several
 independent layers of control:
 
 - **A four-eyes principle, executed as a team.** The entire smart contract team, together with
@@ -134,7 +134,7 @@ performed as designed:
 
 - **Detection and automated dispatch** — a Hexagate monitor detected a designated on-chain
   event and initiated the response automatically, with no human trigger, exercising the exact
-  automated path a real production threat detection would follow.
+  automated path a real threat detection would follow.
 - **Authorization** — every independent authorization gate behaved correctly; no single
   component could act on its own.
 - **Controlled execution** — the LI.FI Diamond was paused on-chain on the selected low-traffic
