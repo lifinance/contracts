@@ -1,8 +1,9 @@
 # Security Review — Stages 1 + 2 + 3 (deterministic static analysis + AI triage + publish)
 # - Stage 1: Slither and Semgrep run in parallel on every non-draft PR touching
-#   src/** or audit/knowledge/**. Each emits SARIF to Code Scanning (raw
-#   findings visible immediately) AND uploads it as an artifact so Stage 2 can
-#   consume it.
+#   src/** or audit/knowledge/**. Each archives its SARIF as an artifact that
+#   Stage 2 consumes — it is an INPUT to the AI triage, NOT a standalone Code
+#   Scanning result (raw, untriaged tool output is exactly the noise Stage 2
+#   filters). Only Stage 2's curated.sarif reaches Code Scanning.
 # - Stage 2 (EXP-483): the lifi-pr-review job depends on Stage 1, downloads the
 #   SARIF artifacts, and invokes the /lifi-pr-review skill via
 #   anthropics/claude-code-action. The skill triages static findings through
@@ -52,8 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true # advisory mode (EXP-480)
     permissions:
-      contents: read
-      security-events: write # required to upload SARIF to GitHub Code Scanning
+      contents: read # Stage 1 only archives SARIF as an artifact for Stage 2
     env:
       SLITHER_VERSION: '0.11.3'
     steps:
@@ -81,18 +81,15 @@ jobs:
       - name: Run Slither
         # crytic-compile drives the pinned forge to compile; no Docker, no npm.
         # --fail-none keeps the step green when findings exist (advisory mode);
-        # SARIF is written regardless and uploaded below.
+        # SARIF is written regardless and archived for Stage 2 below.
         run: slither . --sarif slither.sarif --exclude-informational --exclude-low --fail-none
 
-      - name: Upload Slither SARIF
-        if: always() && hashFiles('slither.sarif') != ''
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
-        with:
-          sarif_file: slither.sarif
-          category: slither
-
       - name: Archive Slither SARIF for Stage 2
-        # Stage 2 (lifi-pr-review) downloads this artifact to triage findings.
+        # Stage 1 raw output is an INPUT to Stage 2 triage, not a standalone
+        # Code Scanning result — so we archive it as an artifact and let only
+        # Stage 2's curated.sarif reach Code Scanning. (Direct upload here
+        # would create a standalone "Slither" check that fails on every raw
+        # alert, defeating the AI triage.)
         if: always() && hashFiles('slither.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -117,8 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true # advisory mode (EXP-480)
     permissions:
-      contents: read
-      security-events: write # required to upload SARIF to GitHub Code Scanning
+      contents: read # Stage 1 only archives SARIF as an artifact for Stage 2
     env:
       # Pinned to a Semgrep release that has been validated against the rule
       # corpus. Bump by updating the version + revalidating the rules with
@@ -177,14 +173,9 @@ jobs:
             --metrics=off \
             src/
 
-      - name: Upload Semgrep SARIF
-        if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
-        with:
-          sarif_file: semgrep.sarif
-          category: semgrep
-
       - name: Archive Semgrep SARIF for Stage 2
+        # Input to Stage 2 triage, not a standalone Code Scanning result —
+        # see the matching note in the slither job.
         if: always() && hashFiles('semgrep.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -323,7 +314,7 @@ jobs:
             if (fs.existsSync(process.env.SUMMARY_PATH)) {
               body = `${marker}\n${fs.readFileSync(process.env.SUMMARY_PATH, 'utf8')}`;
             } else {
-              body = `${marker}\n## 🛡️ Security Review\n\n_Stage 2 (AI triage) did not produce a summary — Stage 1 SARIF is still visible in the Security tab._`;
+              body = `${marker}\n## 🛡️ Security Review\n\n_Stage 2 (AI triage) did not produce a summary. Raw Stage 1 (Slither/Semgrep) output is attached as a workflow-run artifact; see the run logs._`;
             }
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
