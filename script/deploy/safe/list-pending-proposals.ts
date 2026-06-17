@@ -95,7 +95,7 @@ const main = defineCommand({
       : undefined
 
     // JSON consumers parse stdout; suppress info/success but keep errors visible
-    if (args.json) consola.level = 3
+    if (args.json) consola.level = 0
 
     let mongoClient
     let pendingTransactions
