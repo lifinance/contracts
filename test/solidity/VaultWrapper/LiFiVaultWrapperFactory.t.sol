@@ -4,10 +4,11 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
+import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
@@ -56,7 +57,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_OwnerSetsUnderlyingAllowed() public {
         address u = makeAddr("underlying");
         vm.expectEmit(true, false, false, true, address(factory));
-        emit LiFiVaultWrapperFactory.UnderlyingAllowedSet(u, true);
+        emit ILiFiVaultWrapperFactory.UnderlyingAllowedSet(u, true);
         vm.prank(owner);
         factory.setUnderlyingAllowed(u, true);
         assertTrue(factory.allowedUnderlying(u));
@@ -79,13 +80,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_SetFeeBoundsRevertsAboveCap() public {
         vm.prank(owner);
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
         factory.setFeeBounds(FeeType.Performance, 0, 6000); // cap is 5000
     }
 
     function test_SetFeeBoundsRevertsMinAboveMax() public {
         vm.prank(owner);
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
         factory.setFeeBounds(FeeType.Deposit, 500, 100);
     }
 
@@ -103,7 +104,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_NonOnboardingManagerCannotApprove() public {
         vm.prank(owner);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.NotOnboardingManager.selector
+        );
         factory.setIntegratorApproved(integrator, true);
     }
 
@@ -118,7 +121,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_NonPauserCannotGlobalPause() public {
         vm.prank(owner);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.NotEmergencyPauser.selector);
         factory.globalPause();
     }
 
@@ -129,7 +132,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.emergencyPauser(), newPauser);
 
         vm.prank(pauser);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.NotEmergencyPauser.selector);
         factory.globalPause(); // old pauser lost power
     }
 
@@ -140,7 +143,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.onboardingManager(), newManager);
 
         vm.prank(onboarder);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.NotOnboardingManager.selector
+        );
         factory.setIntegratorApproved(integrator, true); // old manager lost power
     }
 
@@ -223,7 +228,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(integrator, 0);
         vm.prank(makeAddr("random"));
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.IntegratorNotApproved.selector
+        );
         factory.deploy(p);
     }
 
@@ -233,7 +240,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setIntegratorApproved(integrator, true);
         DeployParams memory p = _params(makeAddr("other"), 0);
         vm.prank(integrator);
-        vm.expectRevert(LiFiVaultWrapperFactory.IntegratorMismatch.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.IntegratorMismatch.selector);
         factory.deploy(p);
     }
 
@@ -243,7 +250,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Performance, 0, 5000);
         DeployParams memory p = _params(integrator, 0);
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.UnderlyingNotAllowed.selector);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.UnderlyingNotAllowed.selector
+        );
         factory.deploy(p);
     }
 
@@ -262,7 +271,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
         vm.prank(onboarder);
         vm.expectRevert(
-            LiFiVaultWrapperFactory.UnderlyingProbeFailed.selector
+            ILiFiVaultWrapperFactory.UnderlyingProbeFailed.selector
         );
         factory.deploy(p);
     }
@@ -272,7 +281,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         DeployParams memory p = _params(integrator, 0);
         p.chainLockId = block.chainid + 1;
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.ChainLockMismatch.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ChainLockMismatch.selector);
         factory.deploy(p);
     }
 
@@ -291,7 +300,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Performance, 0, 500); // tighten max to 5%
         DeployParams memory p = _params(integrator, 0); // rate 1000 = 10%
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
         factory.deploy(p);
     }
 
@@ -309,7 +318,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         bool[4] memory enabled = [false, true, false, false];
         p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveCap.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveCap.selector);
         factory.deploy(p);
     }
 
@@ -319,7 +328,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.fees.enabled[0] = false; // disabled but rate is 1000
         vm.prank(onboarder);
         vm.expectRevert(
-            LiFiVaultWrapperFactory.DisabledFeeMustBeZero.selector
+            ILiFiVaultWrapperFactory.DisabledFeeMustBeZero.selector
         );
         factory.deploy(p);
     }
@@ -332,7 +341,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setUnderlyingAllowed(address(underlying), true);
         DeployParams memory p = _params(integrator, 0); // Performance rate 1000, enabled
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
         factory.deploy(p);
     }
 
@@ -343,7 +352,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.deploy(p);
         vm.prank(onboarder);
         vm.expectRevert(
-            LiFiVaultWrapperFactory.InstanceAlreadyExists.selector
+            ILiFiVaultWrapperFactory.InstanceAlreadyExists.selector
         );
         factory.deploy(p);
     }
@@ -395,7 +404,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         DeployParams memory p = _params(integrator, 0);
         p.adapter = address(rogue); // never approved
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapperFactory.AdapterNotApproved.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.AdapterNotApproved.selector);
         factory.deploy(p);
     }
 
@@ -420,7 +429,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_OwnerSetsAdapterApproved() public {
         address a = makeAddr("adapter2");
         vm.expectEmit(true, false, false, true, address(factory));
-        emit LiFiVaultWrapperFactory.AdapterApprovedSet(a, true);
+        emit ILiFiVaultWrapperFactory.AdapterApprovedSet(a, true);
         vm.prank(owner);
         factory.setAdapterApproved(a, true);
         assertTrue(factory.approvedAdapter(a));
@@ -433,7 +442,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_SetAdapterApprovedRevertsOnZero() public {
         vm.prank(owner);
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
         factory.setAdapterApproved(address(0), true);
     }
 }

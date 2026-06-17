@@ -2,10 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { InvalidConfig, InvalidContract, UnAuthorized } from "../Errors/GenericErrors.sol";
+import { InvalidContract } from "../Errors/GenericErrors.sol";
 import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
+import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
 /// @title LiFiVaultWrapperFactory
@@ -14,7 +15,10 @@ import { LibClone } from "solady/utils/LibClone.sol";
 ///         proxies, gated by a curated underlying allowlist, per-fee-type bounds,
 ///         deploy authorization, and a factory-level global circuit breaker.
 /// @custom:version 1.0.0
-contract LiFiVaultWrapperFactory is TransferrableOwnership {
+contract LiFiVaultWrapperFactory is
+    TransferrableOwnership,
+    ILiFiVaultWrapperFactory
+{
     /// Constants ///
 
     uint16 internal constant CAP_PERFORMANCE_BPS = 5000;
@@ -59,46 +63,15 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
     /// @notice Every wrapper instance deployed by this factory, in deployment order.
     address[] internal allInstances;
 
-    /// Errors ///
-
-    error UnderlyingNotAllowed();
-    error AdapterNotApproved();
-    error UnderlyingProbeFailed();
-    error ChainLockMismatch();
-    error FeeRateAboveBound();
-    error FeeRateAboveCap();
-    error DisabledFeeMustBeZero();
-    error IntegratorMismatch();
-    error InstanceAlreadyExists();
-
-    /// Events ///
-
-    event WrapperDeployed(
-        address indexed instance,
-        address indexed integrator,
-        address indexed underlying,
-        address adapter,
-        uint256 chainLockId,
-        uint256 nonce,
-        bytes32 salt
-    );
-    event UnderlyingAllowedSet(address indexed underlying, bool allowed);
-    event AdapterApprovedSet(address indexed adapter, bool approved);
-    event FeeBoundsSet(FeeType indexed feeType, uint16 minBps, uint16 maxBps);
-    event DefaultSplitSet(FeeType indexed feeType, uint16 lifiBps);
-    event IntegratorApprovedSet(address indexed integrator, bool approved);
-    event GlobalPauseSet(bool paused, address indexed by);
-    event RoleRotated(bytes32 indexed role, address oldAddr, address newAddr);
-
     /// Modifiers ///
 
     modifier onlyEmergencyPauser() {
-        if (msg.sender != emergencyPauser) revert UnAuthorized();
+        if (msg.sender != emergencyPauser) revert NotEmergencyPauser();
         _;
     }
 
     modifier onlyOnboardingManager() {
-        if (msg.sender != onboardingManager) revert UnAuthorized();
+        if (msg.sender != onboardingManager) revert NotOnboardingManager();
         _;
     }
 
@@ -120,7 +93,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
             _owner == address(0) ||
             _emergencyPauser == address(0) ||
             _onboardingManager == address(0)
-        ) revert InvalidConfig();
+        ) revert ZeroAddress();
         if (_beacon.code.length == 0) revert InvalidContract();
 
         beacon = _beacon;
@@ -139,7 +112,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         address _underlying,
         bool _allowed
     ) external onlyOwner {
-        if (_underlying == address(0)) revert InvalidConfig();
+        if (_underlying == address(0)) revert ZeroAddress();
         allowedUnderlying[_underlying] = _allowed;
         emit UnderlyingAllowedSet(_underlying, _allowed);
     }
@@ -149,7 +122,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         address _adapter,
         bool _approved
     ) external onlyOwner {
-        if (_adapter == address(0)) revert InvalidConfig();
+        if (_adapter == address(0)) revert ZeroAddress();
         approvedAdapter[_adapter] = _approved;
         emit AdapterApprovedSet(_adapter, _approved);
     }
@@ -161,7 +134,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         uint16 _maxBps
     ) external onlyOwner {
         if (_minBps > _maxBps || _maxBps > _cap(_feeType))
-            revert InvalidConfig();
+            revert InvalidFeeBounds();
         feeBounds[_feeType] = FeeBounds(_minBps, _maxBps);
         emit FeeBoundsSet(_feeType, _minBps, _maxBps);
     }
@@ -172,14 +145,14 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         FeeType _feeType,
         uint16 _lifiBps
     ) external onlyOwner {
-        if (_lifiBps > BPS_DENOMINATOR) revert InvalidConfig();
+        if (_lifiBps > BPS_DENOMINATOR) revert InvalidSplit();
         defaultLifiShareBps[_feeType] = _lifiBps;
         emit DefaultSplitSet(_feeType, _lifiBps);
     }
 
     /// @notice Rotate the emergency pauser role.
     function setEmergencyPauser(address _newPauser) external onlyOwner {
-        if (_newPauser == address(0)) revert InvalidConfig();
+        if (_newPauser == address(0)) revert ZeroAddress();
         address prev = emergencyPauser;
         emergencyPauser = _newPauser;
         emit RoleRotated(ROLE_EMERGENCY_PAUSER, prev, _newPauser);
@@ -187,7 +160,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     /// @notice Rotate the onboarding manager role.
     function setOnboardingManager(address _newManager) external onlyOwner {
-        if (_newManager == address(0)) revert InvalidConfig();
+        if (_newManager == address(0)) revert ZeroAddress();
         address prev = onboardingManager;
         onboardingManager = _newManager;
         emit RoleRotated(ROLE_ONBOARDING_MANAGER, prev, _newManager);
@@ -200,7 +173,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         address _integrator,
         bool _approved
     ) external onlyOnboardingManager {
-        if (_integrator == address(0)) revert InvalidConfig();
+        if (_integrator == address(0)) revert ZeroAddress();
         approvedIntegrator[_integrator] = _approved;
         emit IntegratorApprovedSet(_integrator, _approved);
     }
@@ -292,10 +265,11 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         DeployParams calldata _params
     ) external returns (address instance) {
         if (msg.sender != onboardingManager) {
-            if (!approvedIntegrator[msg.sender]) revert UnAuthorized();
+            if (!approvedIntegrator[msg.sender])
+                revert IntegratorNotApproved();
             if (_params.integrator != msg.sender) revert IntegratorMismatch();
         }
-        if (_params.integrator == address(0)) revert InvalidConfig();
+        if (_params.integrator == address(0)) revert ZeroAddress();
         if (!approvedAdapter[_params.adapter]) revert AdapterNotApproved();
         if (!allowedUnderlying[_params.underlying])
             revert UnderlyingNotAllowed();
