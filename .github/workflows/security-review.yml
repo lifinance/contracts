@@ -34,8 +34,11 @@ concurrency:
 jobs:
   slither:
     # Slither: static analyzer for Solidity. Detects ~90 vulnerability classes
-    # out of the box. The official crytic/slither-action runs in a Docker
-    # container and emits SARIF directly.
+    # out of the box. Installed via pip and run directly (not
+    # crytic/slither-action): that Docker action runs `npm install` when it
+    # sees package.json — which fails on the repo's pre-existing peer-dep
+    # conflict (npm ERESOLVE) — and its ignore-compile path can't parse
+    # foundry 1.7.1 build-info. We let crytic-compile drive our pinned forge.
     name: slither
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
@@ -43,6 +46,8 @@ jobs:
     permissions:
       contents: read
       security-events: write # required to upload SARIF to GitHub Code Scanning
+    env:
+      SLITHER_VERSION: '0.11.3'
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -50,14 +55,26 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Run Slither
-        uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
-        id: slither
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.1.1
         with:
-          target: '.'
-          sarif: slither.sarif
-          fail-on: none # advisory mode: emit findings but do not fail the job
-          slither-args: --exclude-informational --exclude-low
+          python-version: '3.12'
+
+      - name: Install Slither
+        run: |
+          set -euo pipefail
+          # setuptools<81 keeps pkg_resources, which crytic-compile imports.
+          python -m pip install --no-cache-dir "setuptools<81" "slither-analyzer==${SLITHER_VERSION}"
+          slither --version
+
+      - name: Run Slither
+        # crytic-compile drives the pinned forge to compile; no Docker, no npm.
+        # --fail-none keeps the step green when findings exist (advisory mode);
+        # SARIF is written regardless and uploaded below.
+        run: slither . --sarif slither.sarif --exclude-informational --exclude-low --fail-none
 
       - name: Upload Slither SARIF
         # Run even if the slither step recorded findings (Slither exits non-zero
@@ -100,7 +117,10 @@ jobs:
       - name: Install Semgrep
         run: |
           set -euo pipefail
-          python -m pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+          # Python 3.12 no longer bundles setuptools; semgrep imports
+          # pkg_resources at runtime. setuptools >=81 removed pkg_resources,
+          # so pin <81 (a bare `setuptools` pulls 82+ and still fails).
+          python -m pip install --no-cache-dir "setuptools<81" "semgrep==${SEMGREP_VERSION}"
           semgrep --version
 
       - name: Skip if no custom rules
