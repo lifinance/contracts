@@ -45,7 +45,7 @@ and the CI/Code-Scanning plumbing.
    ┌──────────────────────────────  Stage 2: AI orchestration ────────────┐
    │  lifi-pr-review (claude-code-action)                                  │
    │    LI.FI layer (this repo, MIT/LGPL):                                 │
-   │       • applies skip-list + waivers                                   │
+   │       • applies waivers (when present)                                │
    │       • injects LF-NNN corpus + by-area context                       │
    │       • normalizes ToB skills' output → curated.sarif + summary.md    │
    │                                                                       │
@@ -113,11 +113,31 @@ When a finding is a confirmed false positive — repeatable, no security
 impact, won't get better with rule tightening — add a waiver to
 `audit/findings/waived.yml`.
 
+This file is **not committed empty** — create it on the first waiver. The
+skill treats its absence as "no waivers." When present, Step 4 of the
+`lifi-pr-review` skill drops any finding matching an entry before fp-check.
+
+### Entry schema
+
+```yaml
+waivers:
+  - id: SLITHER-MISSING-ZERO-CHECK-ACROSSFACET-L47 # stable; convention <TOOL>-<RULE>-<FILE>-L<LINE>
+    rule: missing-zero-check # rule id as emitted by the tool
+    tool: slither # slither | semgrep | differential-review
+    file: src/Facets/AcrossFacet.sol # path relative to repo root
+    line: 47 # omit for a whole-file waiver
+    rationale: | # required — ≥1 sentence stating the accepted risk
+      _wrappedNative is constructor-set and covered by integration tests;
+      a zero here breaks deployment, not production.
+    signed_off_by: '@handle' # approver in @smartcontract_core or above
+    expires: 2027-01-01 # required; ISO date, max 1 year out
+```
+
 ### Process
 
 1. Open a separate PR adding the waiver entry (don't waive in the same PR
    that introduced the code; reviewers should see the finding once before
-   it's suppressed).
+   it's suppressed). Create `audit/findings/waived.yml` if it doesn't exist.
 2. Fill in **all required fields**, especially `rationale` and `expires`.
 3. Get approval from a member of `@smartcontract_core` or above.
 4. Once merged, the next workflow run on any branch will skip the matching

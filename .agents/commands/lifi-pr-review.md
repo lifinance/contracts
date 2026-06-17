@@ -1,6 +1,6 @@
 ---
 name: lifi-pr-review
-description: PR-time security review for smart contracts. Thin LI.FI orchestrator over Trail of Bits' open-source Claude Code skills (audit-context-building, differential-review, fp-check). Injects LI.FI's past-audit corpus + repo-specific skip list and waivers; emits curated SARIF + sticky-comment summary in the format the security-review workflow expects.
+description: PR-time security review for smart contracts. Thin LI.FI orchestrator over Trail of Bits' open-source Claude Code skills (audit-context-building, differential-review, fp-check). Injects LI.FI's past-audit corpus and waivers (when present); emits curated SARIF + sticky-comment summary in the format the security-review workflow expects.
 usage: /lifi-pr-review (typically invoked by .github/workflows/security-review.yml; can be run locally for dry-runs)
 ---
 
@@ -18,7 +18,7 @@ The reasoning machinery — gate reviews, blast-radius calculation, attacker
 modeling, etc. — lives in the ToB plugins. Our job is:
 
 1. **Provide LI.FI-specific inputs**: the LF-NNN audit corpus, our Semgrep
-   rule set, the skip list, and the explicit waiver file.
+   rule set, and the explicit waiver file (when present).
 2. **Orchestrate the ToB skills** with those inputs.
 3. **Re-emit their outputs in the schema our workflow expects**:
    `curated.sarif` (for Code Scanning), `summary.md` (for the sticky comment),
@@ -55,8 +55,7 @@ CC-BY-SA-4.0 (see NOTICE).
 | ------------------------------------- | ------------------------------------------------------------- |
 | `audit/knowledge/lessons.md`          | Index of every past LI.FI finding (LF-NNN) — always load      |
 | `audit/knowledge/by-area/<area>.md`   | Per-area detail for areas matching the diff scope             |
-| `audit/findings/waived.yml`           | Explicit FP suppressions (skip findings matching these)       |
-| `audit/findings/skip-list.yml`        | LI.FI-specific suppressions of known-noisy static-tool rules  |
+| `audit/findings/waived.yml` (optional) | FP waivers, applied only if the file exists (schema in `docs/security-review.md`) |
 | `.agents/rules/`                      | LI.FI conventions (consult when judging "fail-fast" exits etc.) |
 
 ### Defaults
@@ -82,8 +81,7 @@ If env vars are unset, the skill assumes:
 Read in a single parallel batch:
 
 - `audit/knowledge/lessons.md`
-- `audit/findings/waived.yml` (graceful fallback to empty if missing)
-- `audit/findings/skip-list.yml` (LI.FI-specific FP suppressions)
+- `audit/findings/waived.yml` (optional — graceful fallback to empty if missing)
 - `${PR_FILES}`
 - `${DIFF_FILE}`
 - `${SARIF_DIR}/*.sarif`
@@ -130,9 +128,9 @@ each finding becomes a **suspected bug** for Step 4.
 Build the verification queue from **two sources**:
 
 1. **Stage 1 SARIF survivors**: every finding in `${SARIF_DIR}/*.sarif`,
-   minus anything matching `audit/findings/skip-list.yml`, minus anything
-   matching `audit/findings/waived.yml`. Surviving findings are treated
-   as "suspected bugs" needing TP/FP verification.
+   minus anything matching `audit/findings/waived.yml` (only if that file
+   exists — see its schema in `docs/security-review.md`). Surviving findings
+   are treated as "suspected bugs" needing TP/FP verification.
 2. **`differential-review` findings**: each finding it surfaced in Step 3.
 
 For each suspected bug, invoke the `fp-check` skill in batch-triage mode.
@@ -183,8 +181,8 @@ normalize all verified TPs from Step 4 into our existing schema:
 - … (max 10 entries, sorted severity-desc)
 
 ### Tools that contributed
-- Slither:           X raw → Y after skip-list → Z confirmed by fp-check
-- Semgrep:           X raw → Y after skip-list → Z confirmed by fp-check
+- Slither:           X raw → Y after waivers → Z confirmed by fp-check
+- Semgrep:           X raw → Y after waivers → Z confirmed by fp-check
 - differential-review: N new findings (M confirmed by fp-check)
 
 ### Past findings echoed in this PR
@@ -236,10 +234,10 @@ critical+high > 0.
 ## Files we maintain (LI.FI-specific, MIT/LGPL)
 
 - `audit/knowledge/` — the corpus (output of EXP-478 / EXP-479)
-- `audit/findings/waived.yml` — explicit per-finding suppressions
-- `audit/findings/skip-list.yml` — rule-level suppressions for known-noisy
-  static-tool checks (e.g., Slither's `naming-convention`); see the file's
-  inline rationale and the EXP-484 follow-ups for tuning
+- `audit/findings/waived.yml` — FP waivers; not committed empty, created on
+  the first waiver (schema + process in `docs/security-review.md`). Noisy
+  static-tool rules are handled by the `--exclude-*` flags or by fixing the
+  Semgrep rule under `audit/knowledge/semgrep/`, not a per-finding skip list.
 
 ## Files we DO NOT maintain (vendored, CC-BY-SA-4.0)
 

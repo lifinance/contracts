@@ -285,7 +285,7 @@ jobs:
               DIFF_FILE  = ${{ env.DIFF_FILE }}    (the PR diff, base..head, scoped to src/)
               PR_FILES   = ${{ env.PR_FILES }}     (changed src/ files, one per line)
               audit/knowledge/                     (LF-NNN corpus — pass to audit-context-building)
-              audit/findings/                      (waived.yml, skip-list.yml)
+              audit/findings/waived.yml            (optional FP waivers — applied only if present)
 
             Write deliverables to ${{ env.OUT_DIR }}/:
               curated.sarif  — final SARIF (valid even when zero findings)
