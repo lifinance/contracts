@@ -169,7 +169,13 @@ const cmd = defineCommand({
     if (notifyWebhook)
       try {
         new URL(notifyWebhook) // Validate webhook URL format
-        slackNotifier = new SlackNotifier(notifyWebhook)
+        // In CI the workflow exports a deep-link to the running job; when present
+        // it is surfaced in failure/summary notifications so on-call can jump
+        // straight to the failing logs. Absent for local runs.
+        slackNotifier = new SlackNotifier(
+          notifyWebhook,
+          process.env.TIMELOCK_RUN_URL
+        )
         consola.info('📢 Slack notifications enabled')
       } catch (error) {
         consola.error('❌ Invalid Slack webhook URL provided')
