@@ -64,6 +64,10 @@
       "0xac959B1bcf96B7bFcfB0ac5D23E5d44AFc4Fff4c": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x7E2dF86452b63f263f55ada32befBe8f58e69BD7": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       }
     },
     "Periphery": {
