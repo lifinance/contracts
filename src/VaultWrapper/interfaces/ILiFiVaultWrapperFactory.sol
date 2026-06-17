@@ -10,14 +10,14 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 interface ILiFiVaultWrapperFactory {
     /// Events ///
 
-    /// @notice Emitted when a new wrapper clone is deployed.
-    /// @param instance The deployed wrapper clone address.
+    /// @notice Emitted when a new vault wrapper is deployed.
+    /// @param instance The deployed vault wrapper address.
     /// @param integrator The integrator that owns the instance.
     /// @param underlying The wrapped yield source.
-    /// @param adapter The yield adapter the clone routes through.
+    /// @param adapter The yield adapter the vault wrapper routes through.
     /// @param chainLockId 0 if unlocked, else the only chain id where deposits are allowed.
     /// @param nonce The caller-supplied nonce disambiguating instances.
-    /// @param salt The CREATE2 salt used to deploy the clone.
+    /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
         address indexed instance,
         address indexed integrator,
@@ -44,10 +44,10 @@ interface ILiFiVaultWrapperFactory {
     /// @param maxBps The maximum rate (bps).
     event FeeBoundsSet(FeeType indexed feeType, uint16 minBps, uint16 maxBps);
 
-    /// @notice Emitted when the default LI.FI fee share for a fee type is set.
+    /// @notice Emitted when the default integrator fee share for a fee type is set.
     /// @param feeType The fee type.
-    /// @param lifiBps The LI.FI share (bps).
-    event DefaultSplitSet(FeeType indexed feeType, uint16 lifiBps);
+    /// @param integratorBps The integrator share (bps); LI.FI receives the remaining (100% - integratorBps).
+    event DefaultSplitSet(FeeType indexed feeType, uint16 integratorBps);
 
     /// @notice Emitted when an integrator's self-deploy approval changes.
     /// @param integrator The integrator address.

@@ -29,8 +29,8 @@ contract LiFiVaultWrapperFactory is
     uint16 internal constant CAP_DEPOSIT_BPS = 2000;
     /// @notice Immutable upper cap for the withdrawal fee (bps); 20%.
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
-    /// @notice Default LI.FI fee share (bps) seeded for every fee type at deployment; 20%.
-    uint16 internal constant DEFAULT_LIFI_SHARE_BPS = 2000;
+    /// @notice Default integrator share of fees (bps) seeded for every fee type at deployment; 80% (LI.FI receives the remaining 20%).
+    uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
     /// @notice Basis-point denominator (100%).
     uint16 internal constant BPS_DENOMINATOR = 10000;
 
@@ -43,14 +43,14 @@ contract LiFiVaultWrapperFactory is
 
     /// Storage ///
 
-    /// @notice The UpgradeableBeacon holding the shared wrapper implementation every clone delegatecalls to.
+    /// @notice The UpgradeableBeacon holding the shared implementation every vault wrapper delegatecalls to.
     address public immutable beacon; // solhint-disable-line immutable-vars-naming
 
     /// @notice Address authorized to toggle the global circuit breaker.
     address public emergencyPauser;
     /// @notice Address authorized to approve and revoke integrators.
     address public onboardingManager;
-    /// @notice Whether deposits are globally halted; read by every clone.
+    /// @notice Whether deposits are globally halted; read by every vault wrapper.
     bool public globalPaused;
 
     /// @notice Whether a yield source is permitted as a wrapper underlying.
@@ -61,8 +61,10 @@ contract LiFiVaultWrapperFactory is
     mapping(address => bool) public approvedAdapter;
     /// @notice Adjustable min/max fee bps per fee type, within the immutable caps.
     mapping(FeeType => FeeBounds) public feeBounds;
-    /// @notice Default LI.FI fee share (bps) per fee type, read by clones for the LI.FI/integrator split.
-    mapping(FeeType => uint16) public defaultLifiShareBps;
+    /// @notice Default share of the underlying-generated fees (bps) routed to the
+    ///         integrator, per fee type; LI.FI receives the remaining (100% - this
+    ///         value). Read by vault wrappers when splitting fees with the integrator.
+    mapping(FeeType => uint16) public defaultIntegratorShareBps;
 
     /// @notice Deployed instance address keyed by its CREATE2 salt; non-zero means the salt is taken.
     mapping(bytes32 => address) public instanceBySalt;
@@ -109,7 +111,9 @@ contract LiFiVaultWrapperFactory is
         onboardingManager = _onboardingManager;
 
         for (uint8 i; i < 4; ++i) {
-            defaultLifiShareBps[FeeType(i)] = DEFAULT_LIFI_SHARE_BPS;
+            defaultIntegratorShareBps[
+                FeeType(i)
+            ] = DEFAULT_INTEGRATOR_SHARE_BPS;
         }
     }
 
@@ -147,15 +151,16 @@ contract LiFiVaultWrapperFactory is
         emit FeeBoundsSet(_feeType, _minBps, _maxBps);
     }
 
-    /// @notice Set the default LI.FI fee share (bps) for a fee type, exposed for
-    ///         clones to read when applying the LI.FI/integrator split (see S1).
+    /// @notice Set the default integrator share (bps) of the underlying-generated fees
+    ///         for a fee type; LI.FI implicitly receives the remaining (100% - this
+    ///         value). Read by vault wrappers when applying the split (see S1).
     function setDefaultSplit(
         FeeType _feeType,
-        uint16 _lifiBps
+        uint16 _integratorBps
     ) external onlyOwner {
-        if (_lifiBps > BPS_DENOMINATOR) revert InvalidSplit();
-        defaultLifiShareBps[_feeType] = _lifiBps;
-        emit DefaultSplitSet(_feeType, _lifiBps);
+        if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
+        defaultIntegratorShareBps[_feeType] = _integratorBps;
+        emit DefaultSplitSet(_feeType, _integratorBps);
     }
 
     /// @notice Rotate the emergency pauser role.
@@ -188,13 +193,13 @@ contract LiFiVaultWrapperFactory is
 
     /// Global circuit breaker (emergency pauser) ///
 
-    /// @notice Halt deposits across every clone.
+    /// @notice Halt deposits across every vault wrapper.
     function globalPause() external onlyEmergencyPauser {
         globalPaused = true;
         emit GlobalPauseSet(true, msg.sender);
     }
 
-    /// @notice Resume deposits across every clone.
+    /// @notice Resume deposits across every vault wrapper.
     function globalUnpause() external onlyEmergencyPauser {
         globalPaused = false;
         emit GlobalPauseSet(false, msg.sender);
@@ -230,7 +235,7 @@ contract LiFiVaultWrapperFactory is
         }
     }
 
-    /// @notice The deterministic address a clone will have for the given key.
+    /// @notice The deterministic address a vault wrapper will have for the given key.
     function predictAddress(
         address _integrator,
         address _adapter,
@@ -268,7 +273,7 @@ contract LiFiVaultWrapperFactory is
     /// @dev Caller must be the onboarding manager, or an approved integrator
     ///      deploying for itself (`_params.integrator == msg.sender`).
     /// @param _params The deployment parameters.
-    /// @return instance The address of the newly deployed wrapper clone.
+    /// @return instance The address of the newly deployed vault wrapper.
     function deploy(
         DeployParams calldata _params
     ) external returns (address instance) {

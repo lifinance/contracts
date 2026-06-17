@@ -7,7 +7,7 @@ import { FeeConfig } from "../LiFiVaultWrapperTypes.sol";
 /// @title MockVaultWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Temporary beacon implementation used until S1 (CWIA core) lands.
-///         Records init args so factory tests can assert clone wiring.
+///         Records init args so factory tests can assert vault wrapper wiring.
 /// @custom:version 1.0.0
 contract MockVaultWrapper is ILiFiVaultWrapper {
     error AlreadyInitialized();
