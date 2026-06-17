@@ -18,32 +18,39 @@ describe('facet-version-utils', () => {
 
   beforeAll(() => {
     rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'facet-version-utils-'))
-    fs.mkdirSync(path.join(rootDir, 'deployments'), { recursive: true })
+    fs.mkdirSync(path.join(rootDir, '.cache'), { recursive: true })
     fs.mkdirSync(path.join(rootDir, 'script', 'deploy'), { recursive: true })
 
+    // Flat array matching the structure of .cache/deployments_production.json.
+    // The cache contains only production records — staging entries are absent.
     fs.writeFileSync(
-      path.join(rootDir, 'deployments', '_deployments_log_file.json'),
-      JSON.stringify({
-        AcrossFacetV3: {
-          optimism: {
-            production: {
-              '1.0.0': [{ ADDRESS: OTHER_ADDRESS }],
-              '1.1.0': [{ ADDRESS: FACET_ADDRESS }],
-            },
-            staging: {
-              '2.0.0': [{ ADDRESS: FACET_ADDRESS }],
-            },
-          },
+      path.join(rootDir, '.cache', 'deployments_production.json'),
+      JSON.stringify([
+        {
+          contractName: 'AcrossFacetV3',
+          network: 'optimism',
+          version: '1.0.0',
+          address: OTHER_ADDRESS,
         },
-        BrokenEntriesFacet: {
-          optimism: {
-            production: {
-              '1.0.0': 'not-an-array',
-              '1.1.0': [{ NO_ADDRESS_FIELD: true }, { ADDRESS: FACET_ADDRESS }],
-            },
-          },
+        {
+          contractName: 'AcrossFacetV3',
+          network: 'optimism',
+          version: '1.1.0',
+          address: FACET_ADDRESS,
         },
-      })
+        // BrokenEntriesFacet: one entry with no address (simulates a corrupt record), one valid
+        {
+          contractName: 'BrokenEntriesFacet',
+          network: 'optimism',
+          version: '1.0.0',
+        },
+        {
+          contractName: 'BrokenEntriesFacet',
+          network: 'optimism',
+          version: '1.1.0',
+          address: FACET_ADDRESS,
+        },
+      ])
     )
 
     fs.writeFileSync(
@@ -196,9 +203,9 @@ describe('facet-version-utils', () => {
         path.join(os.tmpdir(), 'facet-version-utils-broken-')
       )
       try {
-        fs.mkdirSync(path.join(brokenRoot, 'deployments'), { recursive: true })
+        fs.mkdirSync(path.join(brokenRoot, '.cache'), { recursive: true })
         fs.writeFileSync(
-          path.join(brokenRoot, 'deployments', '_deployments_log_file.json'),
+          path.join(brokenRoot, '.cache', 'deployments_production.json'),
           'not json'
         )
         expect(
@@ -214,14 +221,14 @@ describe('facet-version-utils', () => {
       }
     })
 
-    it('returns null when the log file is not an object', () => {
+    it('returns null when the cache file is not an array', () => {
       const scalarRoot = fs.mkdtempSync(
         path.join(os.tmpdir(), 'facet-version-utils-scalar-')
       )
       try {
-        fs.mkdirSync(path.join(scalarRoot, 'deployments'), { recursive: true })
+        fs.mkdirSync(path.join(scalarRoot, '.cache'), { recursive: true })
         fs.writeFileSync(
-          path.join(scalarRoot, 'deployments', '_deployments_log_file.json'),
+          path.join(scalarRoot, '.cache', 'deployments_production.json'),
           'null'
         )
         expect(

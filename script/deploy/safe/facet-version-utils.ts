@@ -8,19 +8,22 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-interface IDeploymentLogEntry {
-  ADDRESS?: string
+interface ICacheRecord {
+  contractName?: string
+  network?: string
+  version?: string
+  address?: string
 }
 
 /**
- * Resolves the version of a deployed contract from the deployment log
- * (`deployments/_deployments_log_file.json`) by matching its address.
- * Only production deployments are considered, mirroring confirm-safe-tx's
- * production-only contract-name resolution.
- * @param contractName - Contract name as used in the deployment log (e.g. AcrossFacetV3), or null when unknown
+ * Resolves the version of a deployed contract from the deployment cache
+ * (`.cache/deployments_production.json`) by matching its address.
+ * Only production deployments are considered — the cache file contains
+ * production records exclusively.
+ * @param contractName - Contract name as used in the cache (e.g. AcrossFacetV3), or null when unknown
  * @param network - Network name (e.g. optimism)
- * @param addressCandidates - Address forms to match (e.g. raw hex and network-formatted); compared case-insensitively
- * @param rootDir - Project root containing `deployments/`; defaults to cwd
+ * @param addressCandidates - Address forms to match; compared case-insensitively
+ * @param rootDir - Project root containing `.cache/`; defaults to cwd
  * @returns Version string if exactly resolvable, otherwise null
  */
 export function getDeployedFacetVersionFromLog(
@@ -30,58 +33,38 @@ export function getDeployedFacetVersionFromLog(
   rootDir: string = process.cwd()
 ): string | null {
   try {
-    const logPath = path.join(
+    const cachePath = path.join(
       rootDir,
-      'deployments',
-      '_deployments_log_file.json'
+      '.cache',
+      'deployments_production.json'
     )
-    if (!fs.existsSync(logPath)) return null
-    const log: unknown = JSON.parse(fs.readFileSync(logPath, 'utf8'))
-    if (typeof log !== 'object' || log === null) return null
+    if (!fs.existsSync(cachePath)) return null
+    const records: unknown = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
+    if (!Array.isArray(records)) return null
 
     const normalizedCandidates = addressCandidates
       .filter((a) => typeof a === 'string' && a.length > 0)
       .map((a) => a.toLowerCase())
     if (normalizedCandidates.length === 0) return null
 
-    const typedLog = log as Record<
-      string,
-      Record<string, Record<string, Record<string, IDeploymentLogEntry[]>>>
-    >
+    const typedRecords = records as ICacheRecord[]
+    const networkLower = network.toLowerCase()
 
-    const findInVersions = (
-      versions: Record<string, IDeploymentLogEntry[]> | undefined
-    ): string | null => {
-      if (!versions || typeof versions !== 'object') return null
-      for (const [version, entries] of Object.entries(versions)) {
-        if (!Array.isArray(entries)) continue
-        for (const entry of entries) {
-          const entryAddress = entry?.ADDRESS
-          if (
-            typeof entryAddress === 'string' &&
-            normalizedCandidates.includes(entryAddress.toLowerCase())
-          )
-            return version
-        }
-      }
-      return null
-    }
+    const matches = (r: ICacheRecord): boolean =>
+      r.network?.toLowerCase() === networkLower &&
+      typeof r.address === 'string' &&
+      normalizedCandidates.includes(r.address.toLowerCase())
 
     if (contractName) {
-      const named = findInVersions(
-        typedLog[contractName]?.[network]?.['production']
+      const named = typedRecords.find(
+        (r) => r.contractName === contractName && matches(r)
       )
-      if (named) return named
+      if (named?.version) return named.version
     }
 
-    // Address-based fallback: a deployed address is unique per network, so a
-    // full scan still resolves the version when the name subtree misses
-    // (unresolved or differently-named contract).
-    for (const perNetwork of Object.values(typedLog)) {
-      const found = findInVersions(perNetwork?.[network]?.['production'])
-      if (found) return found
-    }
-    return null
+    // Address-based fallback: scan all records on this network
+    const found = typedRecords.find(matches)
+    return found?.version ?? null
   } catch {
     return null
   }

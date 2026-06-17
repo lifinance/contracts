@@ -18,6 +18,7 @@ import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
@@ -972,6 +973,20 @@ const main = defineCommand({
           )
         }
       }
+
+      // Refresh .cache/deployments_production.json from MongoDB so every signer
+      // (not just the deployer's machine) sees up-to-date facet versions in the
+      // signing UI. Requires MONGODB_URI; silently skipped when not set.
+      if (process.env.MONGODB_URI)
+        try {
+          await createDefaultCache({
+            mongoUri: process.env.MONGODB_URI,
+            databaseName: 'contract-deployments',
+            batchSize: 100,
+          }).refresh('production')
+        } catch (error) {
+          consola.debug(`Deployment cache refresh skipped: ${error}`)
+        }
 
       // Fetch all pending transactions for the networks we're processing
       const txsByNetwork = await getPendingTransactionsByNetwork(
