@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
@@ -13,6 +14,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
     MockVaultWrapper internal impl;
+    ERC4626Adapter internal adapter;
 
     address internal owner = makeAddr("owner");
     address internal pauser = makeAddr("pauser");
@@ -30,6 +32,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
             pauser,
             onboarder
         );
+        adapter = new ERC4626Adapter();
+        vm.prank(owner);
+        factory.setAdapterApproved(address(adapter), true);
     }
 
     function test_ConstructorSetsRolesBeaconAndDefaultSplit() public view {
@@ -141,9 +146,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_PredictAddressIsDeterministicAndNonceVaries() public {
         address u = makeAddr("underlying");
-        address a = factory.predictAddress(integrator, u, 0);
-        address b = factory.predictAddress(integrator, u, 0);
-        address c = factory.predictAddress(integrator, u, 1);
+        address a = factory.predictAddress(integrator, address(adapter), u, 0);
+        address b = factory.predictAddress(integrator, address(adapter), u, 0);
+        address c = factory.predictAddress(integrator, address(adapter), u, 1);
         assertEq(a, b);
         assertTrue(a != c);
         assertTrue(a != address(0));
@@ -165,6 +170,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         bool[4] memory enabled = [true, false, false, false];
         p = DeployParams({
             integrator: integrator_,
+            adapter: address(adapter),
             underlying: address(underlying),
             chainLockId: 0,
             nonce: nonce_,
@@ -179,6 +185,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
         address predicted = factory.predictAddress(
             integrator,
+            address(adapter),
             address(underlying),
             0
         );
@@ -193,6 +200,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertTrue(w.initialized());
         assertEq(w.asset(), assetToken);
         assertEq(w.underlying(), address(underlying));
+        assertEq(w.adapter(), address(adapter));
         assertEq(w.integrator(), integrator);
         assertEq(w.chainLockId(), 0);
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
@@ -247,6 +255,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.stopPrank();
         DeployParams memory p;
         p.integrator = integrator;
+        p.adapter = address(adapter);
         p.underlying = notAVault;
         uint16[4] memory rates = [uint16(0), 0, 0, 0];
         bool[4] memory enabled = [false, false, false, false];
@@ -294,6 +303,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.stopPrank();
         DeployParams memory p;
         p.integrator = integrator;
+        p.adapter = address(adapter);
         p.underlying = address(underlying);
         uint16[4] memory rates = [uint16(0), 1500, 0, 0]; // 15% > 10% cap
         bool[4] memory enabled = [false, true, false, false];
@@ -377,5 +387,53 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(page.length, 2);
         assertEq(page[0], i0);
         assertEq(page[1], i1);
+    }
+
+    function test_DeployRevertsOnUnapprovedAdapter() public {
+        _enableUnderlyingAndBounds();
+        ERC4626Adapter rogue = new ERC4626Adapter();
+        DeployParams memory p = _params(integrator, 0);
+        p.adapter = address(rogue); // never approved
+        vm.prank(onboarder);
+        vm.expectRevert(LiFiVaultWrapperFactory.AdapterNotApproved.selector);
+        factory.deploy(p);
+    }
+
+    function test_PredictAddressVariesByAdapter() public {
+        ERC4626Adapter other = new ERC4626Adapter();
+        address u = makeAddr("underlying");
+        address withA = factory.predictAddress(
+            integrator,
+            address(adapter),
+            u,
+            0
+        );
+        address withB = factory.predictAddress(
+            integrator,
+            address(other),
+            u,
+            0
+        );
+        assertTrue(withA != withB);
+    }
+
+    function test_OwnerSetsAdapterApproved() public {
+        address a = makeAddr("adapter2");
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit LiFiVaultWrapperFactory.AdapterApprovedSet(a, true);
+        vm.prank(owner);
+        factory.setAdapterApproved(a, true);
+        assertTrue(factory.approvedAdapter(a));
+    }
+
+    function test_NonOwnerCannotSetAdapterApproved() public {
+        vm.expectRevert(UnAuthorized.selector);
+        factory.setAdapterApproved(makeAddr("adapter2"), true);
+    }
+
+    function test_SetAdapterApprovedRevertsOnZero() public {
+        vm.prank(owner);
+        vm.expectRevert(InvalidConfig.selector);
+        factory.setAdapterApproved(address(0), true);
     }
 }

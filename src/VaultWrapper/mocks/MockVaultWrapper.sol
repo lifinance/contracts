@@ -15,6 +15,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
     bool public initialized;
     address public asset;
     address public underlying;
+    address public adapter;
     address public integrator;
     uint256 public chainLockId;
     bytes public initData;
@@ -25,6 +26,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
     function initialize(
         address _asset,
         address _underlying,
+        address _adapter,
         address _integrator,
         uint256 _chainLockId,
         FeeConfig calldata _fees,
@@ -34,6 +36,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
         initialized = true;
         asset = _asset;
         underlying = _underlying;
+        adapter = _adapter;
         integrator = _integrator;
         chainLockId = _chainLockId;
         _feeConfig = _fees;

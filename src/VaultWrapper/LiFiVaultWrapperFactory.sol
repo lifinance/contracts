@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { InvalidConfig, InvalidContract, UnAuthorized } from "../Errors/GenericErrors.sol";
 import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
@@ -41,6 +41,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     mapping(address => bool) public allowedUnderlying;
     mapping(address => bool) public approvedIntegrator;
+    mapping(address => bool) public approvedAdapter;
     mapping(FeeType => FeeBounds) public feeBounds;
     mapping(FeeType => uint16) public defaultLifiShareBps;
 
@@ -51,6 +52,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
     /// Errors ///
 
     error UnderlyingNotAllowed();
+    error AdapterNotApproved();
     error UnderlyingProbeFailed();
     error ChainLockMismatch();
     error FeeRateAboveBound();
@@ -65,11 +67,13 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         address indexed instance,
         address indexed integrator,
         address indexed underlying,
+        address adapter,
         uint256 chainLockId,
         uint256 nonce,
         bytes32 salt
     );
     event UnderlyingAllowedSet(address indexed underlying, bool allowed);
+    event AdapterApprovedSet(address indexed adapter, bool approved);
     event FeeBoundsSet(FeeType indexed feeType, uint16 minBps, uint16 maxBps);
     event DefaultSplitSet(FeeType indexed feeType, uint16 lifiBps);
     event IntegratorApprovedSet(address indexed integrator, bool approved);
@@ -128,6 +132,16 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         if (_underlying == address(0)) revert InvalidConfig();
         allowedUnderlying[_underlying] = _allowed;
         emit UnderlyingAllowedSet(_underlying, _allowed);
+    }
+
+    /// @notice Approve or revoke a yield adapter usable in deployments.
+    function setAdapterApproved(
+        address _adapter,
+        bool _approved
+    ) external onlyOwner {
+        if (_adapter == address(0)) revert InvalidConfig();
+        approvedAdapter[_adapter] = _approved;
+        emit AdapterApprovedSet(_adapter, _approved);
     }
 
     /// @notice Set adjustable min/max bps bounds for a fee type (within the immutable cap).
@@ -228,13 +242,14 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
     /// @notice The deterministic address a clone will have for the given key.
     function predictAddress(
         address _integrator,
+        address _adapter,
         address _underlying,
         uint256 _nonce
     ) external view returns (address) {
         return
             LibClone.predictDeterministicAddressERC1967BeaconProxy(
                 beacon,
-                _salt(_integrator, _underlying, _nonce),
+                _salt(_integrator, _adapter, _underlying, _nonce),
                 address(this)
             );
     }
@@ -243,10 +258,12 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     function _salt(
         address _integrator,
+        address _adapter,
         address _underlying,
         uint256 _nonce
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(_integrator, _underlying, _nonce));
+        return
+            keccak256(abi.encode(_integrator, _adapter, _underlying, _nonce));
     }
 
     function _cap(FeeType _feeType) internal pure returns (uint16) {
@@ -269,10 +286,11 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
             if (_params.integrator != msg.sender) revert IntegratorMismatch();
         }
         if (_params.integrator == address(0)) revert InvalidConfig();
+        if (!approvedAdapter[_params.adapter]) revert AdapterNotApproved();
         if (!allowedUnderlying[_params.underlying])
             revert UnderlyingNotAllowed();
 
-        address asset = _probeUnderlying(_params.underlying);
+        address asset = _probeViaAdapter(_params.adapter, _params.underlying);
 
         if (_params.chainLockId != 0 && _params.chainLockId != block.chainid)
             revert ChainLockMismatch();
@@ -281,6 +299,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
         bytes32 salt = _salt(
             _params.integrator,
+            _params.adapter,
             _params.underlying,
             _params.nonce
         );
@@ -299,6 +318,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
             instance,
             _params.integrator,
             _params.underlying,
+            _params.adapter,
             _params.chainLockId,
             _params.nonce,
             salt
@@ -307,6 +327,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         ILiFiVaultWrapper(instance).initialize(
             asset,
             _params.underlying,
+            _params.adapter,
             _params.integrator,
             _params.chainLockId,
             _params.fees,
@@ -314,17 +335,14 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         );
     }
 
-    function _probeUnderlying(
+    function _probeViaAdapter(
+        address _adapter,
         address _underlying
     ) internal view returns (address asset) {
-        if (_underlying.code.length == 0) revert UnderlyingProbeFailed();
-        try IERC4626(_underlying).asset() returns (address a) {
+        try IYieldAdapter(_adapter).probe(_underlying) returns (address a) {
             if (a == address(0)) revert UnderlyingProbeFailed();
             asset = a;
         } catch {
-            revert UnderlyingProbeFailed();
-        }
-        try IERC4626(_underlying).totalAssets() returns (uint256) {} catch {
             revert UnderlyingProbeFailed();
         }
     }
