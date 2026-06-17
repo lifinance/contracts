@@ -36,7 +36,7 @@ In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Found
 
 ## Phase 1 — Resolve targets
 
-**Do not invoke `deploy-contract` yet.** Phase 1 is target-resolution only; the deploy runs in Phase 2b after the user confirms the plan.
+**Do not invoke `deploy-contract` yet.** Phase 1 is target-resolution only; the deploy runs in Phase 2 after the user confirms the plan.
 
 ### deploy mode
 
