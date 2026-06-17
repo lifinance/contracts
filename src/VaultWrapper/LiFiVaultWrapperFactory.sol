@@ -21,15 +21,23 @@ contract LiFiVaultWrapperFactory is
 {
     /// Constants ///
 
+    /// @notice Immutable upper cap for the performance fee (bps); 50%.
     uint16 internal constant CAP_PERFORMANCE_BPS = 5000;
+    /// @notice Immutable upper cap for the management fee (bps); 10%.
     uint16 internal constant CAP_MANAGEMENT_BPS = 1000;
+    /// @notice Immutable upper cap for the deposit fee (bps); 20%.
     uint16 internal constant CAP_DEPOSIT_BPS = 2000;
+    /// @notice Immutable upper cap for the withdrawal fee (bps); 20%.
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
+    /// @notice Default LI.FI fee share (bps) seeded for every fee type at deployment; 20%.
     uint16 internal constant DEFAULT_LIFI_SHARE_BPS = 2000;
+    /// @notice Basis-point denominator (100%).
     uint16 internal constant BPS_DENOMINATOR = 10000;
 
+    /// @notice Role identifier reported by RoleRotated when the emergency pauser changes.
     bytes32 internal constant ROLE_EMERGENCY_PAUSER =
         keccak256("EMERGENCY_PAUSER");
+    /// @notice Role identifier reported by RoleRotated when the onboarding manager changes.
     bytes32 internal constant ROLE_ONBOARDING_MANAGER =
         keccak256("ONBOARDING_MANAGER");
 
