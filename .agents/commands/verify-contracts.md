@@ -25,13 +25,15 @@ usage: /verify-contracts <network>  |  /verify-contracts PR #<N>
 ### 1. Get the deployment address map onto disk
 
 - **By network** (already deployed, files on `main`): use `deployments/<network>.json` in the current checkout.
-- **By PR** (deploy PR — the deployment files exist only on the PR branch): check out that branch in a worktree:
+- **By PR** (deploy PR — the deployment files exist only on the PR branch): check out that branch in a worktree. Resolve the branch with `gh pr view <N> --json headRefName -q .headRefName` if you only have the PR number, then:
 
   ```bash
-  ~/.claude/scripts/contracts-wt-add.sh <pr-branch>   # symlinks .env; never copy it
+  PR_BRANCH=$(gh pr view <N> --json headRefName -q .headRefName)
+  git worktree add ../contracts-wt-verify "$PR_BRANCH"
+  ln -s "$(git rev-parse --show-toplevel)/.env" ../contracts-wt-verify/.env   # symlink, never copy
   ```
 
-  Resolve the branch with `gh pr view <N> --json headRefName -q .headRefName` if you only have the PR number.
+  The TS scripts (Steps 5–6) read `MONGODB_URI` from `.env`; the symlink reuses the main checkout's secrets. If you keep a personal `contracts-wt-add.sh` helper it does the same `.env` symlink for you, but it is not required.
 
 ### 2. Make the checkout compilable
 
@@ -99,7 +101,7 @@ Re-query with `--no-use-cache` and confirm the verified count matches the deploy
 ```bash
 bunx tsx script/deploy/query-deployment-logs.ts list \
   --env "$ENVIRONMENT" --network "$NETWORK" --limit 200 --no-use-cache --format json \
-  | jq '[.[] | {contract, version, verified}]'
+  | jq '[.data[] | {contract: .contractName, version, verified}]'
 ```
 
 Report any record still `false` and why (e.g. superseded version intentionally left, or a verifier that genuinely failed). Don't claim "all verified" unless both the explorer and this re-query agree.
