@@ -76,7 +76,6 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
-  ".github/workflows/"
   ".agents/commands/"
 )
 

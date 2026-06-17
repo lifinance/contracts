@@ -103,12 +103,12 @@ usage: /analyze-tx <network> <tx_hash>
 Use TronGrid native API instead of EVM RPC:
 
 ```bash
-# Full transaction data + internal transactions (pre-commit-checker: not a secret)
+# Full transaction data + internal transactions
 curl -s -X POST https://api.trongrid.io/wallet/gettransactioninfobyid \
   -H "Content-Type: application/json" \
   -d '{"value": "<TX_HASH>"}' | jq .
 
-# Raw transaction (calldata, signature) (pre-commit-checker: not a secret)
+# Raw transaction (calldata, signature)
 curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
   -H "Content-Type: application/json" \
   -d '{"value": "<TX_HASH>"}' | jq .
