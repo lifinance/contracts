@@ -36,6 +36,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     address public emergencyPauser;
     address public onboardingManager;
+    /// @notice Whether deposits are globally halted; read by every clone.
     bool public globalPaused;
 
     mapping(address => bool) public allowedUnderlying;
@@ -102,6 +103,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
     ) TransferrableOwnership(_owner) {
         if (
             _beacon == address(0) ||
+            _owner == address(0) ||
             _emergencyPauser == address(0) ||
             _onboardingManager == address(0)
         ) revert InvalidConfig();
@@ -193,11 +195,6 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         emit GlobalPauseSet(false, msg.sender);
     }
 
-    /// @notice Whether deposits are globally halted; read by every clone.
-    function isGlobalPaused() external view returns (bool) {
-        return globalPaused;
-    }
-
     /// Views ///
 
     /// @notice Number of wrapper instances deployed by this factory.
@@ -208,6 +205,24 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
     /// @notice All wrapper instances deployed by this factory.
     function getAllInstances() external view returns (address[] memory) {
         return allInstances;
+    }
+
+    /// @notice A bounded slice of deployed instances, for enumeration at scale.
+    /// @param _offset Start index into the instance list.
+    /// @param _limit Maximum number of instances to return.
+    /// @return page The instances in [_offset, min(_offset + _limit, length)).
+    function getInstances(
+        uint256 _offset,
+        uint256 _limit
+    ) external view returns (address[] memory page) {
+        uint256 total = allInstances.length;
+        if (_offset >= total) return new address[](0);
+        uint256 end = _offset + _limit;
+        if (end > total) end = total;
+        page = new address[](end - _offset);
+        for (uint256 i; i < page.length; ++i) {
+            page[i] = allInstances[_offset + i];
+        }
     }
 
     /// @notice The deterministic address a clone will have for the given key.
@@ -280,15 +295,6 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
         isInstance[instance] = true;
         allInstances.push(instance);
 
-        ILiFiVaultWrapper(instance).initialize(
-            asset,
-            _params.underlying,
-            _params.integrator,
-            _params.chainLockId,
-            _params.fees,
-            _params.initData
-        );
-
         emit WrapperDeployed(
             instance,
             _params.integrator,
@@ -296,6 +302,15 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
             _params.chainLockId,
             _params.nonce,
             salt
+        );
+
+        ILiFiVaultWrapper(instance).initialize(
+            asset,
+            _params.underlying,
+            _params.integrator,
+            _params.chainLockId,
+            _params.fees,
+            _params.initData
         );
     }
 
