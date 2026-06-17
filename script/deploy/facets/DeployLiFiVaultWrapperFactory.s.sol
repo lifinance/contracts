@@ -14,6 +14,10 @@ import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 ///      Reads OWNER, EMERGENCY_PAUSER, and ONBOARDING_MANAGER from environment.
 /// @custom:version 1.0.0
 contract DeployScript is Script {
+    error ZeroOwner();
+    error ZeroEmergencyPauser();
+    error ZeroOnboardingManager();
+
     function run()
         public
         returns (
@@ -26,6 +30,10 @@ contract DeployScript is Script {
         address owner = vm.envAddress("OWNER");
         address emergencyPauser = vm.envAddress("EMERGENCY_PAUSER");
         address onboardingManager = vm.envAddress("ONBOARDING_MANAGER");
+
+        if (owner == address(0)) revert ZeroOwner();
+        if (emergencyPauser == address(0)) revert ZeroEmergencyPauser();
+        if (onboardingManager == address(0)) revert ZeroOnboardingManager();
 
         vm.startBroadcast(deployerPrivateKey);
 
