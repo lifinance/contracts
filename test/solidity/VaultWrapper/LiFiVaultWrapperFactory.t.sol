@@ -43,9 +43,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.owner(), owner);
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);
-        for (uint8 i; i < 4; ++i) {
-            assertEq(factory.defaultIntegratorShareBps(FeeType(i)), 8000);
-        }
+        assertEq(factory.defaultIntegratorShareBps(), 8000);
         assertFalse(factory.globalPaused());
     }
 
@@ -92,8 +90,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_OwnerSetsDefaultSplit() public {
         vm.prank(owner);
-        factory.setDefaultSplit(FeeType.Management, 3000);
-        assertEq(factory.defaultIntegratorShareBps(FeeType.Management), 3000);
+        factory.setDefaultSplit(3000);
+        assertEq(factory.defaultIntegratorShareBps(), 3000);
     }
 
     function test_OnboardingManagerApprovesIntegrator() public {

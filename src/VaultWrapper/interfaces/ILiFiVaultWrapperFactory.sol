@@ -44,10 +44,9 @@ interface ILiFiVaultWrapperFactory {
     /// @param maxBps The maximum rate (bps).
     event FeeBoundsSet(FeeType indexed feeType, uint16 minBps, uint16 maxBps);
 
-    /// @notice Emitted when the default integrator fee share for a fee type is set.
-    /// @param feeType The fee type.
+    /// @notice Emitted when the default integrator fee share is set.
     /// @param integratorBps The integrator share (bps); LI.FI receives the remaining (100% - integratorBps).
-    event DefaultSplitSet(FeeType indexed feeType, uint16 integratorBps);
+    event DefaultSplitSet(uint16 integratorBps);
 
     /// @notice Emitted when an integrator's self-deploy approval changes.
     /// @param integrator The integrator address.

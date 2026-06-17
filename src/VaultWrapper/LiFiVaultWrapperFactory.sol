@@ -64,9 +64,9 @@ contract LiFiVaultWrapperFactory is
     /// @notice Adjustable min/max fee bps per fee type, within the immutable caps.
     mapping(FeeType => FeeBounds) public feeBounds;
     /// @notice Default share of the underlying-generated fees (bps) routed to the
-    ///         integrator, per fee type; LI.FI receives the remaining (100% - this
-    ///         value). Read by vault wrappers when splitting fees with the integrator.
-    mapping(FeeType => uint16) public defaultIntegratorShareBps;
+    ///         integrator; LI.FI receives the remaining (100% - this value). Read by
+    ///         vault wrappers when splitting fees with the integrator.
+    uint16 public defaultIntegratorShareBps;
 
     /// @notice Deployed instance address keyed by its CREATE2 salt; non-zero means the salt is taken.
     mapping(bytes32 => address) public instanceBySalt;
@@ -111,12 +111,7 @@ contract LiFiVaultWrapperFactory is
         beacon = _beacon;
         emergencyPauser = _emergencyPauser;
         onboardingManager = _onboardingManager;
-
-        for (uint8 i; i < 4; ++i) {
-            defaultIntegratorShareBps[
-                FeeType(i)
-            ] = DEFAULT_INTEGRATOR_SHARE_BPS;
-        }
+        defaultIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
     }
 
     /// Config (owner / timelock) ///
@@ -153,16 +148,13 @@ contract LiFiVaultWrapperFactory is
         emit FeeBoundsSet(_feeType, _minBps, _maxBps);
     }
 
-    /// @notice Set the default integrator share (bps) of the underlying-generated fees
-    ///         for a fee type; LI.FI implicitly receives the remaining (100% - this
-    ///         value). Read by vault wrappers when applying the split (see S1).
-    function setDefaultSplit(
-        FeeType _feeType,
-        uint16 _integratorBps
-    ) external onlyOwner {
+    /// @notice Set the default integrator share (bps) of the underlying-generated fees;
+    ///         LI.FI implicitly receives the remaining (100% - this value). Read by vault
+    ///         wrappers when applying the split (see S1).
+    function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
         if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
-        defaultIntegratorShareBps[_feeType] = _integratorBps;
-        emit DefaultSplitSet(_feeType, _integratorBps);
+        defaultIntegratorShareBps = _integratorBps;
+        emit DefaultSplitSet(_integratorBps);
     }
 
     /// @notice Rotate the emergency pauser role.
