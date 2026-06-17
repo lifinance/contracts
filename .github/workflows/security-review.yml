@@ -274,8 +274,8 @@ jobs:
             The skill is a thin LI.FI orchestrator over Trail of Bits' open-source
             Claude Code skills, vendored at .claude/vendor/tob-skills/ and exposed
             via symlinks at .claude/plugins/{audit-context-building,differential-review,
-            fp-check,variant-analysis,semgrep-rule-creator}. Invoke those skills
-            as the skill instructs — do NOT reimplement their logic inline.
+            fp-check,semgrep-rule-creator}. Invoke those skills as the skill
+            instructs — do NOT reimplement their logic inline.
 
             Inputs already on disk:
               SARIF_DIR  = ${{ env.SARIF_DIR }}    (slither.sarif, semgrep.sarif — either may be missing)

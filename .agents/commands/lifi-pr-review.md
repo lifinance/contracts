@@ -1,6 +1,6 @@
 ---
 name: lifi-pr-review
-description: PR-time security review for smart contracts. Thin LI.FI orchestrator over Trail of Bits' open-source Claude Code skills (audit-context-building, differential-review, fp-check, variant-analysis). Injects LI.FI's past-audit corpus + repo-specific skip list and waivers; emits curated SARIF + sticky-comment summary in the format the security-review workflow expects.
+description: PR-time security review for smart contracts. Thin LI.FI orchestrator over Trail of Bits' open-source Claude Code skills (audit-context-building, differential-review, fp-check). Injects LI.FI's past-audit corpus + repo-specific skip list and waivers; emits curated SARIF + sticky-comment summary in the format the security-review workflow expects.
 usage: /lifi-pr-review (typically invoked by .github/workflows/security-review.yml; can be run locally for dry-runs)
 ---
 
@@ -36,7 +36,6 @@ CC-BY-SA-4.0 (see NOTICE).
 | `.claude/plugins/audit-context-building/`                      | Pre-Analysis: load LF-NNN corpus as baseline context          |
 | `.claude/plugins/differential-review/`                         | Diff review (replaces our former Track B)                     |
 | `.claude/plugins/fp-check/`                                    | Per-finding verification (replaces our former 4-gate filter)  |
-| `.claude/plugins/variant-analysis/`                            | After each confirmed TP, hunt for siblings elsewhere in `src/` |
 | `.claude/plugins/semgrep-rule-creator/`                        | Used by EXP-487 only (out of scope for per-PR runs)            |
 
 ## Inputs
@@ -145,23 +144,11 @@ matches a confirmed past LI.FI finding, start `fp-check` with that
 finding's original severity as the prior; `fp-check` may still demote
 it to FP, but the LI.FI history is on the table.
 
-### Step 5 — Variant hunt (invoke `variant-analysis`)
-
-For each TRUE POSITIVE confirmed in Step 4, invoke the `variant-analysis`
-skill on `src/` to look for sibling instances elsewhere in the codebase.
-This is the LI.FI-specific augmentation: a bug confirmed in a Facet
-likely has a sibling in another Facet given our pattern-heavy
-architecture (~30 facets sharing helper libraries).
-
-Variants found here are added to the output as separate findings, each
-linked to the TP that triggered the hunt.
-
-### Step 6 — Emit deliverables
+### Step 5 — Emit deliverables
 
 The ToB skills emit their own markdown reports in their own formats; we
 **do not surface those directly** to the PR comment. Instead, we
-normalize all findings (verified TPs from Step 4 + variants from
-Step 5) into our existing schema:
+normalize all verified TPs from Step 4 into our existing schema:
 
 **`${OUT_DIR}/curated.sarif`**:
 
@@ -174,8 +161,8 @@ Step 5) into our existing schema:
 - `properties.gate_trace` set to the abbreviated fp-check gate-review
   rationale (≤80 chars)
 - `properties.upstream_skill` set to `"fp-check"` /
-  `"differential-review"` / `"variant-analysis"` so downstream tooling
-  can attribute the finding source
+  `"differential-review"` so downstream tooling can attribute the
+  finding source
 
 **`${OUT_DIR}/summary.md`**:
 
@@ -192,15 +179,13 @@ Step 5) into our existing schema:
 
 ### Top findings
 - **`LF-046`-like** | High | `src/Facets/AcrossFacetPackedV4.sol:27` —
-  bytes32 receiver field for non-EVM destination. (fp-check verdict: TP;
-  variant-analysis found 2 siblings.)
+  bytes32 receiver field for non-EVM destination. (fp-check verdict: TP.)
 - … (max 10 entries, sorted severity-desc)
 
 ### Tools that contributed
 - Slither:           X raw → Y after skip-list → Z confirmed by fp-check
 - Semgrep:           X raw → Y after skip-list → Z confirmed by fp-check
 - differential-review: N new findings (M confirmed by fp-check)
-- variant-analysis:  K sibling findings hunted from confirmed TPs
 
 ### Past findings echoed in this PR
 - LF-046 (Chainflip bytes32 receiver) — see `audit/knowledge/by-area/facets.md`
@@ -224,8 +209,7 @@ full Code Scanning view._
   "tob_skill_versions": {
     "fp-check": "1.0.0",
     "differential-review": "1.0.0",
-    "audit-context-building": "1.0.0",
-    "variant-analysis": "1.0.0"
+    "audit-context-building": "1.0.0"
   }
 }
 ```
@@ -272,9 +256,9 @@ critical+high > 0.
 | Huge (>30 files)               | Skipped (Step 1)         |
 
 These are higher than the previous estimates because fp-check is a
-per-finding invocation and `variant-analysis` adds a hunt phase. Prompt
-caching of `audit/knowledge/` and the ToB skill files brings the
-steady-state cost down ~70% after the first run of the day per repo.
+per-finding invocation. Prompt caching of `audit/knowledge/` and the
+ToB skill files brings the steady-state cost down ~70% after the first
+run of the day per repo.
 
 ## Reference
 
