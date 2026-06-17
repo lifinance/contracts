@@ -94,8 +94,8 @@ const main = defineCommand({
           .filter(Boolean)
       : undefined
 
-    // JSON consumers parse stdout; route all human logging away from it
-    if (args.json) consola.level = 0
+    // JSON consumers parse stdout; suppress info/success but keep errors visible
+    if (args.json) consola.level = 3
 
     let mongoClient
     let pendingTransactions
