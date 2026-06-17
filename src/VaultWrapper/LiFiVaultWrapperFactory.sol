@@ -31,22 +31,32 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     /// Storage ///
 
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable beacon;
+    /// @notice The UpgradeableBeacon holding the shared wrapper implementation every clone delegatecalls to.
+    address public immutable beacon; // solhint-disable-line immutable-vars-naming
 
+    /// @notice Address authorized to toggle the global circuit breaker.
     address public emergencyPauser;
+    /// @notice Address authorized to approve and revoke integrators.
     address public onboardingManager;
     /// @notice Whether deposits are globally halted; read by every clone.
     bool public globalPaused;
 
+    /// @notice Whether a yield source is permitted as a wrapper underlying.
     mapping(address => bool) public allowedUnderlying;
+    /// @notice Whether an integrator may self-deploy its own wrapper instances.
     mapping(address => bool) public approvedIntegrator;
+    /// @notice Whether a yield adapter is approved for use in deployments.
     mapping(address => bool) public approvedAdapter;
+    /// @notice Adjustable min/max fee bps per fee type, within the immutable caps.
     mapping(FeeType => FeeBounds) public feeBounds;
+    /// @notice Default LI.FI fee share (bps) per fee type, read by clones for the LI.FI/integrator split.
     mapping(FeeType => uint16) public defaultLifiShareBps;
 
+    /// @notice Deployed instance address keyed by its CREATE2 salt; non-zero means the salt is taken.
     mapping(bytes32 => address) public instanceBySalt;
+    /// @notice Whether an address is a wrapper instance deployed by this factory.
     mapping(address => bool) public isInstance;
+    /// @notice Every wrapper instance deployed by this factory, in deployment order.
     address[] internal allInstances;
 
     /// Errors ///
