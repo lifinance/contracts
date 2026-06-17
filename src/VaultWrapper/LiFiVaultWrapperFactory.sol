@@ -124,7 +124,7 @@ contract LiFiVaultWrapperFactory is TransferrableOwnership {
 
     /// Config (owner / timelock) ///
 
-    /// @notice Add or remove an ERC4626 vault from the deploy allowlist.
+    /// @notice Add or remove a yield source from the deploy allowlist.
     function setUnderlyingAllowed(
         address _underlying,
         bool _allowed
