@@ -89,7 +89,7 @@ Carry forward: deployed addresses (for the PR table), succeeded/failed networks,
 
 ## Phase 3 — Execute sync (whitelist mode only)
 
-deploy mode already executed via `deploy-contract` in Phase 1. For whitelist mode, run in the background, monitor output, report per-network results:
+deploy mode already executed via `deploy-contract` in Phase 2. For whitelist mode, run in the background, monitor output, report per-network results:
 
 ```bash
 ./script/tasks/syncWhitelistToNetworks.sh <network...> --production
