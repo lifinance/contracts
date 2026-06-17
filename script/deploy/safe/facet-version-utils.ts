@@ -33,11 +33,14 @@ export function getDeployedFacetVersionFromLog(
   rootDir: string = process.cwd()
 ): string | null {
   try {
-    const cachePath = path.join(
-      rootDir,
+    const base = path.resolve(rootDir)
+    const cachePath = path.resolve(
+      base,
       '.cache',
       'deployments_production.json'
     )
+    const relative = path.relative(base, cachePath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) return null
     if (!fs.existsSync(cachePath)) return null
     const records: unknown = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
     if (!Array.isArray(records)) return null
@@ -84,12 +87,15 @@ export function getTargetStateFacetVersion(
   rootDir: string = process.cwd()
 ): string | null {
   try {
-    const targetStatePath = path.join(
-      rootDir,
+    const base = path.resolve(rootDir)
+    const targetStatePath = path.resolve(
+      base,
       'script',
       'deploy',
       '_targetState.json'
     )
+    const relative = path.relative(base, targetStatePath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) return null
     if (!fs.existsSync(targetStatePath)) return null
     const targetState: unknown = JSON.parse(
       fs.readFileSync(targetStatePath, 'utf8')
