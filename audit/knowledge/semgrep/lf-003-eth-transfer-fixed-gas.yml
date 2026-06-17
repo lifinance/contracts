@@ -15,18 +15,13 @@ rules:
       lf-id: LF-003
       audit: audit20240201
       cwe: CWE-703
+    # ERC20 transfer/send take two args (to, amount); the single-arg
+    # $X.transfer($AMT) / $X.send($AMT) forms below match only the
+    # address-payable native-asset variants, so no IERC20 exclusion is needed.
     patterns:
       - pattern-either:
           - pattern: $X.transfer($AMT)
           - pattern: $X.send($AMT)
-      - metavariable-pattern:
-          metavariable: $X
-          patterns:
-            - pattern-either:
-                - pattern: payable($Y)
-                - pattern: $Y
-          # We don't want to flag IERC20.transfer(...) — only payable address
-          # variants. Tightening below.
     paths:
       include:
         - "src/Facets/**"
