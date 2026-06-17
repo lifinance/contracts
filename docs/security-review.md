@@ -144,7 +144,8 @@ either get extended (with fresh rationale) or removed.
 If a real exploit is being hot-fixed and the security review is blocking the
 merge:
 
-1. Open the PR as a **draft** first — Stage 2 runs but doesn't gate.
+1. Open the PR as a **draft** first — the review is skipped on drafts (see
+   Triggers), so it won't run while you prepare the hot-fix.
 2. Get explicit Slack approval from `@smartcontract_core_lead` (or named
    alternate).
 3. Move to ready-for-review and merge with the override label.
