@@ -81,10 +81,49 @@ function readJson<T>(p: string): T {
   return JSON.parse(raw) as T
 }
 
+function assertAuditLog(v: unknown): asserts v is IAuditLog {
+  const log = v as IAuditLog
+  if (
+    typeof v !== 'object' ||
+    v === null ||
+    typeof log.audits !== 'object' ||
+    log.audits === null
+  ) {
+    throw new Error(`${AUDIT_LOG}: expected an object with an "audits" map`)
+  }
+}
+
+function assertFindingsCorpus(v: unknown): asserts v is IFindingsCorpus {
+  const corpus = v as IFindingsCorpus
+  if (
+    typeof v !== 'object' ||
+    v === null ||
+    typeof corpus.findings !== 'object' ||
+    corpus.findings === null
+  ) {
+    throw new Error(`${FINDINGS}: expected an object with a "findings" map`)
+  }
+  if (
+    corpus.processed_audits !== undefined &&
+    !Array.isArray(corpus.processed_audits)
+  ) {
+    throw new Error(
+      `${FINDINGS}: "processed_audits" must be an array when present`
+    )
+  }
+}
+
 function parseNewAudits(): string[] | null {
   const flagIdx = process.argv.indexOf('--new-audits')
   if (flagIdx === -1) return null
-  const raw = process.argv[flagIdx + 1] ?? ''
+  const raw = process.argv[flagIdx + 1]
+  if (!raw || raw.startsWith('--')) {
+    console.error(
+      'error: --new-audits requires a comma-separated value ' +
+        '(e.g. --new-audits audit20260520,audit20260521)'
+    )
+    process.exit(2)
+  }
   return raw
     .split(',')
     .map((s) => s.trim())
@@ -101,6 +140,8 @@ function main(): void {
   try {
     log = readJson<IAuditLog>(AUDIT_LOG)
     corpus = readJson<IFindingsCorpus>(FINDINGS)
+    assertAuditLog(log)
+    assertFindingsCorpus(corpus)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`error: could not read coverage inputs: ${msg}`)
