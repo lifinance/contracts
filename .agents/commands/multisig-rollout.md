@@ -34,19 +34,27 @@ Run from the repo root. Check and report (don't fix silently) the lifecycle prer
 
 In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Foundry, deployer balances, the `.env`/`--production` agreement) before touching any network — don't duplicate that here.
 
-## Phase 1 — Deploy (deploy mode) / Resolve sync targets (whitelist mode)
+## Phase 1 — Resolve targets
 
-### deploy mode — delegate to `deploy-contract`
+**Do not invoke `deploy-contract` yet.** Phase 1 is target-resolution only; the deploy runs in Phase 2b after the user confirms the plan.
 
-Invoke the `deploy-contract` skill in production:
+### deploy mode
 
-```text
-/deploy-contract <Contract> <network...> --production
+If the user named explicit chains, use those. Otherwise discover every chain where the contract is already live:
+
+```bash
+for F in deployments/*.diamond.json; do
+  NET=$(basename "$F" .diamond.json)
+  V=$(jq -r --arg N "<Contract>" '(.LiFiDiamond.Facets // {}) | to_entries[] | select(.value.Name == $N) | .value.Version' "$F" 2>/dev/null | head -1)
+  [ -n "$V" ] && echo "$NET $V"
+done
 ```
 
-If the user named explicit chains, pass them through; otherwise let `deploy-contract` discover every chain where the contract is already live (`deployments/*.diamond.json`). It resolves old → new version per network, deploys + verifies + registers (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), runs the allowlist sync for diamond-called periphery (a **second** proposal per network), and hands back a per-network table: contract, version, network, chainId, address, registration type, whether a proposal was created, and verification status. Confirm the plan with the user (Phase 2 below) **before** letting `deploy-contract` execute against production.
+Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new per network. Check if the contract is diamond-called (needs a second allowlist proposal per network):
 
-Carry forward from its output: the deployed addresses (for the PR table), which networks succeeded/failed, and whether the periphery allowlist sync ran (two proposals per network if so). Files it changed on disk — `deployments/<net>.json`, plus `config/whitelist.json` / `config/whitelist.staging.json` when the allowlist synced — are committed in Phase 5.
+```bash
+jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
+```
 
 ### whitelist mode — resolve targets
 
@@ -65,9 +73,19 @@ jq -rn --slurpfile A /tmp/wl-base.json --slurpfile B /tmp/wl-head.json \
 
 The sync itself is on-chain-diff-driven, so a too-wide network list is harmless (extra networks no-op) — but keep the list tight so the run stays fast and the Slack post stays truthful.
 
-## Phase 2 — Confirm plan
+## Phase 2 — Confirm plan, then execute
 
-Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead. In deploy mode this is the gate before `deploy-contract` executes.
+Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead before proceeding.
+
+After confirmation, in deploy mode invoke `deploy-contract`:
+
+```text
+/deploy-contract <Contract> <network...> --production
+```
+
+It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), plus the allowlist sync for diamond-called periphery. It hands back a per-network table: contract, version, network, chainId, address, registration type, proposal created, verification status.
+
+Carry forward: deployed addresses (for the PR table), succeeded/failed networks, whether the allowlist sync ran. Files changed on disk — `deployments/<net>.json`, plus `config/whitelist.json` / `config/whitelist.staging.json` when the allowlist synced — are committed in Phase 5.
 
 ## Phase 3 — Execute sync (whitelist mode only)
 
