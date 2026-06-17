@@ -40,10 +40,16 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
         initData = _initData;
     }
 
+    /// @notice Returns the recorded rate (bps) for a fee type.
+    /// @param _feeType The FeeType ordinal (0-3).
+    /// @return The fee rate in basis points.
     function feeRate(uint8 _feeType) external view returns (uint16) {
         return _feeConfig.rateBps[_feeType];
     }
 
+    /// @notice Returns whether a fee type was recorded as enabled.
+    /// @param _feeType The FeeType ordinal (0-3).
+    /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
         return _feeConfig.enabled[_feeType];
     }

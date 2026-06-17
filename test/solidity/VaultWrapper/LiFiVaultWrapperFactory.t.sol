@@ -18,6 +18,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal pauser = makeAddr("pauser");
     address internal onboarder = makeAddr("onboarder");
     address internal integrator = makeAddr("integrator");
+    MockERC4626Underlying internal underlying;
+    address internal assetToken = makeAddr("asset");
 
     function setUp() public virtual {
         impl = new MockVaultWrapper();
@@ -103,10 +105,10 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_EmergencyPauserTogglesGlobalPause() public {
         vm.prank(pauser);
         factory.globalPause();
-        assertTrue(factory.isGlobalPaused());
+        assertTrue(factory.globalPaused());
         vm.prank(pauser);
         factory.globalUnpause();
-        assertFalse(factory.isGlobalPaused());
+        assertFalse(factory.globalPaused());
     }
 
     function test_NonPauserCannotGlobalPause() public {
@@ -146,9 +148,6 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertTrue(a != c);
         assertTrue(a != address(0));
     }
-
-    MockERC4626Underlying internal underlying;
-    address internal assetToken = makeAddr("asset");
 
     function _enableUnderlyingAndBounds() internal {
         underlying = new MockERC4626Underlying(assetToken);
@@ -352,5 +351,31 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(all[0], i0);
         assertEq(all[1], i1);
         assertTrue(i0 != i1);
+    }
+
+    function test_GetInstancesPaginates() public {
+        _enableUnderlyingAndBounds();
+        vm.startPrank(onboarder);
+        address i0 = factory.deploy(_params(integrator, 0));
+        address i1 = factory.deploy(_params(integrator, 1));
+        vm.stopPrank();
+
+        address[] memory first = factory.getInstances(0, 1);
+        assertEq(first.length, 1);
+        assertEq(first[0], i0);
+
+        // limit beyond the end is clamped
+        address[] memory rest = factory.getInstances(1, 5);
+        assertEq(rest.length, 1);
+        assertEq(rest[0], i1);
+
+        // offset at/after the end returns empty
+        assertEq(factory.getInstances(2, 5).length, 0);
+
+        // full range
+        address[] memory page = factory.getInstances(0, 10);
+        assertEq(page.length, 2);
+        assertEq(page[0], i0);
+        assertEq(page[1], i1);
     }
 }
