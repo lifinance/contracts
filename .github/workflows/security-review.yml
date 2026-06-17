@@ -210,7 +210,10 @@ jobs:
       SARIF_DIR: /tmp/sarif
       DIFF_FILE: /tmp/diff.patch
       PR_FILES: /tmp/pr_files.txt
-      OUT_DIR: /tmp/output
+      # OUT_DIR must live inside the workspace: the curated-SARIF upload step
+      # gates on hashFiles(), which only sees files under $GITHUB_WORKSPACE.
+      # A /tmp path there always hashes to '' and the upload silently skips.
+      OUT_DIR: ${{ github.workspace }}/.security-review-output
       # Comment marker the github-script step uses to find an existing comment.
       COMMENT_MARKER: '<!-- lifi-pr-review:summary -->'
     steps:
