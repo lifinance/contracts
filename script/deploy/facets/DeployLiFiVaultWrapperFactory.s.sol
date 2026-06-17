@@ -5,13 +5,19 @@ import { Script } from "forge-std/Script.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 
 /// @title DeployLiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
-/// @notice Deploys the mock wrapper implementation, its upgradeable beacon, and
-///         the vault wrapper factory (mock impl is a temporary stand-in until S1).
-/// @dev Deploy order: MockVaultWrapper → UpgradeableBeacon(impl) → LiFiVaultWrapperFactory(beacon, …)
+/// @notice Deploys the mock wrapper implementation, its upgradeable beacon, the
+///         vault wrapper factory (mock impl is a temporary stand-in until S1), and
+///         the ERC-4626 yield adapter.
+/// @dev Deploy order: MockVaultWrapper → UpgradeableBeacon(impl) → LiFiVaultWrapperFactory(beacon, …) → ERC4626Adapter
 ///      Reads OWNER, EMERGENCY_PAUSER, and ONBOARDING_MANAGER from environment.
+///      The deployer key (PRIVATE_KEY) is not the governance owner, so this script
+///      cannot approve the adapter or allowlist underlyings. After deployment,
+///      governance must call setAdapterApproved(adapter) and setUnderlyingAllowed(underlying)
+///      on the factory before any wrapper can be deployed.
 /// @custom:version 1.0.0
 contract DeployScript is Script {
     error ZeroOwner();
@@ -23,7 +29,8 @@ contract DeployScript is Script {
         returns (
             LiFiVaultWrapperFactory factory,
             UpgradeableBeacon beacon,
-            MockVaultWrapper impl
+            MockVaultWrapper impl,
+            ERC4626Adapter erc4626Adapter
         )
     {
         uint256 deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
@@ -46,6 +53,7 @@ contract DeployScript is Script {
             emergencyPauser,
             onboardingManager
         );
+        erc4626Adapter = new ERC4626Adapter();
 
         vm.stopBroadcast();
     }
