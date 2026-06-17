@@ -41,10 +41,12 @@ contract LiFiVaultWrapperFactory is
     bytes32 internal constant ROLE_ONBOARDING_MANAGER =
         keccak256("ONBOARDING_MANAGER");
 
-    /// Storage ///
+    /// Immutables ///
 
     /// @notice The UpgradeableBeacon holding the shared implementation every vault wrapper delegatecalls to.
     address public immutable beacon; // solhint-disable-line immutable-vars-naming
+
+    /// Storage ///
 
     /// @notice Address authorized to toggle the global circuit breaker.
     address public emergencyPauser;
