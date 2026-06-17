@@ -19,6 +19,26 @@
     "deployedWithSolcVersion": "0.8.17",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "localanvil": {
+    "name": "localanvil",
+    "chainId": 31337,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "ETH",
+    "wrappedNativeAddress": "0x0000000000000000000000000000000000000000",
+    "status": "inactive",
+    "type": "testnet",
+    "rpcUrl": "http://localhost:8545",
+    "verificationType": "etherscan",
+    "explorerUrl": "",
+    "explorerApiUrl": "",
+    "multicallAddress": "",
+    "safeAddress": "",
+    "gasZipChainId": 0,
+    "isZkEVM": false,
+    "deployedWithEvmVersion": "",
+    "deployedWithSolcVersion": "",
+    "create3Factory": ""
+  },
   "rootstock": {
     "name": "rootstock",
     "chainId": 30,
