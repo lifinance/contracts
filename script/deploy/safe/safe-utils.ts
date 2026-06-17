@@ -943,8 +943,11 @@ export function getSigners(doc: ISafeTxDocument): string[] {
  * @returns `0x`-prefixed selector, or `0x` when no calldata is present
  */
 export function getSelector(data: unknown): string {
-  // require 8 hex chars after 0x; reject malformed calldata like 0xzzzzzzzz
-  if (typeof data !== 'string' || !/^0x[0-9a-fA-F]{8}/.test(data)) return '0x'
+  if (
+    typeof data !== 'string' ||
+    !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)
+  )
+    return '0x'
   return data.substring(0, 10)
 }
 
