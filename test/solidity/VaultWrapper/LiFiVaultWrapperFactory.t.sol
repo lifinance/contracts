@@ -355,45 +355,17 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.deploy(p);
     }
 
-    function test_EnumeratesInstances() public {
+    function test_TracksDeployedInstances() public {
         _enableUnderlyingAndBounds();
         vm.startPrank(onboarder);
         address i0 = factory.deploy(_params(integrator, 0));
         address i1 = factory.deploy(_params(integrator, 1));
         vm.stopPrank();
 
-        assertEq(factory.instancesLength(), 2);
-        address[] memory all = factory.getAllInstances();
-        assertEq(all.length, 2);
-        assertEq(all[0], i0);
-        assertEq(all[1], i1);
         assertTrue(i0 != i1);
-    }
-
-    function test_GetInstancesPaginates() public {
-        _enableUnderlyingAndBounds();
-        vm.startPrank(onboarder);
-        address i0 = factory.deploy(_params(integrator, 0));
-        address i1 = factory.deploy(_params(integrator, 1));
-        vm.stopPrank();
-
-        address[] memory first = factory.getInstances(0, 1);
-        assertEq(first.length, 1);
-        assertEq(first[0], i0);
-
-        // limit beyond the end is clamped
-        address[] memory rest = factory.getInstances(1, 5);
-        assertEq(rest.length, 1);
-        assertEq(rest[0], i1);
-
-        // offset at/after the end returns empty
-        assertEq(factory.getInstances(2, 5).length, 0);
-
-        // full range
-        address[] memory page = factory.getInstances(0, 10);
-        assertEq(page.length, 2);
-        assertEq(page[0], i0);
-        assertEq(page[1], i1);
+        assertTrue(factory.isInstance(i0));
+        assertTrue(factory.isInstance(i1));
+        assertFalse(factory.isInstance(makeAddr("notAnInstance")));
     }
 
     function test_DeployRevertsOnUnapprovedAdapter() public {

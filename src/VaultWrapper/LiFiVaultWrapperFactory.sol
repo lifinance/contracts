@@ -72,8 +72,6 @@ contract LiFiVaultWrapperFactory is
     mapping(bytes32 => address) public instanceBySalt;
     /// @notice Whether an address is a wrapper instance deployed by this factory.
     mapping(address => bool) public isInstance;
-    /// @notice Every wrapper instance deployed by this factory, in deployment order.
-    address[] internal allInstances;
 
     /// Modifiers ///
 
@@ -201,34 +199,6 @@ contract LiFiVaultWrapperFactory is
 
     /// Views ///
 
-    /// @notice Number of wrapper instances deployed by this factory.
-    function instancesLength() external view returns (uint256) {
-        return allInstances.length;
-    }
-
-    /// @notice All wrapper instances deployed by this factory.
-    function getAllInstances() external view returns (address[] memory) {
-        return allInstances;
-    }
-
-    /// @notice A bounded slice of deployed instances, for enumeration at scale.
-    /// @param _offset Start index into the instance list.
-    /// @param _limit Maximum number of instances to return.
-    /// @return page The instances in [_offset, min(_offset + _limit, length)).
-    function getInstances(
-        uint256 _offset,
-        uint256 _limit
-    ) external view returns (address[] memory page) {
-        uint256 total = allInstances.length;
-        if (_offset >= total) return new address[](0);
-        uint256 end = _offset + _limit;
-        if (end > total) end = total;
-        page = new address[](end - _offset);
-        for (uint256 i; i < page.length; ++i) {
-            page[i] = allInstances[_offset + i];
-        }
-    }
-
     /// @notice The deterministic address a vault wrapper will have for the given key.
     function predictAddress(
         address _integrator,
@@ -303,7 +273,6 @@ contract LiFiVaultWrapperFactory is
 
         instanceBySalt[salt] = instance;
         isInstance[instance] = true;
-        allInstances.push(instance);
 
         emit WrapperDeployed(
             instance,
