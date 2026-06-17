@@ -21,6 +21,7 @@ import type {
   INetwork,
   INetworkInfo,
   INetworksObject,
+  NetworkKey,
   SupportedChain,
 } from '../common/types'
 import { EnvironmentEnum } from '../common/types'
@@ -351,7 +352,7 @@ export async function saveContractAddress(
  * Tries env-specific file first, then base network file; also tries alternate roots (e.g. cwd vs cwd/contracts).
  */
 export async function getContractAddress(
-  network: SupportedChain,
+  network: NetworkKey,
   contract: string
 ): Promise<string | null> {
   const environment = getEnvironment()
@@ -535,7 +536,7 @@ export async function updateDiamondJson(
   facetAddress: string,
   facetName: string,
   version?: string,
-  network: SupportedChain = 'tron'
+  network: NetworkKey = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
@@ -626,7 +627,7 @@ export async function updateDiamondJsonBatch(
     name: string
     version?: string
   }>,
-  network: SupportedChain = 'tron'
+  network: NetworkKey = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
@@ -730,7 +731,7 @@ export async function updateDiamondJsonBatch(
 export async function updateDiamondJsonPeriphery(
   contractAddress: string,
   contractName: string,
-  network: SupportedChain = 'tron'
+  network: NetworkKey = 'tron'
 ): Promise<void> {
   try {
     const diamondJsonPath = resolve(
@@ -937,4 +938,3 @@ Selectors: ${selectors.length} functions
     },
   })
 }
-
