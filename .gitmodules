@@ -28,4 +28,3 @@
 [submodule ".claude/vendor/tob-skills"]
 	path = .claude/vendor/tob-skills
 	url = https://github.com/trailofbits/skills.git
-	branch = main
