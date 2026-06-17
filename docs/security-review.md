@@ -27,8 +27,8 @@ Before the workflow can run for the first time, a repo admin must:
 The pipeline is intentionally **a thin LI.FI layer over open-source security
 skills**. Pashov's audit teams and Trail of Bits have published Claude Code
 skills that encode best-in-class security-review methodology (per-finding
-verification with gate reviews, diff-aware code analysis, variant hunting,
-etc.). Reinventing those in-house would be wasted effort. The LI.FI value-
+verification with gate reviews, diff-aware code analysis, etc.).
+Reinventing those in-house would be wasted effort. The LI.FI value-
 add is the audit history (LF-NNN corpus + Semgrep rules derived from it)
 and the CI/Code-Scanning plumbing.
 
@@ -53,7 +53,6 @@ and the CI/Code-Scanning plumbing.
    │       • audit-context-building  ← bottom-up baseline understanding    │
    │       • differential-review     ← diff-scoped review (7 phases)        │
    │       • fp-check                ← per-finding TP/FP verification      │
-   │       • variant-analysis        ← sibling-bug hunt on confirmed TPs   │
    └─────────────────┬─────────────────────────────────────────────────────┘
                      │
                   ┌──▼── Stage 3: publish ───────────────────────┐
@@ -257,9 +256,8 @@ pass, it belongs in EXP-486 (nightly deep scan), not per-PR Stage 1.
 | 3     | <10 s           | free          |
 
 Stage 2 cost increased vs. the pre-refactor estimate because `fp-check`
-is a per-finding invocation and `variant-analysis` adds a hunt phase on
-each confirmed TP. The trade-off is much higher precision (six gates
-vs. our previous four) and built-in variant detection.
+is a per-finding invocation. The trade-off is much higher precision
+(six gates vs. our previous four).
 
 Steady-state per-PR API cost is dominated by re-reading the audit
 knowledge corpus + the ToB skill files. Prompt caching brings it down

@@ -26,7 +26,6 @@ Plugins used by this repository's /lifi-pr-review skill:
   - differential-review
   - fp-check
   - semgrep-rule-creator
-  - variant-analysis
 
 Modifications: none. The vendored content is included verbatim at the
 pinned commit. LI.FI's wrapper skill at .agents/commands/lifi-pr-review.md
