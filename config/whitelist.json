@@ -5540,6 +5540,20 @@
         ]
       },
       {
+        "name": "GasZipPeriphery",
+        "address": "0xbD21C9E5536a483888c81B59a48797cd0f981086",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
         "name": "LiFiDEXAggregator",
         "address": "0xB479A5FF1b2Bda4D5F13fCAfF0C3Cd6102019F6B",
         "selectors": [
