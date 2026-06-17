@@ -17,10 +17,20 @@ rules:
       lf-id: LF-008
       audit: audit20240201
       cwe: CWE-778
-    pattern: |
-      function $F (...) ... onlyOwner ... {
-        ...
-      }
+    patterns:
+      - pattern: |
+          function $F (...) ... onlyOwner ... {
+            ...
+          }
+      # Exclude functions that already emit — otherwise the rule flags every
+      # admin function (100% FP). The remaining matches are admin-gated
+      # functions with no emit in the body, which is the documented target.
+      - pattern-not: |
+          function $F (...) ... onlyOwner ... {
+            ...
+            emit $E(...);
+            ...
+          }
     paths:
       include:
         - "src/Facets/**"
