@@ -4,6 +4,7 @@
   "Source for TokenMessengerV2 addresses and CCTP domain IDs (to be used in Facet): https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2": {},
   "Source for USDC addresses: https://developers.circle.com/stablecoins/usdc-contract-addresses": {},
   "Source for chainId to CCTP domain mappings: https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains": {},
+  "Note: chainId 999 (HyperEVM) and 1337 (HyperCore) intentionally share CCTP domain 19 — HyperCore settles through HyperEVM's CCTP domain. The mapping is keyed by chainId (forward-only), so distinct chainIds sharing a domainId is expected and safe.": {},
   "mappings": [
     { "chainId": 1, "domainId": 0 },
     { "chainId": 43114, "domainId": 1 },
