@@ -11,8 +11,16 @@ Before the workflow can run for the first time, a repo admin must:
 
 1. **Create a GitHub Environment** named `security-review` (Settings → Environments → New environment). This isolates the Anthropic credentials.
 2. **Add `ANTHROPIC_API_KEY`** as an _environment secret_ on that environment (not a plain repo secret).
-3. **Enable GitHub Code Scanning** (Settings → Code security and analysis → Code scanning). The Stage 1 + curated SARIF uploads require it.
+3. **Enable GitHub Code Scanning** (Settings → Code security and analysis → Code scanning). The curated SARIF upload (Stage 3) requires it. Stage 1 tool output is not uploaded — it is archived as a run artifact and fed to Stage 2 triage.
 4. (Optional, recommended) Add required reviewers on the environment so the AI triage step can't run without approval on forks.
+
+> **First run is post-merge.** `claude-code-action` only runs when this
+> workflow file is byte-identical to the copy on the default branch (its
+> built-in guard against a PR editing the review workflow to exfiltrate the
+> API key). So Stage 2 stays inert on the PR that introduces the workflow and
+> first runs for real on the next PR after this lands on the default branch.
+> Stage 1 (Slither/Semgrep) and the sticky comment are unaffected and run on
+> any branch.
 
 ## Architecture
 
@@ -258,8 +266,8 @@ knowledge corpus + the ToB skill files. Prompt caching brings it down
 ~70% in normal operation once warm.
 
 For PRs >30 changed src/ files (rare), Stage 2 self-skips with a "PR too
-large for AI triage" notice and Stage 1 SARIF remains visible. Request a
-manual security review for those.
+large for AI triage" notice; the raw Stage 1 SARIF remains available as a
+run artifact. Request a manual security review for those.
 
 ## Troubleshooting
 

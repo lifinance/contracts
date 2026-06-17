@@ -1,8 +1,9 @@
 # Security Review — Stages 1 + 2 + 3 (deterministic static analysis + AI triage + publish)
 # - Stage 1: Slither and Semgrep run in parallel on every non-draft PR touching
-#   src/** or audit/knowledge/**. Each emits SARIF to Code Scanning (raw
-#   findings visible immediately) AND uploads it as an artifact so Stage 2 can
-#   consume it.
+#   src/** or audit/knowledge/**. Each archives its SARIF as an artifact that
+#   Stage 2 consumes — it is an INPUT to the AI triage, NOT a standalone Code
+#   Scanning result (raw, untriaged tool output is exactly the noise Stage 2
+#   filters). Only Stage 2's curated.sarif reaches Code Scanning.
 # - Stage 2 (EXP-483): the lifi-pr-review job depends on Stage 1, downloads the
 #   SARIF artifacts, and invokes the /lifi-pr-review skill via
 #   anthropics/claude-code-action. The skill triages static findings through
@@ -42,15 +43,19 @@ concurrency:
 jobs:
   slither:
     # Slither: static analyzer for Solidity. Detects ~90 vulnerability classes
-    # out of the box. The official crytic/slither-action runs in a Docker
-    # container and emits SARIF directly.
+    # out of the box. We install it via pip and run it directly (rather than
+    # crytic/slither-action) so crytic-compile drives our pinned foundry to
+    # compile. The Docker action runs `npm install` when it sees package.json,
+    # which fails on the repo's pre-existing peer-dep conflict (npm ERESOLVE);
+    # and its `ignore-compile` path can't parse foundry 1.7.1 build-info.
     name: slither
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     continue-on-error: true # advisory mode (EXP-480)
     permissions:
-      contents: read
-      security-events: write # required to upload SARIF to GitHub Code Scanning
+      contents: read # Stage 1 only archives SARIF as an artifact for Stage 2
+    env:
+      SLITHER_VERSION: '0.11.3'
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -58,27 +63,33 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Run Slither
-        uses: crytic/slither-action@b52cc1cbfee9ca3e8722dd5224299d16c9a6b80f # v0.4.2
-        id: slither
-        with:
-          target: '.'
-          sarif: slither.sarif
-          fail-on: none # advisory mode: emit findings but do not fail the job
-          slither-args: --exclude-informational --exclude-low
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
 
-      - name: Upload Slither SARIF
-        # Run even if the slither step recorded findings (Slither exits non-zero
-        # on findings when fail-on != none; with fail-on=none it should always
-        # exit 0, but uploading conditionally keeps the workflow robust).
-        if: always() && hashFiles('slither.sarif') != ''
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.1.1
         with:
-          sarif_file: slither.sarif
-          category: slither
+          python-version: '3.12'
+
+      - name: Install Slither
+        run: |
+          set -euo pipefail
+          # setuptools<81 keeps pkg_resources, which crytic-compile imports.
+          python -m pip install --no-cache-dir "setuptools<81" "slither-analyzer==${SLITHER_VERSION}"
+          slither --version
+
+      - name: Run Slither
+        # crytic-compile drives the pinned forge to compile; no Docker, no npm.
+        # --fail-none keeps the step green when findings exist (advisory mode);
+        # SARIF is written regardless and archived for Stage 2 below.
+        run: slither . --sarif slither.sarif --exclude-informational --exclude-low --fail-none
 
       - name: Archive Slither SARIF for Stage 2
-        # Stage 2 (lifi-pr-review) downloads this artifact to triage findings.
+        # Stage 1 raw output is an INPUT to Stage 2 triage, not a standalone
+        # Code Scanning result — so we archive it as an artifact and let only
+        # Stage 2's curated.sarif reach Code Scanning. (Direct upload here
+        # would create a standalone "Slither" check that fails on every raw
+        # alert, defeating the AI triage.)
         if: always() && hashFiles('slither.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -103,8 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true # advisory mode (EXP-480)
     permissions:
-      contents: read
-      security-events: write # required to upload SARIF to GitHub Code Scanning
+      contents: read # Stage 1 only archives SARIF as an artifact for Stage 2
     env:
       # Pinned to a Semgrep release that has been validated against the rule
       # corpus. Bump by updating the version + revalidating the rules with
@@ -124,7 +134,11 @@ jobs:
       - name: Install Semgrep
         run: |
           set -euo pipefail
-          python -m pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+          # Python 3.12 no longer bundles setuptools; semgrep imports
+          # pkg_resources at runtime. setuptools >=81 REMOVED pkg_resources,
+          # so pin <81 — a bare `setuptools` pulls 82+ and still fails with
+          # ModuleNotFoundError: No module named 'pkg_resources'.
+          python -m pip install --no-cache-dir "setuptools<81" "semgrep==${SEMGREP_VERSION}"
           semgrep --version
 
       - name: Skip if no custom rules
@@ -159,14 +173,9 @@ jobs:
             --metrics=off \
             src/
 
-      - name: Upload Semgrep SARIF
-        if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
-        with:
-          sarif_file: semgrep.sarif
-          category: semgrep
-
       - name: Archive Semgrep SARIF for Stage 2
+        # Input to Stage 2 triage, not a standalone Code Scanning result —
+        # see the matching note in the slither job.
         if: always() && hashFiles('semgrep.sarif') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -196,6 +205,7 @@ jobs:
       contents: read
       pull-requests: write # post/update the sticky summary comment
       security-events: write # upload curated.sarif to Code Scanning
+      id-token: write # claude-code-action fetches an OIDC token at startup
     env:
       SARIF_DIR: /tmp/sarif
       DIFF_FILE: /tmp/diff.patch
@@ -304,7 +314,7 @@ jobs:
             if (fs.existsSync(process.env.SUMMARY_PATH)) {
               body = `${marker}\n${fs.readFileSync(process.env.SUMMARY_PATH, 'utf8')}`;
             } else {
-              body = `${marker}\n## 🛡️ Security Review\n\n_Stage 2 (AI triage) did not produce a summary — Stage 1 SARIF is still visible in the Security tab._`;
+              body = `${marker}\n## 🛡️ Security Review\n\n_Stage 2 (AI triage) did not produce a summary. Raw Stage 1 (Slither/Semgrep) output is attached as a workflow-run artifact; see the run logs._`;
             }
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
