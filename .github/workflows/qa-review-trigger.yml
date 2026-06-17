@@ -1,3 +1,13 @@
+# Trigger Zeus QA Review
+# - Purpose: plugs the contracts repo into the lifinance/QA Zeus QA pipeline. Applying the
+#   "Agent Review Request" label swaps it for "QA AI Reviewing" and dispatches qa-run.yml in
+#   lifinance/QA (agent=zeus, scenario=QAReviewContracts.md, ticket=PR URL).
+# - Triggers: pull_request [labeled]; the job runs only when the applied label is
+#   "Agent Review Request".
+# - Key behaviors: label swap, cross-repo workflow_dispatch via a least-privilege GitHub App
+#   token, and label restore on dispatch failure so the trigger can simply be re-applied.
+# - Known limitations: requires the QA_APP_ID / QA_APP_PRIVATE_KEY secrets and the App
+#   installation to grant Actions:write on lifinance/QA; never touches protected audit labels.
 name: Trigger Zeus QA Review
 
 on:
@@ -14,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      pull-requests: write
+      pull-requests: write # required to swap/restore the QA review labels on the PR
 
     steps:
       - name: Create GitHub App token
@@ -25,6 +35,7 @@ jobs:
           private-key: ${{ secrets.QA_APP_PRIVATE_KEY }}
           owner: lifinance
           repositories: QA
+          permission-actions: write # least privilege: token only dispatches qa-run.yml
 
       - name: Swap labels
         env:
