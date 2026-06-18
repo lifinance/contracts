@@ -2278,7 +2278,8 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "GlacisFacet": "1.2.0"
       }
     }
   },
