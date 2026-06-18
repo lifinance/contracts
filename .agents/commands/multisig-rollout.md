@@ -69,6 +69,8 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead. In deploy mode this is the gate before `deploy-contract` executes.
 
+Set the interaction model up front so the user knows the shape: tell them this rollout is **semi-automated** — at one point it will pause and ask them to sign the proposals with their hardware wallet, after which they come back to this chat and the skill finishes the rest (verify signatures + post Slack). Knowing the pause is coming is what stops them from completing those final steps by hand.
+
 ## Phase 3 — Execute sync (whitelist mode only)
 
 deploy mode already executed via `deploy-contract` in Phase 1. For whitelist mode, run in the background, monitor output, report per-network results:
@@ -97,15 +99,21 @@ The deploy updated `deployments/<net>.json` (and staging logs if staging was dep
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
 
-## Phase 6 — Hand off signing
+## Phase 6 — Hand off signing (then wait for the user to come back)
 
-Give the user (VPN required; Ledger is the default signer):
+This is the one step the skill cannot run itself: `confirm-safe-tx.ts` is an interactive program that drives the user's Ledger over USB, so it must run in *their* terminal. Give them (VPN required; Ledger is the default signer):
 
 ```bash
 bunx tsx script/deploy/safe/confirm-safe-tx.ts
 ```
 
-Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation). They will sign each proposal — one signature is already on it, so theirs makes 2 of the 3 required (the remaining signer comes from the Slack thread). Then **stop and wait** for the user to say they're done.
+Variants if they ask: `--network <name>` (one chain), `--ledgerLive --accountIndex <i>` (Ledger Live derivation).
+
+Then make the hand-back contract explicit — tell the user, in these words:
+
+> Run the command above and approve each proposal on your Ledger. **When you're done, come back to this chat and tell me "signed" (or "done").** I'll then verify the signatures and post the Slack thread for you. **Please don't post to Slack or check the signatures yourself** — those are my remaining steps (Phases 7–8); doing them by hand means I can't confirm the rollout actually completed.
+
+Each proposal already carries one signature, so theirs makes 2 of the 3 required (the remaining signer comes from the Slack thread). Then **stop and wait** — do not proceed to Phase 7 until the user says they've signed. If they go quiet here, the rollout is **unfinished**: proposals sit at the runner's signature with no Slack ask. If the conversation resumes later with no signal either way, re-confirm by re-running Phase 7's check rather than assuming.
 
 ## Phase 7 — Verify signatures
 
