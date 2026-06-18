@@ -198,7 +198,7 @@ jobs:
         if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_MICHAL_TEST }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
           webhook-type: incoming-webhook
           payload: |
             {
