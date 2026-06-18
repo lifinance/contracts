@@ -29,7 +29,6 @@ struct DeployParams {
     address integrator;
     address adapter; // Approved yield adapter; validates `underlying` and derives its asset.
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
-    uint256 chainLockId;
     uint256 nonce;
     FeeConfig fees;
     bytes initData;

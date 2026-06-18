@@ -175,7 +175,6 @@ contract LiFiVaultWrapperFactoryTest is Test {
             integrator: integrator_,
             adapter: address(adapter),
             underlying: address(underlying),
-            chainLockId: 0,
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
             initData: hex"1234"
@@ -205,7 +204,6 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
         assertEq(w.integrator(), integrator);
-        assertEq(w.chainLockId(), 0);
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
         assertEq(w.initData(), hex"1234");
@@ -272,24 +270,6 @@ contract LiFiVaultWrapperFactoryTest is Test {
             ILiFiVaultWrapperFactory.UnderlyingProbeFailed.selector
         );
         factory.deploy(p);
-    }
-
-    function test_DeployRevertsOnForeignChainLock() public {
-        _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
-        p.chainLockId = block.chainid + 1;
-        vm.prank(onboarder);
-        vm.expectRevert(ILiFiVaultWrapperFactory.ChainLockMismatch.selector);
-        factory.deploy(p);
-    }
-
-    function test_DeployPassesWithMatchingChainLock() public {
-        _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
-        p.chainLockId = block.chainid;
-        vm.prank(onboarder);
-        address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).chainLockId(), block.chainid);
     }
 
     function test_DeployRevertsOnFeeAboveBound() public {

@@ -253,9 +253,6 @@ contract LiFiVaultWrapperFactory is
 
         address asset = _probeViaAdapter(_params.adapter, _params.underlying);
 
-        if (_params.chainLockId != 0 && _params.chainLockId != block.chainid)
-            revert ChainLockMismatch();
-
         _validateFees(_params.fees);
 
         bytes32 salt = _salt(
@@ -279,7 +276,6 @@ contract LiFiVaultWrapperFactory is
             _params.integrator,
             _params.underlying,
             _params.adapter,
-            _params.chainLockId,
             _params.nonce,
             salt
         );
@@ -289,7 +285,6 @@ contract LiFiVaultWrapperFactory is
             _params.underlying,
             _params.adapter,
             _params.integrator,
-            _params.chainLockId,
             _params.fees,
             _params.initData
         );

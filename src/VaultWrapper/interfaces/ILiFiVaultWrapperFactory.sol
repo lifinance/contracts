@@ -15,7 +15,6 @@ interface ILiFiVaultWrapperFactory {
     /// @param integrator The integrator that owns the instance.
     /// @param underlying The wrapped yield source.
     /// @param adapter The yield adapter the vault wrapper routes through.
-    /// @param chainLockId 0 if unlocked, else the only chain id where deposits are allowed.
     /// @param nonce The caller-supplied nonce disambiguating instances.
     /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
@@ -23,7 +22,6 @@ interface ILiFiVaultWrapperFactory {
         address indexed integrator,
         address indexed underlying,
         address adapter,
-        uint256 chainLockId,
         uint256 nonce,
         bytes32 salt
     );
@@ -84,8 +82,6 @@ interface ILiFiVaultWrapperFactory {
     error AdapterNotApproved();
     /// @notice Thrown when the adapter fails to validate the underlying.
     error UnderlyingProbeFailed();
-    /// @notice Thrown when the chain-lock id does not match the current chain.
-    error ChainLockMismatch();
     /// @notice Thrown when an enabled fee rate is outside its configured bounds.
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
