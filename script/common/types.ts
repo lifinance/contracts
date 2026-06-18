@@ -15,6 +15,12 @@ export type TTronWalletName = keyof TGlobalConfig['tronWallets']
 
 export type SupportedChain = keyof typeof networks
 
+/** Tron network keys — hardcoded because they are never in networks.json (Tron is non-EVM). */
+export type TronNetworkKey = 'tron' | 'tronshasta'
+
+/** Any network key accepted by deployment scripts: EVM chains from config plus Tron. */
+export type NetworkKey = SupportedChain | TronNetworkKey
+
 type NetworkRow = (typeof networks)[keyof typeof networks]
 
 /**
