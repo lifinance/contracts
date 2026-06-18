@@ -127,10 +127,18 @@ each finding becomes a **suspected bug** for Step 4.
 
 Build the verification queue from **two sources**:
 
-1. **Stage 1 SARIF survivors**: every finding in `${SARIF_DIR}/*.sarif`,
-   minus anything matching `audit/findings/waived.yml` (only if that file
-   exists — see its schema in `docs/security-review.md`). Surviving findings
-   are treated as "suspected bugs" needing TP/FP verification.
+1. **Stage 1 SARIF survivors**: Slither (and Semgrep) run **repo-wide**, so the
+   SARIF carries findings from across `src/`, not just this PR. Filter, in order:
+   1. **Scope to the PR (mandatory)** — keep only findings whose location file
+      is listed in `${PR_FILES}` (the changed `src/` files). Drop every finding
+      in a file this PR did not touch: it is pre-existing, not introduced here,
+      and out of scope for a per-PR review. Without this step a repo-wide
+      Slither run (100+ raw findings) floods `fp-check` with unchanged code and
+      surfaces alerts the PR is not responsible for.
+   2. **Drop waivers** — remove anything matching `audit/findings/waived.yml`
+      (only if that file exists — see its schema in `docs/security-review.md`).
+
+   The survivors are treated as "suspected bugs" needing TP/FP verification.
 2. **`differential-review` findings**: each finding it surfaced in Step 3.
 
 For each suspected bug, invoke the `fp-check` skill in batch-triage mode.
@@ -181,8 +189,8 @@ normalize all verified TPs from Step 4 into our existing schema:
 - … (max 10 entries, sorted severity-desc)
 
 ### Tools that contributed
-- Slither:           X raw → Y after waivers → Z confirmed by fp-check
-- Semgrep:           X raw → Y after waivers → Z confirmed by fp-check
+- Slither:           X raw (repo-wide) → Y in changed files → Z confirmed by fp-check
+- Semgrep:           X raw (repo-wide) → Y in changed files → Z confirmed by fp-check
 - differential-review: N new findings (M confirmed by fp-check)
 
 ### Past findings echoed in this PR
