@@ -182,7 +182,7 @@ jobs:
             HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
-          # The Hexagate PAT entry is a parent bullet with four indented child bullets beneath it.
+          # The Hexagate PAT entry is a parent bullet with six indented child bullets beneath it.
           TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* classic PAT)\n    - %s No SSO block on lifinance org access\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
             "$HEADER" \
             "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
