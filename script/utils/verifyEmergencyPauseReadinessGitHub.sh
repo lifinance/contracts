@@ -294,14 +294,10 @@ function verifyNetwork() {
 # hexagatePatValidity / hexagatePatDispatch / hexagatePatTeam) so the workflow can render
 # them as child bullets in the Slack status message.
 #
-# Reads HEXAGATE_PAUSER_PAT from env (set from GitHub secret). Skips silently if unset.
-# Returns: 0 on all checks pass (or skipped due to unset PAT), 1 on any failure.
+# Reads HEXAGATE_PAUSER_PAT from env (set from GitHub secret). Caller must not call this
+# when the PAT is unset — the skip guard lives in main() to keep status accurate.
+# Returns: 0 on all checks pass, 1 on any failure.
 function verifyHexagatePatReadiness() {
-  if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
-    echo "HEXAGATE_PAUSER_PAT not set — skipping Hexagate PAT readiness checks"
-    return 0
-  fi
-
   local GH_HEADERS=(-H "Authorization: Bearer $HEXAGATE_PAUSER_PAT" \
                     -H "X-GitHub-Api-Version: 2022-11-28" \
                     -H "Accept: application/vnd.github+json")
@@ -567,7 +563,11 @@ function main {
   ##### Hexagate PAT check: verify the PAT Hexagate uses to dispatch this workflow is still valid
   echo "-------------------------------------------------------------------------------------"
   local HEXAGATE_PAT_FAILED=0
-  if verifyHexagatePatReadiness; then
+  if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
+    # Secret not configured — leave HEXAGATE_PAT_STATUS="skipped" so the parent bullet
+    # shows ⏭️ rather than ✅ (pass would be misleading: nothing was actually checked).
+    echo "HEXAGATE_PAUSER_PAT not set — skipping Hexagate PAT readiness checks"
+  elif verifyHexagatePatReadiness; then
     HEXAGATE_PAT_STATUS="pass"
   else
     HEXAGATE_PAT_STATUS="fail"
