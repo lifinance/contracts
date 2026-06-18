@@ -35,15 +35,16 @@ const INCOMING_REPOS = csv(
 )
 const BOT_RE =
   /(\[bot\]|-bot$|^coderabbitai$|^github-actions$|^lifi-action-bot$|^linear$|^linear-code$|^github-advanced-security$|^aikido-pr-checks$|^lifi-team$|^app\/)/i
-// checks that fail because a human review/approval/audit is missing — not restartable
+// automated checks that genuinely fail because a review tool flagged something — not restartable
 const REVIEW_CI_RE =
-  /coderabbit|audit|security|slither|olympix|review|approval|protect-critical/i
-// the SC Core Dev Approval gate (job `core-dev-approval`) is RED by default until a core dev
-// approves — at which point the PR auto-merges. It is a governance gate, not a CI failure, so on
-// its own it must NOT push a PR into CI-RED; the PR instead routes through the normal review-wait
-// flow. (A red security/audit gate while core-dev-approval is green is still reported — that case
-// genuinely needs a bump.)
-const CORE_DEV_GATE_RE = /core-dev-approval|sc core dev approval/i
+  /coderabbit|audit|security|slither|olympix|review|approval/i
+// Human gates are RED by default until a person acts, then go green:
+//   - `core-dev-approval` / `SC Core Dev Approval` — red until a core dev approves (PR then auto-merges)
+//   - `protect-critical-code` — red until a reviewer signs off on touched critical paths
+// They are governance gates, not CI failures, so on their own they must NOT push a PR into CI-RED;
+// the PR routes through the normal review-wait flow instead. (A red security/audit gate while these
+// are green is still reported — that case genuinely needs a bump.)
+const HUMAN_GATE_RE = /core-dev-approval|sc core dev approval|protect-critical/i
 const INCOMING_LOOKBACK_DAYS = 42 // mirrors the skill's 6-week channel-history window
 const STALE_CREATED_DAYS = 42 // 6 weeks
 const STALE_UPDATED_DAYS = 14 // 2 weeks
@@ -226,7 +227,7 @@ for (let i = 0; i < seeds.length; i += GQL_CHUNK) {
 // ---------- 3. classify ----------
 interface ICiFailure {
   name: string
-  kind: 'review/audit' | 'restartable' | 'core-dev-gate'
+  kind: 'review/audit' | 'restartable' | 'human-gate'
 }
 interface IRow {
   repo: string
@@ -281,7 +282,10 @@ for (const s of seeds) {
   const ciFailures: ICiFailure[] = (rollup?.contexts?.nodes ?? [])
     .filter(
       (c: any) =>
+        // Only finished runs count: an in-progress re-run still carries its previous
+        // `conclusion`, so without the COMPLETED guard a now-passing check reads as a stale failure.
         (c.__typename === 'CheckRun' &&
+          c.status === 'COMPLETED' &&
           (c.conclusion === 'FAILURE' ||
             c.conclusion === 'TIMED_OUT' ||
             c.conclusion === 'ACTION_REQUIRED')) ||
@@ -290,8 +294,8 @@ for (const s of seeds) {
     )
     .map((c: any) => {
       const name = c.name ?? c.context
-      const kind = CORE_DEV_GATE_RE.test(name)
-        ? ('core-dev-gate' as const)
+      const kind = HUMAN_GATE_RE.test(name)
+        ? ('human-gate' as const)
         : REVIEW_CI_RE.test(name)
         ? ('review/audit' as const)
         : ('restartable' as const)
@@ -365,9 +369,10 @@ for (const s of seeds) {
     const stale =
       days(s.createdAt) >= STALE_CREATED_DAYS &&
       days(s.updatedAt) >= STALE_UPDATED_DAYS
-    // The core-dev-approval gate is red by default until reviewed — on its own it is not a CI
-    // failure. Only genuine failures (tests, security/audit gates, restartable jobs) make a PR red.
-    const realFailures = ciFailures.filter((f) => f.kind !== 'core-dev-gate')
+    // Human gates (core-dev-approval, protect-critical-code) are red by default until a person
+    // acts — on their own they are not CI failures. Only genuine failures (tests, security/audit
+    // gates, restartable jobs) make a PR red.
+    const realFailures = ciFailures.filter((f) => f.kind !== 'human-gate')
     const ciRed = ci === 'FAIL' && realFailures.length > 0
     if (pr.isDraft) {
       if (stale) bucket = 'STALE'
@@ -511,14 +516,14 @@ if (JSON_MODE) {
     for (const r of group.sort(
       (a, b2) => Date.parse(a.createdAt) - Date.parse(b2.createdAt)
     )) {
-      const onlyCoreDevGate =
+      const onlyHumanGate =
         r.ci === 'FAIL' &&
         r.ciFailures.length > 0 &&
-        r.ciFailures.every((f) => f.kind === 'core-dev-gate')
+        r.ciFailures.every((f) => f.kind === 'human-gate')
       const bits = [
         `${r.repo}#${r.number}`,
         r.title.length > 60 ? r.title.slice(0, 57) + '…' : r.title,
-        `CI:${onlyCoreDevGate ? 'awaiting-core-dev-approval' : r.ci}`,
+        `CI:${onlyHumanGate ? 'awaiting-human-gate' : r.ci}`,
         r.conflicts ? 'CONFLICTS' : null,
         r.kind === 'incoming' ? `by ${r.author}` : null,
         r.lastNonAuthorComment

@@ -57,7 +57,7 @@ The script assigns each PR exactly one **native bucket** (the `bucket` field). R
 
 Skip this entirely for PRs without the flag. For the flagged set:
 
-1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks) serves all contracts-repo PRs — match by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) only for PRs not in the scraped window. No post found → mark "not posted for review yet".
+1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks) serves all contracts-repo PRs — match by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) only for PRs not in the scraped window. Only assert "not posted for review yet" when the scan window provably covers the PR (its `created` is inside the 6-week scrape **and** the fallback search returned nothing) — otherwise the absence is unconfirmed, so emit **no** Slack note rather than a false negative. Never word a note as "Posted today" (ambiguous with the Slack action): for a freshly-opened PR say "Created today", reserving "posted" for a confirmed `#dev-sc-review` message.
 2. **Read each found thread** with `slack_read_thread` (`response_format="detailed"`), batched 5–8 per message in parallel. Paginate until `reply_count` is exhausted — the missed reply is usually the newest, which decides the bucket.
 3. **Classify own PRs mechanically** by last human (non-bot) message author — content never overrides this rule:
    - Last author is the user → **REMIND**: `<48h` since that message → REMIND-RECENTLY-PINGED (cooldown), `≥48h` → REMIND-DUE. Zero replies → apply the 48h rule to the parent post.
@@ -80,6 +80,8 @@ Header: `As of <YYYY-MM-DD HH:MM +07> — full | quick | refresh`. Sections in o
 4. 🧹 **STALE**
 5. 📥 **INCOMING-UNREVIEWED** · 🔁 **INCOMING-REREVIEW**
 6. **Excluded** + suppressed counts (`WAITING-ON-OTHERS / WAITING-ON-AUTHOR / DONE-BY-ME: N each`) for auditability.
+
+Each section's table must be fully closed (its last row followed by a blank line) before the next section heading — otherwise the following separator gets swallowed and the prior table's header bleeds into the next section. Group 6 (**Excluded** + suppressed counts) is a plain bullet/inline list, never a table.
 
 In quick mode render only group 1–2 and note: "Quick mode — drafts, stale, and incoming queue not scanned."
 
