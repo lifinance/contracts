@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../../utils/TestBase.sol";
+import { TestBaseLocal } from "../../utils/TestBaseLocal.sol";
 import { OnlyContractOwner, InvalidCallData, UnAuthorized, DiamondIsPaused, FunctionDoesNotExist } from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
@@ -11,7 +11,7 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 
-contract EmergencyPauseFacetLOCALTest is TestBase {
+contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
     // EVENTS
     event EmergencyFacetRemoved(
         address indexed facetAddress,
@@ -34,16 +34,12 @@ contract EmergencyPauseFacetLOCALTest is TestBase {
     address[] internal blacklist = new address[](0);
 
     function setUp() public {
-        // set custom block number for forking
-        customBlockNumberForForking = 19979843;
-
-        initTestBase();
+        initTestBaseLocal();
 
         // // no need to add the facet to the diamond, it's already added in DiamondTest.sol
         emergencyPauseFacet = EmergencyPauseFacet(payable(address(diamond)));
 
-        // set facet address in TestBase
-        setFacetAddressInTestBase(
+        vm.label(
             address(emergencyPauseFacet),
             "EmergencyPauseFacet"
         );

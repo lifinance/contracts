@@ -38,8 +38,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         accessMgr = AccessManagerFacet(address(diamond));
         restricted = RestrictedContract(address(diamond));
 
-        // set facet address in TestBase
-        setFacetAddressInTestBase(address(accessMgr), "AccessManagerFacet");
+        vm.label(address(accessMgr), "AccessManagerFacet");
     }
 
     function test_AccessIsRestrictedFromNotOwner() public {
