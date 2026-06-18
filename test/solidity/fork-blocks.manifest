@@ -1,0 +1,8 @@
+# Canonical mainnet fork block for tests that do not set customBlockNumberForForking.
+15588208
+
+# Frequently reused pins (consolidation targets — migrate tests to these when possible):
+# 15588208 — default mainnet (TestBase.DEFAULT_BLOCK_NUMBER_MAINNET)
+# 58467500 — Arbitrum-heavy integrations (Hop/CBridge packed)
+# 22989702 — Across V4 family
+# 19979843 — Emergency pause / calldata verification

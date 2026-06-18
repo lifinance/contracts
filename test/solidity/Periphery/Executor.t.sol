@@ -86,7 +86,7 @@ contract ExecutorTest is Test {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 14847528;
+        uint256 blockNumber = 15588208;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 
