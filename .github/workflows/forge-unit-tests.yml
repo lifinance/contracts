@@ -76,6 +76,8 @@ jobs:
         run: forge install
 
       - name: Fetch RPC endpoints from MongoDB
+        # ETH_NODE_URI_MAINNET must be a fast archive node: fork tests pin old blocks
+        # and cold RPC cache misses require historical state (see EXSC-525).
         run: |
           # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
           # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
