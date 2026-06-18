@@ -31,15 +31,25 @@ contract DeployScript is DeployScriptBase {
             ".refundWallet"
         );
 
-        address predictedExecutor = _getPredictedAddressFromDeploySalt(
-            vm.envString("EXECUTOR_DEPLOYSALT"),
-            "Executor"
+        string memory executorDeploySalt = vm.envOr(
+            "EXECUTOR_DEPLOYSALT",
+            string("")
         );
-
-        emit log_named_address(
-            "LI.FI: Predicted Executor Address: ",
-            predictedExecutor
-        );
+        address predictedExecutor = address(0);
+        if (bytes(executorDeploySalt).length != 0) {
+            predictedExecutor = _getPredictedAddressFromDeploySalt(
+                executorDeploySalt,
+                "Executor"
+            );
+            emit log_named_address(
+                "LI.FI: Predicted Executor Address: ",
+                predictedExecutor
+            );
+        } else {
+            emit log(
+                "LI.FI: EXECUTOR_DEPLOYSALT unset - skipping Executor pre-authorization"
+            );
+        }
 
         return abi.encode(refundWalletAddress, predictedExecutor);
     }
