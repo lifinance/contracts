@@ -163,6 +163,14 @@ deploySingleContract() {
     # create salt that is used to deploy contract
     local DEPLOYSALT=$(cast keccak "$SALT_INPUT")
 
+    # ERC20Proxy deploy pre-authorizes the predicted Executor CREATE3 address
+    local EXECUTOR_DEPLOYSALT=""
+    if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
+      local EXECUTOR_BYTECODE
+      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+      EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
+    fi
+
     # get predicted contract address based on salt (or special case for LiFiDiamond)
     if [[ $CONTRACT == "LiFiDiamond" && $DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS == "true" ]]; then
       CONTRACT_ADDRESS="0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE"
@@ -314,7 +322,7 @@ deploySingleContract() {
     else
       # try to execute call
       executeAndParse \
-        "$ETH_GAS_PRICE_ENV DEPLOYSALT=\"$DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast $LEGACY_FLAG --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\"" \
+        "$ETH_GAS_PRICE_ENV DEPLOYSALT=\"$DEPLOYSALT\" EXECUTOR_DEPLOYSALT=\"$EXECUTOR_DEPLOYSALT\" CREATE3_FACTORY_ADDRESS=\"$CREATE3_FACTORY_ADDRESS\" NETWORK=\"$NETWORK\" FILE_SUFFIX=\"$FILE_SUFFIX\" DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT=\"$DEFAULT_DIAMOND_ADDRESS_DEPLOYSALT\" DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS=\"$DEPLOY_TO_DEFAULT_DIAMOND_ADDRESS\" PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" DIAMOND_TYPE=\"$DIAMOND_TYPE\" forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast $LEGACY_FLAG --slow $SKIP_SIMULATION_FLAG $ADDITIONAL_FLAGS --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\"" \
         "true"
     fi
 

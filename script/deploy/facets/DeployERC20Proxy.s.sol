@@ -20,20 +20,37 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
         );
 
-        // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
 
-        return abi.encode(refundWalletAddress);
+        string memory executorDeploySalt = vm.envOr(
+            "EXECUTOR_DEPLOYSALT",
+            string("")
+        );
+        address predictedExecutor = address(0);
+        if (bytes(executorDeploySalt).length != 0) {
+            predictedExecutor = _getPredictedAddressFromDeploySalt(
+                executorDeploySalt,
+                "Executor"
+            );
+            emit log_named_address(
+                "LI.FI: Predicted Executor Address: ",
+                predictedExecutor
+            );
+        } else {
+            emit log(
+                "LI.FI: EXECUTOR_DEPLOYSALT unset - skipping Executor pre-authorization"
+            );
+        }
+
+        return abi.encode(refundWalletAddress, predictedExecutor);
     }
 }
