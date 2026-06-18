@@ -388,18 +388,22 @@ function verifyHexagatePatReadiness() {
     SSO_STATUS="skipped"
   fi
 
-  # (3) PAT validity
-  if [[ "$HTTP_STATUS" == "401" ]]; then
+  # (4) PAT validity
+  if [[ "$HTTP_STATUS" == "200" ]]; then
+    success "Hexagate PAT (4/6): PAT is active (not expired/revoked)"
+    VALIDITY_STATUS="pass"
+  elif [[ "$HTTP_STATUS" == "403" ]] && echo "$SSO_HEADER" | grep -qi "required"; then
+    # SSO is blocking access — the PAT itself is valid (not expired/revoked)
+    success "Hexagate PAT (4/6): PAT is active (not expired/revoked) — blocked by SSO, not validity"
+    VALIDITY_STATUS="pass"
+  elif [[ "$HTTP_STATUS" == "401" ]]; then
     error "Hexagate PAT (4/6): PAT is expired or revoked (HTTP 401)"
     VALIDITY_STATUS="fail"
     RC=1
-  elif [[ "$HTTP_STATUS" == "403" ]] && ! echo "$SSO_HEADER" | grep -qi "required"; then
+  elif [[ "$HTTP_STATUS" == "403" ]]; then
     error "Hexagate PAT (4/6): PAT returned HTTP 403 — may be suspended or lack repo access"
     VALIDITY_STATUS="fail"
     RC=1
-  elif [[ "$HTTP_STATUS" == "200" ]]; then
-    success "Hexagate PAT (4/6): PAT is active (not expired/revoked)"
-    VALIDITY_STATUS="pass"
   else
     error "Hexagate PAT (4/6): unexpected HTTP $HTTP_STATUS"
     VALIDITY_STATUS="fail"
