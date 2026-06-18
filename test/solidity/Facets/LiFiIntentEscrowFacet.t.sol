@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
@@ -8,7 +7,6 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
@@ -16,6 +14,7 @@ import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
 import { OUTPUT_SETTLER_COIN, OutputSettler } from "../Periphery/ReceiverOIF.t.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 contract AlwaysYesOracle {
     function isProven(
@@ -111,8 +110,8 @@ contract LiFiIntentEscrowFacetTest is TestBaseFacet {
 
         // Instead of accessing the mainnet deployment, deploy here.
         // This saves a lot of RPC calls and significantly speeds up testing suite.
-        ERC20Proxy erc20Proxy = new ERC20Proxy(address(this));
-        Executor executor = new Executor(address(erc20Proxy), address(this));
+        (, Executor executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), address(this));
         dstCallReceiver = address(
             new ReceiverOIF(
                 address(this),

@@ -173,13 +173,13 @@
     "explorerApiUrl": "https://explorer.arc.io/api",
     "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
     "safeAddress": "0x859E868A97F52B67FfEaf3226ba8914ea491705E",
-    "gasZipChainId": 0,
+    "gasZipChainId": 525,
     "isZkEVM": false,
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "castSendAsync": true,
-    "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap) and GasZip is unsupported at launch, so the automated periphery healthcheck cannot pass: skipHealthcheck is set and the healthcheck is run manually before merge to verify deployed addresses.",
+    "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap), so the automated periphery healthcheck cannot pass: skipHealthcheck is set and the healthcheck is run manually before merge to verify deployed addresses.",
     "skipHealthcheck": true
   },
   "avalanche": {

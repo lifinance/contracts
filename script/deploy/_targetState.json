@@ -2278,7 +2278,8 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "GlacisFacet": "1.2.0"
       }
     }
   },
@@ -2434,7 +2435,7 @@
     "staging": {
       "LiFiDiamond": {
         "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.1.0",
+        "ERC20Proxy": "1.2.0",
         "Executor": "2.1.0",
         "FeeCollector": "1.0.1",
         "FeeForwarder": "1.0.0"
