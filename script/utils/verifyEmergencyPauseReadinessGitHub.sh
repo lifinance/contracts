@@ -305,7 +305,7 @@ function verifyHexagatePatReadiness() {
 
   # (1) Secret configured
   if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
-    error "Hexagate PAT (1/5): HEXAGATE_PAUSER_PAT secret is not configured in this repo"
+    error "Hexagate PAT (1/6): HEXAGATE_PAUSER_PAT secret is not configured in this repo"
     SECRET_STATUS="fail"
     RC=1
     if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
