@@ -838,6 +838,25 @@ export class SafeClient {
 export type ViemSafe = SafeClient
 
 /**
+ * Whether a resolved Safe-tx execution status consumed the Safe nonce on-chain.
+ *
+ * Only a fully successful `execTransaction` advances the Safe nonce. This repo
+ * always submits with `safeTxGas=0`, so an inner-call failure reverts the
+ * entire `execTransaction` (GS013); the reverted tx rolls back the nonce
+ * increment, leaving the nonce open for re-proposal. A `submitted` row is an
+ * unknown outcome (no receipt yet) and must not be treated as consuming the
+ * nonce until reconciliation resolves it. Callers gate `expectedNonce++` on
+ * this — returning true for `reverted` would desync the expected nonce and make
+ * the next-nonce proposal revert with GS026.
+ *
+ * @param status - Resolved Safe-tx status after an execution attempt.
+ * @returns true only for `executed`; false for `reverted`, `submitted`, and `pending`.
+ */
+export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
+  return status === 'executed'
+}
+
+/**
  * Converts an in-memory Safe tx (Map signatures, bigint fields) into the plain
  * object shape MongoDB stores. Mirrors propose-to-safe-tron.ts.
  */
