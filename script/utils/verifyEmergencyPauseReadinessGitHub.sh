@@ -323,13 +323,12 @@ function verifyHexagatePatReadiness() {
   success "Hexagate PAT (1/6): HEXAGATE_PAUSER_PAT secret is configured"
   SECRET_STATUS="pass"
 
-  # (2) Format validation — classic PAT: ghp_ + 36 alphanumeric; fine-grained: github_pat_ + 82 alphanumeric/underscore
-  if [[ "$HEXAGATE_PAUSER_PAT" =~ ^ghp_[A-Za-z0-9]{36,}$ ]] || \
-     [[ "$HEXAGATE_PAUSER_PAT" =~ ^github_pat_[A-Za-z0-9_]{82,}$ ]]; then
-    success "Hexagate PAT (2/6): PAT format is valid ($(echo "$HEXAGATE_PAUSER_PAT" | grep -oE '^(ghp_|github_pat_)')* prefix)"
+  # (2) Format validation — must be a classic PAT: ghp_ + 36 alphanumeric chars
+  if [[ "$HEXAGATE_PAUSER_PAT" =~ ^ghp_[A-Za-z0-9]{36,}$ ]]; then
+    success "Hexagate PAT (2/6): PAT format is valid (ghp_* classic PAT)"
     FORMAT_STATUS="pass"
   else
-    error "Hexagate PAT (2/6): PAT format is invalid — expected ghp_<36 chars> or github_pat_<82 chars>"
+    error "Hexagate PAT (2/6): PAT format is invalid — expected a classic PAT (ghp_<36 chars>)"
     FORMAT_STATUS="fail"
     RC=1
   fi

@@ -11,7 +11,7 @@
 #   network with no deployed timelock or configured Safe.
 # - Hexagate PAT check: six checks on the lifi-hexagate-pauser PAT that Hexagate uses to fire
 #   workflow_dispatch on this repo — (1) HEXAGATE_PAUSER_PAT secret is configured, (2) PAT
-#   format is valid (ghp_* classic or github_pat_* fine-grained prefix), (3) SSO authorized for
+#   format is valid (ghp_* classic PAT prefix only), (3) SSO authorized for
 #   lifinance org, (4) not expired/revoked, (5) has push (write) access and workflow/repo scope,
 #   (6) token owner is an active member of the lifinance/diamondpauser gate team. Fails (not
 #   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
@@ -183,7 +183,7 @@ jobs:
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
           # The Hexagate PAT entry is a parent bullet with four indented child bullets beneath it.
-          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* or github_pat_* prefix)\n    - %s SSO authorized for lifinance org\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* classic PAT)\n    - %s SSO authorized for lifinance org\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
             "$HEADER" \
             "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
             "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SECRET")" "$(icon "$HEX_FORMAT")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
