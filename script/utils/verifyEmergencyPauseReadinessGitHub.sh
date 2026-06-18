@@ -376,7 +376,7 @@ function verifyHexagatePatReadiness() {
       SSO_STATUS="fail"
       RC=1
     else
-      success "Hexagate PAT (3/6): SSO authorized for lifinance org"
+      success "Hexagate PAT (3/6): No SSO block on lifinance org access"
       SSO_STATUS="pass"
     fi
   elif [[ "$HTTP_STATUS" == "403" ]] && echo "$SSO_HEADER" | grep -qi "required"; then
