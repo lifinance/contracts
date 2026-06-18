@@ -24,6 +24,23 @@ runs:
         fi
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
+    - name: Compute fork block pin hash
+      id: fork_blocks
+      shell: bash
+      run: |
+        set -euo pipefail
+        hash="$(bash script/utils/hashForkBlockPins.sh)"
+        echo "hash=${hash}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Foundry RPC state
+      # Fork tests pin deterministic blocks; RPC cache is stable across runs until pins change.
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.foundry/cache/rpc
+        key: foundry-rpc-${{ runner.os }}-${{ steps.fork_blocks.outputs.hash }}
+        restore-keys: |
+          foundry-rpc-${{ runner.os }}-
+
     - name: Cache Foundry toolchain state (svm + foundryup)
       # Restored before the install step so foundry-toolchain can detect an existing
       # matching install and skip the download on a cache hit. Version is folded into
