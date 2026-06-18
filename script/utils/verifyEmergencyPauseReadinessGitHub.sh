@@ -356,14 +356,26 @@ function verifyHexagatePatReadiness() {
   CAN_PUSH=$(jq -r '.permissions.push // false' "$REPO_BODY_FILE" 2>/dev/null || echo "false")
   rm -f "$REPO_BODY_FILE" "$REPO_HEADERS_FILE"
 
-  # (2) SSO authorization
-  if echo "$SSO_HEADER" | grep -qi "required"; then
+  # (3) SSO authorization
+  # IMPORTANT: GitHub only sends x-github-sso: required when the token is valid but not
+  # SSO-authorized (typically HTTP 403). With an invalid token (HTTP 401) there is no SSO
+  # header at all — gating "pass" on HTTP 200 prevents any bogus token from falsely passing.
+  if [[ "$HTTP_STATUS" == "200" ]]; then
+    if echo "$SSO_HEADER" | grep -qi "required"; then
+      error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
+      SSO_STATUS="fail"
+      RC=1
+    else
+      success "Hexagate PAT (3/6): SSO authorized for lifinance org"
+      SSO_STATUS="pass"
+    fi
+  elif [[ "$HTTP_STATUS" == "403" ]] && echo "$SSO_HEADER" | grep -qi "required"; then
     error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
     SSO_STATUS="fail"
     RC=1
   else
-    success "Hexagate PAT (3/6): SSO authorized for lifinance org"
-    SSO_STATUS="pass"
+    echo "Hexagate PAT (3/6): SSO check skipped — token validity failed first (HTTP $HTTP_STATUS)"
+    SSO_STATUS="skipped"
   fi
 
   # (3) PAT validity
