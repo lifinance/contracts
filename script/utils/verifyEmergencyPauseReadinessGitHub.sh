@@ -283,30 +283,49 @@ function verifyNetwork() {
 }
 
 # verifyHexagatePatReadiness: verify the lifi-hexagate-pauser PAT can dispatch
-# diamondEmergencyPause.yml. Four read-only checks against the GitHub API — no workflow is triggered:
-#   (1) SSO authorization — PAT is authorized for the lifinance SAML SSO org (x-github-sso header)
-#   (2) Validity          — PAT is not expired or revoked (HTTP status)
-#   (3) Dispatch access   — PAT has push access AND workflow/repo scope (both required for workflow_dispatch)
-#   (4) DiamondPauser     — token owner is an active member of lifinance/diamondpauser team
+# diamondEmergencyPause.yml. Five checks against the GitHub API — no workflow is triggered:
+#   (1) Secret configured  — HEXAGATE_PAUSER_PAT secret is set in this repo (fail-fast if not)
+#   (2) SSO authorization  — PAT is authorized for the lifinance SAML SSO org (x-github-sso header)
+#   (3) Validity           — PAT is not expired or revoked (HTTP status)
+#   (4) Dispatch access    — PAT has push access AND workflow/repo scope (both required for workflow_dispatch)
+#   (5) DiamondPauser      — token owner is an active member of lifinance/diamondpauser team
 #       (the gate the workflow checks as github.actor after Hexagate fires the dispatch)
 #
-# Each sub-check result is emitted individually to GITHUB_OUTPUT (hexagatePatSso /
-# hexagatePatValidity / hexagatePatDispatch / hexagatePatTeam) so the workflow can render
-# them as child bullets in the Slack status message.
+# Each sub-check result is emitted individually to GITHUB_OUTPUT (hexagatePatSecret /
+# hexagatePatSso / hexagatePatValidity / hexagatePatDispatch / hexagatePatTeam) so the
+# workflow can render them as child bullets in the Slack status message.
 #
-# Reads HEXAGATE_PAUSER_PAT from env (set from GitHub secret). Caller must not call this
-# when the PAT is unset — the skip guard lives in main() to keep status accurate.
-# Returns: 0 on all checks pass, 1 on any failure.
+# Reads HEXAGATE_PAUSER_PAT from env (set from GitHub secret).
+# Returns: 0 on all checks pass, 1 on any failure (including secret not configured).
 function verifyHexagatePatReadiness() {
+  # Sub-check statuses — written to GITHUB_OUTPUT at the end.
+  local SECRET_STATUS="skipped" SSO_STATUS="skipped" VALIDITY_STATUS="skipped" DISPATCH_STATUS="skipped" TEAM_STATUS="skipped"
+  local RC=0
+
+  # (1) Secret configured
+  if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
+    error "Hexagate PAT (1/5): HEXAGATE_PAUSER_PAT secret is not configured in this repo"
+    SECRET_STATUS="fail"
+    RC=1
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+      {
+        echo "hexagatePatSecret=$SECRET_STATUS"
+        echo "hexagatePatSso=skipped"
+        echo "hexagatePatValidity=skipped"
+        echo "hexagatePatDispatch=skipped"
+        echo "hexagatePatTeam=skipped"
+      } >>"$GITHUB_OUTPUT"
+    fi
+    return $RC
+  fi
+  success "Hexagate PAT (1/5): HEXAGATE_PAUSER_PAT secret is configured"
+  SECRET_STATUS="pass"
+
   local GH_HEADERS=(-H "Authorization: Bearer $HEXAGATE_PAUSER_PAT" \
                     -H "X-GitHub-Api-Version: 2022-11-28" \
                     -H "Accept: application/vnd.github+json")
 
-  # Sub-check statuses — written to GITHUB_OUTPUT at the end.
-  local SSO_STATUS="skipped" VALIDITY_STATUS="skipped" DISPATCH_STATUS="skipped" TEAM_STATUS="skipped"
-  local RC=0
-
-  # ── Checks 1–3: single GET /repos/lifinance/contracts ──────────────────────
+  # ── Checks 2–4: single GET /repos/lifinance/contracts ──────────────────────
   local REPO_BODY_FILE REPO_HEADERS_FILE HTTP_STATUS
   REPO_BODY_FILE=$(mktemp)
   REPO_HEADERS_FILE=$(mktemp)
@@ -325,61 +344,61 @@ function verifyHexagatePatReadiness() {
   CAN_PUSH=$(jq -r '.permissions.push // false' "$REPO_BODY_FILE" 2>/dev/null || echo "false")
   rm -f "$REPO_BODY_FILE" "$REPO_HEADERS_FILE"
 
-  # (1) SSO authorization
+  # (2) SSO authorization
   if echo "$SSO_HEADER" | grep -qi "required"; then
-    error "Hexagate PAT (1/4): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
+    error "Hexagate PAT (2/5): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
     SSO_STATUS="fail"
     RC=1
   else
-    success "Hexagate PAT (1/4): SSO authorized for lifinance org"
+    success "Hexagate PAT (2/5): SSO authorized for lifinance org"
     SSO_STATUS="pass"
   fi
 
-  # (2) PAT validity
+  # (3) PAT validity
   if [[ "$HTTP_STATUS" == "401" ]]; then
-    error "Hexagate PAT (2/4): PAT is expired or revoked (HTTP 401)"
+    error "Hexagate PAT (3/5): PAT is expired or revoked (HTTP 401)"
     VALIDITY_STATUS="fail"
     RC=1
   elif [[ "$HTTP_STATUS" == "403" ]] && ! echo "$SSO_HEADER" | grep -qi "required"; then
-    error "Hexagate PAT (2/4): PAT returned HTTP 403 — may be suspended or lack repo access"
+    error "Hexagate PAT (3/5): PAT returned HTTP 403 — may be suspended or lack repo access"
     VALIDITY_STATUS="fail"
     RC=1
   elif [[ "$HTTP_STATUS" == "200" ]]; then
-    success "Hexagate PAT (2/4): PAT is active (not expired/revoked)"
+    success "Hexagate PAT (3/5): PAT is active (not expired/revoked)"
     VALIDITY_STATUS="pass"
   else
-    error "Hexagate PAT (2/4): unexpected HTTP $HTTP_STATUS"
+    error "Hexagate PAT (3/5): unexpected HTTP $HTTP_STATUS"
     VALIDITY_STATUS="fail"
     RC=1
   fi
 
-  # (3) Dispatch access: push permission + workflow/repo scope (both required for workflow_dispatch)
+  # (4) Dispatch access: push permission + workflow/repo scope (both required for workflow_dispatch)
   if [[ "$HTTP_STATUS" == "200" ]]; then
     local SCOPE_OK=true
     if [[ -n "$OAUTH_SCOPES" ]]; then
       # classic PAT — must have workflow or repo scope
       if ! echo "$OAUTH_SCOPES" | grep -qE '(^|,)[[:space:]]*(workflow|repo)[[:space:]]*(,|$)'; then
-        error "Hexagate PAT (3/4): classic PAT is missing 'workflow' or 'repo' scope (scopes: ${OAUTH_SCOPES:-none})"
+        error "Hexagate PAT (4/5): classic PAT is missing 'workflow' or 'repo' scope (scopes: ${OAUTH_SCOPES:-none})"
         SCOPE_OK=false
         RC=1
       fi
     fi
     # fine-grained PATs: scope not returned — dispatch gated by push permission only
     if [[ "$CAN_PUSH" == "true" && "$SCOPE_OK" == "true" ]]; then
-      success "Hexagate PAT (3/4): has push access and required scope — workflow_dispatch will be accepted"
+      success "Hexagate PAT (4/5): has push access and required scope — workflow_dispatch will be accepted"
       DISPATCH_STATUS="pass"
     elif [[ "$CAN_PUSH" != "true" ]]; then
-      error "Hexagate PAT (3/4): PAT lacks push access — workflow_dispatch will be rejected"
+      error "Hexagate PAT (4/5): PAT lacks push access — workflow_dispatch will be rejected"
       DISPATCH_STATUS="fail"
       RC=1
     else
       DISPATCH_STATUS="fail"
     fi
   else
-    echo "Hexagate PAT (3/4): skipped (HTTP $HTTP_STATUS from repo endpoint)"
+    echo "Hexagate PAT (4/5): skipped (HTTP $HTTP_STATUS from repo endpoint)"
   fi
 
-  # ── Check 4: DiamondPauser team membership ──────────────────────────────────
+  # ── Check 5: DiamondPauser team membership ──────────────────────────────────
   # Step A: resolve token owner via GET /user
   local USER_BODY_FILE TOKEN_OWNER USER_HTTP_STATUS
   USER_BODY_FILE=$(mktemp)
@@ -392,7 +411,7 @@ function verifyHexagatePatReadiness() {
   rm -f "$USER_BODY_FILE"
 
   if [[ -z "$TOKEN_OWNER" ]]; then
-    echo "Hexagate PAT (4/4): could not resolve token owner (GET /user → HTTP $USER_HTTP_STATUS) — skipping team check"
+    echo "Hexagate PAT (5/5): could not resolve token owner (GET /user → HTTP $USER_HTTP_STATUS) — skipping team check"
     TEAM_STATUS="skipped"
   else
     # Step B: check membership in the diamondpauser gate team
@@ -407,24 +426,24 @@ function verifyHexagatePatReadiness() {
     rm -f "$MEMBERSHIP_FILE"
 
     if [[ "$MEMBERSHIP_HTTP_STATUS" == "200" && "$MEMBERSHIP_STATE" == "active" ]]; then
-      success "Hexagate PAT (4/4): @$TOKEN_OWNER is an active member of lifinance/diamondpauser"
+      success "Hexagate PAT (5/5): @$TOKEN_OWNER is an active member of lifinance/diamondpauser"
       TEAM_STATUS="pass"
     elif [[ "$MEMBERSHIP_HTTP_STATUS" == "404" ]]; then
-      error "Hexagate PAT (4/4): @$TOKEN_OWNER is NOT in lifinance/diamondpauser — workflow gate will reject Hexagate's dispatch"
+      error "Hexagate PAT (5/5): @$TOKEN_OWNER is NOT in lifinance/diamondpauser — workflow gate will reject Hexagate's dispatch"
       error "  Add them at: https://github.com/orgs/lifinance/teams/diamondpauser/members"
       TEAM_STATUS="fail"
       RC=1
     elif [[ "$MEMBERSHIP_HTTP_STATUS" == "403" ]]; then
       # PAT lacks read:org scope — surface the username for manual verification; don't fail the run
-      echo "Hexagate PAT (4/4): PAT lacks read:org scope — verify @$TOKEN_OWNER is in diamondpauser manually"
+      echo "Hexagate PAT (5/5): PAT lacks read:org scope — verify @$TOKEN_OWNER is in diamondpauser manually"
       echo "  https://github.com/orgs/lifinance/teams/diamondpauser/members"
       TEAM_STATUS="skipped"
     elif [[ "$MEMBERSHIP_STATE" == "pending" ]]; then
-      error "Hexagate PAT (4/4): @$TOKEN_OWNER has a pending invite to diamondpauser — must accept before the gate passes"
+      error "Hexagate PAT (5/5): @$TOKEN_OWNER has a pending invite to diamondpauser — must accept before the gate passes"
       TEAM_STATUS="fail"
       RC=1
     else
-      echo "Hexagate PAT (4/4): unexpected HTTP $MEMBERSHIP_HTTP_STATUS checking @$TOKEN_OWNER in diamondpauser"
+      echo "Hexagate PAT (5/5): unexpected HTTP $MEMBERSHIP_HTTP_STATUS checking @$TOKEN_OWNER in diamondpauser"
       TEAM_STATUS="skipped"
     fi
   fi
@@ -432,6 +451,7 @@ function verifyHexagatePatReadiness() {
   # Emit each sub-check as an individual step output for child-bullet rendering in Slack
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
+      echo "hexagatePatSecret=$SECRET_STATUS"
       echo "hexagatePatSso=$SSO_STATUS"
       echo "hexagatePatValidity=$VALIDITY_STATUS"
       echo "hexagatePatDispatch=$DISPATCH_STATUS"
@@ -563,11 +583,7 @@ function main {
   ##### Hexagate PAT check: verify the PAT Hexagate uses to dispatch this workflow is still valid
   echo "-------------------------------------------------------------------------------------"
   local HEXAGATE_PAT_FAILED=0
-  if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
-    # Secret not configured — leave HEXAGATE_PAT_STATUS="skipped" so the parent bullet
-    # shows ⏭️ rather than ✅ (pass would be misleading: nothing was actually checked).
-    echo "HEXAGATE_PAUSER_PAT not set — skipping Hexagate PAT readiness checks"
-  elif verifyHexagatePatReadiness; then
+  if verifyHexagatePatReadiness; then
     HEXAGATE_PAT_STATUS="pass"
   else
     HEXAGATE_PAT_STATUS="fail"
