@@ -9,6 +9,11 @@
 #   LiFiTimelockController.diamond() matches the deploy-log diamond, and (b) the Safe holds
 #   TIMELOCK_ADMIN_ROLE (so it can execute unpauseDiamond()). Skipped on testnets/Tron and on any
 #   network with no deployed timelock or configured Safe.
+# - Hexagate PAT check: five read-only GitHub API checks on the lifi-hexagate-pauser PAT that
+#   Hexagate uses to fire workflow_dispatch on this repo — (1) SSO authorized for lifinance org,
+#   (2) not expired/revoked, (3) has push (write) access, (4) has workflow/repo scope,
+#   (5) token owner is an active member of the lifinance/diamondpauser gate team. Skipped when
+#   HEXAGATE_PAUSER_PAT secret is not set. No workflow is triggered by these checks.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
 #   wallet can afford pauseDiamond() on every production EVM chain, and reports the native TOP-UP
 #   needed to reach OK. A CRITICAL network (cannot fund a single pause) — or a fully-blind sweep where
@@ -102,6 +107,7 @@ jobs:
         run: bash script/utils/verifyEmergencyPauseReadinessGitHub.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
+          HEXAGATE_PAUSER_PAT: ${{ secrets.HEXAGATE_PAUSER_PAT }} # lifi-hexagate-pauser PAT; skipped if unset
 
       # Funding is live operational state (independent of the code in a PR), so this runs on
       # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
@@ -160,15 +166,25 @@ jobs:
           PAUSER="${{ steps.readiness.outputs.pauser }}"
           TIMELOCK_DIAMOND="${{ steps.readiness.outputs.timelockDiamond }}"
           SAFE_ROLE="${{ steps.readiness.outputs.safeAdminRole }}"
+          HEXAGATE_PAT="${{ steps.readiness.outputs.hexagatePat }}"
+          # Hexagate PAT sub-checks (rendered as child bullets under the parent)
+          HEX_SSO="${{ steps.readiness.outputs.hexagatePatSso }}"
+          HEX_VALIDITY="${{ steps.readiness.outputs.hexagatePatValidity }}"
+          HEX_DISPATCH="${{ steps.readiness.outputs.hexagatePatDispatch }}"
+          HEX_TEAM="${{ steps.readiness.outputs.hexagatePatTeam }}"
           FUNDS="${{ steps.funds.outcome }}"
-          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$FUNDS" == "success" ]]; then
+          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$HEXAGATE_PAT" == "pass" && "$FUNDS" == "success" ]]; then
             HEADER=":white_check_mark: *Emergency pause readiness — all checks passed*"
           else
             HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
-          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
-            "$HEADER" "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" "$(icon "$FUNDS")" "$RUN_URL")
+          # The Hexagate PAT entry is a parent bullet with four indented child bullets beneath it.
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s SSO authorized for lifinance org\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+            "$HEADER" \
+            "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
+            "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
+            "$(icon "$FUNDS")" "$RUN_URL")
           {
             echo "text<<SLACK_EOF"
             echo "$TEXT"

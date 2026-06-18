@@ -282,12 +282,176 @@ function verifyNetwork() {
   return $RC
 }
 
+# verifyHexagatePatReadiness: verify the lifi-hexagate-pauser PAT can dispatch
+# diamondEmergencyPause.yml. Four read-only checks against the GitHub API — no workflow is triggered:
+#   (1) SSO authorization — PAT is authorized for the lifinance SAML SSO org (x-github-sso header)
+#   (2) Validity          — PAT is not expired or revoked (HTTP status)
+#   (3) Dispatch access   — PAT has push access AND workflow/repo scope (both required for workflow_dispatch)
+#   (4) DiamondPauser     — token owner is an active member of lifinance/diamondpauser team
+#       (the gate the workflow checks as github.actor after Hexagate fires the dispatch)
+#
+# Each sub-check result is emitted individually to GITHUB_OUTPUT (hexagatePatSso /
+# hexagatePatValidity / hexagatePatDispatch / hexagatePatTeam) so the workflow can render
+# them as child bullets in the Slack status message.
+#
+# Reads HEXAGATE_PAUSER_PAT from env (set from GitHub secret). Skips silently if unset.
+# Returns: 0 on all checks pass (or skipped due to unset PAT), 1 on any failure.
+function verifyHexagatePatReadiness() {
+  if [[ -z "${HEXAGATE_PAUSER_PAT:-}" ]]; then
+    echo "HEXAGATE_PAUSER_PAT not set — skipping Hexagate PAT readiness checks"
+    return 0
+  fi
+
+  local GH_HEADERS=(-H "Authorization: Bearer $HEXAGATE_PAUSER_PAT" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    -H "Accept: application/vnd.github+json")
+
+  # Sub-check statuses — written to GITHUB_OUTPUT at the end.
+  local SSO_STATUS="skipped" VALIDITY_STATUS="skipped" DISPATCH_STATUS="skipped" TEAM_STATUS="skipped"
+  local RC=0
+
+  # ── Checks 1–3: single GET /repos/lifinance/contracts ──────────────────────
+  local REPO_BODY_FILE REPO_HEADERS_FILE HTTP_STATUS
+  REPO_BODY_FILE=$(mktemp)
+  REPO_HEADERS_FILE=$(mktemp)
+  HTTP_STATUS=$(curl -s \
+    -o "$REPO_BODY_FILE" \
+    -D "$REPO_HEADERS_FILE" \
+    -w "%{http_code}" \
+    "${GH_HEADERS[@]}" \
+    "https://api.github.com/repos/lifinance/contracts")
+
+  local SSO_HEADER OAUTH_SCOPES CAN_PUSH
+  SSO_HEADER=$(grep -i "x-github-sso:" "$REPO_HEADERS_FILE" || true)
+  OAUTH_SCOPES=$(grep -i "^x-oauth-scopes:" "$REPO_HEADERS_FILE" \
+    | sed 's/^[Xx]-[Oo][Aa][Uu][Tt][Hh]-[Ss][Cc][Oo][Pp][Ee][Ss]:[[:space:]]*//' \
+    | tr -d '\r' || true)
+  CAN_PUSH=$(jq -r '.permissions.push // false' "$REPO_BODY_FILE" 2>/dev/null || echo "false")
+  rm -f "$REPO_BODY_FILE" "$REPO_HEADERS_FILE"
+
+  # (1) SSO authorization
+  if echo "$SSO_HEADER" | grep -qi "required"; then
+    error "Hexagate PAT (1/4): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
+    SSO_STATUS="fail"
+    RC=1
+  else
+    success "Hexagate PAT (1/4): SSO authorized for lifinance org"
+    SSO_STATUS="pass"
+  fi
+
+  # (2) PAT validity
+  if [[ "$HTTP_STATUS" == "401" ]]; then
+    error "Hexagate PAT (2/4): PAT is expired or revoked (HTTP 401)"
+    VALIDITY_STATUS="fail"
+    RC=1
+  elif [[ "$HTTP_STATUS" == "403" ]] && ! echo "$SSO_HEADER" | grep -qi "required"; then
+    error "Hexagate PAT (2/4): PAT returned HTTP 403 — may be suspended or lack repo access"
+    VALIDITY_STATUS="fail"
+    RC=1
+  elif [[ "$HTTP_STATUS" == "200" ]]; then
+    success "Hexagate PAT (2/4): PAT is active (not expired/revoked)"
+    VALIDITY_STATUS="pass"
+  else
+    error "Hexagate PAT (2/4): unexpected HTTP $HTTP_STATUS"
+    VALIDITY_STATUS="fail"
+    RC=1
+  fi
+
+  # (3) Dispatch access: push permission + workflow/repo scope (both required for workflow_dispatch)
+  if [[ "$HTTP_STATUS" == "200" ]]; then
+    local SCOPE_OK=true
+    if [[ -n "$OAUTH_SCOPES" ]]; then
+      # classic PAT — must have workflow or repo scope
+      if ! echo "$OAUTH_SCOPES" | grep -qE '(^|,)[[:space:]]*(workflow|repo)[[:space:]]*(,|$)'; then
+        error "Hexagate PAT (3/4): classic PAT is missing 'workflow' or 'repo' scope (scopes: ${OAUTH_SCOPES:-none})"
+        SCOPE_OK=false
+        RC=1
+      fi
+    fi
+    # fine-grained PATs: scope not returned — dispatch gated by push permission only
+    if [[ "$CAN_PUSH" == "true" && "$SCOPE_OK" == "true" ]]; then
+      success "Hexagate PAT (3/4): has push access and required scope — workflow_dispatch will be accepted"
+      DISPATCH_STATUS="pass"
+    elif [[ "$CAN_PUSH" != "true" ]]; then
+      error "Hexagate PAT (3/4): PAT lacks push access — workflow_dispatch will be rejected"
+      DISPATCH_STATUS="fail"
+      RC=1
+    else
+      DISPATCH_STATUS="fail"
+    fi
+  else
+    echo "Hexagate PAT (3/4): skipped (HTTP $HTTP_STATUS from repo endpoint)"
+  fi
+
+  # ── Check 4: DiamondPauser team membership ──────────────────────────────────
+  # Step A: resolve token owner via GET /user
+  local USER_BODY_FILE TOKEN_OWNER USER_HTTP_STATUS
+  USER_BODY_FILE=$(mktemp)
+  USER_HTTP_STATUS=$(curl -s \
+    -o "$USER_BODY_FILE" \
+    -w "%{http_code}" \
+    "${GH_HEADERS[@]}" \
+    "https://api.github.com/user")
+  TOKEN_OWNER=$(jq -r '.login // empty' "$USER_BODY_FILE" 2>/dev/null || true)
+  rm -f "$USER_BODY_FILE"
+
+  if [[ -z "$TOKEN_OWNER" ]]; then
+    echo "Hexagate PAT (4/4): could not resolve token owner (GET /user → HTTP $USER_HTTP_STATUS) — skipping team check"
+    TEAM_STATUS="skipped"
+  else
+    # Step B: check membership in the diamondpauser gate team
+    local MEMBERSHIP_FILE MEMBERSHIP_HTTP_STATUS MEMBERSHIP_STATE
+    MEMBERSHIP_FILE=$(mktemp)
+    MEMBERSHIP_HTTP_STATUS=$(curl -s \
+      -o "$MEMBERSHIP_FILE" \
+      -w "%{http_code}" \
+      "${GH_HEADERS[@]}" \
+      "https://api.github.com/orgs/lifinance/teams/diamondpauser/memberships/$TOKEN_OWNER")
+    MEMBERSHIP_STATE=$(jq -r '.state // empty' "$MEMBERSHIP_FILE" 2>/dev/null || true)
+    rm -f "$MEMBERSHIP_FILE"
+
+    if [[ "$MEMBERSHIP_HTTP_STATUS" == "200" && "$MEMBERSHIP_STATE" == "active" ]]; then
+      success "Hexagate PAT (4/4): @$TOKEN_OWNER is an active member of lifinance/diamondpauser"
+      TEAM_STATUS="pass"
+    elif [[ "$MEMBERSHIP_HTTP_STATUS" == "404" ]]; then
+      error "Hexagate PAT (4/4): @$TOKEN_OWNER is NOT in lifinance/diamondpauser — workflow gate will reject Hexagate's dispatch"
+      error "  Add them at: https://github.com/orgs/lifinance/teams/diamondpauser/members"
+      TEAM_STATUS="fail"
+      RC=1
+    elif [[ "$MEMBERSHIP_HTTP_STATUS" == "403" ]]; then
+      # PAT lacks read:org scope — surface the username for manual verification; don't fail the run
+      echo "Hexagate PAT (4/4): PAT lacks read:org scope — verify @$TOKEN_OWNER is in diamondpauser manually"
+      echo "  https://github.com/orgs/lifinance/teams/diamondpauser/members"
+      TEAM_STATUS="skipped"
+    elif [[ "$MEMBERSHIP_STATE" == "pending" ]]; then
+      error "Hexagate PAT (4/4): @$TOKEN_OWNER has a pending invite to diamondpauser — must accept before the gate passes"
+      TEAM_STATUS="fail"
+      RC=1
+    else
+      echo "Hexagate PAT (4/4): unexpected HTTP $MEMBERSHIP_HTTP_STATUS checking @$TOKEN_OWNER in diamondpauser"
+      TEAM_STATUS="skipped"
+    fi
+  fi
+
+  # Emit each sub-check as an individual step output for child-bullet rendering in Slack
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    {
+      echo "hexagatePatSso=$SSO_STATUS"
+      echo "hexagatePatValidity=$VALIDITY_STATUS"
+      echo "hexagatePatDispatch=$DISPATCH_STATUS"
+      echo "hexagatePatTeam=$TEAM_STATUS"
+    } >>"$GITHUB_OUTPUT"
+  fi
+
+  return $RC
+}
+
 # emitCheckStatus: when running inside GitHub Actions, publish each check's result as a step output
-# (secret / pauser / timelockDiamond / safeAdminRole, each one of pass | fail | skipped) so the
-# workflow can render an accurate per-check Slack status. No-op locally (GITHUB_OUTPUT unset).
+# (secret / pauser / timelockDiamond / safeAdminRole / hexagatePat, each one of pass | fail | skipped)
+# so the workflow can render an accurate per-check Slack status. No-op locally (GITHUB_OUTPUT unset).
 # OUTPUT ONLY — never affects which checks run or the exit code.
 #
-# Usage: emitCheckStatus SECRET_STATUS PAUSER_STATUS TIMELOCK_DIAMOND_STATUS SAFE_ADMIN_ROLE_STATUS
+# Usage: emitCheckStatus SECRET_STATUS PAUSER_STATUS TIMELOCK_DIAMOND_STATUS SAFE_ADMIN_ROLE_STATUS HEXAGATE_PAT_STATUS
 function emitCheckStatus() {
   [[ -n "${GITHUB_OUTPUT:-}" ]] || return 0
   {
@@ -295,6 +459,7 @@ function emitCheckStatus() {
     echo "pauser=$2"
     echo "timelockDiamond=$3"
     echo "safeAdminRole=$4"
+    echo "hexagatePat=$5"
   } >>"$GITHUB_OUTPUT"
 }
 
@@ -303,14 +468,14 @@ function main {
   # not hit chains with a wrong key), so on a secret-check failure the on-chain checks stay
   # "skipped". emitCheckStatus publishes these as step outputs in CI; it is output-only and never
   # changes the exit code below.
-  local SECRET_STATUS="fail" PAUSER_STATUS="skipped" TIMELOCK_DIAMOND_STATUS="skipped" SAFE_ROLE_STATUS="skipped"
+  local SECRET_STATUS="fail" PAUSER_STATUS="skipped" TIMELOCK_DIAMOND_STATUS="skipped" SAFE_ROLE_STATUS="skipped" HEXAGATE_PAT_STATUS="skipped"
 
   # Normalize + validate the pauser key (accept it with or without a 0x prefix, fail loud on
   # empty/malformed) via the shared helper, so this readiness check reports a clean mismatch
   # rather than tripping over a prefix-induced format fault — the same normalization the pause
   # script applies (EXSC-507).
   if ! PRIVATE_KEY_PAUSER_WALLET=$(normalizePrivateKey "$PRIVATE_KEY_PAUSER_WALLET" "PRIVATE_KEY_PAUSER_WALLET"); then
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS" "$HEXAGATE_PAT_STATUS"
     return 1
   fi
 
@@ -327,19 +492,19 @@ function main {
   EXPECTED_TRON=$(jq -r '.tronWallets.pauserWallet // empty' config/global.json)
   if [[ -z "$EXPECTED_EVM" || -z "$EXPECTED_TRON" ]]; then
     error "pauserWallet / tronWallets.pauserWallet missing or null in config/global.json."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS" "$HEXAGATE_PAT_STATUS"
     return 1
   fi
   if [[ "$(echo "$PRIV_KEY_ADDRESS" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED_EVM" | tr '[:upper:]' '[:lower:]')" ]]; then
     error "secret-derived address ($PRIV_KEY_ADDRESS) does not match config pauserWallet ($EXPECTED_EVM)."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS" "$HEXAGATE_PAT_STATUS"
     return 1
   fi
   local DERIVED_TRON
   DERIVED_TRON=$(evmToTronBase58 "$PRIV_KEY_ADDRESS")
   if [[ "$DERIVED_TRON" != "$EXPECTED_TRON" ]]; then
     error "secret-derived Tron address ($DERIVED_TRON) does not match config tronWallets.pauserWallet ($EXPECTED_TRON)."
-    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
+    emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS" "$HEXAGATE_PAT_STATUS"
     return 1
   fi
   SECRET_STATUS="pass"
@@ -399,10 +564,20 @@ function main {
   [[ "$TIMELOCK_DIAMOND_FAILED" -eq 0 ]] && TIMELOCK_DIAMOND_STATUS="pass" || TIMELOCK_DIAMOND_STATUS="fail"
   [[ "$SAFE_ROLE_FAILED" -eq 0 ]] && SAFE_ROLE_STATUS="pass" || SAFE_ROLE_STATUS="fail"
 
-  local RETURN=0
-  [[ "$PAUSER_FAILED" -eq 1 || "$TIMELOCK_DIAMOND_FAILED" -eq 1 || "$SAFE_ROLE_FAILED" -eq 1 || "$INCOMPLETE" -eq 1 ]] && RETURN=1
+  ##### Hexagate PAT check: verify the PAT Hexagate uses to dispatch this workflow is still valid
+  echo "-------------------------------------------------------------------------------------"
+  local HEXAGATE_PAT_FAILED=0
+  if verifyHexagatePatReadiness; then
+    HEXAGATE_PAT_STATUS="pass"
+  else
+    HEXAGATE_PAT_STATUS="fail"
+    HEXAGATE_PAT_FAILED=1
+  fi
 
-  emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
+  local RETURN=0
+  [[ "$PAUSER_FAILED" -eq 1 || "$TIMELOCK_DIAMOND_FAILED" -eq 1 || "$SAFE_ROLE_FAILED" -eq 1 || "$INCOMPLETE" -eq 1 || "$HEXAGATE_PAT_FAILED" -eq 1 ]] && RETURN=1
+
+  emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS" "$HEXAGATE_PAT_STATUS"
 
   echo "-------------------------------------------------------------------------------------"
   if [[ "$RETURN" -ne 0 ]]; then
