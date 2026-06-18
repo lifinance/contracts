@@ -15,6 +15,14 @@ import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
 
+contract LocalTestERC20 is ERC20 {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_
+    ) ERC20(name_, symbol_, decimals_) {}
+}
+
 contract TestFacet is TestWhitelistManagerBase {
     constructor() {}
 }
@@ -104,6 +112,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
     uint256 internal customBlockNumberForForking;
     string internal customRpcUrlForForking;
     string internal logFilePath;
+    bool internal _skipMainnetFork;
 
     // EVENTS
     event AssetSwapped(
@@ -283,6 +292,23 @@ abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
     }
 
     // FUNCTIONS
+    /// @dev Use when tests only need a deployed diamond and mock tokens (no mainnet fork).
+    function initTestBaseLocal() internal {
+        _skipMainnetFork = true;
+        _deployLocalTestTokens();
+        initTestBase();
+    }
+
+    function _deployLocalTestTokens() internal {
+        ADDRESS_USDC = address(new LocalTestERC20("USD Coin", "USDC", 6));
+        ADDRESS_USDT = address(new LocalTestERC20("Tether USD", "USDT", 6));
+        ADDRESS_DAI = address(new LocalTestERC20("Dai Stablecoin", "DAI", 18));
+        ADDRESS_WRAPPED_NATIVE = address(
+            new LocalTestERC20("Wrapped Ether", "WETH", 18)
+        );
+        ADDRESS_UNISWAP = makeAddr("MOCK_UNISWAP_ROUTER");
+    }
+
     function initTestBase() internal {
         _overwriteAddressesForNonMainnetForks();
         // label addresses (for better readability in error traces)
@@ -360,6 +386,9 @@ abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
     }
 
     function fork() internal virtual {
+        if (_skipMainnetFork) {
+            return;
+        }
         string memory rpcUrl = bytes(customRpcUrlForForking).length > 0
             ? vm.envString(customRpcUrlForForking)
             : vm.envString("ETH_NODE_URI_MAINNET");

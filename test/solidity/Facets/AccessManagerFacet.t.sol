@@ -5,7 +5,7 @@ import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 
 contract RestrictedContract {
     function restrictedMethod() external view returns (bool) {
@@ -14,12 +14,12 @@ contract RestrictedContract {
     }
 }
 
-contract AccessManagerFacetTest is TestBase {
+contract AccessManagerFacetTest is TestBaseLocal {
     AccessManagerFacet internal accessMgr;
     RestrictedContract internal restricted;
 
     function setUp() public {
-        initTestBase();
+        initTestBaseLocal();
 
         accessMgr = new AccessManagerFacet();
         restricted = new RestrictedContract();
