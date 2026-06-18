@@ -108,7 +108,7 @@ jobs:
         run: bash script/utils/verifyEmergencyPauseReadinessGitHub.sh
         env:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
-          HEXAGATE_PAUSER_PAT: ${{ secrets.HEXAGATE_PAUSER_PAT }} # lifi-hexagate-pauser PAT; skipped if unset
+          HEXAGATE_PAUSER_PAT: ${{ secrets.HEXAGATE_PAUSER_PAT }} # lifi-hexagate-pauser PAT; fails (not skips) if unset
 
       # Funding is live operational state (independent of the code in a PR), so this runs on
       # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
