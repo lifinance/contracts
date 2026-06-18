@@ -251,7 +251,10 @@ contract LiFiVaultWrapperFactory is
         if (!allowedUnderlying[_params.underlying])
             revert UnderlyingNotAllowed();
 
-        address asset = _probeViaAdapter(_params.adapter, _params.underlying);
+        address asset = _resolveAssetViaAdapter(
+            _params.adapter,
+            _params.underlying
+        );
 
         _validateFees(_params.fees);
 
@@ -290,15 +293,17 @@ contract LiFiVaultWrapperFactory is
         );
     }
 
-    function _probeViaAdapter(
+    function _resolveAssetViaAdapter(
         address _adapter,
         address _underlying
     ) internal view returns (address asset) {
-        try IYieldAdapter(_adapter).probe(_underlying) returns (address a) {
-            if (a == address(0)) revert UnderlyingProbeFailed();
+        try IYieldAdapter(_adapter).resolveAsset(_underlying) returns (
+            address a
+        ) {
+            if (a == address(0)) revert AssetResolutionFailed();
             asset = a;
         } catch {
-            revert UnderlyingProbeFailed();
+            revert AssetResolutionFailed();
         }
     }
 

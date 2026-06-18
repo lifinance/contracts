@@ -252,7 +252,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.deploy(p);
     }
 
-    function test_DeployRevertsOnProbeFailureNoCode() public {
+    function test_DeployRevertsOnAssetResolutionFailureNoCode() public {
         address notAVault = makeAddr("eoa");
         vm.startPrank(owner);
         factory.setUnderlyingAllowed(notAVault, true);
@@ -267,7 +267,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
         vm.prank(onboarder);
         vm.expectRevert(
-            ILiFiVaultWrapperFactory.UnderlyingProbeFailed.selector
+            ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
         );
         factory.deploy(p);
     }

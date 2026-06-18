@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-/// @notice Minimal ERC4626-shaped vault exposing only what the factory probe reads.
+/// @notice Minimal ERC4626-shaped vault exposing only what the adapter's asset resolution reads.
 contract MockERC4626Underlying {
     address public asset;
 

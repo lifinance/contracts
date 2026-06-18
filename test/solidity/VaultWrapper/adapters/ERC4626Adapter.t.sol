@@ -13,19 +13,19 @@ contract ERC4626AdapterTest is Test {
         adapter = new ERC4626Adapter();
     }
 
-    function test_ProbeReturnsAssetForValidVault() public {
+    function test_ResolveAssetReturnsAssetForValidVault() public {
         MockERC4626Underlying vault = new MockERC4626Underlying(assetToken);
-        assertEq(adapter.probe(address(vault)), assetToken);
+        assertEq(adapter.resolveAsset(address(vault)), assetToken);
     }
 
-    function test_ProbeRevertsOnNoCode() public {
-        vm.expectRevert(ERC4626Adapter.UnderlyingProbeFailed.selector);
-        adapter.probe(makeAddr("eoa"));
+    function test_ResolveAssetRevertsOnNoCode() public {
+        vm.expectRevert(ERC4626Adapter.AssetResolutionFailed.selector);
+        adapter.resolveAsset(makeAddr("eoa"));
     }
 
-    function test_ProbeRevertsOnZeroAsset() public {
+    function test_ResolveAssetRevertsOnZeroAsset() public {
         MockERC4626Underlying vault = new MockERC4626Underlying(address(0));
-        vm.expectRevert(ERC4626Adapter.UnderlyingProbeFailed.selector);
-        adapter.probe(address(vault));
+        vm.expectRevert(ERC4626Adapter.AssetResolutionFailed.selector);
+        adapter.resolveAsset(address(vault));
     }
 }

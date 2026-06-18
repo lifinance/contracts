@@ -80,8 +80,8 @@ interface ILiFiVaultWrapperFactory {
     error UnderlyingNotAllowed();
     /// @notice Thrown when the chosen adapter is not approved.
     error AdapterNotApproved();
-    /// @notice Thrown when the adapter fails to validate the underlying.
-    error UnderlyingProbeFailed();
+    /// @notice Thrown when the adapter cannot resolve the underlying's asset.
+    error AssetResolutionFailed();
     /// @notice Thrown when an enabled fee rate is outside its configured bounds.
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
