@@ -9,11 +9,12 @@
 #   LiFiTimelockController.diamond() matches the deploy-log diamond, and (b) the Safe holds
 #   TIMELOCK_ADMIN_ROLE (so it can execute unpauseDiamond()). Skipped on testnets/Tron and on any
 #   network with no deployed timelock or configured Safe.
-# - Hexagate PAT check: five GitHub API checks on the lifi-hexagate-pauser PAT that Hexagate
-#   uses to fire workflow_dispatch on this repo — (1) HEXAGATE_PAUSER_PAT secret is configured,
-#   (2) SSO authorized for lifinance org, (3) not expired/revoked, (4) has push (write) access
-#   and workflow/repo scope, (5) token owner is an active member of the lifinance/diamondpauser
-#   gate team. Fails (not skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered.
+# - Hexagate PAT check: six checks on the lifi-hexagate-pauser PAT that Hexagate uses to fire
+#   workflow_dispatch on this repo — (1) HEXAGATE_PAUSER_PAT secret is configured, (2) PAT
+#   format is valid (ghp_* classic or github_pat_* fine-grained prefix), (3) SSO authorized for
+#   lifinance org, (4) not expired/revoked, (5) has push (write) access and workflow/repo scope,
+#   (6) token owner is an active member of the lifinance/diamondpauser gate team. Fails (not
+#   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
 #   wallet can afford pauseDiamond() on every production EVM chain, and reports the native TOP-UP
 #   needed to reach OK. A CRITICAL network (cannot fund a single pause) — or a fully-blind sweep where
@@ -169,6 +170,7 @@ jobs:
           HEXAGATE_PAT="${{ steps.readiness.outputs.hexagatePat }}"
           # Hexagate PAT sub-checks (rendered as child bullets under the parent)
           HEX_SECRET="${{ steps.readiness.outputs.hexagatePatSecret }}"
+          HEX_FORMAT="${{ steps.readiness.outputs.hexagatePatFormat }}"
           HEX_SSO="${{ steps.readiness.outputs.hexagatePatSso }}"
           HEX_VALIDITY="${{ steps.readiness.outputs.hexagatePatValidity }}"
           HEX_DISPATCH="${{ steps.readiness.outputs.hexagatePatDispatch }}"
@@ -181,10 +183,10 @@ jobs:
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
           # The Hexagate PAT entry is a parent bullet with four indented child bullets beneath it.
-          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s SSO authorized for lifinance org\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* or github_pat_* prefix)\n    - %s SSO authorized for lifinance org\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
             "$HEADER" \
             "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
-            "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SECRET")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
+            "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SECRET")" "$(icon "$HEX_FORMAT")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
             "$(icon "$FUNDS")" "$RUN_URL")
           {
             echo "text<<SLACK_EOF"
