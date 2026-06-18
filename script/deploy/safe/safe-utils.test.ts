@@ -17,13 +17,15 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Collection, type InsertOneResult } from 'mongodb'
+import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import { type Address, type Hex } from 'viem'
 
 import {
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  mongoSafeTxRowFilter,
+  serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
   OperationTypeEnum,
@@ -443,5 +445,65 @@ describe('summarizeProposalDoc', () => {
     expect(summary.selector).toBe('0x')
     expect(summary.signatureCount).toBe(0)
     expect(summary.timestamp).toBe('')
+  })
+})
+
+describe('mongoSafeTxRowFilter', () => {
+  it('prefers _id when present', () => {
+    const id = { toString: () => 'abc' } as ObjectId
+    expect(
+      mongoSafeTxRowFilter(
+        {
+          _id: id,
+          safeAddress: SAFE_ADDR,
+          network: NETWORK,
+          chainId: CHAIN_ID,
+          safeTx: buildSafeTx(),
+          safeTxHash: '0xhash',
+          proposer: PROPOSER,
+          timestamp: new Date(),
+          status: 'pending',
+        },
+        NETWORK,
+        CHAIN_ID
+      )
+    ).toEqual({ _id: { $eq: id } })
+  })
+
+  it('falls back to pending identity fields without _id', () => {
+    expect(
+      mongoSafeTxRowFilter(
+        {
+          safeAddress: SAFE_ADDR,
+          network: NETWORK,
+          chainId: CHAIN_ID,
+          safeTx: buildSafeTx(),
+          safeTxHash: '0xhash',
+          proposer: PROPOSER,
+          timestamp: new Date(),
+          status: 'pending',
+        },
+        NETWORK,
+        CHAIN_ID
+      )
+    ).toEqual({
+      status: { $eq: 'pending' },
+      safeTxHash: { $eq: '0xhash' },
+      network: { $eq: NETWORK },
+      chainId: { $eq: CHAIN_ID },
+    })
+  })
+})
+
+describe('serializeSafeTxForMongo', () => {
+  it('converts signature Map to plain object', () => {
+    const safeTx = buildSafeTx()
+    safeTx.signatures.set(PROPOSER.toLowerCase(), {
+      signer: PROPOSER,
+      data: ('0x' + '11'.repeat(65)) as Hex,
+    })
+    const stored = serializeSafeTxForMongo(safeTx)
+    expect(stored.signatures[PROPOSER.toLowerCase()]?.signer).toEqual(PROPOSER)
+    expect(Object.keys(stored.signatures)).toHaveLength(1)
   })
 })

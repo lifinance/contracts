@@ -17,7 +17,12 @@ import {
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
+import {
+  MongoClient,
+  type Collection,
+  type InsertOneResult,
+  type ObjectId,
+} from 'mongodb'
 import {
   createPublicClient,
   createWalletClient,
@@ -118,7 +123,12 @@ export interface ISafeTxDocument {
   intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
-export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
+/** MongoDB row shape — includes the document `_id` returned by `find()`. */
+export interface ISafeTxMongoDocument extends ISafeTxDocument {
+  _id?: ObjectId
+}
+
+export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
   safeTransaction: ISafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
@@ -828,6 +838,45 @@ export class SafeClient {
 export type ViemSafe = SafeClient
 
 /**
+ * Converts an in-memory Safe tx (Map signatures, bigint fields) into the plain
+ * object shape MongoDB stores. Mirrors propose-to-safe-tron.ts.
+ */
+export function serializeSafeTxForMongo(safeTx: ISafeTransaction): {
+  data: ISafeTransactionData
+  signatures: Record<string, ISafeSignature>
+} {
+  return {
+    data: safeTx.data,
+    signatures: Object.fromEntries(safeTx.signatures),
+  }
+}
+
+/**
+ * Builds a filter that targets exactly one pendingTransactions row.
+ * Prefer `_id` from the fetched document; fall back to pending + identity
+ * fields when `_id` is absent (unit-test fakes).
+ */
+export function mongoSafeTxRowFilter(
+  doc: ISafeTxMongoDocument,
+  networkKey?: string,
+  chainId?: number
+): Record<string, unknown> {
+  if (doc._id) return { _id: { $eq: doc._id } }
+
+  if (networkKey !== undefined && chainId !== undefined)
+    return {
+      status: { $eq: 'pending' },
+      safeTxHash: { $eq: doc.safeTxHash },
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+    }
+
+  throw new Error(
+    'Cannot target a unique pendingTransactions row without _id or (network, chainId)'
+  )
+}
+
+/**
  * Initializes a SafeTransaction from MongoDB document data
  * @param txFromMongo - Transaction document from MongoDB
  * @param safe - SafeClient instance
@@ -853,25 +902,27 @@ export const initializeSafeTransaction = async (
     ],
   })
 
-  // Add existing signatures
+  // Add existing signatures (MongoDB stores a plain object; Map if in-memory)
   if (txFromMongo.safeTx.signatures) {
-    // Convert from document format to Map
     const signatures = new Map<string, { signer: Address; data: Hex }>()
-    Object.entries(txFromMongo.safeTx.signatures).forEach(
-      ([key, value]: [string, unknown]) => {
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'signer' in value &&
-          'data' in value
-        ) {
-          signatures.set(key, {
-            signer: (value as { signer: Address }).signer,
-            data: (value as { data: Hex }).data,
-          })
-        }
+    const raw = txFromMongo.safeTx.signatures
+    const entries =
+      raw instanceof Map
+        ? Array.from(raw.entries())
+        : Object.entries(raw as Record<string, unknown>)
+    entries.forEach(([key, value]: [string, unknown]) => {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'signer' in value &&
+        'data' in value
+      ) {
+        signatures.set(key, {
+          signer: (value as { signer: Address }).signer,
+          data: (value as { data: Hex }).data,
+        })
       }
-    )
+    })
     safeTransaction.signatures = signatures
   }
 
@@ -1497,7 +1548,7 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 
   return Object.keys(networks).filter(
     (network) =>
-      network !== 'localanvil' &&
+      network !== 'localanvil' && // pre-commit-checker: not a secret — network name filter
       networks[network.toLowerCase()]?.status === 'active'
   )
 }
