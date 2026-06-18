@@ -330,7 +330,17 @@ function verifyHexagatePatReadiness() {
   else
     error "Hexagate PAT (2/6): PAT format is invalid — expected a classic PAT (ghp_<36 chars>)"
     FORMAT_STATUS="fail"
-    RC=1
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+      {
+        echo "hexagatePatSecret=$SECRET_STATUS"
+        echo "hexagatePatFormat=$FORMAT_STATUS"
+        echo "hexagatePatSso=skipped"
+        echo "hexagatePatValidity=skipped"
+        echo "hexagatePatDispatch=skipped"
+        echo "hexagatePatTeam=skipped"
+      } >>"$GITHUB_OUTPUT"
+    fi
+    return 1
   fi
 
   local GH_HEADERS=(-H "Authorization: Bearer $HEXAGATE_PAUSER_PAT" \
