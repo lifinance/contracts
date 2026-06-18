@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+// CI baseline fixture (EXSC-519) — comment-only; safe to revert after measurement
 pragma solidity ^0.8.17;
 
 /// @title Interface for ERC165
