@@ -285,7 +285,7 @@ function verifyNetwork() {
 # verifyHexagatePatReadiness: verify the lifi-hexagate-pauser PAT can dispatch
 # diamondEmergencyPause.yml. Six checks against the GitHub API — no workflow is triggered:
 #   (1) Secret configured  — HEXAGATE_PAUSER_PAT secret is set in this repo (fail-fast if not)
-#   (2) Format valid       — PAT matches ghp_* (classic) or github_pat_* (fine-grained) prefix format
+#   (2) Format valid       — PAT matches ghp_* classic PAT prefix format (fine-grained PATs not supported)
 #   (3) SSO authorization  — PAT is authorized for the lifinance SAML SSO org (x-github-sso header)
 #   (4) Validity           — PAT is not expired or revoked (HTTP status)
 #   (5) Dispatch access    — PAT has push access AND workflow/repo scope (both required for workflow_dispatch)
@@ -410,7 +410,7 @@ function verifyHexagatePatReadiness() {
     RC=1
   fi
 
-  # (4) Dispatch access: push permission + workflow/repo scope (both required for workflow_dispatch)
+  # (5) Dispatch access: push permission + workflow/repo scope (both required for workflow_dispatch)
   if [[ "$HTTP_STATUS" == "200" ]]; then
     local SCOPE_OK=true
     if [[ -n "$OAUTH_SCOPES" ]]; then
@@ -436,7 +436,7 @@ function verifyHexagatePatReadiness() {
     echo "Hexagate PAT (5/6): skipped (HTTP $HTTP_STATUS from repo endpoint)"
   fi
 
-  # ── Check 5: DiamondPauser team membership ──────────────────────────────────
+  # ── Check 6: DiamondPauser team membership ──────────────────────────────────
   # Step A: resolve token owner via GET /user
   local USER_BODY_FILE TOKEN_OWNER USER_HTTP_STATUS
   USER_BODY_FILE=$(mktemp)
