@@ -184,6 +184,17 @@ done <<< "${FILES}"
 - **Authorization**: Only allow specific bots (e.g., `lifi-action-bot`) to modify protected labels
 - **Verification**: Always verify label state after modification
 
+### Label-gated heavy workflows ([CONV:CI-LABEL-GATE])
+
+Use when a workflow is expensive (Foundry install, type generation, external repo publish) and most PRs do not need it:
+
+1. **Gate the heavy job** on a dedicated label (e.g. `requires-types`) for `pull_request` events; keep unconditional runs for `push` to `main` and `workflow_dispatch`.
+2. **Auto-assign the label** in a separate lightweight workflow using `dorny/paths-filter` on ABI-relevant paths so humans/agents do not need to remember the label for typical contract changes.
+3. **Include `labeled` in triggers** so the heavy workflow runs after the auto-label workflow adds the label (avoids race on the first `synchronize` event).
+4. **Document manual opt-in**: edge-case PRs (e.g. script-only changes needing fresh bindings) can add the label by hand.
+
+Reference: `assignRequiresTypesLabel.yml` + `types.yaml`.
+
 ### PR Comments
 
 - **Comment identification**: Use unique markers (e.g., "🤖 GitHub Action: Security Alerts Review 🔍")
