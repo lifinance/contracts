@@ -94,8 +94,8 @@ async function prepareTimelockCalldata(
     network,
     '', // rpcUrl will fall back to chain.rpcUrls.default.http[0] in wrapWithTimelockSchedule
     timelockAddress as `0x${string}`,
-    diamondAddress as `0x${string}`,
-    originalCalldata
+    [diamondAddress as `0x${string}`],
+    [originalCalldata]
   )
 
   return {

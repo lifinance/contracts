@@ -9,6 +9,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { MockUniswapDEX, NonETHReceiver } from "../../../utils/TestHelpers.sol";
+import { DeployPeripheryHelpers } from "../../../utils/DeployPeripheryHelpers.sol";
 
 address constant SPOKEPOOL_MAINNET = 0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 
@@ -29,8 +30,8 @@ contract ReceiverAcrossV3Test is TestBase {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
-        executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), USER_DIAMOND_OWNER);
         receiver = new ReceiverAcrossV3(
             USER_DIAMOND_OWNER,
             address(executor),

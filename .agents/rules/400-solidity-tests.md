@@ -16,7 +16,11 @@ paths:
 
 ## Test Naming
 
-- Function names: `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- Function names: `test_` (success), `testRevert_` (failure — **required** for any test that calls `vm.expectRevert`), `testBase_` (base).
+- Segments after the prefix must be PascalCase (e.g. `test_SucceedsWhenSwappingExactInput`).
+- No underscores within a segment — the only underscore is the one after the prefix.
+- Name the user- or protocol-meaningful case first (asset, chain, outcome) rather than echoing implementation details. Prefer `testRevert_NativeTransferFailed` over `testRevert_FailsIfExternalCallFails`.
+- When editing a test file, align any ambiguous or inconsistently-named existing tests to this convention.
 
 ## Test Structure and Assertions
 
