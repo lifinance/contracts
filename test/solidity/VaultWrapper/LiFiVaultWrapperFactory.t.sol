@@ -44,6 +44,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);
         assertEq(factory.defaultIntegratorShareBps(), 8000);
+        assertEq(factory.maxIntegratorShareBps(), 8000);
         assertFalse(factory.globalPaused());
     }
 
@@ -92,6 +93,32 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         factory.setDefaultSplit(3000);
         assertEq(factory.defaultIntegratorShareBps(), 3000);
+    }
+
+    function test_SetDefaultSplitRevertsAboveCeiling() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
+        factory.setDefaultSplit(8001); // ceiling is 8000
+    }
+
+    function test_OwnerSetsMaxIntegratorShare() public {
+        vm.expectEmit(false, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.MaxIntegratorShareSet(9000);
+        vm.prank(owner);
+        factory.setMaxIntegratorShare(9000);
+        assertEq(factory.maxIntegratorShareBps(), 9000);
+    }
+
+    function test_SetMaxIntegratorShareRevertsAboveDenominator() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
+        factory.setMaxIntegratorShare(10001);
+    }
+
+    function test_SetMaxIntegratorShareRevertsBelowDefault() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
+        factory.setMaxIntegratorShare(7999); // default is 8000
     }
 
     function test_OnboardingManagerApprovesIntegrator() public {
@@ -177,6 +204,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
             underlying: address(underlying),
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            integratorShareBps: type(uint16).max, // inherit factory default
             initData: hex"1234"
         });
     }
@@ -204,6 +232,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
         assertEq(w.integrator(), integrator);
+        assertEq(w.integratorShareBps(), 8000); // factory default
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
         assertEq(w.initData(), hex"1234");
@@ -218,6 +247,48 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(integrator);
         address instance = factory.deploy(p);
         assertTrue(factory.isInstance(instance));
+    }
+
+    function test_DeployWithSplitOverrideWithinCeiling() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        p.integratorShareBps = 5000;
+        vm.prank(onboarder);
+        address instance = factory.deploy(p);
+        assertEq(MockVaultWrapper(instance).integratorShareBps(), 5000);
+    }
+
+    function test_SelfDeployerSetsSplitWithinCeiling() public {
+        _enableUnderlyingAndBounds();
+        vm.prank(onboarder);
+        factory.setIntegratorApproved(integrator, true);
+        DeployParams memory p = _params(integrator, 0);
+        p.integratorShareBps = 7000;
+        vm.prank(integrator);
+        address instance = factory.deploy(p);
+        assertEq(MockVaultWrapper(instance).integratorShareBps(), 7000);
+    }
+
+    function test_DeployRevertsOnSplitAboveCeiling() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(integrator, 0);
+        p.integratorShareBps = 8001; // ceiling is 8000
+        vm.prank(onboarder);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.IntegratorShareAboveCeiling.selector
+        );
+        factory.deploy(p);
+    }
+
+    function test_RaisedCeilingAllowsHigherSplit() public {
+        _enableUnderlyingAndBounds();
+        vm.prank(owner);
+        factory.setMaxIntegratorShare(9000);
+        DeployParams memory p = _params(integrator, 0);
+        p.integratorShareBps = 9000;
+        vm.prank(onboarder);
+        address instance = factory.deploy(p);
+        assertEq(MockVaultWrapper(instance).integratorShareBps(), 9000);
     }
 
     function test_RandomCallerCannotDeploy() public {

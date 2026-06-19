@@ -17,6 +17,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
     address public underlying;
     address public adapter;
     address public integrator;
+    uint16 public integratorShareBps;
     bytes public initData;
 
     FeeConfig internal _feeConfig;
@@ -27,6 +28,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
         address _underlying,
         address _adapter,
         address _integrator,
+        uint16 _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData
     ) external {
@@ -36,6 +38,7 @@ contract MockVaultWrapper is ILiFiVaultWrapper {
         underlying = _underlying;
         adapter = _adapter;
         integrator = _integrator;
+        integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
         initData = _initData;
     }
