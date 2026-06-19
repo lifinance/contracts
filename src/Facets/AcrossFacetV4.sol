@@ -134,19 +134,7 @@ contract AcrossFacetV4 is
             payable(msg.sender)
         );
 
-        // Since the minAmount / inputAmount was updated, we also need to adjust the outputAmount.
-        // In case any of different decimals between input and output, we will adjust the outputAmount
-        // with the outputAmountMultiplier to account for the difference in decimals. We divide by 1e18
-        // to allow room for adjustment in both directions, i.e. from 6 > 18 decimals and vice versa.
-        // The multiplier should be calculated as:  multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)
-        // NOTE: please note that we intentionally do not verify the outputAmount any further. Only use LI.FI backend-
-        //       generated calldata to avoid potential loss of funds.
-        AcrossV4Data memory modifiedAcrossData = _acrossData;
-        modifiedAcrossData.outputAmount =
-            (_bridgeData.minAmount * _acrossData.outputAmountMultiplier) /
-            MULTIPLIER_BASE;
-
-        _startBridge(_bridgeData, modifiedAcrossData);
+        _startBridge(_bridgeData, _acrossData);
     }
 
     /// Internal Methods ///
