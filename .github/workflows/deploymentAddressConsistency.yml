@@ -1,0 +1,39 @@
+# Deployment Address Consistency Check
+# - validates that contract addresses are consistent across config/whitelist.json,
+#   deployments/<network>.json, and deployments/<network>.diamond.json
+# - skips draft PRs to support the two-step deploy workflow:
+#   step 1 (deploy facet, open draft PR) may have flat log ahead of diamond.json;
+#   step 2 (execute timelock) completes the update; PR is then marked ready for review
+# - path-gated: only runs when whitelist or deployment files change
+# - runs the full repo check (all networks), not the staged-only subset
+
+name: Deployment Address Consistency
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'config/whitelist.json'
+      - 'deployments/**'
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  address-consistency:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check deployment address consistency
+        run: bunx tsx script/tasks/checkDeploymentAddressConsistency.ts

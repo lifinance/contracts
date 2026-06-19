@@ -29,12 +29,9 @@ cd "$GIT_ROOT" || exit 1
 # Determine what types of files changed for conditional execution (optimized single pass)
 HAS_SOL_FILES="no"
 HAS_TS_JS_FILES="no"
-HAS_ADDRESS_FILES="no"
-
 # Check staged files for Solidity and TypeScript/JavaScript extensions
 echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes"
 echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes"
-echo "$STAGED_FILES" | grep -qE '^config/whitelist\.json$|^deployments/' && HAS_ADDRESS_FILES="yes"
 
 # Create temp directory for parallel execution
 # Try portable form first, fall back to macOS-specific, then mkdir fallback
@@ -591,23 +588,6 @@ if [ -n "$LINT_STAGED_PID" ]; then
     exit 1
   fi
   print_status "success" "Lint-staged completed"
-fi
-
-# Deployment address consistency: whitelist.json <-> deployment logs.
-# Runs only when whitelist or deployment files are staged. --staged scopes the
-# check to the networks this commit touches. Pure JSON, no RPC.
-if [ "$HAS_ADDRESS_FILES" = "yes" ]; then
-  print_status "info" "Checking deployment address consistency..."
-  ADDRESS_OUTPUT="$TEMP_DIR/address-consistency.out"
-  if bunx tsx "$GIT_ROOT/script/tasks/checkDeploymentAddressConsistency.ts" --staged > "$ADDRESS_OUTPUT" 2>&1; then
-    print_status "success" "Deployment address consistency passed"
-  else
-    printf '\n'
-    cat "$ADDRESS_OUTPUT"
-    printf '\n'
-    print_status "error" "Deployment address mismatch detected. Aborting commit."
-    exit 1
-  fi
 fi
 
 printf '\n\033[1m━━━ All pre-commit checks passed! ━━━\033[0m\n'
