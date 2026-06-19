@@ -8,7 +8,7 @@ import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaul
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
@@ -377,7 +377,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_OwnerSetsAdapterApproved() public {
-        address a = makeAddr("adapter2");
+        address a = address(new ERC4626Adapter());
         vm.expectEmit(true, false, false, true, address(factory));
         emit ILiFiVaultWrapperFactory.AdapterApprovedSet(a, true);
         vm.prank(owner);
@@ -394,5 +394,11 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
         factory.setAdapterApproved(address(0), true);
+    }
+
+    function test_SetAdapterApprovedRevertsOnNonContract() public {
+        vm.prank(owner);
+        vm.expectRevert(InvalidContract.selector);
+        factory.setAdapterApproved(makeAddr("eoa"), true);
     }
 }

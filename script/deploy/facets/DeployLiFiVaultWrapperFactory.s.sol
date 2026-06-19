@@ -20,6 +20,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      on the factory before any wrapper can be deployed.
 /// @custom:version 1.0.0
 contract DeployScript is Script {
+    error ZeroPrivateKey();
     error ZeroOwner();
     error ZeroEmergencyPauser();
     error ZeroOnboardingManager();
@@ -38,6 +39,7 @@ contract DeployScript is Script {
         address emergencyPauser = vm.envAddress("EMERGENCY_PAUSER");
         address onboardingManager = vm.envAddress("ONBOARDING_MANAGER");
 
+        if (deployerPrivateKey == 0) revert ZeroPrivateKey();
         if (owner == address(0)) revert ZeroOwner();
         if (emergencyPauser == address(0)) revert ZeroEmergencyPauser();
         if (onboardingManager == address(0)) revert ZeroOnboardingManager();

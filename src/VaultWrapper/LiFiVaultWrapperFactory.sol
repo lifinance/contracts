@@ -130,6 +130,7 @@ contract LiFiVaultWrapperFactory is
         bool _approved
     ) external onlyOwner {
         if (_adapter == address(0)) revert ZeroAddress();
+        if (_approved && _adapter.code.length == 0) revert InvalidContract();
         approvedAdapter[_adapter] = _approved;
         emit AdapterApprovedSet(_adapter, _approved);
     }
