@@ -15,6 +15,7 @@ on:
     paths:
       - 'config/whitelist.json'
       - 'deployments/**'
+  workflow_dispatch: # allows manual triggering from the Actions tab for testing
 
 permissions:
   contents: read # required to fetch repository contents
