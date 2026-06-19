@@ -11,6 +11,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
+import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
@@ -55,6 +56,46 @@ contract LiFiVaultWrapperFactoryTest is Test {
         new LiFiVaultWrapperFactory(address(0), owner, pauser, onboarder);
     }
 
+    function test_ConstructorRevertsOnZeroOwner() public {
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        new LiFiVaultWrapperFactory(
+            address(beacon),
+            address(0),
+            pauser,
+            onboarder
+        );
+    }
+
+    function test_ConstructorRevertsOnZeroPauser() public {
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        new LiFiVaultWrapperFactory(
+            address(beacon),
+            owner,
+            address(0),
+            onboarder
+        );
+    }
+
+    function test_ConstructorRevertsOnZeroOnboardingManager() public {
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        new LiFiVaultWrapperFactory(
+            address(beacon),
+            owner,
+            pauser,
+            address(0)
+        );
+    }
+
+    function test_ConstructorRevertsOnNonContractBeacon() public {
+        vm.expectRevert(InvalidContract.selector);
+        new LiFiVaultWrapperFactory(
+            makeAddr("notBeacon"),
+            owner,
+            pauser,
+            onboarder
+        );
+    }
+
     function test_OwnerSetsUnderlyingAllowed() public {
         address u = makeAddr("underlying");
         vm.expectEmit(true, false, false, true, address(factory));
@@ -67,6 +108,24 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_NonOwnerCannotSetUnderlyingAllowed() public {
         vm.expectRevert(UnAuthorized.selector);
         factory.setUnderlyingAllowed(makeAddr("underlying"), true);
+    }
+
+    function test_SetUnderlyingAllowedRevertsOnZero() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        factory.setUnderlyingAllowed(address(0), true);
+    }
+
+    function test_SetEmergencyPauserRevertsOnZero() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        factory.setEmergencyPauser(address(0));
+    }
+
+    function test_SetOnboardingManagerRevertsOnZero() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        factory.setOnboardingManager(address(0));
     }
 
     function test_OwnerSetsFeeBounds() public {
@@ -89,6 +148,28 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
         factory.setFeeBounds(FeeType.Deposit, 500, 100);
+    }
+
+    function test_OwnerSetsDepositFeeBounds() public {
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Deposit, 0, 2000); // deposit cap 2000
+        (uint16 minBps, uint16 maxBps) = factory.feeBounds(FeeType.Deposit);
+        assertEq(minBps, 0);
+        assertEq(maxBps, 2000);
+    }
+
+    function test_OwnerSetsWithdrawalFeeBounds() public {
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Withdrawal, 0, 2000); // withdrawal cap 2000
+        (uint16 minBps, uint16 maxBps) = factory.feeBounds(FeeType.Withdrawal);
+        assertEq(minBps, 0);
+        assertEq(maxBps, 2000);
+    }
+
+    function test_SetWithdrawalFeeBoundsRevertsAboveCap() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
+        factory.setFeeBounds(FeeType.Withdrawal, 0, 2001); // cap is 2000
     }
 
     function test_OwnerSetsDefaultSplit() public {
@@ -354,6 +435,23 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.stopPrank();
         DeployParams memory p = _params(0);
         p.underlying = notAVault;
+        vm.prank(onboarder);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
+        );
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnZeroAssetFromAdapter() public {
+        MockZeroAdapter zeroAdapter = new MockZeroAdapter();
+        vm.startPrank(owner);
+        factory.setAdapterApproved(address(zeroAdapter), true);
+        factory.setUnderlyingAllowed(assetToken, true);
+        factory.setFeeBounds(FeeType.Performance, 0, 5000);
+        vm.stopPrank();
+        DeployParams memory p = _params(0);
+        p.adapter = address(zeroAdapter);
+        p.underlying = assetToken;
         vm.prank(onboarder);
         vm.expectRevert(
             ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
