@@ -9,6 +9,9 @@ pragma solidity ^0.8.17;
 ///         totalAssets/convertToShares) in S1.
 /// @custom:version 1.0.0
 interface IYieldAdapter {
+    /// @notice Thrown when the adapter cannot resolve the underlying's asset.
+    error AssetResolutionFailed();
+
     /// @notice Resolves the ERC20 asset deposited into `_underlying` for this
     ///         adapter's protocol.
     /// @dev MUST revert if the asset cannot be resolved (wrong protocol, not a

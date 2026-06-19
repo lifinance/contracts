@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
+import { LibAsset } from "../Libraries/LibAsset.sol";
 import { InvalidContract } from "../Errors/GenericErrors.sol";
 import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
@@ -54,6 +55,9 @@ contract LiFiVaultWrapperFactory is
     address public emergencyPauser;
     /// @notice Address authorized to approve and revoke integrators.
     address public onboardingManager;
+    /// @notice Recipient of LI.FI's fee share; read live by every vault wrapper at
+    ///         distribution, so an integrator cannot redirect LI.FI's cut.
+    address public lifiFeeRecipient;
     /// @notice Whether deposits are globally halted; read by every vault wrapper.
     bool public globalPaused;
 
@@ -93,23 +97,27 @@ contract LiFiVaultWrapperFactory is
     /// @param _owner         Address that will own the factory.
     /// @param _emergencyPauser Address authorized to trigger global pause.
     /// @param _onboardingManager Address authorized to manage integrator allowlist.
+    /// @param _lifiFeeRecipient Recipient of LI.FI's fee share.
     constructor(
         address _beacon,
         address _owner,
         address _emergencyPauser,
-        address _onboardingManager
+        address _onboardingManager,
+        address _lifiFeeRecipient
     ) TransferrableOwnership(_owner) {
         if (
             _beacon == address(0) ||
             _owner == address(0) ||
             _emergencyPauser == address(0) ||
-            _onboardingManager == address(0)
+            _onboardingManager == address(0) ||
+            _lifiFeeRecipient == address(0)
         ) revert ZeroAddress();
-        if (_beacon.code.length == 0) revert InvalidContract();
+        if (!LibAsset.isContract(_beacon)) revert InvalidContract();
 
         BEACON = _beacon;
         emergencyPauser = _emergencyPauser;
         onboardingManager = _onboardingManager;
+        lifiFeeRecipient = _lifiFeeRecipient;
         defaultIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
     }
 
@@ -131,7 +139,8 @@ contract LiFiVaultWrapperFactory is
         bool _approved
     ) external onlyOwner {
         if (_adapter == address(0)) revert ZeroAddress();
-        if (_approved && _adapter.code.length == 0) revert InvalidContract();
+        if (_approved && !LibAsset.isContract(_adapter))
+            revert InvalidContract();
         approvedAdapter[_adapter] = _approved;
         emit AdapterApprovedSet(_adapter, _approved);
     }
@@ -154,6 +163,13 @@ contract LiFiVaultWrapperFactory is
         if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
         defaultIntegratorShareBps = _integratorBps;
         emit DefaultSplitSet(_integratorBps);
+    }
+
+    /// @notice Set the recipient of LI.FI's fee share, read live by vault wrappers.
+    function setLifiFeeRecipient(address _recipient) external onlyOwner {
+        if (_recipient == address(0)) revert ZeroAddress();
+        lifiFeeRecipient = _recipient;
+        emit LifiFeeRecipientSet(_recipient);
     }
 
     /// @notice Rotate the emergency pauser role.
@@ -318,10 +334,13 @@ contract LiFiVaultWrapperFactory is
     /// @param _feeType The fee type to look up.
     /// @return The highest rate (bps) governance may ever set for this fee type.
     function _cap(FeeType _feeType) internal pure returns (uint16) {
-        if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;
-        if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
-        if (_feeType == FeeType.Deposit) return CAP_DEPOSIT_BPS;
-        return CAP_WITHDRAWAL_BPS;
+        uint16[4] memory caps = [
+            CAP_PERFORMANCE_BPS,
+            CAP_MANAGEMENT_BPS,
+            CAP_DEPOSIT_BPS,
+            CAP_WITHDRAWAL_BPS
+        ];
+        return caps[uint256(_feeType)];
     }
 
     /// @notice Resolves the underlying's ERC20 asset via the approved adapter.
@@ -336,7 +355,7 @@ contract LiFiVaultWrapperFactory is
         address _underlying
     ) internal view returns (address asset) {
         asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
-        if (asset == address(0)) revert AssetResolutionFailed();
+        if (asset == address(0)) revert IYieldAdapter.AssetResolutionFailed();
     }
 
     /// @notice Validates a fee config against the per-type bounds and caps.
@@ -346,7 +365,7 @@ contract LiFiVaultWrapperFactory is
     ///      closed.
     /// @param _fees The per-fee-type rates and enabled flags to validate.
     function _validateFees(FeeConfig calldata _fees) internal view {
-        for (uint8 i; i < 4; ++i) {
+        for (uint8 i; i <= uint8(type(FeeType).max); ++i) {
             if (!_fees.enabled[i]) {
                 if (_fees.rateBps[i] != 0) revert DisabledFeeMustBeZero();
                 continue;

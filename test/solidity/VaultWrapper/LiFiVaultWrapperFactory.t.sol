@@ -7,6 +7,7 @@ import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFacto
 import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
+import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
@@ -22,6 +23,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal owner = makeAddr("owner");
     address internal pauser = makeAddr("pauser");
     address internal onboarder = makeAddr("onboarder");
+    address internal lifiRecipient = makeAddr("lifiRecipient");
     address internal deployer = makeAddr("deployer");
     address internal vaultAdmin = makeAddr("vaultAdmin");
     bytes32 internal constant NS = bytes32("Coinbase");
@@ -35,7 +37,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             address(beacon),
             owner,
             pauser,
-            onboarder
+            onboarder,
+            lifiRecipient
         );
         adapter = new ERC4626Adapter();
         vm.prank(owner);
@@ -47,13 +50,20 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.owner(), owner);
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);
+        assertEq(factory.lifiFeeRecipient(), lifiRecipient);
         assertEq(factory.defaultIntegratorShareBps(), 8000);
         assertFalse(factory.globalPaused());
     }
 
     function test_ConstructorRevertsOnZeroBeacon() public {
         vm.expectRevert();
-        new LiFiVaultWrapperFactory(address(0), owner, pauser, onboarder);
+        new LiFiVaultWrapperFactory(
+            address(0),
+            owner,
+            pauser,
+            onboarder,
+            lifiRecipient
+        );
     }
 
     function test_ConstructorRevertsOnZeroOwner() public {
@@ -62,7 +72,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             address(beacon),
             address(0),
             pauser,
-            onboarder
+            onboarder,
+            lifiRecipient
         );
     }
 
@@ -72,7 +83,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             address(beacon),
             owner,
             address(0),
-            onboarder
+            onboarder,
+            lifiRecipient
         );
     }
 
@@ -82,6 +94,18 @@ contract LiFiVaultWrapperFactoryTest is Test {
             address(beacon),
             owner,
             pauser,
+            address(0),
+            lifiRecipient
+        );
+    }
+
+    function test_ConstructorRevertsOnZeroLifiFeeRecipient() public {
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        new LiFiVaultWrapperFactory(
+            address(beacon),
+            owner,
+            pauser,
+            onboarder,
             address(0)
         );
     }
@@ -92,7 +116,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             makeAddr("notBeacon"),
             owner,
             pauser,
-            onboarder
+            onboarder,
+            lifiRecipient
         );
     }
 
@@ -182,6 +207,26 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
         factory.setDefaultSplit(10001);
+    }
+
+    function test_OwnerSetsLifiFeeRecipient() public {
+        address newRecipient = makeAddr("newLifiRecipient");
+        vm.expectEmit(true, false, false, false, address(factory));
+        emit ILiFiVaultWrapperFactory.LifiFeeRecipientSet(newRecipient);
+        vm.prank(owner);
+        factory.setLifiFeeRecipient(newRecipient);
+        assertEq(factory.lifiFeeRecipient(), newRecipient);
+    }
+
+    function test_SetLifiFeeRecipientRevertsOnZero() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        factory.setLifiFeeRecipient(address(0));
+    }
+
+    function test_NonOwnerCannotSetLifiFeeRecipient() public {
+        vm.expectRevert(UnAuthorized.selector);
+        factory.setLifiFeeRecipient(makeAddr("x"));
     }
 
     function test_OnboardingManagerAssignsDeployer() public {
@@ -436,9 +481,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         DeployParams memory p = _params(0);
         p.underlying = notAVault;
         vm.prank(onboarder);
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
-        );
+        vm.expectRevert(IYieldAdapter.AssetResolutionFailed.selector);
         factory.deploy(p);
     }
 
@@ -453,9 +496,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.adapter = address(zeroAdapter);
         p.underlying = assetToken;
         vm.prank(onboarder);
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
-        );
+        vm.expectRevert(IYieldAdapter.AssetResolutionFailed.selector);
         factory.deploy(p);
     }
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
+import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { MockERC4626Underlying } from "../mocks/MockERC4626Underlying.sol";
 
 contract ERC4626AdapterTest is Test {
@@ -19,13 +20,13 @@ contract ERC4626AdapterTest is Test {
     }
 
     function test_ResolveAssetRevertsOnNoCode() public {
-        vm.expectRevert(ERC4626Adapter.AssetResolutionFailed.selector);
+        vm.expectRevert(IYieldAdapter.AssetResolutionFailed.selector);
         adapter.resolveAsset(makeAddr("eoa"));
     }
 
     function test_ResolveAssetRevertsOnZeroAsset() public {
         MockERC4626Underlying vault = new MockERC4626Underlying(address(0));
-        vm.expectRevert(ERC4626Adapter.AssetResolutionFailed.selector);
+        vm.expectRevert(IYieldAdapter.AssetResolutionFailed.selector);
         adapter.resolveAsset(address(vault));
     }
 }

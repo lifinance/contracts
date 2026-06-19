@@ -13,7 +13,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///         vault wrapper factory (mock impl is a temporary stand-in until S1), and
 ///         the ERC-4626 yield adapter.
 /// @dev Deploy order: MockVaultWrapper → UpgradeableBeacon(impl) → LiFiVaultWrapperFactory(beacon, …) → ERC4626Adapter
-///      Reads OWNER, EMERGENCY_PAUSER, and ONBOARDING_MANAGER from environment.
+///      Reads OWNER, EMERGENCY_PAUSER, ONBOARDING_MANAGER, and LIFI_FEE_RECIPIENT from environment.
 ///      The deployer key (PRIVATE_KEY) is not the governance owner, so this script
 ///      cannot approve the adapter or allowlist underlyings. After deployment,
 ///      governance must call setAdapterApproved(adapter) and setUnderlyingAllowed(underlying)
@@ -24,6 +24,7 @@ contract DeployScript is Script {
     error ZeroOwner();
     error ZeroEmergencyPauser();
     error ZeroOnboardingManager();
+    error ZeroLifiFeeRecipient();
 
     function run()
         public
@@ -38,11 +39,13 @@ contract DeployScript is Script {
         address owner = vm.envAddress("OWNER");
         address emergencyPauser = vm.envAddress("EMERGENCY_PAUSER");
         address onboardingManager = vm.envAddress("ONBOARDING_MANAGER");
+        address lifiFeeRecipient = vm.envAddress("LIFI_FEE_RECIPIENT");
 
         if (deployerPrivateKey == 0) revert ZeroPrivateKey();
         if (owner == address(0)) revert ZeroOwner();
         if (emergencyPauser == address(0)) revert ZeroEmergencyPauser();
         if (onboardingManager == address(0)) revert ZeroOnboardingManager();
+        if (lifiFeeRecipient == address(0)) revert ZeroLifiFeeRecipient();
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -53,7 +56,8 @@ contract DeployScript is Script {
             address(beacon),
             owner,
             emergencyPauser,
-            onboardingManager
+            onboardingManager,
+            lifiFeeRecipient
         );
         erc4626Adapter = new ERC4626Adapter();
 

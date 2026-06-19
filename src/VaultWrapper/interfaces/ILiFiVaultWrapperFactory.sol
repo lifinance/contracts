@@ -52,6 +52,10 @@ interface ILiFiVaultWrapperFactory {
     /// @param integratorBps The integrator share (bps); LI.FI receives the remaining (100% - integratorBps).
     event DefaultSplitSet(uint16 integratorBps);
 
+    /// @notice Emitted when LI.FI's fee recipient is set.
+    /// @param recipient The address that receives LI.FI's fee share.
+    event LifiFeeRecipientSet(address indexed recipient);
+
     /// @notice Emitted when a namespace's authorized deployer is assigned or revoked.
     /// @param namespace The integrator namespace.
     /// @param deployer The authorized deployer (zero address revokes).
@@ -91,8 +95,6 @@ interface ILiFiVaultWrapperFactory {
     error UnderlyingNotAllowed();
     /// @notice Thrown when the chosen adapter is not approved.
     error AdapterNotApproved();
-    /// @notice Thrown when the adapter cannot resolve the underlying's asset.
-    error AssetResolutionFailed();
     /// @notice Thrown when an enabled fee rate is outside its configured bounds.
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
