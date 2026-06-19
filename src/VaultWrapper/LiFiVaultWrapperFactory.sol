@@ -29,7 +29,7 @@ contract LiFiVaultWrapperFactory is
     uint16 internal constant CAP_DEPOSIT_BPS = 2000;
     /// @notice Immutable upper cap for the withdrawal fee (bps); 20%.
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
-    /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%). Also the initial ceiling.
+    /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%).
     uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
     /// @notice Sentinel for DeployParams.integratorShareBps meaning "inherit the factory default".
     uint16 internal constant USE_DEFAULT_SPLIT = type(uint16).max;
@@ -69,9 +69,6 @@ contract LiFiVaultWrapperFactory is
     ///         it; LI.FI receives the remaining (100% - this value). Snapshotted into
     ///         each instance at deploy.
     uint16 public defaultIntegratorShareBps;
-    /// @notice Maximum integrator fee share (bps) a deploy may set; caps how much of
-    ///         the fees an integrator can claim, guaranteeing LI.FI a minimum share.
-    uint16 public maxIntegratorShareBps;
 
     /// @notice Deployed instance address keyed by its CREATE2 salt; non-zero means the salt is taken.
     mapping(bytes32 => address) public instanceBySalt;
@@ -115,7 +112,6 @@ contract LiFiVaultWrapperFactory is
         emergencyPauser = _emergencyPauser;
         onboardingManager = _onboardingManager;
         defaultIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
-        maxIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
     }
 
     /// Config (owner / timelock) ///
@@ -155,20 +151,10 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Set the default integrator fee share (bps) applied to deploys that don't
     ///         override it; LI.FI implicitly receives the remaining (100% - this value).
-    /// @dev Must not exceed the current ceiling (`maxIntegratorShareBps`).
     function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
-        if (_integratorBps > maxIntegratorShareBps) revert InvalidSplit();
+        if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
         defaultIntegratorShareBps = _integratorBps;
         emit DefaultSplitSet(_integratorBps);
-    }
-
-    /// @notice Set the ceiling (bps) on the integrator fee share a deploy may set.
-    /// @dev Must be within 100% and not below the current default.
-    function setMaxIntegratorShare(uint16 _maxBps) external onlyOwner {
-        if (_maxBps > BPS_DENOMINATOR || _maxBps < defaultIntegratorShareBps)
-            revert InvalidSplit();
-        maxIntegratorShareBps = _maxBps;
-        emit MaxIntegratorShareSet(_maxBps);
     }
 
     /// @notice Rotate the emergency pauser role.
@@ -243,8 +229,8 @@ contract LiFiVaultWrapperFactory is
         uint16 integratorShareBps = _params.integratorShareBps;
         if (integratorShareBps == USE_DEFAULT_SPLIT) {
             integratorShareBps = defaultIntegratorShareBps;
-        } else if (integratorShareBps > maxIntegratorShareBps) {
-            revert IntegratorShareAboveCeiling();
+        } else if (integratorShareBps > BPS_DENOMINATOR) {
+            revert InvalidSplit();
         }
 
         bytes32 salt = _salt(

@@ -46,10 +46,6 @@ interface ILiFiVaultWrapperFactory {
     /// @param integratorBps The integrator share (bps); LI.FI receives the remaining (100% - integratorBps).
     event DefaultSplitSet(uint16 integratorBps);
 
-    /// @notice Emitted when the ceiling on the integrator fee share is set.
-    /// @param maxBps The maximum integrator share (bps) a deploy may set.
-    event MaxIntegratorShareSet(uint16 maxBps);
-
     /// @notice Emitted when an integrator's self-deploy approval changes.
     /// @param integrator The integrator address.
     /// @param approved Whether it is now approved.
@@ -78,10 +74,8 @@ interface ILiFiVaultWrapperFactory {
     error ZeroAddress();
     /// @notice Thrown when fee bounds are invalid (min > max, or max above the cap).
     error InvalidFeeBounds();
-    /// @notice Thrown when a configured split is invalid (above 100%, or default/ceiling crossed).
+    /// @notice Thrown when an integrator fee split exceeds 100% (the bps denominator).
     error InvalidSplit();
-    /// @notice Thrown when a deploy sets an integrator share above the ceiling.
-    error IntegratorShareAboveCeiling();
     /// @notice Thrown when the underlying is not on the deploy allowlist.
     error UnderlyingNotAllowed();
     /// @notice Thrown when the chosen adapter is not approved.
