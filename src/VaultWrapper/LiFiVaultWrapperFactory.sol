@@ -217,6 +217,15 @@ contract LiFiVaultWrapperFactory is
 
     /// Internal ///
 
+    /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
+    /// @dev Identical inputs yield the same address on every chain; `_nonce`
+    ///      disambiguates multiple instances for the same
+    ///      (integrator, adapter, underlying) triple.
+    /// @param _integrator The integrator that owns the instance.
+    /// @param _adapter The yield adapter the instance routes through.
+    /// @param _underlying The wrapped yield source.
+    /// @param _nonce Caller-supplied disambiguator.
+    /// @return The CREATE2 salt.
     function _salt(
         address _integrator,
         address _adapter,
@@ -227,6 +236,9 @@ contract LiFiVaultWrapperFactory is
             keccak256(abi.encode(_integrator, _adapter, _underlying, _nonce));
     }
 
+    /// @notice Returns the immutable bytecode cap (bps) for a fee type.
+    /// @param _feeType The fee type to look up.
+    /// @return The highest rate (bps) governance may ever set for this fee type.
     function _cap(FeeType _feeType) internal pure returns (uint16) {
         if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;
         if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
@@ -294,20 +306,27 @@ contract LiFiVaultWrapperFactory is
         );
     }
 
+    /// @notice Resolves the underlying's ERC20 asset via the approved adapter.
+    /// @dev The adapter is trusted to revert on an unusable underlying (it is
+    ///      governance-approved and code-checked at approval); this guards only
+    ///      against an adapter that returns the zero address without reverting.
+    /// @param _adapter The approved yield adapter.
+    /// @param _underlying The yield source to resolve.
+    /// @return asset The ERC20 token the underlying is denominated in.
     function _resolveAssetViaAdapter(
         address _adapter,
         address _underlying
     ) internal view returns (address asset) {
-        try IYieldAdapter(_adapter).resolveAsset(_underlying) returns (
-            address a
-        ) {
-            if (a == address(0)) revert AssetResolutionFailed();
-            asset = a;
-        } catch {
-            revert AssetResolutionFailed();
-        }
+        asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
+        if (asset == address(0)) revert AssetResolutionFailed();
     }
 
+    /// @notice Validates a fee config against the per-type bounds and caps.
+    /// @dev Disabled fee types must carry a zero rate; an enabled rate must sit
+    ///      within both the immutable cap and the owner-set bounds. Unset bounds
+    ///      default to 0..0, so an enabled fee with no configured bounds fails
+    ///      closed.
+    /// @param _fees The per-fee-type rates and enabled flags to validate.
     function _validateFees(FeeConfig calldata _fees) internal view {
         for (uint8 i; i < 4; ++i) {
             if (!_fees.enabled[i]) {
