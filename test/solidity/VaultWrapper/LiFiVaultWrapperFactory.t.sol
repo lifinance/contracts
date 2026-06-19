@@ -20,7 +20,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal owner = makeAddr("owner");
     address internal pauser = makeAddr("pauser");
     address internal onboarder = makeAddr("onboarder");
-    address internal integrator = makeAddr("integrator");
+    address internal deployer = makeAddr("deployer");
+    address internal vaultAdmin = makeAddr("vaultAdmin");
+    bytes32 internal constant NS = bytes32("Coinbase");
     MockERC4626Underlying internal underlying;
     address internal assetToken = makeAddr("asset");
 
@@ -100,18 +102,26 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setDefaultSplit(10001);
     }
 
-    function test_OnboardingManagerApprovesIntegrator() public {
+    function test_OnboardingManagerAssignsDeployer() public {
+        vm.expectEmit(true, true, false, false, address(factory));
+        emit ILiFiVaultWrapperFactory.IntegratorDeployerSet(NS, deployer);
         vm.prank(onboarder);
-        factory.setIntegratorApproved(integrator, true);
-        assertTrue(factory.approvedIntegrator(integrator));
+        factory.setApprovedIntegratorDeployer(NS, deployer);
+        assertEq(factory.approvedIntegratorDeployer(NS), deployer);
     }
 
-    function test_NonOnboardingManagerCannotApprove() public {
+    function test_NonOnboardingManagerCannotAssignDeployer() public {
         vm.prank(owner);
         vm.expectRevert(
             ILiFiVaultWrapperFactory.NotOnboardingManager.selector
         );
-        factory.setIntegratorApproved(integrator, true);
+        factory.setApprovedIntegratorDeployer(NS, deployer);
+    }
+
+    function test_AssignDeployerRevertsOnZeroNamespace() public {
+        vm.prank(onboarder);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroNamespace.selector);
+        factory.setApprovedIntegratorDeployer(bytes32(0), deployer);
     }
 
     function test_EmergencyPauserTogglesGlobalPause() public {
@@ -150,14 +160,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.expectRevert(
             ILiFiVaultWrapperFactory.NotOnboardingManager.selector
         );
-        factory.setIntegratorApproved(integrator, true); // old manager lost power
+        factory.setApprovedIntegratorDeployer(NS, deployer); // old manager lost power
     }
 
     function test_PredictAddressIsDeterministicAndNonceVaries() public {
         address u = makeAddr("underlying");
-        address a = factory.predictAddress(integrator, address(adapter), u, 0);
-        address b = factory.predictAddress(integrator, address(adapter), u, 0);
-        address c = factory.predictAddress(integrator, address(adapter), u, 1);
+        address a = factory.predictAddress(NS, address(adapter), u, 0);
+        address b = factory.predictAddress(NS, address(adapter), u, 0);
+        address c = factory.predictAddress(NS, address(adapter), u, 1);
         assertEq(a, b);
         assertTrue(a != c);
         assertTrue(a != address(0));
@@ -172,13 +182,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function _params(
-        address integrator_,
         uint256 nonce_
     ) internal view returns (DeployParams memory p) {
         uint16[4] memory rates = [uint16(1000), 0, 0, 0];
         bool[4] memory enabled = [true, false, false, false];
         p = DeployParams({
-            integrator: integrator_,
+            namespace: NS,
+            vaultWrapperAdmin: vaultAdmin,
             adapter: address(adapter),
             underlying: address(underlying),
             nonce: nonce_,
@@ -190,10 +200,10 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_OnboardingManagerDeploysAndWiresClone() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
 
         address predicted = factory.predictAddress(
-            integrator,
+            NS,
             address(adapter),
             address(underlying),
             0
@@ -210,27 +220,27 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.asset(), assetToken);
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
-        assertEq(w.integrator(), integrator);
+        assertEq(w.vaultWrapperAdmin(), vaultAdmin);
         assertEq(w.integratorShareBps(), 8000); // factory default
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
         assertEq(w.initData(), hex"1234");
     }
 
-    function test_ApprovedIntegratorSelfDeploys() public {
+    function test_AssignedDeployerSelfDeploys() public {
         _enableUnderlyingAndBounds();
         vm.prank(onboarder);
-        factory.setIntegratorApproved(integrator, true);
+        factory.setApprovedIntegratorDeployer(NS, deployer);
 
-        DeployParams memory p = _params(integrator, 0);
-        vm.prank(integrator);
+        DeployParams memory p = _params(0);
+        vm.prank(deployer);
         address instance = factory.deploy(p);
         assertTrue(factory.isInstance(instance));
     }
 
     function test_DeployWithSplitOverride() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         p.integratorShareBps = 5000;
         vm.prank(onboarder);
         address instance = factory.deploy(p);
@@ -240,40 +250,57 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_SelfDeployerSetsSplit() public {
         _enableUnderlyingAndBounds();
         vm.prank(onboarder);
-        factory.setIntegratorApproved(integrator, true);
-        DeployParams memory p = _params(integrator, 0);
+        factory.setApprovedIntegratorDeployer(NS, deployer);
+        DeployParams memory p = _params(0);
         p.integratorShareBps = 7000;
-        vm.prank(integrator);
+        vm.prank(deployer);
         address instance = factory.deploy(p);
         assertEq(MockVaultWrapper(instance).integratorShareBps(), 7000);
     }
 
     function test_DeployRevertsOnSplitAbove100Percent() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         p.integratorShareBps = 10001;
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
         factory.deploy(p);
     }
 
-    function test_RandomCallerCannotDeploy() public {
+    function test_UnassignedCallerCannotDeploy() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         vm.prank(makeAddr("random"));
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.IntegratorNotApproved.selector
-        );
+        vm.expectRevert(ILiFiVaultWrapperFactory.NotApprovedDeployer.selector);
         factory.deploy(p);
     }
 
-    function test_ApprovedIntegratorCannotDeployForOther() public {
+    function test_DeployerCannotUseUnassignedNamespace() public {
         _enableUnderlyingAndBounds();
         vm.prank(onboarder);
-        factory.setIntegratorApproved(integrator, true);
-        DeployParams memory p = _params(makeAddr("other"), 0);
-        vm.prank(integrator);
-        vm.expectRevert(ILiFiVaultWrapperFactory.IntegratorMismatch.selector);
+        factory.setApprovedIntegratorDeployer(NS, deployer);
+        DeployParams memory p = _params(0);
+        p.namespace = bytes32("Acme"); // deployer is only assigned to NS
+        vm.prank(deployer);
+        vm.expectRevert(ILiFiVaultWrapperFactory.NotApprovedDeployer.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnZeroNamespace() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(0);
+        p.namespace = bytes32(0);
+        vm.prank(onboarder);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroNamespace.selector);
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnZeroVaultAdmin() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(0);
+        p.vaultWrapperAdmin = address(0);
+        vm.prank(onboarder);
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
         factory.deploy(p);
     }
 
@@ -281,7 +308,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         underlying = new MockERC4626Underlying(assetToken);
         vm.prank(owner);
         factory.setFeeBounds(FeeType.Performance, 0, 5000);
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         vm.prank(onboarder);
         vm.expectRevert(
             ILiFiVaultWrapperFactory.UnderlyingNotAllowed.selector
@@ -295,13 +322,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setUnderlyingAllowed(notAVault, true);
         factory.setFeeBounds(FeeType.Performance, 0, 5000);
         vm.stopPrank();
-        DeployParams memory p;
-        p.integrator = integrator;
-        p.adapter = address(adapter);
+        DeployParams memory p = _params(0);
         p.underlying = notAVault;
-        uint16[4] memory rates = [uint16(0), 0, 0, 0];
-        bool[4] memory enabled = [false, false, false, false];
-        p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
         vm.prank(onboarder);
         vm.expectRevert(
             ILiFiVaultWrapperFactory.AssetResolutionFailed.selector
@@ -313,22 +335,17 @@ contract LiFiVaultWrapperFactoryTest is Test {
         _enableUnderlyingAndBounds(); // perf bounds 0..5000
         vm.prank(owner);
         factory.setFeeBounds(FeeType.Performance, 0, 500); // tighten max to 5%
-        DeployParams memory p = _params(integrator, 0); // rate 1000 = 10%
+        DeployParams memory p = _params(0); // rate 1000 = 10%
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
         factory.deploy(p);
     }
 
     function test_DeployRevertsOnFeeAboveCap() public {
-        underlying = new MockERC4626Underlying(assetToken);
-        vm.startPrank(owner);
-        factory.setUnderlyingAllowed(address(underlying), true);
+        _enableUnderlyingAndBounds();
+        vm.prank(owner);
         factory.setFeeBounds(FeeType.Management, 0, 1000); // mgmt cap is 1000
-        vm.stopPrank();
-        DeployParams memory p;
-        p.integrator = integrator;
-        p.adapter = address(adapter);
-        p.underlying = address(underlying);
+        DeployParams memory p = _params(0);
         uint16[4] memory rates = [uint16(0), 1500, 0, 0]; // 15% > 10% cap
         bool[4] memory enabled = [false, true, false, false];
         p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
@@ -339,7 +356,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_DeployRevertsOnDisabledFeeWithNonZeroRate() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         p.fees.enabled[0] = false; // disabled but rate is 1000
         vm.prank(onboarder);
         vm.expectRevert(
@@ -354,7 +371,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         underlying = new MockERC4626Underlying(assetToken);
         vm.prank(owner);
         factory.setUnderlyingAllowed(address(underlying), true);
-        DeployParams memory p = _params(integrator, 0); // Performance rate 1000, enabled
+        DeployParams memory p = _params(0); // Performance rate 1000, enabled
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
         factory.deploy(p);
@@ -362,7 +379,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_DuplicateDeployReverts() public {
         _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         vm.prank(onboarder);
         factory.deploy(p);
         vm.prank(onboarder);
@@ -375,8 +392,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_TracksDeployedInstances() public {
         _enableUnderlyingAndBounds();
         vm.startPrank(onboarder);
-        address i0 = factory.deploy(_params(integrator, 0));
-        address i1 = factory.deploy(_params(integrator, 1));
+        address i0 = factory.deploy(_params(0));
+        address i1 = factory.deploy(_params(1));
         vm.stopPrank();
 
         assertTrue(i0 != i1);
@@ -388,7 +405,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_DeployRevertsOnUnapprovedAdapter() public {
         _enableUnderlyingAndBounds();
         ERC4626Adapter rogue = new ERC4626Adapter();
-        DeployParams memory p = _params(integrator, 0);
+        DeployParams memory p = _params(0);
         p.adapter = address(rogue); // never approved
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.AdapterNotApproved.selector);
@@ -398,18 +415,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_PredictAddressVariesByAdapter() public {
         ERC4626Adapter other = new ERC4626Adapter();
         address u = makeAddr("underlying");
-        address withA = factory.predictAddress(
-            integrator,
-            address(adapter),
-            u,
-            0
-        );
-        address withB = factory.predictAddress(
-            integrator,
-            address(other),
-            u,
-            0
-        );
+        address withA = factory.predictAddress(NS, address(adapter), u, 0);
+        address withB = factory.predictAddress(NS, address(other), u, 0);
         assertTrue(withA != withB);
     }
 

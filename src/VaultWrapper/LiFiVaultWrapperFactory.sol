@@ -59,8 +59,9 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Whether a yield source is permitted as a wrapper underlying.
     mapping(address => bool) public allowedUnderlying;
-    /// @notice Whether an integrator may self-deploy its own wrapper instances.
-    mapping(address => bool) public approvedIntegrator;
+    /// @notice Deployer authorized to deploy under an integrator namespace, keyed by
+    ///         namespace (e.g. "Coinbase"); assigned by the onboarding manager.
+    mapping(bytes32 => address) public approvedIntegratorDeployer;
     /// @notice Whether a yield adapter is approved for use in deployments.
     mapping(address => bool) public approvedAdapter;
     /// @notice Adjustable min/max fee bps per fee type, within the immutable caps.
@@ -175,14 +176,19 @@ contract LiFiVaultWrapperFactory is
 
     /// Integrator onboarding (onboarding manager) ///
 
-    /// @notice Approve or revoke an integrator's right to self-deploy instances.
-    function setIntegratorApproved(
-        address _integrator,
-        bool _approved
+    /// @notice Assign or revoke the deployer authorized to deploy under a namespace.
+    /// @dev Set `_deployer` to the zero address to revoke the namespace. The
+    ///      namespace is the salt seed, so reassigning it does not move the
+    ///      addresses of instances already deployed under it.
+    /// @param _namespace The integrator namespace (e.g. "Coinbase").
+    /// @param _deployer The address allowed to deploy under it (zero to revoke).
+    function setApprovedIntegratorDeployer(
+        bytes32 _namespace,
+        address _deployer
     ) external onlyOnboardingManager {
-        if (_integrator == address(0)) revert ZeroAddress();
-        approvedIntegrator[_integrator] = _approved;
-        emit IntegratorApprovedSet(_integrator, _approved);
+        if (_namespace == bytes32(0)) revert ZeroNamespace();
+        approvedIntegratorDeployer[_namespace] = _deployer;
+        emit IntegratorDeployerSet(_namespace, _deployer);
     }
 
     /// Global circuit breaker (emergency pauser) ///
@@ -201,20 +207,20 @@ contract LiFiVaultWrapperFactory is
 
     /// Deploy ///
 
-    /// @notice Deploy a new wrapper instance for an integrator.
-    /// @dev Caller must be the onboarding manager, or an approved integrator
-    ///      deploying for itself (`_params.integrator == msg.sender`).
+    /// @notice Deploy a new wrapper instance under an integrator namespace.
+    /// @dev Caller must be the onboarding manager, or the deployer assigned to
+    ///      `_params.namespace`.
     /// @param _params The deployment parameters.
     /// @return instance The address of the newly deployed vault wrapper.
     function deploy(
         DeployParams calldata _params
     ) external returns (address instance) {
-        if (msg.sender != onboardingManager) {
-            if (!approvedIntegrator[msg.sender])
-                revert IntegratorNotApproved();
-            if (_params.integrator != msg.sender) revert IntegratorMismatch();
-        }
-        if (_params.integrator == address(0)) revert ZeroAddress();
+        if (_params.namespace == bytes32(0)) revert ZeroNamespace();
+        if (
+            msg.sender != onboardingManager &&
+            approvedIntegratorDeployer[_params.namespace] != msg.sender
+        ) revert NotApprovedDeployer();
+        if (_params.vaultWrapperAdmin == address(0)) revert ZeroAddress();
         if (!approvedAdapter[_params.adapter]) revert AdapterNotApproved();
         if (!allowedUnderlying[_params.underlying])
             revert UnderlyingNotAllowed();
@@ -234,7 +240,7 @@ contract LiFiVaultWrapperFactory is
         }
 
         bytes32 salt = _salt(
-            _params.integrator,
+            _params.namespace,
             _params.adapter,
             _params.underlying,
             _params.nonce
@@ -251,9 +257,10 @@ contract LiFiVaultWrapperFactory is
 
         emit WrapperDeployed(
             instance,
-            _params.integrator,
+            _params.namespace,
             _params.underlying,
             _params.adapter,
+            _params.vaultWrapperAdmin,
             _params.nonce,
             salt
         );
@@ -262,7 +269,7 @@ contract LiFiVaultWrapperFactory is
             asset,
             _params.underlying,
             _params.adapter,
-            _params.integrator,
+            _params.vaultWrapperAdmin,
             integratorShareBps,
             _params.fees,
             _params.initData
@@ -273,7 +280,7 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice The deterministic address a vault wrapper will have for the given key.
     function predictAddress(
-        address _integrator,
+        bytes32 _namespace,
         address _adapter,
         address _underlying,
         uint256 _nonce
@@ -281,7 +288,7 @@ contract LiFiVaultWrapperFactory is
         return
             LibClone.predictDeterministicAddressERC1967BeaconProxy(
                 beacon,
-                _salt(_integrator, _adapter, _underlying, _nonce),
+                _salt(_namespace, _adapter, _underlying, _nonce),
                 address(this)
             );
     }
@@ -289,22 +296,24 @@ contract LiFiVaultWrapperFactory is
     /// Internal ///
 
     /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
-    /// @dev Identical inputs yield the same address on every chain; `_nonce`
+    /// @dev Identical inputs yield the same address on every chain; the namespace
+    ///      is chain-independent (e.g. "Coinbase"), so address parity holds even
+    ///      when the integrator uses different deployers/admins per chain. `_nonce`
     ///      disambiguates multiple instances for the same
-    ///      (integrator, adapter, underlying) triple.
-    /// @param _integrator The integrator that owns the instance.
+    ///      (namespace, adapter, underlying) triple.
+    /// @param _namespace The integrator namespace that owns the instance.
     /// @param _adapter The yield adapter the instance routes through.
     /// @param _underlying The wrapped yield source.
     /// @param _nonce Caller-supplied disambiguator.
     /// @return The CREATE2 salt.
     function _salt(
-        address _integrator,
+        bytes32 _namespace,
         address _adapter,
         address _underlying,
         uint256 _nonce
     ) internal pure returns (bytes32) {
         return
-            keccak256(abi.encode(_integrator, _adapter, _underlying, _nonce));
+            keccak256(abi.encode(_namespace, _adapter, _underlying, _nonce));
     }
 
     /// @notice Returns the immutable bytecode cap (bps) for a fee type.

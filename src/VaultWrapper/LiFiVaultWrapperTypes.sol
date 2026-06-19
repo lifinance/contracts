@@ -32,10 +32,11 @@ struct FeeBounds {
 
 /// @notice Inputs for a single `deploy` call.
 struct DeployParams {
-    address integrator; // Owner of the instance and recipient of its integrator fee share.
+    bytes32 namespace; // Integrator identity seeding the salt (e.g. "Coinbase"); must be assigned to the caller.
+    address vaultWrapperAdmin; // Per-vault controller granted the instance admin role.
     address adapter; // Approved yield adapter; resolves the underlying's ERC20 asset.
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
-    uint256 nonce; // Disambiguates instances sharing the same (integrator, adapter, underlying).
+    uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
     FeeConfig fees; // Per-fee-type rates and enabled flags; validated against bounds/caps.
     uint16 integratorShareBps; // Integrator's fee share (bps); type(uint16).max = factory default, else must be <= 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.

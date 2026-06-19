@@ -12,16 +12,18 @@ interface ILiFiVaultWrapperFactory {
 
     /// @notice Emitted when a new vault wrapper is deployed.
     /// @param instance The deployed vault wrapper address.
-    /// @param integrator The integrator that owns the instance.
+    /// @param namespace The integrator namespace the instance belongs to.
     /// @param underlying The wrapped yield source.
     /// @param adapter The yield adapter the vault wrapper routes through.
+    /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param nonce The caller-supplied nonce disambiguating instances.
     /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
         address indexed instance,
-        address indexed integrator,
+        bytes32 indexed namespace,
         address indexed underlying,
         address adapter,
+        address vaultWrapperAdmin,
         uint256 nonce,
         bytes32 salt
     );
@@ -46,10 +48,13 @@ interface ILiFiVaultWrapperFactory {
     /// @param integratorBps The integrator share (bps); LI.FI receives the remaining (100% - integratorBps).
     event DefaultSplitSet(uint16 integratorBps);
 
-    /// @notice Emitted when an integrator's self-deploy approval changes.
-    /// @param integrator The integrator address.
-    /// @param approved Whether it is now approved.
-    event IntegratorApprovedSet(address indexed integrator, bool approved);
+    /// @notice Emitted when a namespace's authorized deployer is assigned or revoked.
+    /// @param namespace The integrator namespace.
+    /// @param deployer The authorized deployer (zero address revokes).
+    event IntegratorDeployerSet(
+        bytes32 indexed namespace,
+        address indexed deployer
+    );
 
     /// @notice Emitted when the global circuit breaker is toggled.
     /// @param paused The new pause state.
@@ -68,10 +73,12 @@ interface ILiFiVaultWrapperFactory {
     error NotEmergencyPauser();
     /// @notice Thrown when the caller is not the onboarding manager.
     error NotOnboardingManager();
-    /// @notice Thrown when a self-deploying caller is not an approved integrator.
-    error IntegratorNotApproved();
+    /// @notice Thrown when the caller is not authorized to deploy under the namespace.
+    error NotApprovedDeployer();
     /// @notice Thrown when a required address argument is the zero address.
     error ZeroAddress();
+    /// @notice Thrown when the namespace is the zero value.
+    error ZeroNamespace();
     /// @notice Thrown when fee bounds are invalid (min > max, or max above the cap).
     error InvalidFeeBounds();
     /// @notice Thrown when an integrator fee split exceeds 100% (the bps denominator).
@@ -88,8 +95,6 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveCap();
     /// @notice Thrown when a disabled fee carries a non-zero rate.
     error DisabledFeeMustBeZero();
-    /// @notice Thrown when an approved integrator deploys for a different integrator.
-    error IntegratorMismatch();
     /// @notice Thrown when an instance already exists for the computed salt.
     error InstanceAlreadyExists();
 }

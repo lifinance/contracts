@@ -12,7 +12,7 @@ interface ILiFiVaultWrapper {
     /// @param _asset The ERC20 asset of the underlying yield source.
     /// @param _underlying The protocol-specific yield source (e.g. an ERC-4626 vault).
     /// @param _adapter The approved yield adapter the vault wrapper routes through at runtime.
-    /// @param _integrator The address granted the instance admin role.
+    /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param _integratorShareBps The integrator's fee share (bps), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
     /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
@@ -20,7 +20,7 @@ interface ILiFiVaultWrapper {
         address _asset,
         address _underlying,
         address _adapter,
-        address _integrator,
+        address _vaultWrapperAdmin,
         uint16 _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData
