@@ -25,10 +25,10 @@ Before the workflow can run for the first time, a repo admin must:
 ## Architecture
 
 The pipeline is intentionally **a thin LI.FI layer over open-source security
-skills**. Pashov's audit teams and Trail of Bits have published Claude Code
-skills that encode best-in-class security-review methodology (per-finding
-verification with gate reviews, diff-aware code analysis, etc.).
-Reinventing those in-house would be wasted effort. The LI.FI value-
+skills**. Trail of Bits has published Claude Code skills that encode
+best-in-class security-review methodology (per-finding verification with gate
+reviews, diff-aware code analysis, etc.). Reinventing those in-house would be
+wasted effort. The LI.FI value-
 add is the audit history (LF-NNN corpus + Semgrep rules derived from it)
 and the CI/Code-Scanning plumbing.
 
@@ -307,5 +307,5 @@ run artifact. Request a manual security review for those.
 - `EXP-483` — this skill + Stages 2 + 3 workflow
 - `EXP-484` — tune precision, retire waivers
 - `EXP-485` — flip from advisory to enforcing
-- `EXP-486` — nightly full-repo Pashov scan
+- `EXP-486` — nightly full-repo deep scan
 - `EXP-487` — auto-generate Semgrep rules from confirmed findings

@@ -13,11 +13,11 @@ usage: /extract-audit-knowledge <audit_id>
 
 Distills a single audit report PDF into the structured knowledge corpus under `audit/knowledge/`. The corpus is consumed by:
 
-- The PR-time security review agent (EXP-483) — `lessons.md` + relevant `by-area/*.md` loaded as cached LLM context
-- Future Semgrep rule generation (EXP-487) — `findings.json` as the structured rule source
+- The PR-time security review skill — `lessons.md` + relevant `by-area/*.md` loaded as cached LLM context
+- Future Semgrep rule generation — `findings.json` as the structured rule source
 - Human reviewers — markdown files browsable in repo
 
-**v1 scope: single-PDF mode only.** Batch processing of the entire corpus is handled in EXP-479 (manual loop over audits) or a future v2 of this skill.
+**v1 scope: single-PDF mode only.** Batch processing of the entire corpus is a manual loop over audits, or a future v2 of this skill.
 
 ## Output files (under `audit/knowledge/`)
 
@@ -72,7 +72,7 @@ Before extracting any finding, decide whether to keep it. Filtering at this stag
 
 **When in doubt:** ask "Does this finding describe a way that funds could be lost, frozen, stolen, or operations halted, even hypothetically?" If yes → keep. If no → skip.
 
-This matches Pashov's `solidity-auditor` skip list. Don't relax it without good reason.
+This skip criterion is deliberately strict — don't relax it without good reason.
 
 ### 4. Extract fields
 
@@ -215,9 +215,9 @@ When implementing this skill, validate against the hand-built golden sample befo
 - PDFs sometimes introduce non-breaking spaces or line-wrapping artifacts in code blocks — be lenient when matching extracted text
 - The skill performs READ + WRITE operations only on files under `audit/knowledge/` and `audit/auditLog.json`. It must never modify `audit/reports/*.pdf`
 
-## Out of scope for v1 (EXP-478)
+## Out of scope for v1
 
-- Batch / `--all` mode that walks all audits in `auditLog.json` (deferred to v2 or done manually in EXP-479)
+- Batch / `--all` mode that walks all audits in `auditLog.json` (deferred to v2 or done manually)
 - Sub-agent fan-out for parallel extraction
 - Auto-suggestion of cross-audit echoes via embedding similarity
 - Per-field confidence scoring (currently per-finding only)

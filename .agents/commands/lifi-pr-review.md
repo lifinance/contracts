@@ -22,7 +22,7 @@ modeling, etc. — lives in the ToB plugins. Our job is:
 2. **Orchestrate the ToB skills** with those inputs.
 3. **Re-emit their outputs in the schema our workflow expects**:
    `curated.sarif` (for Code Scanning), `summary.md` (for the sticky comment),
-   `status.json` (for the status check that EXP-485 will flip to gating).
+   `status.json` (for the status check that a later change flips to gating).
 
 If the ToB skills change their methodology, this skill picks up the change
 automatically the next time we bump `.claude/vendor/tob-skills`. We do not
@@ -34,9 +34,9 @@ CC-BY-SA-4.0 (see NOTICE).
 | Skill                                                          | Role in our pipeline                                          |
 | -------------------------------------------------------------- | ------------------------------------------------------------- |
 | `.claude/plugins/audit-context-building/`                      | Pre-Analysis: load LF-NNN corpus as baseline context          |
-| `.claude/plugins/differential-review/`                         | Diff review (replaces our former Track B)                     |
-| `.claude/plugins/fp-check/`                                    | Per-finding verification (replaces our former 4-gate filter)  |
-| `.claude/plugins/semgrep-rule-creator/`                        | Used by EXP-487 only (out of scope for per-PR runs)            |
+| `.claude/plugins/differential-review/`                         | Risk-first 7-phase review of the PR diff                      |
+| `.claude/plugins/fp-check/`                                    | Per-finding TP/FP verification (6 gates)                      |
+| `.claude/plugins/semgrep-rule-creator/`                        | Out of scope for per-PR runs (rule authoring only)            |
 
 ## Inputs
 
@@ -173,7 +173,7 @@ normalize all verified TPs from Step 4 into our existing schema:
 **`${OUT_DIR}/summary.md`**:
 
 ```markdown
-## 🛡️ Security Review (EXP-440)
+## 🛡️ Security Review
 
 | Severity | Count | Action |
 |----------|-------|--------|
@@ -220,9 +220,8 @@ full Code Scanning view._
 }
 ```
 
-For now (advisory mode, EXP-483), always emit `verdict: "advisory"`.
-EXP-485 flips the gate by changing this to `"fail"` when
-critical+high > 0.
+For now (advisory mode), always emit `verdict: "advisory"`. Gating is
+enabled later by changing this to `"fail"` when critical+high > 0.
 
 ## Hard rules
 
@@ -241,7 +240,7 @@ critical+high > 0.
 
 ## Files we maintain (LI.FI-specific, MIT/LGPL)
 
-- `audit/knowledge/` — the corpus (output of EXP-478 / EXP-479)
+- `audit/knowledge/` — the corpus (built by `/extract-audit-knowledge`)
 - `audit/findings/waived.yml` — FP waivers; not committed empty, created on
   the first waiver (schema + process in `docs/security-review.md`). Noisy
   static-tool rules are handled by the `--exclude-*` flags or by fixing the
