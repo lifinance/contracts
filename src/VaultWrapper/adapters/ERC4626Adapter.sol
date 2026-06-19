@@ -17,11 +17,7 @@ contract ERC4626Adapter is IYieldAdapter {
         address _underlying
     ) external view returns (address asset) {
         if (_underlying.code.length == 0) revert AssetResolutionFailed();
-        try IERC4626(_underlying).asset() returns (address a) {
-            if (a == address(0)) revert AssetResolutionFailed();
-            asset = a;
-        } catch {
-            revert AssetResolutionFailed();
-        }
+        asset = IERC4626(_underlying).asset();
+        if (asset == address(0)) revert AssetResolutionFailed();
     }
 }
