@@ -27,7 +27,7 @@ The two scopes use different identifiers and different ignore mechanisms: **`pr`
 ## Preflight
 
 - **`pr` mode**: needs `gh` authenticated against the PR's repo. No MCP call required — the findings come from PR comments.
-- **`all` / `<issue-id>` mode**: needs the Aikido MCP. Verify with `aikido-mcp:aikido_full_scan` on `[{ path: "test.js", content: "// test" }]`. If it fails or is missing, stop:
+- **`all` / `<issue-id>` mode**: needs the Aikido MCP. Verify with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`. If it fails or is missing, stop:
   > The Aikido MCP server is not available or not authenticated.
   > Run `/aikido:setup` — get your API key from **https://app.aikido.dev → Settings → Integrations → IDE Plugins**, then restart Claude Code.
 
