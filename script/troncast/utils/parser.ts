@@ -59,6 +59,30 @@ export function parseArgument(type: string, value: string): any {
   return value
 }
 
+/**
+ * Extract function-call parameters from troncast's trailing CLI positionals.
+ *
+ * citty exposes only the first positional after the signature as a named arg; any further
+ * positionals are reachable solely via `args._`. This reads every positional after the leading
+ * `address` and `signature` so multi-argument calls (e.g. `hasRole(bytes32,address)`) work like
+ * `cast call`, which passes each argument as its own token.
+ *
+ * Back-compat: when exactly one trailing positional is present it is split on commas, preserving
+ * the historical single-argument and comma-separated-values forms.
+ *
+ * @param positionals - The raw positional list (citty `args._`), including address + signature.
+ * @returns Ordered, trimmed parameter strings (empty when no parameters were supplied).
+ */
+export function extractCallParams(positionals: readonly unknown[]): string[] {
+  const trailing = positionals.slice(2)
+  if (trailing.length > 1) return trailing.map((param) => String(param).trim())
+  if (trailing.length === 1)
+    return String(trailing[0])
+      .split(',')
+      .map((param) => param.trim())
+  return []
+}
+
 export function isValidAddress(address: string): boolean {
   // Validate Tron address (base58 or hex)
   if (address.startsWith('T') && address.length === 34)

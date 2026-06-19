@@ -1,77 +1,96 @@
-// SPDX-License-Identifier: LGPL-3.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { InvalidConfig } from "../Errors/GenericErrors.sol";
 
-/// @title {{titleCase name}} Facet
+/// @title {{properCase name}}Facet
 /// @author LI.FI (https://li.fi)
-/// @notice {{ description }}
+/// @notice {{description}}
 /// @custom:version 1.0.0
-contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
-    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.{{lowerCase name}}"); // Optional. Only use if you need to store data in the diamond storage.
+    /// @dev Example of an immutable contract address set at deploy time.
+    ///      Anything that cannot be set as immutable should be set
+    ///      in an init function called during a diamondCut().
+    address public immutable EXAMPLE;
 
-    /// @dev Local storage for the contract (optional)
-    struct Storage {
-        address[] exampleAllowedTokens;
-    }
-
-    address public immutable example;
+    /// @dev OPTIONAL — delete if this facet only needs immutable config.
+    ///      For mutable, owner-updatable config use the EIP-2535 namespaced
+    ///      diamond-storage pattern below (requires importing LibDiamond). The
+    ///      unique NAMESPACE slot avoids storage collisions with other facets;
+    ///      seed it via an init function (see Admin Methods) during diamondCut().
+    // bytes32 internal constant NAMESPACE =
+    //     keccak256("com.lifi.facets.{{kebabCase name}}");
+    //
+    // struct Storage {
+    //     // mutable per-chain config
+    // }
+    //
+    // function _getStorage() private pure returns (Storage storage s) {
+    //     bytes32 ns = NAMESPACE;
+    //     // solhint-disable-next-line no-inline-assembly
+    //     assembly {
+    //         s.slot := ns
+    //     }
+    // }
 
     /// Types ///
 
     /// @dev Optional bridge specific struct
     /// @param exampleParam Example parameter
-    struct {{titleCase name}}Data {
-      string exampleParam;
+    struct {{properCase name}}Data {
+        string exampleParam;
     }
+
+    /// Errors ///
+
+    // error {{properCase name}}Error(); // facet-local; reusable ones live in GenericErrors
 
     /// Events ///
 
-    event {{titleCase name}}Initialized();
+    // event {{properCase name}}Event(uint256 indexed value);
 
     /// Constructor ///
 
-    /// @notice Constructor for the contract.
-    ///         Should only be used to set immutable variables.
-    ///         Anything that cannot be set as immutable should be set
-    ///         in an init() function called during a diamondCut().
-    /// @param _example Example parameter.
+    /// @notice Initializes the {{properCase name}}Facet contract
+    /// @param _example Example parameter
     constructor(address _example) {
-        example = _example;
+        if (_example == address(0)) {
+            revert InvalidConfig();
+        }
+        EXAMPLE = _example;
     }
 
-    /// Init ///
+    /// Admin Methods ///
 
-    /// @notice Init function. Called in the context
-    ///         of the diamond contract when added as part of
-    ///         a diamondCut(). Use for config that can't be
-    ///         set as immutable or needs to change for any reason.
-    /// @param _exampleAllowedTokens Example array of allowed tokens for this chain.
-    function init{{titleCase name}}(address[] memory _exampleAllowedTokens) external {
-        LibDiamond.enforceIsContractOwner();
-
-        Storage storage s = getStorage();
-        s.exampleAllowedTokens = _exampleAllowedTokens;
-
-        emit {{titleCase name}}Initialized();
-    }
+    /// @dev OPTIONAL — only needed alongside the namespaced Storage block above.
+    ///      Restrict every state-changing admin method with
+    ///      LibDiamond.enforceIsContractOwner() (requires importing LibDiamond).
+    // function init{{properCase name}}(/* ... */) external {
+    //     LibDiamond.enforceIsContractOwner();
+    //     // ... write to _getStorage()
+    // }
+    //
+    // function set{{properCase name}}Config(/* ... */) external {
+    //     LibDiamond.enforceIsContractOwner();
+    //     // ... update _getStorage()
+    // }
 
     /// External Methods ///
 
-    /// @notice Bridges tokens via {{titleCase name}}
+    /// @notice Bridges tokens via {{properCase name}}
     /// @param _bridgeData The core information needed for bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
-    function startBridgeTokensVia{{titleCase name}}(
-        ILiFi.BridgeData memory _bridgeData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+    /// @param _{{camelCase name}}Data Data specific to {{properCase name}}
+    function startBridgeTokensVia{{properCase name}}(
+        ILiFi.BridgeData calldata _bridgeData,
+        {{properCase name}}Data calldata _{{camelCase name}}Data
     )
         external
         payable
@@ -81,6 +100,9 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // OPTIONAL — facet-specific input checks. If added, call the same
+        // validator at the top of both entry points (see Internal Methods).
+        // _validate{{properCase name}}Data(_{{camelCase name}}Data);
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -88,14 +110,14 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
         _startBridge(_bridgeData, _{{camelCase name}}Data);
     }
 
-    /// @notice Performs a swap before bridging via {{titleCase name}}
+    /// @notice Performs a swap before bridging via {{properCase name}}
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
-    function swapAndStartBridgeTokensVia{{titleCase name}}(
+    /// @param _{{camelCase name}}Data Data specific to {{properCase name}}
+    function swapAndStartBridgeTokensVia{{properCase name}}(
         ILiFi.BridgeData memory _bridgeData,
         LibSwap.SwapData[] calldata _swapData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+        {{properCase name}}Data calldata _{{camelCase name}}Data
     )
         external
         payable
@@ -116,23 +138,35 @@ contract {{titleCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatab
 
     /// Internal Methods ///
 
-    /// @dev Contains the business logic for the bridge via {{titleCase name}}
+    /// @dev OPTIONAL — facet-specific validation called from the entry points.
+    // function _validate{{properCase name}}Data(
+    //     {{properCase name}}Data calldata _{{camelCase name}}Data
+    // ) internal view {
+    //     // TODO: facet-specific checks (zero-address / empty-bytes / deadline)
+    // }
+
+    /// @dev Contains the business logic for the bridge via {{properCase name}}
     /// @param _bridgeData The core information needed for bridging
-    /// @param _{{camelCase name}}Data Data specific to {{titleCase name}}
+    /// @param _{{camelCase name}}Data Data specific to {{properCase name}}
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        {{titleCase name}}Data calldata _{{camelCase name}}Data
+        // solhint-disable-next-line no-unused-vars
+        {{properCase name}}Data calldata _{{camelCase name}}Data
     ) internal {
-        // TODO: Implement business logic
+        // TODO: Implement business logic (remove the solhint-disable comment
+        // above once _{{camelCase name}}Data is used). Most bridge facets approve
+        // the router to pull the deposited token, then call it — e.g.:
+        //
+        //   import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+        //   LibAsset.maxApproveERC20(
+        //       IERC20(_bridgeData.sendingAssetId),
+        //       ROUTER, // immutable router/pool address set in the constructor
+        //       _bridgeData.minAmount
+        //   );
+        //   // ... call the bridge here, consuming _bridgeData.minAmount
+        //
+        // For bridges that do not support native, add the
+        // noNativeAsset(_bridgeData) modifier to the entry points.
         emit LiFiTransferStarted(_bridgeData);
-    }
-
-    /// @dev fetch local storage
-    function getStorage() private pure returns (Storage storage s) {
-        bytes32 namespace = NAMESPACE;
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            s.slot := namespace
-        }
     }
 }

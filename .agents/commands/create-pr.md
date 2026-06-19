@@ -118,6 +118,13 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 
 Short imperative title (≤70 chars). Match existing commit style in `git log`.
 
+**Revert PRs**: the title must start with `Revert` or contain `[Revert]`.
+`versionControlAndAuditCheck.yml` uses the title to exempt revert PRs from the
+audit-commit-hash check (the audited commit lives in the reverted PR's history,
+never in the revert PR's commit list) — a non-conforming title (e.g.
+`fix: undo facet change`) blocks the merge of a genuine revert that touches
+audited contracts.
+
 ### 7. Run `/pr-ready`
 
 Run this **before** the test suite. `/pr-ready` (local CodeRabbit) can land
