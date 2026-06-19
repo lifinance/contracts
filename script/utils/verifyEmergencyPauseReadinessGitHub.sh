@@ -351,12 +351,26 @@ function verifyHexagatePatReadiness() {
   local REPO_BODY_FILE REPO_HEADERS_FILE HTTP_STATUS
   REPO_BODY_FILE=$(mktemp)
   REPO_HEADERS_FILE=$(mktemp)
-  HTTP_STATUS=$(curl -s \
+  if ! HTTP_STATUS=$(curl -s \
     -o "$REPO_BODY_FILE" \
     -D "$REPO_HEADERS_FILE" \
     -w "%{http_code}" \
     "${GH_HEADERS[@]}" \
-    "https://api.github.com/repos/lifinance/contracts")
+    "https://api.github.com/repos/lifinance/contracts"); then
+    error "Hexagate PAT: curl failed to reach GitHub API (network error or curl not available)"
+    rm -f "$REPO_BODY_FILE" "$REPO_HEADERS_FILE"
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+      {
+        echo "hexagatePatSecret=$SECRET_STATUS"
+        echo "hexagatePatFormat=$FORMAT_STATUS"
+        echo "hexagatePatSso=skipped"
+        echo "hexagatePatValidity=skipped"
+        echo "hexagatePatDispatch=skipped"
+        echo "hexagatePatTeam=skipped"
+      } >>"$GITHUB_OUTPUT"
+    fi
+    return 1
+  fi
 
   local SSO_HEADER OAUTH_SCOPES CAN_PUSH
   SSO_HEADER=$(grep -i "x-github-sso:" "$REPO_HEADERS_FILE" || true)
