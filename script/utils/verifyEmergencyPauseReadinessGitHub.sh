@@ -324,7 +324,7 @@ function verifyHexagatePatReadiness() {
   SECRET_STATUS="pass"
 
   # (2) Format validation — must be a classic PAT: ghp_ + 36 alphanumeric chars
-  if [[ "$HEXAGATE_PAUSER_PAT" =~ ^ghp_[A-Za-z0-9]{36,}$ ]]; then
+  if [[ "$HEXAGATE_PAUSER_PAT" =~ ^ghp_[A-Za-z0-9]{36}$ ]]; then
     success "Hexagate PAT (2/6): PAT format is valid (ghp_* classic PAT)"
     FORMAT_STATUS="pass"
   else
