@@ -1,52 +1,42 @@
-# Monthly ticket-linkage metric
-# - computes % of merged PRs in the previous calendar month that reference a Linear ticket (or carry the `trivial` label)
-# - posts to Slack with a top-10 list of unlinked PRs + the full list of `trivial`-labelled PRs (for audit of carve-out misuse)
-# - known limitations: regex-only "has ticket" check (no Linear API call); caps PR window at 500 results
+# Deployment Address Consistency Check
+# - validates that contract addresses are consistent across config/whitelist.json,
+#   deployments/<network>.json, and deployments/<network>.diamond.json
+# - skips draft PRs to support the two-step deploy workflow:
+#   step 1 (deploy facet, open draft PR) may have flat log ahead of diamond.json;
+#   step 2 (execute timelock) completes the update; PR is then marked ready for review
+# - path-gated: only runs when whitelist or deployment files change
+# - runs the full repo check (all networks), not the staged-only subset
 
-name: Ticket Linkage Metric
+name: Deployment Address Consistency
 
 on:
-  schedule:
-    - cron: '0 9 1 * *' # 09:00 UTC on the 1st of each month
-  workflow_dispatch: # manual trigger for testing
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'config/whitelist.json'
+      - 'deployments/**'
+  workflow_dispatch: # allows manual triggering from the Actions tab for testing
 
 permissions:
-  contents: read # required to checkout the metric script
-  pull-requests: read # required for gh pr list
+  contents: read # required to fetch repository contents
 
 jobs:
-  report:
+  address-consistency:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          persist-credentials: false # only `gh pr list` runs here; no git push/tag/submodule operations
+          persist-credentials: false
 
-      - name: Compute linkage %
-        id: metric
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/ticket-linkage-metric.sh
-
-      - name: Post to Slack SC-general
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ${{ toJSON(steps.metric.outputs.text) }}
-            }
+          bun-version-file: package.json
 
-      # Silent missed reports defeat the purpose of a monthly forcing function — surface failures in the same channel.
-      - name: Notify Slack on failure
-        if: failure()
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
-          webhook-type: incoming-webhook
-          payload: |
-            {
-              "text": ":warning: ticket-linkage metric run failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
-            }
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check deployment address consistency
+        run: bunx tsx script/tasks/checkDeploymentAddressConsistency.ts
