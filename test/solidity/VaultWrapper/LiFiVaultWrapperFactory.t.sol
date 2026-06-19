@@ -56,7 +56,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_ConstructorRevertsOnZeroBeacon() public {
-        vm.expectRevert();
+        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
         new LiFiVaultWrapperFactory(
             address(0),
             owner,
