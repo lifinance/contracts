@@ -52,9 +52,9 @@ source script/helperFunctions.sh
 ORIG_PROD_LOG=$(mktemp)
 ORIG_GLOBAL_JSON=$(mktemp)
 ORIG_DOTENV=$(mktemp)
-cp "$PROD_DEPLOY_LOG" "$ORIG_PROD_LOG"
-cp "./config/global.json" "$ORIG_GLOBAL_JSON"
-cp "./.env" "$ORIG_DOTENV"
+cp "$PROD_DEPLOY_LOG" "$ORIG_PROD_LOG" || { echo "ERROR: failed to backup $PROD_DEPLOY_LOG" >&2; exit 1; }
+cp "./config/global.json" "$ORIG_GLOBAL_JSON" || { echo "ERROR: failed to backup config/global.json" >&2; exit 1; }
+cp "./.env" "$ORIG_DOTENV" || { echo "ERROR: failed to backup .env" >&2; exit 1; }
 ANVIL_PID=""
 trap 'cp "$ORIG_PROD_LOG" "$PROD_DEPLOY_LOG"; cp "$ORIG_GLOBAL_JSON" "./config/global.json"; cp "$ORIG_DOTENV" "./.env"; rm -f "$ORIG_PROD_LOG" "$ORIG_GLOBAL_JSON" "$ORIG_DOTENV"; [[ -n "$ANVIL_PID" ]] && kill "$ANVIL_PID" 2>/dev/null || true' EXIT
 
@@ -94,12 +94,12 @@ echo "Pauser wallet verified: $PAUSER_ADDR"
 # estimatePauseCost reads deployments/base.json for the diamond address and
 # config/global.json for the pauser wallet. Patch both to point at staging values
 # so that checkPauserFunds.sh (which reads both files internally) also uses them.
-jq --arg addr "$STAGING_DIAMOND" '.LiFiDiamond = $addr' "$ORIG_PROD_LOG" > "$PROD_DEPLOY_LOG"
-jq --arg addr "$PAUSER_ADDR" '.pauserWallet = $addr' "$ORIG_GLOBAL_JSON" > "./config/global.json"
+jq --arg addr "$STAGING_DIAMOND" '.LiFiDiamond = $addr' "$ORIG_PROD_LOG" > "$PROD_DEPLOY_LOG" || { echo "ERROR: failed to patch $PROD_DEPLOY_LOG" >&2; exit 1; }
+jq --arg addr "$PAUSER_ADDR" '.pauserWallet = $addr' "$ORIG_GLOBAL_JSON" > "./config/global.json" || { echo "ERROR: failed to patch config/global.json" >&2; exit 1; }
 # helperFunctions.sh re-reads .env on every `source` (set -a; source .env; set +a).
 # We must patch .env itself so any subprocess that sources helperFunctions.sh also
 # uses the anvil fork RPC instead of the real Base mainnet URL.
-sed "s|^ETH_NODE_URI_BASE=.*|ETH_NODE_URI_BASE=$ANVIL_RPC|" "$ORIG_DOTENV" > "./.env"
+sed "s|^ETH_NODE_URI_BASE=.*|ETH_NODE_URI_BASE=$ANVIL_RPC|" "$ORIG_DOTENV" > "./.env" || { echo "ERROR: failed to patch .env" >&2; exit 1; }
 
 # Override RPC so all cast/helperFunction calls hit the local fork
 export ETH_NODE_URI_BASE="$ANVIL_RPC"
