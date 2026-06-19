@@ -95,6 +95,4 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveCap();
     /// @notice Thrown when a disabled fee carries a non-zero rate.
     error DisabledFeeMustBeZero();
-    /// @notice Thrown when an instance already exists for the computed salt.
-    error InstanceAlreadyExists();
 }

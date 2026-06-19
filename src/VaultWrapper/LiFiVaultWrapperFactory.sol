@@ -46,7 +46,7 @@ contract LiFiVaultWrapperFactory is
     /// Immutables ///
 
     /// @notice The UpgradeableBeacon holding the shared implementation every vault wrapper delegatecalls to.
-    address public immutable beacon; // solhint-disable-line immutable-vars-naming
+    address public immutable BEACON;
 
     /// Storage ///
 
@@ -71,8 +71,6 @@ contract LiFiVaultWrapperFactory is
     ///         each instance at deploy.
     uint16 public defaultIntegratorShareBps;
 
-    /// @notice Deployed instance address keyed by its CREATE2 salt; non-zero means the salt is taken.
-    mapping(bytes32 => address) public instanceBySalt;
     /// @notice Whether an address is a wrapper instance deployed by this factory.
     mapping(address => bool) public isInstance;
 
@@ -109,7 +107,7 @@ contract LiFiVaultWrapperFactory is
         ) revert ZeroAddress();
         if (_beacon.code.length == 0) revert InvalidContract();
 
-        beacon = _beacon;
+        BEACON = _beacon;
         emergencyPauser = _emergencyPauser;
         onboardingManager = _onboardingManager;
         defaultIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
@@ -245,14 +243,12 @@ contract LiFiVaultWrapperFactory is
             _params.underlying,
             _params.nonce
         );
-        if (instanceBySalt[salt] != address(0)) revert InstanceAlreadyExists();
-
+        // Reusing a salt reverts in LibClone (CREATE2 to an existing address).
         instance = LibClone.deployDeterministicERC1967BeaconProxy(
-            beacon,
+            BEACON,
             salt
         );
 
-        instanceBySalt[salt] = instance;
         isInstance[instance] = true;
 
         emit WrapperDeployed(
@@ -287,7 +283,7 @@ contract LiFiVaultWrapperFactory is
     ) external view returns (address) {
         return
             LibClone.predictDeterministicAddressERC1967BeaconProxy(
-                beacon,
+                BEACON,
                 _salt(_namespace, _adapter, _underlying, _nonce),
                 address(this)
             );

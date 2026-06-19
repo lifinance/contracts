@@ -7,6 +7,7 @@ import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFacto
 import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
@@ -41,7 +42,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_ConstructorSetsRolesBeaconAndDefaultSplit() public view {
-        assertEq(factory.beacon(), address(beacon));
+        assertEq(factory.BEACON(), address(beacon));
         assertEq(factory.owner(), owner);
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);
@@ -383,9 +384,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(onboarder);
         factory.deploy(p);
         vm.prank(onboarder);
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.InstanceAlreadyExists.selector
-        );
+        vm.expectRevert(LibClone.DeploymentFailed.selector);
         factory.deploy(p);
     }
 
