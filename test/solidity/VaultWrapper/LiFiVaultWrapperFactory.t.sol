@@ -228,6 +228,35 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.initData(), hex"1234");
     }
 
+    function test_WrapperDeployedEmitsAssetAndSplit() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(0);
+        address predicted = factory.predictAddress(
+            NS,
+            address(adapter),
+            address(underlying),
+            0
+        );
+        bytes32 expectedSalt = keccak256(
+            abi.encode(NS, address(adapter), address(underlying), uint256(0))
+        );
+
+        vm.expectEmit(true, true, true, true, address(factory));
+        emit ILiFiVaultWrapperFactory.WrapperDeployed(
+            predicted,
+            NS,
+            address(underlying),
+            address(adapter),
+            assetToken,
+            vaultAdmin,
+            8000, // factory default
+            0,
+            expectedSalt
+        );
+        vm.prank(onboarder);
+        factory.deploy(p);
+    }
+
     function test_AssignedDeployerSelfDeploys() public {
         _enableUnderlyingAndBounds();
         vm.prank(onboarder);

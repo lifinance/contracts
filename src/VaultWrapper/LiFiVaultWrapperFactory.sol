@@ -256,7 +256,9 @@ contract LiFiVaultWrapperFactory is
             _params.namespace,
             _params.underlying,
             _params.adapter,
+            asset,
             _params.vaultWrapperAdmin,
+            integratorShareBps,
             _params.nonce,
             salt
         );
