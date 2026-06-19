@@ -198,53 +198,7 @@ contract LiFiVaultWrapperFactory is
         emit GlobalPauseSet(false, msg.sender);
     }
 
-    /// Views ///
-
-    /// @notice The deterministic address a vault wrapper will have for the given key.
-    function predictAddress(
-        address _integrator,
-        address _adapter,
-        address _underlying,
-        uint256 _nonce
-    ) external view returns (address) {
-        return
-            LibClone.predictDeterministicAddressERC1967BeaconProxy(
-                beacon,
-                _salt(_integrator, _adapter, _underlying, _nonce),
-                address(this)
-            );
-    }
-
-    /// Internal ///
-
-    /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
-    /// @dev Identical inputs yield the same address on every chain; `_nonce`
-    ///      disambiguates multiple instances for the same
-    ///      (integrator, adapter, underlying) triple.
-    /// @param _integrator The integrator that owns the instance.
-    /// @param _adapter The yield adapter the instance routes through.
-    /// @param _underlying The wrapped yield source.
-    /// @param _nonce Caller-supplied disambiguator.
-    /// @return The CREATE2 salt.
-    function _salt(
-        address _integrator,
-        address _adapter,
-        address _underlying,
-        uint256 _nonce
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(abi.encode(_integrator, _adapter, _underlying, _nonce));
-    }
-
-    /// @notice Returns the immutable bytecode cap (bps) for a fee type.
-    /// @param _feeType The fee type to look up.
-    /// @return The highest rate (bps) governance may ever set for this fee type.
-    function _cap(FeeType _feeType) internal pure returns (uint16) {
-        if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;
-        if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
-        if (_feeType == FeeType.Deposit) return CAP_DEPOSIT_BPS;
-        return CAP_WITHDRAWAL_BPS;
-    }
+    /// Deploy ///
 
     /// @notice Deploy a new wrapper instance for an integrator.
     /// @dev Caller must be the onboarding manager, or an approved integrator
@@ -304,6 +258,54 @@ contract LiFiVaultWrapperFactory is
             _params.fees,
             _params.initData
         );
+    }
+
+    /// Views ///
+
+    /// @notice The deterministic address a vault wrapper will have for the given key.
+    function predictAddress(
+        address _integrator,
+        address _adapter,
+        address _underlying,
+        uint256 _nonce
+    ) external view returns (address) {
+        return
+            LibClone.predictDeterministicAddressERC1967BeaconProxy(
+                beacon,
+                _salt(_integrator, _adapter, _underlying, _nonce),
+                address(this)
+            );
+    }
+
+    /// Internal ///
+
+    /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
+    /// @dev Identical inputs yield the same address on every chain; `_nonce`
+    ///      disambiguates multiple instances for the same
+    ///      (integrator, adapter, underlying) triple.
+    /// @param _integrator The integrator that owns the instance.
+    /// @param _adapter The yield adapter the instance routes through.
+    /// @param _underlying The wrapped yield source.
+    /// @param _nonce Caller-supplied disambiguator.
+    /// @return The CREATE2 salt.
+    function _salt(
+        address _integrator,
+        address _adapter,
+        address _underlying,
+        uint256 _nonce
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(abi.encode(_integrator, _adapter, _underlying, _nonce));
+    }
+
+    /// @notice Returns the immutable bytecode cap (bps) for a fee type.
+    /// @param _feeType The fee type to look up.
+    /// @return The highest rate (bps) governance may ever set for this fee type.
+    function _cap(FeeType _feeType) internal pure returns (uint16) {
+        if (_feeType == FeeType.Performance) return CAP_PERFORMANCE_BPS;
+        if (_feeType == FeeType.Management) return CAP_MANAGEMENT_BPS;
+        if (_feeType == FeeType.Deposit) return CAP_DEPOSIT_BPS;
+        return CAP_WITHDRAWAL_BPS;
     }
 
     /// @notice Resolves the underlying's ERC20 asset via the approved adapter.
