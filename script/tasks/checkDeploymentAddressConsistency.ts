@@ -173,6 +173,25 @@ function readJson<T>(path: string): T {
 }
 
 /**
+ * Reads the set of network names defined in `config/networks.json` (its top-level
+ * keys). Used to ignore leftover networks that still appear in deployment logs or
+ * `config/whitelist.json` but are no longer part of the configured network set.
+ *
+ * @param repoRoot - Repository root. Defaults to this repo.
+ * @returns Set of configured network names.
+ * @throws If `config/networks.json` is missing or contains malformed JSON.
+ */
+export function loadConfiguredNetworks(
+  repoRoot: string = REPO_ROOT
+): Set<string> {
+  return new Set(
+    Object.keys(
+      readJson<Record<string, unknown>>(`${repoRoot}/config/networks.json`)
+    )
+  )
+}
+
+/**
  * Loads per-network address data from the repo's config and deployment files.
  *
  * @param repoRoot - Absolute path to the repository root. Defaults to the repo root
@@ -182,11 +201,15 @@ function readJson<T>(path: string): T {
  * @returns Array of `INetworkSources`, one entry per network discovered in either
  *   `config/whitelist.json` or any `deployments/<network>.diamond.json` file.
  * @throws If `config/whitelist.json` is missing or contains malformed JSON.
+ * @remarks Only networks defined in `config/networks.json` are loaded; leftover
+ *   networks lingering in deployment logs or the whitelist are ignored.
  */
 export function loadSources(
   repoRoot: string = REPO_ROOT,
   filter?: Set<string>
 ): INetworkSources[] {
+  const configured = loadConfiguredNetworks(repoRoot)
+
   const whitelistByNetwork =
     readJson<{
       PERIPHERY?: Record<string, { name: string; address: string }[]>
@@ -204,6 +227,7 @@ export function loadSources(
 
   const sources: INetworkSources[] = []
   for (const network of networks) {
+    if (!configured.has(network)) continue
     if (filter && !filter.has(network)) continue
     const whitelistPeriphery: Record<string, string> = {}
     for (const entry of whitelistByNetwork[network] ?? [])

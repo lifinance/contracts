@@ -18,6 +18,8 @@ import {
   getChangedPathsSince,
   getChangedWhitelistNetworks,
   getChangedWhitelistNetworksSince,
+  loadConfiguredNetworks,
+  loadSources,
   type INetworkSources,
 } from './checkDeploymentAddressConsistency'
 
@@ -313,6 +315,57 @@ describe('getChangedPathsSince / getChangedWhitelistNetworksSince (integration)'
       expect(
         getChangedWhitelistNetworksSince(baseSha, changedPaths, dir)
       ).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('loadConfiguredNetworks / loadSources (networks.json filtering)', () => {
+  const write = (dir: string, relPath: string, content: unknown) => {
+    const full = join(dir, relPath)
+    mkdirSync(join(full, '..'), { recursive: true })
+    writeFileSync(full, JSON.stringify(content, null, 2) + '\n')
+  }
+
+  // Minimal repo layout: arbitrum is configured, goerli is a leftover.
+  const setupRepo = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'addr-gate-cfg-'))
+    try {
+      write(dir, 'config/networks.json', { arbitrum: { chainId: 42161 } })
+      write(dir, 'config/whitelist.json', {
+        PERIPHERY: {
+          arbitrum: [{ name: 'FeeCollector', address: '0xAAA' }],
+          goerli: [{ name: 'FeeCollector', address: '0xBBB' }],
+        },
+      })
+      write(dir, 'deployments/arbitrum.diamond.json', {
+        LiFiDiamond: { Periphery: { FeeCollector: '0xAAA' } },
+      })
+      write(dir, 'deployments/goerli.diamond.json', {
+        LiFiDiamond: { Periphery: { FeeCollector: '0xBBB' } },
+      })
+      return dir
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true })
+      throw err
+    }
+  }
+
+  it('loadConfiguredNetworks returns the top-level keys of networks.json', () => {
+    const dir = setupRepo()
+    try {
+      expect([...loadConfiguredNetworks(dir)]).toEqual(['arbitrum'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('loadSources ignores networks absent from networks.json (leftovers)', () => {
+    const dir = setupRepo()
+    try {
+      const networks = loadSources(dir).map((s) => s.network)
+      expect(networks).toEqual(['arbitrum']) // goerli leftover excluded
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
