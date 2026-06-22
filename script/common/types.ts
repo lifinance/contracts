@@ -15,6 +15,12 @@ export type TTronWalletName = keyof TGlobalConfig['tronWallets']
 
 export type SupportedChain = keyof typeof networks
 
+/** Tron network keys — hardcoded because they are never in networks.json (Tron is non-EVM). */
+export type TronNetworkKey = 'tron' | 'tronshasta'
+
+/** Any network key accepted by deployment scripts: EVM chains from config plus Tron. */
+export type NetworkKey = SupportedChain | TronNetworkKey
+
 type NetworkRow = (typeof networks)[keyof typeof networks]
 
 /**
@@ -224,8 +230,10 @@ export interface IChainSimulateResult {
 /** Options for proposing a Safe transaction (EVM). */
 export interface IProposeToSafeOptions {
   network: string
-  to: string
-  calldata: Hex
+  /** Target address, or one address per call when proposing multiple calls. */
+  to: string | string[]
+  /** Calldata, or one calldata per call (parallel to `to`). Multiple calls require `timelock`. */
+  calldata: Hex | Hex[]
   timelock?: boolean
   dryRun?: boolean
   privateKey?: string

@@ -50,6 +50,10 @@ permissions:
 
 jobs:
   verify-emergency-pause-readiness:
+    # Upstream-only: this readiness/funds/Slack check needs lifinance/contracts' secrets,
+    # RPCs and production diamonds. On forks (e.g. contracts-tron) the guard is false, so the
+    # job is skipped (neutral, not failed) across schedule / workflow_dispatch / pull_request.
+    if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -82,7 +86,9 @@ jobs:
               if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
               if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
               echo "::add-mask::$value"
-              echo "$line" >> "$GITHUB_ENV"
+              # Write the UNQUOTED value so GITHUB_ENV matches the masked value — a quoted .env
+              # value would otherwise be stored with quotes and escape the ::add-mask:: redaction.
+              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
             fi
           done < ".env"
         env:

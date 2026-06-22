@@ -4377,6 +4377,14 @@
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
+        ],
+        "outlaw": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
         ]
       }
     },
@@ -5536,6 +5544,20 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0xbD21C9E5536a483888c81B59a48797cd0f981086",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
           }
         ]
       },
@@ -9357,7 +9379,7 @@
       },
       {
         "name": "OutputValidator",
-        "address": "0x293BEf168Ca1310C12aeDbDcd8bFD05ab6f0b0C7",
+        "address": "0x1581cA9890E178E38FC05b44D541a781bb1810ae",
         "selectors": [
           {
             "selector": "0x27444dab",
@@ -11049,7 +11071,7 @@
       },
       {
         "name": "OutputValidator",
-        "address": "TTumBQrmwWGacj7LEybnnxgHVxamJqFAWq",
+        "address": "TGYGf6DrV2whLwqYXJp2H2gzJhSiqVrMbR",
         "selectors": [
           {
             "selector": "0x27444dab",

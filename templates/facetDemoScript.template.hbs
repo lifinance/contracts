@@ -1,78 +1,102 @@
-import {
-  getContract,
-  parseUnits,
-  Narrow,
-  zeroAddress
-} from 'viem'
 import { randomBytes } from 'crypto'
-import { config } from 'dotenv'
-import { ERC20__factory as ERC20 } from '../../typechain/factories/ERC20__factory'
-import { {{titleCase name}}Facet__factory as {{titleCase name}}Facet } from '../../typechain/factories/{{titleCase name}}Facet.sol/{{titleCase name}}Facet__factory'
-import { ensureBalance, ensureAllowance, executeTransaction, setupEnvironment, type SupportedChain } from './utils/demoScriptHelpers'
 
-config()
+import { consola } from 'consola'
+import { config as dotenvConfig } from 'dotenv'
+import { getAddress, parseUnits, zeroAddress, type Abi } from 'viem'
 
-// If you need to import a custom ABI, follow these steps:
-// 
-// First, ensure you import the relevant artifact file:
-// import { exampleArtifact__factory } from '../../typechain/factories/{example artifact json file}'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import {{camelCase name}}FacetArtifact from '../../out/{{properCase name}}Facet.sol/{{properCase name}}Facet.json'
+import type { {{properCase name}}Facet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../common/types'
+
+import {
+  createContractObject,
+  ensureAllowance,
+  ensureBalance,
+  executeTransaction,
+  setupEnvironment,
+} from './utils/demoScriptHelpers'
+
+dotenvConfig()
+
+// #region ABIs
+
+const ERC20_ABI = erc20Artifact.abi as Abi
+const {{constantCase name}}_FACET_ABI = {{camelCase name}}FacetArtifact.abi as Abi
+
+// #endregion
+
+// If you need to retrieve a specific address from your config file
+// based on the chain and element name, use the `getConfigElement` helper
+// from './utils/demoScriptHelpers'.
 //
+// First, ensure you import the relevant config file:
+// import {{camelCase name}}Config from '../../config/{{kebabCase name}}.json'
+//
+// Then, retrieve the address:
+// const EXAMPLE_ADDRESS = getAddress(
+//   getConfigElement({{camelCase name}}Config.example, srcChain) as string
+// )
 
 async function main() {
   // === Set up environment ===
-  const srcChain: SupportedChain = "mainnet" // Set source chain
-  const destinationChainId = 1 // Set destination chain id
+  const srcChain: SupportedChain = 'mainnet' // Set source chain
+  const destinationChainId = 137 // Set destination chain id
 
-  const { client, publicClient, walletAccount, lifiDiamondAddress, lifiDiamondContract } = await setupEnvironment(srcChain, {{constantCase name}}_FACET_ABI)
+  const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
+    await setupEnvironment(srcChain, {{constantCase name}}_FACET_ABI)
   const signerAddress = walletAccount.address
 
   // === Contract addresses ===
-  const SRC_TOKEN_ADDRESS = '' as `0x${string}` // Set the source token address here.
+  const SRC_TOKEN_ADDRESS = getAddress('') // Set the source token address here
 
-  // If you need to retrieve a specific address from your config file 
-  // based on the chain and element name, use this helper function.
-  // 
-  // First, ensure you import the relevant config file:
-  // import config from '../../config/{{camelCase name}}.json'
-  //
-  // Then, retrieve the address:
-  // const EXAMPLE_ADDRESS = getConfigElement(config, srcChain, 'example');
-  //
-
-  // === Instantiate contracts ===
-  const srcTokenContract = getContract({
+  // === Read token metadata ===
+  const srcTokenName = (await publicClient.readContract({
     address: SRC_TOKEN_ADDRESS,
-    abi: ERC20.abi,
-    client: publicClient
-  })
+    abi: ERC20_ABI,
+    functionName: 'name',
+  })) as string
 
-  // If you need to interact with a contract, use the following helper. 
-  // Provide the contract address, ABI, and a client instance to initialize 
-  // the contract for both read and write operations.
-  //
-  // const exampleContract = getContract({
-  //   address: EXAMPLE_ADDRESS,
-  //   abi: EXAMPLE_ABI,
-  //   client
-  // })
-  //
+  const srcTokenSymbol = (await publicClient.readContract({
+    address: SRC_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'symbol',
+  })) as string
 
-  const srcTokenName = await srcTokenContract.read.name() as string
-  const srcTokenSymbol = await srcTokenContract.read.symbol() as string
-  const srcTokenDecimals = await srcTokenContract.read.decimals() as bigint
-  const amount = parseUnits('10', Number(srcTokenDecimals)); // 10 * 1e{source token decimals}
+  const srcTokenDecimals = (await publicClient.readContract({
+    address: SRC_TOKEN_ADDRESS,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+  })) as number
 
-  console.info(`Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`)
-  console.info(`Connected wallet address: ${signerAddress}`)
+  const amount = parseUnits('10', srcTokenDecimals) // 10 * 1e{source token decimals}
 
-  await ensureBalance(srcTokenContract, signerAddress, amount)
+  consola.info(
+    `Bridge ${amount} ${srcTokenName} (${srcTokenSymbol}) from ${srcChain} --> {DESTINATION CHAIN NAME}`
+  )
+  consola.info(`Connected wallet address: ${signerAddress}`)
 
-  await ensureAllowance(srcTokenContract, signerAddress, lifiDiamondAddress, amount, publicClient)
+  // === Check balance and allowance ===
+  const srcTokenContract = createContractObject(
+    SRC_TOKEN_ADDRESS,
+    ERC20_ABI,
+    publicClient,
+    walletClient
+  )
+
+  await ensureBalance(srcTokenContract, signerAddress, amount, publicClient)
+
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
+
+  await ensureAllowance(
+    srcTokenContract,
+    signerAddress,
+    lifiDiamondAddress,
+    amount,
+    publicClient
+  )
 
   // === In this part put necessary logic usually it's fetching quotes, estimating fees, signing messages etc. ===
-
-
-
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
@@ -89,18 +113,22 @@ async function main() {
     hasDestinationCall: false,
   }
 
-  const {{camelCase name}}Data: {{titleCase name}}Facet.{{titleCase name}}DataStruct = {
-    // Add your specific fields for {{titleCase name}} here.
+  const {{camelCase name}}Data: {{properCase name}}Facet.{{properCase name}}DataStruct = {
+    // Add your specific fields for {{properCase name}} here
+    exampleParam: 'foo bar baz',
   }
 
   // === Start bridging ===
   await executeTransaction(
     () =>
-      lifiDiamondContract.write.startBridgeTokensVia{{titleCase name}}(
-        [bridgeData, {{camelCase name}}Data],
-        // { value: fee } optional value
-      ),
-    'Starting bridge tokens via {{titleCase name}}',
+      walletClient.writeContract({
+        address: lifiDiamondAddress,
+        abi: {{constantCase name}}_FACET_ABI,
+        functionName: 'startBridgeTokensVia{{properCase name}}',
+        args: [bridgeData, {{camelCase name}}Data],
+        // value: fee, // optional native fee
+      }),
+    'Starting bridge tokens via {{properCase name}}',
     publicClient,
     true
   )
@@ -109,6 +137,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error(error)
+    consola.error(error)
     process.exit(1)
   })

@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # this script is designed to be called by a Github action ("Verify Emergency Pause Readiness")
-# it is the READ-ONLY companion to diamondEMERGENCYPauseGitHub.sh: it verifies that the
-# emergency pause CAN fire on every production diamond, WITHOUT firing it.
+# it is the READ-ONLY companion to the break-glass pause script
+# (script/emergency/emergencyPauseBreakGlass.sh): it verifies that the emergency pause CAN fire
+# on every production diamond, WITHOUT firing it.
 #
 # Checks:
 #   Secret check (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
@@ -11,7 +12,7 @@
 #                      that derived address, read via the real `universalCast "call"`.
 #   Governance check (on-chain, per Safe/timelock-governed diamond — the UNPAUSE path): the
 #                      LiFiTimelockController's diamond() points at the production diamond,
-#                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets/Tron.
+#                      and the Safe holds TIMELOCK_ADMIN_ROLE. Skipped on testnets (EOA-owned).
 #
 # It performs NO transactions (no pause / unpause / send). A non-zero exit means the
 # emergency pause/unpause would not work as configured and must be investigated.
@@ -21,20 +22,18 @@
 source ./script/helperFunctions.sh
 
 # ---------------------------------------------------------------------------------------
-# INTENTIONAL DUPLICATION (temporary) — keep in sync with diamondEMERGENCYPauseGitHub.sh
+# INTENTIONAL DUPLICATION — mirrors the frozen break-glass pause script
 # ---------------------------------------------------------------------------------------
 # rpcCallWithRetry + the RPC pacing constants below, and the per-network read+compare in
-# verifyPauserOnNetwork(), are duplicated near-verbatim from
-# script/utils/diamondEMERGENCYPauseGitHub.sh.
+# verifyPauserOnNetwork(), are duplicated near-verbatim from the break-glass pause script
+# (script/emergency/emergencyPauseBreakGlass.sh).
 #
-# Why duplicated and not shared: that script is security-critical (it sends the real
-# pauseDiamond() transaction). We deliberately did NOT refactor it as a side effect of
-# adding this read-only check, to avoid any risk to the live pause path.
-#
-# CONSOLIDATION PLAN: the next time diamondEMERGENCYPauseGitHub.sh is modified, extract
-# rpcCallWithRetry + the pauser comparison into a shared sourceable helper (e.g.
-# script/utils/emergencyPauseShared.sh) and have BOTH scripts source it. Until then,
-# any change here must be mirrored there (and vice-versa).
+# Why duplicated and not shared: the break-glass script is incident-critical and deliberately
+# FROZEN/ISOLATED — it must not source the shared library, so there is intentionally no shared
+# helper to consolidate into. This read-only companion keeps
+# its own copy on purpose; a divergence here is not catastrophic (it only mis-reports readiness),
+# whereas coupling the pause path to shared code is exactly the EXSC-367 risk we removed. When
+# the break-glass read/compare logic changes, mirror it here too.
 # ---------------------------------------------------------------------------------------
 
 # RPC pacing for read calls. RPCs can throttle reads under load (paid tiers included),
@@ -112,9 +111,27 @@ function evmToTronBase58() {
   printf "%s" "$OUT"
 }
 
+# addressesMatch: compare two addresses that are already in the SAME network's native form.
+# Tron base58 is case-SENSITIVE, so compare it verbatim; EVM 0x-hex casing is cosmetic (EIP-55),
+# so compare it case-insensitively. Both arguments must be the same representation (both base58
+# on Tron, both hex on EVM) — this does no cross-encoding.
+#
+# Usage: addressesMatch NETWORK ADDR_A ADDR_B
+# Returns: 0 if equal, 1 otherwise.
+function addressesMatch() {
+  local NETWORK="$1"
+  local ADDR_A="$2"
+  local ADDR_B="$3"
+  if isTronNetwork "$NETWORK"; then
+    [[ "$ADDR_A" == "$ADDR_B" ]]
+  else
+    [[ "$(echo "$ADDR_A" | tr '[:upper:]' '[:lower:]')" == "$(echo "$ADDR_B" | tr '[:upper:]' '[:lower:]')" ]]
+  fi
+}
+
 # verifyPauserOnNetwork: pauser check — read the on-chain pauserWallet() of a network's
 # production LiFiDiamond and assert it equals the derived pauser address. Read-only.
-# Mirrors diamondEMERGENCYPauseGitHub.sh's comparison exactly (lowercase string compare),
+# Mirrors the break-glass script's comparison exactly (lowercase string compare),
 # which also handles Tron's address form the same proven way the live pause does.
 #
 # Usage: verifyPauserOnNetwork NETWORK EXPECTED_PAUSER_ADDRESS
@@ -173,7 +190,7 @@ function verifyPauserOnNetwork() {
 #   (1) LiFiTimelockController.diamond() points at the deploy-log production LiFiDiamond
 #       (the timelock controls the right diamond), and
 #   (2) the Safe holds TIMELOCK_ADMIN_ROLE on the timelock (so it can execute unpauseDiamond()).
-# Read-only. Applies only to non-testnet, non-Tron networks with a deployed timelock AND a
+# Read-only. Applies to any non-testnet network (EVM or Tron) with a deployed timelock AND a
 # configured Safe; everything else is skipped with a notice. The exit code BIT-ENCODES which
 # assertion failed so the caller can report the two separately:
 #   bit 0 (1) = timelock.diamond() mismatch / unreadable,  bit 1 (2) = Safe missing the role / unreadable.
@@ -184,9 +201,10 @@ function verifyPauserOnNetwork() {
 function verifyGovernanceOnNetwork() {
   local NETWORK="$1"
 
-  # Testnets are EOA-owned (no Safe/timelock); Tron's governance model differs. Skip both.
-  if isTestnetNetwork "$NETWORK" || isTronNetwork "$NETWORK"; then
-    echo "skipping $NETWORK governance checks (testnet or Tron - no Safe/timelock)"
+  # Testnets are EOA-owned (no Safe/timelock). Tron runs the same Safe+timelock governance and
+  # IS checked: addressesMatch handles base58 comparison and troncast accepts the base58 Safe.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "skipping $NETWORK governance checks (testnet - EOA-owned, no Safe/timelock)"
     return 0
   fi
 
@@ -219,7 +237,7 @@ function verifyGovernanceOnNetwork() {
   if ! TIMELOCK_DIAMOND=$(rpcCallWithRetry "[$NETWORK] timelock.diamond()" universalCast "call" "$NETWORK" "$TIMELOCK_ADDRESS" "diamond() returns (address)"); then
     error "[network: $NETWORK] governance: failed to read LiFiTimelockController.diamond() after $RPC_MAX_ATTEMPTS attempts: $TIMELOCK_DIAMOND"
     RC=$((RC | 1))
-  elif [[ "$(echo "$TIMELOCK_DIAMOND" | tr '[:upper:]' '[:lower:]')" != "$(echo "$DIAMOND_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+  elif ! addressesMatch "$NETWORK" "$TIMELOCK_DIAMOND" "$DIAMOND_ADDRESS"; then
     error "[network: $NETWORK] governance: timelock.diamond() ($TIMELOCK_DIAMOND) does not match deploy-log LiFiDiamond ($DIAMOND_ADDRESS)"
     RC=$((RC | 1))
   else
@@ -287,13 +305,16 @@ function main {
   # changes the exit code below.
   local SECRET_STATUS="fail" PAUSER_STATUS="skipped" TIMELOCK_DIAMOND_STATUS="skipped" SAFE_ROLE_STATUS="skipped"
 
-  if [[ -z "$PRIVATE_KEY_PAUSER_WALLET" ]]; then
-    error "PRIVATE_KEY_PAUSER_WALLET is empty or not set. Cannot verify emergency pause readiness."
+  # Normalize + validate the pauser key (accept it with or without a 0x prefix, fail loud on
+  # empty/malformed) via the shared helper, so this readiness check reports a clean mismatch
+  # rather than tripping over a prefix-induced format fault — the same normalization the pause
+  # script applies (EXSC-507).
+  if ! PRIVATE_KEY_PAUSER_WALLET=$(normalizePrivateKey "$PRIVATE_KEY_PAUSER_WALLET" "PRIVATE_KEY_PAUSER_WALLET"); then
     emitCheckStatus "$SECRET_STATUS" "$PAUSER_STATUS" "$TIMELOCK_DIAMOND_STATUS" "$SAFE_ROLE_STATUS"
     return 1
   fi
 
-  # derive the pauser address from the secret (mirrors diamondEMERGENCYPauseGitHub.sh:303;
+  # derive the pauser address from the (normalized) secret (mirrors the break-glass script;
   # the key is passed as an argument because cast has no env/stdin path for a raw key, is
   # never echoed, and GitHub masks the secret in logs)
   local PRIV_KEY_ADDRESS
@@ -339,7 +360,7 @@ function main {
   # verifyNetwork's bit-encoded exit code to a per-network file; we aggregate after `wait`. A
   # failure on one diamond does NOT abort the others.
   #
-  # NOTE: this intentionally DIVERGES from diamondEMERGENCYPauseGitHub.sh's unbounded fan-out — that
+  # NOTE: this intentionally DIVERGES from the break-glass script's unbounded fan-out — that
   # live script fires every network at once because an incident can't wait; this read-only weekly
   # check has no such urgency and is gentler on RPCs when throttled.
   local MAX_JOBS=${MAX_CONCURRENT_JOBS:-10}
