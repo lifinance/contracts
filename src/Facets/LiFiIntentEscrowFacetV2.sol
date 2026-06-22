@@ -20,7 +20,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler.
 /// @notice This contract is not intended to custody user funds; any balance held is incidental (transient during execution) and should not persist.
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 contract LiFiIntentEscrowFacetV2 is
     ILiFi,
     ReentrancyGuard,
