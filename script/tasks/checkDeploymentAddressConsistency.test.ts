@@ -319,6 +319,15 @@ describe('getChangedPathsSince / getChangedWhitelistNetworksSince (integration)'
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('rejects a baseRef with shell metacharacters (command-injection guard)', () => {
+    const malicious = 'main; rm -rf /'
+    expect(() => getChangedPathsSince(malicious)).toThrow(/Invalid git ref/)
+    // the whitelist variant only reaches the guard once whitelist.json is in scope
+    expect(() =>
+      getChangedWhitelistNetworksSince(malicious, ['config/whitelist.json'])
+    ).toThrow(/Invalid git ref/)
+  })
 })
 
 describe('loadConfiguredNetworks / loadSources (networks.json filtering)', () => {

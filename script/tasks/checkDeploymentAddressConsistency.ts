@@ -388,6 +388,20 @@ export function getChangedWhitelistNetworks(
 }
 
 /**
+ * Guards a git ref/SHA before it is interpolated into a shell `git` command.
+ * Rejects anything outside the characters valid in a ref name or commit SHA
+ * (alphanumerics and `/`, `_`, `.`, `-`), preventing shell command injection via
+ * a hostile `--base` argument (e.g. `--base "main; rm -rf /"`).
+ *
+ * @param ref - The caller-supplied git ref or commit SHA.
+ * @throws If `ref` contains any character outside the allowed set.
+ */
+function assertSafeGitRef(ref: string): void {
+  if (!/^[A-Za-z0-9/_.-]+$/.test(ref))
+    throw new Error(`Invalid git ref (refusing to run shell command): ${ref}`)
+}
+
+/**
  * Repo-relative paths changed between `baseRef` and HEAD (ACMR filter), scoped to
  * the branch's own changes via the merge base. Used by the CI per-PR gate to limit
  * the consistency check to networks the PR actually touched.
@@ -401,6 +415,7 @@ export function getChangedPathsSince(
   baseRef: string,
   repoRoot: string = REPO_ROOT
 ): string[] {
+  assertSafeGitRef(baseRef)
   const run = (cmd: string): string =>
     execSync(cmd, { cwd: repoRoot, encoding: 'utf8' })
   const mergeBase = run(`git merge-base ${baseRef} HEAD`).trim()
@@ -424,6 +439,7 @@ export function getChangedWhitelistNetworksSince(
   repoRoot: string = REPO_ROOT
 ): string[] {
   if (!changedPaths.includes('config/whitelist.json')) return []
+  assertSafeGitRef(baseRef)
   const mergeBase = execSync(`git merge-base ${baseRef} HEAD`, {
     cwd: repoRoot,
     encoding: 'utf8',
