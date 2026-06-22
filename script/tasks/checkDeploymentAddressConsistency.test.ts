@@ -15,7 +15,9 @@ import {
   changedWhitelistNetworks,
   findCoverageGaps,
   findMismatches,
+  getChangedPathsSince,
   getChangedWhitelistNetworks,
+  getChangedWhitelistNetworksSince,
   type INetworkSources,
 } from './checkDeploymentAddressConsistency'
 
@@ -218,6 +220,102 @@ describe('getChangedWhitelistNetworks (integration)', () => {
 
   it('returns [] when whitelist.json is not staged', () => {
     expect(getChangedWhitelistNetworks(['deployments/base.json'])).toEqual([])
+  })
+})
+
+describe('getChangedPathsSince / getChangedWhitelistNetworksSince (integration)', () => {
+  const git = (dir: string, cmd: string) =>
+    execSync(`git ${cmd}`, { cwd: dir, encoding: 'utf8' })
+
+  const writeFile = (dir: string, relPath: string, content: unknown) => {
+    const full = join(dir, relPath)
+    mkdirSync(join(full, '..'), { recursive: true })
+    writeFileSync(full, JSON.stringify(content, null, 2) + '\n')
+  }
+
+  // Builds a repo whose first commit is the "base"; returns the dir and base SHA.
+  const setupRepo = (
+    seed: (dir: string) => void
+  ): { dir: string; baseSha: string } => {
+    const dir = mkdtempSync(join(tmpdir(), 'addr-gate-since-'))
+    try {
+      git(dir, 'init -q')
+      git(dir, 'config user.email test@example.com')
+      git(dir, 'config user.name test')
+      git(dir, 'config commit.gpgsign false')
+      seed(dir)
+      git(dir, 'add -A')
+      git(dir, 'commit -q -m base')
+      const baseSha = git(dir, 'rev-parse HEAD').trim()
+      return { dir, baseSha }
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true })
+      throw err
+    }
+  }
+
+  it('returns only paths changed between the base ref and HEAD', () => {
+    const { dir, baseSha } = setupRepo((d) => {
+      writeFile(d, 'deployments/arbitrum.json', { Foo: '0xAAA' })
+      writeFile(d, 'deployments/base.json', { Foo: '0xBBB' })
+    })
+    try {
+      writeFile(dir, 'deployments/arbitrum.json', { Foo: '0xCCC' }) // changed
+      git(dir, 'add -A')
+      git(dir, 'commit -q -m change-arbitrum')
+      expect(getChangedPathsSince(baseSha, dir)).toEqual([
+        'deployments/arbitrum.json',
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns only the whitelist network whose address changed since the base', () => {
+    const { dir, baseSha } = setupRepo((d) => {
+      writeFile(d, 'config/whitelist.json', {
+        PERIPHERY: {
+          base: [{ name: 'FeeCollector', address: '0xAAA' }],
+          arbitrum: [{ name: 'FeeCollector', address: '0xBBB' }],
+        },
+      })
+    })
+    try {
+      writeFile(dir, 'config/whitelist.json', {
+        PERIPHERY: {
+          base: [{ name: 'FeeCollector', address: '0xCCC' }], // changed
+          arbitrum: [{ name: 'FeeCollector', address: '0xBBB' }], // unchanged
+        },
+      })
+      git(dir, 'add -A')
+      git(dir, 'commit -q -m change-whitelist')
+      const changedPaths = getChangedPathsSince(baseSha, dir)
+      expect(
+        getChangedWhitelistNetworksSince(baseSha, changedPaths, dir)
+      ).toEqual(['base'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns [] for whitelist networks when whitelist.json is unchanged', () => {
+    const { dir, baseSha } = setupRepo((d) => {
+      writeFile(d, 'config/whitelist.json', {
+        PERIPHERY: { base: [{ name: 'FeeCollector', address: '0xAAA' }] },
+      })
+      writeFile(d, 'deployments/base.json', { Foo: '0xAAA' })
+    })
+    try {
+      writeFile(dir, 'deployments/base.json', { Foo: '0xZZZ' }) // only deployment changed
+      git(dir, 'add -A')
+      git(dir, 'commit -q -m change-deployment')
+      const changedPaths = getChangedPathsSince(baseSha, dir)
+      expect(
+        getChangedWhitelistNetworksSince(baseSha, changedPaths, dir)
+      ).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

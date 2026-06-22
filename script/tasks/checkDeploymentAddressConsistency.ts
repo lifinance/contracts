@@ -3,6 +3,11 @@
  * `deployments/<network>.json`, and `deployments/<network>.diamond.json`.
  * Import `findMismatches`/`loadSources` for programmatic use, or run directly as a CLI
  * (exits 1 on any mismatch).
+ *
+ * CLI scoping:
+ * - `--base <ref>`: check only networks changed between `<ref>` and HEAD (per-PR gate).
+ * - `--staged`: check only networks touched by the staged git index (pre-commit hook).
+ * - neither: check every network in the repo (full-repo audit).
  */
 
 import { execSync } from 'child_process'
@@ -321,6 +326,26 @@ export function getStagedPaths(repoRoot: string = REPO_ROOT): string[] {
 }
 
 /**
+ * Reads the `PERIPHERY` map of `config/whitelist.json` at a given git rev-spec
+ * (e.g. `:config/whitelist.json` for the index, `HEAD:config/whitelist.json`,
+ * `<sha>:config/whitelist.json`). Returns `{}` when the blob is absent or unparseable.
+ */
+function parseWhitelistPeripheryAt(
+  revSpec: string,
+  repoRoot: string
+): Record<string, unknown> {
+  try {
+    const raw = execSync(`git show ${revSpec}`, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    })
+    return (JSON.parse(raw).PERIPHERY ?? {}) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
+/**
  * Networks whose `config/whitelist.json` PERIPHERY entry changed between the
  * staged index version and HEAD. Empty when whitelist.json is not staged.
  *
@@ -332,29 +357,83 @@ export function getChangedWhitelistNetworks(
   repoRoot: string = REPO_ROOT
 ): string[] {
   if (!stagedPaths.includes('config/whitelist.json')) return []
-  const parsePeriphery = (revSpec: string): Record<string, unknown> => {
-    try {
-      const raw = execSync(`git show ${revSpec}`, {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      })
-      return (JSON.parse(raw).PERIPHERY ?? {}) as Record<string, unknown>
-    } catch {
-      return {}
-    }
-  }
   return changedWhitelistNetworks(
-    parsePeriphery(':config/whitelist.json'),
-    parsePeriphery('HEAD:config/whitelist.json')
+    parseWhitelistPeripheryAt(':config/whitelist.json', repoRoot),
+    parseWhitelistPeripheryAt('HEAD:config/whitelist.json', repoRoot)
+  )
+}
+
+/**
+ * Repo-relative paths changed between `baseRef` and HEAD (ACMR filter), scoped to
+ * the branch's own changes via the merge base. Used by the CI per-PR gate to limit
+ * the consistency check to networks the PR actually touched.
+ *
+ * @param baseRef - Git ref or SHA to diff against (e.g. the PR base commit).
+ * @param repoRoot - Repository root to run git in. Defaults to this repo.
+ * @returns Changed paths, newline-split, empties removed.
+ * @throws When not run inside a git repository or `baseRef` is unknown to git.
+ */
+export function getChangedPathsSince(
+  baseRef: string,
+  repoRoot: string = REPO_ROOT
+): string[] {
+  const run = (cmd: string): string =>
+    execSync(cmd, { cwd: repoRoot, encoding: 'utf8' })
+  const mergeBase = run(`git merge-base ${baseRef} HEAD`).trim()
+  return run(`git diff --name-only --diff-filter=ACMR ${mergeBase} HEAD`)
+    .split('\n')
+    .filter((p) => p.length > 0)
+}
+
+/**
+ * Networks whose `config/whitelist.json` PERIPHERY entry changed between `baseRef`
+ * (at the merge base with HEAD) and HEAD. Empty when whitelist.json is unchanged.
+ *
+ * @param baseRef - Git ref or SHA to diff against (e.g. the PR base commit).
+ * @param changedPaths - Output of `getChangedPathsSince`; used to skip the diff
+ *   entirely when whitelist.json is untouched.
+ * @param repoRoot - Repository root to run git in. Defaults to this repo.
+ */
+export function getChangedWhitelistNetworksSince(
+  baseRef: string,
+  changedPaths: string[],
+  repoRoot: string = REPO_ROOT
+): string[] {
+  if (!changedPaths.includes('config/whitelist.json')) return []
+  const mergeBase = execSync(`git merge-base ${baseRef} HEAD`, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  }).trim()
+  return changedWhitelistNetworks(
+    parseWhitelistPeripheryAt('HEAD:config/whitelist.json', repoRoot),
+    parseWhitelistPeripheryAt(`${mergeBase}:config/whitelist.json`, repoRoot)
   )
 }
 
 if (import.meta.main) {
   try {
+    const baseFlagIndex = process.argv.indexOf('--base')
+    const baseRef =
+      baseFlagIndex !== -1 ? process.argv[baseFlagIndex + 1] : undefined
+    if (baseFlagIndex !== -1 && !baseRef) {
+      consola.error('--base requires a git ref or commit SHA argument.')
+      process.exit(1)
+    }
     const staged = process.argv.includes('--staged')
     const eligible = loadWhitelistEligible()
     let sources: INetworkSources[]
-    if (staged) {
+    if (baseRef) {
+      const changedPaths = getChangedPathsSince(baseRef)
+      const scope = affectedNetworks(
+        changedPaths,
+        getChangedWhitelistNetworksSince(baseRef, changedPaths)
+      )
+      if (scope.size === 0) {
+        consola.info(`No whitelist/deployment changes vs ${baseRef} to check.`)
+        process.exit(0)
+      }
+      sources = loadSources(REPO_ROOT, scope)
+    } else if (staged) {
       const stagedPaths = getStagedPaths()
       const scope = affectedNetworks(
         stagedPaths,
