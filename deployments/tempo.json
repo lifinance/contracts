@@ -24,5 +24,7 @@
   "ReceiverStargateV2": "0x81c9d514A6D1470E83DD8c8AC952C6c0D89c3d0C",
   "StargateFacetV2": "0x0A1b4FdB98A79597b8DbF032B2C6C9Bf24bC78ee",
   "AcrossV4SwapFacet": "0xAe1585f6Ec7AC7589192cEAd7184D478906D4dB0",
-  "SymbiosisFacet": "0xac959B1bcf96B7bFcfB0ac5D23E5d44AFc4Fff4c"
+  "SymbiosisFacet": "0xac959B1bcf96B7bFcfB0ac5D23E5d44AFc4Fff4c",
+  "OutputValidator": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
+  "GlacisFacet": "0x7E2dF86452b63f263f55ada32befBe8f58e69BD7"
 }

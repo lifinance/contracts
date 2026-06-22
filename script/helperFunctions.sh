@@ -18,6 +18,40 @@ source script/universalCast.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+
+# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
+# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
+# foundry.toml even though only our scripts consume them.
+#
+# Usage: getZkToolchainPin KEY
+#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
+#
+# Returns: The pinned version string (empty if not found)
+# Example: getZkToolchainPin "zksolc"
+function getZkToolchainPin() {
+  local KEY="$1"
+  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
+  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
+
+  if [[ ! -f "$FOUNDRY_TOML" ]]; then
+    return 1
+  fi
+
+  awk -v key="$KEY" '
+    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
+    /^\[/ { IN_SECTION = 0 }
+    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
+  ' "$FOUNDRY_TOML"
+}
+
+# zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
+# Passed to foundry-zksync via env because a real `zksync` key in any profile makes
+# vanilla forge emit an "unknown `zksync` config" warning; vanilla forge ignores
+# env-provided unknown keys.
+ZKSOLC_VERSION=$(getZkToolchainPin "zksolc")
+if [[ -n "$ZKSOLC_VERSION" ]]; then
+  export FOUNDRY_ZKSYNC="{ zksolc = \"$ZKSOLC_VERSION\" }"
+fi
 RED='\033[0;31m'   # Red color
 GREEN='\033[0;32m' # Green color
 GRAY='\033[0;37m'  # Light gray color
@@ -76,7 +110,7 @@ function logContractDeploymentInfo {
 
   # Build MongoDB command as array for safe execution
   local MONGO_CMD=(
-    bun script/deploy/update-deployment-logs.ts add
+    bunx tsx script/deploy/update-deployment-logs.ts add
     --env "$ENVIRONMENT"
     --contract "$CONTRACT"
     --network "$NETWORK"
@@ -283,12 +317,12 @@ function findContractInMasterLogByAddress() {
       fi
 
       if [[ "$USE_CACHE" == "true" ]]; then
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" 2>/dev/null)
       else
-        MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+        MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
           --env "$ENV_TRY" \
           --network "$NETWORK" \
           --address "$TARGET_ADDRESS" \
@@ -350,7 +384,7 @@ function getContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getContractVersionFromMasterLog: $CONTRACT $TARGET_ADDRESS (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts find \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts find \
       --env="$ENVIRONMENT" \
       --network="$NETWORK" \
       --address="$TARGET_ADDRESS" 2>/dev/null)
@@ -400,7 +434,7 @@ function getHighestDeployedContractVersionFromMasterLog() {
     echoDebug "Querying MongoDB for getHighestDeployedContractVersionFromMasterLog: $CONTRACT (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts filter \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts filter \
       --env="$ENVIRONMENT" \
       --contract="$CONTRACT" \
       --network="$NETWORK" \
@@ -450,7 +484,7 @@ function queryMongoDeployment() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts get \
+  bunx tsx script/deploy/query-deployment-logs.ts get \
     --env "$ENVIRONMENT" \
     --contract "$CONTRACT" \
     --network "$NETWORK" \
@@ -464,7 +498,7 @@ function checkMongoDeploymentExists() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
 
-  bun script/deploy/query-deployment-logs.ts exists \
+  bunx tsx script/deploy/query-deployment-logs.ts exists \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" \
@@ -477,11 +511,72 @@ function getLatestMongoDeployment() {
   local NETWORK="$2"
   local ENVIRONMENT="$3"
 
-  bun script/deploy/query-deployment-logs.ts latest \
+  bunx tsx script/deploy/query-deployment-logs.ts latest \
     --env="$ENVIRONMENT" \
     --contract="$CONTRACT" \
     --network="$NETWORK" 2>/dev/null
   return $?
+}
+
+# batchQueryMongoDeployments: Run multiple deployment-log lookups in a single
+# query-deployment-logs.ts invocation (one process spawn, one or few MongoDB round-trips)
+# instead of one process per lookup.
+#
+# Usage: batchQueryMongoDeployments QUERIES_JSON [ENVIRONMENT]
+#   QUERIES_JSON - JSON array of query objects: [{id?, op, env?, contract?, network?, version?, address?}]
+#                  Supported ops: get, latest, find, exists, history
+#   ENVIRONMENT  - Optional: default environment for queries without a per-query env (default: production)
+#
+# Returns: JSON array of {id, op, found, data} objects on stdout; exit 0 on success, 1 on failure
+# Example: batchQueryMongoDeployments '[{"id":"a","op":"get","contract":"Executor","network":"mainnet","version":"2.0.0"}]' "production"
+function batchQueryMongoDeployments() {
+  local QUERIES_JSON="$1"
+  local ENVIRONMENT="${2:-production}"
+
+  # Validate MONGODB_URI is set
+  if [[ -z "$MONGODB_URI" ]]; then
+    error "MONGODB_URI is not set. MongoDB is required for deployment queries."
+    return 1
+  fi
+
+  if [[ -z "$QUERIES_JSON" ]]; then
+    error "batchQueryMongoDeployments requires a JSON array of queries"
+    return 1
+  fi
+
+  local ATTEMPT=1
+  local RETRY_DELAY=1
+  while [[ $ATTEMPT -le $MONGO_MAX_RETRIES ]]; do
+    echoDebug "Querying MongoDB (batch) with $(echo "$QUERIES_JSON" | jq 'length' 2>/dev/null || echo "?") queries (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+    local BATCH_RESULT
+    local EXIT_CODE
+    # Queries are passed via stdin to avoid argv length limits for large batches.
+    # NOTE: must use --queries=- (equals form); citty parses a bare "-" after a flag as empty
+    BATCH_RESULT=$(echo "$QUERIES_JSON" | bunx tsx script/deploy/query-deployment-logs.ts batch \
+      --env="$ENVIRONMENT" \
+      --queries=- 2>/dev/null)
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -eq 0 && -n "$BATCH_RESULT" ]]; then
+      # Strip leading non-JSON (e.g. cache/consola output) so jq sees only the array
+      BATCH_RESULT=$(echo "$BATCH_RESULT" | sed -n '/^\[/,$p')
+      if echo "$BATCH_RESULT" | jq empty >/dev/null 2>&1; then
+        echo "$BATCH_RESULT"
+        return 0
+      else
+        echoDebug "MongoDB batch query returned invalid JSON (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+      fi
+    fi
+
+    if [[ $ATTEMPT -lt $MONGO_MAX_RETRIES ]]; then
+      echoDebug "MongoDB batch query failed, retrying in ${RETRY_DELAY}s (attempt $ATTEMPT/$MONGO_MAX_RETRIES)"
+      sleep $RETRY_DELAY
+      RETRY_DELAY=$((RETRY_DELAY * 2))
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+  done
+
+  return 1
 }
 
 function getUnverifiedContractsFromMongo() {
@@ -489,7 +584,7 @@ function getUnverifiedContractsFromMongo() {
 
   echoDebug "Getting unverified contracts from MongoDB"
 
-  bun script/deploy/query-deployment-logs.ts filter \
+  bunx tsx script/deploy/query-deployment-logs.ts filter \
     --env="$ENVIRONMENT" \
     --verified=false \
     --limit=1000 2>/dev/null
@@ -550,8 +645,12 @@ function getZkSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract zksolc version from default.zksync profile section
-    grep -A 10 "^\[profile\.default\.zksync\]" foundry.toml | grep "zksolc" | cut -d "'" -f 2
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      # callers capture stdout via $(...), so the error must go to stderr
+      error "zksolc pin not found in foundry.toml [external.zksync]" >&2
+      return 1
+    fi
+    echo "$ZKSOLC_VERSION"
   else
     echo ""
   fi
@@ -751,13 +850,45 @@ function getConstructorArgsFromMasterLog() {
     return 1
   fi
 
-  # If version is not provided, get the highest deployed version
+  # If version is not provided, resolve the highest deployed version AND its constructor
+  # args from ONE batch history lookup instead of two separate query-deployment-logs.ts
+  # invocations (highest-version filter + get)
   if [ -z "$VERSION" ]; then
-    VERSION=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
+    local BATCH_QUERIES
+    # NOTE: $ENV is a jq builtin (process environment) and shadows --arg ENV, so use $ENVIRON
+    BATCH_QUERIES=$(jq -n --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRON "$ENVIRONMENT" \
+      '[{id: "history", op: "history", contract: $CONTRACT, network: $NETWORK, env: $ENVIRON}]')
+
+    local BATCH_RESULT
+    if ! BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT"); then
+      echo ""
+      return 1
+    fi
+
+    local HISTORY
+    HISTORY=$(echo "$BATCH_RESULT" | jq -c '[.[] | select(.id == "history" and .found == true)][0].data // empty' 2>/dev/null)
+    if [[ -z "$HISTORY" || "$HISTORY" == "null" ]]; then
+      echo ""
+      return 1
+    fi
+
+    VERSION=$(echo "$HISTORY" | jq -r '.[].version' 2>/dev/null | grep -v '^null$' | grep -v '^$' | sort -V | tail -1)
     if [ -z "$VERSION" ]; then
       echo ""
       return 1
     fi
+
+    # records are sorted newest-first; take the newest record of the highest version.
+    # Accept both keys (MongoDB/cache may use constructorArgs or CONSTRUCTOR_ARGS)
+    local CONSTRUCTOR_ARGS
+    CONSTRUCTOR_ARGS=$(echo "$HISTORY" | jq -r --arg VERSION "$VERSION" '[.[] | select(.version == $VERSION)][0] | .CONSTRUCTOR_ARGS // .constructorArgs // empty' 2>/dev/null)
+    if [[ -n "$CONSTRUCTOR_ARGS" && "$CONSTRUCTOR_ARGS" != "null" ]]; then
+      echo "$CONSTRUCTOR_ARGS"
+      return 0
+    fi
+
+    echo ""
+    return 1
   fi
 
   local attempt=1
@@ -765,7 +896,7 @@ function getConstructorArgsFromMasterLog() {
     echoDebug "Querying MongoDB for getConstructorArgsFromMasterLog: $CONTRACT $NETWORK $VERSION (attempt $attempt/$MONGO_MAX_RETRIES)"
     local MONGO_RESULT
     local EXIT_CODE
-    MONGO_RESULT=$(bun script/deploy/query-deployment-logs.ts get \
+    MONGO_RESULT=$(bunx tsx script/deploy/query-deployment-logs.ts get \
       --env "$ENVIRONMENT" \
       --contract "$CONTRACT" \
       --network "$NETWORK" \
@@ -889,11 +1020,69 @@ function saveDiamondFacets() {
     CONCURRENCY=10
   fi
 
-  # resolve each facet in parallel and write individual JSON files
-  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-    # sanitize address (strip quotes, spaces)
-    FACET_ADDRESS=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-    if [[ -z "$FACET_ADDRESS" ]]; then
+  # resolve all facets in ONE query-deployment-logs.ts invocation (batch API) instead of
+  # one process + MongoDB round-trip per facet address. Facet addresses are sometimes
+  # shared across staging/production on the same chain, so query both environments
+  # (requested env wins), mirroring findContractInMasterLogByAddress.
+  local OTHER_ENV
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    OTHER_ENV="production"
+  else
+    OTHER_ENV="staging"
+  fi
+
+  # sanitize facet addresses ONCE (strip quotes/spaces, drop empties) so the
+  # build/parse/fallback passes below can reuse the cleaned values
+  local CLEAN_FACET_ADDRESSES=()
+  while IFS= read -r FACET_ADDRESS; do
+    [[ -n "$FACET_ADDRESS" ]] && CLEAN_FACET_ADDRESSES+=("$FACET_ADDRESS")
+  done < <(printf '%s\n' "${FACET_ADDRESSES[@]}" | tr -d '" ')
+
+  # build the batch payload in a single jq pass (mirrors getContractDeploymentStatusSummary)
+  local BATCH_QUERIES="[]"
+  local BATCH_RESULT=""
+  local BATCH_OK="false"
+  if [[ ${#CLEAN_FACET_ADDRESSES[@]} -gt 0 ]]; then
+    BATCH_QUERIES=$(printf '%s\n' "${CLEAN_FACET_ADDRESSES[@]}" | jq -R . | jq -s \
+      --arg NET "$NETWORK" \
+      --arg ENV1 "$ENVIRONMENT" \
+      --arg ENV2 "$OTHER_ENV" \
+      '[.[] | select(. != "") | . as $ADDR |
+        {id: ($ADDR + "::" + $ENV1), op: "find", env: $ENV1, network: $NET, address: $ADDR},
+        {id: ($ADDR + "::" + $ENV2), op: "find", env: $ENV2, network: $NET, address: $ADDR}]')
+  fi
+
+  if [[ "$BATCH_QUERIES" != "[]" ]] && isMongoLoggingEnabled; then
+    BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT") && BATCH_OK="true"
+  fi
+
+  if [[ "$BATCH_OK" == "true" ]]; then
+    local ENV_TRY BATCH_ENTRY BATCH_NAME BATCH_VERSION
+    for FACET_ADDRESS in "${CLEAN_FACET_ADDRESSES[@]}"; do
+      for ENV_TRY in "$ENVIRONMENT" "$OTHER_ENV"; do
+        BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
+        [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
+        BATCH_NAME=$(echo "$BATCH_ENTRY" | jq -r '.contractName // empty')
+        # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+        BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
+        if [[ -n "$BATCH_NAME" ]]; then
+          if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
+            echoDebug "saveDiamondFacets: resolved $FACET_ADDRESS ($BATCH_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
+          fi
+          # Facet object key must match facetAddresses() casing from the caller (FACET_ADDRESS)
+          echo "{\"$FACET_ADDRESS\": {\"Name\": \"$BATCH_NAME\", \"Version\": \"${BATCH_VERSION:-}\"}}" >"$FACETS_DIR/${FACET_ADDRESS}.json"
+          break
+        fi
+      done
+    done
+  fi
+
+  # complete remaining facets in parallel: per-address MongoDB lookup only if the batch
+  # call failed entirely; otherwise (batch succeeded but address not in MongoDB) fall
+  # straight through to the local fallbacks
+  for FACET_ADDRESS in "${CLEAN_FACET_ADDRESSES[@]}"; do
+    # skip facets already resolved via the batch query
+    if [[ -s "$FACETS_DIR/${FACET_ADDRESS}.json" ]]; then
       continue
     fi
 
@@ -903,8 +1092,11 @@ function saveDiamondFacets() {
     done
 
     (
-      JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS")
-      if [[ $? -ne 0 || -z "$JSON_ENTRY" ]]; then
+      JSON_ENTRY=""
+      if [[ "$BATCH_OK" != "true" ]]; then
+        JSON_ENTRY=$(findContractInMasterLogByAddress "$NETWORK" "$ENVIRONMENT" "$FACET_ADDRESS") || JSON_ENTRY=""
+      fi
+      if [[ -z "$JSON_ENTRY" ]]; then
         warning "could not find any information about this facet address ($FACET_ADDRESS) in master log file while creating $DIAMOND_FILE (ENVIRONMENT=$ENVIRONMENT), "
         NAME=""
         VERSION=""
@@ -928,9 +1120,7 @@ function saveDiamondFacets() {
 
   # merge all facet JSON entries into a single object preserving original order
   local MERGE_FILES=()
-  for RAW_ADDR in "${FACET_ADDRESSES[@]}"; do
-    ADDR=$(echo "$RAW_ADDR" | tr -d '"' | tr -d ' ')
-    [[ -z "$ADDR" ]] && continue
+  for ADDR in "${CLEAN_FACET_ADDRESSES[@]}"; do
     FILEPATH="$FACETS_DIR/${ADDR}.json"
     if [[ -s "$FILEPATH" ]]; then
       MERGE_FILES+=("$FILEPATH")
@@ -1965,6 +2155,18 @@ function verifyContract() {
 
   # Handle zkEVM networks vs regular networks
   if isZkEvmNetwork "$NETWORK"; then
+    # ensure the pinned foundry-zksync binary is present (no-op if version matches)
+    install_foundry_zksync >/dev/null || {
+      error "failed to install foundry-zksync"
+      return 1
+    }
+
+    # fail loudly instead of verifying with the toolchain's default zksolc
+    if [[ -z "$ZKSOLC_VERSION" ]]; then
+      error "zksolc pin not found in foundry.toml [external.zksync]"
+      return 1
+    fi
+
     # Set environment variable for zkEVM
     export FOUNDRY_PROFILE=zksync
     VERIFY_CMD=(
@@ -3673,11 +3875,11 @@ function deployAndAddContractToDiamond() {
   if [[ "$CONTRACT" == *"Facet"* ]]; then
     # deploying a facet
     deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"
-    return 0
+    return $?
   elif [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
     # deploying a diamond
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false
-    return 0
+    return $?
   else
     # deploy periphery contract
     deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"
@@ -3699,6 +3901,49 @@ function deployAndAddContractToDiamond() {
   # there was an error if we reach this code
   return 1
 }
+
+# normalizePrivateKey: Normalize a hex private key to canonical lowercase, 0x-prefixed,
+# 64-hex-char form and validate it. Accepts the key with or without a leading 0x and
+# tolerates surrounding whitespace/newlines that can sneak in from a secret store
+# (GitHub Actions secrets / 1Password). Used by the emergency-pause scripts, which
+# consume PRIVATE_KEY_PAUSER_WALLET directly and are sensitive to prefix drift — a
+# malformed value is invisible until the workflow runs (i.e. during an incident), so
+# this fails loud and early, before any network work begins.
+#
+# Usage: KEY=$(normalizePrivateKey "$RAW_KEY" "PRIVATE_KEY_PAUSER_WALLET") || exit 1
+#   RAW_KEY  - the raw secret value to normalize
+#   VAR_NAME - Optional: source variable name, used only in error messages (default: "private key")
+#
+# Returns: prints the normalized 0x-prefixed key on stdout and returns 0 on success;
+#          prints nothing to stdout and returns 1 on empty/malformed input (error logged to stderr).
+function normalizePrivateKey() {
+  local RAW="$1"
+  local VAR_NAME="${2:-private key}"
+
+  # trim leading/trailing whitespace (incl. stray newlines from secret stores)
+  RAW="${RAW#"${RAW%%[![:space:]]*}"}"
+  RAW="${RAW%"${RAW##*[![:space:]]}"}"
+
+  if [[ -z "$RAW" ]]; then
+    # error() prints to stdout; redirect to stderr so $(...) capture stays clean
+    error "$VAR_NAME is empty or not set. Cannot continue." >&2
+    return 1
+  fi
+
+  # strip a single optional 0x/0X prefix, then lowercase the hex body
+  local HEX="${RAW#0x}"
+  HEX="${HEX#0X}"
+  HEX=$(echo "$HEX" | tr '[:upper:]' '[:lower:]')
+
+  if ! [[ "$HEX" =~ ^[0-9a-f]{64}$ ]]; then
+    error "$VAR_NAME is not a valid 32-byte hex private key (expected 64 hex chars, with or without a 0x prefix). Cannot continue." >&2
+    return 1
+  fi
+
+  printf '0x%s' "$HEX"
+  return 0
+}
+
 function getPrivateKey() {
   # read function arguments into variables
   NETWORK="$1"
@@ -3738,9 +3983,17 @@ function getPrivateKey() {
 # - Production and SEND_PROPOSALS_DIRECTLY_TO_DIAMOND not true: propose to Safe via propose-to-safe.ts (EVM) or propose-to-safe-tron.ts (Tron)
 # - Staging: send directly via universalCast sendRaw (timelock not used)
 # Usage: sendOrPropose <network> <environment> <target> <calldata> [timelock] [private_key_override]
-#   network, environment, target, calldata: required
+#   network, environment, target: required
+#   calldata: single 0x calldata, or multiple comma-separated 0x calldatas (processed in the given order)
 #   timelock: only when proposing; "true" = wrap in timelock scheduleBatch, "false" = propose to diamond without timelock wrap
 #   private_key_override: optional hex key; when set, use instead of getPrivateKey(network, environment)
+#
+# Routing/Behavior for multiple calldatas:
+#   - EVM or Tron propose route with timelock=true (production): combined into ONE timelock scheduleBatch proposal (single signing round)
+#   - All other routes (direct send, propose without timelock, staging/testnet): multiple calldatas are REJECTED —
+#     no caller needs sequential fan-out there, and untested generality around value-moving calls is a liability
+#
+# Returns: 0 on success; non-zero (first failing call) otherwise
 function sendOrPropose() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
@@ -3755,18 +4008,57 @@ function sendOrPropose() {
     return 1
   fi
 
-  # Validate calldata format
-  if [[ ! "$CALLDATA" =~ ^0x ]]; then
-    error "sendOrPropose: Calldata must start with 0x"
+  # Whitespace (incl. newlines) means corrupted upstream output: `read` below
+  # would silently drop everything after the first line, so refuse instead
+  if [[ "$CALLDATA" =~ [[:space:]] ]]; then
+    error "sendOrPropose: Calldata contains whitespace - refusing (corrupted upstream output?)"
     return 1
+  fi
+
+  # Reject malformed comma delimiters before splitting: a trailing comma is
+  # silently dropped by `read` (e.g. "0x12," -> ["0x12"]), so a lost inner call
+  # would slip past the per-element hex check below. Leading/consecutive commas
+  # produce empty elements that the hex check would catch, but rejecting all
+  # three here keeps the intent explicit.
+  if [[ "$CALLDATA" == ,* || "$CALLDATA" == *, || "$CALLDATA" == *,,* ]]; then
+    error "sendOrPropose: Calldata has malformed comma delimiters (leading, trailing, or consecutive commas)"
+    return 1
+  fi
+
+  # Split comma-separated calldatas (calldata is hex, so commas are unambiguous separators)
+  local CALLDATAS=()
+  IFS=',' read -ra CALLDATAS <<< "$CALLDATA"
+
+  # Validate calldata format (strict hex per element)
+  local CD
+  for CD in "${CALLDATAS[@]}"; do
+    if [[ ! "$CD" =~ ^0x[0-9a-fA-F]*$ ]]; then
+      error "sendOrPropose: Calldata must be well-formed 0x-prefixed hex (got: $CD)"
+      return 1
+    fi
+  done
+
+  # Multiple calldatas are only meaningful on the propose-with-timelock route
+  # (EVM or Tron), where they combine into ONE scheduleBatch proposal. The only
+  # caller that passes multiple (diamondSyncWhitelist.sh Stage 4c) is gated on
+  # exactly that route; sequential fan-out on the other routes would be untested
+  # dead generality, so fail loudly instead of improvising semantics here.
+  if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
+    if [[ "$TIMELOCK" != "true" ]] \
+       || [[ "$ENVIRONMENT" != "production" ]] \
+       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+       || isTestnetNetwork "$NETWORK"; then
+      error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
+      return 1
+    fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
-    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVATE_KEY_OVERRIDE"
-    return $?
+    universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
+    return 0
   fi
 
   # Resolve private key
@@ -3780,38 +4072,52 @@ function sendOrPropose() {
     }
   fi
 
-  # Tron: propose to Safe via tron script
+  # Tron: propose to Safe via tron script. On the timelock route, repeated
+  # --to/--calldata pairs combine into ONE scheduleBatch proposal (matching EVM);
+  # the direct route is single-call only (multi already rejected above).
   if isTronNetwork "$NETWORK"; then
     local PROPOSE_TRON_CMD=(
       bunx tsx script/deploy/tron/propose-to-safe-tron.ts
-      --to "$TARGET"
-      --calldata "$CALLDATA"
-      --privateKey "$SAFE_SIGNER_KEY"
     )
     if [[ "$TIMELOCK" == "true" ]]; then
-      PROPOSE_TRON_CMD+=(--timelock)
+      for CD in "${CALLDATAS[@]}"; do
+        PROPOSE_TRON_CMD+=(--to "$TARGET" --calldata "$CD")
+      done
+      PROPOSE_TRON_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
     else
-      PROPOSE_TRON_CMD+=(--direct)
+      PROPOSE_TRON_CMD+=(
+        --to "$TARGET"
+        --calldata "${CALLDATAS[0]}"
+        --privateKey "$SAFE_SIGNER_KEY"
+        --direct
+      )
     fi
-    "${PROPOSE_TRON_CMD[@]}"
-    return $?
+    "${PROPOSE_TRON_CMD[@]}" || return $?
+    return 0
   fi
 
   # EVM: propose to Safe
-  local PROPOSE_CMD=(
-    bunx tsx script/deploy/safe/propose-to-safe.ts
-    --network "$NETWORK"
-    --to "$TARGET"
-    --calldata "$CALLDATA"
-    --privateKey "$SAFE_SIGNER_KEY"
-  )
-
   if [[ "$TIMELOCK" == "true" ]]; then
-    PROPOSE_CMD+=(--timelock)
+    # Combine all calls into a single timelock scheduleBatch proposal (one signing round)
+    local PROPOSE_CMD=(
+      bunx tsx script/deploy/safe/propose-to-safe.ts
+      --network "$NETWORK"
+    )
+    for CD in "${CALLDATAS[@]}"; do
+      PROPOSE_CMD+=(--to "$TARGET" --calldata "$CD")
+    done
+    PROPOSE_CMD+=(--privateKey "$SAFE_SIGNER_KEY" --timelock)
+    "${PROPOSE_CMD[@]}"
+    return $?
   fi
 
-  "${PROPOSE_CMD[@]}"
-  return $?
+  # Without timelock wrapping there is no batch mechanism (single calldata only)
+  bunx tsx script/deploy/safe/propose-to-safe.ts \
+    --network "$NETWORK" \
+    --to "$TARGET" \
+    --calldata "${CALLDATAS[0]}" \
+    --privateKey "$SAFE_SIGNER_KEY" || return $?
+  return 0
 }
 
 function isZkEvmNetwork() {
@@ -5088,36 +5394,43 @@ function updateDiamondLogs() {
 }
 
 # Function: install_foundry_zksync
-# Description: Downloads and installs the zkSync version of foundry tools (forge and cast)
+# Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
+# Idempotent: returns immediately if the installed binary already matches the expected
+# version; on mismatch the binaries are removed and re-downloaded.
+# Note: a freshly installed forge shows a one-time telemetry consent prompt on first run,
+# but only in interactive terminals — in CI or piped/agent shells it is skipped and
+# telemetry auto-disabled (matter-labs/zksync-telemetry src/utils.rs is_interactive()),
+# so unattended runs need no stdin handling.
 # Arguments:
 #   $1 - Installation directory (optional, defaults to ./foundry-zksync)
-#   FOUNDRY_ZKSYNC_VERSION - Environment variable to specify version
+#   FOUNDRY_ZKSYNC_VERSION - Optional: env override of the version pinned in
+#                            foundry.toml [external.zksync] (e.g. to test a new version)
 # Example Versions:
 #   FOUNDRY_ZKSYNC_VERSION="nightly-082b6a3610be972dd34aff9439257f4d85ddbf15"
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
 install_foundry_zksync() {
-  # Foundry ZKSync version
-  local FOUNDRY_ZKSYNC_VERSION="v0.0.32"
+  # env override takes precedence over the pin in foundry.toml [external.zksync]
+  local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
   local install_dir="${1:-./foundry-zksync}"
 
-  # Verify that FOUNDRY_ZKSYNC_VERSION is set
-  if [ -z "${FOUNDRY_ZKSYNC_VERSION}" ]; then
-    echo "Error: FOUNDRY_ZKSYNC_VERSION is not set"
+  if [[ -z "$EXPECTED_VERSION" ]]; then
+    # stderr so the cause survives callers that suppress stdout (e.g. verifyContract)
+    error "foundry-zksync version not found (set it in foundry.toml [external.zksync] or via FOUNDRY_ZKSYNC_VERSION env)" >&2
     return 1
   fi
 
-  echo "Using Foundry zkSync version: ${FOUNDRY_ZKSYNC_VERSION}"
+  echo "Using Foundry zkSync version: ${EXPECTED_VERSION}"
 
   # Check if binaries already exist and verify their version
   # -x tests if a file exists and has execute permissions
   if [ -x "${install_dir}/forge" ] && [ -x "${install_dir}/cast" ]; then
       echo "forge and cast binaries found in ${install_dir}"
 
-      # Check the version of the existing binary
-      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/foundry-zksync-//')
+      # Check the version of the existing binary (handles both vX.Y.Z and nightly-<sha> tags)
+      local CURRENT_VERSION=$("${install_dir}/forge" --version 2>/dev/null | grep -oE 'foundry-zksync-[^[:space:]]+' | sed 's/^foundry-zksync-//')
 
       # If we couldn't extract version or it doesn't match expected version
       if [ -z "$CURRENT_VERSION" ]; then
@@ -5125,15 +5438,15 @@ install_foundry_zksync() {
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
-      elif [ "$CURRENT_VERSION" != "${FOUNDRY_ZKSYNC_VERSION}" ]; then
+      elif [ "$CURRENT_VERSION" != "${EXPECTED_VERSION}" ]; then
           echo "Version mismatch detected!"
-          echo "  Expected: ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "  Expected: ${EXPECTED_VERSION}"
           echo "  Current:  ${CURRENT_VERSION}"
           echo "Removing existing binaries and redownloading..."
           # Remove everything except .gitignore
           find "${install_dir}" -mindepth 1 ! -name '.gitignore' -delete
       else
-          echo "Version matches expected ${FOUNDRY_ZKSYNC_VERSION}"
+          echo "Version matches expected ${EXPECTED_VERSION}"
           echo "Skipping download and installation"
           return 0
       fi
@@ -5168,8 +5481,8 @@ install_foundry_zksync() {
   esac
 
   # Construct download URL using the specified version
-  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${FOUNDRY_ZKSYNC_VERSION}"
-  local filename="foundry_zksync_${FOUNDRY_ZKSYNC_VERSION}_${os}_${arch}.tar.gz"
+  local base_url="https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-${EXPECTED_VERSION}"
+  local filename="foundry_zksync_${EXPECTED_VERSION}_${os}_${arch}.tar.gz"
   local download_url="${base_url}/${filename}"
 
   # Create installation directory if it doesn't exist
@@ -5301,25 +5614,55 @@ getContractDeploymentStatusSummary() {
   printf "%-20s %-10s %-10s %-42s\n" "NETWORK" "DEPLOYED" "VERIFIED" "ADDRESS"
   printf "%-20s %-10s %-10s %-42s\n" "--------------------" "----------" "----------" "------------------------------------------"
 
+  # Resolve all networks in ONE query-deployment-logs.ts invocation (batch API) instead
+  # of one process + MongoDB round-trip per network
+  local BATCH_QUERIES BATCH_RESULT
+  local BATCH_OK="false"
+  # NOTE: $ENV is a jq builtin (process environment) and shadows --arg ENV, so use $ENVIRON
+  BATCH_QUERIES=$(printf '%s\n' "${NETWORKS[@]}" | jq -R . | jq -s --arg CONTRACT "$CONTRACT" --arg VERSION "$VERSION" --arg ENVIRON "$ENVIRONMENT" \
+    '[.[] | select(. != "") | {id: ., op: "get", contract: $CONTRACT, network: ., version: $VERSION, env: $ENVIRON}]')
+  if BATCH_RESULT=$(batchQueryMongoDeployments "$BATCH_QUERIES" "$ENVIRONMENT"); then
+    BATCH_OK="true"
+  fi
+
   # Check each network
   for network in "${NETWORKS[@]}"; do
     # Check if contract is deployed - use a more robust approach
     local LOG_ENTRY=""
     local FIND_RESULT=1
 
-    # Try to find the contract and capture both output and exit code
-    LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
-    FIND_RESULT=$?
+    # A successful batch invocation can still carry a per-network error (e.g. a
+    # transient cache/Mongo failure); treat that as a failed lookup and fall back
+    # to the per-network path instead of misreporting the network as not deployed.
+    local BATCH_ITEM_ERROR=""
+    if [[ "$BATCH_OK" == "true" ]]; then
+      BATCH_ITEM_ERROR=$(echo "$BATCH_RESULT" | jq -r --arg ID "$network" '[.[] | select(.id == $ID)][0].error // empty' 2>/dev/null)
+    fi
 
-    # Additional check: if LOG_ENTRY contains error message, treat as not found
-    if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
-      FIND_RESULT=1
+    if [[ "$BATCH_OK" == "true" && -z "$BATCH_ITEM_ERROR" ]]; then
+      LOG_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "$network" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
+      if [[ -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
+        FIND_RESULT=0
+      fi
+    else
+      # Fallback: per-network lookup (batch invocation or this network's query failed)
+      if [[ -n "$BATCH_ITEM_ERROR" ]]; then
+        echoDebug "batch lookup for $CONTRACT on $network returned an error ($BATCH_ITEM_ERROR), falling back to per-network lookup"
+      fi
+      LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$network" "$ENVIRONMENT" "$VERSION" 2>/dev/null)
+      FIND_RESULT=$?
+
+      # Additional check: if LOG_ENTRY contains error message, treat as not found
+      if [[ "$LOG_ENTRY" == *"No matching entry found"* ]]; then
+        FIND_RESULT=1
+      fi
     fi
 
     if [[ $FIND_RESULT -eq 0 && -n "$LOG_ENTRY" && "$LOG_ENTRY" != "null" ]]; then
-      # Contract is deployed
-      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r ".ADDRESS" 2>/dev/null)
-      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r ".VERIFIED" 2>/dev/null)
+      # Contract is deployed (accept both key casings: Mongo records use lowercase,
+      # legacy master-log entries use uppercase)
+      local ADDRESS=$(echo "$LOG_ENTRY" | jq -r '.ADDRESS // .address // empty' 2>/dev/null)
+      local VERIFIED=$(echo "$LOG_ENTRY" | jq -r '.VERIFIED // .verified // false' 2>/dev/null)
 
       # Handle cases where jq fails or returns null
       if [[ "$ADDRESS" == "null" || -z "$ADDRESS" ]]; then
@@ -5461,34 +5804,49 @@ function estimatePauseCost() {
     fi
   fi
 
+  # RPCs throttle/time out transiently (especially across a cross-chain sweep), so retry the reads
+  # a few times before giving up — mirrors the resilience of the emergency-pause scripts'
+  # rpcCallWithRetry. The "already paused" revert is a DEFINITIVE answer, not a transient error, so
+  # it returns immediately (rc 2) without retrying.
+  local ESTIMATE_MAX_ATTEMPTS=3 ESTIMATE_RETRY_SLEEP_SECONDS=2
+
   # Capture stdout and stderr separately: foundry emits warnings to stderr even on success,
   # and revert data (DiamondIsPaused selector) also comes via stderr.
-  local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC
+  local GAS_ESTIMATE GAS_ESTIMATE_ERR CAST_ESTIMATE_RC CAST_ERR ATTEMPT=1
   GAS_ESTIMATE_ERR=$(mktemp)
   # RETURN trap removes the temp file on every exit path (verified contained: without
   # functrace it fires only on this function's return, not the caller's).
   trap 'rm -f "$GAS_ESTIMATE_ERR"' RETURN
-  GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
-  if [[ $CAST_ESTIMATE_RC -ne 0 ]]; then
-    local CAST_ERR
+  while :; do
+    GAS_ESTIMATE=$(cast estimate "$DIAMOND_ADDRESS" "pauseDiamond()" --from "$PAUSER_ADDRESS" --rpc-url "$RPC_URL" 2>"$GAS_ESTIMATE_ERR") && CAST_ESTIMATE_RC=0 || CAST_ESTIMATE_RC=$?
+    if [[ $CAST_ESTIMATE_RC -eq 0 && "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
+      break
+    fi
     CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
+    # Definitive (not transient): diamond already paused — do not retry.
     if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
       return 2
     fi
-    error "estimatePauseCost: cast estimate failed for $NETWORK: $CAST_ERR" >&2
-    return 1
-  fi
-  if ! [[ "$GAS_ESTIMATE" =~ ^[0-9]+$ ]]; then
-    error "estimatePauseCost: unexpected gas estimate for $NETWORK: $GAS_ESTIMATE" >&2
-    return 1
-  fi
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
 
   local GAS_PRICE
-  GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null) || GAS_PRICE=""
-  if ! [[ "$GAS_PRICE" =~ ^[0-9]+$ ]]; then
-    error "estimatePauseCost: could not read gas price for $NETWORK: $GAS_PRICE" >&2
-    return 1
-  fi
+  ATTEMPT=1
+  while :; do
+    GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL" 2>/dev/null) || GAS_PRICE=""
+    [[ "$GAS_PRICE" =~ ^[0-9]+$ ]] && break
+    if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
+      error "estimatePauseCost: could not read gas price for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $GAS_PRICE" >&2
+      return 1
+    fi
+    sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
 
   # wei overflows 64-bit bash arithmetic; use bc for the multiplication
   local COST

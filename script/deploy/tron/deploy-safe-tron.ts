@@ -41,7 +41,6 @@ import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
-
 import {
   CREATE_PROXY_SAFETY_MARGIN,
   TRON_DEPLOY_NETWORK,

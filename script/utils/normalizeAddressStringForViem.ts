@@ -11,7 +11,6 @@ import {
 } from '@lifi/tron-devkit'
 import { getAddress, type Address } from 'viem'
 
-
 /**
  * Normalize a contract address from config or Mongo for viem RPC usage.
  * - On Tron networks ({@link isTronNetworkKey}), base58 (`T…`) becomes the same 20-byte identity as a checksummed `0x` address.

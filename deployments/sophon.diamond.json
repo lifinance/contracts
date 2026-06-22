@@ -1,6 +1,10 @@
 {
   "LiFiDiamond": {
     "Facets": {
+      "0x021EAF5b5D368DcAb25426eF1F90F2295EE3f764": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
       "0x7A39222daDe19392ef6398aE978495c21959E72f": {
         "Name": "DiamondCutFacet",
         "Version": "1.0.0"
@@ -17,13 +21,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xE7e54B632c4E9d1A7702b7C3BF69ffAa86f89ED2": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
-      },
-      "0x021EAF5b5D368DcAb25426eF1F90F2295EE3f764": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x59c404B9D10f6d4831F4eD5d0Aa1fa2f0e9E318f": {
         "Name": "GasZipFacet",
@@ -56,10 +56,6 @@
       "0xF94484deAD7dC9C19F1a56a2d6C1C761A4EBd494": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
-      },
-      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -70,6 +66,7 @@
       "GasZipPeriphery": "0xEfA269B9405762E56ED0b35C428331ce4963dDFf",
       "LiFiDEXAggregator": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
       "LidoWrapper": "",
+      "OutputValidator": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
       "Patcher": "",
       "Permit2Proxy": "0xF2A4a6d34289Dd1eb7919E4354bB1a29720aa4FE",
       "ReceiverAcrossV3": "",
