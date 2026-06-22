@@ -1,4 +1,4 @@
-# LIFIIntent Facet V2
+# LiFiIntentEscrowFacetV2
 
 ## How it works
 
@@ -28,7 +28,7 @@ graph LR;
 
 - `function startBridgeTokensViaLiFiIntentEscrowV2(BridgeData memory _bridgeData, LiFiIntentEscrowDataV2 calldata _lifiIntentData)`
   - Simply bridges tokens using LIFIIntent
-- `swapAndStartBridgeTokensViaLiFiIntentEscrowV2(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LiFiIntentEscrowDataV2 calldata _lifiIntentData)`
+- `function swapAndStartBridgeTokensViaLiFiIntentEscrowV2(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, LiFiIntentEscrowDataV2 calldata _lifiIntentData)`
   - Performs swap(s) before bridging tokens using LIFIIntent
 
 ## Destination Calls

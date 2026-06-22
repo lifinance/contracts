@@ -313,7 +313,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
         validLIFIIntentData.recipient = bytes32(0);
         bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
 
-        // This call should not revert as the address comparision is skipped.
+        // This call should revert because recipient == bytes32(0) is always invalid.
         vm.expectRevert(InvalidReceiver.selector);
         lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2(
             bridgeData,
