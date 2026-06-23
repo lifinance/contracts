@@ -1,0 +1,52 @@
+# Assign Requires Types Label
+# - Auto-assigns the `requires-types` label when a PR touches ABI/type-relevant paths
+# - Triggers Types Bindings (types.yaml) via the `labeled` event on the next workflow run
+# - Skips draft PRs until marked ready for review
+# - Humans/agents can also add `requires-types` manually for edge cases (e.g. script-only PRs
+#   that need fresh bindings without a src/ diff)
+
+name: Assign Requires Types Label
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Default-deny at the workflow level; grant only what the job needs at the job level.
+permissions: {}
+
+jobs:
+  assign-requires-types-label:
+    permissions:
+      contents: read # required to fetch repository contents
+      pull-requests: write # required to assign the requires-types label
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Detect ABI-relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            types:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'lib/**'
+              - 'tasks/generateDiamondABI.ts'
+              - 'package.json'
+              - '.gitmodules'
+
+      - name: Skip when no ABI-relevant changes
+        if: steps.filter.outputs.types != 'true'
+        run: echo "No ABI-relevant changes; requires-types label not needed."
+
+      - name: Add requires-types label
+        if: >-
+          steps.filter.outputs.types == 'true' &&
+          !contains(github.event.pull_request.labels.*.name, 'requires-types')
+        uses: actions-ecosystem/action-add-labels@18f1af5e3544586314bbe15c0273249c770b2daf # v1
+        with:
+          labels: requires-types
