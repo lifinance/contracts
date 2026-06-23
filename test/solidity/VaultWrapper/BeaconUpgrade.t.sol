@@ -4,15 +4,15 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice Upgrade target proving a beacon upgrade is observable through clones:
-///         inherits MockVaultWrapper (identical storage + interface) and adds a
+///         inherits LiFiVaultWrapper (identical storage + interface) and adds a
 ///         version() selector absent from V1.
-contract MockVaultWrapperV2 is MockVaultWrapper {
+contract MockVaultWrapperV2 is LiFiVaultWrapper {
     function version() external pure returns (uint256) {
         return 2;
     }
@@ -21,7 +21,7 @@ contract MockVaultWrapperV2 is MockVaultWrapper {
 contract BeaconUpgradeTest is Test {
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
-    MockVaultWrapper internal implV1;
+    LiFiVaultWrapper internal implV1;
     MockVaultWrapperV2 internal implV2;
     ERC4626Adapter internal adapter;
     MockERC4626Underlying internal underlying;
@@ -35,7 +35,7 @@ contract BeaconUpgradeTest is Test {
     bytes32 internal constant NS = bytes32("Coinbase");
 
     function setUp() public virtual {
-        implV1 = new MockVaultWrapper();
+        implV1 = new LiFiVaultWrapper();
         implV2 = new MockVaultWrapperV2();
         beacon = new UpgradeableBeacon(address(implV1));
         beacon.transferOwnership(owner);
@@ -72,7 +72,7 @@ contract BeaconUpgradeTest is Test {
 
     function test_CloneDelegatesToCurrentImpl() public {
         address clone = _deployClone(0);
-        assertEq(MockVaultWrapper(clone).name(), "Mock Vault Wrapper");
+        assertEq(LiFiVaultWrapper(clone).name(), "LI.FI Earn Vault Wrapper");
         assertEq(beacon.implementation(), address(implV1));
     }
 

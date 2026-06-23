@@ -5,17 +5,17 @@ import { Script } from "forge-std/Script.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 
 /// @title DeployLiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
 /// @notice Deploys and wires the vault wrapper system: the dedicated 48h timelock,
-///         the mock wrapper implementation, its upgradeable beacon, the vault wrapper
-///         factory (mock impl is a temporary stand-in until S1), and the ERC-4626
-///         yield adapter. The timelock owns both the factory and the beacon, so every
-///         factory slow-path call and every beacon upgrade is gated by the 48h delay.
-/// @dev Deploy order: TimelockController → MockVaultWrapper → UpgradeableBeacon(impl) →
+///         the vault wrapper implementation, its upgradeable beacon, the vault wrapper
+///         factory, and the ERC-4626 yield adapter. The timelock owns both the factory
+///         and the beacon, so every factory slow-path call and every beacon upgrade is
+///         gated by the 48h delay.
+/// @dev Deploy order: TimelockController → LiFiVaultWrapper → UpgradeableBeacon(impl) →
 ///      LiFiVaultWrapperFactory(beacon, owner=timelock, …) → ERC4626Adapter, with the
 ///      beacon ownership transferred to the timelock.
 ///      Timelock roles: the LI.FI multisig is proposer AND canceller (OZ grants both to
@@ -26,7 +26,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      actions — setAdapterApproved(adapter) and setUnderlyingAllowed(underlying), required
 ///      before any wrapper can be deployed — must be scheduled through the timelock.
 ///      Full DeployScriptBase / CREATE3 / deployment-log integration is S14 (EXSC-420).
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract DeployLiFiVaultWrapperFactory is Script {
     /// @notice The dedicated governance delay for the vault wrapper subsystem.
     uint256 internal constant MIN_DELAY = 48 hours;
@@ -43,7 +43,7 @@ contract DeployLiFiVaultWrapperFactory is Script {
             LiFiVaultWrapperFactory factory,
             TimelockController timelock,
             UpgradeableBeacon beacon,
-            MockVaultWrapper impl,
+            LiFiVaultWrapper impl,
             ERC4626Adapter erc4626Adapter
         )
     {
@@ -74,7 +74,7 @@ contract DeployLiFiVaultWrapperFactory is Script {
             address(0)
         );
 
-        impl = new MockVaultWrapper();
+        impl = new LiFiVaultWrapper();
         beacon = new UpgradeableBeacon(address(impl));
         beacon.transferOwnership(address(timelock));
         factory = new LiFiVaultWrapperFactory(

@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -17,7 +17,7 @@ import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
-    MockVaultWrapper internal impl;
+    LiFiVaultWrapper internal impl;
     ERC4626Adapter internal adapter;
 
     address internal owner = makeAddr("owner");
@@ -31,7 +31,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal assetToken = makeAddr("asset");
 
     function setUp() public virtual {
-        impl = new MockVaultWrapper();
+        impl = new LiFiVaultWrapper();
         beacon = new UpgradeableBeacon(address(impl));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
@@ -342,12 +342,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(instance, predicted);
         assertTrue(factory.isInstance(instance));
 
-        MockVaultWrapper w = MockVaultWrapper(instance);
+        LiFiVaultWrapper w = LiFiVaultWrapper(instance);
         assertTrue(w.initialized());
         assertEq(w.asset(), assetToken);
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
         assertEq(w.vaultWrapperAdmin(), vaultAdmin);
+        assertEq(w.factory(), address(factory));
         assertEq(w.integratorShareBps(), 8000); // factory default
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
@@ -400,7 +401,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.integratorShareBps = 5000;
         vm.prank(onboarder);
         address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).integratorShareBps(), 5000);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 5000);
     }
 
     function test_SelfDeployerSetsSplit() public {
@@ -411,7 +412,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.integratorShareBps = 7000;
         vm.prank(deployer);
         address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).integratorShareBps(), 7000);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 7000);
     }
 
     function test_DeployRevertsOnSplitAbove100Percent() public {

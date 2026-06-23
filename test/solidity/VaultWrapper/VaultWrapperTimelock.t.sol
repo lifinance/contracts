@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
@@ -18,7 +18,7 @@ contract VaultWrapperTimelockTest is Test {
     TimelockController internal timelock;
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
-    MockVaultWrapper internal impl;
+    LiFiVaultWrapper internal impl;
     ERC4626Adapter internal adapter;
 
     address internal multisig = makeAddr("multisig");
@@ -28,7 +28,7 @@ contract VaultWrapperTimelockTest is Test {
     address internal stranger = makeAddr("stranger");
 
     function setUp() public {
-        impl = new MockVaultWrapper();
+        impl = new LiFiVaultWrapper();
         beacon = new UpgradeableBeacon(address(impl));
 
         address[] memory proposers = new address[](1);
@@ -182,7 +182,7 @@ contract VaultWrapperTimelockTest is Test {
     /// Beacon upgrade gating ///
 
     function test_BeaconUpgradeViaTimelock() public {
-        MockVaultWrapper newImpl = new MockVaultWrapper();
+        LiFiVaultWrapper newImpl = new LiFiVaultWrapper();
         bytes memory data = abi.encodeCall(
             beacon.upgradeTo,
             (address(newImpl))
@@ -196,7 +196,7 @@ contract VaultWrapperTimelockTest is Test {
     }
 
     function testRevert_BeaconUpgradeDirectByMultisig() public {
-        MockVaultWrapper newImpl = new MockVaultWrapper();
+        LiFiVaultWrapper newImpl = new LiFiVaultWrapper();
 
         vm.prank(multisig);
         vm.expectRevert("Ownable: caller is not the owner");
