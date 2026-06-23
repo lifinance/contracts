@@ -4873,6 +4873,32 @@
           }
         ]
       }
+    },
+    {
+      "name": "Rialto",
+      "key": "rialto",
+      "logoURI": "",
+      "webUrl": "https://rialto.xyz/",
+      "contracts": {
+        "arbitrum": [
+          {
+            "address": "0x008d23ba8B6Ce09528b9Cb1b09849977D660D968",
+            "functions": {
+              "0xdbefe2d6": "executeExactIn(...)",
+              "0x77963966": "executeExactInWithAllowance(...)"
+            }
+          }
+        ],
+        "outlaw": [
+          {
+            "address": "0xC94135b63772b91D79d0A2DaAb2a8801f32359bD",
+            "functions": {
+              "0xdbefe2d6": "executeExactIn(...)",
+              "0x77963966": "executeExactInWithAllowance(...)"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
