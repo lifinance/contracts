@@ -30,7 +30,6 @@ cd "$GIT_ROOT" || exit 1
 HAS_SOL_FILES="no"
 HAS_SRC_SOL_FILES="no"
 HAS_TS_JS_FILES="no"
-
 # Check staged files for Solidity and TypeScript/JavaScript extensions
 echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes"
 echo "$STAGED_FILES" | grep -qE '^src/.*\.sol$' && HAS_SRC_SOL_FILES="yes"

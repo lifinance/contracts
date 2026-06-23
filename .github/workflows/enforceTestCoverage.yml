@@ -93,6 +93,8 @@ jobs:
         run: forge install
 
       - name: Generate Coverage Report
+        env:
+          FOUNDRY_PROFILE: ci
         run: |
           forge coverage --report lcov --force --ir-minimum
 

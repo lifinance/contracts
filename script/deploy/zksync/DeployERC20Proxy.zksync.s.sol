@@ -20,20 +20,25 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        // get path of global config file
         string memory globalConfigPath = string.concat(
             root,
             "/config/global.json"
         );
 
-        // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        // extract refundWallet address
         address refundWalletAddress = globalConfigJson.readAddress(
             ".refundWallet"
         );
 
-        return abi.encode(refundWalletAddress);
+        // zkSync CREATE2 addresses depend on the constructor args, which makes the ERC20Proxy and
+        // Executor addresses mutually dependent (each constructor takes the other's address). Unlike
+        // EVM CREATE3 — where the address is independent of constructor args — there is no convergent
+        // way to predict the Executor address before it is deployed, so the Executor cannot be
+        // pre-authorized at construction here. Deploy without pre-authorization (executor =
+        // address(0)); refundWallet (the ERC20Proxy owner) authorizes the Executor afterwards via
+        // setAuthorizedCaller. deployAllContracts handles this as a dedicated zkEVM step, since the
+        // deploy wallet does not hold the refundWallet key.
+        return abi.encode(refundWalletAddress, address(0));
     }
 }

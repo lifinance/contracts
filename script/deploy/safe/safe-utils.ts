@@ -17,7 +17,12 @@ import {
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
+import {
+  MongoClient,
+  type Collection,
+  type InsertOneResult,
+  type ObjectId,
+} from 'mongodb'
 import {
   createPublicClient,
   createWalletClient,
@@ -98,9 +103,9 @@ export interface ISafeSignature {
  *                 it to `executed`, `reverted`, or back to `pending` on the
  *                 next run.
  * - `executed`  : on-chain receipt confirmed success (Safe nonce consumed).
- * - `reverted`  : on-chain receipt confirmed revert (Safe nonce still
- *                 consumed because signatures verified; flagged for manual
- *                 review).
+ * - `reverted`  : on-chain receipt confirmed revert. The Safe nonce was NOT
+ *                 consumed — a top-level revert rolls back the `nonce++`, so
+ *                 the slot can be re-proposed; flagged for manual review.
  */
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
@@ -118,11 +123,33 @@ export interface ISafeTxDocument {
   intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
-export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
+/** MongoDB row shape — includes the document `_id` returned by `find()`. */
+export interface ISafeTxMongoDocument extends ISafeTxDocument {
+  _id?: ObjectId
+}
+
+export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
   safeTransaction: ISafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
+}
+
+/** Flat, display/JSON-friendly summary of a Safe proposal document. */
+export interface IProposalSummary {
+  network: string
+  chainId: number
+  safeAddress: string
+  nonce: number
+  to: string
+  selector: string
+  status: string
+  signatureCount: number
+  signers: string[]
+  proposer: string
+  safeTxHash: string
+  timestamp: string
+  executionHash?: string
 }
 
 /**
@@ -811,6 +838,77 @@ export class SafeClient {
 export type ViemSafe = SafeClient
 
 /**
+ * Statuses that consumed the Safe nonce on-chain. The single source of truth
+ * shared by every consumed-nonce decision: the runtime predicate
+ * {@link safeTxStatusConsumedNonce} (used by `confirm-safe-tx.ts`) and the
+ * MongoDB highest-consumed-nonce query in `reconcile.ts`. A MongoDB filter
+ * can't call the predicate, so both reference this constant instead.
+ *
+ * Only a fully successful `execTransaction` advances the Safe nonce. A
+ * top-level revert always rolls back the `nonce++`, so `reverted` never
+ * consumes the nonce — this holds unconditionally, regardless of the
+ * executor's gas params. (In this repo `safeTxGas=0` is also why an inner-call
+ * failure surfaces as a top-level revert (GS013) rather than an
+ * `ExecutionFailure` with a consumed nonce.)
+ */
+export const NONCE_CONSUMING_STATUSES: readonly SafeTxStatus[] = ['executed']
+
+/**
+ * Whether a resolved Safe-tx execution status consumed the Safe nonce on-chain.
+ *
+ * A `submitted` row is an unknown outcome (no receipt yet) and must not be
+ * treated as consuming the nonce until reconciliation resolves it. Callers gate
+ * `expectedNonce++` on this — returning true for `reverted` would desync the
+ * expected nonce and make the next-nonce proposal revert with GS026. See
+ * {@link NONCE_CONSUMING_STATUSES} for the rationale.
+ *
+ * @param status - Resolved Safe-tx status after an execution attempt.
+ * @returns true only for `executed`; false for `reverted`, `submitted`, and `pending`.
+ */
+export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
+  return NONCE_CONSUMING_STATUSES.includes(status)
+}
+
+/**
+ * Converts an in-memory Safe tx (Map signatures, bigint fields) into the plain
+ * object shape MongoDB stores. Mirrors propose-to-safe-tron.ts.
+ */
+export function serializeSafeTxForMongo(safeTx: ISafeTransaction): {
+  data: ISafeTransactionData
+  signatures: Record<string, ISafeSignature>
+} {
+  return {
+    data: safeTx.data,
+    signatures: Object.fromEntries(safeTx.signatures),
+  }
+}
+
+/**
+ * Builds a filter that targets exactly one pendingTransactions row.
+ * Prefer `_id` from the fetched document; fall back to pending + identity
+ * fields when `_id` is absent (unit-test fakes).
+ */
+export function mongoSafeTxRowFilter(
+  doc: ISafeTxMongoDocument,
+  networkKey?: string,
+  chainId?: number
+): Record<string, unknown> {
+  if (doc._id) return { _id: { $eq: doc._id } }
+
+  if (networkKey !== undefined && chainId !== undefined)
+    return {
+      status: { $eq: 'pending' },
+      safeTxHash: { $eq: doc.safeTxHash },
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+    }
+
+  throw new Error(
+    'Cannot target a unique pendingTransactions row without _id or (network, chainId)'
+  )
+}
+
+/**
  * Initializes a SafeTransaction from MongoDB document data
  * @param txFromMongo - Transaction document from MongoDB
  * @param safe - SafeClient instance
@@ -836,25 +934,27 @@ export const initializeSafeTransaction = async (
     ],
   })
 
-  // Add existing signatures
+  // Add existing signatures (MongoDB stores a plain object; Map if in-memory)
   if (txFromMongo.safeTx.signatures) {
-    // Convert from document format to Map
     const signatures = new Map<string, { signer: Address; data: Hex }>()
-    Object.entries(txFromMongo.safeTx.signatures).forEach(
-      ([key, value]: [string, unknown]) => {
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'signer' in value &&
-          'data' in value
-        ) {
-          signatures.set(key, {
-            signer: (value as { signer: Address }).signer,
-            data: (value as { data: Hex }).data,
-          })
-        }
+    const raw = txFromMongo.safeTx.signatures
+    const entries =
+      raw instanceof Map
+        ? Array.from(raw.entries())
+        : Object.entries(raw as Record<string, unknown>)
+    entries.forEach(([key, value]: [string, unknown]) => {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'signer' in value &&
+        'data' in value
+      ) {
+        signatures.set(key, {
+          signer: (value as { signer: Address }).signer,
+          data: (value as { data: Hex }).data,
+        })
       }
-    )
+    })
     safeTransaction.signatures = signatures
   }
 
@@ -890,6 +990,84 @@ export const isSignedByCurrentSigner = (
     sig.signer.toLowerCase()
   )
   return signers.includes(signerAddress.toLowerCase())
+}
+
+/**
+ * Lists the signer addresses on a raw MongoDB Safe tx document. Unlike
+ * `isSignedByCurrentSigner`, this reads the persisted `safeTx.signatures`,
+ * which is a plain object keyed by lowercased signer address (the in-memory
+ * Map is serialized on insert); a Map is also tolerated for safety.
+ * @param doc - Safe tx document from MongoDB
+ * @returns Lowercased signer addresses found on the document
+ */
+export function getSigners(doc: ISafeTxDocument): string[] {
+  const signatures = doc.safeTx?.signatures
+  if (!signatures) return []
+  const entries =
+    signatures instanceof Map
+      ? Array.from(signatures.values())
+      : Object.values(signatures)
+  const signers: string[] = []
+  for (const entry of entries)
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      'signer' in entry &&
+      typeof (entry as { signer: unknown }).signer === 'string'
+    )
+      signers.push((entry as { signer: string }).signer.toLowerCase())
+
+  return signers
+}
+
+/**
+ * Extracts the 4-byte function selector from Safe tx calldata.
+ * @param data - Calldata hex string from the Safe tx document
+ * @returns `0x`-prefixed selector, or `0x` when no calldata is present
+ */
+export function getSelector(data: unknown): string {
+  if (
+    typeof data !== 'string' ||
+    !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)
+  )
+    return '0x'
+  return data.substring(0, 10)
+}
+
+/**
+ * Converts a MongoDB Safe tx document into a flat summary row for display or
+ * JSON output (see list-pending-proposals.ts).
+ * @param doc - Safe tx document from MongoDB
+ * @returns Summary with signature count, selector, and normalized fields
+ */
+export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
+  const signers = getSigners(doc)
+  // Real documents always carry a Date; pass through a raw string as-is and
+  // use '' as the missing-sentinel rather than stringifying unexpected types
+  // into a misleading value.
+  const timestamp =
+    doc.timestamp instanceof Date
+      ? doc.timestamp.toISOString()
+      : typeof doc.timestamp === 'string'
+      ? doc.timestamp
+      : ''
+
+  const summary: IProposalSummary = {
+    network: doc.network,
+    chainId: doc.chainId,
+    safeAddress: doc.safeAddress,
+    nonce: Number(doc.safeTx?.data?.nonce ?? 0),
+    to: String(doc.safeTx?.data?.to ?? ''),
+    selector: getSelector(doc.safeTx?.data?.data),
+    status: doc.status,
+    signatureCount: signers.length,
+    signers,
+    proposer: doc.proposer,
+    safeTxHash: doc.safeTxHash,
+    timestamp,
+  }
+  if (doc.executionHash) summary.executionHash = doc.executionHash
+  return summary
 }
 
 /**
@@ -1405,7 +1583,7 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 
   return Object.keys(networks).filter(
     (network) =>
-      network !== 'localanvil' &&
+      network !== 'localanvil' && // pre-commit-checker: not a secret — network name filter
       networks[network.toLowerCase()]?.status === 'active'
   )
 }
