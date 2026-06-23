@@ -13,9 +13,7 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -30,7 +28,6 @@ import {
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
-
 
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
@@ -190,12 +187,17 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     if (!dryRun)
       await proposeDiamondCut({
         facetName: 'NEARIntentsFacet',
-        facetAddressHex: tronAddressToHex(tronWeb, facetAddress) as `0x${string}`,
+        facetAddressHex: tronAddressToHex(
+          tronWeb,
+          facetAddress
+        ) as `0x${string}`,
         diamondAddress,
         network: network,
       })
     else
-      consola.info('Dry run - skipping diamondCut proposal for NEARIntentsFacet')
+      consola.info(
+        'Dry run - skipping diamondCut proposal for NEARIntentsFacet'
+      )
 
     printDeploymentSummary(deploymentResults, dryRun)
 

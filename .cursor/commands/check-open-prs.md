@@ -1,0 +1,1 @@
+../../.agents/commands/check-open-prs.md

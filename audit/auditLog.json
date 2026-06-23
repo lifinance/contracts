@@ -594,6 +594,34 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.05.28_PolymerCCTPFacet(v2.1.0).pdf",
       "auditCommitHash": "efdbd68c8905df2e3a075e8dbd616257e22c4bf5"
+    },
+    "audit20260603": {
+      "auditCompletedOn": "03.06.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.06.03_OutputValidator(v1.0.0).pdf",
+      "auditCommitHash": "c1caf50af84b3fecc854dbd0960dd2d8940c498c"
+    },
+    "audit20260608": {
+      "auditCompletedOn": "08.06.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.06.08_LiFiIntentEscrowFacet(v1.1.2).pdf",
+      "auditCommitHash": "828dc476547730a11f06fec77ef84478c8c9af07"
+    },
+    "audit20260610": {
+      "auditCompletedOn": "10.06.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.06.10_MayanFacet(v1.3.0).pdf",
+      "auditCommitHash": "e2e95496953d0435f5a66189f8083bc6523bad1f"
+    },
+    "audit20260617": {
+      "auditCompletedOn": "17.06.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.06.17_ERC20Proxy(v1.2.0).pdf",
+      "auditCommitHash": "a2bb57edd89f3c89f593994e3242cff3d1d93a93"
     }
   },
   "auditedContracts": {
@@ -687,7 +715,8 @@
       "1.0.1": ["audit20241105", "audit20250508"]
     },
     "ERC20Proxy": {
-      "1.1.0": ["audit20250109_2", "audit20250508"]
+      "1.1.0": ["audit20250109_2", "audit20250508"],
+      "1.2.0": ["audit20260617"]
     },
     "ExcessivelySafeCall": {
       "1.0.0": ["audit20250508"]
@@ -819,7 +848,8 @@
       "1.0.0": ["audit20251119"],
       "1.1.0": ["audit20260130"],
       "1.0.1": ["audit20260205"],
-      "1.1.1": ["audit20260205"]
+      "1.1.1": ["audit20260205"],
+      "1.1.2": ["audit20260608"]
     },
     "LiFiTimelockController": {
       "1.0.0": ["audit20250110_2", "audit20250508"],
@@ -840,7 +870,8 @@
       "1.2.0": ["audit20250327"],
       "1.2.1": ["audit20250718"],
       "1.2.2": ["audit20250825"],
-      "1.2.4": ["audit20260320"]
+      "1.2.4": ["audit20260320"],
+      "1.3.0": ["audit20260610"]
     },
     "MegaETHBridgeFacet": {
       "1.0.0": ["audit20251203_1"]
@@ -859,6 +890,9 @@
     },
     "OwnershipFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "OutputValidator": {
+      "1.0.0": ["audit20260603"]
     },
     "Patcher": {
       "1.0.0": ["audit20250730"],

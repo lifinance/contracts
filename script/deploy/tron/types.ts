@@ -1,7 +1,6 @@
 import type { TronTvmNetworkName } from '@lifi/tron-devkit'
 import type { Hex } from 'viem'
 
-
 export type { TronTvmNetworkName }
 
 /** Options for the propose-to-safe-tron CLI script. */
@@ -9,10 +8,13 @@ export interface IProposeToSafeTronOptions {
   dryRun?: boolean
   /** Tron network to use — defaults to 'tron' (mainnet). Pass 'tronshasta' for staging. */
   network?: TronTvmNetworkName
-  /** Base58 contract address for generic proposals */
-  to?: string
-  /** Hex calldata for generic proposals */
-  calldata?: Hex
+  /**
+   * Base58 contract address(es) for generic proposals. Repeating --to/--calldata
+   * combines multiple inner calls into one timelock scheduleBatch proposal.
+   */
+  to?: string | string[]
+  /** Hex calldata for generic proposals (parallel to `to`; calls execute in order) */
+  calldata?: Hex | Hex[]
   /**
    * When true (default for generic), Safe calls Timelock.scheduleBatch(Diamond, payload).
    * When false, use --direct instead (Safe calls target directly).

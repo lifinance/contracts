@@ -12,7 +12,7 @@ deployAllContracts() {
   source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
-  source script/tasks/updateERC20Proxy.sh
+  source script/tasks/verifyERC20ProxyAuthorization.sh
   source script/tasks/updateFacetConfig.sh
 
   # read function arguments into variables
@@ -65,7 +65,7 @@ deployAllContracts() {
       "7) Add periphery to diamond" \
       "8) Update whitelist.json and execute sync whitelist script" \
       "9) Fund PauserWallet and DevWallet" \
-      "10) Update ERC20Proxy" \
+      "10) Verify ERC20Proxy authorization" \
       "11) Run health check only" \
       "12) Ownership transfer to timelock (production only)"
   )
@@ -333,7 +333,21 @@ deployAllContracts() {
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
-      local DEFAULT_FUND_AMOUNT=2000000000000000
+      # Default funding = 2.5x the real per-chain cost of one pauseDiamond() (~2 pauses +
+      # buffer). Fall back to a flat amount if estimation fails so a deploy is never blocked
+      # on a transient RPC/estimate error.
+      local FALLBACK_FUND_AMOUNT=2000000000000000
+      local DEFAULT_FUND_AMOUNT
+      local SINGLE_PAUSE_COST
+      if SINGLE_PAUSE_COST=$(estimatePauseCost "$NETWORK" "$PAUSER_WALLET_ADDRESS") \
+        && [[ "$SINGLE_PAUSE_COST" =~ ^[0-9]+$ ]] \
+        && DEFAULT_FUND_AMOUNT=$(echo "$SINGLE_PAUSE_COST * 5 / 2" | bc) \
+        && [[ "$DEFAULT_FUND_AMOUNT" =~ ^[0-9]+$ ]]; then
+        echo "Computed PauserWallet funding default: $DEFAULT_FUND_AMOUNT wei (2.5x single pauseDiamond cost of $SINGLE_PAUSE_COST wei)"
+      else
+        DEFAULT_FUND_AMOUNT=$FALLBACK_FUND_AMOUNT
+        warning "could not estimate pause cost for $NETWORK; falling back to default $DEFAULT_FUND_AMOUNT wei"
+      fi
       echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
       FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
       FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
@@ -390,14 +404,23 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
-  # Stage 10: Update ERC20Proxy
+  # Stage 10: Verify ERC20Proxy authorization
   if [[ $START_STAGE -le 10 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Verify ERC20Proxy authorization"
 
-    # Register Executor as authorized caller in ERC20Proxy
-    # This allows the Executor contract to transfer tokens on behalf of users
-    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+    # ERC20Proxy >= 1.2.0 pre-authorizes Executor at deploy time via the predicted CREATE3 address.
+    # On zkEVM, CREATE2 addresses depend on constructor args, so the Executor address cannot be
+    # predicted and pre-authorization is skipped (executor = address(0)) — the owner (refundWallet)
+    # must authorize the Executor manually. That branch funds refundWallet for the one tx and prints
+    # the command; the deploy wallet cannot send it (setAuthorizedCaller is onlyOwner = refundWallet).
+    if isZkEvmNetwork "$NETWORK"; then
+      authorizeExecutorOnZkEvm "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "zkEVM Executor authorization step on $NETWORK"
+    else
+      verifyERC20ProxyAuthorization "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
+    fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi

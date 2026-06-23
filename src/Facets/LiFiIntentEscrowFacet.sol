@@ -19,8 +19,9 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
 /// @title LiFiIntentEscrowFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Deposits and registers claims directly on a OIF Input Settler
-/// @custom:version 1.1.1
+/// @notice Deposits and registers claims directly on a OIF Input Settler.
+/// @notice This contract is not intended to custody user funds; any balance held is incidental (transient during execution) and should not persist.
+/// @custom:version 1.1.2
 contract LiFiIntentEscrowFacet is
     ILiFi,
     ReentrancyGuard,
@@ -58,7 +59,7 @@ contract LiFiIntentEscrowFacet is
     /// @param outputOracle Address of the validation layer used on the output chain
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
-    /// @param outputAmount The amount of the desired token
+    /// @param outputAmount The API-quoted destination amount, quoted against `_bridgeData.minAmount` (the worst-case swap output). On the swap entrypoint it is scaled to the realized swap output (`outputAmount * swapOutcome / minAmount`); on the non-swap entrypoint it is committed as-is. See `swapAndStartBridgeTokensViaLiFiIntentEscrow` and the "Output Amount Scaling" section in `docs/LiFiIntentEscrowFacet.md`.
     /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
     /// @param outputContext Context for the outputSettler to identify the order type
     struct LiFiIntentEscrowData {
@@ -109,10 +110,21 @@ contract LiFiIntentEscrowFacet is
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
-        _startBridge(_bridgeData, _lifiIntentData);
+        _startBridge(
+            _bridgeData,
+            _lifiIntentData,
+            _lifiIntentData.outputAmount
+        );
     }
 
     /// @notice Performs a swap before bridging via LIFIIntent
+    /// @dev On the swap path `_bridgeData.minAmount` must equal the exact
+    ///      worst-case swap output that `_lifiIntentData.outputAmount` was
+    ///      quoted against: it is both the swap slippage floor and the
+    ///      denominator that scales the committed output to the realized swap
+    ///      result. Use only LI.FI backend-generated calldata; see "Output
+    ///      Amount Scaling" in `docs/LiFiIntentEscrowFacet.md` for the
+    ///      linear-scaling tradeoff.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
@@ -134,23 +146,28 @@ contract LiFiIntentEscrowFacet is
         if (depositAndRefundAddress == address(0))
             revert InvalidDepositAndRefundAddress();
 
+        // Capture before `_bridgeData.minAmount` is overwritten with the
+        // realized output below; this is the denominator the committed output
+        // is scaled against.
+        uint256 worstCaseSwapOutput = _bridgeData.minAmount;
+
+        // Enforced floor: `_depositAndSwap` reverts unless the realized output
+        // is >= worstCaseSwapOutput, so swapOutcome >= worstCaseSwapOutput.
         uint256 swapOutcome = _depositAndSwap(
             _bridgeData.transactionId,
-            _bridgeData.minAmount,
+            worstCaseSwapOutput,
             _swapData,
             payable(depositAndRefundAddress)
         );
 
-        // Return positive slippage to user if any
-        if (swapOutcome > _bridgeData.minAmount) {
-            LibAsset.transferAsset(
-                _bridgeData.sendingAssetId,
-                payable(depositAndRefundAddress),
-                swapOutcome - _bridgeData.minAmount
-            );
-        }
+        // Positive slippage funds the intent rather than being refunded;
+        // scaling holds the committed output at the backend's quoted
+        // input/output ratio.
+        uint256 effectiveOutputAmount = (swapOutcome *
+            _lifiIntentData.outputAmount) / worstCaseSwapOutput;
+        _bridgeData.minAmount = swapOutcome;
 
-        _startBridge(_bridgeData, _lifiIntentData);
+        _startBridge(_bridgeData, _lifiIntentData, effectiveOutputAmount);
     }
 
     /// Internal Methods ///
@@ -158,16 +175,20 @@ contract LiFiIntentEscrowFacet is
     /// @dev Contains the business logic for the bridge via LIFIIntent
     /// @param _bridgeData The core information needed for bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
+    /// @param _effectiveOutputAmount The outputAmount to commit to the intent;
+    ///        on the swap entrypoint this is scaled from the realized swap output,
+    ///        on the non-swap entrypoint it equals `_lifiIntentData.outputAmount`.
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        LiFiIntentEscrowData calldata _lifiIntentData
+        LiFiIntentEscrowData calldata _lifiIntentData,
+        uint256 _effectiveOutputAmount
     ) internal {
         uint256 dstCallSwapDataLength = _lifiIntentData.dstCallSwapData.length;
         // Validate destination call flag matches actual behavior
         if ((dstCallSwapDataLength > 0) != _bridgeData.hasDestinationCall) {
             revert InformationMismatch();
         }
-        if (_lifiIntentData.outputAmount == 0) revert InvalidAmount();
+        if (_effectiveOutputAmount == 0) revert InvalidAmount();
 
         // We wanna create a "canonical" recipient so we don't have to argue for which one (bridgeData/LIFIIntentData) to use.
         bytes32 recipient = _lifiIntentData.recipient;
@@ -217,7 +238,7 @@ contract LiFiIntentEscrowFacet is
             settler: _lifiIntentData.outputSettler,
             chainId: _bridgeData.destinationChainId,
             token: _lifiIntentData.outputToken,
-            amount: _lifiIntentData.outputAmount,
+            amount: _effectiveOutputAmount,
             recipient: recipient,
             callbackData: outputCall,
             context: _lifiIntentData.outputContext

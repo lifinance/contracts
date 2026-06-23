@@ -11,7 +11,6 @@ import { fileURLToPath } from 'url'
 import { TRON_SCRIPT_FEE_LIMIT_50_TRX_SUN } from '@lifi/tron-devkit'
 import type { Hex } from 'viem'
 
-
 import type { SupportedChain } from '../../common/types'
 
 const __tronConstantsDir = path.dirname(fileURLToPath(import.meta.url))

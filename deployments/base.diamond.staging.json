@@ -1,10 +1,6 @@
 {
   "LiFiDiamond": {
     "Facets": {
-      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
       "0x953ad37E0c1883c5A8b6ee5527Eb392Da18d2e64": {
         "Name": "",
         "Version": ""
@@ -53,10 +49,6 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0xA77abE6A3E0Fe927d503c68fCF9B26e11A8bB1A4": {
-        "Name": "MayanFacet",
-        "Version": "1.2.2"
-      },
       "0xddC0660b5090B560795EAd23241d855C919441CF": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.1"
@@ -77,6 +69,14 @@
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
       },
+      "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0xEB6803A40B8350286e1E8684068E28c5c57a94AE": {
+        "Name": "MayanFacet",
+        "Version": "1.3.0"
+      },
       "0x54AEC552Acc3218b0B3991FD61cA12b3A4fD222D": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
@@ -90,6 +90,7 @@
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8Bf50e238E8cca234073C84C926894A6f300d597",
+      "OutputValidator": "",
       "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0xfaD2a4d7e19C4EDd5407a7F7673F01FE41431D51",
       "ReceiverAcrossV3": "",
