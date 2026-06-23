@@ -10,46 +10,60 @@ graph LR;
     MayanFacet -- CALL --> C(Mayan)
 ```
 
+## Receiver validation
+
+Before forwarding to Mayan, the facet validates that the order's destination receiver matches `BridgeData.receiver`:
+
+- **EVM destinations:** the receiver parsed from the Mayan protocol data (`destAddr`) must equal `BridgeData.receiver`.
+- **Non-EVM destinations** (`BridgeData.receiver == NON_EVM_ADDRESS`): the receiver parsed from the protocol data must equal `MayanData.nonEVMReceiver` (full 32-byte comparison).
+
+### HyperCore deposits
+
+For direct deposits to Hyperliquid HyperCore, Mayan crafts a Swift order (`createOrderWithToken` / `createOrderWithSig`, `payloadType == 2`) whose `destAddr` is **Mayan's `HCDepositor` handler contract**, not the end user. The real receiver is encoded as a left-aligned 20-byte address in `customPayload[0:20]` (`HCDepositor.parseCustomPayload`: `userWallet = customPayload[0:20]`).
+
+These orders are routed into the `customPayload` path by `BridgeData.destinationChainId == 1337`, which is **LI.FI's internal identifier** for HyperCore as a destination — it does not appear anywhere in Mayan's calldata, so it is only a routing hint, not a security gate. The actual trust decision is made entirely from the order calldata: the facet reads the receiver from `customPayload` instead of `destAddr` **only after verifying all three of the fields Mayan recommends** —
+
+- `destAddr` equals the hardcoded `MAYAN_HYPERCORE_DEPOSITOR` handler (`0x56032241C0AdAb58A29b13E94fb595a4bc414e33`),
+- `payloadType == 2`, and
+- `destChainId == 47` (Mayan's chain id for HyperEVM, where the handler lives).
+
+If any gate fails, the order falls through to the standard `destAddr` validation, so the `customPayload` receiver is trusted only for genuine `HCDepositor` deposit orders and `LiFiTransferStarted.receiver` is the real user. Because the gate is calldata-based rather than dependent on the caller-supplied `1337`, a mistagged or spoofed order fails closed regardless of the `destinationChainId` it claims.
+
+To stay consistent with how Mayan/`HCDepositor` actually decode the order, the facet follows the dynamic `customPayload` offset pointer (head word 16) rather than a fixed slot, so it reads the exact bytes the handler will use as the receiver.
+
+### Trust assumptions
+
+On-chain, the facet enforces `customPayload[0:20] == BridgeData.receiver`, so a caller cannot make the emitted/validated receiver differ from the address encoded in the order. Two assumptions are **not** enforceable on-chain and are inherited from Mayan:
+
+- **The handler is single-purpose.** `0x56032241C0AdAb58A29b13E94fb595a4bc414e33` is only ever used as the `HCDepositor` handler for HyperCore deposits — never as a `destAddr` for another order type that interprets `customPayload` differently. If it were reused, a `destinationChainId == 1337` order could pass the receiver check while the handler routed funds elsewhere.
+- **The handler's decode is stable.** It always treats `customPayload[0:20]` as the user wallet and is not an upgradeable proxy that could silently change that decode under the same address.
+
 ## Public Methods
 
 - `function startBridgeTokensViaMayan(BridgeData calldata _bridgeData, MayanData calldata _mayanData)`
-  - Simply bridges tokens using mayan
-- `swapAndStartBridgeTokensViamayan(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, mayanData memory _mayanData)`
-  - Performs swap(s) before bridging tokens using mayan
+  - Simply bridges tokens using Mayan
+- `function swapAndStartBridgeTokensViaMayan(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, MayanData memory _mayanData)`
+  - Performs swap(s) before bridging tokens using Mayan
 
-## mayan Specific Parameters
+## Mayan Specific Parameters
 
-The methods listed above take a variable labeled `_mayanData`. This data is specific to mayan and is represented as the following struct type:
+The methods listed above take a variable labeled `_mayanData`. This data is specific to Mayan and is represented as the following struct type:
 
 ```solidity
-/// @dev Optional bridge specific struct
-/// @param mayanAddr The address of the Mayan
-/// @param referrer The referrer address
-/// @param tokenOutAddr The address of the token to be received
-/// @param receiver The address of the receiver
-/// @param swapFee The swap fee
-/// @param redeemFee The redeem fee
-/// @param refundFee The refund fee
-/// @param transferDeadline The transfer deadline
-/// @param swapDeadline The swap deadline
-/// @param amountOutMin The minimum amount out
-/// @param unwrap Whether to unwrap the asset
-/// @param gasDrop The gas drop
+/// @dev Mayan specific bridge data
+/// @param nonEVMReceiver The address of the non-EVM receiver if applicable
+/// @param mayanProtocol The address of the Mayan protocol final contract
+/// @param protocolData The protocol data for the Mayan protocol
 struct MayanData {
-  bytes32 mayanAddr;
-  bytes32 referrer;
-  bytes32 tokenOutAddr;
-  bytes32 receiver;
-  uint64 swapFee;
-  uint64 redeemFee;
-  uint64 refundFee;
-  uint256 transferDeadline;
-  uint64 swapDeadline;
-  uint64 amountOutMin;
-  bool unwrap;
-  uint64 gasDrop;
+  bytes32 nonEVMReceiver;
+  address mayanProtocol;
+  bytes protocolData;
 }
 ```
+
+`protocolData` is the opaque calldata forwarded to `mayanProtocol`. The facet parses
+the receiver out of it (see [Receiver validation](#receiver-validation)) and validates
+it against `BridgeData.receiver` before forwarding; it is not otherwise interpreted.
 
 ## Swap Data
 

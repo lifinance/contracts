@@ -49,6 +49,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read # required to checkout the repository
+      actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
 
     steps:
       - name: Checkout repository
@@ -62,7 +63,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
-          bun-version: 1.3.13
+          bun-version-file: package.json
 
       - name: Install dependencies
         run: bun install
@@ -97,7 +98,19 @@ jobs:
           PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GH_TOKEN: ${{ github.token }} # required by `gh api` to resolve the job's html_url
+          # Fallback link (run overview); upgraded to a deep job link below when the jobs API is reachable.
+          RUN_OVERVIEW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          ##### Resolve a deep-link to THIS job so the executor's own Slack notifications
+          # (which fire on the happy path AND on per-operation failures) point straight at
+          # the failing job and its logs. github.job is the job key, not the numeric id the
+          # URL needs, so resolve the job's html_url via the jobs API; fall back to the run
+          # overview if it can't be read.
+          RESOLVED_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null || true)
+          export TIMELOCK_RUN_URL="${RESOLVED_URL:-$RUN_OVERVIEW_URL}"
+
           ##### Run the executor and tee stdout+stderr to execution.log on disk.
           # The log file is read by the Slack failure step and uploaded as an artifact,
           # so we deliberately do NOT push it through $GITHUB_OUTPUT (1 MB cap, template-injection risk).
@@ -113,7 +126,10 @@ jobs:
         env:
           # All values flow via env to avoid ${{ }} expansion inside shell/Python (template-injection risk).
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+          # Fallback link (run overview); the bash body below upgrades this to a deep
+          # link to THIS job (and its failing step) when the jobs API is reachable.
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }} # required by `gh api` to resolve the job's html_url
           TRIGGER: ${{ github.event_name }}
         run: |
           ##### Fallback notification for when the script crashes before its own SlackNotifier can fire.
@@ -126,6 +142,17 @@ jobs:
           if [ -f execution.log ] && grep -q "Parallel execution summary" execution.log; then
             echo "Executor already sent its own Slack summary; skipping fallback."
             exit 0
+          fi
+
+          ##### Deep-link straight to THIS job (…/runs/<run>/job/<job_id>) so the Slack
+          # link lands on the failing job (and its failing step) rather than the run
+          # overview. github.job is the job key, not the numeric id the URL needs, so
+          # resolve the job's html_url via the jobs API; keep the run-overview WORKFLOW_URL
+          # as the fallback if it can't be read.
+          RESOLVED_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null || true)
+          if [ -n "${RESOLVED_URL}" ]; then
+            export WORKFLOW_URL="${RESOLVED_URL}"
           fi
 
           ##### Extract errors from the on-disk log. The log may not exist if an earlier step

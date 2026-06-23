@@ -43,11 +43,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Best Practices
 
-1. **Keep rules focused**: One concern per rule file
-2. **Use [CONV:*] anchors**: Reference convention anchors defined within rule files for consistency
-3. **Use specific globs**: Target file types precisely to avoid unnecessary activation
-4. **Minimize alwaysApply**: Only use for truly global rules (generally within `000-099`)
-5. **Self-contained**: All convention content is embedded in rule files; no external MD file dependencies
+All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/rules/*.md` or `.agents/commands/*.md`).
 
 ## Context Management
 
@@ -55,16 +51,7 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 ## Adding New Rules
 
-Use `/add-new-rule` as the standard workflow.
-
-If you’re making changes manually:
-
-1. Choose appropriate number range (see naming above)
-2. Create `.md` file with frontmatter
-3. Define specific globs (avoid `**/*` unless truly global)
-4. Reference conventions via `[CONV:*]` anchors
-5. Test that rule activates appropriately
-6. Update this README if adding new category, rule, or command
+Use `/add-rule-or-skill` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
 
 ## Custom Commands
 
@@ -74,16 +61,22 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
-| `add-new-rule.md` | `/add-new-rule`                   | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation) |
+| `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 | `analyze-unverified-contract.md` | `/analyze-unverified-contract <address> <network>` | Investigate an unverified contract — resolve RPC, detect proxies, disassemble, enumerate selectors, emit a report |
+| `check-open-prs.md` | `/check-open-prs`               | Personal PR dashboard — own PRs + incoming review queue via the deterministic `script/utils/check-open-prs.ts` collector, with Slack cross-reference only for ambiguous PRs |
 | `create-pr.md`    | `/create-pr`                      | Create a PR for the current branch (branch/commit/push) using the repo PR template          |
+| `deploy-contract.md` | `/deploy-contract <Contract> <network...> [--production]` | Deploy a facet/periphery to networks + register in each LiFiDiamond (verify, diamondCut/diamondUpdatePeriphery, periphery allowlist). Staging/test terminal path and the deploy primitive `multisig-rollout` calls; production rollouts go through `multisig-rollout` |
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
 | `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — remove from networks.json, foundry.toml, deployment logs            |
+| `multisig-rollout.md` | `/multisig-rollout <Contract> \| --whitelist-pr <N>` | Orchestrate a production rollout: deploy (delegated to `deploy-contract`) or whitelist-sync across chains, Safe proposals, draft PR, signing hand-off, signature verification, `#dev-sc-multisig-proposals` thread |
 | `post-pr-for-review.md` | `/post-pr-for-review`            | Post a PR to `#dev-sc-review`, enable auto-merge (squash), tag `@smartcontract_core`     |
 | `pr-ready.md`     | `/pr-ready`                       | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
+| `request-audit.md` | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
 | `request-dev-funds.md` | `/request-dev-funds`            | Request dev funds via the `automate-wallet-dev-fees` PR-based wallet (EVM + Solana)        |
 | `review-bounty-report.md` | `/review-bounty-report`       | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
+| `send-deployer-funds.md` | `/send-deployer-funds`         | Send a chain's gas asset FROM a deployer key (`.env`) to a recipient via `cast send` — native `--value` or ERC-20-predeploy `transfer()` (arc); chain-id verified, one transfer per tool call, explicit human confirmation (EVM) |
+| `verify-contracts.md` | `/verify-contracts <network> \| PR #<N>` | Verify a network's deployed contracts on its block explorer and flip the MongoDB `verified` flag for each |
 
 ## Transaction Analysis
 
@@ -103,6 +96,7 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
 | `003-context-monitor.md`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
 | `004-config-structure.md`     | Config JSON structure (key-first vs network-first), deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
+| `010-agents-authoring.md`     | Auto-enforced constraints when editing .agents/ rules or commands | ❌ On match | `.agents/rules/*.md`, `.agents/commands/*.md`                                                                 |
 | `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
 | `100-solidity-basics.md`      | Baseline rules for all Solidity files                            | ❌ On match | `**/*.sol`                                                                                                    |
 | `101-solidity-contracts.md`   | Production Solidity contracts/interfaces in src                  | ❌ On match | `src/**/*.sol`, `!src/**/*.s.sol`, `!src/**/*.t.sol`                                                          |

@@ -15,9 +15,7 @@ import { consola } from 'consola'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
-import {
-  getPrivateKeyForEnvironment,
-} from '../../demoScripts/utils/demoScriptHelpers'
+import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import {
   getEnvVar,
   saveDiamondDeployment,
@@ -30,7 +28,6 @@ import {
 } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
-
 
 import {
   deployContractWithLogging,
@@ -73,7 +70,10 @@ async function getConstructorArgs(
       )
 
     // Convert to base58 for display purposes only
-    const tronBase58 = evmHexToTronBase58(getTronWebCodecOnlyForNetwork(network), nativeAddress)
+    const tronBase58 = evmHexToTronBase58(
+      getTronWebCodecOnlyForNetwork(network),
+      nativeAddress
+    )
 
     consola.info(
       `Using native token address: ${tronBase58} (hex: ${nativeAddress})`

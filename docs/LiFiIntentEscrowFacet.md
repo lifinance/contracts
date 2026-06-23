@@ -34,6 +34,21 @@ graph LR;
 The LI.FI intent facet supports destination swaps using the periphery contract `ReceiverOIF`.
 Destination swaps require configuring `.dstCallReceiver` to an instance of `ReceiverOIF` and `dstCallSwapData` as a list of SwapData. When `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`.
 
+## Output Amount Scaling
+
+On the swap entrypoint (`swapAndStartBridgeTokensViaLiFiIntentEscrow`), the swap output funds the intent and the committed `outputAmount` is scaled to the realized swap result, so positive slippage is preserved into the intent rather than refunded:
+
+```
+effectiveOutputAmount = swapOutcome * outputAmount / minAmount
+```
+
+Integrators must understand two properties of this design:
+
+- **`minAmount` has a dual role.** On the swap path, `bridgeData.minAmount` is both the slippage floor passed to the swap and the denominator that prices the intent. The backend sets `minAmount` to the worst-case swap output first, then quotes `outputAmount` against it — so `outputAmount` is valid only for that `minAmount`. Setting `minAmount` below the worst case it was quoted against shrinks the denominator and inflates the committed output, committing an amount the backend never quoted.
+- **The scaling is linear.** Because `minAmount` is the worst-case floor and the swap guarantees `swapOutcome >= minAmount`, the committed output only ever scales **up** from the quoted worst case — at the floor it equals the API-quoted `outputAmount` exactly. The linear (size-invariant) assumption is conservative and solver-safe for flat/tiered rate components (gas, fixed fees), but for liquidity-/price-impact pricing — where the marginal rate worsens as size grows — the scaled output can exceed a fresh quote at the realized size and the fill can fail.
+
+This is acceptable as designed; always use LI.FI backend-generated calldata, which supplies the paired `minAmount`/`outputAmount`. The non-swap entrypoint (`startBridgeTokensViaLiFiIntentEscrow`) commits `outputAmount` as-is.
+
 ## LIFIIntent Specific Parameters
 
 The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
@@ -49,7 +64,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputOracle Address of the validation layer used on the output chain
 /// @param outputSettler Address of the output settlement contract containing the fill logic
 /// @param outputToken The desired destination token
-/// @param outputAmount The amount of the desired token
+/// @param outputAmount The API-quoted destination amount, quoted against `bridgeData.minAmount` (the worst-case swap output). On the swap entrypoint it is scaled to the realized swap output (`outputAmount * swapOutcome / minAmount`); on the non-swap entrypoint it is committed as-is. See "Output Amount Scaling" above.
 /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
 /// @param outputContext Context for the outputSettler to identify the order type
 struct LiFiIntentEscrowData {

@@ -5,7 +5,6 @@ import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
-// eslint-disable-next-line import/no-extraneous-dependencies -- bs58 is available via @layerzerolabs/lz-v2-utilities
 import bs58 from 'bs58'
 import { consola } from 'consola'
 import { config } from 'dotenv'
@@ -705,7 +704,6 @@ export function addressToBytes32RightPadded(address: string): `0x${string}` {
   const hex = address.replace(/^0x/, '').toLowerCase()
   return `0x${hex.padEnd(64, '0')}`
 }
-
 
 /**
  * Normalize a private key to ensure it starts with "0x".

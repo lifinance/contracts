@@ -24,12 +24,18 @@ script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
 
+# zkEVM toolchain pins — single source of truth, read by script/helperFunctions.sh.
+# Vanilla forge ignores [external.*] sections without warning (foundry-rs/foundry#11869).
+# zksolc cannot live in a profile because vanilla forge warns on the unknown `zksync` key;
+# helperFunctions.sh exports it to foundry-zksync via the FOUNDRY_ZKSYNC env var instead.
+# foundry_zksync is the binary release installed by install_foundry_zksync()
+# (override via FOUNDRY_ZKSYNC_VERSION env, e.g. to test a new version).
+[external.zksync]
+zksolc = "1.5.15"
+foundry_zksync = "v0.0.32"
+
 [lint]
 lint_on_build = false
-
-# zksolc needs to be defined here as foundry can't detect it if it's under [profile.zksync]
-[profile.default.zksync]
-zksync = { zksolc = '1.5.15' }
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
