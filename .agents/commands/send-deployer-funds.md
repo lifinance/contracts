@@ -1,7 +1,7 @@
 ---
 name: send-deployer-funds
 usage: /send-deployer-funds
-description: Send native gas funds directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send`. Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move native funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only. Only on an explicit user request — never invoke proactively, and the pre-send report must be confirmed by the human user.
+description: Send a chain's gas asset directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send` — native `--value`, or an ERC-20 `transfer()` when the gas asset is an ERC-20 predeploy (e.g. arc, where USDC is gas). Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move gas funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only. Only on an explicit user request — never invoke proactively, and the pre-send report must be confirmed by the human user.
 ---
 
 # Send Deployer Funds
@@ -18,7 +18,7 @@ User says any of:
 Skip when:
 
 - The user wants funds sent **TO** one of our wallets (deployer top-up, refill, "I need gas on …") → that is the `request-dev-funds` skill (PR against `lifinance/automate-wallet-dev-fees`). This skill is the opposite direction: a direct `cast send` **FROM** our own keys.
-- The user wants to send an ERC-20 token → out of scope (v1 is native gas only). Say so and stop.
+- The user wants to send an ERC-20 token that is **not** the chain's gas asset → out of scope (this skill moves gas only). Say so and stop. The chain's gas asset is in scope even when it is an ERC-20 predeploy (e.g. arc) — Step 1 detects that and switches mechanism.
 - The target chain is non-EVM (Solana / TRON / BTC / SUI) → unsupported. Say so and stop.
 - No explicit user instruction to send funds exists in the current conversation (see Authorization below).
 
@@ -47,7 +47,7 @@ This skill signs and broadcasts a **real, irreversible on-chain transfer** from 
 
 Required:
 
-- **amount** — either absolute in human-readable native units ("0.1 ETH", "0.05") or relative ("10% of our holdings", "half the balance").
+- **amount** — either absolute in human-readable gas-asset units ("0.1 ETH", "2 USDC on arc", "0.05") or relative ("10% of our holdings", "half the balance").
 - **recipient** — raw `0x…` address (no `config/global.json` label lookup — this skill sends to arbitrary external recipients).
 - **network** — name as used in `config/networks.json` keys, or an in-flight network only present on a `deploy-network-<name>` branch.
 
@@ -95,6 +95,31 @@ ACTUAL_CHAIN_ID=$(cast chain-id --rpc-url "$RPC")
 
 On mismatch, stop and surface both values — do not proceed.
 
+### 1b. Determine the transfer mode (native vs ERC-20-predeploy gas asset)
+
+On most chains the gas asset is the true EVM native balance, moved with `cast send --value`. On a few, the gas asset is an **ERC-20 predeploy** and the native value path is inactive — `--value` would move nothing, so the gas asset must be moved with `transfer(address,uint256)` on the predeploy (e.g. arc / Circle Arc: `nativeCurrency` `USDC`, `nativeAddress` `0x3600000000000000000000000000000000000000`).
+
+Decide the mode from `config/networks.json` `nativeAddress`:
+
+```bash
+NATIVE_ADDR=$(jq -r --arg n "$NETWORK" '.[$n].nativeAddress // empty' config/networks.json)
+SENTINEL_RE='^0x(0{40}|[eE]{40}|[eE]eee[eE]{35}|0{39}1)$'   # zero / 0xEeee… / wrapped-dummy
+if [[ -n "$NATIVE_ADDR" && ! "$NATIVE_ADDR" =~ $SENTINEL_RE ]]; then
+  TRANSFER_MODE="erc20-predeploy"; GAS_TOKEN="$NATIVE_ADDR"
+else
+  TRANSFER_MODE="native"
+fi
+```
+
+A non-sentinel `nativeAddress` means predeploy mode — **confirm via the network's `devNotes`** (they state the native path is inactive) before treating it as such. In predeploy mode, read the token metadata up front (used for amount math, the report, and verification):
+
+```bash
+DECIMALS=$(cast call "$GAS_TOKEN" "decimals()(uint8)" --rpc-url "$RPC")
+SYMBOL=$(cast call "$GAS_TOKEN" "symbol()(string)" --rpc-url "$RPC")
+```
+
+All later steps branch on `$TRANSFER_MODE`. Native mode is unchanged from earlier versions.
+
 ### 2. Resolve the sender from `.env` (derive, never look up)
 
 Key selection follows the same convention as `getPrivateKey()` in `script/helperFunctions.sh`:
@@ -119,37 +144,58 @@ If the env var is missing from `.env`, stop and tell the user which variable is 
 - If mixed-case, run EIP-55 checksum validation (`cast to-check-sum-address "$RECIPIENT"` and compare); **refuse on mismatch** and ask the user to re-paste. If all-lowercase or all-uppercase, accept as-is and skip the checksum comparison.
 - Sanity flag (warn, don't block): recipient equal to the sender, or to the zero address — surface it and ask.
 
-### 4. Compute the amount in wei
+### 4. Compute the amount in base units
 
-Read both pre-send balances first and keep them — the post-send verification (Step 7) reports the deltas:
+Read both pre-send balances first and keep them — the post-send verification (Step 7) reports the deltas. Amounts and balances are always in the gas asset's **base units** (wei for native; `10^DECIMALS` for predeploy). Do all arithmetic via `bc` — values overflow bash's 64-bit integers.
+
+**Native mode:**
 
 ```bash
-BALANCE_WEI=$(cast balance "$SENDER" --rpc-url "$RPC")
+BALANCE=$(cast balance "$SENDER" --rpc-url "$RPC")
 RECIPIENT_BALANCE_BEFORE=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
-```
-
-- **Absolute** ("0.1 ETH"): `AMOUNT_WEI=$(cast to-wei "0.1" ether)`.
-- **Relative** ("10% of holdings"): compute in wei with integer arithmetic — `AMOUNT_WEI=$(echo "$BALANCE_WEI * 10 / 100" | bc)`. Never do the percentage math in floating-point ETH units.
-- **Gas headroom**: the send must leave enough for its own gas. "100% of holdings" means balance minus the gas headroom, not the literal balance. Do all comparisons via `bc` — wei values overflow bash's 64-bit integers above ~9.2 ETH:
-
-```bash
+# absolute: AMOUNT=$(cast to-wei "0.1" ether)
+# relative: AMOUNT=$(echo "$BALANCE * 10 / 100" | bc)
 GAS_PRICE=$(cast gas-price --rpc-url "$RPC")
 GAS_COST=$(echo "21000 * $GAS_PRICE * 2" | bc)   # 2x safety margin
-MAX_SENDABLE=$(echo "$BALANCE_WEI - $GAS_COST" | bc)
-if [[ $(echo "$AMOUNT_WEI > $MAX_SENDABLE" | bc) -eq 1 ]]; then
+```
+
+**ERC-20-predeploy mode:** balances come from `balanceOf`, and the gas asset's own balance pays the gas — so the headroom check applies to `balanceOf`, not a separate native balance.
+
+```bash
+BALANCE=$(cast call "$GAS_TOKEN" "balanceOf(address)(uint256)" "$SENDER" --rpc-url "$RPC" | awk '{print $1}')
+RECIPIENT_BALANCE_BEFORE=$(cast call "$GAS_TOKEN" "balanceOf(address)(uint256)" "$RECIPIENT" --rpc-url "$RPC" | awk '{print $1}')
+# absolute: AMOUNT=$(echo "2 * (10 ^ $DECIMALS)" | bc)            # 2 USDC @ 6dp = 2000000
+# relative: AMOUNT=$(echo "$BALANCE * 10 / 100" | bc)
+# Gas is charged against the same token balance. Chains that price gas in 18-dp wei but
+# settle it in a DECIMALS-dp token (arc) convert 1:1 by value, so scale the wei estimate down:
+GAS_PRICE=$(cast gas-price --rpc-url "$RPC")
+GAS_LIMIT=$(cast estimate "$GAS_TOKEN" "transfer(address,uint256)" "$RECIPIENT" "$AMOUNT" --from "$SENDER" --rpc-url "$RPC")
+GAS_COST=$(echo "$GAS_LIMIT * $GAS_PRICE * 2 / (10 ^ (18 - $DECIMALS))" | bc)   # 2x margin, scaled to token dp
+```
+
+Common to both: the send must leave enough for its own gas.
+
+```bash
+MAX_SENDABLE=$(echo "$BALANCE - $GAS_COST" | bc)
+if [[ $(echo "$AMOUNT > $MAX_SENDABLE" | bc) -eq 1 ]]; then
   # relative amount → cap at MAX_SENDABLE; absolute amount → refuse and report the shortfall
   ...
 fi
 ```
 
+If predeploy gas-cost scaling is uncertain on a new chain, `cast send` pre-flights the balance and fails **without broadcasting** (costing nothing) — so an underestimate is safe, never a silent overspend.
+
 ### 5. Pre-send report + explicit confirmation
 
-Render a one-block summary and require explicit confirmation before broadcasting:
+Render a one-block summary and require explicit confirmation before broadcasting. Always state the **mechanism** so a predeploy send is never mistaken for a native one.
+
+Native mode:
 
 ```text
 ⚠️  About to broadcast a REAL native transfer. This is irreversible.
 
   Network:            outlaw  (chainId 4663 — verified via cast chain-id)
+  Mechanism:          native  (cast send --value)
   RPC source:         ETH_NODE_URI_OUTLAW            (URL not shown — may embed API key)
   Sender:             0x492E267321E863fA45Bc9d97c9f64Fa9Df70d4c4  (derived from PRIVATE_KEY_PRODUCTION)
   Sender balance:     980845853615340000 wei  (0.98084585… ETH)
@@ -160,33 +206,67 @@ Render a one-block summary and require explicit confirmation before broadcasting
 Proceed? (yes/no)
 ```
 
+ERC-20-predeploy mode:
+
+```text
+⚠️  About to broadcast a REAL ERC-20 gas-asset transfer. This is irreversible.
+
+  Network:            arc  (chainId 5042 — verified via cast chain-id)
+  Mechanism:          ERC-20 predeploy  (transfer() on 0x3600…0000, NOT --value)
+  RPC source:         ETH_NODE_URI_ARC               (URL not shown — may embed API key)
+  Sender:             0xb137…E269                    (derived from PRIVATE_KEY_PRODUCTION)
+  Gas asset:          USDC  (6 decimals)
+  Sender balance:     27693729  (27.693729 USDC — via balanceOf)
+  Recipient:          0xd387…57Ee                    (current balance: 2000 = 0.002 USDC)
+  Amount:             2000000  (2 USDC)
+  Note:               gas is also paid from this USDC balance
+
+Proceed? (yes/no)
+```
+
 Accept only `yes`, `proceed`, or `confirm` (case-insensitive); reject bare `y` and re-ask. Even if the invoking prompt sounds like consent ("go ahead and send 0.1 ETH…"), still render the report and still wait for the explicit acknowledgement.
 
 ### 6. Send
 
+**One broadcast per tool call — never loop `cast send`.** Run each transfer as its own separate tool invocation, even when the user asked for several at once. A loop that iterates `cast send` inside a single tool call can land a broadcast mid-iteration if that call is interrupted or rejected — leaving real funds moved with no captured tx hash. One tool call = one signed transfer = one `TX_HASH` recorded and verified before the next.
+
+Build the `cast send` argument list by mode, then broadcast once. Native mode sends `--value`; predeploy mode calls `transfer(address,uint256)` on the gas-token contract.
+
 ```bash
+if [[ "$TRANSFER_MODE" == "erc20-predeploy" ]]; then
+  SEND_ARGS=("$GAS_TOKEN" "transfer(address,uint256)" "$RECIPIENT" "$AMOUNT")
+else
+  SEND_ARGS=("$RECIPIENT" --value "$AMOUNT")
+fi
 SEND_OUTPUT=$( (set +x; KEY=$(grep -E "^${KEY_VAR}=" .env | cut -d= -f2- | tr -d '"'); \
-  cast send "$RECIPIENT" --value "$AMOUNT_WEI" --private-key "$KEY" --rpc-url "$RPC") \
+  cast send "${SEND_ARGS[@]}" --private-key "$KEY" --rpc-url "$RPC") \
   2>&1 | grep -vE 'private|PRIVATE|key' | sed "s|$RPC|<rpc>|g" )
 echo "$SEND_OUTPUT"
 
-TX_HASH=$(echo "$SEND_OUTPUT" | grep -i 'transactionHash' | grep -oE '0x[0-9a-fA-F]{64}' | head -n1)
+TX_HASH=$(echo "$SEND_OUTPUT" | grep -E '^transactionHash' | grep -oE '0x[0-9a-fA-F]{64}' | head -n1)
 [[ -n "$TX_HASH" ]] || { echo "could not extract tx hash from cast send output"; exit 1; }
 ```
+
+Anchor the tx-hash grep to `^transactionHash` (the receipt field). A loose `grep -i transactionHash` also matches the `logs` JSON, whose event topics are 32-byte `0x…` values — `head -n1` then captures a log topic instead of the real hash. This matters most in predeploy mode, where a `Transfer` event is always present.
 
 The subshell keeps the key out of the calling shell's state; the filter strips any line mentioning the key and redacts the RPC URL from the printed output. `cast send` also prints the receipt `status` — check it here and again in Step 7.
 
 ### 7. Post-send verification
 
 - Confirm the receipt has `status 1` (`cast receipt "$TX_HASH" status --rpc-url "$RPC"` if not already shown by `cast send`).
-- Re-read both balances and report the deltas (Step 4 saved the before-values):
+- Re-read both balances **the same way Step 4 read them** (native → `cast balance`; predeploy → `balanceOf`) and report the deltas against the saved before-values:
 
 ```bash
-SENDER_AFTER=$(cast balance "$SENDER" --rpc-url "$RPC")
-RECIPIENT_AFTER=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
+if [[ "$TRANSFER_MODE" == "erc20-predeploy" ]]; then
+  SENDER_AFTER=$(cast call "$GAS_TOKEN" "balanceOf(address)(uint256)" "$SENDER" --rpc-url "$RPC" | awk '{print $1}')
+  RECIPIENT_AFTER=$(cast call "$GAS_TOKEN" "balanceOf(address)(uint256)" "$RECIPIENT" --rpc-url "$RPC" | awk '{print $1}')
+else
+  SENDER_AFTER=$(cast balance "$SENDER" --rpc-url "$RPC")
+  RECIPIENT_AFTER=$(cast balance "$RECIPIENT" --rpc-url "$RPC")
+fi
 ```
 
-Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_AFTER`, recipient balance `$RECIPIENT_BALANCE_BEFORE` → `$RECIPIENT_AFTER` (deltas via `bc`).
+Report to the user: tx hash, status, sender balance `$BALANCE` → `$SENDER_AFTER`, recipient balance `$RECIPIENT_BALANCE_BEFORE` → `$RECIPIENT_AFTER` (deltas via `bc`). The recipient delta should equal `$AMOUNT` exactly; the sender delta is `$AMOUNT` + gas.
 
 ## Failure modes
 
@@ -197,12 +277,13 @@ Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_
 - **Insufficient balance for amount + gas** → report balance, requested amount, and estimated gas; ask whether to reduce.
 - **`cast send` reverts or receipt status 0** → report the tx hash and status; do not retry automatically.
 - **RPC flaky/unreachable** → surface the error (with the URL redacted) and stop.
+- **`nativeAddress` is an ERC-20 predeploy** (native value path inactive, e.g. arc) → switch to predeploy mode (Step 1b): move the gas asset with `transfer()`, never `--value`. Get `DECIMALS` right (`cast call … decimals()`) — a wrong exponent over/under-sends by orders of magnitude.
 
 ## Out of scope (v1)
 
-- ERC-20 transfers (native gas only).
+- ERC-20 transfers of any token that is **not** the chain's gas asset (this skill moves gas only). The gas asset itself is in scope even as an ERC-20 predeploy (Step 1b).
 - Non-EVM chains.
-- Batch sends / multiple recipients.
+- Atomic/batched broadcasts (multiple transfers in one tool call or one tx). Multiple sends are allowed but handled **one transfer per tool call**, each individually confirmed — see Step 6.
 - Sending from any key other than the `.env` deployer keys (`PRIVATE_KEY_PRODUCTION` / `PRIVATE_KEY`).
 
 ## Design notes
@@ -210,3 +291,4 @@ Report to the user: tx hash, status, sender balance `$BALANCE_WEI` → `$SENDER_
 - Direction matters: `request-dev-funds` moves funds **into** our wallets via a reviewed PR pipeline; this skill moves funds **out** of our own keys with no reviewer — hence the mandatory chain-id verification, derived-sender rule, and explicit confirmation gate.
 - All resolutions (RPC, chainId, sender address, balances) happen at runtime from canonical sources (`config/networks.json`, `.env`, the chain itself). The skill body holds zero addresses and zero secrets.
 - The sender address is always derived from the private key because `config/global.json` describes the *intended* deployer, not necessarily the key in the local `.env`.
+- "Gas asset", not "native token": on most chains they coincide (`--value`), but on predeploy-gas chains (arc) the gas asset is an ERC-20. The skill moves whatever the chain charges gas in, picking the mechanism from `nativeAddress` — so "send gas to the pauser" works uniformly across both.

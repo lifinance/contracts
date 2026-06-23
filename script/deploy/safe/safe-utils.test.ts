@@ -17,12 +17,18 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Collection, type InsertOneResult } from 'mongodb'
+import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import { type Address, type Hex } from 'viem'
 
 import {
   computeProposalIntentHash,
+  getSelector,
+  getSigners,
+  mongoSafeTxRowFilter,
+  safeTxStatusConsumedNonce,
+  serializeSafeTxForMongo,
   storeTransactionInMongoDB,
+  summarizeProposalDoc,
   OperationTypeEnum,
   type ISafeTransaction,
   type ISafeTxDocument,
@@ -274,5 +280,246 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
     expect(thrown).toBeInstanceOf(Error)
     expect((thrown as Error).message).toEqual('connection reset')
     expect(collection.rows).toHaveLength(0)
+  })
+})
+
+/**
+ * Tests for the proposal-summary helpers (getSigners / getSelector /
+ * summarizeProposalDoc). They normalize raw MongoDB Safe tx documents
+ * (object- or Map-shaped signatures, bigint/number nonces, Date/string
+ * timestamps), so these cover each input shape and the malformed-document
+ * edge cases.
+ */
+
+const SUMMARY_SIGNER_A = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+const SUMMARY_SIGNER_B = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+function buildSummaryDoc(
+  overrides: Partial<ISafeTxDocument> = {}
+): ISafeTxDocument {
+  return {
+    safeAddress: '0x1111111111111111111111111111111111111111',
+    network: 'arbitrum',
+    chainId: 42161,
+    safeTx: {
+      data: {
+        to: '0x2222222222222222222222222222222222222222' as Address,
+        value: 0n,
+        data: '0x1f931c1c0000000000000000000000000000000000000000000000000000000000000060' as Hex,
+        operation: 0,
+        nonce: 99n,
+      },
+      signatures: {
+        [SUMMARY_SIGNER_A.toLowerCase()]: {
+          signer: SUMMARY_SIGNER_A,
+          data: '0xsig1',
+        },
+      },
+    } as unknown as ISafeTxDocument['safeTx'],
+    safeTxHash: '0xhash',
+    proposer: '0x3333333333333333333333333333333333333333',
+    timestamp: new Date('2026-06-12T10:00:00.000Z'),
+    status: 'pending',
+    ...overrides,
+  }
+}
+
+describe('getSigners', () => {
+  it('reads object-shaped signatures and lowercases signer addresses', () => {
+    expect(getSigners(buildSummaryDoc())).toEqual([
+      SUMMARY_SIGNER_A.toLowerCase(),
+    ])
+  })
+
+  it('reads Map-shaped signatures (in-memory shape)', () => {
+    const doc = buildSummaryDoc()
+    doc.safeTx.signatures = new Map([
+      [
+        SUMMARY_SIGNER_A.toLowerCase(),
+        { signer: SUMMARY_SIGNER_A, data: '0xsig1' },
+      ],
+      [SUMMARY_SIGNER_B, { signer: SUMMARY_SIGNER_B, data: '0xsig2' }],
+    ]) as unknown as ISafeTxDocument['safeTx']['signatures']
+    expect(getSigners(doc)).toEqual([
+      SUMMARY_SIGNER_A.toLowerCase(),
+      SUMMARY_SIGNER_B,
+    ])
+  })
+
+  it('returns empty for missing signatures', () => {
+    const doc = buildSummaryDoc()
+    delete (doc.safeTx as unknown as Record<string, unknown>).signatures
+    expect(getSigners(doc)).toEqual([])
+  })
+
+  it('returns empty for empty signatures object', () => {
+    const doc = buildSummaryDoc()
+    doc.safeTx.signatures =
+      {} as unknown as ISafeTxDocument['safeTx']['signatures']
+    expect(getSigners(doc)).toEqual([])
+  })
+
+  it('skips malformed signature entries', () => {
+    const doc = buildSummaryDoc()
+    doc.safeTx.signatures = {
+      a: null,
+      b: 'not-an-object',
+      c: { data: '0xsig' },
+      d: { signer: 12345, data: '0xsig' },
+      e: { signer: SUMMARY_SIGNER_B, data: '0xsig2' },
+    } as unknown as ISafeTxDocument['safeTx']['signatures']
+    expect(getSigners(doc)).toEqual([SUMMARY_SIGNER_B])
+  })
+})
+
+describe('getSelector', () => {
+  it('extracts the 4-byte selector', () => {
+    expect(
+      getSelector('0x1f931c1c0000000000000000000000000000000000000060')
+    ).toBe('0x1f931c1c')
+  })
+
+  it('returns 0x for empty calldata', () => {
+    expect(getSelector('0x')).toBe('0x')
+  })
+
+  it('returns 0x for short calldata', () => {
+    expect(getSelector('0x1f93')).toBe('0x')
+  })
+
+  it('returns 0x for non-string input', () => {
+    expect(getSelector(undefined)).toBe('0x')
+    expect(getSelector(42)).toBe('0x')
+  })
+
+  it('returns 0x for non-hex strings', () => {
+    expect(getSelector('1f931c1c00000000')).toBe('0x')
+  })
+
+  it('returns 0x for 0x-prefixed non-hex characters', () => {
+    expect(getSelector('0xzzzzzzzz00000000')).toBe('0x')
+  })
+})
+
+describe('summarizeProposalDoc', () => {
+  it('summarizes a well-formed pending proposal', () => {
+    expect(summarizeProposalDoc(buildSummaryDoc())).toEqual({
+      network: 'arbitrum',
+      chainId: 42161,
+      safeAddress: '0x1111111111111111111111111111111111111111',
+      nonce: 99,
+      to: '0x2222222222222222222222222222222222222222',
+      selector: '0x1f931c1c',
+      status: 'pending',
+      signatureCount: 1,
+      signers: [SUMMARY_SIGNER_A.toLowerCase()],
+      proposer: '0x3333333333333333333333333333333333333333',
+      safeTxHash: '0xhash',
+      timestamp: '2026-06-12T10:00:00.000Z',
+    })
+  })
+
+  it('includes executionHash when present', () => {
+    const summary = summarizeProposalDoc(
+      buildSummaryDoc({ status: 'executed', executionHash: '0xexec' })
+    )
+    expect(summary.status).toBe('executed')
+    expect(summary.executionHash).toBe('0xexec')
+  })
+
+  it('handles string timestamps and numeric nonces from raw documents', () => {
+    const doc = buildSummaryDoc({
+      timestamp: '2026-06-12T11:00:00.000Z' as unknown as Date,
+    })
+    ;(doc.safeTx.data as unknown as Record<string, unknown>).nonce = 7
+    const summary = summarizeProposalDoc(doc)
+    expect(summary.timestamp).toBe('2026-06-12T11:00:00.000Z')
+    expect(summary.nonce).toBe(7)
+  })
+
+  it('defaults missing nested fields without throwing', () => {
+    const doc = buildSummaryDoc({ timestamp: undefined as unknown as Date })
+    ;(doc as unknown as Record<string, unknown>).safeTx = {}
+    const summary = summarizeProposalDoc(doc)
+    expect(summary.nonce).toBe(0)
+    expect(summary.to).toBe('')
+    expect(summary.selector).toBe('0x')
+    expect(summary.signatureCount).toBe(0)
+    expect(summary.timestamp).toBe('')
+  })
+})
+
+describe('mongoSafeTxRowFilter', () => {
+  it('prefers _id when present', () => {
+    const id = { toString: () => 'abc' } as ObjectId
+    expect(
+      mongoSafeTxRowFilter(
+        {
+          _id: id,
+          safeAddress: SAFE_ADDR,
+          network: NETWORK,
+          chainId: CHAIN_ID,
+          safeTx: buildSafeTx(),
+          safeTxHash: '0xhash',
+          proposer: PROPOSER,
+          timestamp: new Date(),
+          status: 'pending',
+        },
+        NETWORK,
+        CHAIN_ID
+      )
+    ).toEqual({ _id: { $eq: id } })
+  })
+
+  it('falls back to pending identity fields without _id', () => {
+    expect(
+      mongoSafeTxRowFilter(
+        {
+          safeAddress: SAFE_ADDR,
+          network: NETWORK,
+          chainId: CHAIN_ID,
+          safeTx: buildSafeTx(),
+          safeTxHash: '0xhash',
+          proposer: PROPOSER,
+          timestamp: new Date(),
+          status: 'pending',
+        },
+        NETWORK,
+        CHAIN_ID
+      )
+    ).toEqual({
+      status: { $eq: 'pending' },
+      safeTxHash: { $eq: '0xhash' },
+      network: { $eq: NETWORK },
+      chainId: { $eq: CHAIN_ID },
+    })
+  })
+})
+
+describe('serializeSafeTxForMongo', () => {
+  it('converts signature Map to plain object', () => {
+    const safeTx = buildSafeTx()
+    safeTx.signatures.set(PROPOSER.toLowerCase(), {
+      signer: PROPOSER,
+      data: ('0x' + '11'.repeat(65)) as Hex,
+    })
+    const stored = serializeSafeTxForMongo(safeTx)
+    expect(stored.signatures[PROPOSER.toLowerCase()]?.signer).toEqual(PROPOSER)
+    expect(Object.keys(stored.signatures)).toHaveLength(1)
+  })
+})
+
+describe('safeTxStatusConsumedNonce', () => {
+  it('returns true only for executed', () => {
+    expect(safeTxStatusConsumedNonce('executed')).toBe(true)
+  })
+
+  it('returns false for reverted — a reverted execTransaction rolls back the nonce', () => {
+    expect(safeTxStatusConsumedNonce('reverted')).toBe(false)
+  })
+
+  it('returns false for submitted (unknown outcome) and pending', () => {
+    expect(safeTxStatusConsumedNonce('submitted')).toBe(false)
+    expect(safeTxStatusConsumedNonce('pending')).toBe(false)
   })
 })
