@@ -94,6 +94,10 @@ Example header format:
 
 #### Permissions
 
+- **Default-deny at the workflow level** with `permissions: {}`, then grant the minimal
+  scopes each job needs at the **job level**. A workflow-level grant is inherited by every
+  job, handing low-trust jobs more access than they need (flagged by Aikido as
+  "Overly Broad Permissions").
 - **Always document why each permission is needed** with inline comments
 - Use minimal permissions (principle of least privilege)
 - Common patterns:
@@ -106,10 +110,15 @@ Example header format:
 Example:
 
 ```yaml
-permissions:
-  contents: read # required to fetch repository contents
-  pull-requests: write # required to edit PR title and assign/remove labels
-  actions: write # required to upload/download artifacts between jobs
+# Default-deny at the workflow level; grant only what each job needs at the job level.
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read # required to fetch repository contents
+      pull-requests: write # required to edit PR title and assign/remove labels
+      actions: write # required to upload/download artifacts between jobs
 ```
 
 #### Job Organization

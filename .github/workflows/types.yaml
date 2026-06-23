@@ -17,15 +17,17 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: write # Needed to push new tags to lifi-contract-types
-  pull-requests: read # required to read PR labels when gating the job
+# Default-deny at the workflow level; grant only what generate-tag needs at the job level.
+permissions: {}
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
   generate-tag:
+    permissions:
+      contents: write # Needed to push new tags to lifi-contract-types
+      pull-requests: read # required to read PR labels when gating the job
     if: >-
       ${{
         github.event_name == 'push' ||
