@@ -86,4 +86,19 @@ contract BeaconUpgradeTest is Test {
         address cloneC = _deployClone(2);
         assertEq(MockVaultWrapperV2(cloneC).version(), 2);
     }
+
+    function test_OnlyOwnerCanUpgrade() public {
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert("Ownable: caller is not the owner");
+        beacon.upgradeTo(address(implV2));
+
+        assertEq(beacon.implementation(), address(implV1));
+    }
+
+    function test_UpgradeToNonContractReverts() public {
+        vm.prank(owner);
+        vm.expectRevert("UpgradeableBeacon: implementation is not a contract");
+        beacon.upgradeTo(makeAddr("eoa"));
+    }
 }
