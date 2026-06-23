@@ -26,7 +26,7 @@ contract BeaconUpgradeTest is Test {
     address internal assetToken = makeAddr("asset");
     bytes32 internal constant NS = bytes32("Coinbase");
 
-    function setUp() public {
+    function setUp() public virtual {
         implV1 = new MockVaultWrapper();
         implV2 = new MockVaultWrapperV2();
         beacon = new UpgradeableBeacon(address(implV1));
@@ -72,7 +72,7 @@ contract BeaconUpgradeTest is Test {
         address cloneA = _deployClone(0);
         address cloneB = _deployClone(1);
 
-        // V1 has no version() selector — the call reverts before the upgrade.
+        // V1 has no version() selector — empty revert; bare expectRevert() is intentional.
         vm.expectRevert();
         MockVaultWrapperV2(cloneA).version();
 
