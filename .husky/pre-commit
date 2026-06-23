@@ -28,9 +28,11 @@ cd "$GIT_ROOT" || exit 1
 
 # Determine what types of files changed for conditional execution (optimized single pass)
 HAS_SOL_FILES="no"
+HAS_SRC_SOL_FILES="no"
 HAS_TS_JS_FILES="no"
 # Check staged files for Solidity and TypeScript/JavaScript extensions
 echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes"
+echo "$STAGED_FILES" | grep -qE '^src/.*\.sol$' && HAS_SRC_SOL_FILES="yes"
 echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes"
 
 # Create temp directory for parallel execution
@@ -544,8 +546,8 @@ if [ -n "$FORGE_PID" ]; then
   print_status "success" "Forge build completed"
 fi
 
-# Run typechain generation (only if forge succeeded and we have Solidity files)
-if [ "$HAS_SOL_FILES" = "yes" ]; then
+# Run typechain generation (only if forge succeeded, we have Solidity src/ changes)
+if [ "$HAS_SOL_FILES" = "yes" ] && [ "$HAS_SRC_SOL_FILES" = "yes" ]; then
   print_status "info" "Generating TypeChain types..."
   (bun typechain:incremental > "$TYPECHAIN_OUTPUT" 2>&1; echo $? > "$TYPECHAIN_EXIT") &
   TYPECHAIN_PID=$!
@@ -558,6 +560,8 @@ if [ "$HAS_SOL_FILES" = "yes" ]; then
   # Extract and show summary from typechain output (filter verbose lines)
   TYPECHAIN_SUMMARY=$(grep -E "(Successfully|typings)" "$TYPECHAIN_OUTPUT" 2>/dev/null | grep -vE "^\$ " | head -1 || echo "TypeChain types generated")
   print_status "success" "$TYPECHAIN_SUMMARY"
+elif [ "$HAS_SOL_FILES" = "yes" ] && [ "$HAS_SRC_SOL_FILES" = "no" ]; then
+  print_status "skip" "Skipping TypeChain (test-only Solidity changes)"
 fi
 
 # TypeScript compilation check (only if TS/JS files changed)
