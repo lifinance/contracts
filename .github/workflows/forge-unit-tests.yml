@@ -99,6 +99,8 @@ jobs:
       - name: Run forge tests
         # retry failed tests up to 10 times (RPC flakiness)
         shell: bash
+        env:
+          FOUNDRY_PROFILE: ci
         run: |
           forge test && exit 0
           for i in $(seq 1 10); do
