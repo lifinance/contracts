@@ -5766,9 +5766,12 @@ function removeNetworkFromTargetStateJSON() {
 function estimatePauseCost() {
   local NETWORK="${1:-}"
   local PAUSER_ADDRESS="${2:-}"
-  # DiamondIsPaused() selector; matched in cast's revert output (cast lacks the ABI here,
-  # so it surfaces the raw selector rather than the decoded name).
+  # Selectors matched in cast's revert output (cast lacks the ABI, so it surfaces raw selectors).
+  # DiamondIsPaused(): reverts from the fallback when any non-EmergencyPauseFacet selector is called
+  # on a paused diamond. NoFacetToPause(): reverts from pauseDiamond() itself when the diamond is
+  # already paused (all facets already point to EmergencyPauseFacet, so there is nothing left to remap).
   local PAUSED_SELECTOR="0x0149422e"
+  local NO_FACET_TO_PAUSE_SELECTOR="0x8bce42e7"
 
   if [[ -z "$NETWORK" ]]; then
     error "estimatePauseCost: NETWORK argument is required" >&2
@@ -5824,7 +5827,7 @@ function estimatePauseCost() {
     fi
     CAST_ERR=$(cat "$GAS_ESTIMATE_ERR")
     # Definitive (not transient): diamond already paused — do not retry.
-    if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* ]]; then
+    if [[ "$CAST_ERR" == *"$PAUSED_SELECTOR"* || "$CAST_ERR" == *"DiamondIsPaused"* || "$CAST_ERR" == *"$NO_FACET_TO_PAUSE_SELECTOR"* || "$CAST_ERR" == *"NoFacetToPause"* ]]; then
       return 2
     fi
     if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then

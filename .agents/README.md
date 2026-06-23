@@ -62,8 +62,11 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
 | `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
+| `aikido-address-findings.md` | `/aikido-address-findings [<issue-id> \| all \| pr] [repo-name]` | Aikido triage scoped to the PR (default), a single finding, or the whole repo — ignore false positives, fix real findings in code |
+| `aikido-update-false-positive-catalog.md` | `/aikido-update-false-positive-catalog <file-path> <rule-name>` | Add a new false positive pattern to the catalog so aikido-address-findings auto-ignores it on future runs |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 | `analyze-unverified-contract.md` | `/analyze-unverified-contract <address> <network>` | Investigate an unverified contract — resolve RPC, detect proxies, disassemble, enumerate selectors, emit a report |
+| `check-open-prs.md` | `/check-open-prs`               | Personal PR dashboard — own PRs + incoming review queue via the deterministic `script/utils/check-open-prs.ts` collector, with Slack cross-reference only for ambiguous PRs |
 | `create-pr.md`    | `/create-pr`                      | Create a PR for the current branch (branch/commit/push) using the repo PR template          |
 | `deploy-contract.md` | `/deploy-contract <Contract> <network...> [--production]` | Deploy a facet/periphery to networks + register in each LiFiDiamond (verify, diamondCut/diamondUpdatePeriphery, periphery allowlist). Staging/test terminal path and the deploy primitive `multisig-rollout` calls; production rollouts go through `multisig-rollout` |
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
@@ -74,7 +77,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `request-audit.md` | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
 | `request-dev-funds.md` | `/request-dev-funds`            | Request dev funds via the `automate-wallet-dev-fees` PR-based wallet (EVM + Solana)        |
 | `review-bounty-report.md` | `/review-bounty-report`       | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |
-| `send-deployer-funds.md` | `/send-deployer-funds`         | Send native gas funds from a deployer wallet to a recipient on a network via `cast send` |
+| `send-deployer-funds.md` | `/send-deployer-funds`         | Send a chain's gas asset FROM a deployer key (`.env`) to a recipient via `cast send` — native `--value` or ERC-20-predeploy `transfer()` (arc); chain-id verified, one transfer per tool call, explicit human confirmation (EVM) |
 | `verify-contracts.md` | `/verify-contracts <network> \| PR #<N>` | Verify a network's deployed contracts on its block explorer and flip the MongoDB `verified` flag for each |
 
 ## Transaction Analysis
