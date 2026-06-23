@@ -5,10 +5,18 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
-import { MockVaultWrapperV2 } from "./mocks/MockVaultWrapperV2.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+
+/// @notice Upgrade target proving a beacon upgrade is observable through clones:
+///         inherits MockVaultWrapper (identical storage + interface) and adds a
+///         version() selector absent from V1.
+contract MockVaultWrapperV2 is MockVaultWrapper {
+    function version() external pure returns (uint256) {
+        return 2;
+    }
+}
 
 contract BeaconUpgradeTest is Test {
     LiFiVaultWrapperFactory internal factory;
