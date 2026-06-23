@@ -657,6 +657,88 @@ describe('reconcileSubmittedSafeTxs — nonce-gap gating', () => {
     expect(result.backfilledExecuted).toBe(0)
   })
 
+  it('excludes a reverted row from the consumed head so the revert → re-execute → lost-hash gap still triggers Sweep B', async () => {
+    const reExecutedSafeTxHash =
+      '0x0000000000000000000000000000000000000000000000000000000000000ddd' as Hex
+    const collection = createFakeCollection([
+      // executed @3 — the genuine consumed head
+      buildRow({
+        safeTxHash:
+          '0x0000000000000000000000000000000000000000000000000000000000000010',
+        status: 'executed',
+        safeTx: {
+          data: {
+            to: '0x0000000000000000000000000000000000000000' as Address,
+            value: 0n,
+            data: '0x' as Hex,
+            operation: 0,
+            nonce: 3n,
+          },
+          signatures: new Map(),
+        } as ISafeTransaction,
+      }),
+      // reverted @4 — the highest-nonce consumed-status row, but a reverted tx
+      // rolls back its nonce++ so it must NOT count toward the head
+      buildRow({
+        safeTxHash:
+          '0x0000000000000000000000000000000000000000000000000000000000000011',
+        status: 'reverted',
+        safeTx: {
+          data: {
+            to: '0x0000000000000000000000000000000000000000' as Address,
+            value: 0n,
+            data: '0x' as Hex,
+            operation: 0,
+            nonce: 4n,
+          },
+          signatures: new Map(),
+        } as ISafeTransaction,
+      }),
+      // re-proposal @4 executed on-chain (nonce → 5) but its hash was lost
+      // before reaching Mongo; Sweep B must back-fill it
+      buildRow({
+        safeTxHash: reExecutedSafeTxHash,
+        status: 'pending',
+        safeTx: {
+          data: {
+            to: '0x0000000000000000000000000000000000000000' as Address,
+            value: 0n,
+            data: '0x' as Hex,
+            operation: 0,
+            nonce: 4n,
+          },
+          signatures: new Map(),
+        } as ISafeTransaction,
+      }),
+    ])
+
+    const txHash = ('0x' + '7d'.repeat(32)) as Hex
+    const client = createFakeClient({
+      blockNumber: 1_000_000n,
+      logs: [
+        makeExecutionLog(EXECUTION_SUCCESS_TOPIC, reExecutedSafeTxHash, txHash),
+      ],
+    })
+
+    // expected = maxConsumed(executed@3) + 1 = 4; if the reverted@4 row were
+    // counted, expected would be 5 and Sweep B would be skipped (5 <= 5).
+    const result = await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      5n
+    )
+
+    expect(result.backfilledExecuted).toBe(1)
+    const backfilled = collection.rows.find(
+      (r) => r.safeTxHash === reExecutedSafeTxHash
+    )
+    expect(backfilled?.status).toBe('executed')
+    expect(backfilled?.executionHash).toBe(txHash)
+  })
+
   it('returns 0 expected nonce when no executed/reverted/submitted rows exist', async () => {
     const collection = createFakeCollection([])
     const missingSafeTxHash =

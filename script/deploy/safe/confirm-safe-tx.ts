@@ -200,13 +200,13 @@ const processTxs = async (
    * @param txDoc - The pendingTransactions row being processed
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  // Returns true only when the execution tx itself succeeded
-  // (receipt.status === 'success') — the only outcome that consumes the Safe
-  // nonce. With safeTxGas=0 an inner-call failure reverts the whole
-  // execTransaction (GS013), and a reverted tx rolls back the nonce increment,
-  // so 'reverted' did NOT consume the nonce. Both 'reverted' and the unknown
-  // 'submitted' outcome return false, and the caller must not advance
-  // expectedNonce in either case.
+  // Returns true only for the 'executed' status (receipt success, or the Tron
+  // no-receipt path) — the only outcome that consumes the Safe nonce. A
+  // top-level revert rolls back the nonce increment, so 'reverted' did NOT
+  // consume the nonce (in this repo safeTxGas=0 is why an inner-call failure
+  // surfaces as a top-level revert (GS013) rather than ExecutionFailure). Both
+  // 'reverted' and the unknown 'submitted' outcome return false, and the caller
+  // must not advance expectedNonce in either case.
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
     txDoc: ISafeTxMongoDocument,

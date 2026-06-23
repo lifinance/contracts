@@ -103,9 +103,9 @@ export interface ISafeSignature {
  *                 it to `executed`, `reverted`, or back to `pending` on the
  *                 next run.
  * - `executed`  : on-chain receipt confirmed success (Safe nonce consumed).
- * - `reverted`  : on-chain receipt confirmed revert (Safe nonce still
- *                 consumed because signatures verified; flagged for manual
- *                 review).
+ * - `reverted`  : on-chain receipt confirmed revert. The Safe nonce was NOT
+ *                 consumed — a top-level revert rolls back the `nonce++`, so
+ *                 the slot can be re-proposed; flagged for manual review.
  */
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
@@ -838,22 +838,35 @@ export class SafeClient {
 export type ViemSafe = SafeClient
 
 /**
+ * Statuses that consumed the Safe nonce on-chain. The single source of truth
+ * shared by every consumed-nonce decision: the runtime predicate
+ * {@link safeTxStatusConsumedNonce} (used by `confirm-safe-tx.ts`) and the
+ * MongoDB highest-consumed-nonce query in `reconcile.ts`. A MongoDB filter
+ * can't call the predicate, so both reference this constant instead.
+ *
+ * Only a fully successful `execTransaction` advances the Safe nonce. A
+ * top-level revert always rolls back the `nonce++`, so `reverted` never
+ * consumes the nonce — this holds unconditionally, regardless of the
+ * executor's gas params. (In this repo `safeTxGas=0` is also why an inner-call
+ * failure surfaces as a top-level revert (GS013) rather than an
+ * `ExecutionFailure` with a consumed nonce.)
+ */
+export const NONCE_CONSUMING_STATUSES: readonly SafeTxStatus[] = ['executed']
+
+/**
  * Whether a resolved Safe-tx execution status consumed the Safe nonce on-chain.
  *
- * Only a fully successful `execTransaction` advances the Safe nonce. This repo
- * always submits with `safeTxGas=0`, so an inner-call failure reverts the
- * entire `execTransaction` (GS013); the reverted tx rolls back the nonce
- * increment, leaving the nonce open for re-proposal. A `submitted` row is an
- * unknown outcome (no receipt yet) and must not be treated as consuming the
- * nonce until reconciliation resolves it. Callers gate `expectedNonce++` on
- * this — returning true for `reverted` would desync the expected nonce and make
- * the next-nonce proposal revert with GS026.
+ * A `submitted` row is an unknown outcome (no receipt yet) and must not be
+ * treated as consuming the nonce until reconciliation resolves it. Callers gate
+ * `expectedNonce++` on this — returning true for `reverted` would desync the
+ * expected nonce and make the next-nonce proposal revert with GS026. See
+ * {@link NONCE_CONSUMING_STATUSES} for the rationale.
  *
  * @param status - Resolved Safe-tx status after an execution attempt.
  * @returns true only for `executed`; false for `reverted`, `submitted`, and `pending`.
  */
 export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
-  return status === 'executed'
+  return NONCE_CONSUMING_STATUSES.includes(status)
 }
 
 /**
