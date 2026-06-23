@@ -1,0 +1,1 @@
+../../.agents/rules/108-vault-wrapper.md
