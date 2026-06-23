@@ -226,17 +226,15 @@ const processTxs = async (
 
       consola.success(`✅ Transaction submitted successfully`)
 
-      // Resolve the DB status from on-chain reality. With safeTxGas=0 the
-      // Safe reverts whenever the inner call reverts, so receipt.status is
-      // the authoritative signal — no need to also parse ExecutionSuccess.
+      // Resolve the DB status from on-chain reality. With safeTxGas=0 the Safe
+      // reverts whenever the inner call reverts, so the executor's normalized
+      // status is authoritative (EVM resolves it from the receipt, Tron
+      // synchronously via getTransactionInfo). An undefined status means the
+      // outcome is unknown (EVM receipt poll timed out) — leave the row
+      // 'submitted' for reconciliation to resolve.
       let nextStatus: SafeTxStatus
-      if (exec.receipt)
-        nextStatus = exec.receipt.status === 'success' ? 'executed' : 'reverted'
-      else if (isTronNetworkKey(network))
-        // Tron lacks synchronous receipts; preserve existing behavior and
-        // mark executed when a hash is returned. Reconciliation does not
-        // currently cover Tron.
-        nextStatus = 'executed'
+      if (exec.status)
+        nextStatus = exec.status === 'success' ? 'executed' : 'reverted'
       else nextStatus = 'submitted'
 
       await pendingTransactions.updateOne(
