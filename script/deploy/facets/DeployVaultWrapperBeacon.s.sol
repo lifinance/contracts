@@ -10,7 +10,7 @@ import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 /// @notice Deploys the wrapper implementation and its UpgradeableBeacon, then
 ///         transfers beacon ownership to the governance owner. The mock impl is
 ///         a temporary stand-in until S1. Reads OWNER from environment.
-/// @dev Deploy order: MockVaultWrapper -> UpgradeableBeacon(impl) -> transferOwnership(OWNER).
+/// @dev Deploy order: MockVaultWrapper → UpgradeableBeacon(impl) → transferOwnership(OWNER).
 ///      Gating the beacon owner behind the 48h timelock is S10 (EXSC-418).
 /// @custom:version 1.0.0
 contract DeployScript is Script {
