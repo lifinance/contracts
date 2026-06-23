@@ -4,26 +4,30 @@ description: Constraints for the standalone LI.FI Earn Vault Wrapper; activates 
 globs:
   - 'src/VaultWrapper/**'
   - 'test/solidity/VaultWrapper/**'
-  - 'script/deploy/facets/Deploy*VaultWrapper*.s.sol'
+  - 'script/deploy/vaultWrapper/**'
 paths:
   - 'src/VaultWrapper/**'
   - 'test/solidity/VaultWrapper/**'
-  - 'script/deploy/facets/Deploy*VaultWrapper*.s.sol'
+  - 'script/deploy/vaultWrapper/**'
 ---
 
 The LI.FI Earn Vault Wrapper is a standalone product, not part of the Diamond
 (see `[CONV:ARCH-VAULTWRAPPER]`). The constraints below are subsystem-specific
 and counter-intuitive against the repo's Diamond-era conventions.
 
-## Deploy-script location ([CONV:VW-DEPLOY-DIR])
+## Deploy scripts ([CONV:VW-DEPLOY-DIR])
 
-- Vault-wrapper Foundry deploy scripts MUST live in `script/deploy/facets/`,
-  despite not being facets. That path is the hardcoded `DEPLOY_SCRIPT_DIRECTORY`
-  the deploy tooling (`deploySingleContract.sh`, `scriptMaster.sh`, `.env`)
-  `ls`-es to discover scripts. Moving them to a subsystem folder orphans them
-  from deployment.
-- The folder name is a Diamond-era misnomer, **not** a product statement. Do
-  not "tidy" these scripts out of `facets/` without first changing that tooling.
+- Vault-wrapper Foundry deploy scripts live in their own `script/deploy/vaultWrapper/`,
+  NOT in `script/deploy/facets/`. They are standalone `forge-std/Script`s — they do
+  not extend `DeployScriptBase` or read the Diamond config files
+  (`networks.json`/`global.json`/`deployRequirements.json`); plain env vars only.
+- They are run by explicit path (`forge script script/deploy/vaultWrapper/<Name>.s.sol`),
+  and the contract is named after the file so it resolves without a `:Contract` suffix.
+- Consequence (intended): the Diamond's interactive deploy tooling
+  (`deploySingleContract.sh`, `scriptMaster.sh`) only `ls`-es `script/deploy/facets/`,
+  so it will not list these — deploy the subsystem by explicit path. Do not move
+  these scripts into `facets/` to gain that auto-discovery; the subsystem's deploy
+  flow is deliberately separate (full integration tracked in S14).
 
 ## Beacon and clones ([CONV:VW-BEACON])
 
