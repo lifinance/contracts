@@ -30,6 +30,10 @@ runs:
       run: |
         set -euo pipefail
         hash="$(bash script/utils/hashForkBlockPins.sh)"
+        if [ -z "$hash" ]; then
+          echo "::error::hashForkBlockPins.sh returned empty hash"
+          exit 1
+        fi
         echo "hash=${hash}" >> "$GITHUB_OUTPUT"
 
     - name: Cache Foundry RPC state
