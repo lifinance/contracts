@@ -62,6 +62,8 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
 | `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
 | `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
+| `aikido-address-findings.md` | `/aikido-address-findings [<issue-id> \| all \| pr] [repo-name]` | Aikido triage scoped to the PR (default), a single finding, or the whole repo — ignore false positives, fix real findings in code |
+| `aikido-update-false-positive-catalog.md` | `/aikido-update-false-positive-catalog <file-path> <rule-name>` | Add a new false positive pattern to the catalog so aikido-address-findings auto-ignores it on future runs |
 | `analyze-tx.md`   | `/analyze-tx <network> <tx_hash>` | Transaction trace/runbook analysis for a specific tx                                         |
 | `analyze-unverified-contract.md` | `/analyze-unverified-contract <address> <network>` | Investigate an unverified contract — resolve RPC, detect proxies, disassemble, enumerate selectors, emit a report |
 | `check-open-prs.md` | `/check-open-prs`               | Personal PR dashboard — own PRs + incoming review queue via the deterministic `script/utils/check-open-prs.ts` collector, with Slack cross-reference only for ambiguous PRs |
