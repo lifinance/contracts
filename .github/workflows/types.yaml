@@ -26,7 +26,7 @@ env:
 jobs:
   generate-tag:
     permissions:
-      contents: write # Needed to push new tags to lifi-contract-types
+      contents: read # required to fetch repository contents (tags are pushed to lifi-contract-types via SSH key, not GITHUB_TOKEN)
       pull-requests: read # required to read PR labels when gating the job
     if: >-
       ${{
