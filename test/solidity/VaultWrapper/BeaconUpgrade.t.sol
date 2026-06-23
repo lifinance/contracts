@@ -67,4 +67,23 @@ contract BeaconUpgradeTest is Test {
         assertEq(MockVaultWrapper(clone).name(), "Mock Vault Wrapper");
         assertEq(beacon.implementation(), address(implV1));
     }
+
+    function test_UpgradePropagatesToAllExistingClones() public {
+        address cloneA = _deployClone(0);
+        address cloneB = _deployClone(1);
+
+        // V1 has no version() selector — the call reverts before the upgrade.
+        vm.expectRevert();
+        MockVaultWrapperV2(cloneA).version();
+
+        vm.prank(owner);
+        beacon.upgradeTo(address(implV2));
+
+        assertEq(beacon.implementation(), address(implV2));
+        assertEq(MockVaultWrapperV2(cloneA).version(), 2);
+        assertEq(MockVaultWrapperV2(cloneB).version(), 2);
+
+        address cloneC = _deployClone(2);
+        assertEq(MockVaultWrapperV2(cloneC).version(), 2);
+    }
 }
