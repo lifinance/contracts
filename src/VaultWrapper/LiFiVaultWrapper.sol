@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import { SafeERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
@@ -279,10 +280,11 @@ contract LiFiVaultWrapper is
         );
     }
 
-    /// @dev Redeems the withdrawal amount plus the exit fee from the yield source and skims the
-    ///      fee, before OZ's `_withdraw` burns shares and transfers the remainder to the
-    ///      receiver. With fees unimplemented the skim is zero, so exactly the withdrawal amount
-    ///      is redeemed.
+    /// @dev Inlines OpenZeppelin's withdraw sequence to preserve Checks-Effects-Interactions:
+    ///      spend the caller's allowance and burn shares first, then redeem the withdrawal amount
+    ///      plus the exit fee from the yield source, skim the fee, and transfer the remainder to
+    ///      the receiver. With fees unimplemented the skim is zero, so exactly the withdrawal
+    ///      amount is redeemed.
     function _withdraw(
         address caller,
         address receiver,
@@ -290,6 +292,11 @@ contract LiFiVaultWrapper is
         uint256 assets,
         uint256 shares
     ) internal override {
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
+        }
+        _burn(owner, shares);
+
         uint256 fee = _exitFee(assets);
         _routeThroughAdapter(
             abi.encodeCall(
@@ -298,8 +305,13 @@ contract LiFiVaultWrapper is
             )
         );
         _routeFee(fee);
+        SafeERC20Upgradeable.safeTransfer(
+            IERC20Upgradeable(asset()),
+            receiver,
+            assets
+        );
 
-        super._withdraw(caller, receiver, owner, assets, shares);
+        emit Withdraw(caller, receiver, owner, assets, shares);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's
