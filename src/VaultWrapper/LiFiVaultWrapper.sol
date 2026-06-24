@@ -78,6 +78,12 @@ contract LiFiVaultWrapper is
 
     /// Initialization ///
 
+    /// @dev Locks the implementation contract so only beacon proxies (which have their own
+    ///      storage) can be initialized — never the implementation itself.
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @inheritdoc ILiFiVaultWrapper
     /// @dev Permissionless but single-shot: the factory deploys and initializes in one
     ///      transaction, and OpenZeppelin's `initializer` guard blocks any later call. All

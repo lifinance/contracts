@@ -2,6 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
@@ -46,6 +48,7 @@ contract LiFiVaultWrapperTest is Test {
     MockERC20 internal asset;
     MockERC4626 internal underlying;
     ERC4626Adapter internal adapter;
+    UpgradeableBeacon internal beacon;
     LiFiVaultWrapper internal wrapper;
 
     address internal alice = makeAddr("alice");
@@ -67,6 +70,7 @@ contract LiFiVaultWrapperTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
+        beacon = new UpgradeableBeacon(address(new LiFiVaultWrapper()));
         wrapper = _newWrapper(address(underlying));
     }
 
@@ -86,10 +90,21 @@ contract LiFiVaultWrapperTest is Test {
     }
 
     function test_InitializeEmitsInitialized() public {
-        LiFiVaultWrapper w = new LiFiVaultWrapper();
         FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(asset),
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                ""
+            )
+        );
 
-        vm.expectEmit(true, true, true, true, address(w));
+        vm.expectEmit(true, true, true, true);
         emit Initialized(
             address(asset),
             address(underlying),
@@ -99,15 +114,7 @@ contract LiFiVaultWrapperTest is Test {
             8000
         );
 
-        w.initialize(
-            address(asset),
-            address(underlying),
-            address(adapter),
-            vaultAdmin,
-            8000,
-            fees,
-            ""
-        );
+        new BeaconProxy(address(beacon), initCall);
     }
 
     function testRevert_InitializeTwice() public {
@@ -150,18 +157,28 @@ contract LiFiVaultWrapperTest is Test {
     }
 
     function test_NameAndSymbolFallBackWhenAssetHasNoSymbol() public {
-        LiFiVaultWrapper w = new LiFiVaultWrapper();
-        FeeConfig memory fees;
-        address noSymbolAsset = makeAddr("noSymbolAsset");
-
-        w.initialize(
+        MockERC20 noSymbolAsset = new MockERC20("No Symbol", "", 18);
+        MockERC4626 noSymbolUnderlying = new MockERC4626(
             noSymbolAsset,
-            address(underlying),
-            address(adapter),
-            vaultAdmin,
-            8000,
-            fees,
-            ""
+            "Yield",
+            "yNS"
+        );
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(noSymbolAsset),
+                address(noSymbolUnderlying),
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                ""
+            )
+        );
+
+        LiFiVaultWrapper w = LiFiVaultWrapper(
+            address(new BeaconProxy(address(beacon), initCall))
         );
 
         assertEq(w.name(), "LI.FI Earn VW");
@@ -320,16 +337,22 @@ contract LiFiVaultWrapperTest is Test {
     function _newWrapper(
         address _underlying
     ) internal returns (LiFiVaultWrapper w) {
-        w = new LiFiVaultWrapper();
         FeeConfig memory fees;
-        w.initialize(
-            address(asset),
-            _underlying,
-            address(adapter),
-            vaultAdmin,
-            8000,
-            fees,
-            ""
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(asset),
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                ""
+            )
+        );
+
+        w = LiFiVaultWrapper(
+            address(new BeaconProxy(address(beacon), initCall))
         );
     }
 
