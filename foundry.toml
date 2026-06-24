@@ -16,6 +16,16 @@ ffi = true
 libs = ["node_modules", "lib"]
 cache = true
 
+# CI profile: lower fuzz runs for faster PR feedback. Local default keeps 256 runs.
+[profile.default.fuzz]
+runs = 256
+
+[profile.ci]
+# Inherits [profile.default]; only fuzz runs differ for faster CI.
+
+[profile.ci.fuzz]
+runs = 32
+
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
