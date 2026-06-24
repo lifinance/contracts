@@ -32,4 +32,9 @@ const result = spawnSync(
   { stdio: 'inherit', env: process.env }
 )
 
+if (result.error) {
+  console.error(`Error: Failed to spawn forge: ${result.error.message}`)
+  process.exit(1)
+}
+
 process.exit(result.status ?? 1)
