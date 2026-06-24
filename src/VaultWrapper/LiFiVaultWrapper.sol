@@ -20,9 +20,11 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      underlying vault's shares) on behalf of its depositors, and transiently holds the
 ///      asset while routing a deposit or withdrawal. Identity (`asset`/`underlying`/
 ///      `adapter`/`vaultWrapperAdmin`/`factory`) and the fee configuration are set
-///      write-once in `initialize`. Fee, access, and pause behaviour are not implemented here — later
-///      modules extend the virtual ERC-4626 entrypoints and Solady's deposit/withdraw
-///      hooks. Inflation-attack protection relies on Solady virtual shares.
+///      write-once in `initialize`. Fee, access, and pause logic are scaffolded as no-op
+///      seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`, `_requireNotPaused`,
+///      `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow; their
+///      bodies land in follow-up tickets. Inflation-attack protection relies on Solady
+///      virtual shares.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     using MetadataReaderLib for address;
@@ -172,6 +174,8 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         uint256 assets,
         address to
     ) public override nonReentrant returns (uint256 shares) {
+        _beforeOperation();
+
         shares = super.deposit(assets, to);
     }
 
@@ -180,6 +184,8 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         uint256 shares,
         address to
     ) public override nonReentrant returns (uint256 assets) {
+        _beforeOperation();
+
         assets = super.mint(shares, to);
     }
 
@@ -189,6 +195,8 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         address to,
         address owner
     ) public override nonReentrant returns (uint256 shares) {
+        _beforeOperation();
+
         shares = super.withdraw(assets, to, owner);
     }
 
@@ -198,7 +206,41 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         address to,
         address owner
     ) public override nonReentrant returns (uint256 assets) {
+        _beforeOperation();
+
         assets = super.redeem(shares, to, owner);
+    }
+
+    /// ERC-4626 fee-adjusted previews ///
+
+    /// @inheritdoc ERC4626
+    function previewDeposit(
+        uint256 assets
+    ) public view override returns (uint256) {
+        return super.previewDeposit(assets - _entryFee(assets));
+    }
+
+    /// @inheritdoc ERC4626
+    function previewMint(
+        uint256 shares
+    ) public view override returns (uint256 assets) {
+        assets = super.previewMint(shares);
+        return assets + _entryFee(assets);
+    }
+
+    /// @inheritdoc ERC4626
+    function previewWithdraw(
+        uint256 assets
+    ) public view override returns (uint256) {
+        return super.previewWithdraw(assets + _exitFee(assets));
+    }
+
+    /// @inheritdoc ERC4626
+    function previewRedeem(
+        uint256 shares
+    ) public view override returns (uint256 assets) {
+        assets = super.previewRedeem(shares);
+        return assets - _exitFee(assets);
     }
 
     /// Internal ///
@@ -213,24 +255,32 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         return true;
     }
 
-    /// @dev Forwards freshly deposited assets into the yield source via the adapter.
+    /// @dev Skims the entry fee, then forwards the remaining deposited assets into the
+    ///      yield source via the adapter. With fees unimplemented the skim is zero, so the
+    ///      full amount is invested.
     function _afterDeposit(uint256 assets, uint256) internal override {
+        uint256 fee = _entryFee(assets);
+        _routeFee(fee);
         _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.deposit,
-                (_vaultAsset, underlying, assets)
+                (_vaultAsset, underlying, assets - fee)
             )
         );
     }
 
-    /// @dev Redeems assets from the yield source before they are sent to the withdrawer.
+    /// @dev Redeems the withdrawal amount plus the exit fee from the yield source, then skims
+    ///      the fee before the remainder is sent to the withdrawer. With fees unimplemented the
+    ///      skim is zero, so exactly the withdrawal amount is redeemed.
     function _beforeWithdraw(uint256 assets, uint256) internal override {
+        uint256 fee = _exitFee(assets);
         _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.withdraw,
-                (_vaultAsset, underlying, assets)
+                (_vaultAsset, underlying, assets + fee)
             )
         );
+        _routeFee(fee);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's
@@ -247,5 +297,58 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
                 revert(add(ret, 0x20), mload(ret))
             }
         }
+    }
+
+    /// Fee / pause / access blueprint ///
+    /// @dev The functions below are no-op seams wired into the entrypoints and the
+    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
+    ///      (fees, access control, global pause); today they preserve current behaviour.
+
+    /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
+    ///      engaged, enforces the vault's access mode on the caller, and accrues
+    ///      time/yield-based fees so the operation transacts at the post-accrual share price.
+    function _beforeOperation() private {
+        _requireNotPaused();
+        _checkAccess(msg.sender);
+        _accrueFees();
+    }
+
+    /// @dev Reverts when the factory-level global pause / circuit breaker is engaged.
+    function _requireNotPaused() private view {
+        // TODO(pause): revert if the factory circuit breaker is active.
+    }
+
+    /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
+    function _checkAccess(address /* caller */) private view {
+        // TODO(access): decode the access mode from initData and authorize the caller.
+    }
+
+    /// @dev Accrues management (time-based) and performance (high-water-mark) fees by minting
+    ///      fee shares to the integrator/LI.FI recipients, routed via _routeFee. Runs before
+    ///      share math so deposits/withdrawals transact post-accrual.
+    function _accrueFees() private {
+        // TODO(fees): mint management + performance fee shares before share math runs.
+    }
+
+    /// @dev Entry-fee portion (in assets) skimmed from a deposit of `assets`. Returns 0 until
+    ///      implemented; the gross/net basis must stay consistent with the preview overrides.
+    ///      Widens to `view` once it reads the _feeConfig deposit rate.
+    function _entryFee(uint256 /* assets */) private pure returns (uint256) {
+        // TODO(fees): derive from the _feeConfig deposit rate, bounded by the bytecode cap.
+        return 0;
+    }
+
+    /// @dev Exit-fee portion (in assets) skimmed from a withdrawal of `assets`. Returns 0 until
+    ///      implemented; the gross/net basis must stay consistent with the preview overrides.
+    ///      Widens to `view` once it reads the _feeConfig withdrawal rate.
+    function _exitFee(uint256 /* assets */) private pure returns (uint256) {
+        // TODO(fees): derive from the _feeConfig withdrawal rate, bounded by the bytecode cap.
+        return 0;
+    }
+
+    /// @dev Splits a collected fee between the integrator (integratorShareBps) and LI.FI
+    ///      (remainder, to the factory-governed lifiFeeRecipient read live) and routes each.
+    function _routeFee(uint256 /* feeAssets */) private {
+        // TODO(fees): transfer the integrator share to its recipient, remainder to LI.FI.
     }
 }
