@@ -365,7 +365,7 @@ abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
             : vm.envString("ETH_NODE_URI_MAINNET");
         uint256 blockNumber = customBlockNumberForForking > 0
             ? customBlockNumberForForking
-            : 14847528;
+            : DEFAULT_BLOCK_NUMBER_MAINNET;
 
         vm.createSelectFork(rpcUrl, blockNumber);
     }
