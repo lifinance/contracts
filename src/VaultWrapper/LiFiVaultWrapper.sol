@@ -276,8 +276,10 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's
-    ///      context (the wrapper holds the asset and the yield-source position). The adapter is
-    ///      governance-approved and stateless, so it cannot touch this wrapper's storage.
+    ///      context (the wrapper holds the asset and the yield-source position). Because the call
+    ///      executes in this wrapper's storage context, the adapter must be governance-approved
+    ///      and audited to avoid storage writes/collisions; statelessness is an enforced-by-review
+    ///      invariant, not a guarantee of this contract.
     /// @param _data The ABI-encoded adapter call.
     function _routeThroughAdapter(bytes memory _data) private {
         (bool success, bytes memory ret) = adapter.delegatecall(_data);
