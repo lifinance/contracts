@@ -4884,8 +4884,8 @@
           {
             "address": "0x008d23ba8B6Ce09528b9Cb1b09849977D660D968",
             "functions": {
-              "0xdbefe2d6": "executeExactIn(...)",
-              "0x77963966": "executeExactInWithAllowance(...)"
+              "0x8fb4309b": "executeExactIn((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(address,uint256,uint256,bytes),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])",
+              "0x77963966": "executeExactInWithAllowance((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])"
             }
           }
         ],
@@ -4893,8 +4893,8 @@
           {
             "address": "0xC94135b63772b91D79d0A2DaAb2a8801f32359bD",
             "functions": {
-              "0xdbefe2d6": "executeExactIn(...)",
-              "0x77963966": "executeExactInWithAllowance(...)"
+              "0x8fb4309b": "executeExactIn((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(address,uint256,uint256,bytes),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])",
+              "0x77963966": "executeExactInWithAllowance((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])"
             }
           }
         ]
