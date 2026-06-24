@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { ERC4626 } from "solady/tokens/ERC4626.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { AlreadyInitialized } from "../Errors/GenericErrors.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
@@ -24,6 +25,8 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      hooks. Inflation-attack protection relies on Solady virtual shares.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
+    using MetadataReaderLib for address;
+
     /// Storage ///
 
     /// @notice Whether `initialize` has run; guards against re-initialization.
@@ -47,6 +50,10 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     address internal _vaultAsset;
     /// @dev Cached decimals of the asset, read once in `initialize`.
     uint8 internal _assetDecimals;
+    /// @dev Share-token name, derived from the asset symbol in `initialize`.
+    string internal _vaultName;
+    /// @dev Share-token symbol, derived from the asset symbol in `initialize`.
+    string internal _vaultSymbol;
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
@@ -103,6 +110,11 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         (bool ok, uint8 dec) = _tryGetAssetDecimals(_asset);
         _assetDecimals = ok ? dec : 18;
 
+        string memory assetSymbol = _asset.readSymbol();
+        if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
+        _vaultName = string.concat("LI.FI Earn ", assetSymbol);
+        _vaultSymbol = string.concat("lf", assetSymbol);
+
         emit Initialized(
             _asset,
             _underlying,
@@ -125,14 +137,14 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         return IYieldAdapter(adapter).totalAssets(underlying, address(this));
     }
 
-    /// @notice ERC20 name of the vault share token.
-    function name() public pure override returns (string memory) {
-        return "LI.FI Earn Vault Wrapper";
+    /// @notice ERC20 name of the vault share token, e.g. "LI.FI Earn USDC".
+    function name() public view override returns (string memory) {
+        return _vaultName;
     }
 
-    /// @notice ERC20 symbol of the vault share token.
-    function symbol() public pure override returns (string memory) {
-        return "lfVW";
+    /// @notice ERC20 symbol of the vault share token, e.g. "lfUSDC".
+    function symbol() public view override returns (string memory) {
+        return _vaultSymbol;
     }
 
     /// @notice Fee config getters ///

@@ -72,7 +72,7 @@ contract BeaconUpgradeTest is Test {
 
     function test_CloneDelegatesToCurrentImpl() public {
         address clone = _deployClone(0);
-        assertEq(LiFiVaultWrapper(clone).name(), "LI.FI Earn Vault Wrapper");
+        assertEq(LiFiVaultWrapper(clone).name(), "LI.FI Earn VW");
         assertEq(beacon.implementation(), address(implV1));
     }
 

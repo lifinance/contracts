@@ -83,8 +83,8 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.factory(), address(this));
         assertEq(wrapper.integratorShareBps(), 8000);
         assertEq(wrapper.decimals(), 18);
-        assertEq(wrapper.name(), "LI.FI Earn Vault Wrapper");
-        assertEq(wrapper.symbol(), "lfVW");
+        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.symbol(), "lfTKN");
     }
 
     function test_InitializeEmitsInitialized() public {
@@ -144,6 +144,30 @@ contract LiFiVaultWrapperTest is Test {
             )
         );
         wrapper.feeEnabled(4);
+    }
+
+    function test_NameAndSymbolDeriveFromAssetSymbol() public view {
+        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.symbol(), "lfTKN");
+    }
+
+    function test_NameAndSymbolFallBackWhenAssetHasNoSymbol() public {
+        LiFiVaultWrapper w = new LiFiVaultWrapper();
+        FeeConfig memory fees;
+        address noSymbolAsset = makeAddr("noSymbolAsset");
+
+        w.initialize(
+            noSymbolAsset,
+            address(underlying),
+            address(adapter),
+            vaultAdmin,
+            8000,
+            fees,
+            ""
+        );
+
+        assertEq(w.name(), "LI.FI Earn VW");
+        assertEq(w.symbol(), "lfVW");
     }
 
     /// Deposit / pass-through ///
