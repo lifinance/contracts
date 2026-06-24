@@ -68,6 +68,11 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         uint16 integratorShareBps
     );
 
+    /// Errors ///
+
+    /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
+    error InvalidFeeType(uint8 feeType);
+
     /// Initialization ///
 
     /// @inheritdoc ILiFiVaultWrapper
@@ -136,6 +141,7 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return The fee rate in basis points.
     function feeRate(uint8 _feeType) external view returns (uint16) {
+        if (_feeType > 3) revert InvalidFeeType(_feeType);
         return _feeConfig.rateBps[_feeType];
     }
 
@@ -143,6 +149,7 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
+        if (_feeType > 3) revert InvalidFeeType(_feeType);
         return _feeConfig.enabled[_feeType];
     }
 

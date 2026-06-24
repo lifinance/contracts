@@ -128,6 +128,24 @@ contract LiFiVaultWrapperTest is Test {
         );
     }
 
+    function testRevert_FeeGettersRejectInvalidFeeType() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.InvalidFeeType.selector,
+                uint8(4)
+            )
+        );
+        wrapper.feeRate(4);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.InvalidFeeType.selector,
+                uint8(4)
+            )
+        );
+        wrapper.feeEnabled(4);
+    }
+
     /// Deposit / pass-through ///
 
     function test_DepositForwardsAssetsToUnderlying() public {
