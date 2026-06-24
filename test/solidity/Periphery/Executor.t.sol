@@ -86,6 +86,8 @@ contract ExecutorTest is Test {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
+        // Mirrors TestBase.DEFAULT_BLOCK_NUMBER_MAINNET; kept as a literal because
+        // ExecutorTest extends Test (not TestBase) and cannot reference the constant.
         uint256 blockNumber = 15588208;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
