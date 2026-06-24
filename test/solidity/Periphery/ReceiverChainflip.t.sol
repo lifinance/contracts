@@ -9,6 +9,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { MockUniswapDEX, NonETHReceiver } from "../utils/TestHelpers.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 contract ReceiverChainflipTest is TestBase {
     using stdJson for string;
@@ -37,8 +38,8 @@ contract ReceiverChainflipTest is TestBase {
         );
         vm.label(chainflipVault, "Chainflip Vault");
 
-        erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy), address(this));
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), address(this));
         receiver = new ReceiverChainflip(
             address(this),
             address(executor),
