@@ -133,6 +133,78 @@ contract LiFiVaultWrapperTest is Test {
         );
     }
 
+    function testRevert_InitializeRejectsZeroAddress() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(asset),
+                address(underlying),
+                address(adapter),
+                address(0),
+                8000,
+                fees,
+                ""
+            )
+        );
+
+        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsBpsAbove100Percent() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(asset),
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                10_001,
+                fees,
+                ""
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.InvalidIntegratorShareBps.selector,
+                uint16(10_001)
+            )
+        );
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsAssetMismatch() public {
+        address wrongAsset = makeAddr("wrongAsset");
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                wrongAsset,
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                ""
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.AssetMismatch.selector,
+                wrongAsset,
+                address(asset)
+            )
+        );
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
     function testRevert_FeeGettersRejectInvalidFeeType() public {
         vm.expectRevert(
             abi.encodeWithSelector(

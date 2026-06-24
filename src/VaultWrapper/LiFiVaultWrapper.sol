@@ -75,6 +75,12 @@ contract LiFiVaultWrapper is
 
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
+    /// @notice Thrown when a required initialization address is the zero address.
+    error ZeroAddress();
+    /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
+    error InvalidIntegratorShareBps(uint16 integratorShareBps);
+    /// @notice Thrown when the adapter resolves the underlying to an asset other than `_asset`.
+    error AssetMismatch(address expected, address actual);
 
     /// Initialization ///
 
@@ -99,6 +105,21 @@ contract LiFiVaultWrapper is
         FeeConfig calldata _fees,
         bytes calldata _initData
     ) external initializer {
+        if (
+            _asset == address(0) ||
+            _underlying == address(0) ||
+            _adapter == address(0) ||
+            _vaultWrapperAdmin == address(0)
+        ) revert ZeroAddress();
+        if (_integratorShareBps > 10_000)
+            revert InvalidIntegratorShareBps(_integratorShareBps);
+
+        address resolvedAsset = IYieldAdapter(_adapter).resolveAsset(
+            _underlying
+        );
+        if (resolvedAsset != _asset)
+            revert AssetMismatch(_asset, resolvedAsset);
+
         __ReentrancyGuard_init();
 
         string memory assetSymbol = _asset.readSymbol();
