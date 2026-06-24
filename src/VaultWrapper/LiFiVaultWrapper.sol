@@ -1,38 +1,40 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
-
-import { ERC4626 } from "solady/tokens/ERC4626.sol";
-import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { IERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
-import { AlreadyInitialized } from "../Errors/GenericErrors.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
-/// @notice Per-integrator ERC-4626 vault that wraps an underlying yield source. Shares
+/// @notice Per-integrator-product ERC-4626 vault that wraps an underlying yield source. Shares
 ///         represent a claim on the assets the wrapper holds in that source; deposits are
-///         forwarded to the source and withdrawals are redeemed from it, both routed
-///         through an approved `IYieldAdapter`. Deployed as a beacon proxy and configured
-///         once via `initialize`, so it has no constructor.
-/// @dev This contract DOES custody funds: it holds the yield-source position (e.g. the
-///      underlying vault's shares) on behalf of its depositors, and transiently holds the
-///      asset while routing a deposit or withdrawal. Identity (`asset`/`underlying`/
-///      `adapter`/`vaultWrapperAdmin`/`factory`) and the fee configuration are set
-///      write-once in `initialize`. Fee, access, and pause logic are scaffolded as no-op
-///      seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`, `_requireNotPaused`,
-///      `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow; their
-///      bodies land in follow-up tickets. Inflation-attack protection relies on Solady
-///      virtual shares.
+///         forwarded to the source and withdrawals are redeemed from it, both routed through an
+///         approved `IYieldAdapter`. Deployed as a beacon proxy and configured once via
+///         `initialize`.
+/// @dev Built on OpenZeppelin's upgradeable ERC-4626 so the asset, decimals, and share metadata
+///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
+///      per instance). This contract DOES custody funds: it holds the yield-source position on
+///      behalf of depositors and transiently holds the asset while routing a deposit or
+///      withdrawal. Identity (`underlying`/`adapter`/`vaultWrapperAdmin`/`factory`) and the fee
+///      configuration are set write-once in `initialize`. Fee, access, and pause logic are
+///      scaffolded as no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
+///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
+///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
+///      ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
-contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
+contract LiFiVaultWrapper is
+    ERC4626Upgradeable,
+    ReentrancyGuardUpgradeable,
+    ILiFiVaultWrapper
+{
     using MetadataReaderLib for address;
 
     /// Storage ///
 
-    /// @notice Whether `initialize` has run; guards against re-initialization.
-    bool public initialized;
     /// @notice The yield source this wrapper deposits into (e.g. an ERC-4626 vault).
     address public underlying;
     /// @notice The approved yield adapter the wrapper routes deposits/withdrawals through.
@@ -48,14 +50,6 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     ///         stored verbatim for later modules to decode.
     bytes public initData;
 
-    /// @dev The ERC20 asset the vault is denominated in.
-    address internal _vaultAsset;
-    /// @dev Cached decimals of the asset, read once in `initialize`.
-    uint8 internal _assetDecimals;
-    /// @dev Share-token name, derived from the asset symbol in `initialize`.
-    string internal _vaultName;
-    /// @dev Share-token symbol, derived from the asset symbol in `initialize`.
-    string internal _vaultSymbol;
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
@@ -86,8 +80,10 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
 
     /// @inheritdoc ILiFiVaultWrapper
     /// @dev Permissionless but single-shot: the factory deploys and initializes in one
-    ///      transaction, and the `initialized` guard blocks any later call. All arguments
-    ///      are validated by the factory before this is reached.
+    ///      transaction, and OpenZeppelin's `initializer` guard blocks any later call. All
+    ///      arguments are validated by the factory before this is reached. Share name/symbol
+    ///      derive from the asset symbol (e.g. "LI.FI Earn USDC" / "lfUSDC"), falling back to
+    ///      "VW" when the asset exposes none.
     function initialize(
         address _asset,
         address _underlying,
@@ -96,26 +92,24 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         uint16 _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData
-    ) external {
-        if (initialized) revert AlreadyInitialized();
-        initialized = true;
+    ) external initializer {
+        __ReentrancyGuard_init();
+
+        string memory assetSymbol = _asset.readSymbol();
+        if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
+        __ERC20_init(
+            string.concat("LI.FI Earn ", assetSymbol),
+            string.concat("lf", assetSymbol)
+        );
+        __ERC4626_init(IERC20Upgradeable(_asset));
 
         factory = msg.sender;
-        _vaultAsset = _asset;
         underlying = _underlying;
         adapter = _adapter;
         vaultWrapperAdmin = _vaultWrapperAdmin;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
         initData = _initData;
-
-        (bool ok, uint8 dec) = _tryGetAssetDecimals(_asset);
-        _assetDecimals = ok ? dec : 18;
-
-        string memory assetSymbol = _asset.readSymbol();
-        if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
-        _vaultName = string.concat("LI.FI Earn ", assetSymbol);
-        _vaultSymbol = string.concat("lf", assetSymbol);
 
         emit Initialized(
             _asset,
@@ -127,26 +121,16 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
         );
     }
 
-    /// ERC-4626 configuration ///
-
-    /// @notice The ERC20 asset the vault is denominated in.
-    function asset() public view override returns (address) {
-        return _vaultAsset;
+    /// @notice Whether the instance has been initialized.
+    function initialized() external view returns (bool) {
+        return _getInitializedVersion() != 0;
     }
+
+    /// ERC-4626 configuration ///
 
     /// @notice Assets currently redeemable from the yield source, valued by the adapter.
     function totalAssets() public view override returns (uint256) {
         return IYieldAdapter(adapter).totalAssets(underlying, address(this));
-    }
-
-    /// @notice ERC20 name of the vault share token, e.g. "LI.FI Earn USDC".
-    function name() public view override returns (string memory) {
-        return _vaultName;
-    }
-
-    /// @notice ERC20 symbol of the vault share token, e.g. "lfUSDC".
-    function symbol() public view override returns (string memory) {
-        return _vaultSymbol;
     }
 
     /// @notice Fee config getters ///
@@ -169,124 +153,131 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
 
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function deposit(
         uint256 assets,
-        address to
-    ) public override nonReentrant returns (uint256 shares) {
+        address receiver
+    ) public override nonReentrant returns (uint256) {
         _beforeOperation();
 
-        shares = super.deposit(assets, to);
+        return super.deposit(assets, receiver);
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function mint(
         uint256 shares,
-        address to
-    ) public override nonReentrant returns (uint256 assets) {
+        address receiver
+    ) public override nonReentrant returns (uint256) {
         _beforeOperation();
 
-        assets = super.mint(shares, to);
+        return super.mint(shares, receiver);
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function withdraw(
         uint256 assets,
-        address to,
+        address receiver,
         address owner
-    ) public override nonReentrant returns (uint256 shares) {
+    ) public override nonReentrant returns (uint256) {
         _beforeOperation();
 
-        shares = super.withdraw(assets, to, owner);
+        return super.withdraw(assets, receiver, owner);
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function redeem(
         uint256 shares,
-        address to,
+        address receiver,
         address owner
-    ) public override nonReentrant returns (uint256 assets) {
+    ) public override nonReentrant returns (uint256) {
         _beforeOperation();
 
-        assets = super.redeem(shares, to, owner);
+        return super.redeem(shares, receiver, owner);
     }
 
     /// ERC-4626 fee-adjusted previews ///
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function previewDeposit(
         uint256 assets
     ) public view override returns (uint256) {
         return super.previewDeposit(assets - _entryFee(assets));
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function previewMint(
         uint256 shares
-    ) public view override returns (uint256 assets) {
-        assets = super.previewMint(shares);
+    ) public view override returns (uint256) {
+        uint256 assets = super.previewMint(shares);
+
         return assets + _entryFee(assets);
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
         return super.previewWithdraw(assets + _exitFee(assets));
     }
 
-    /// @inheritdoc ERC4626
+    /// @inheritdoc ERC4626Upgradeable
     function previewRedeem(
         uint256 shares
-    ) public view override returns (uint256 assets) {
-        assets = super.previewRedeem(shares);
+    ) public view override returns (uint256) {
+        uint256 assets = super.previewRedeem(shares);
+
         return assets - _exitFee(assets);
     }
 
     /// Internal ///
 
-    /// @dev Number of decimals of the underlying asset, cached at initialization.
-    function _underlyingDecimals() internal view override returns (uint8) {
-        return _assetDecimals;
-    }
+    /// @dev Skims the entry fee, then forwards the remaining deposited assets into the yield
+    ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
+    ///      shares. With fees unimplemented the skim is zero, so the full amount is invested.
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        super._deposit(caller, receiver, assets, shares);
 
-    /// @dev Pins virtual-share inflation protection on regardless of the library default.
-    function _useVirtualShares() internal pure override returns (bool) {
-        return true;
-    }
-
-    /// @dev Skims the entry fee, then forwards the remaining deposited assets into the
-    ///      yield source via the adapter. With fees unimplemented the skim is zero, so the
-    ///      full amount is invested.
-    function _afterDeposit(uint256 assets, uint256) internal override {
         uint256 fee = _entryFee(assets);
         _routeFee(fee);
         _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.deposit,
-                (_vaultAsset, underlying, assets - fee)
+                (asset(), underlying, assets - fee)
             )
         );
     }
 
-    /// @dev Redeems the withdrawal amount plus the exit fee from the yield source, then skims
-    ///      the fee before the remainder is sent to the withdrawer. With fees unimplemented the
-    ///      skim is zero, so exactly the withdrawal amount is redeemed.
-    function _beforeWithdraw(uint256 assets, uint256) internal override {
+    /// @dev Redeems the withdrawal amount plus the exit fee from the yield source and skims the
+    ///      fee, before OZ's `_withdraw` burns shares and transfers the remainder to the
+    ///      receiver. With fees unimplemented the skim is zero, so exactly the withdrawal amount
+    ///      is redeemed.
+    function _withdraw(
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
         uint256 fee = _exitFee(assets);
         _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.withdraw,
-                (_vaultAsset, underlying, assets + fee)
+                (asset(), underlying, assets + fee)
             )
         );
         _routeFee(fee);
+
+        super._withdraw(caller, receiver, owner, assets, shares);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's
-    ///      context (the wrapper holds the asset and the yield-source position). The
-    ///      adapter is governance-approved and stateless, so it cannot touch this
-    ///      wrapper's storage.
+    ///      context (the wrapper holds the asset and the yield-source position). The adapter is
+    ///      governance-approved and stateless, so it cannot touch this wrapper's storage.
     /// @param _data The ABI-encoded adapter call.
     function _routeThroughAdapter(bytes memory _data) private {
         (bool success, bytes memory ret) = adapter.delegatecall(_data);
@@ -307,26 +298,30 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
     ///      engaged, enforces the vault's access mode on the caller, and accrues
     ///      time/yield-based fees so the operation transacts at the post-accrual share price.
-    function _beforeOperation() private {
+    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
+    function _beforeOperation() private view {
         _requireNotPaused();
         _checkAccess(msg.sender);
         _accrueFees();
     }
 
     /// @dev Reverts when the factory-level global pause / circuit breaker is engaged.
-    function _requireNotPaused() private view {
+    ///      Widens to `view` once it reads the factory pause state.
+    function _requireNotPaused() private pure {
         // TODO(pause): revert if the factory circuit breaker is active.
     }
 
     /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
-    function _checkAccess(address /* caller */) private view {
+    ///      Widens to `view` once it reads the access mode from initData.
+    function _checkAccess(address /* caller */) private pure {
         // TODO(access): decode the access mode from initData and authorize the caller.
     }
 
     /// @dev Accrues management (time-based) and performance (high-water-mark) fees by minting
     ///      fee shares to the integrator/LI.FI recipients, routed via _routeFee. Runs before
-    ///      share math so deposits/withdrawals transact post-accrual.
-    function _accrueFees() private {
+    ///      share math so deposits/withdrawals transact post-accrual. Widens to state-mutating
+    ///      once implemented.
+    function _accrueFees() private pure {
         // TODO(fees): mint management + performance fee shares before share math runs.
     }
 
@@ -348,7 +343,8 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
 
     /// @dev Splits a collected fee between the integrator (integratorShareBps) and LI.FI
     ///      (remainder, to the factory-governed lifiFeeRecipient read live) and routes each.
-    function _routeFee(uint256 /* feeAssets */) private {
+    ///      Widens to state-mutating once it performs the transfers.
+    function _routeFee(uint256 /* feeAssets */) private pure {
         // TODO(fees): transfer the integrator share to its recipient, remainder to LI.FI.
     }
 }

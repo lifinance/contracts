@@ -14,6 +14,12 @@
   "lib/openzeppelin-contracts": {
     "rev": "e50c24f5839db17f46991478384bfda14acfb830"
   },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "tag": {
+      "name": "v4.9.2",
+      "rev": "bc95521e34dcd49792065e264a7ad2b5a86f0091"
+    }
+  },
   "lib/safe-tx-cli": {
     "rev": "c8edc3242cc8720c08ce02be0075fb9189d3e560"
   },

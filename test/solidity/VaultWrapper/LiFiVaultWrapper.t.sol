@@ -2,14 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { AlreadyInitialized } from "lifi/Errors/GenericErrors.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
 ///         deposit, used to test delegatecall revert bubbling and the reentrancy guard.
@@ -115,7 +113,7 @@ contract LiFiVaultWrapperTest is Test {
     function testRevert_InitializeTwice() public {
         FeeConfig memory fees;
 
-        vm.expectRevert(AlreadyInitialized.selector);
+        vm.expectRevert("Initializable: contract is already initialized");
 
         wrapper.initialize(
             address(asset),
@@ -311,7 +309,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.startPrank(alice);
         asset.approve(address(w), DEPOSIT);
 
-        vm.expectRevert(ReentrancyGuard.Reentrancy.selector);
+        vm.expectRevert("ReentrancyGuard: reentrant call");
 
         w.deposit(DEPOSIT, alice);
         vm.stopPrank();
