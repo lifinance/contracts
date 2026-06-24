@@ -56,6 +56,15 @@ contract LiFiVaultWrapperTest is Test {
 
     uint256 internal constant DEPOSIT = 1_000e18;
 
+    event Initialized(
+        address indexed asset,
+        address indexed underlying,
+        address indexed adapter,
+        address vaultWrapperAdmin,
+        address factory,
+        uint16 integratorShareBps
+    );
+
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
@@ -76,6 +85,31 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.decimals(), 18);
         assertEq(wrapper.name(), "LI.FI Earn Vault Wrapper");
         assertEq(wrapper.symbol(), "lfVW");
+    }
+
+    function test_InitializeEmitsInitialized() public {
+        LiFiVaultWrapper w = new LiFiVaultWrapper();
+        FeeConfig memory fees;
+
+        vm.expectEmit(true, true, true, true, address(w));
+        emit Initialized(
+            address(asset),
+            address(underlying),
+            address(adapter),
+            vaultAdmin,
+            address(this),
+            8000
+        );
+
+        w.initialize(
+            address(asset),
+            address(underlying),
+            address(adapter),
+            vaultAdmin,
+            8000,
+            fees,
+            ""
+        );
     }
 
     function testRevert_InitializeTwice() public {

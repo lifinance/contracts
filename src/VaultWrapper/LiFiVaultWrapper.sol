@@ -50,6 +50,24 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
+    /// Events ///
+
+    /// @notice Emitted once when the instance is configured.
+    /// @param asset The ERC20 asset the vault is denominated in.
+    /// @param underlying The yield source the wrapper deposits into.
+    /// @param adapter The yield adapter the wrapper routes through.
+    /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
+    /// @param factory The factory that deployed and initialized the instance.
+    /// @param integratorShareBps The integrator's fee share (bps) snapshotted at deploy.
+    event Initialized(
+        address indexed asset,
+        address indexed underlying,
+        address indexed adapter,
+        address vaultWrapperAdmin,
+        address factory,
+        uint16 integratorShareBps
+    );
+
     /// Initialization ///
 
     /// @inheritdoc ILiFiVaultWrapper
@@ -79,6 +97,15 @@ contract LiFiVaultWrapper is ERC4626, ReentrancyGuard, ILiFiVaultWrapper {
 
         (bool ok, uint8 dec) = _tryGetAssetDecimals(_asset);
         _assetDecimals = ok ? dec : 18;
+
+        emit Initialized(
+            _asset,
+            _underlying,
+            _adapter,
+            _vaultWrapperAdmin,
+            msg.sender,
+            _integratorShareBps
+        );
     }
 
     /// ERC-4626 configuration ///
