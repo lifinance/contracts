@@ -26,7 +26,7 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
 ///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
 ///      ERC-4626 virtual-share offset.
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
     ReentrancyGuard,
