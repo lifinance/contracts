@@ -3,9 +3,9 @@ pragma solidity ^0.8.17;
 
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 
-contract DiamondLoupeFacetTest is TestBase {
+contract DiamondLoupeFacetTest is TestBaseLocal {
     DiamondLoupeFacet internal loupe;
 
     bytes4 internal constant IID_IDIAMOND_LOUPE =
@@ -13,7 +13,7 @@ contract DiamondLoupeFacetTest is TestBase {
     bytes4 internal constant IID_IERC165 = 0x01ffc9a7;
 
     function setUp() public {
-        initTestBase();
+        initTestBaseLocal();
         // DiamondLoupeFacet is registered by createDiamond() inside initTestBase()
         loupe = DiamondLoupeFacet(address(diamond));
     }
