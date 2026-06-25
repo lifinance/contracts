@@ -183,9 +183,14 @@ function handleNetwork() {
     # if a facet address is given, remove that facet, otherwise pause the diamond
     if [ -z "$FACET_CONTRACT_NAME"  ]; then
       if [ "$ACTION" == "pause the diamond contract entirely" ]; then
-        # pause the diamond
-        echoDebug "[network: $NETWORK] pausing diamond $DIAMOND_ADDRESS now from wallet $DEPLOYER (requires PRIVATE_KEY_PAUSER_WALLET to be set in .env file)"
-        universalCast "send" "$NETWORK" "production" "$DIAMOND_ADDRESS" "pauseDiamond()" "" "" "$PRIVATE_KEY_PAUSER_WALLET" >/dev/null
+        # Delegate pausing to the frozen break-glass script (the single source of truth for how
+        # we pause). It is intentionally independent of universalCast/sendOrPropose so routing
+        # churn cannot break the pause, and it sends pauseDiamond() DIRECTLY from the pauser EOA
+        # (the old `universalCast "send" ... production` here hit the EXSC-367 Safe-proposal
+        # trap). Restrict it to the single selected network.
+        echoDebug "[network: $NETWORK] delegating pause of diamond $DIAMOND_ADDRESS to script/emergency/emergencyPauseBreakGlass.sh (requires PRIVATE_KEY_PAUSER_WALLET in .env)"
+        ENVIRONMENT="production" NETWORK="$NETWORK" PRIVATE_KEY_PAUSER_WALLET="$PRIVATE_KEY_PAUSER_WALLET" \
+          bash script/emergency/emergencyPauseBreakGlass.sh
       else
         # unpause the diamond
         local CALLDATA=$(cast calldata "unpauseDiamond(address[])" "$BLACKLIST")

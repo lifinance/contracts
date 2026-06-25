@@ -17,6 +17,7 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { TronWeb } from 'tronweb'
 import { encodeFunctionData } from 'viem'
 
 import type { SupportedChain } from '../../common/types'
@@ -41,6 +42,73 @@ import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import { getTronWallet } from './tronUtils.js'
+
+const ERC20_PROXY_ABI = [
+  {
+    name: 'setAuthorizedCaller',
+    type: 'function' as const,
+    inputs: [
+      { name: 'caller', type: 'address' },
+      { name: 'authorized', type: 'boolean' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    name: 'authorizedCallers',
+    type: 'function' as const,
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+  },
+] as const
+
+function isVersionAtLeast(version: string, minimum: string): boolean {
+  const v = version.split('.').map((part) => parseInt(part, 10))
+  const m = minimum.split('.').map((part) => parseInt(part, 10))
+  for (let i = 0; i < 3; i++) {
+    const a = v[i] ?? 0
+    const b = m[i] ?? 0
+    if (a > b) return true
+    if (a < b) return false
+  }
+  return true
+}
+
+async function ensureExecutorAuthorizedOnErc20Proxy(
+  tronWeb: TronWeb,
+  erc20ProxyAddress: string,
+  executorAddress: string,
+  erc20ProxyVersion: string,
+  dryRun: boolean
+): Promise<void> {
+  if (!isVersionAtLeast(erc20ProxyVersion, '1.2.0')) return
+
+  const erc20ProxyBase58 = tronAddressLikeToBase58(tronWeb, erc20ProxyAddress)
+  const executorBase58 = tronAddressLikeToBase58(tronWeb, executorAddress)
+  const contract = tronWeb.contract(ERC20_PROXY_ABI, erc20ProxyBase58)
+
+  const isAuthorized = await contract.authorizedCallers(executorBase58).call()
+  if (isAuthorized) {
+    consola.info('Executor already authorized in ERC20Proxy')
+    return
+  }
+
+  if (dryRun) {
+    consola.info(
+      `[DRY RUN] Would authorize Executor ${executorBase58} on ERC20Proxy ${erc20ProxyBase58}`
+    )
+    return
+  }
+
+  consola.info(
+    `Authorizing Executor ${executorBase58} on ERC20Proxy ${erc20ProxyBase58}...`
+  )
+  const tx = await contract
+    .setAuthorizedCaller(executorBase58, true)
+    .send({ feeLimit: 10_000_000, shouldPollResponse: true })
+  consola.success(`Executor authorized on ERC20Proxy (tx: ${tx})`)
+}
 
 const PERIPHERY_REGISTRY_ABI = [
   {
@@ -318,12 +386,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             const artifact = await loadForgeArtifact('ERC20Proxy')
             const version = await getContractVersion('ERC20Proxy')
 
-            // Constructor: owner address (deployer)
             const ownerHex = tronAddressToHex(tronWeb, networkInfo.address)
-            const constructorArgs = [ownerHex]
+            const constructorArgs = [ownerHex, ZERO_ADDRESS]
 
             consola.info(
               ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
+            )
+            consola.info(
+              ' Executor pre-authorization skipped at deploy (Tron); will authorize after Executor deploy'
             )
             consola.info(`Version: ${version}`)
 
@@ -460,6 +530,27 @@ async function deployAndRegisterPeripheryImpl(options: {
                 result.contractAddress
               )
             }
+          }
+
+          const erc20ProxyAddress =
+            deployedContracts['ERC20Proxy'] ||
+            (await getContractAddress(network, 'ERC20Proxy'))
+          const executorAddress =
+            deployedContracts['Executor'] ||
+            (await getContractAddress(network, 'Executor'))
+          if (
+            erc20ProxyAddress &&
+            executorAddress &&
+            executorAddress !== 'FAILED'
+          ) {
+            const erc20ProxyVersion = await getContractVersion('ERC20Proxy')
+            await ensureExecutorAuthorizedOnErc20Proxy(
+              tronWeb,
+              erc20ProxyAddress,
+              executorAddress,
+              erc20ProxyVersion,
+              dryRun
+            )
           }
 
           if (!dryRun) await sleep(8000)

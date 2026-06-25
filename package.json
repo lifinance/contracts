@@ -110,6 +110,7 @@
     "claude:install": "node script/claude/install.mjs",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",
     "test": "forge test --evm-version 'cancun'",
+    "test:scoped": "bun script/utils/runScopedForgeTests.ts",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
     "test:ts": "bun script/runTypescriptTests.ts",
     "troncast": "bun run script/troncast/index.ts",
