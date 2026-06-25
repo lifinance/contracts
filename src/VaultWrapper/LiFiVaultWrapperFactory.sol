@@ -15,6 +15,8 @@ import { LibClone } from "solady/utils/LibClone.sol";
 /// @notice Deploys per-integrator vault wrapper instances as deterministic beacon
 ///         proxies, gated by a curated underlying allowlist, per-fee-type bounds,
 ///         deploy authorization, and a factory-level global circuit breaker.
+///         This contract does not custody user funds; it only deploys and
+///         configures wrapper instances.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapperFactory is
     TransferrableOwnership,
@@ -96,7 +98,7 @@ contract LiFiVaultWrapperFactory is
     /// @param _beacon        Address of the UpgradeableBeacon holding the wrapper implementation.
     /// @param _owner         Address that will own the factory.
     /// @param _emergencyPauser Address authorized to trigger global pause.
-    /// @param _onboardingManager Address authorized to manage integrator allowlist.
+    /// @param _onboardingManager Address authorized to assign/revoke the deployer for each integrator namespace.
     /// @param _lifiFeeRecipient Recipient of LI.FI's fee share.
     constructor(
         address _beacon,
@@ -124,6 +126,8 @@ contract LiFiVaultWrapperFactory is
     /// Config (owner / timelock) ///
 
     /// @notice Add or remove a yield source from the deploy allowlist.
+    /// @param _underlying The yield source (e.g. an ERC-4626 vault) to toggle.
+    /// @param _allowed    True to allow as a wrapper underlying, false to remove.
     function setUnderlyingAllowed(
         address _underlying,
         bool _allowed
@@ -134,6 +138,8 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Approve or revoke a yield adapter usable in deployments.
+    /// @param _adapter  The yield adapter to toggle.
+    /// @param _approved True to approve the adapter, false to revoke it.
     function setAdapterApproved(
         address _adapter,
         bool _approved
@@ -146,6 +152,9 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Set adjustable min/max bps bounds for a fee type (within the immutable cap).
+    /// @param _feeType The fee type whose bounds are being set.
+    /// @param _minBps  Lowest rate (bps) an instance may set for the fee type.
+    /// @param _maxBps  Highest rate (bps) an instance may set; must not exceed the cap.
     function setFeeBounds(
         FeeType _feeType,
         uint16 _minBps,
@@ -159,6 +168,7 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Set the default integrator fee share (bps) applied to deploys that don't
     ///         override it; LI.FI implicitly receives the remaining (100% - this value).
+    /// @param _integratorBps The integrator's default share (bps); must be <= 100%.
     function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
         if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
         defaultIntegratorShareBps = _integratorBps;
@@ -166,6 +176,7 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Set the recipient of LI.FI's fee share, read live by vault wrappers.
+    /// @param _recipient The address that receives LI.FI's fee share.
     function setLifiFeeRecipient(address _recipient) external onlyOwner {
         if (_recipient == address(0)) revert ZeroAddress();
         lifiFeeRecipient = _recipient;
@@ -173,6 +184,7 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Rotate the emergency pauser role.
+    /// @param _newPauser The new emergency pauser address.
     function setEmergencyPauser(address _newPauser) external onlyOwner {
         if (_newPauser == address(0)) revert ZeroAddress();
         address prev = emergencyPauser;
@@ -181,6 +193,7 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Rotate the onboarding manager role.
+    /// @param _newManager The new onboarding manager address.
     function setOnboardingManager(address _newManager) external onlyOwner {
         if (_newManager == address(0)) revert ZeroAddress();
         address prev = onboardingManager;
@@ -223,7 +236,13 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Deploy a new wrapper instance under an integrator namespace.
     /// @dev Caller must be the onboarding manager, or the deployer assigned to
-    ///      `_params.namespace`.
+    ///      `_params.namespace`. A self-serve deployer (not the onboarding manager)
+    ///      may only set an integrator share at or below `defaultIntegratorShareBps`,
+    ///      so it can give LI.FI more than the default cut but never less; the
+    ///      onboarding manager may set any share up to 100%.
+    ///      Deploys are intentionally allowed while `globalPaused` is set: a new
+    ///      instance is a beacon proxy that reads the same live flag, so it is frozen
+    ///      from birth and poses no deposit risk.
     /// @param _params The deployment parameters.
     /// @return instance The address of the newly deployed vault wrapper.
     function deploy(
@@ -251,6 +270,11 @@ contract LiFiVaultWrapperFactory is
             integratorShareBps = defaultIntegratorShareBps;
         } else if (integratorShareBps > BPS_DENOMINATOR) {
             revert InvalidSplit();
+        } else if (
+            msg.sender != onboardingManager &&
+            integratorShareBps > defaultIntegratorShareBps
+        ) {
+            revert IntegratorShareAboveDefault();
         }
 
         bytes32 salt = _salt(
@@ -293,6 +317,11 @@ contract LiFiVaultWrapperFactory is
     /// Views ///
 
     /// @notice The deterministic address a vault wrapper will have for the given key.
+    /// @param _namespace The integrator namespace that owns the instance.
+    /// @param _adapter The yield adapter the instance routes through.
+    /// @param _underlying The wrapped yield source.
+    /// @param _nonce Caller-supplied disambiguator.
+    /// @return The address the instance will be deployed to for these inputs.
     function predictAddress(
         bytes32 _namespace,
         address _adapter,
@@ -310,11 +339,13 @@ contract LiFiVaultWrapperFactory is
     /// Internal ///
 
     /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
-    /// @dev Identical inputs yield the same address on every chain; the namespace
-    ///      is chain-independent (e.g. "Coinbase"), so address parity holds even
-    ///      when the integrator uses different deployers/admins per chain. `_nonce`
-    ///      disambiguates multiple instances for the same
-    ///      (namespace, adapter, underlying) triple.
+    /// @dev The namespace is chain-independent (e.g. "Coinbase"), so identical inputs
+    ///      yield the same salt on every chain even when the integrator uses different
+    ///      deployers/admins per chain. Cross-chain address parity additionally
+    ///      requires the factory (the CREATE2 deployer) and the beacon (baked into the
+    ///      proxy creation code) to sit at identical addresses on each chain, which is
+    ///      the deterministic-deploy concern of S14 (EXSC-420). `_nonce` disambiguates
+    ///      multiple instances for the same (namespace, adapter, underlying) triple.
     /// @param _namespace The integrator namespace that owns the instance.
     /// @param _adapter The yield adapter the instance routes through.
     /// @param _underlying The wrapped yield source.

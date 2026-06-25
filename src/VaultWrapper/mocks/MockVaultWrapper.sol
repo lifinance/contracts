@@ -13,6 +13,7 @@ import { FeeConfig } from "../LiFiVaultWrapperTypes.sol";
 ///         and records its init args so factory tests can assert clone wiring.
 /// @custom:version 1.0.0
 contract MockVaultWrapper is ERC4626, ILiFiVaultWrapper {
+    /// @notice Thrown when initialize is called more than once on an instance.
     error AlreadyInitialized();
 
     bool public initialized;

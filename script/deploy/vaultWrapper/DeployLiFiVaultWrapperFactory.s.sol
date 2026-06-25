@@ -26,7 +26,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      actions — setAdapterApproved(adapter) and setUnderlyingAllowed(underlying), required
 ///      before any wrapper can be deployed — must be scheduled through the timelock.
 ///      Full DeployScriptBase / CREATE3 / deployment-log integration is S14 (EXSC-420).
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 contract DeployLiFiVaultWrapperFactory is Script {
     /// @notice The dedicated governance delay for the vault wrapper subsystem.
     uint256 internal constant MIN_DELAY = 48 hours;
@@ -37,6 +37,12 @@ contract DeployLiFiVaultWrapperFactory is Script {
     error ZeroOnboardingManager();
     error ZeroLifiFeeRecipient();
 
+    /// @notice Deploys and wires the full vault wrapper system from environment config.
+    /// @return factory The deployed vault wrapper factory.
+    /// @return timelock The dedicated 48h timelock owning the factory and beacon.
+    /// @return beacon The upgradeable beacon holding the wrapper implementation.
+    /// @return impl The mock wrapper implementation (temporary stand-in until S1).
+    /// @return erc4626Adapter The ERC-4626 yield adapter.
     function run()
         public
         returns (

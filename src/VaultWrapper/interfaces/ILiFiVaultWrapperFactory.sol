@@ -91,6 +91,9 @@ interface ILiFiVaultWrapperFactory {
     error InvalidFeeBounds();
     /// @notice Thrown when an integrator fee split exceeds 100% (the bps denominator).
     error InvalidSplit();
+    /// @notice Thrown when a self-serve deployer sets an integrator share above the
+    ///         factory default, which would cut LI.FI's share below its default cut.
+    error IntegratorShareAboveDefault();
     /// @notice Thrown when the underlying is not on the deploy allowlist.
     error UnderlyingNotAllowed();
     /// @notice Thrown when the chosen adapter is not approved.

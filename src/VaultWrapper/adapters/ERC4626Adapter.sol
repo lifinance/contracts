@@ -8,7 +8,8 @@ import { LibAsset } from "../../Libraries/LibAsset.sol";
 /// @title ERC4626Adapter
 /// @author LI.FI (https://li.fi)
 /// @notice Yield adapter for standard ERC-4626 vaults. Derives the underlying's
-///         ERC20 asset via the vault's `asset()` introspection method.
+///         ERC20 asset via the vault's `asset()` introspection method. This
+///         contract does not custody user funds; it is a stateless view helper.
 /// @custom:version 1.0.0
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
