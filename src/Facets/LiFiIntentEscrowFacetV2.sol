@@ -48,11 +48,11 @@ contract LiFiIntentEscrowFacetV2 is
     /// Storage ///
 
     /// @dev LIFI Intent Escrow Input Settler
-    address public immutable LIFI_INTENT_ESCROW_SETTLER;
+    address public immutable LIFI_INTENT_ESCROW_SETTLER_V2;
 
     /// @notice The base for `outputAmountMultiplier` (1e18 = 100%), leaving room to
     ///         scale in both directions including input/output decimal differences.
-    uint256 public constant MULTIPLIER_BASE = 1e18;
+    uint256 internal constant MULTIPLIER_BASE = 1e18;
 
     /// Types ///
 
@@ -93,7 +93,7 @@ contract LiFiIntentEscrowFacetV2 is
     /// @param _inputSettler LIFIIntent Escrow / settlement implementation
     constructor(address _inputSettler) {
         if (LibUtil.isZeroAddress(_inputSettler)) revert InvalidConfig();
-        LIFI_INTENT_ESCROW_SETTLER = _inputSettler;
+        LIFI_INTENT_ESCROW_SETTLER_V2 = _inputSettler;
     }
 
     /// External Methods ///
@@ -212,7 +212,7 @@ contract LiFiIntentEscrowFacetV2 is
         uint256 amount = _bridgeData.minAmount;
         LibAsset.maxApproveERC20(
             IERC20(sendingAsset),
-            address(LIFI_INTENT_ESCROW_SETTLER),
+            address(LIFI_INTENT_ESCROW_SETTLER_V2),
             amount
         );
 
@@ -248,7 +248,7 @@ contract LiFiIntentEscrowFacetV2 is
         inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
         // Make the deposit on behalf of the user
-        IOriginSettler(LIFI_INTENT_ESCROW_SETTLER).open(
+        IOriginSettler(LIFI_INTENT_ESCROW_SETTLER_V2).open(
             StandardOrder({
                 user: _lifiIntentData.depositAndRefundAddress,
                 nonce: _lifiIntentData.nonce,
