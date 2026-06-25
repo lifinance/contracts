@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
+// EXSC-519 CI-after timing fixture — DO NOT MERGE
 pragma solidity ^0.8.17;
 
 /// @title Interface for ERC165
