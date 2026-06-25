@@ -34,9 +34,12 @@ and counter-intuitive against the repo's Diamond-era conventions.
 - The implementation sits behind an OZ `UpgradeableBeacon`, instantiated as
   `UpgradeableBeacon(implementation, initialOwner)` (v5's two-arg constructor —
   set the owner at construction, not via a follow-up `transferOwnership`). This is
-  the locked choice — not a custom beacon. Instances are Solady `LibClone` ERC-1967
-  beacon proxies that re-read the impl every call; per-clone identity is set
+  the locked choice — not a custom beacon. Instances are OZ `BeaconProxy`
+  contracts deployed deterministically via OZ `Create2` (`_proxyInitCode()` is
+  shared by `deploy` and `predictAddress` so the init-code hash matches on both
+  paths); they re-read the impl every call, and per-instance identity is set
   write-once in `initialize` (bytecode-immutable CWIA identity is a later concern).
+  The proxy layer is single-vendor OZ — do not reintroduce Solady `LibClone`.
 - Beacon `upgradeTo` is owner-gated and the owner is the subsystem governance
   (a dedicated 48h timelock). Never add an upgrade path that bypasses it.
 

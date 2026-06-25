@@ -8,7 +8,7 @@ import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaul
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
-import { LibClone } from "solady/utils/LibClone.sol";
+import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
@@ -575,7 +575,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(onboarder);
         factory.deploy(p);
         vm.prank(onboarder);
-        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        vm.expectRevert(Errors.FailedDeployment.selector);
         factory.deploy(p);
     }
 
