@@ -35,6 +35,9 @@
  *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
  *   --rpcUrl         custom RPC URL (uses network default if not provided)
  *   --evmVersion     EVM version to use (london or cancun). Defaults to network setting from networks.json
+ *   --receiptConfirmations  blocks to wait after inclusion (default: 1; use 5 on chains where reorg risk matters)
+ *   --receiptTimeoutMs      max wait per tx in ms (default: 180000 = 3 minutes; on timeout we may use getTransactionReceipt)
+ *   --strictReceiptWait     if set, fail on wait timeout instead of falling back to getTransactionReceipt
  *
  * Environment variables:
  *   PRIVATE_KEY               deployer key for staging
@@ -63,6 +66,7 @@ import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import {
   type Address,
+  type Hash,
   type Log,
   decodeEventLog,
   encodeFunctionData,
@@ -165,6 +169,52 @@ const SAFE_READ_ABI = [
   },
 ] as const
 
+/** Default max wait per deployment tx when --receiptTimeoutMs is omitted (matches viem; slow chains can pass a higher value). */
+const DEFAULT_RECEIPT_TIMEOUT_MS = 180_000 // 3 minutes
+
+/** Wait for receipt; on timeout optionally use latest receipt if tx already succeeded (RPC / confirmation quirks). */
+async function waitForDeployTransactionReceipt(
+  publicClient: any,
+  hash: Hash,
+  opts: {
+    confirmations: number
+    timeoutMs: number
+    acceptOnTimeout: boolean
+  }
+) {
+  try {
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: opts.confirmations,
+      timeout: opts.timeoutMs,
+    })
+    return receipt
+  } catch (err: unknown) {
+    const isTimeout =
+      err instanceof Error &&
+      (err.name === 'WaitForTransactionReceiptTimeoutError' ||
+        err.message.includes('Timed out while waiting for transaction'))
+    if (!isTimeout || !opts.acceptOnTimeout) throw err
+    let lateReceipt: { status: 'success' | 'reverted' } | null | undefined
+    try {
+      lateReceipt = await publicClient.getTransactionReceipt({ hash })
+    } catch {
+      throw err
+    }
+    if (!lateReceipt) throw err
+    if (lateReceipt.status === 'reverted') {
+      consola.error(
+        'Deploy transaction reverted (detected after receipt wait timeout)'
+      )
+      throw new Error('Deploy transaction reverted')
+    }
+    consola.warn(
+      `Receipt wait timed out after ${opts.timeoutMs}ms; continuing with mined receipt (requested ${opts.confirmations} confirmation(s)). Use --strictReceiptWait to fail instead, or verify on explorer.`
+    )
+    return lateReceipt
+  }
+}
+
 // Compare on-chain bytecode vs. expected
 async function compareDeployedBytecode(
   publicClient: any,
@@ -243,6 +293,26 @@ const main = defineCommand({
       description:
         'EVM version to use (london or cancun). Defaults to network setting from networks.json',
       required: false,
+    },
+    receiptConfirmations: {
+      type: 'string',
+      description:
+        'Block confirmations to wait per deployment tx (default: 1). Increase on reorg-sensitive chains.',
+      required: false,
+      default: '1',
+    },
+    receiptTimeoutMs: {
+      type: 'string',
+      description: `Max ms to wait per deployment tx (default: ${DEFAULT_RECEIPT_TIMEOUT_MS})`,
+      required: false,
+      default: String(DEFAULT_RECEIPT_TIMEOUT_MS),
+    },
+    strictReceiptWait: {
+      type: 'boolean',
+      description:
+        'If true, fail on receipt wait timeout instead of falling back to getTransactionReceipt',
+      required: false,
+      default: false,
     },
   },
   async run({ args }) {
@@ -336,6 +406,23 @@ const main = defineCommand({
 
     consola.info(`Using EVM version: ${evmVersion}`)
 
+    const receiptConfirmations = Number(args.receiptConfirmations)
+    if (!Number.isFinite(receiptConfirmations) || receiptConfirmations < 1)
+      throw new Error('--receiptConfirmations must be a number >= 1')
+
+    const receiptTimeoutMs = Number(args.receiptTimeoutMs)
+    if (!Number.isFinite(receiptTimeoutMs) || receiptTimeoutMs < 5_000)
+      throw new Error('--receiptTimeoutMs must be a number >= 5000')
+
+    const receiptWait = {
+      confirmations: receiptConfirmations,
+      timeoutMs: receiptTimeoutMs,
+      acceptOnTimeout: !args.strictReceiptWait,
+    }
+    consola.info(
+      `Receipt wait: confirmations=${receiptConfirmations}, timeoutMs=${receiptTimeoutMs}, fallbackOnTimeout=${receiptWait.acceptOnTimeout}`
+    )
+
     // attempt safe-deployments lookup
     const chainId = String(await publicClient.getChainId())
     const isL2 = Boolean((publicClient as any).chain?.contracts?.l2OutputOracle)
@@ -410,7 +497,8 @@ const main = defineCommand({
       const deployed = await deployLocalContracts(
         publicClient,
         walletClient,
-        evmVersion
+        evmVersion,
+        receiptWait
       )
       singletonAddr = deployed.implAddr
       factoryAddr = deployed.facAddr
@@ -431,6 +519,7 @@ const main = defineCommand({
       paymentToken,
       payment,
       paymentReceiver,
+      receiptWait,
     })
 
     // verify on-chain owners & threshold
@@ -521,7 +610,12 @@ runMain(main)
 async function deployLocalContracts(
   publicClient: any,
   walletClient: any,
-  evmVersion: EVMVersion
+  evmVersion: EVMVersion,
+  receiptWait: {
+    confirmations: number
+    timeoutMs: number
+    acceptOnTimeout: boolean
+  }
 ) {
   if (evmVersion !== 'london' && evmVersion !== 'cancun') {
     throw new Error(
@@ -580,10 +674,11 @@ async function deployLocalContracts(
     bytecode: SAFE_BYTECODE,
     gas: safeGasEstimate,
   })
-  const implRcpt = await publicClient.waitForTransactionReceipt({
-    hash: implTx,
-    confirmations: 5,
-  })
+  const implRcpt = await waitForDeployTransactionReceipt(
+    publicClient,
+    implTx,
+    receiptWait
+  )
   if (!implRcpt.contractAddress)
     throw new Error('Contract address not found in receipt')
   const implAddr = implRcpt.contractAddress
@@ -610,10 +705,11 @@ async function deployLocalContracts(
     bytecode: FACTORY_BYTECODE,
     gas: factoryGasEstimate,
   })
-  const facRcpt = await publicClient.waitForTransactionReceipt({
-    hash: facTx,
-    confirmations: 5,
-  })
+  const facRcpt = await waitForDeployTransactionReceipt(
+    publicClient,
+    facTx,
+    receiptWait
+  )
   if (!facRcpt.contractAddress)
     throw new Error('Contract address not found in receipt')
   const facAddr = facRcpt.contractAddress
@@ -642,6 +738,11 @@ async function createSafeProxy(params: {
   paymentToken: Address
   payment: bigint
   paymentReceiver: Address
+  receiptWait: {
+    confirmations: number
+    timeoutMs: number
+    acceptOnTimeout: boolean
+  }
 }) {
   const {
     publicClient,
@@ -655,6 +756,7 @@ async function createSafeProxy(params: {
     paymentToken,
     payment,
     paymentReceiver,
+    receiptWait,
   } = params
 
   // build initializer calldata
@@ -689,10 +791,11 @@ async function createSafeProxy(params: {
     })
 
     consola.info(`Transaction submitted: ${txHash}`)
-    const rcpt = await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-      confirmations: 5,
-    })
+    const rcpt = await waitForDeployTransactionReceipt(
+      publicClient,
+      txHash,
+      receiptWait
+    )
 
     if (rcpt.status === 'reverted') {
       consola.error('❌ Proxy creation transaction reverted')
