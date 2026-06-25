@@ -24,6 +24,14 @@ alwaysApply: true
 - Do not move logic across layers without clear architectural reason.
 - Delegate complex logic to libraries (`LibAsset`, `LibSwap`, `LibAllowList`, `SwapperV2`, `Validatable`) and helper contracts.
 
+## Vault Wrapper Subsystem ([CONV:ARCH-VAULTWRAPPER])
+
+- This repo hosts **two** products: the **Diamond** (EIP-2535 bridge/swap aggregation, described above) and the **LI.FI Earn Vault Wrapper**, a separate product under top-level `src/VaultWrapper/`.
+- The Vault Wrapper is **standalone** — not a facet, not periphery, not called by the Diamond, not governed by Diamond patterns (no `diamondCut`, no shared selector/storage layout). Do **not** assume facet/periphery/Diamond conventions apply to it.
+- It wraps an underlying yield source (ERC-4626 vault, Aave market, …) in a per-integrator ERC-4626 vault that adds fee-taking split between the integrator and LI.FI; a factory deploys instances as deterministic beacon proxies.
+- It has its **own** governance (owner → dedicated 48h timelock, emergency pauser, onboarding manager); `[CONV:ARCH-GOVERNANCE]` applies in full.
+- Subsystem-specific constraints live in the scoped rule that activates on `src/VaultWrapper/**` and the vault-wrapper deploy scripts.
+
 ## Governance and Security ([CONV:ARCH-GOVERNANCE])
 
 - Safe multisigs and timelock controllers are mandatory security mechanisms that cannot be bypassed or weakened.
