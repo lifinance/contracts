@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Prints a stable SHA-256 of all pinned fork block numbers in test files.
 # Used as a GitHub Actions cache key segment for ~/.foundry/cache/rpc.
 #
@@ -15,7 +15,7 @@ cd "$ROOT"
 
 TESTBASE="test/solidity/utils/TestBase.sol"
 DEFAULT_BLOCK="$(grep -oE 'DEFAULT_BLOCK_NUMBER_MAINNET = [0-9]+' "$TESTBASE" 2>/dev/null | grep -oE '[0-9]+$' || true)"
-if [ -z "$DEFAULT_BLOCK" ]; then
+if [[ -z "$DEFAULT_BLOCK" ]]; then
   echo "::error::could not read DEFAULT_BLOCK_NUMBER_MAINNET from $TESTBASE" >&2
   exit 1
 fi
