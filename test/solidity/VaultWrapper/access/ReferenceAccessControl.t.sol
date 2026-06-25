@@ -157,6 +157,70 @@ contract ReferenceAccessControlTest is Test {
         assertTrue(access.isDenied(bob));
     }
 
+    function test_BatchSettersAreNoOpForEmptyArray() public {
+        address[] memory empty = new address[](0);
+
+        vm.startPrank(owner);
+        access.setAllowlistedBatch(empty, true);
+        access.setDenylistedBatch(empty, true);
+        vm.stopPrank();
+
+        assertFalse(access.allowlisted(alice));
+        assertFalse(access.denylisted(alice));
+    }
+
+    function test_BatchSettersEmitPerElementEvents() public {
+        address[] memory accounts = new address[](2);
+        accounts[0] = alice;
+        accounts[1] = bob;
+
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistedSet(alice, true);
+        vm.expectEmit(true, true, true, true);
+        emit AllowlistedSet(bob, true);
+
+        vm.prank(owner);
+        access.setAllowlistedBatch(accounts, true);
+    }
+
+    /// Toggle-off direction ///
+
+    function test_RemovingFromAllowlistRegatesAccount() public {
+        vm.startPrank(owner);
+        access.setAllowlistEnabled(true);
+        access.setAllowlisted(alice, true);
+        assertTrue(access.isAllowed(alice));
+
+        access.setAllowlisted(alice, false);
+        vm.stopPrank();
+
+        assertFalse(access.allowlisted(alice));
+        assertFalse(access.isAllowed(alice));
+    }
+
+    function test_RemovingFromDenylistRestoresAllowance() public {
+        vm.startPrank(owner);
+        access.setDenylisted(alice, true);
+        assertTrue(access.isDenied(alice));
+
+        access.setDenylisted(alice, false);
+        vm.stopPrank();
+
+        assertFalse(access.isDenied(alice));
+        assertTrue(access.isAllowed(alice));
+    }
+
+    function test_DisablingAllowlistReopensGatedAccount() public {
+        vm.startPrank(owner);
+        access.setAllowlistEnabled(true);
+        assertFalse(access.isAllowed(bob));
+
+        access.setAllowlistEnabled(false);
+        vm.stopPrank();
+
+        assertTrue(access.isAllowed(bob));
+    }
+
     /// Events ///
 
     function test_SettersEmitEvents() public {
@@ -186,24 +250,48 @@ contract ReferenceAccessControlTest is Test {
     function testRevert_NonOwnerCannotSetAllowlisted() public {
         vm.prank(mallory);
         vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
         access.setAllowlisted(alice, true);
+    }
+
+    function testRevert_NonOwnerCannotSetAllowlistedBatch() public {
+        address[] memory accounts = new address[](1);
+        accounts[0] = alice;
+
+        vm.prank(mallory);
+        vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
+        access.setAllowlistedBatch(accounts, true);
     }
 
     function testRevert_NonOwnerCannotSetDenylisted() public {
         vm.prank(mallory);
         vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
         access.setDenylisted(alice, true);
+    }
+
+    function testRevert_NonOwnerCannotSetDenylistedBatch() public {
+        address[] memory accounts = new address[](1);
+        accounts[0] = alice;
+
+        vm.prank(mallory);
+        vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
+        access.setDenylistedBatch(accounts, true);
     }
 
     function testRevert_NonOwnerCannotSetAllowlistEnabled() public {
         vm.prank(mallory);
         vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
         access.setAllowlistEnabled(true);
     }
 
     function testRevert_NonOwnerCannotSetSanctionsOracle() public {
         vm.prank(mallory);
         vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+
         access.setSanctionsOracle(address(oracle));
     }
 }
