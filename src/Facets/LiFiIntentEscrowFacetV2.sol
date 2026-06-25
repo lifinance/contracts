@@ -28,6 +28,10 @@ contract LiFiIntentEscrowFacetV2 is
     Validatable,
     LiFiData
 {
+    /// @notice Validates bridge data for LIFIIntent escrow deposits.
+    /// @dev Does not enforce a same-network guard because same-chain
+    ///      intents are supported.
+    /// @param _bridgeData The core information needed for bridging
     modifier validateBridgeDataLiFiIntentEscrowV2(
         ILiFi.BridgeData memory _bridgeData
     ) {

@@ -105,6 +105,8 @@ Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter carries both operational and analytics data. Fields like `minAmount`, `sendingAssetId`, `receiver`, `hasSourceSwaps`, and `hasDestinationCall` directly control deposits, validation, and output amount calculation. The remaining fields (`transactionId`, `bridge`, `destinationChainId`, etc.) are used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
+This facet validates `BridgeData` with a custom modifier (`validateBridgeDataLiFiIntentEscrowV2`) rather than the shared `Validatable.validateBridgeData`. Validation is limited to enforcing a non-zero `receiver` and a non-zero `minAmount`; the same-network check (`destinationChainId == block.chainid`, which reverts with `CannotBridgeToSameNetwork` in the shared modifier) is intentionally not applied because same-chain intents are supported.
+
 ## Getting Sample Calls to interact with the Facet
 
 In the following some sample calls are shown that allow you to retrieve a populated transaction that can be sent to our contract via your wallet.
