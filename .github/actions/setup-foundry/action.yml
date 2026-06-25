@@ -57,25 +57,21 @@ runs:
         version: ${{ steps.pin.outputs.version }}
 
     - name: Cache forge build artifacts (cache/, out/)
-      # Key on every input that influences compilation. A cache miss falls back to
-      # a clean build with no behavior change.
-      #
-      # The key is namespaced per workflow (github.workflow). actions/cache is
-      # first-writer-wins and never overwrites an existing key on a hit, so a
-      # SHARED key let any job that saved a partial out/ poison every other
-      # workflow: the stale entry was restored forever and forced a full
-      # recompile despite a "cache hit". Namespacing makes each workflow own a
-      # cache it always populates with a complete out/ from its own build/test.
-      # cache-key-suffix further splits workflows that build more than one scope
-      # in parallel (matrix shards with different --match-path globs); without it
-      # those shards would re-introduce first-writer-wins poisoning within the
-      # one workflow namespace. The vN prefix is a manual eviction lever — bump
-      # it to discard all existing entries at once.
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
           cache
           out
+        # Key on every input that influences compilation; a miss falls back to a
+        # clean build with no behavior change. Namespaced per workflow
+        # (github.workflow): actions/cache is first-writer-wins and never
+        # overwrites an existing key on a hit, so a SHARED key let any job that
+        # saved a partial out/ poison every other workflow — the stale entry was
+        # restored forever and forced a full recompile despite a "cache hit".
+        # cache-key-suffix further splits a workflow that builds more than one
+        # scope in parallel (matrix shards with different --match-path globs).
+        # The vN prefix is a manual eviction lever — bump it to discard all
+        # existing entries at once.
         key: forge-build-v2-${{ github.workflow }}-${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml', 'remappings.txt', 'src/**', 'test/**', 'lib/**') }}
         restore-keys: |
           forge-build-v2-${{ github.workflow }}-${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ steps.pin.outputs.version }}-
