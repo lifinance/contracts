@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.17;
 
-import { DSTest } from "ds-test/test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { TestAMM } from "../utils/TestAMM.sol";
@@ -10,6 +9,7 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { UniswapV2Router02 } from "../utils/Interfaces.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 // Stub Vault Contract
 contract Vault {
@@ -57,9 +57,7 @@ contract MockGateway {
     }
 }
 
-contract ExecutorTest is DSTest {
-    // solhint-disable immutable-vars-naming
-    Vm internal immutable vm = Vm(HEVM_ADDRESS);
+contract ExecutorTest is Test {
     Executor internal executor;
     TestAMM internal amm;
     Vault internal vault;
@@ -78,10 +76,9 @@ contract ExecutorTest is DSTest {
 
     function setUp() public {
         gw = new MockGateway();
-        erc20Proxy = new ERC20Proxy(address(this));
-        executor = new Executor(address(erc20Proxy), address(this));
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), address(this));
         vm.makePersistent(address(executor));
-        erc20Proxy.setAuthorizedCaller(address(executor), true);
         amm = new TestAMM();
         vault = new Vault();
         setter = new Setter();
@@ -89,7 +86,9 @@ contract ExecutorTest is DSTest {
 
     function fork() internal {
         string memory rpcUrl = vm.envString("ETH_NODE_URI_MAINNET");
-        uint256 blockNumber = 14847528;
+        // Mirrors TestBase.DEFAULT_BLOCK_NUMBER_MAINNET; kept as a literal because
+        // ExecutorTest extends Test (not TestBase) and cannot reference the constant.
+        uint256 blockNumber = 15588208;
         vm.createSelectFork(rpcUrl, blockNumber);
     }
 

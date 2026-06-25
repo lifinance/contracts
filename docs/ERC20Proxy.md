@@ -27,6 +27,19 @@ function transferFrom(
 )
 ```
 
+### Deployment
+
+The Executor is deployed *after* the ERC20Proxy (the Executor's constructor needs the proxy
+address), but its CREATE3 address is deterministic and known beforehand. New deployments
+(v1.2.0+) therefore pass the predicted Executor address as `_executorAddress` in the constructor,
+authorizing it at construction time. This keeps `refundWallet` as owner and removes the need for a
+post-deploy `setAuthorizedCaller` transaction — which is `onlyOwner` and so cannot be sent by the
+deploy wallet.
+
+```solidity
+constructor(address _owner, address _executorAddress)
+```
+
 The following utility method can be called by the owner of the contract to set which contracts are
 authorized to call the `transferFrom` method
 

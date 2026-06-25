@@ -11,12 +11,17 @@ paths:
 
 - Tests under `test/solidity/`, mirroring `src/`.
 - Require `setUp()`; mirror `src/` layout; call `initTestBase()` when inheriting `TestBase` directly or indirectly; label actors with `vm.label`.
+- When tests do not need mainnet state, inherit `TestBaseLocal` and call `initTestBaseLocal()` instead of `initTestBase()`.
 - For facet tests, inherit from `TestBaseFacet` rather than `TestBase`, since standard facet functions need to be overridden.
 - Import ordering: system libraries first (e.g., `forge-std`, `ds-test`), then project files (e.g., `lifi/`, `test/`).
 
 ## Test Naming
 
-- Function names: `test_` (success), `testRevert_` (failure), `testBase_` (base).
+- Function names: `test_` (success), `testRevert_` (failure — **required** for any test that calls `vm.expectRevert`), `testBase_` (base).
+- Segments after the prefix must be PascalCase (e.g. `test_SucceedsWhenSwappingExactInput`).
+- No underscores within a segment — the only underscore is the one after the prefix.
+- Name the user- or protocol-meaningful case first (asset, chain, outcome) rather than echoing implementation details. Prefer `testRevert_NativeTransferFailed` over `testRevert_FailsIfExternalCallFails`.
+- When editing a test file, align any ambiguous or inconsistently-named existing tests to this convention.
 
 ## Test Structure and Assertions
 

@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xdEb77eE63B5371eA04489aC02691b998A36C20AE": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0x3332b646FB214D58A692599c82CB14d9224bce64": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0xe6280bE781f7D02A8aE756849aec1118683A93B0": {
         "Name": "AccessManagerFacet",
@@ -45,13 +45,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xB7107e2C31fBc7bCBe2CAB6906E5075Bf7cBf393": {
-        "Name": "RelayFacet",
+      "0x36d7709C1AC38365cBE04374C929DC9173d84A83": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x7667CB57CA47f7F69761113894a4dd48BEe35DFd": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
+      "0xc6299f6b43a7A20a18Ef0A595e62C09fdd7AD5e3": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.1.2"
       },
       "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
         "Name": "GasZipFacet",
@@ -64,18 +64,6 @@
       "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
-      },
-      "0x3332b646FB214D58A692599c82CB14d9224bce64": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0x36d7709C1AC38365cBE04374C929DC9173d84A83": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x87686a8503cEac1219d82CFA02b13659333762Cb": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
       }
     },
     "Periphery": {
@@ -84,8 +72,9 @@
       "FeeCollector": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
       "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
       "GasZipPeriphery": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
+      "LidoWrapper": "",
+      "OutputValidator": "0x70DF6cF7943416c76A7a10d47bf0901cFA28B418",
       "Patcher": "",
       "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",
       "ReceiverAcrossV3": "",

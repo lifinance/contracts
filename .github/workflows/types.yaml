@@ -1,16 +1,41 @@
+# Types Bindings
+# - Generates ABI + TypeScript bindings and publishes to lifinance/lifi-contract-types
+# - On PRs: runs only when the `requires-types` label is present (assignRequiresTypesLabel.yml
+#   auto-adds it for ABI-relevant path changes; add the label manually for edge cases)
+# - On push to main: always runs (production type release)
+# - workflow_dispatch: manual trigger
+# - Known limitation: a PR synchronize event may skip until assignRequiresTypesLabel adds the
+#   label and re-triggers this workflow via `labeled`
+
 name: Types Bindings
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
   push:
+    branches:
+      - main
+  workflow_dispatch:
 
-permissions:
-  contents: write # Needed to push new tags
+# Default-deny at the workflow level; grant only what generate-tag needs at the job level.
+permissions: {}
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
 jobs:
   generate-tag:
+    permissions:
+      contents: read # required to fetch repository contents (tags are pushed to lifi-contract-types via SSH key, not GITHUB_TOKEN)
+      pull-requests: read # required to read PR labels when gating the job
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.draft == false &&
+         contains(github.event.pull_request.labels.*.name, 'requires-types'))
+      }}
     runs-on: ubuntu-latest
 
     steps:
@@ -30,11 +55,13 @@ jobs:
 
       # Step 4: Setup Bun
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
 
       # Step 5: Install dev dependencies
       - name: Install dev dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # Step 6: Generate ABI from contracts
       - name: Generate ABI
@@ -114,7 +141,7 @@ jobs:
         env:
           LATEST_TAG: ${{ env.LATEST_TAG }}
           BRANCH_NAME: ${{ env.BRANCH_NAME }}
-          MESSAGE: ${{ github.event.head_commit.message }}
+          MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || 'workflow dispatch' }}
         id: bump_version
         run: |
           # Remove leading "v" from LATEST_TAG for semver parsing
@@ -164,7 +191,7 @@ jobs:
         env:
           NEW_VERSION: ${{ env.NEW_VERSION }}
           BRANCH_NAME: ${{ env.BRANCH_NAME }}
-          MESSAGE: ${{ github.event.head_commit.message }}
+          MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || 'workflow dispatch' }}
         run: |
           cd lifi-contract-types
           TMP=$(mktemp)

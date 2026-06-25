@@ -2,80 +2,70 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { {{titleCase name}}Facet } from "lifi/Facets/{{titleCase name}}Facet.sol";
+import { {{properCase name}}Facet } from "lifi/Facets/{{properCase name}}Facet.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
-// Stub {{titleCase name}}Facet Contract
-contract Test{{titleCase name}}Facet is {{titleCase name}}Facet {
-    constructor(
-        address _example
-    ) {{titleCase name}}Facet(_example) {}
-
-    function addToWhitelist(address _contractAddress) external {
-        LibAllowList.addAllowedContract(_contractAddress);
-    }
-
-    function setFunctionWhitelistBySelector(bytes4 _selector) external {
-        LibAllowList.addAllowedSelector(_selector);
-    }
+// Stub {{properCase name}}Facet Contract
+contract Test{{properCase name}}Facet is {{properCase name}}Facet, TestWhitelistManagerBase {
+    constructor(address _example) {{properCase name}}Facet(_example) {}
 }
 
-contract {{titleCase name}}FacetTest is TestBaseFacet {
-    {{titleCase name}}Facet.{{titleCase name}}Data internal valid{{titleCase name}}Data;
-    Test{{titleCase name}}Facet internal {{camelCase name}}Facet;
-    address internal EXAMPLE_PARAM = address(0xb33f);
+contract {{properCase name}}FacetTest is TestBaseFacet {
+    address internal constant EXAMPLE_PARAM = address(0xb33f);
 
+    {{properCase name}}Facet.{{properCase name}}Data internal valid{{properCase name}}Data;
+    Test{{properCase name}}Facet internal {{camelCase name}}Facet;
 
     function setUp() public {
         customBlockNumberForForking = 17130542;
         initTestBase();
 
-        address[] memory EXAMPLE_ALLOWED_TOKENS = new address[](2);
-        EXAMPLE_ALLOWED_TOKENS[0] = address(1);
-        EXAMPLE_ALLOWED_TOKENS[1] = address(2);
-
-        {{camelCase name}}Facet = new Test{{titleCase name}}Facet(EXAMPLE_PARAM);
-        {{camelCase name}}Facet.init{{titleCase name}}(EXAMPLE_ALLOWED_TOKENS);
+        {{camelCase name}}Facet = new Test{{properCase name}}Facet(EXAMPLE_PARAM);
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}.selector;
+        functionSelectors[0] = {{camelCase name}}Facet.startBridgeTokensVia{{properCase name}}.selector;
         functionSelectors[1] = {{camelCase name}}Facet
-            .swapAndStartBridgeTokensVia{{titleCase name}}
+            .swapAndStartBridgeTokensVia{{properCase name}}
             .selector;
-        functionSelectors[2] = {{camelCase name}}Facet.addToWhitelist.selector;
+        functionSelectors[2] = {{camelCase name}}Facet.addAllowedContractSelector.selector;
         functionSelectors[3] = {{camelCase name}}Facet
-            .setFunctionWhitelistBySelector
+            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address({{camelCase name}}Facet), functionSelectors);
-        {{camelCase name}}Facet = Test{{titleCase name}}Facet(address(diamond));
-        {{camelCase name}}Facet.addToWhitelist(ADDRESS_UNISWAP);
-        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
+        {{camelCase name}}Facet = Test{{properCase name}}Facet(address(diamond));
+
+        // whitelist uniswap dex with function selectors
+        {{camelCase name}}Facet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapExactTokensForTokens.selector
         );
-        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
+        {{camelCase name}}Facet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapTokensForExactETH.selector
         );
-        {{camelCase name}}Facet.setFunctionWhitelistBySelector(
+        {{camelCase name}}Facet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
             uniswap.swapETHForExactTokens.selector
         );
 
-        setFacetAddressInTestBase(address({{camelCase name}}Facet), "{{titleCase name}}Facet");
+        setFacetAddressInTestBase(address({{camelCase name}}Facet), "{{properCase name}}Facet");
 
         // adjust bridgeData
         bridgeData.bridge = "{{camelCase name}}";
         bridgeData.destinationChainId = 137;
 
-        // produce valid {{titleCase name}}Data
-        valid{{titleCase name}}Data = {{titleCase name}}Facet.{{titleCase name}}Data({
-            exampleParam: "foo bar baz"
-        });
+        // produce valid {{properCase name}}Data
+        valid{{properCase name}}Data = {{properCase name}}Facet.{{properCase name}}Data({ exampleParam: "foo bar baz" });
     }
 
     // All facet test files inherit from `utils/TestBaseFacet.sol` and require the following method overrides:
     // - function initiateBridgeTxWithFacet(bool isNative)
     // - function initiateSwapAndBridgeTxWithFacet(bool isNative)
     //
-    // These methods are used to run the following tests which must pass:
+    // These methods are used to run the following tests which must pass
+    // (note: until _startBridge contains actual bridging logic that consumes
+    // the native amount, testBase_CanBridgeNativeTokens will fail because the
+    // unused msg.value is refunded by refundExcessNative):
     // - testBase_CanBridgeNativeTokens()
     // - testBase_CanBridgeTokens()
     // - testBase_CanBridgeTokens_fuzzed(uint256)
@@ -91,28 +81,27 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
     // - testBase_Revert_SwapAndBridgeToSameChainId()
     // - testBase_Revert_SwapAndBridgeWithInvalidAmount()
     // - testBase_Revert_SwapAndBridgeWithInvalidSwapData()
-    // 
+    //
     // In some cases it doesn't make sense to have all tests. For example the bridge may not support native tokens.
-    // In that case you can override the test method and leave it empty. For example:
-    // 
+    // In that case you can override the test method, leave it empty and add a comment explaining why it is
+    // intentionally skipped. For example:
+    //
     // function testBase_CanBridgeNativeTokens() public override {
     //     // facet does not support bridging of native assets
     // }
-    // 
+    //
     // function testBase_CanSwapAndBridgeNativeTokens() public override {
     //     // facet does not support bridging of native assets
     // }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
-            {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}{
-                value: bridgeData.minAmount
-            }(bridgeData, valid{{titleCase name}}Data);
-        } else {
-            {{camelCase name}}Facet.startBridgeTokensVia{{titleCase name}}(
+            {{camelCase name}}Facet.startBridgeTokensVia{{properCase name}}{ value: bridgeData.minAmount }(
                 bridgeData,
-                valid{{titleCase name}}Data
+                valid{{properCase name}}Data
             );
+        } else {
+            {{camelCase name}}Facet.startBridgeTokensVia{{properCase name}}(bridgeData, valid{{properCase name}}Data);
         }
     }
 
@@ -120,14 +109,14 @@ contract {{titleCase name}}FacetTest is TestBaseFacet {
         bool isNative
     ) internal override {
         if (isNative) {
-            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}{
+            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{properCase name}}{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, valid{{titleCase name}}Data);
+            }(bridgeData, swapData, valid{{properCase name}}Data);
         } else {
-            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{titleCase name}}(
+            {{camelCase name}}Facet.swapAndStartBridgeTokensVia{{properCase name}}(
                 bridgeData,
                 swapData,
-                valid{{titleCase name}}Data
+                valid{{properCase name}}Data
             );
         }
     }

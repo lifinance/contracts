@@ -15,6 +15,12 @@ export type TTronWalletName = keyof TGlobalConfig['tronWallets']
 
 export type SupportedChain = keyof typeof networks
 
+/** Tron network keys — hardcoded because they are never in networks.json (Tron is non-EVM). */
+export type TronNetworkKey = 'tron' | 'tronshasta'
+
+/** Any network key accepted by deployment scripts: EVM chains from config plus Tron. */
+export type NetworkKey = SupportedChain | TronNetworkKey
+
 type NetworkRow = (typeof networks)[keyof typeof networks]
 
 /**
@@ -179,8 +185,13 @@ export interface IChainExecutionParams {
 export interface IChainExecutionResult {
   /** Transaction hash (always 0x-prefixed hex). */
   hash: Hex
-  /** On-chain receipt, if the chain supports synchronous confirmation. */
-  receipt?: TransactionReceipt
+  /**
+   * Normalized on-chain outcome once confirmed. `undefined` means the outcome
+   * is still unknown (EVM receipt poll timed out) — the caller leaves the row
+   * `submitted` for reconciliation to resolve. Tron has no reconciliation, so
+   * its executor resolves this synchronously before returning.
+   */
+  status?: 'success' | 'reverted'
   /** Human-readable explorer URL for CLI display (e.g. TronScan). */
   explorerUrl?: string
   /** Formatted hash for CLI display (e.g. Tron strips 0x prefix). Falls back to `hash`. */
@@ -224,8 +235,10 @@ export interface IChainSimulateResult {
 /** Options for proposing a Safe transaction (EVM). */
 export interface IProposeToSafeOptions {
   network: string
-  to: string
-  calldata: Hex
+  /** Target address, or one address per call when proposing multiple calls. */
+  to: string | string[]
+  /** Calldata, or one calldata per call (parallel to `to`). Multiple calls require `timelock`. */
+  calldata: Hex | Hex[]
   timelock?: boolean
   dryRun?: boolean
   privateKey?: string
@@ -236,6 +249,7 @@ export interface IProposeToSafeOptions {
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
+  nonce?: bigint
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */

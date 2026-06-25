@@ -118,6 +118,13 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 
 Short imperative title (≤70 chars). Match existing commit style in `git log`.
 
+**Revert PRs**: the title must start with `Revert` or contain `[Revert]`.
+`versionControlAndAuditCheck.yml` uses the title to exempt revert PRs from the
+audit-commit-hash check (the audited commit lives in the reverted PR's history,
+never in the revert PR's commit list) — a non-conforming title (e.g.
+`fix: undo facet change`) blocks the merge of a genuine revert that touches
+audited contracts.
+
 ### 7. Run `/pr-ready`
 
 Run this **before** the test suite. `/pr-ready` (local CodeRabbit) can land
@@ -147,7 +154,7 @@ The one gap pre-commit deliberately leaves is **tests** (`forge build --skip tes
 `bun test:ts`). Per `.agents/rules/099-finish.md`, run them now — against the
 post-`/pr-ready` HEAD so any auto-fix commits are validated:
 
-- **Solidity changes**: `forge test` (or `forge test --match-path` if scope is clear).
+- **Solidity changes**: `bun test:scoped -- <path-or-match>` during iteration; full `bun test` (or `forge test --match-path` if scope is clear) before opening a PR.
 - **TypeScript / JS changes**: `bun test:ts`.
 - **Docs / markdown / skill files only**: skip; note `N/A` in the summary.
 

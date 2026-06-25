@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x56b8A6E7a8f058f74C42d26936F335fC65fe3962": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x061517Ae0a172C760AF6B4D50f3Da836bA55Df1b": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xa9347E8f6Fa500D27b0E3482525dA6b95bED1684": {
         "Name": "AccessManagerFacet",
@@ -68,10 +68,6 @@
       "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0x061517Ae0a172C760AF6B4D50f3Da836bA55Df1b": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -82,6 +78,7 @@
       "GasZipPeriphery": "0xf64532100038D383802F6f60C8928606B1B09Be1",
       "LiFiDEXAggregator": "0x642eeb39B287bB7809043aaE89bcfac2F409737D",
       "LidoWrapper": "",
+      "OutputValidator": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
       "Patcher": "",
       "Permit2Proxy": "0xEC32b79Ce6c4F80160029BDb26CB4a13bB03999A",
       "ReceiverAcrossV3": "0x27fCef74f7d1aC15fc6c856FC2560eFc2A85B421",
