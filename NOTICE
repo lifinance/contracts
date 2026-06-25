@@ -21,14 +21,14 @@ Authors include (per upstream): Trail of Bits, Maciej Domanski,
 Omar Inuwa, Axel Mierczuk, and other contributors. See the upstream
 repository's commit history for the complete authorship record.
 
-Plugins used by this repository's /lifi-pr-review skill:
+Plugins used by this repository's /lifi-security-review skill:
   - audit-context-building
   - differential-review
   - fp-check
   - semgrep-rule-creator
 
 Modifications: none. The vendored content is included verbatim at the
-pinned commit. LI.FI's wrapper skill at .agents/commands/lifi-pr-review.md
+pinned commit. LI.FI's wrapper skill at .agents/commands/lifi-security-review.md
 invokes these plugins as external dependencies; it is not a derivative
 work of any individual plugin's documentation. Any future modification
 of files inside .claude/vendor/tob-skills/ would create a derivative

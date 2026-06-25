@@ -4,14 +4,14 @@
 #   Stage 2 consumes — it is an INPUT to the AI triage, NOT a standalone Code
 #   Scanning result (raw, untriaged tool output is exactly the noise Stage 2
 #   filters). Only Stage 2's curated.sarif reaches Code Scanning.
-# - Stage 2: the lifi-pr-review job depends on Stage 1, downloads the
-#   SARIF artifacts, and invokes the /lifi-pr-review skill via
+# - Stage 2: the lifi-security-review job depends on Stage 1, downloads the
+#   SARIF artifacts, and invokes the /lifi-security-review skill via
 #   anthropics/claude-code-action. The skill orchestrates Trail of Bits'
 #   open-source skills — differential-review (risk-first diff review) and
 #   fp-check (per-finding 6-gate verification) — over the PR diff and the
 #   Stage 1 SARIF, using audit/knowledge/ as cached context. Output:
 #   curated.sarif + summary.md.
-# - Stage 3: the lifi-pr-review job's final steps upload curated.sarif
+# - Stage 3: the lifi-security-review job's final steps upload curated.sarif
 #   to Code Scanning (category "ai-triage") and post/update a sticky PR comment
 #   with the summary. The status check stays advisory until gating is enabled.
 # - Custom Semgrep rules live under audit/knowledge/semgrep/; new rules are
@@ -176,14 +176,14 @@ jobs:
           path: semgrep.sarif
           retention-days: 7
 
-  lifi-pr-review:
+  lifi-security-review:
     # Stages 2 + 3: triage Stage 1 SARIF + review the diff for new risks via
     # Claude, emit curated SARIF + sticky PR summary comment.
     #
     # Runs after both Stage 1 jobs regardless of their success — if a
     # tool failed and produced no SARIF, the triage proceeds with whatever's
     # available. `continue-on-error: true` keeps the overall workflow advisory.
-    name: lifi-pr-review
+    name: lifi-security-review
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     # Dedicated environment so ANTHROPIC_API_KEY is scoped as an environment
@@ -208,7 +208,7 @@ jobs:
       # A /tmp path there always hashes to '' and the upload silently skips.
       OUT_DIR: ${{ github.workspace }}/.security-review-output
       # Comment marker the github-script step uses to find an existing comment.
-      COMMENT_MARKER: '<!-- lifi-pr-review:summary -->'
+      COMMENT_MARKER: '<!-- lifi-security-review:summary -->'
     steps:
       - name: Checkout (full history for diff against base)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -216,7 +216,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           # Required for .claude/vendor/tob-skills (ToB skills plugins
-          # invoked by the /lifi-pr-review skill — fp-check,
+          # invoked by the /lifi-security-review skill — fp-check,
           # differential-review, audit-context-building, etc.).
           submodules: recursive
 
@@ -237,7 +237,7 @@ jobs:
           merge-multiple: true # flatten so all *.sarif end up directly under SARIF_DIR
 
       - name: Build PR diff context
-        # The lifi-pr-review skill consumes diff + changed-files list to scope
+        # The lifi-security-review skill consumes diff + changed-files list to scope
         # its diff review and to decide which by-area/*.md files to load.
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -256,8 +256,8 @@ jobs:
           cat "$PR_FILES" || true
           echo "::endgroup::"
 
-      - name: Run /lifi-pr-review (Stage 2 — AI triage + diff review)
-        # The skill file is at .claude/skills/lifi-pr-review/SKILL.md (already
+      - name: Run /lifi-security-review (Stage 2 — AI triage + diff review)
+        # The skill file is at .claude/skills/lifi-security-review/SKILL.md (already
         # checked out). claude-code-action loads it automatically. The prompt
         # below is the invocation directive — all logic lives in the skill.
         uses: anthropics/claude-code-action@12310e4417c3473095c957cb311b3cf59a38d659 # v1.0.99
@@ -265,7 +265,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: false # workflow posts the comment in a separate step for control
           prompt: |
-            Run the /lifi-pr-review skill from .claude/skills/lifi-pr-review/.
+            Run the /lifi-security-review skill from .claude/skills/lifi-security-review/.
 
             The skill is a thin LI.FI orchestrator over Trail of Bits' open-source
             Claude Code skills, vendored at .claude/vendor/tob-skills/ and exposed
@@ -328,7 +328,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: lifi-pr-review-output
+          name: lifi-security-review-output
           path: ${{ env.OUT_DIR }}/
           retention-days: 7
           if-no-files-found: ignore

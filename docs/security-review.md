@@ -43,7 +43,7 @@ and the CI/Code-Scanning plumbing.
                   └─────────────────┬─────────────────────────────┘
                                     │
    ┌──────────────────────────────  Stage 2: AI orchestration ────────────┐
-   │  lifi-pr-review (claude-code-action)                                  │
+   │  lifi-security-review (claude-code-action)                            │
    │    LI.FI layer (this repo, MIT/LGPL):                                 │
    │       • applies waivers (when present)                                │
    │       • injects LF-NNN corpus + by-area context                       │
@@ -67,9 +67,9 @@ Per-stage detail, source, and ownership:
 | Stage | Where it runs                                              | Source of truth                                       | Ticket           |
 | ----- | ---------------------------------------------------------- | ----------------------------------------------------- | ---------------- |
 | 1     | 2 parallel jobs in `.github/workflows/security-review.yml` | Tool releases + `audit/knowledge/semgrep/*.yml`       | EXP-480          |
-| 2 (LI.FI layer)| `lifi-pr-review` job                              | `.agents/commands/lifi-pr-review.md` skill            | EXP-483          |
+| 2 (LI.FI layer)| `lifi-security-review` job                              | `.agents/commands/lifi-security-review.md` skill            | EXP-483          |
 | 2 (ToB layer)  | Same job, invoked by the LI.FI orchestrator       | `.claude/vendor/tob-skills/` (CC-BY-SA-4.0, see NOTICE) | upstream (pinned) |
-| 3     | Steps inside the `lifi-pr-review` job                      | Same workflow file                                    | EXP-483          |
+| 3     | Steps inside the `lifi-security-review` job                      | Same workflow file                                    | EXP-483          |
 | corpus| `audit/knowledge/` (committed)                             | `.agents/commands/extract-audit-knowledge.md`         | EXP-478, EXP-479 |
 
 ## Triggers
@@ -115,7 +115,7 @@ impact, won't get better with rule tightening — add a waiver to
 
 This file is **not committed empty** — create it on the first waiver. The
 skill treats its absence as "no waivers." When present, Step 4 of the
-`lifi-pr-review` skill drops any finding matching an entry before fp-check.
+`lifi-security-review` skill drops any finding matching an entry before fp-check.
 
 ### Entry schema
 
@@ -191,7 +191,7 @@ See `audit/knowledge/semgrep/README.md` for the rule conventions.
 ## Audit-knowledge coverage (EXP-481)
 
 Every audit listed in `audit/auditLog.json` should also have findings
-extracted into `audit/knowledge/findings.json`. The `/lifi-pr-review`
+extracted into `audit/knowledge/findings.json`. The `/lifi-security-review`
 pipeline (Stage 2) uses that corpus as cached context for the AI
 triage — a missing audit means the security agent silently loses access
 to prior findings from that report.
@@ -206,20 +206,9 @@ Skippable for two-step workflows via `/add-audit --skip-extract` — the
 skill prints a reminder to run `/extract-audit-knowledge` before
 shipping.
 
-### Checking drift manually
-
-`script/tasks/checkAuditKnowledgeCoverage.ts` reports the current
-coverage gap (which audits are in the log but missing from the corpus).
-Run it locally when you want to triage the EXP-479 backfill queue:
-
-```bash
-bun script/tasks/checkAuditKnowledgeCoverage.ts
-```
-
-It's a diagnostic tool, not a CI gate — the corpus is advisory context
-for the security agent, and missing entries degrade the agent's recall
-rather than break correctness. Treat coverage gaps as tech debt, not
-release blockers.
+The corpus is advisory context for the security agent: missing entries
+degrade the agent's recall rather than break correctness. Treat coverage
+gaps as tech debt, not release blockers.
 
 ## Bumping the Trail of Bits skills
 

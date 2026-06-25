@@ -182,7 +182,7 @@ When `/add-audit` is invoked with a pasted PDF:
      Knowledge corpus NOT refreshed (--skip-extract).
      Before merging this PR, run /extract-audit-knowledge <audit_id> and
      commit the resulting audit/knowledge/ changes — otherwise the new
-     audit's findings won't be available to the /lifi-pr-review
+     audit's findings won't be available to the /lifi-security-review
      security agent on subsequent PRs.
      ```
 
@@ -210,7 +210,7 @@ Before finalizing, validate all of the following:
 - [ ] **Audit ID**: Unique, no duplicates (check existing `audits` section)
 - [ ] **Filename**: Follows naming convention, doesn't already exist in `audit/reports/`
 - [ ] **PDF file saved**: File exists at `audit/reports/<generated-filename>.pdf` with size > 0 bytes
-- [ ] **Knowledge corpus refreshed** (unless `--skip-extract`): `/extract-audit-knowledge <audit_id>` completed and the resulting `audit/knowledge/` files are staged for commit. You can sanity-check with `bun script/tasks/checkAuditKnowledgeCoverage.ts --new-audits <audit_id>`.
+- [ ] **Knowledge corpus refreshed** (unless `--skip-extract`): `/extract-audit-knowledge <audit_id>` completed and the resulting `audit/knowledge/` files are staged for commit.
 
 ## Error Handling
 

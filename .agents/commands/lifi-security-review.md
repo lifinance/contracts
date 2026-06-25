@@ -1,14 +1,14 @@
 ---
-name: lifi-pr-review
+name: lifi-security-review
 description: PR-time security review for smart contracts. Thin LI.FI orchestrator over Trail of Bits' open-source Claude Code skills (audit-context-building, differential-review, fp-check). Injects LI.FI's past-audit corpus and waivers (when present); emits curated SARIF + sticky-comment summary in the format the security-review workflow expects.
-usage: /lifi-pr-review (typically invoked by .github/workflows/security-review.yml; can be run locally for dry-runs)
+usage: /lifi-security-review (typically invoked by .github/workflows/security-review.yml; can be run locally for dry-runs)
 ---
 
 # LI.FI PR Security Review (Stages 2 + 3)
 
 > **Usage**: invoked automatically by `.github/workflows/security-review.yml`
 > on every non-draft PR touching `src/**` or `audit/knowledge/**`. Can be run
-> manually from any branch via `/lifi-pr-review` to dry-run the same logic.
+> manually from any branch via `/lifi-security-review` to dry-run the same logic.
 
 ## Design
 
@@ -159,7 +159,7 @@ normalize all verified TPs from Step 4 into our existing schema:
 **`${OUT_DIR}/curated.sarif`**:
 
 - SARIF 2.1.0 schema
-- One run with `tool.driver.name = "lifi-pr-review"`
+- One run with `tool.driver.name = "lifi-security-review"`
 - One `result` per kept finding with `ruleId`, `level`, `message`,
   `locations`, `partialFingerprints.primaryLocationLineHash` (dedup
   across pushes)

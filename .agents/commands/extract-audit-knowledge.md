@@ -119,7 +119,7 @@ For each in-scope finding:
 
 ### 8. Record processing in `processed_audits`
 
-Append the audit's ID to `findings.json`'s top-level `processed_audits` array (schema 1.1+). This MUST happen even when zero findings were kept — the array records "we considered this audit", so the coverage check (`script/tasks/checkAuditKnowledgeCoverage.ts`) stops flagging zero-finding audits as drift.
+Append the audit's ID to `findings.json`'s top-level `processed_audits` array (schema 1.1+). This MUST happen even when zero findings were kept — the array records "we considered this audit", distinguishing a zero-finding audit from one that was never processed.
 
 - Read `findings.json#processed_audits` (initialize to `[]` if missing)
 - If `audit_id` is not present, append it; keep the array sorted
