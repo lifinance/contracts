@@ -61,4 +61,3 @@ rules:
         - "src/Facets/**"
       exclude:
         - "**/*.t.sol"
-        - "src/Facets/Helpers/**"

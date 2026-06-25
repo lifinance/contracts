@@ -78,7 +78,6 @@ The workflow runs on every `pull_request` (opened, synchronize, reopened,
 ready_for_review) that modifies files matching:
 
 - `src/**`
-- `audit/knowledge/**` (custom rule changes re-trigger so the new rules run on the same PR)
 
 Draft PRs are skipped. The workflow is also `concurrency`-grouped per PR so
 new commits cancel stale in-flight runs.

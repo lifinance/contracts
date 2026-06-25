@@ -59,7 +59,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
+| `add-audit.md`    | `/add-audit [--skip-extract]`     | Add an audit PDF + update `audit/auditLog.json`, then refresh the security-review knowledge corpus (skip the refresh with `--skip-extract`) |
 | `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
 | `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
 | `aikido-address-findings.md` | `/aikido-address-findings [<issue-id> \| all \| pr] [repo-name]` | Aikido triage scoped to the PR (default), a single finding, or the whole repo — ignore false positives, fix real findings in code |

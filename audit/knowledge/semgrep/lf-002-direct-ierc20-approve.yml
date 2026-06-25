@@ -17,18 +17,27 @@ rules:
       lf-id: LF-002
       audit: audit20240201
       cwe: CWE-252
+    # metavariable-pattern must be AND-joined under `patterns:` with the
+    # pattern that binds $TOKEN — as a top-level sibling of pattern-either it
+    # is silently ignored (see lf-046 tuning notes). The IERC20(...) casts are
+    # already specific, so the name constraint only wraps the bare-variable
+    # patterns where $TOKEN is unbound otherwise.
     pattern-either:
       - pattern: IERC20($T).approve($S, $A)
       - pattern: IERC20($T).transfer($R, $A)
       - pattern: IERC20($T).transferFrom($F, $R, $A)
-      - pattern: $TOKEN.approve($S, $A)
-      - pattern: $TOKEN.transfer($R, $A)
-      - pattern: $TOKEN.transferFrom($F, $R, $A)
-    metavariable-pattern:
-      metavariable: $TOKEN
-      patterns:
-        # Only flag when the receiver looks like a token variable
-        - pattern-regex: "(?i).*(token|asset|erc20|currency).*"
+      - patterns:
+          - pattern-either:
+              - pattern: $TOKEN.approve($S, $A)
+              - pattern: $TOKEN.transfer($R, $A)
+              - pattern: $TOKEN.transferFrom($F, $R, $A)
+          # Only flag when the receiver looks like a token variable. The
+          # leading `.*` is required: metavariable-regex is anchored at the
+          # start (re.match), so a bare alternation misses names like
+          # `inputToken` where the keyword is not the prefix.
+          - metavariable-regex:
+              metavariable: $TOKEN
+              regex: "(?i).*(token|asset|erc20|currency).*"
     paths:
       include:
         - "src/Facets/**"

@@ -1,6 +1,6 @@
 # Security Review — Stages 1 + 2 + 3 (deterministic static analysis + AI triage + publish)
 # - Stage 1: Slither and Semgrep run in parallel on every non-draft PR touching
-#   src/** or audit/knowledge/**. Each archives its SARIF as an artifact that
+#   src/**. Each archives its SARIF as an artifact that
 #   Stage 2 consumes — it is an INPUT to the AI triage, NOT a standalone Code
 #   Scanning result (raw, untriaged tool output is exactly the noise Stage 2
 #   filters). Only Stage 2's curated.sarif reaches Code Scanning.
@@ -30,10 +30,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
-      - 'audit/knowledge/**'
 
-permissions:
-  contents: read # required to fetch repository contents (read-only default)
+# Default-deny at the workflow level; each job grants only the scopes it needs.
+permissions: {}
 
 # Cancel in-flight runs for the same PR when a new commit lands — saves CI minutes
 # and avoids racing SARIF uploads to the same Code Scanning analysis.
@@ -61,8 +60,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          submodules: recursive
           persist-credentials: false
+
+      - name: Init Solidity submodules (lib/ only)
+        # Slither compiles via crytic-compile → forge, which needs the lib/
+        # dependencies. The tob-skills submodule under .claude/vendor/ is a
+        # Stage 2 dependency only, so scope the init to lib/ to skip it.
+        run: git submodule update --init --recursive lib
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry

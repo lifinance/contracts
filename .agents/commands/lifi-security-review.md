@@ -7,8 +7,10 @@ usage: /lifi-security-review (typically invoked by .github/workflows/security-re
 # LI.FI PR Security Review (Stages 2 + 3)
 
 > **Usage**: invoked automatically by `.github/workflows/security-review.yml`
-> on every non-draft PR touching `src/**` or `audit/knowledge/**`. Can be run
-> manually from any branch via `/lifi-security-review` to dry-run the same logic.
+> on every non-draft PR touching `src/**`. Can be run manually from any branch
+> via `/lifi-security-review` to dry-run the same logic — first initialize the
+> vendored ToB skills the `.claude/plugins/*` symlinks point at:
+> `git submodule update --init .claude/vendor/tob-skills`.
 
 ## Design
 
@@ -94,7 +96,7 @@ Based on directories in `${PR_FILES}`, load the relevant `by-area/*.md`:
 | `src/Periphery/`            | `audit/knowledge/by-area/periphery.md` |
 | `src/Libraries/`            | `audit/knowledge/by-area/libraries.md` |
 | `src/Security/`             | `audit/knowledge/by-area/security.md`  |
-| `src/Helpers/`              | `audit/knowledge/by-area/helpers.md` (if exists) |
+| `src/Helpers/`              | `audit/knowledge/by-area/cross-cutting.md` |
 | Any combination ≥ 2 areas   | also load `cross-cutting.md`           |
 
 ### Step 1 — Cost guardrail
