@@ -6,7 +6,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
+import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
+import { VaultWrapperPausable } from "./VaultWrapperPausable.sol";
 import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 
 /// @title LiFiVaultWrapper
@@ -21,11 +23,12 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
 ///      withdrawal. Identity (`underlying`/`adapter`/`vaultWrapperAdmin`/`factory`) and the fee
-///      configuration are set write-once in `initialize`. Fee, access, and pause logic are
-///      scaffolded as no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
-///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
-///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
-///      ERC-4626 virtual-share offset.
+///      configuration are set write-once in `initialize`. Pause is enforced via
+///      `VaultWrapperPausable` on the deposit/mint path only (withdrawals stay open); fee and
+///      access logic remain no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
+///      `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow, with bodies
+///      landing in follow-up tickets. Inflation-attack protection relies on the ERC-4626
+///      virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
@@ -36,6 +39,7 @@ contract LiFiVaultWrapper is
     // slot as NOT_ENTERED, so the guard is correct from the first call even though the
     // implementation's constructor never ran in the proxy's storage context.
     ReentrancyGuard,
+    VaultWrapperPausable,
     ILiFiVaultWrapper
 {
     using MetadataReaderLib for address;
@@ -246,6 +250,7 @@ contract LiFiVaultWrapper is
         uint256 assets,
         address receiver
     ) public override nonReentrant returns (uint256) {
+        _requireDepositsNotPaused();
         _beforeOperation();
 
         return super.deposit(assets, receiver);
@@ -256,6 +261,7 @@ contract LiFiVaultWrapper is
         uint256 shares,
         address receiver
     ) public override nonReentrant returns (uint256) {
+        _requireDepositsNotPaused();
         _beforeOperation();
 
         return super.mint(shares, receiver);
@@ -389,25 +395,51 @@ contract LiFiVaultWrapper is
         result = abi.decode(ret, (uint256));
     }
 
-    /// Fee / pause / access blueprint ///
-    /// @dev The functions below are no-op seams wired into the entrypoints and the
-    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
-    ///      (fees, access control, global pause); today they preserve current behaviour.
+    /// Pause authority hooks (VaultWrapperPausable) ///
 
-    /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
-    ///      engaged, enforces the vault's access mode on the caller, and accrues
-    ///      time/yield-based fees so the operation transacts at the post-accrual share price.
-    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
-    function _beforeOperation() private view {
-        _requireNotPaused();
-        _checkAccess(msg.sender);
-        _accrueFees();
+    /// @inheritdoc VaultWrapperPausable
+    /// @dev The LI.FI emergency multisig, read live from the factory so a rotation there
+    ///      applies to every instance without touching the clones.
+    function _emergencyPauseAuthority()
+        internal
+        view
+        override
+        returns (address)
+    {
+        return ILiFiVaultWrapperFactory(factory).emergencyPauser();
     }
 
-    /// @dev Reverts when the factory-level global pause / circuit breaker is engaged.
-    ///      Widens to `view` once it reads the factory pause state.
-    function _requireNotPaused() private pure {
-        // TODO(pause): revert if the factory circuit breaker is active.
+    /// @inheritdoc VaultWrapperPausable
+    /// @dev The per-vault controller is the integrator's pause authority.
+    function _integratorPauseAuthority()
+        internal
+        view
+        override
+        returns (address)
+    {
+        return vaultWrapperAdmin;
+    }
+
+    /// @inheritdoc VaultWrapperPausable
+    /// @dev The factory-level global circuit breaker, read live on every deposit.
+    function _globalPaused() internal view override returns (bool) {
+        return ILiFiVaultWrapperFactory(factory).globalPaused();
+    }
+
+    /// Fee / access blueprint ///
+    /// @dev The functions below are no-op seams wired into the entrypoints and the
+    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
+    ///      (fees, access control); today they preserve current behaviour. Pause is already
+    ///      enforced via `VaultWrapperPausable` on the deposit/mint path.
+
+    /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
+    ///      the vault's access mode on the caller and accrues time/yield-based fees so the
+    ///      operation transacts at the post-accrual share price. Deposit-pause is enforced
+    ///      separately and only on inflows, so this is shared by exits too.
+    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
+    function _beforeOperation() private view {
+        _checkAccess(msg.sender);
+        _accrueFees();
     }
 
     /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
