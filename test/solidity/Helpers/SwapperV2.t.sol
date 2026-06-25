@@ -3,7 +3,8 @@ pragma solidity ^0.8.17;
 
 import { TestAMM } from "../utils/TestAMM.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
-import { LibSwap, TestBase } from "../utils/TestBase.sol";
+import { LibSwap } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { ContractCallNotAllowed } from "src/Errors/GenericErrors.sol";
@@ -71,11 +72,11 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
     }
 }
 
-contract SwapperV2Test is TestBase {
+contract SwapperV2Test is TestBaseLocal {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
     function setUp() public {
-        initTestBase();
+        initTestBaseLocal();
 
         amm = new TestAMM();
         swapper = new TestSwapperV2();

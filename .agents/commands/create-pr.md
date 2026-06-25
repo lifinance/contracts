@@ -154,7 +154,7 @@ The one gap pre-commit deliberately leaves is **tests** (`forge build --skip tes
 `bun test:ts`). Per `.agents/rules/099-finish.md`, run them now — against the
 post-`/pr-ready` HEAD so any auto-fix commits are validated:
 
-- **Solidity changes**: `forge test` (or `forge test --match-path` if scope is clear).
+- **Solidity changes**: `bun test:scoped -- <path-or-match>` during iteration; full `bun test` (or `forge test --match-path` if scope is clear) before opening a PR.
 - **TypeScript / JS changes**: `bun test:ts`.
 - **Docs / markdown / skill files only**: skip; note `N/A` in the summary.
 

@@ -11,6 +11,7 @@ paths:
 
 - Tests under `test/solidity/`, mirroring `src/`.
 - Require `setUp()`; mirror `src/` layout; call `initTestBase()` when inheriting `TestBase` directly or indirectly; label actors with `vm.label`.
+- When tests do not need mainnet state, inherit `TestBaseLocal` and call `initTestBaseLocal()` instead of `initTestBase()`.
 - For facet tests, inherit from `TestBaseFacet` rather than `TestBase`, since standard facet functions need to be overridden.
 - Import ordering: system libraries first (e.g., `forge-std`, `ds-test`), then project files (e.g., `lifi/`, `test/`).
 
