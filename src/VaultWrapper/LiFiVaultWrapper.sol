@@ -439,9 +439,19 @@ contract LiFiVaultWrapper is
     /// @notice Permissionlessly distribute accrued fees: the LI.FI pool to the live
     ///         factory recipient, the integrator pool across its wallets by bps.
     /// @dev Reentrancy-guarded and deliberately not pause-gated, so fees can always be
-    ///      swept even while deposits are paused.
+    ///      swept even while deposits are paused. LI.FI is paid first and independently of
+    ///      the integrator side; if no integrator receivers are set, that portion is left
+    ///      accrued for a later sweep instead of reverting.
     function sweep() external nonReentrant {
         _distributeAccruedFees();
+    }
+
+    /// @notice Permissionlessly sweep only the LI.FI fee pool to the live factory recipient.
+    /// @dev Escape hatch guaranteeing LI.FI can always collect its share even if an
+    ///      integrator-controlled receiver wallet reverts on receipt and so would block the
+    ///      combined `sweep`.
+    function sweepLifiFees() external nonReentrant {
+        _payLifiFees();
     }
 
     /// @inheritdoc VaultWrapperFeeDistributor

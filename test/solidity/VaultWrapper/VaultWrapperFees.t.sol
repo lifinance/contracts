@@ -36,11 +36,61 @@ contract MockFeeFactory {
         globalPaused = _paused;
     }
 
+    function setLifiFeeRecipient(address _recipient) external {
+        lifiFeeRecipient = _recipient;
+    }
+
     function deployWrapper(
         address _beacon,
         bytes calldata _initCall
     ) external returns (address) {
         return address(new BeaconProxy(_beacon, _initCall));
+    }
+}
+
+/// @notice ERC20 that can be armed to revert on transfer to a blacklisted address, or to
+///         re-enter the wrapper's sweep on transfer, to exercise sweep robustness.
+contract HostileAsset is MockERC20 {
+    error Blacklisted();
+
+    address public blacklisted;
+    address public reenterTarget;
+
+    constructor() MockERC20("Hostile", "HST", 18) {}
+
+    function setBlacklisted(address _account) external {
+        blacklisted = _account;
+    }
+
+    function setReenterTarget(address _target) external {
+        reenterTarget = _target;
+    }
+
+    function transfer(
+        address _to,
+        uint256 _amount
+    ) public override returns (bool ok) {
+        if (_to == blacklisted) revert Blacklisted();
+        ok = super.transfer(_to, _amount);
+        if (_to == reenterTarget && reenterTarget != address(0))
+            IReenterSweep(reenterTarget).reenter();
+    }
+}
+
+interface IReenterSweep {
+    function reenter() external;
+}
+
+/// @notice Integrator receiver that re-enters sweep() when it receives the hostile asset.
+contract ReentrantReceiver is IReenterSweep {
+    address public immutable WRAPPER;
+
+    constructor(address _wrapper) {
+        WRAPPER = _wrapper;
+    }
+
+    function reenter() external {
+        LiFiVaultWrapper(WRAPPER).sweep();
     }
 }
 
@@ -63,11 +113,8 @@ contract VaultWrapperFeesTest is Test {
     uint256 internal constant FEE = 1_000e18;
 
     event ReceiversSet(address[] receivers, uint16[] bps);
-    event FeesSwept(
-        uint256 lifiAmount,
-        uint256 integratorAmount,
-        address indexed lifiRecipient
-    );
+    event LifiFeesSwept(uint256 amount, address indexed recipient);
+    event IntegratorFeesSwept(uint256 amount);
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
@@ -211,7 +258,9 @@ contract VaultWrapperFeesTest is Test {
         _seed(FEE);
 
         vm.expectEmit(true, true, true, true);
-        emit FeesSwept(200e18, 800e18, lifiRecipient);
+        emit LifiFeesSwept(200e18, lifiRecipient);
+        vm.expectEmit(true, true, true, true);
+        emit IntegratorFeesSwept(800e18);
 
         vm.prank(stranger);
         wrapper.sweep();
@@ -308,6 +357,7 @@ contract VaultWrapperFeesTest is Test {
 
         assertEq(asset.balanceOf(lifiRecipient), 200e18);
         assertEq(asset.balanceOf(r1), 400e18);
+        assertEq(asset.balanceOf(r2), 400e18);
     }
 
     function test_SweepEmptyPoolsIsNoOp() public {
@@ -317,15 +367,153 @@ contract VaultWrapperFeesTest is Test {
         assertEq(asset.balanceOf(lifiRecipient), 0);
     }
 
-    function testRevert_SweepWithoutReceiversWhenIntegratorPoolOwed() public {
-        _seed(FEE); // integrator pool > 0 but no receivers configured
+    /// LI.FI cannot be held hostage by integrator receiver config ///
 
-        vm.expectRevert(
-            VaultWrapperFeeDistributor.NoReceiversConfigured.selector
-        );
+    function test_SweepPaysLifiAndLeavesIntegratorAccruedWhenNoReceivers()
+        public
+    {
+        _seed(FEE); // both pools owed, but no integrator receivers configured
 
         vm.prank(stranger);
         wrapper.sweep();
+
+        // LI.FI is paid; the integrator portion stays accrued for a later sweep.
+        assertEq(asset.balanceOf(lifiRecipient), 200e18);
+        assertEq(wrapper.lifiFeesAccrued(), 0);
+        assertEq(wrapper.integratorFeesAccrued(), 800e18);
+
+        // Once receivers are configured, a second sweep distributes the integrator pool.
+        _setReceivers2(5000, 5000);
+        vm.prank(stranger);
+        wrapper.sweep();
+
+        assertEq(asset.balanceOf(r1), 400e18);
+        assertEq(asset.balanceOf(r2), 400e18);
+        assertEq(wrapper.integratorFeesAccrued(), 0);
+    }
+
+    function test_SweepLifiFeesEscapeHatchBypassesRevertingReceiver() public {
+        // A wrapper over a hostile asset whose integrator receiver reverts on receipt.
+        HostileAsset hostile = new HostileAsset();
+        MockERC4626 hostileUnderlying = new MockERC4626(
+            hostile,
+            "yHST",
+            "yHST"
+        );
+        FeeHarness w = _deployFor(
+            address(hostile),
+            address(hostileUnderlying)
+        );
+
+        address badReceiver = makeAddr("badReceiver");
+        hostile.setBlacklisted(badReceiver);
+        address[] memory rs = new address[](1);
+        rs[0] = badReceiver;
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10000;
+        vm.prank(vaultAdmin);
+        w.setIntegratorReceivers(rs, bps);
+
+        hostile.mint(address(w), FEE);
+        w.harnessRouteFee(FEE);
+
+        // The combined sweep reverts because the integrator transfer reverts...
+        vm.expectRevert(HostileAsset.Blacklisted.selector);
+        w.sweep();
+
+        // ...but LI.FI can still collect its share via the escape hatch.
+        vm.prank(stranger);
+        w.sweepLifiFees();
+
+        assertEq(hostile.balanceOf(lifiRecipient), 200e18);
+        assertEq(w.lifiFeesAccrued(), 0);
+    }
+
+    function testRevert_SweepReentrancyBlocked() public {
+        HostileAsset hostile = new HostileAsset();
+        MockERC4626 hostileUnderlying = new MockERC4626(
+            hostile,
+            "yHST",
+            "yHST"
+        );
+        FeeHarness w = _deployFor(
+            address(hostile),
+            address(hostileUnderlying)
+        );
+
+        ReentrantReceiver attacker = new ReentrantReceiver(address(w));
+        hostile.setReenterTarget(address(attacker));
+        address[] memory rs = new address[](1);
+        rs[0] = address(attacker);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10000;
+        vm.prank(vaultAdmin);
+        w.setIntegratorReceivers(rs, bps);
+
+        hostile.mint(address(w), FEE);
+        w.harnessRouteFee(FEE);
+
+        // The re-entrant sweep() from the receiver hits the reentrancy guard.
+        vm.expectRevert();
+        w.sweep();
+    }
+
+    function test_LifiRecipientIsReadLiveAtSweep() public {
+        _setReceivers2(5000, 5000);
+        _seed(FEE);
+
+        address newRecipient = makeAddr("newLifiRecipient");
+        factory.setLifiFeeRecipient(newRecipient);
+
+        vm.prank(stranger);
+        wrapper.sweep();
+
+        assertEq(asset.balanceOf(newRecipient), 200e18);
+        assertEq(asset.balanceOf(lifiRecipient), 0);
+    }
+
+    function test_ReconfigureToSmallerReceiverSet() public {
+        address[] memory rs3 = new address[](3);
+        uint16[] memory bps3 = new uint16[](3);
+        for (uint256 i; i < 3; i++) {
+            rs3[i] = address(uint160(0x2000 + i));
+            bps3[i] = i == 2 ? 3334 : 3333;
+        }
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorReceivers(rs3, bps3);
+
+        _setReceivers2(5000, 5000); // shrink 3 -> 2
+
+        assertEq(wrapper.integratorReceivers().length, 2);
+        _seed(FEE);
+        vm.prank(stranger);
+        wrapper.sweep();
+
+        assertEq(asset.balanceOf(r1), 400e18);
+        assertEq(asset.balanceOf(r2), 400e18);
+        assertEq(asset.balanceOf(rs3[2]), 0); // dropped receiver gets nothing
+    }
+
+    function test_IntegratorFullShareLeavesLifiPoolEmpty() public {
+        FeeHarness w = _deployWrapper(10000); // integrator 100%, LI.FI 0%
+        address[] memory rs = new address[](1);
+        rs[0] = r1;
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10000;
+        vm.prank(vaultAdmin);
+        w.setIntegratorReceivers(rs, bps);
+
+        asset.mint(address(w), FEE);
+        w.harnessRouteFee(FEE);
+
+        assertEq(w.lifiFeesAccrued(), 0);
+        assertEq(w.integratorFeesAccrued(), FEE);
+
+        vm.prank(stranger);
+        w.sweep();
+
+        assertEq(asset.balanceOf(r1), FEE);
+        assertEq(asset.balanceOf(lifiRecipient), 0);
     }
 
     function test_SweepLifiOnlyPoolNeedsNoReceivers() public {
@@ -353,6 +541,27 @@ contract VaultWrapperFeesTest is Test {
                 address(adapter),
                 vaultAdmin,
                 _shareBps,
+                fees,
+                ""
+            )
+        );
+        w = FeeHarness(factory.deployWrapper(address(beacon), initCall));
+    }
+
+    /// @dev Deploy a wrapper over an arbitrary asset/underlying (default split).
+    function _deployFor(
+        address _asset,
+        address _underlying
+    ) internal returns (FeeHarness w) {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                _asset,
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                SHARE_BPS,
                 fees,
                 ""
             )

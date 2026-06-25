@@ -45,15 +45,14 @@ abstract contract VaultWrapperFeeDistributor {
     /// @param bps The per-receiver basis points (sum to 100%).
     event ReceiversSet(address[] receivers, uint16[] bps);
 
-    /// @notice Emitted when accrued fees are swept to their recipients.
-    /// @param lifiAmount Asset amount paid to the LI.FI recipient.
-    /// @param integratorAmount Asset amount distributed across integrator wallets.
-    /// @param lifiRecipient The LI.FI recipient the LI.FI pool was paid to.
-    event FeesSwept(
-        uint256 lifiAmount,
-        uint256 integratorAmount,
-        address indexed lifiRecipient
-    );
+    /// @notice Emitted when the LI.FI fee pool is swept.
+    /// @param amount Asset amount paid to the LI.FI recipient.
+    /// @param recipient The LI.FI recipient the pool was paid to.
+    event LifiFeesSwept(uint256 amount, address indexed recipient);
+
+    /// @notice Emitted when the integrator fee pool is distributed across its wallets.
+    /// @param amount Total asset amount distributed.
+    event IntegratorFeesSwept(uint256 amount);
 
     /// Errors ///
 
@@ -65,8 +64,6 @@ abstract contract VaultWrapperFeeDistributor {
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
     error ReceiverBpsSumNot100();
-    /// @notice Thrown when an integrator pool must be distributed but no receivers are set.
-    error NoReceiversConfigured();
 
     /// Hooks (implemented by the wrapper) ///
 
@@ -129,41 +126,55 @@ abstract contract VaultWrapperFeeDistributor {
         lifiFeesAccrued += _feeAssets - integratorPart;
     }
 
-    /// @dev Pays out both pools: LI.FI's to the live recipient, the integrator's across its
-    ///      wallets by bps. Follows checks-effects-interactions — pools are zeroed before any
-    ///      transfer — so a reentrant call finds empty pools. The last receiver absorbs the
-    ///      integer-division remainder so the integrator pool zeroes exactly.
+    /// @dev Sweeps both pools. LI.FI is paid first and independently of the integrator side
+    ///      so an integrator can never hold LI.FI's fees hostage (by never configuring
+    ///      receivers, or via a receiver that reverts on receipt). If the integrator pool is
+    ///      non-zero but no receivers are configured, the integrator portion is left accrued
+    ///      for a later sweep rather than reverting. (LI.FI's last-resort path against a
+    ///      reverting integrator receiver is `_payLifiFees` alone, exposed as `sweepLifiFees`.)
     function _distributeAccruedFees() internal {
-        uint256 lifiAmount = lifiFeesAccrued;
-        uint256 integratorAmount = integratorFeesAccrued;
-        if (lifiAmount == 0 && integratorAmount == 0) return;
+        _payLifiFees();
+        _payIntegratorFees();
+    }
+
+    /// @dev Pays the LI.FI pool to the live factory recipient. CEI: the pool is zeroed before
+    ///      the transfer, so a reentrant sweep finds it empty. No-op when empty.
+    function _payLifiFees() internal {
+        uint256 amount = lifiFeesAccrued;
+        if (amount == 0) return;
+        lifiFeesAccrued = 0;
+
+        address recipient = _lifiFeeRecipient();
+        SafeERC20.safeTransfer(IERC20(_feeAsset()), recipient, amount);
+        emit LifiFeesSwept(amount, recipient);
+    }
+
+    /// @dev Distributes the integrator pool across its wallets by bps. The last receiver
+    ///      absorbs the integer-division remainder so the pool zeroes exactly; a receiver
+    ///      with bps==0, or whose floored share rounds to 0 on a tiny pool, receives nothing.
+    ///      Skips (leaves the pool accrued) when no receivers are configured rather than
+    ///      reverting, so it never blocks the LI.FI payout. CEI: the pool is zeroed first.
+    function _payIntegratorFees() private {
+        uint256 amount = integratorFeesAccrued;
+        if (amount == 0) return;
 
         address[] memory receivers = _integratorReceivers;
-        if (integratorAmount > 0 && receivers.length == 0)
-            revert NoReceiversConfigured();
-
-        lifiFeesAccrued = 0;
+        if (receivers.length == 0) return;
         integratorFeesAccrued = 0;
 
         address asset = _feeAsset();
-        address lifiRecipient = _lifiFeeRecipient();
-        if (lifiAmount > 0)
-            SafeERC20.safeTransfer(IERC20(asset), lifiRecipient, lifiAmount);
-
-        if (integratorAmount > 0) {
-            uint16[] memory bps = _integratorReceiverBps;
-            uint256 distributed;
-            uint256 last = receivers.length - 1;
-            for (uint256 i; i <= last; i++) {
-                uint256 share = i == last
-                    ? integratorAmount - distributed
-                    : (integratorAmount * bps[i]) / FEE_BPS_DENOMINATOR;
-                distributed += share;
-                if (share > 0)
-                    SafeERC20.safeTransfer(IERC20(asset), receivers[i], share);
-            }
+        uint16[] memory bps = _integratorReceiverBps;
+        uint256 distributed;
+        uint256 last = receivers.length - 1;
+        for (uint256 i; i <= last; i++) {
+            uint256 share = i == last
+                ? amount - distributed
+                : (amount * bps[i]) / FEE_BPS_DENOMINATOR;
+            distributed += share;
+            if (share > 0)
+                SafeERC20.safeTransfer(IERC20(asset), receivers[i], share);
         }
 
-        emit FeesSwept(lifiAmount, integratorAmount, lifiRecipient);
+        emit IntegratorFeesSwept(amount);
     }
 }
