@@ -32,7 +32,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function setUp() public virtual {
         impl = new LiFiVaultWrapper();
-        beacon = new UpgradeableBeacon(address(impl));
+        beacon = new UpgradeableBeacon(address(impl), address(this));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
             owner,

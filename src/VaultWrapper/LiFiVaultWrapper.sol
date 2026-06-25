@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import { IERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import { SafeERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
@@ -26,10 +26,10 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
 ///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
 ///      ERC-4626 virtual-share offset.
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
-    ReentrancyGuardUpgradeable,
+    ReentrancyGuard,
     ILiFiVaultWrapper
 {
     using MetadataReaderLib for address;
@@ -115,21 +115,15 @@ contract LiFiVaultWrapper is
         if (_integratorShareBps > 10_000)
             revert InvalidIntegratorShareBps(_integratorShareBps);
 
-        address resolvedAsset = IYieldAdapter(_adapter).resolveAsset(
-            _underlying
-        );
-        if (resolvedAsset != _asset)
-            revert AssetMismatch(_asset, resolvedAsset);
+        {
+            address resolvedAsset = IYieldAdapter(_adapter).resolveAsset(
+                _underlying
+            );
+            if (resolvedAsset != _asset)
+                revert AssetMismatch(_asset, resolvedAsset);
+        }
 
-        __ReentrancyGuard_init();
-
-        string memory assetSymbol = _asset.readSymbol();
-        if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
-        __ERC20_init(
-            string.concat("LI.FI Earn ", assetSymbol),
-            string.concat("lf", assetSymbol)
-        );
-        __ERC4626_init(IERC20Upgradeable(_asset));
+        _initErc4626Metadata(_asset);
 
         factory = msg.sender;
         underlying = _underlying;
@@ -147,6 +141,20 @@ contract LiFiVaultWrapper is
             msg.sender,
             _integratorShareBps
         );
+    }
+
+    /// @dev Derives the share name/symbol from the asset symbol (falling back to "VW") and
+    ///      runs the OZ ERC-20/ERC-4626 initializers. Split out of `initialize` to keep its
+    ///      stack frame small. Only callable while initializing (the ERC-20/4626 initializers
+    ///      carry the `onlyInitializing` guard).
+    function _initErc4626Metadata(address _asset) private {
+        string memory assetSymbol = _asset.readSymbol();
+        if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
+        __ERC20_init(
+            string.concat("LI.FI Earn ", assetSymbol),
+            string.concat("lf", assetSymbol)
+        );
+        __ERC4626_init(IERC20(_asset));
     }
 
     /// @notice Whether the instance has been initialized.
@@ -305,11 +313,7 @@ contract LiFiVaultWrapper is
             )
         );
         _routeFee(fee);
-        SafeERC20Upgradeable.safeTransfer(
-            IERC20Upgradeable(asset()),
-            receiver,
-            assets
-        );
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }

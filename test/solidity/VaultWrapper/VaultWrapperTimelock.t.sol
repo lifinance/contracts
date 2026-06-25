@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
@@ -29,7 +30,7 @@ contract VaultWrapperTimelockTest is Test {
 
     function setUp() public {
         impl = new LiFiVaultWrapper();
-        beacon = new UpgradeableBeacon(address(impl));
+        beacon = new UpgradeableBeacon(address(impl), address(this));
 
         address[] memory proposers = new address[](1);
         proposers[0] = multisig;
@@ -69,14 +70,12 @@ contract VaultWrapperTimelockTest is Test {
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), multisig));
         assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)));
         assertTrue(
-            timelock.hasRole(timelock.TIMELOCK_ADMIN_ROLE(), address(timelock))
+            timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock))
         );
         assertFalse(
-            timelock.hasRole(timelock.TIMELOCK_ADMIN_ROLE(), address(this))
+            timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(this))
         );
-        assertFalse(
-            timelock.hasRole(timelock.TIMELOCK_ADMIN_ROLE(), multisig)
-        );
+        assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), multisig));
     }
 
     /// Slow-path gating ///
@@ -101,9 +100,25 @@ contract VaultWrapperTimelockTest is Test {
         );
 
         _schedule(address(factory), data);
+        bytes32 id = timelock.hashOperation(
+            address(factory),
+            0,
+            data,
+            bytes32(0),
+            bytes32(0)
+        );
 
         vm.prank(multisig);
-        vm.expectRevert("TimelockController: operation is not ready");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                id,
+                bytes32(
+                    uint256(1) <<
+                        uint8(TimelockController.OperationState.Ready)
+                )
+            )
+        );
 
         timelock.execute(address(factory), 0, data, bytes32(0), bytes32(0));
     }
@@ -174,7 +189,16 @@ contract VaultWrapperTimelockTest is Test {
         vm.warp(block.timestamp + MIN_DELAY);
 
         vm.prank(multisig);
-        vm.expectRevert("TimelockController: operation is not ready");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TimelockController.TimelockUnexpectedOperationState.selector,
+                id,
+                bytes32(
+                    uint256(1) <<
+                        uint8(TimelockController.OperationState.Ready)
+                )
+            )
+        );
 
         timelock.execute(address(factory), 0, data, bytes32(0), bytes32(0));
     }
@@ -199,7 +223,12 @@ contract VaultWrapperTimelockTest is Test {
         LiFiVaultWrapper newImpl = new LiFiVaultWrapper();
 
         vm.prank(multisig);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                multisig
+            )
+        );
 
         beacon.upgradeTo(address(newImpl));
     }

@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
@@ -70,7 +72,10 @@ contract LiFiVaultWrapperTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
-        beacon = new UpgradeableBeacon(address(new LiFiVaultWrapper()));
+        beacon = new UpgradeableBeacon(
+            address(new LiFiVaultWrapper()),
+            address(this)
+        );
         wrapper = _newWrapper(address(underlying));
     }
 
@@ -120,7 +125,7 @@ contract LiFiVaultWrapperTest is Test {
     function testRevert_InitializeTwice() public {
         FeeConfig memory fees;
 
-        vm.expectRevert("Initializable: contract is already initialized");
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
 
         wrapper.initialize(
             address(asset),
@@ -398,7 +403,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.startPrank(alice);
         asset.approve(address(w), DEPOSIT);
 
-        vm.expectRevert("ReentrancyGuard: reentrant call");
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
 
         w.deposit(DEPOSIT, alice);
         vm.stopPrank();

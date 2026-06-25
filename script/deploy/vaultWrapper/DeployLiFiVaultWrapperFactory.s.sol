@@ -15,9 +15,9 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///         factory, and the ERC-4626 yield adapter. The timelock owns both the factory
 ///         and the beacon, so every factory slow-path call and every beacon upgrade is
 ///         gated by the 48h delay.
-/// @dev Deploy order: TimelockController → LiFiVaultWrapper → UpgradeableBeacon(impl) →
-///      LiFiVaultWrapperFactory(beacon, owner=timelock, …) → ERC4626Adapter, with the
-///      beacon ownership transferred to the timelock.
+/// @dev Deploy order: TimelockController → LiFiVaultWrapper → UpgradeableBeacon(impl, timelock) →
+///      LiFiVaultWrapperFactory(beacon, owner=timelock, …) → ERC4626Adapter. The beacon owner is
+///      set to the timelock at construction (OZ v5 UpgradeableBeacon takes an initialOwner).
 ///      Timelock roles: the LI.FI multisig is proposer AND canceller (OZ grants both to
 ///      each proposer); the executor role is open (address(0)); the optional admin is
 ///      renounced (address(0)), so the timelock is self-administered.
@@ -26,7 +26,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      actions — setAdapterApproved(adapter) and setUnderlyingAllowed(underlying), required
 ///      before any wrapper can be deployed — must be scheduled through the timelock.
 ///      Full DeployScriptBase / CREATE3 / deployment-log integration is S14 (EXSC-420).
-/// @custom:version 1.2.0
+/// @custom:version 1.3.0
 contract DeployLiFiVaultWrapperFactory is Script {
     /// @notice The dedicated governance delay for the vault wrapper subsystem.
     uint256 internal constant MIN_DELAY = 48 hours;
@@ -81,8 +81,7 @@ contract DeployLiFiVaultWrapperFactory is Script {
         );
 
         impl = new LiFiVaultWrapper();
-        beacon = new UpgradeableBeacon(address(impl));
-        beacon.transferOwnership(address(timelock));
+        beacon = new UpgradeableBeacon(address(impl), address(timelock));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
             address(timelock),

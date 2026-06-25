@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
@@ -37,7 +38,7 @@ contract BeaconUpgradeTest is Test {
     function setUp() public virtual {
         implV1 = new LiFiVaultWrapper();
         implV2 = new MockVaultWrapperV2();
-        beacon = new UpgradeableBeacon(address(implV1));
+        beacon = new UpgradeableBeacon(address(implV1), address(this));
         beacon.transferOwnership(owner);
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
@@ -98,15 +99,27 @@ contract BeaconUpgradeTest is Test {
     function test_OnlyOwnerCanUpgrade() public {
         address attacker = makeAddr("attacker");
         vm.prank(attacker);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                attacker
+            )
+        );
         beacon.upgradeTo(address(implV2));
 
         assertEq(beacon.implementation(), address(implV1));
     }
 
     function test_UpgradeToNonContractReverts() public {
+        address eoa = makeAddr("eoa");
+
         vm.prank(owner);
-        vm.expectRevert("UpgradeableBeacon: implementation is not a contract");
-        beacon.upgradeTo(makeAddr("eoa"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UpgradeableBeacon.BeaconInvalidImplementation.selector,
+                eoa
+            )
+        );
+        beacon.upgradeTo(eoa);
     }
 }

@@ -4,6 +4,10 @@ eth-gas-reporter/=node_modules/eth-gas-reporter/
 
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+src/VaultWrapper/:@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/
+test/solidity/VaultWrapper/:@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/
+script/deploy/vaultWrapper/:@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/
+lib/openzeppelin-contracts-upgradeable/:@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/
 celer-network/=lib/sgn-v2-contracts/
 create3-factory/=lib/create3-factory/src/
 solmate/=lib/solmate/src/
