@@ -1,5 +1,6 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
+# - Sharded across five parallel runners (Libraries, Facets, Periphery, Gas, misc)
 # - Path-gated: heavy job runs only when files that can affect test outcome change.
 #   A `unit-tests-required` aggregator job always reports a final status so this
 #   workflow can remain a required check on `main` branch protection even when
@@ -56,6 +57,10 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [libraries, facets, periphery, gas, misc]
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -96,17 +101,31 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
-      - name: Run forge tests
+      - name: Run forge tests (${{ matrix.shard }})
         # retry failed tests up to 10 times (RPC flakiness)
         shell: bash
         env:
           FOUNDRY_PROFILE: ci
         run: |
-          forge test && exit 0
+          set -euo pipefail
+          # forge accepts only a single --match-path/--no-match-path argument, so
+          # each shard maps to exactly one glob. `misc` is a catch-all by
+          # exclusion: any new top-level dir under test/solidity/ auto-runs there
+          # instead of silently dropping out of CI with all checks green.
+          case "${{ matrix.shard }}" in
+            libraries) FORGE_ARGS=(--match-path "test/solidity/Libraries/**") ;;
+            facets)    FORGE_ARGS=(--match-path "test/solidity/Facets/**") ;;
+            periphery) FORGE_ARGS=(--match-path "test/solidity/Periphery/**") ;;
+            gas)       FORGE_ARGS=(--match-path "test/solidity/Gas/**") ;;
+            misc)      FORGE_ARGS=(--no-match-path "test/solidity/{Libraries,Facets,Periphery,Gas}/**") ;;
+            *) echo "Unknown shard: ${{ matrix.shard }}" >&2; exit 1 ;;
+          esac
+
+          forge test "${FORGE_ARGS[@]}" && exit 0
           for i in $(seq 1 10); do
-            echo "::group::Retry $i/10: forge test --rerun"
+            echo "::group::Retry $i/10: forge test ${FORGE_ARGS[*]} --rerun"
             sleep 15
-            forge test --rerun && exit 0
+            forge test "${FORGE_ARGS[@]}" --rerun && exit 0
             echo "::endgroup::"
           done
           exit 1
