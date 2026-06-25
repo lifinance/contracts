@@ -5,8 +5,8 @@ import { FeeConfig } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
 /// @notice Minimal interface the factory calls on a freshly deployed vault wrapper.
+/// @custom:version 1.0.0
 interface ILiFiVaultWrapper {
     /// @notice One-time setup of a vault wrapper immediately after deployment.
     /// @param _asset The ERC20 asset of the underlying yield source.

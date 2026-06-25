@@ -37,6 +37,12 @@ contract DeployLiFiVaultWrapperFactory is Script {
     error ZeroOnboardingManager();
     error ZeroLifiFeeRecipient();
 
+    /// @notice Deploys and wires the full vault wrapper system from environment config.
+    /// @return factory The deployed vault wrapper factory.
+    /// @return timelock The dedicated 48h timelock owning the factory and beacon.
+    /// @return beacon The upgradeable beacon holding the wrapper implementation.
+    /// @return impl The vault wrapper implementation behind the beacon.
+    /// @return erc4626Adapter The ERC-4626 yield adapter.
     function run()
         public
         returns (

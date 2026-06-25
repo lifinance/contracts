@@ -415,6 +415,28 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 7000);
     }
 
+    function test_SelfDeployerCannotSetSplitAboveDefault() public {
+        _enableUnderlyingAndBounds();
+        vm.prank(onboarder);
+        factory.setApprovedIntegratorDeployer(NS, deployer);
+        DeployParams memory p = _params(0);
+        p.integratorShareBps = factory.defaultIntegratorShareBps() + 1;
+        vm.prank(deployer);
+        vm.expectRevert(
+            ILiFiVaultWrapperFactory.IntegratorShareAboveDefault.selector
+        );
+        factory.deploy(p);
+    }
+
+    function test_OnboardingManagerCanSetSplitAboveDefault() public {
+        _enableUnderlyingAndBounds();
+        DeployParams memory p = _params(0);
+        p.integratorShareBps = 9000; // above the 8000 default; LI.FI's call to make
+        vm.prank(onboarder);
+        address instance = factory.deploy(p);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 9000);
+    }
+
     function test_DeployRevertsOnSplitAbove100Percent() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);

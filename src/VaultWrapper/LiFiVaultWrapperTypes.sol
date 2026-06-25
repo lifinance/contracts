@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-/// @custom:version 1.0.0
+/// @title LiFiVaultWrapperTypes
+/// @author LI.FI (https://li.fi)
 /// @notice Shared value types for the LI.FI vault wrapper subsystem.
+/// @custom:version 1.0.0
 /// @dev Declared at file level rather than inside an interface so the factory,
 ///      the wrapper, both of their interfaces, and the adapters can import them
 ///      directly without depending on one another (an interface owner would
