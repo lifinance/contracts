@@ -1,0 +1,53 @@
+# Deployment Address Consistency Check
+# - validates that contract addresses are consistent across config/whitelist.json,
+#   deployments/<network>.json, and deployments/<network>.diamond.json
+# - skips draft PRs to support the two-step deploy workflow:
+#   step 1 (deploy facet, open draft PR) may have flat log ahead of diamond.json;
+#   step 2 (execute timelock) completes the update; PR is then marked ready for review
+# - path-gated: only runs when whitelist or deployment files change
+# - scoped per-PR: checks only networks changed vs the PR base branch (--base),
+#   so pre-existing drift on untouched networks does not block unrelated PRs;
+#   a manual workflow_dispatch run falls back to the full-repo audit (all networks)
+
+name: Deployment Address Consistency
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'config/whitelist.json'
+      - 'deployments/**'
+  workflow_dispatch: # allows manual triggering from the Actions tab for testing
+
+permissions:
+  contents: read # required to fetch repository contents
+
+jobs:
+  address-consistency:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # full history so the per-PR check can diff against the base commit
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check deployment address consistency
+        env:
+          # base commit of the PR; empty for workflow_dispatch (manual full-repo audit)
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            bunx tsx script/tasks/checkDeploymentAddressConsistency.ts --base "$BASE_SHA"
+          else
+            bunx tsx script/tasks/checkDeploymentAddressConsistency.ts
+          fi

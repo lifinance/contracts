@@ -80,8 +80,8 @@ export class EvmChainExecutor implements IChainExecutor {
     // After broadcast we must never throw — the tx may have landed on-chain
     // even when receipt polling fails (timeout, RPC drop, parse error). The
     // caller persists the hash and the reconciliation step resolves the final
-    // status on the next run. A reverted receipt is returned as-is so the
-    // caller can record status: 'reverted' rather than treat it as unknown.
+    // status on the next run. A reverted receipt yields status: 'reverted' so
+    // the caller records that rather than treating it as unknown.
     let receipt: TransactionReceipt | undefined
     try {
       const timeoutPromise = new Promise((_, reject) =>
@@ -102,6 +102,6 @@ export class EvmChainExecutor implements IChainExecutor {
       consola.warn(`   Reconciliation will resolve the final status next run.`)
     }
 
-    return { hash: txHash, receipt, explorerUrl }
+    return { hash: txHash, status: receipt?.status, explorerUrl }
   }
 }

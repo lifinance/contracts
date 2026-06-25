@@ -25,6 +25,7 @@ import {
   getSelector,
   getSigners,
   mongoSafeTxRowFilter,
+  safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
@@ -505,5 +506,20 @@ describe('serializeSafeTxForMongo', () => {
     const stored = serializeSafeTxForMongo(safeTx)
     expect(stored.signatures[PROPOSER.toLowerCase()]?.signer).toEqual(PROPOSER)
     expect(Object.keys(stored.signatures)).toHaveLength(1)
+  })
+})
+
+describe('safeTxStatusConsumedNonce', () => {
+  it('returns true only for executed', () => {
+    expect(safeTxStatusConsumedNonce('executed')).toBe(true)
+  })
+
+  it('returns false for reverted — a reverted execTransaction rolls back the nonce', () => {
+    expect(safeTxStatusConsumedNonce('reverted')).toBe(false)
+  })
+
+  it('returns false for submitted (unknown outcome) and pending', () => {
+    expect(safeTxStatusConsumedNonce('submitted')).toBe(false)
+    expect(safeTxStatusConsumedNonce('pending')).toBe(false)
   })
 })

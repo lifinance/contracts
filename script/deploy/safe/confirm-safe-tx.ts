@@ -45,6 +45,7 @@ import {
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
+  safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   shouldShowSignAndExecuteWithDeployer,
   wouldMeetThreshold,
@@ -199,9 +200,13 @@ const processTxs = async (
    * @param txDoc - The pendingTransactions row being processed
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  // Returns true if the Safe nonce was consumed on-chain (executed or
-  // reverted with valid signatures). Returns false when the outcome is
-  // unknown ('submitted') — the caller should not advance expectedNonce.
+  // Returns true only for the 'executed' status (receipt success, or the Tron
+  // no-receipt path) — the only outcome that consumes the Safe nonce. A
+  // top-level revert rolls back the nonce increment, so 'reverted' did NOT
+  // consume the nonce (in this repo safeTxGas=0 is why an inner-call failure
+  // surfaces as a top-level revert (GS013) rather than ExecutionFailure). Both
+  // 'reverted' and the unknown 'submitted' outcome return false, and the caller
+  // must not advance expectedNonce in either case.
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
     txDoc: ISafeTxMongoDocument,
@@ -221,17 +226,15 @@ const processTxs = async (
 
       consola.success(`✅ Transaction submitted successfully`)
 
-      // Resolve the DB status from on-chain reality. With safeTxGas=0 the
-      // Safe reverts whenever the inner call reverts, so receipt.status is
-      // the authoritative signal — no need to also parse ExecutionSuccess.
+      // Resolve the DB status from on-chain reality. With safeTxGas=0 the Safe
+      // reverts whenever the inner call reverts, so the executor's normalized
+      // status is authoritative (EVM resolves it from the receipt, Tron
+      // synchronously via getTransactionInfo). An undefined status means the
+      // outcome is unknown (EVM receipt poll timed out) — leave the row
+      // 'submitted' for reconciliation to resolve.
       let nextStatus: SafeTxStatus
-      if (exec.receipt)
-        nextStatus = exec.receipt.status === 'success' ? 'executed' : 'reverted'
-      else if (isTronNetworkKey(network))
-        // Tron lacks synchronous receipts; preserve existing behavior and
-        // mark executed when a hash is returned. Reconciliation does not
-        // currently cover Tron.
-        nextStatus = 'executed'
+      if (exec.status)
+        nextStatus = exec.status === 'success' ? 'executed' : 'reverted'
       else nextStatus = 'submitted'
 
       await pendingTransactions.updateOne(
@@ -268,7 +271,7 @@ const processTxs = async (
           `❌ Safe transaction reverted on-chain — recorded as reverted`
         )
         consola.error(
-          `   On-chain nonce has advanced; inspect the receipt for the revert reason.`
+          `   The Safe nonce was NOT consumed — the execTransaction reverted, rolling back the nonce increment, so this nonce can be re-proposed. Inspect the receipt for the revert reason.`
         )
         globalFailedExecutions.push({
           chain: chain.name,
@@ -299,7 +302,7 @@ const processTxs = async (
       )
       consola.log(' ')
 
-      return nextStatus === 'executed' || nextStatus === 'reverted'
+      return safeTxStatusConsumedNonce(nextStatus)
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
