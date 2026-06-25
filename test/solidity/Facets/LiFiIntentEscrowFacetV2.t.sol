@@ -322,6 +322,28 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_NonEvmWithDestinationCall() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory validLIFIIntentData = _validLIFIIntentData();
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+
+        bridgeData.sendingAssetId = address(usdc);
+
+        // Non-EVM destination combined with a destination call.
+        bridgeData.receiver = LiFiData.NON_EVM_ADDRESS;
+        bridgeData.hasDestinationCall = true;
+        validLIFIIntentData.recipient = keccak256("");
+        validLIFIIntentData.dstCallSwapData = new LibSwap.SwapData[](1);
+
+        vm.expectRevert(InformationMismatch.selector);
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2(
+            bridgeData,
+            validLIFIIntentData
+        );
+        vm.stopPrank();
+    }
+
     function testRevert_LIFIIntentWrongReceiver() external {
         LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
             memory validLIFIIntentData = _validLIFIIntentData();

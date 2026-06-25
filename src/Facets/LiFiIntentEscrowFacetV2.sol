@@ -193,6 +193,8 @@ contract LiFiIntentEscrowFacetV2 is
         bytes32 recipient = _lifiIntentData.recipient;
         if (recipient == bytes32(0)) revert InvalidReceiver();
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            // Destination calls require an EVM `ReceiverOIF`. This is an EVM contract.
+            if (dstCallSwapDataLength != 0) revert InformationMismatch();
             // In this case, _bridgeData.receiver is not useful.
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
