@@ -9,6 +9,7 @@ import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
+import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
 address constant ENDPOINT_V2_MAINNET = 0x1a44076050125825900e736c501f859c50fE728c;
 address constant STARGATE_NATIVE_POOL_MAINNET = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
@@ -42,8 +43,8 @@ contract ReceiverStargateV2Test is TestBase {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
-        erc20Proxy = new ERC20Proxy(USER_DIAMOND_OWNER);
-        executor = new Executor(address(erc20Proxy), USER_DIAMOND_OWNER);
+        (erc20Proxy, executor) = DeployPeripheryHelpers
+            .deployERC20ProxyAndExecutor(address(this), USER_DIAMOND_OWNER);
         receiver = new ReceiverStargateV2(
             USER_DIAMOND_OWNER,
             address(executor),

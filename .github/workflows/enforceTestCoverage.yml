@@ -93,8 +93,27 @@ jobs:
         run: forge install
 
       - name: Generate Coverage Report
+        env:
+          FOUNDRY_PROFILE: ci
         run: |
-          forge coverage --report lcov --force --ir-minimum
+          set -euo pipefail
+          # forge coverage hits live RPCs for fork tests and has no built-in
+          # retry, so a single transient RPC blip sinks the whole report. Retry
+          # the full command (--rerun can't be used — coverage needs the complete
+          # run). Kept low: --ir-minimum coverage is slow (~8 min/run).
+          for i in 1 2 3; do
+            echo "::group::forge coverage (attempt $i/3)"
+            if forge coverage --report lcov --force --ir-minimum; then
+              echo "::endgroup::"
+              break
+            fi
+            echo "::endgroup::"
+            if [[ "$i" -eq 3 ]]; then
+              echo "forge coverage failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep 15
+          done
 
           echo "Filtering coverage report to only contain coverage info for 'src/'' folder now"
 

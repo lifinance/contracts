@@ -14,8 +14,6 @@ contract HopGasTest is TestBase {
     HopFacet internal hopFacet;
 
     function setUp() public {
-        // set custom block number for forking
-        customBlockNumberForForking = 14847528;
         initTestBase();
 
         hopFacet = new HopFacet();

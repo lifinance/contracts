@@ -3,10 +3,10 @@ pragma solidity ^0.8.17;
 
 import { WithdrawFacet } from "lifi/Facets/WithdrawFacet.sol";
 import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract WithdrawFacetTest is TestBase {
+contract WithdrawFacetTest is TestBaseLocal {
     WithdrawFacet internal withdrawFacet;
 
     event LogWithdraw(
@@ -16,7 +16,7 @@ contract WithdrawFacetTest is TestBase {
     );
 
     function setUp() public {
-        initTestBase();
+        initTestBaseLocal();
         withdrawFacet = new WithdrawFacet();
 
         bytes4[] memory selectors = new bytes4[](2);
@@ -25,7 +25,7 @@ contract WithdrawFacetTest is TestBase {
         addFacet(diamond, address(withdrawFacet), selectors);
 
         withdrawFacet = WithdrawFacet(address(diamond));
-        setFacetAddressInTestBase(address(withdrawFacet), "WithdrawFacet");
+        vm.label(address(withdrawFacet), "WithdrawFacet");
     }
 
     function _fundDiamond(uint256 amount) internal {

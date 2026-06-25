@@ -150,9 +150,10 @@ const main = defineCommand({
         try {
           consola.info(`[${network.name}] Processing network now`)
 
-          // get the diamond address for this network
-          const diamondAddress = await getContractAddressForNetwork(
-            'LiFiDiamond',
+          // get the timelock address for this network — unpauseDiamond on the
+          // timelock bypasses minDelay and is callable directly by the Safe admin
+          const timelockAddress = await getContractAddressForNetwork(
+            'LiFiTimelockController',
             network.name as SupportedChain,
             environment
           )
@@ -193,7 +194,7 @@ const main = defineCommand({
           const safeTransaction = await safe.createTransaction({
             transactions: [
               {
-                to: diamondAddress as Address,
+                to: timelockAddress as Address,
                 value: 0n,
                 data: calldata,
                 operation: OperationTypeEnum.Call,
