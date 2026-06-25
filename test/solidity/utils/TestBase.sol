@@ -11,17 +11,10 @@ import { FeeCollector } from "lifi/Periphery/FeeCollector.sol";
 import { ReentrancyError, ETHTransferFailed } from "src/Errors/GenericErrors.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { TestWhitelistManagerBase } from "./TestWhitelistManagerBase.sol";
+import { TestToken } from "./TestToken.sol";
 import { LiFiData } from "src/Helpers/LiFiData.sol";
 
 using stdJson for string;
-
-contract LocalTestERC20 is ERC20 {
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        uint8 decimals_
-    ) ERC20(name_, symbol_, decimals_) {}
-}
 
 contract TestFacet is TestWhitelistManagerBase {
     constructor() {}
@@ -300,11 +293,11 @@ abstract contract TestBase is Test, DiamondTest, ILiFi, LiFiData {
     }
 
     function _deployLocalTestTokens() internal {
-        ADDRESS_USDC = address(new LocalTestERC20("USD Coin", "USDC", 6));
-        ADDRESS_USDT = address(new LocalTestERC20("Tether USD", "USDT", 6));
-        ADDRESS_DAI = address(new LocalTestERC20("Dai Stablecoin", "DAI", 18));
+        ADDRESS_USDC = address(new TestToken("USD Coin", "USDC", 6));
+        ADDRESS_USDT = address(new TestToken("Tether USD", "USDT", 6));
+        ADDRESS_DAI = address(new TestToken("Dai Stablecoin", "DAI", 18));
         ADDRESS_WRAPPED_NATIVE = address(
-            new LocalTestERC20("Wrapped Ether", "WETH", 18)
+            new TestToken("Wrapped Ether", "WETH", 18)
         );
         ADDRESS_UNISWAP = makeAddr("MOCK_UNISWAP_ROUTER");
     }
