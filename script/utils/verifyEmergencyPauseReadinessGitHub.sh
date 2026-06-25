@@ -394,7 +394,7 @@ function verifyHexagatePatReadiness() {
       SSO_STATUS="pass"
     fi
   elif [[ "$HTTP_STATUS" == "403" ]] && echo "$SSO_HEADER" | grep -qi "required"; then
-    error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-sc-bot account)"
+    error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-hexagate-bot account)"
     SSO_STATUS="fail"
     RC=1
   else
