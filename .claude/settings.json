@@ -74,6 +74,7 @@
   },
   "enabledPlugins": {
     "superpowers@obra-superpowers": true,
-    "skill-creator@anthropics-claude-plugins-official": true
+    "skill-creator@anthropics-claude-plugins-official": true,
+    "aikido@anthropics-claude-plugins-official": true
   }
 }

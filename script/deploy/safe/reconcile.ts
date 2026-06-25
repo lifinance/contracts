@@ -36,7 +36,7 @@ import {
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
-import type { ISafeTxDocument } from './safe-utils'
+import { NONCE_CONSUMING_STATUSES, type ISafeTxDocument } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 /** Grace period before a `submitted` row with no receipt is sent back to `pending`. */
@@ -497,9 +497,13 @@ async function sweepB(
 
 /**
  * Compute the on-chain nonce expected from MongoDB state: highest consumed
- * (executed or reverted) nonce + 1, plus the count of in-flight (`submitted`)
- * rows. If the chain's actual nonce exceeds this, at least one execution was
- * not recorded in the DB and Sweep B should run.
+ * (see {@link NONCE_CONSUMING_STATUSES} — `executed` only; a `reverted` tx
+ * rolls back its `nonce++` and does NOT consume the nonce) nonce + 1, plus the
+ * count of in-flight (`submitted`) rows. If the chain's actual nonce exceeds
+ * this, at least one execution was not recorded in the DB and Sweep B should
+ * run. Counting `reverted` here would inflate the expected nonce and mask a
+ * real gap in the revert → re-execute → lost-hash case, skipping Sweep B's
+ * back-fill.
  */
 async function computeExpectedNonce(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -512,7 +516,7 @@ async function computeExpectedNonce(
       network: { $eq: networkKey },
       chainId: { $eq: chainId },
       safeAddress: { $eq: safeAddress },
-      status: { $in: ['executed', 'reverted'] },
+      status: { $in: [...NONCE_CONSUMING_STATUSES] },
     })
     .sort({ 'safeTx.data.nonce': -1 })
     .limit(1)

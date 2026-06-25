@@ -9,12 +9,12 @@ import { IStargate } from "lifi/Interfaces/IStargate.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
-contract CalldataVerificationFacetTest is TestBase {
+contract CalldataVerificationFacetTest is TestBaseLocal {
     using LibBytes for bytes;
     using OFTComposeMsgCodec for address;
 
@@ -23,8 +23,7 @@ contract CalldataVerificationFacetTest is TestBase {
     error SliceOutOfBounds();
 
     function setUp() public {
-        customBlockNumberForForking = 19979843;
-        initTestBase();
+        initTestBaseLocal();
         calldataVerificationFacet = new CalldataVerificationFacet();
         bridgeData = ILiFi.BridgeData({
             transactionId: keccak256("id"),
@@ -51,8 +50,7 @@ contract CalldataVerificationFacetTest is TestBase {
             })
         );
 
-        // set facet address in TestBase
-        setFacetAddressInTestBase(
+        vm.label(
             address(calldataVerificationFacet),
             "CalldataVerificationFacet"
         );
@@ -418,7 +416,6 @@ contract CalldataVerificationFacetTest is TestBase {
 
     function test_CanValidateStargateV2DestinationCalldata() public {
         uint16 assetIdUSDC = 1;
-        address stargatePoolUSDC = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7;
 
         StargateFacetV2.StargateData memory stargateData = StargateFacetV2
             .StargateData({
@@ -435,11 +432,6 @@ contract CalldataVerificationFacetTest is TestBase {
                 fee: IStargate.MessagingFee({ nativeFee: 0, lzTokenFee: 0 }),
                 refundAddress: payable(USER_REFUND)
             });
-
-        // get quote and update fee information in stargateData
-        IStargate.MessagingFee memory fees = IStargate(stargatePoolUSDC)
-            .quoteSend(stargateData.sendParams, false);
-        stargateData.fee = fees;
 
         bytes memory callData = abi.encodeWithSelector(
             StargateFacetV2.startBridgeTokensViaStargate.selector,
