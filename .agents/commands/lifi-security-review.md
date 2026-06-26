@@ -95,6 +95,7 @@ Based on directories in `${PR_FILES}`, load the relevant `by-area/*.md`:
 | `src/Facets/`               | `audit/knowledge/by-area/facets.md`    |
 | `src/Periphery/`            | `audit/knowledge/by-area/periphery.md` |
 | `src/Libraries/`            | `audit/knowledge/by-area/libraries.md` |
+| `src/Interfaces/`           | `audit/knowledge/by-area/cross-cutting.md` |
 | `src/Security/`             | `audit/knowledge/by-area/security.md`  |
 | `src/Helpers/`              | `audit/knowledge/by-area/cross-cutting.md` |
 | Any combination ≥ 2 areas   | also load `cross-cutting.md`           |
