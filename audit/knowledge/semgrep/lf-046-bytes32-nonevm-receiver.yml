@@ -34,13 +34,16 @@ rules:
       - pattern-either:
           - pattern: bytes32 $RECEIVER;
           - pattern: bytes32 $RECEIVER = $X;
-      # Variable name must clearly indicate non-EVM receiver. Anchored
-      # to require "receiver" as a substring with a non-EVM qualifier
-      # (nonEvm, btc, bitcoin). Tightened in EXP-484 from the earlier
-      # over-broad regex that matched typehashes/namespaces/IDs.
+      # Variable name must clearly indicate non-EVM receiver: a non-EVM
+      # qualifier (nonEvm, btc, bitcoin) adjacent to "receiver". Tightened in
+      # EXP-484 from the earlier over-broad regex that matched
+      # typehashes/namespaces/IDs. metavariable-regex is start-anchored
+      # (re.match), so the leading `.*` is required — without it, prefixed
+      # names like `_nonEvmReceiver`, `bridgeBtcReceiver`, or
+      # `dstBitcoinReceiver` would silently not match.
       - metavariable-regex:
           metavariable: $RECEIVER
-          regex: '(?i)(non[_]?evm|btc|bitcoin)[a-z_]*receiver|receiver[a-z_]*(non[_]?evm|btc|bitcoin)'
+          regex: '(?i).*((non[_]?evm|btc|bitcoin)[a-z_]*receiver|receiver[a-z_]*(non[_]?evm|btc|bitcoin))'
     paths:
       include:
         - "src/Facets/**"
