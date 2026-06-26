@@ -5,11 +5,14 @@ rules:
     message: |
       Direct `IERC20(...).approve(...)` / `.transfer(...)` / `.transferFrom(...)`
       on user-supplied tokens breaks for non-standard ERC20 implementations
-      that don't return bool (USDT, BNB), revert on non-zero→non-zero allowance
-      change (USDT), or charge fee-on-transfer.
+      that don't return bool (USDT, BNB) or revert on a non-zero→non-zero
+      allowance change (USDT).
 
       Use `SafeERC20.safeTransfer`/`safeTransferFrom`/`forceApprove`
-      (or solady's `SafeTransferLib`) — these handle the non-standard cases.
+      (or solady's `SafeTransferLib`) — these handle the return-value and
+      allowance cases. They do NOT fix fee-on-transfer accounting: for
+      deflationary tokens you must still measure the balance delta around the
+      transfer instead of assuming the requested amount arrived.
 
       Source: LF-002 (audit20240201 — LiFiDexAggregator/RouteProcessor4).
       Pattern: direct IERC20 call on arbitrary token without SafeERC20 wrap.
