@@ -42,6 +42,8 @@ contract LiFiVaultWrapper is
     address public adapter;
     /// @notice The per-vault controller granted the instance admin role.
     address public vaultWrapperAdmin;
+    /// @notice The proposed next admin, pending acceptance (two-step transfer).
+    address public pendingVaultWrapperAdmin;
     /// @notice The factory that deployed this instance (the initializer); read by later
     ///         modules for the factory-level global circuit breaker.
     address public factory;
@@ -58,7 +60,7 @@ contract LiFiVaultWrapper is
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
     ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
     ///      append (consuming this gap), never reorder fields or the inheritance list.
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     /// Events ///
 
@@ -78,6 +80,22 @@ contract LiFiVaultWrapper is
         uint16 integratorShareBps
     );
 
+    /// @notice Emitted when an admin transfer is started (pending acceptance).
+    /// @param currentAdmin The admin initiating the transfer.
+    /// @param newAdmin The proposed new admin that must accept.
+    event VaultWrapperAdminTransferStarted(
+        address indexed currentAdmin,
+        address indexed newAdmin
+    );
+
+    /// @notice Emitted when the admin role is transferred (accepted).
+    /// @param previousAdmin The admin being replaced.
+    /// @param newAdmin The admin that accepted the role.
+    event VaultWrapperAdminTransferred(
+        address indexed previousAdmin,
+        address indexed newAdmin
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
@@ -86,8 +104,10 @@ contract LiFiVaultWrapper is
     error ZeroAddress();
     /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
-    /// @notice Thrown when the adapter resolves the underlying to an asset other than `_asset`.
-    error AssetMismatch(address expected, address actual);
+    /// @notice Thrown when a caller other than the current admin attempts an admin action.
+    error NotVaultWrapperAdmin();
+    /// @notice Thrown when a caller other than the pending admin attempts to accept the role.
+    error NotPendingVaultWrapperAdmin();
     /// @notice Thrown when the adapter invests less than the net deposit into the yield source.
     error AdapterDepositShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
@@ -108,7 +128,6 @@ contract LiFiVaultWrapper is
     ///      derive from the asset symbol (e.g. "LI.FI Earn USDC" / "lfUSDC"), falling back to
     ///      "VW" when the asset exposes none.
     function initialize(
-        address _asset,
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
@@ -117,7 +136,6 @@ contract LiFiVaultWrapper is
         bytes calldata _initData
     ) external initializer {
         if (
-            _asset == address(0) ||
             _underlying == address(0) ||
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
@@ -125,15 +143,9 @@ contract LiFiVaultWrapper is
         if (_integratorShareBps >= 10_000)
             revert InvalidIntegratorShareBps(_integratorShareBps);
 
-        {
-            address resolvedAsset = IYieldAdapter(_adapter).resolveAsset(
-                _underlying
-            );
-            if (resolvedAsset != _asset)
-                revert AssetMismatch(_asset, resolvedAsset);
-        }
+        address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
 
-        _initErc4626Metadata(_asset);
+        _initErc4626Metadata(asset);
 
         factory = msg.sender;
         underlying = _underlying;
@@ -144,7 +156,7 @@ contract LiFiVaultWrapper is
         initData = _initData;
 
         emit Initialized(
-            _asset,
+            asset,
             _underlying,
             _adapter,
             _vaultWrapperAdmin,
@@ -170,6 +182,29 @@ contract LiFiVaultWrapper is
     /// @notice Whether the instance has been initialized.
     function initialized() external view returns (bool) {
         return _getInitializedVersion() != 0;
+    }
+
+    /// Admin transfer (two-step) ///
+
+    /// @notice Propose a new vault-wrapper admin; the proposed admin must accept.
+    /// @dev Two-step so a mistyped address can never strand the role. Only the current
+    ///      admin may call. Passing `address(0)` clears any pending transfer.
+    /// @param _newAdmin The proposed next admin.
+    function transferVaultWrapperAdmin(address _newAdmin) external {
+        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
+        pendingVaultWrapperAdmin = _newAdmin;
+        emit VaultWrapperAdminTransferStarted(msg.sender, _newAdmin);
+    }
+
+    /// @notice Accept a pending vault-wrapper admin transfer.
+    /// @dev Only the pending admin may call; promotes the caller and clears the pending slot.
+    function acceptVaultWrapperAdmin() external {
+        if (msg.sender != pendingVaultWrapperAdmin)
+            revert NotPendingVaultWrapperAdmin();
+        address previousAdmin = vaultWrapperAdmin;
+        vaultWrapperAdmin = msg.sender;
+        delete pendingVaultWrapperAdmin;
+        emit VaultWrapperAdminTransferred(previousAdmin, msg.sender);
     }
 
     /// ERC-4626 configuration ///
