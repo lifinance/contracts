@@ -104,8 +104,11 @@ Based on directories in `${PR_FILES}`, load the relevant `by-area/*.md`:
 
 If `${PR_FILES}` has more than 30 src/ files OR `${DIFF_FILE}` exceeds
 5000 lines, write a minimal summary explaining "PR too large for AI
-triage — Stage 1 SARIF still uploaded; please request manual security
-review" and exit. Stage 1 findings remain visible in Code Scanning.
+triage — please request manual security review", ALSO emit a valid
+zero-result `${OUT_DIR}/curated.sarif`, and exit. Stage 3 uploads only
+`curated.sarif`, so skipping it here would leave the PR with no Code
+Scanning entry at all. Stage 1 raw SARIF stays available as a workflow-run
+artifact (it is not uploaded to Code Scanning).
 
 ### Step 2 — Pre-Analysis (invoke `audit-context-building`)
 
@@ -162,6 +165,9 @@ normalize all verified TPs from Step 4 into our existing schema:
 **`${OUT_DIR}/curated.sarif`**:
 
 - SARIF 2.1.0 schema
+- Always written — including the Step 1 cost-guardrail exit, where it is a
+  valid zero-result SARIF. Stage 3 uploads only this file, so it must exist
+  on every path.
 - One run with `tool.driver.name = "lifi-security-review"`
 - One `result` per kept finding with `ruleId`, `level`, `message`,
   `locations`, `partialFingerprints.primaryLocationLineHash` (dedup
