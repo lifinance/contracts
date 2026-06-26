@@ -16,7 +16,7 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidReceive
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 2.1.0
+/// @custom:version 3.0.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -49,6 +49,10 @@ contract PolymerCCTPFacet is
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
         uint32 minFinalityThreshold;
+        // Restricted caller on the destination domain for hook flows (e.g. HyperCore forwarding); only the forwarder contract may execute.
+        bytes32 destinationCaller;
+        // Hook data appended to the burn message for execution on the destination domain. When non-empty, depositForBurnWithHook is used instead of depositForBurn.
+        bytes hookData;
     }
 
     struct ChainIdConfig {
@@ -261,6 +265,16 @@ contract PolymerCCTPFacet is
         ILiFi.BridgeData memory _bridgeData,
         PolymerCCTPData calldata _polymerData
     ) internal {
+        // When a hook is supplied, destinationCaller must restrict execution to a
+        // specific forwarder on the destination domain; otherwise anyone could
+        // execute the hook (see PolymerCCTPData.destinationCaller docs).
+        if (
+            _polymerData.hookData.length > 0 &&
+            _polymerData.destinationCaller == bytes32(0)
+        ) {
+            revert InvalidConfig();
+        }
+
         LibAsset.transferERC20(
             USDC,
             POLYMER_FEE_RECEIVER,
@@ -276,6 +290,8 @@ contract PolymerCCTPFacet is
 
         uint256 destinationChainId = _bridgeData.destinationChainId;
 
+        uint32 domainId = _chainIdToDomainId(destinationChainId);
+
         // This case first for gas ops since it will likely be triggered more often
         if (_bridgeData.receiver != NON_EVM_ADDRESS) {
             // _bridgeData.receiver != NON_EVM_ADDRESS -> mint to _bridgeData.receiver
@@ -283,15 +299,32 @@ contract PolymerCCTPFacet is
                 revert InvalidReceiver();
             }
 
-            TOKEN_MESSENGER.depositForBurn(
-                bridgeAmount,
-                _chainIdToDomainId(destinationChainId),
-                bytes32(uint256(uint160(_bridgeData.receiver))),
-                USDC,
-                UNRESTRICTED_DESTINATION_CALLER,
-                _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
-                _polymerData.minFinalityThreshold // minFinalityThreshold - use default
+            bytes32 mintRecipient = bytes32(
+                uint256(uint160(_bridgeData.receiver))
             );
+
+            if (_polymerData.hookData.length > 0) {
+                TOKEN_MESSENGER.depositForBurnWithHook(
+                    bridgeAmount,
+                    domainId,
+                    mintRecipient,
+                    USDC,
+                    _polymerData.destinationCaller,
+                    _polymerData.maxCCTPFee,
+                    _polymerData.minFinalityThreshold,
+                    _polymerData.hookData
+                );
+            } else {
+                TOKEN_MESSENGER.depositForBurn(
+                    bridgeAmount,
+                    domainId,
+                    mintRecipient,
+                    USDC,
+                    UNRESTRICTED_DESTINATION_CALLER,
+                    _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
+                    _polymerData.minFinalityThreshold
+                );
+            }
         } else {
             // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
             bool isSolanaDestination = destinationChainId ==
@@ -306,15 +339,28 @@ contract PolymerCCTPFacet is
                 revert InvalidReceiver();
             }
 
-            TOKEN_MESSENGER.depositForBurn(
-                bridgeAmount,
-                _chainIdToDomainId(destinationChainId),
-                mintRecipient,
-                USDC,
-                UNRESTRICTED_DESTINATION_CALLER,
-                _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
-                _polymerData.minFinalityThreshold // minFinalityThreshold - use default
-            );
+            if (_polymerData.hookData.length > 0) {
+                TOKEN_MESSENGER.depositForBurnWithHook(
+                    bridgeAmount,
+                    domainId,
+                    mintRecipient,
+                    USDC,
+                    _polymerData.destinationCaller,
+                    _polymerData.maxCCTPFee,
+                    _polymerData.minFinalityThreshold,
+                    _polymerData.hookData
+                );
+            } else {
+                TOKEN_MESSENGER.depositForBurn(
+                    bridgeAmount,
+                    domainId,
+                    mintRecipient,
+                    USDC,
+                    UNRESTRICTED_DESTINATION_CALLER,
+                    _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
+                    _polymerData.minFinalityThreshold
+                );
+            }
 
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
