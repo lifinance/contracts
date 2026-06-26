@@ -38,6 +38,11 @@ abstract contract VaultWrapperFeeDistributor {
     /// @notice Accrued fee assets owed to the integrator wallets, awaiting sweep.
     uint256 public integratorFeesAccrued;
 
+    /// @dev Reserved slots so this mixin can gain state in a future upgrade without
+    ///      shifting the storage of contracts that inherit after it. Append-only; never
+    ///      reorder fields or the inheriting contract's base list. (See LiFiVaultWrapper.)
+    uint256[50] private __gap;
+
     /// Events ///
 
     /// @notice Emitted when the integrator's receiver set is configured.
