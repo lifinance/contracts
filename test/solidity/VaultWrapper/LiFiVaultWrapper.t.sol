@@ -12,6 +12,7 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
 ///         deposit, used to test delegatecall revert bubbling and the reentrancy guard.
@@ -187,6 +188,26 @@ contract LiFiVaultWrapperTest is Test {
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (address(underlying), address(adapter), address(0), 8000, fees, "")
+        );
+
+        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsZeroAssetFromAdapter() public {
+        MockZeroAdapter zeroAdapter = new MockZeroAdapter();
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(zeroAdapter),
+                vaultAdmin,
+                8000,
+                fees,
+                ""
+            )
         );
 
         vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
