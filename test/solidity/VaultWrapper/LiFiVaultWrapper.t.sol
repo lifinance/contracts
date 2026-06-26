@@ -151,15 +151,7 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (
-                address(asset),
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                8000,
-                fees,
-                ""
-            )
+            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
         );
 
         vm.expectEmit(true, true, true, true);
@@ -181,7 +173,6 @@ contract LiFiVaultWrapperTest is Test {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
 
         wrapper.initialize(
-            address(asset),
             address(underlying),
             address(adapter),
             vaultAdmin,
@@ -195,15 +186,7 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (
-                address(asset),
-                address(underlying),
-                address(adapter),
-                address(0),
-                8000,
-                fees,
-                ""
-            )
+            (address(underlying), address(adapter), address(0), 8000, fees, "")
         );
 
         vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
@@ -211,16 +194,15 @@ contract LiFiVaultWrapperTest is Test {
         new BeaconProxy(address(beacon), initCall);
     }
 
-    function testRevert_InitializeRejectsBpsAbove100Percent() public {
+    function testRevert_InitializeRejectsFullIntegratorShare() public {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (
-                address(asset),
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
-                10_001,
+                10_000,
                 fees,
                 ""
             )
@@ -229,34 +211,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 LiFiVaultWrapper.InvalidIntegratorShareBps.selector,
-                uint16(10_001)
-            )
-        );
-
-        new BeaconProxy(address(beacon), initCall);
-    }
-
-    function testRevert_InitializeRejectsAssetMismatch() public {
-        address wrongAsset = makeAddr("wrongAsset");
-        FeeConfig memory fees;
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                wrongAsset,
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                8000,
-                fees,
-                ""
-            )
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LiFiVaultWrapper.AssetMismatch.selector,
-                wrongAsset,
-                address(asset)
+                uint16(10_000)
             )
         );
 
@@ -297,7 +252,6 @@ contract LiFiVaultWrapperTest is Test {
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (
-                address(noSymbolAsset),
                 address(noSymbolUnderlying),
                 address(adapter),
                 vaultAdmin,
@@ -509,6 +463,50 @@ contract LiFiVaultWrapperTest is Test {
         w.withdraw(DEPOSIT, alice, alice);
     }
 
+    /// Admin transfer (two-step) ///
+
+    function test_TransferVaultWrapperAdminTwoStep() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(vaultAdmin);
+        wrapper.transferVaultWrapperAdmin(newAdmin);
+        assertEq(wrapper.pendingVaultWrapperAdmin(), newAdmin);
+        assertEq(wrapper.vaultWrapperAdmin(), vaultAdmin);
+
+        vm.prank(newAdmin);
+        wrapper.acceptVaultWrapperAdmin();
+        assertEq(wrapper.vaultWrapperAdmin(), newAdmin);
+        assertEq(wrapper.pendingVaultWrapperAdmin(), address(0));
+    }
+
+    function test_TransferVaultWrapperAdminCanBeCancelled() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.startPrank(vaultAdmin);
+        wrapper.transferVaultWrapperAdmin(newAdmin);
+        wrapper.transferVaultWrapperAdmin(address(0));
+        vm.stopPrank();
+
+        assertEq(wrapper.pendingVaultWrapperAdmin(), address(0));
+    }
+
+    function testRevert_TransferVaultWrapperAdminNotAdmin() public {
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert(LiFiVaultWrapper.NotVaultWrapperAdmin.selector);
+        wrapper.transferVaultWrapperAdmin(makeAddr("newAdmin"));
+    }
+
+    function testRevert_AcceptVaultWrapperAdminNotPending() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(vaultAdmin);
+        wrapper.transferVaultWrapperAdmin(newAdmin);
+
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert(LiFiVaultWrapper.NotPendingVaultWrapperAdmin.selector);
+        wrapper.acceptVaultWrapperAdmin();
+    }
+
     /// Helpers ///
 
     function _newWrapper(
@@ -517,15 +515,7 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (
-                address(asset),
-                _underlying,
-                address(adapter),
-                vaultAdmin,
-                8000,
-                fees,
-                ""
-            )
+            (_underlying, address(adapter), vaultAdmin, 8000, fees, "")
         );
 
         w = LiFiVaultWrapper(

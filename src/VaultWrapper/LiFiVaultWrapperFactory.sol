@@ -303,7 +303,6 @@ contract LiFiVaultWrapperFactory is
         );
 
         ILiFiVaultWrapper(instance).initialize(
-            asset,
             _params.underlying,
             _params.adapter,
             _params.vaultWrapperAdmin,
