@@ -10,6 +10,7 @@ import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { VaultWrapperPausable } from "./VaultWrapperPausable.sol";
+import { VaultWrapperFeeDistributor } from "./VaultWrapperFeeDistributor.sol";
 import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 
 /// @title LiFiVaultWrapper
@@ -25,11 +26,12 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
 ///      withdrawal. Identity (`underlying`/`adapter`/`vaultWrapperAdmin`/`factory`) and the fee
 ///      configuration are set write-once in `initialize`. Pause is enforced via
-///      `VaultWrapperPausable` on the deposit/mint path only (withdrawals stay open); fee and
-///      access logic remain no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
-///      `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow, with bodies
-///      landing in follow-up tickets. Inflation-attack protection relies on the ERC-4626
-///      virtual-share offset.
+///      `VaultWrapperPausable` on the deposit/mint path only (withdrawals stay open); fee
+///      routing and sweep are provided by `VaultWrapperFeeDistributor`. Fee accrual/amount
+///      logic (`_accrueFees`, `_entryFee`/`_exitFee`) and access (`_checkAccess`) remain no-op
+///      seams wired into the flow, with bodies landing in follow-up tickets — so `_routeFee`
+///      receives zero today. Inflation-attack protection relies on the ERC-4626 virtual-share
+///      offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
@@ -41,6 +43,7 @@ contract LiFiVaultWrapper is
     // implementation's constructor never ran in the proxy's storage context.
     ReentrancyGuard,
     VaultWrapperPausable,
+    VaultWrapperFeeDistributor,
     ILiFiVaultWrapper
 {
     using MetadataReaderLib for address;
@@ -473,10 +476,50 @@ contract LiFiVaultWrapper is
         return 0;
     }
 
-    /// @dev Splits a collected fee between the integrator (integratorShareBps) and LI.FI
-    ///      (remainder, to the factory-governed lifiFeeRecipient read live) and routes each.
-    ///      Widens to state-mutating once it performs the transfers.
-    function _routeFee(uint256 /* feeAssets */) private pure {
-        // TODO(fees): transfer the integrator share to its recipient, remainder to LI.FI.
+    /// Fee receivers / sweep (VaultWrapperFeeDistributor) ///
+
+    /// @notice Configure the integrator's 1..5 payout wallets and their bps (sum 100%).
+    /// @dev Integrator-controlled, like the integrator pause. Does not affect LI.FI's
+    ///      share, which routes to the factory-governed recipient.
+    /// @param _receivers The integrator payout wallets.
+    /// @param _bps The per-receiver basis points; must sum to 100%.
+    function setIntegratorReceivers(
+        address[] calldata _receivers,
+        uint16[] calldata _bps
+    ) external onlyIntegratorAdmin {
+        _setIntegratorReceivers(_receivers, _bps);
+    }
+
+    /// @notice Permissionlessly distribute accrued fees: the LI.FI pool to the live
+    ///         factory recipient, the integrator pool across its wallets by bps.
+    /// @dev Reentrancy-guarded and deliberately not pause-gated, so fees can always be
+    ///      swept even while deposits are paused. LI.FI is paid first and independently of
+    ///      the integrator side; if no integrator receivers are set, that portion is left
+    ///      accrued for a later sweep instead of reverting.
+    function sweep() external nonReentrant {
+        _distributeAccruedFees();
+    }
+
+    /// @notice Permissionlessly sweep only the LI.FI fee pool to the live factory recipient.
+    /// @dev Escape hatch guaranteeing LI.FI can always collect its share even if an
+    ///      integrator-controlled receiver wallet reverts on receipt and so would block the
+    ///      combined `sweep`.
+    function sweepLifiFees() external nonReentrant {
+        _payLifiFees();
+    }
+
+    /// @inheritdoc VaultWrapperFeeDistributor
+    function _feeAsset() internal view override returns (address) {
+        return asset();
+    }
+
+    /// @inheritdoc VaultWrapperFeeDistributor
+    function _integratorShareBps() internal view override returns (uint16) {
+        return integratorShareBps;
+    }
+
+    /// @inheritdoc VaultWrapperFeeDistributor
+    function _lifiFeeRecipient() internal view override returns (address) {
+        return ILiFiVaultWrapperFactory(factory).lifiFeeRecipient();
     }
 }

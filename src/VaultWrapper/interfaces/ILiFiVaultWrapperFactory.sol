@@ -19,6 +19,10 @@ interface ILiFiVaultWrapperFactory {
     /// @return The emergency pauser address.
     function emergencyPauser() external view returns (address);
 
+    /// @notice The recipient of LI.FI's fee share, read live by instances at sweep.
+    /// @return The LI.FI fee recipient address.
+    function lifiFeeRecipient() external view returns (address);
+
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.
