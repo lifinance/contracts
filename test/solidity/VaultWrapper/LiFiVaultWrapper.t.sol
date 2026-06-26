@@ -211,7 +211,7 @@ contract LiFiVaultWrapperTest is Test {
         new BeaconProxy(address(beacon), initCall);
     }
 
-    function testRevert_InitializeRejectsBpsAbove100Percent() public {
+    function testRevert_InitializeRejectsFullIntegratorShare() public {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
@@ -220,7 +220,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
-                10_001,
+                10_000,
                 fees,
                 ""
             )
@@ -229,7 +229,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 LiFiVaultWrapper.InvalidIntegratorShareBps.selector,
-                uint16(10_001)
+                uint16(10_000)
             )
         );
 

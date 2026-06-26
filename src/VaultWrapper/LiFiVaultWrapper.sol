@@ -122,7 +122,7 @@ contract LiFiVaultWrapper is
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
-        if (_integratorShareBps > 10_000)
+        if (_integratorShareBps >= 10_000)
             revert InvalidIntegratorShareBps(_integratorShareBps);
 
         {
@@ -304,33 +304,26 @@ contract LiFiVaultWrapper is
             revert AdapterDepositShortfall(invested, deposited);
     }
 
-    /// @dev Inlines OpenZeppelin's withdraw sequence to preserve Checks-Effects-Interactions:
-    ///      spend the caller's allowance and burn shares first, then redeem the withdrawal amount
-    ///      plus the exit fee from the yield source, skim the fee, and transfer the remainder to
-    ///      the receiver. With fees unimplemented the skim is zero, so exactly the withdrawal
-    ///      amount is redeemed.
-    function _withdraw(
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets,
-        uint256 shares
-    ) internal override {
-        if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
-        }
-        _burn(owner, shares);
-
-        uint256 fee = _exitFee(assets);
-        uint256 owed = assets + fee;
+    /// @dev OZ's `_withdraw` keeps ownership of the allowance spend, share burn, and `Withdraw`
+    ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
+    ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
+    ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
+    ///      rolls back and the owner keeps their shares), skims the fee, then transfers exactly
+    ///      `_assets` to the receiver. With fees unimplemented the skim is zero, so exactly the
+    ///      withdrawal amount is redeemed.
+    function _transferOut(address _to, uint256 _assets) internal override {
+        address assetToken = asset();
+        uint256 fee = _exitFee(_assets);
+        uint256 owed = _assets + fee;
         uint256 withdrawn = _routeThroughAdapter(
-            abi.encodeCall(IYieldAdapter.withdraw, (asset(), underlying, owed))
+            abi.encodeCall(
+                IYieldAdapter.withdraw,
+                (assetToken, underlying, owed)
+            )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
         _routeFee(fee);
-        SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
-
-        emit Withdraw(caller, receiver, owner, assets, shares);
+        SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's
