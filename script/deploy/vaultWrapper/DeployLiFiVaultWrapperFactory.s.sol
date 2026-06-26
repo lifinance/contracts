@@ -26,7 +26,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      actions — setAdapterApproved(adapter) and setUnderlyingAllowed(underlying), required
 ///      before any wrapper can be deployed — must be scheduled through the timelock.
 ///      Full DeployScriptBase / CREATE3 / deployment-log integration is S14 (EXSC-420).
-/// @custom:version 1.2.0
+/// @custom:version 1.0.0
 contract DeployLiFiVaultWrapperFactory is Script {
     /// @notice The dedicated governance delay for the vault wrapper subsystem.
     uint256 internal constant MIN_DELAY = 48 hours;

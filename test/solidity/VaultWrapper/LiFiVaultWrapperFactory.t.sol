@@ -203,10 +203,16 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.defaultIntegratorShareBps(), 3000);
     }
 
-    function test_SetDefaultSplitRevertsAbove100Percent() public {
+    function test_SetDefaultSplitRevertsAtFullIntegratorShare() public {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
-        factory.setDefaultSplit(10001);
+        factory.setDefaultSplit(10000);
+    }
+
+    function test_OwnerSetsDefaultSplitJustBelowFull() public {
+        vm.prank(owner);
+        factory.setDefaultSplit(9999);
+        assertEq(factory.defaultIntegratorShareBps(), 9999);
     }
 
     function test_OwnerSetsLifiFeeRecipient() public {
@@ -437,10 +443,10 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 9000);
     }
 
-    function test_DeployRevertsOnSplitAbove100Percent() public {
+    function test_DeployRevertsAtFullIntegratorShare() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 10001;
+        p.integratorShareBps = 10000;
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
         factory.deploy(p);
