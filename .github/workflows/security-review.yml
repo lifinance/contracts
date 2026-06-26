@@ -121,7 +121,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
+          # Full history so the base revision is available offline for the
+          # trusted-rules restore below (base.sha is an ancestor of HEAD).
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Restore trusted Semgrep rules from base
+        # Defense-in-depth: the workspace is checked out at PR head, so a PR
+        # touching src/** could also weaken the rules that scan it. Run Semgrep
+        # against the rule corpus from the trusted base revision instead. New
+        # rules added by a PR therefore first take effect on the next PR after
+        # merge. base.sha is already present (fetch-depth: 0), so no network
+        # fetch — works regardless of persist-credentials.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if git cat-file -e "$BASE_SHA:audit/knowledge/semgrep" 2>/dev/null; then
+            git checkout "$BASE_SHA" -- audit/knowledge/semgrep
+          else
+            echo -e "\033[33mBase revision has no audit/knowledge/semgrep; using PR copy (bootstrap).\033[0m"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.1.1
@@ -277,6 +297,38 @@ jobs:
           echo "::group::Changed src/ files ($(wc -l < "$PR_FILES"))"
           cat "$PR_FILES" || true
           echo "::endgroup::"
+
+      - name: Restore trusted security-review controls from base
+        # Defense-in-depth: the workspace is at PR head, so a PR touching src/**
+        # could also alter the controls that review it — the LI.FI/ToB skill
+        # logic (.agents is the source of truth symlinked into .claude), the
+        # audit corpus, the FP waivers, or the submodule pinning the ToB skills.
+        # Restore all of these from the trusted base revision before invoking
+        # the keyed agent. The PR diff above was already captured to $DIFF_FILE,
+        # so the diff review still sees the PR's src/ changes; only the controls
+        # revert. New controls added by a PR first take effect after merge.
+        # base.sha is present (fetch-depth: 0), so no network fetch is needed.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git checkout "$BASE_SHA" -- \
+            .gitmodules \
+            .agents \
+            .claude/skills \
+            .claude/plugins \
+            .claude/vendor/tob-skills \
+            audit/knowledge
+          # Waivers suppress findings — restore the base copy, or drop a
+          # PR-introduced one entirely when base has none.
+          if git cat-file -e "$BASE_SHA:audit/findings/waived.yml" 2>/dev/null; then
+            git checkout "$BASE_SHA" -- audit/findings/waived.yml
+          else
+            rm -f audit/findings/waived.yml
+          fi
+          # Re-point and re-checkout the ToB skills submodule at the base commit.
+          git submodule sync --recursive .claude/vendor/tob-skills
+          git submodule update --init --recursive .claude/vendor/tob-skills
 
       - name: Run /lifi-security-review (Stage 2 — AI triage + diff review)
         # The skill file is at .claude/skills/lifi-security-review/SKILL.md (already
