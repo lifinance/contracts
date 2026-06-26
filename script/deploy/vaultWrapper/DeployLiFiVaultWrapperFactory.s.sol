@@ -5,19 +5,19 @@ import { Script } from "forge-std/Script.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 
 /// @title DeployLiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
 /// @notice Deploys and wires the vault wrapper system: the dedicated 48h timelock,
-///         the vault wrapper implementation, its upgradeable beacon, the vault wrapper
-///         factory, and the ERC-4626 yield adapter. The timelock owns both the factory
-///         and the beacon, so every factory slow-path call and every beacon upgrade is
-///         gated by the 48h delay.
-/// @dev Deploy order: TimelockController → LiFiVaultWrapper → UpgradeableBeacon(impl, timelock) →
-///      LiFiVaultWrapperFactory(beacon, owner=timelock, …) → ERC4626Adapter. The beacon owner is
-///      set to the timelock at construction (OZ v5 UpgradeableBeacon takes an initialOwner).
+///         the mock wrapper implementation, its upgradeable beacon, the vault wrapper
+///         factory (mock impl is a temporary stand-in until S1), and the ERC-4626
+///         yield adapter. The timelock owns both the factory and the beacon, so every
+///         factory slow-path call and every beacon upgrade is gated by the 48h delay.
+/// @dev Deploy order: TimelockController → MockVaultWrapper → UpgradeableBeacon(impl) →
+///      LiFiVaultWrapperFactory(beacon, owner=timelock, …) → ERC4626Adapter, with the
+///      beacon ownership transferred to the timelock.
 ///      Timelock roles: the LI.FI multisig is proposer AND canceller (OZ grants both to
 ///      each proposer); the executor role is open (address(0)); the optional admin is
 ///      renounced (address(0)), so the timelock is self-administered.
@@ -41,7 +41,7 @@ contract DeployLiFiVaultWrapperFactory is Script {
     /// @return factory The deployed vault wrapper factory.
     /// @return timelock The dedicated 48h timelock owning the factory and beacon.
     /// @return beacon The upgradeable beacon holding the wrapper implementation.
-    /// @return impl The vault wrapper implementation behind the beacon.
+    /// @return impl The mock wrapper implementation (temporary stand-in until S1).
     /// @return erc4626Adapter The ERC-4626 yield adapter.
     function run()
         public
@@ -49,7 +49,7 @@ contract DeployLiFiVaultWrapperFactory is Script {
             LiFiVaultWrapperFactory factory,
             TimelockController timelock,
             UpgradeableBeacon beacon,
-            LiFiVaultWrapper impl,
+            MockVaultWrapper impl,
             ERC4626Adapter erc4626Adapter
         )
     {
@@ -80,8 +80,9 @@ contract DeployLiFiVaultWrapperFactory is Script {
             address(0)
         );
 
-        impl = new LiFiVaultWrapper();
-        beacon = new UpgradeableBeacon(address(impl), address(timelock));
+        impl = new MockVaultWrapper();
+        beacon = new UpgradeableBeacon(address(impl));
+        beacon.transferOwnership(address(timelock));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
             address(timelock),
