@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 import { LibAsset } from "../../Libraries/LibAsset.sol";
 
@@ -26,7 +26,7 @@ import { LibAsset } from "../../Libraries/LibAsset.sol";
 ///      credits fewer shares via an internal deposit fee) — measuring that cleanly is
 ///      rounding-sensitive; such non-standard sources are unsupported and require a
 ///      dedicated adapter rather than this reference one.
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
@@ -42,9 +42,9 @@ contract ERC4626Adapter is IYieldAdapter {
         address _underlying,
         address _holder
     ) external view returns (uint256 assets) {
-        assets = IERC4626(_underlying).convertToAssets(
-            IERC4626(_underlying).balanceOf(_holder)
-        );
+        assets = IERC4626(_underlying).convertToAssets({
+            shares: IERC4626(_underlying).balanceOf({ account: _holder })
+        });
     }
 
     /// @inheritdoc IYieldAdapter
@@ -57,8 +57,11 @@ contract ERC4626Adapter is IYieldAdapter {
         uint256 _assets
     ) external returns (uint256 deposited) {
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
-        SafeTransferLib.safeApproveWithRetry(_asset, _underlying, _assets);
-        IERC4626(_underlying).deposit(_assets, address(this));
+        SafeERC20.forceApprove(IERC20(_asset), _underlying, _assets);
+        IERC4626(_underlying).deposit({
+            assets: _assets,
+            receiver: address(this)
+        });
         deposited = balanceBefore - IERC20(_asset).balanceOf(address(this));
     }
 
@@ -72,7 +75,11 @@ contract ERC4626Adapter is IYieldAdapter {
         uint256 _assets
     ) external returns (uint256 withdrawn) {
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
-        IERC4626(_underlying).withdraw(_assets, address(this), address(this));
+        IERC4626(_underlying).withdraw({
+            assets: _assets,
+            receiver: address(this),
+            owner: address(this)
+        });
         withdrawn = IERC20(_asset).balanceOf(address(this)) - balanceBefore;
     }
 }
