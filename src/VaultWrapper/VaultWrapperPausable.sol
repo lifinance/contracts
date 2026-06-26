@@ -21,6 +21,11 @@ abstract contract VaultWrapperPausable {
     /// @notice Whether the integrator has paused its own clone's deposits.
     bool public integratorPaused;
 
+    /// @dev Reserved slots so this mixin can gain state in a future upgrade without
+    ///      shifting the storage of contracts that inherit after it. Append-only; never
+    ///      reorder fields or the inheriting contract's base list. (See LiFiVaultWrapper.)
+    uint256[50] private __gap;
+
     /// Events ///
 
     /// @notice Emitted when the LI.FI emergency authority toggles the instance pause.
