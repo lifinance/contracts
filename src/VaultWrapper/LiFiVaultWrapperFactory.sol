@@ -8,7 +8,8 @@ import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperT
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
-import { LibClone } from "solady/utils/LibClone.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 
 /// @title LiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
@@ -168,9 +169,10 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Set the default integrator fee share (bps) applied to deploys that don't
     ///         override it; LI.FI implicitly receives the remaining (100% - this value).
-    /// @param _integratorBps The integrator's default share (bps); must be <= 100%.
+    /// @param _integratorBps The integrator's default share (bps); must be < 100% so
+    ///        LI.FI always retains a non-zero share.
     function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
-        if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
+        if (_integratorBps >= BPS_DENOMINATOR) revert InvalidSplit();
         defaultIntegratorShareBps = _integratorBps;
         emit DefaultSplitSet(_integratorBps);
     }
@@ -268,7 +270,7 @@ contract LiFiVaultWrapperFactory is
         uint16 integratorShareBps = _params.integratorShareBps;
         if (integratorShareBps == USE_DEFAULT_SPLIT) {
             integratorShareBps = defaultIntegratorShareBps;
-        } else if (integratorShareBps > BPS_DENOMINATOR) {
+        } else if (integratorShareBps >= BPS_DENOMINATOR) {
             revert InvalidSplit();
         } else if (
             msg.sender != onboardingManager &&
@@ -283,11 +285,8 @@ contract LiFiVaultWrapperFactory is
             _params.underlying,
             _params.nonce
         );
-        // Reusing a salt reverts in LibClone (CREATE2 to an existing address).
-        instance = LibClone.deployDeterministicERC1967BeaconProxy(
-            BEACON,
-            salt
-        );
+        // Reusing a salt reverts in Create2 (CREATE2 to an existing address).
+        instance = Create2.deploy(0, salt, _proxyInitCode());
 
         isInstance[instance] = true;
 
@@ -304,7 +303,6 @@ contract LiFiVaultWrapperFactory is
         );
 
         ILiFiVaultWrapper(instance).initialize(
-            asset,
             _params.underlying,
             _params.adapter,
             _params.vaultWrapperAdmin,
@@ -329,9 +327,9 @@ contract LiFiVaultWrapperFactory is
         uint256 _nonce
     ) external view returns (address) {
         return
-            LibClone.predictDeterministicAddressERC1967BeaconProxy(
-                BEACON,
+            Create2.computeAddress(
                 _salt(_namespace, _adapter, _underlying, _nonce),
+                keccak256(_proxyInitCode()),
                 address(this)
             );
     }
@@ -359,6 +357,20 @@ contract LiFiVaultWrapperFactory is
     ) internal pure returns (bytes32) {
         return
             keccak256(abi.encode(_namespace, _adapter, _underlying, _nonce));
+    }
+
+    /// @notice CREATE2 init code for a wrapper instance: the OZ BeaconProxy
+    ///         creation code with the beacon as constructor arg and empty init
+    ///         data (the factory calls initialize separately after deploy).
+    /// @dev Used by both deploy and predictAddress so the init-code hash that
+    ///      fixes the instance address is identical on both paths.
+    /// @return The beacon-proxy init code.
+    function _proxyInitCode() internal view returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(BeaconProxy).creationCode,
+                abi.encode(BEACON, bytes(""))
+            );
     }
 
     /// @notice Returns the immutable bytecode cap (bps) for a fee type.
