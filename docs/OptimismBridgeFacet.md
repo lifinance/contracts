@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Optimism Bridge Facet works by forwarding Optimism Bridge specific calls to Optimism Bridge [contract](https://github.com/ethereum-optimism/optimism/blob/master/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol). The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in exchange of the same amount of an equivalent token on L2.
+The Optimism Bridge Facet works by forwarding Optimism Bridge specific calls to Optimism Bridge [contract](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol). The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in exchange of the same amount of an equivalent token on L2.
 
 ```mermaid
 graph LR;
