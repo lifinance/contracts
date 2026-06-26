@@ -52,6 +52,10 @@
       "0xdF12A02DD62305AB8295b347FDD6057e581A44c8": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.1"
+      },
+      "0xB2b9903cfCe365e1521D7B961bfCe0d6635D49a9": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -60,8 +64,8 @@
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
       "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
+      "LidoWrapper": "",
       "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",
