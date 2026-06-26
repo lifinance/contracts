@@ -30,8 +30,10 @@ rules:
       # - Fix:
       #     1. metavariable-regex on $SD excludes `_bridgeData` itself
       #        (only flag BRIDGE-SPECIFIC structs).
-      #     2. pattern-not-inside excludes reads inside keccak256/abi.encode
-      #        (signature-binding patterns).
+      #     2. pattern-not-inside excludes reads inside keccak256(...)
+      #        (EIP-712 signature binding only — not a standalone abi.encode
+      #        exclusion, which would also hide receivers packed into bridge
+      #        calldata, the LF-029 bug class).
       #     3. pattern-not excludes equality checks (== / !=) — those are
       #        the GUARD, not the bug.
     patterns:
@@ -42,11 +44,13 @@ rules:
           # BRIDGE-SPECIFIC data structs (e.g., _dlnData, _acrossData,
           # _polymerData) whose .receiver may diverge from the parent's.
           regex: '^(?!_bridgeData$).+'
-      # Signature-binding patterns are safe — the receiver is being hashed,
-      # not used as a destination. Common in EIP-712 facets.
+      # Signature-binding is safe — the receiver is being hashed, not used as
+      # a destination. `keccak256(...)` covers the EIP-712 case
+      # (keccak256(abi.encode(...))). Deliberately NOT a standalone
+      # abi.encode(...) / abi.encodePacked(...) exclusion: that also suppressed
+      # unchecked receivers packed into bridge calldata / protocol payloads —
+      # exactly the LF-029 bug class.
       - pattern-not-inside: keccak256(...)
-      - pattern-not-inside: abi.encode(...)
-      - pattern-not-inside: abi.encodePacked(...)
       # Equality/inequality checks ARE the guard, not the bug. Use
       # pattern-not-inside (not pattern-not) so we exclude any read of
       # $SD.receiver that appears INSIDE an equality comparison, even
