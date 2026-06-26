@@ -35,6 +35,10 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
+    // OZ v5 ships no ReentrancyGuardUpgradeable, and ReentrancyGuardTransient needs
+    // EIP-1153 on every target chain. The plain guard is proxy-safe here: its check
+    // treats the proxy's uninitialized slot (0) as NOT_ENTERED, so it works from the
+    // first call without a constructor having run in the proxy's context.
     ReentrancyGuard,
     VaultWrapperPausable,
     VaultWrapperFeeDistributor,
