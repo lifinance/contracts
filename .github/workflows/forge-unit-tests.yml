@@ -22,11 +22,14 @@ permissions:
 
 # Cancel superseded in-progress runs on the same PR (force-push / rapid commits)
 # so stale, expensive forge-test runs stop burning runner minutes. Keyed per
-# workflow and per PR (falling back to ref) so unrelated branches never cancel
-# each other. cancel-in-progress is scoped to pull_request events so post-merge
-# runs on main and manual workflow_dispatch runs always complete and keep their signal.
+# workflow, per event type, and per PR (falling back to ref). Scoping by
+# event_name keeps unrelated branches and event types in separate groups, so a
+# manual workflow_dispatch run on main is never queued behind (and cancelled by)
+# a stream of push runs sharing the same ref. cancel-in-progress is scoped to
+# pull_request events so post-merge runs on main and manual workflow_dispatch
+# runs always complete and keep their signal.
 concurrency:
-  group: unit-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: unit-tests-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
