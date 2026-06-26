@@ -135,6 +135,12 @@ function getRevertData(error: unknown): Hex | undefined {
   if ('data' in error && typeof error.data === 'string')
     return error.data as Hex
 
+  // viem stores the raw revert bytes on `raw` when the call ABI does not
+  // declare the reverting error (then `data` holds the decoded result, which
+  // is undefined). Needed to recognise errors like UnsupportedChainId.
+  if ('raw' in error && typeof (error as { raw?: unknown }).raw === 'string')
+    return (error as { raw: string }).raw as Hex
+
   if ('cause' in error) return getRevertData(error.cause)
 
   return undefined
