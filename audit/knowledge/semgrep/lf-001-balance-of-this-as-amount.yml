@@ -30,6 +30,16 @@ rules:
           IWETH($W).deposit{value: address(this).balance}()
       - pattern: |
           IWETH($W).withdraw($T.balanceOf(address(this)))
+      # ERC20 full-balance read used directly as the transfer amount — the
+      # case the message documents (IERC20(t).balanceOf(address(this))).
+      - pattern: |
+          $X.transfer($R, $T.balanceOf(address(this)))
+      - pattern: |
+          $X.transferFrom($F, $R, $T.balanceOf(address(this)))
+      - pattern: |
+          $X.safeTransfer($R, $T.balanceOf(address(this)))
+      - pattern: |
+          $X.safeTransferFrom($F, $R, $T.balanceOf(address(this)))
     paths:
       include:
         - "src/Facets/**"
