@@ -528,7 +528,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "PolymerCCTPFacet": "2.1.0"
       }
     }
   },
