@@ -144,6 +144,7 @@ contract LiFiVaultWrapper is
             revert InvalidIntegratorShareBps(_integratorShareBps);
 
         address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
+        if (asset == address(0)) revert ZeroAddress();
 
         _initErc4626Metadata(asset);
 
