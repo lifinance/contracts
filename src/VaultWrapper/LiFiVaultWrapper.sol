@@ -54,6 +54,12 @@ contract LiFiVaultWrapper is
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
+    /// @dev Reserved slots so future versions can append wrapper-level state without
+    ///      shifting any storage that inheriting/derived modules occupy. This impl sits
+    ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
+    ///      append (consuming this gap), never reorder fields or the inheritance list.
+    uint256[50] private __gap;
+
     /// Events ///
 
     /// @notice Emitted once when the instance is configured.
@@ -82,6 +88,10 @@ contract LiFiVaultWrapper is
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
     /// @notice Thrown when the adapter resolves the underlying to an asset other than `_asset`.
     error AssetMismatch(address expected, address actual);
+    /// @notice Thrown when the adapter invests less than the net deposit into the yield source.
+    error AdapterDepositShortfall(uint256 expected, uint256 actual);
+    /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
+    error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
 
     /// Initialization ///
 
@@ -269,7 +279,9 @@ contract LiFiVaultWrapper is
 
     /// @dev Skims the entry fee, then forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
-    ///      shares. With fees unimplemented the skim is zero, so the full amount is invested.
+    ///      shares. Reverts if the adapter reports less invested than the net deposit, so a
+    ///      fee-charging/short-accepting yield source cannot silently dilute the minted shares.
+    ///      With fees unimplemented the skim is zero, so the full amount is invested.
     function _deposit(
         address caller,
         address receiver,
@@ -280,12 +292,15 @@ contract LiFiVaultWrapper is
 
         uint256 fee = _entryFee(assets);
         _routeFee(fee);
-        _routeThroughAdapter(
+        uint256 invested = assets - fee;
+        uint256 deposited = _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.deposit,
-                (asset(), underlying, assets - fee)
+                (asset(), underlying, invested)
             )
         );
+        if (deposited < invested)
+            revert AdapterDepositShortfall(invested, deposited);
     }
 
     /// @dev Inlines OpenZeppelin's withdraw sequence to preserve Checks-Effects-Interactions:
@@ -306,12 +321,11 @@ contract LiFiVaultWrapper is
         _burn(owner, shares);
 
         uint256 fee = _exitFee(assets);
-        _routeThroughAdapter(
-            abi.encodeCall(
-                IYieldAdapter.withdraw,
-                (asset(), underlying, assets + fee)
-            )
+        uint256 owed = assets + fee;
+        uint256 withdrawn = _routeThroughAdapter(
+            abi.encodeCall(IYieldAdapter.withdraw, (asset(), underlying, owed))
         );
+        if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
         _routeFee(fee);
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
 
@@ -324,7 +338,10 @@ contract LiFiVaultWrapper is
     ///      and audited to avoid storage writes/collisions; statelessness is an enforced-by-review
     ///      invariant, not a guarantee of this contract.
     /// @param _data The ABI-encoded adapter call.
-    function _routeThroughAdapter(bytes memory _data) private {
+    /// @return result The adapter's returned amount (assets actually deposited/withdrawn).
+    function _routeThroughAdapter(
+        bytes memory _data
+    ) private returns (uint256 result) {
         (bool success, bytes memory ret) = adapter.delegatecall(_data);
         if (!success) {
             // Re-raise the adapter's own revert data (custom error / reason) unchanged;
@@ -333,6 +350,7 @@ contract LiFiVaultWrapper is
                 revert(add(ret, 0x20), mload(ret))
             }
         }
+        result = abi.decode(ret, (uint256));
     }
 
     /// Fee / pause / access blueprint ///

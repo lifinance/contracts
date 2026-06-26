@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 import { LibAsset } from "../../Libraries/LibAsset.sol";
@@ -39,23 +40,31 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
+    /// @dev Returns the asset actually consumed (the wrapper's balance delta), not the
+    ///      requested amount, so the caller can detect a fee-on-transfer/short-accepting
+    ///      yield source rather than assume a 1:1 deposit.
     function deposit(
         address _asset,
         address _underlying,
         uint256 _assets
     ) external returns (uint256 deposited) {
+        uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
         SafeTransferLib.safeApproveWithRetry(_asset, _underlying, _assets);
         IERC4626(_underlying).deposit(_assets, address(this));
-        deposited = _assets;
+        deposited = balanceBefore - IERC20(_asset).balanceOf(address(this));
     }
 
     /// @inheritdoc IYieldAdapter
+    /// @dev Returns the asset actually received (the wrapper's balance delta), not the
+    ///      requested amount, so the caller can detect a short-paying yield source rather
+    ///      than assume a 1:1 withdrawal.
     function withdraw(
-        address,
+        address _asset,
         address _underlying,
         uint256 _assets
     ) external returns (uint256 withdrawn) {
+        uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
         IERC4626(_underlying).withdraw(_assets, address(this), address(this));
-        withdrawn = _assets;
+        withdrawn = IERC20(_asset).balanceOf(address(this)) - balanceBefore;
     }
 }
