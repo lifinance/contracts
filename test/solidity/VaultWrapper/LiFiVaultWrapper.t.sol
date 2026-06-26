@@ -46,6 +46,59 @@ contract HostileUnderlying is MockERC4626 {
     }
 }
 
+/// @notice Minimal ERC-4626-shaped yield source that can be configured to accept fewer
+///         assets than requested on deposit, or return fewer on withdraw, to exercise the
+///         wrapper's adapter-shortfall guards.
+contract LossyVault {
+    MockERC20 public immutable ASSET_TOKEN;
+    mapping(address => uint256) public balanceOf;
+    uint256 public depositPullBps = 10_000;
+    uint256 public withdrawSendBps = 10_000;
+
+    constructor(MockERC20 _asset) {
+        ASSET_TOKEN = _asset;
+    }
+
+    function asset() external view returns (address) {
+        return address(ASSET_TOKEN);
+    }
+
+    function setDepositPullBps(uint256 _bps) external {
+        depositPullBps = _bps;
+    }
+
+    function setWithdrawSendBps(uint256 _bps) external {
+        withdrawSendBps = _bps;
+    }
+
+    function deposit(
+        uint256 _assets,
+        address _receiver
+    ) external returns (uint256 shares) {
+        ASSET_TOKEN.transferFrom(
+            msg.sender,
+            address(this),
+            (_assets * depositPullBps) / 10_000
+        );
+        shares = _assets;
+        balanceOf[_receiver] += shares;
+    }
+
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner
+    ) external returns (uint256 shares) {
+        shares = _assets;
+        balanceOf[_owner] -= shares;
+        ASSET_TOKEN.transfer(_receiver, (_assets * withdrawSendBps) / 10_000);
+    }
+
+    function convertToAssets(uint256 _shares) external pure returns (uint256) {
+        return _shares;
+    }
+}
+
 contract LiFiVaultWrapperTest is Test {
     MockERC20 internal asset;
     MockERC4626 internal underlying;
@@ -417,6 +470,53 @@ contract LiFiVaultWrapperTest is Test {
 
         w.deposit(DEPOSIT, alice);
         vm.stopPrank();
+    }
+
+    /// Adapter shortfall guards ///
+
+    function testRevert_DepositShortfallFromAdapter() public {
+        LossyVault lossy = new LossyVault(asset);
+        LiFiVaultWrapper w = _newWrapper(address(lossy));
+        lossy.setDepositPullBps(9000); // yield source accepts only 90%
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.AdapterDepositShortfall.selector,
+                DEPOSIT,
+                (DEPOSIT * 9000) / 10000
+            )
+        );
+
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+    }
+
+    function testRevert_WithdrawShortfallFromAdapter() public {
+        LossyVault lossy = new LossyVault(asset);
+        LiFiVaultWrapper w = _newWrapper(address(lossy));
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+
+        lossy.setWithdrawSendBps(9000); // yield source returns only 90%
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiFiVaultWrapper.AdapterWithdrawShortfall.selector,
+                DEPOSIT,
+                (DEPOSIT * 9000) / 10000
+            )
+        );
+
+        w.withdraw(DEPOSIT, alice, alice);
     }
 
     /// Helpers ///
