@@ -114,7 +114,7 @@ Re-running the skill on the same audit therefore produces no spurious diffs: eac
 For each in-scope finding:
 
 - **New finding** (no `source_id` match anywhere): assign next `LF-NNN`, write a full entry, status_history has one row
-- **Existing finding** (some entry's `status_history` already references this `source_id`): append a new `status_history` row to that entry. Do NOT create a new `LF-NNN`. Update top-level `severity` only if the new appearance has higher severity than the recorded one
+- **Existing finding** (some entry's `status_history` already references this `source_id`): append a new `status_history` row to that entry **only if no existing row already carries this `(audit_id, source_label)` pair**; if one does, skip the mutation so a rerun is a true no-op. Do NOT create a new `LF-NNN`. Update top-level `severity` only if the new appearance has higher severity than the recorded one
 - **Cross-audit echo** (same root cause appears in two audits under different `source_id`s): do NOT auto-merge. Log a warning to console; let the human decide via follow-up edit. Auto-merging is a future v2 enhancement
 
 ### 8. Record processing in `processed_audits`
