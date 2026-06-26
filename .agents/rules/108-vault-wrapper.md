@@ -31,12 +31,30 @@ and counter-intuitive against the repo's Diamond-era conventions.
 
 ## Beacon and clones ([CONV:VW-BEACON])
 
-- The implementation sits behind an OZ `UpgradeableBeacon` (the locked choice —
-  not a custom beacon). Instances are Solady `LibClone` ERC-1967 beacon proxies
-  that re-read the impl every call; per-clone identity is set write-once in
-  `initialize` (bytecode-immutable CWIA identity is a later concern).
+- The implementation sits behind an OZ `UpgradeableBeacon`, instantiated as
+  `UpgradeableBeacon(implementation, initialOwner)` (v5's two-arg constructor —
+  set the owner at construction, not via a follow-up `transferOwnership`). This is
+  the locked choice — not a custom beacon. Instances are OZ `BeaconProxy`
+  contracts deployed deterministically via OZ `Create2` (`_proxyInitCode()` is
+  shared by `deploy` and `predictAddress` so the init-code hash matches on both
+  paths); they re-read the impl every call, and per-instance identity is set
+  write-once in `initialize`.
 - Beacon `upgradeTo` is owner-gated and the owner is the subsystem governance
   (a dedicated 48h timelock). Never add an upgrade path that bypasses it.
+
+## OpenZeppelin version ([CONV:VW-OZ-VERSION])
+
+- The subsystem builds on **OpenZeppelin v5** — `@openzeppelin/contracts-upgradeable`
+  plus a dedicated v5 core in `lib/openzeppelin-contracts-v5` — while the Diamond
+  stays on the vendored **v4.9.2** core. Use v5's surface (core `ReentrancyGuard`,
+  plain `IERC20`/`SafeERC20`/`Initializable`); don't mix the two majors.
+- Version routing is by **path-scoped remappings** in `remappings.txt`:
+  `@openzeppelin/contracts/` resolves to v5 for `src/VaultWrapper/`,
+  `test/solidity/VaultWrapper/`, `script/deploy/vaultWrapper/`, and the upgradeable
+  lib itself; the global stays v4.9.2. A subsystem file moved outside these prefixes
+  silently picks up v4 — keep VaultWrapper code under the scoped paths.
+- The repo does not enable `via_ir`; v5's namespaced-storage accessors raise stack
+  pressure, so keep `initialize`/large functions shallow rather than enabling it.
 
 ## Identity and onboarding ([CONV:VW-IDENTITY])
 
