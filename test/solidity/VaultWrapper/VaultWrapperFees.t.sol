@@ -400,10 +400,7 @@ contract VaultWrapperFeesTest is Test {
             "yHST",
             "yHST"
         );
-        FeeHarness w = _deployFor(
-            address(hostile),
-            address(hostileUnderlying)
-        );
+        FeeHarness w = _deployFor(address(hostileUnderlying));
 
         address badReceiver = makeAddr("badReceiver");
         hostile.setBlacklisted(badReceiver);
@@ -436,10 +433,7 @@ contract VaultWrapperFeesTest is Test {
             "yHST",
             "yHST"
         );
-        FeeHarness w = _deployFor(
-            address(hostile),
-            address(hostileUnderlying)
-        );
+        FeeHarness w = _deployFor(address(hostileUnderlying));
 
         ReentrantReceiver attacker = new ReentrantReceiver(address(w));
         hostile.setReenterTarget(address(attacker));
@@ -494,8 +488,10 @@ contract VaultWrapperFeesTest is Test {
         assertEq(asset.balanceOf(rs3[2]), 0); // dropped receiver gets nothing
     }
 
-    function test_IntegratorFullShareLeavesLifiPoolEmpty() public {
-        FeeHarness w = _deployWrapper(10000); // integrator 100%, LI.FI 0%
+    function test_MaxIntegratorShareStillLeavesLifiShare() public {
+        // 9999 bps is the highest split the factory/initialize allow (< 100%), so
+        // LI.FI always retains a non-zero share — the routing must reflect that.
+        FeeHarness w = _deployWrapper(9999);
         address[] memory rs = new address[](1);
         rs[0] = r1;
         uint16[] memory bps = new uint16[](1);
@@ -506,14 +502,16 @@ contract VaultWrapperFeesTest is Test {
         asset.mint(address(w), FEE);
         w.harnessRouteFee(FEE);
 
-        assertEq(w.lifiFeesAccrued(), 0);
-        assertEq(w.integratorFeesAccrued(), FEE);
+        uint256 expectedIntegrator = (FEE * 9999) / 10000;
+        assertEq(w.integratorFeesAccrued(), expectedIntegrator);
+        assertEq(w.lifiFeesAccrued(), FEE - expectedIntegrator);
+        assertGt(w.lifiFeesAccrued(), 0);
 
         vm.prank(stranger);
         w.sweep();
 
-        assertEq(asset.balanceOf(r1), FEE);
-        assertEq(asset.balanceOf(lifiRecipient), 0);
+        assertEq(asset.balanceOf(r1), expectedIntegrator);
+        assertEq(asset.balanceOf(lifiRecipient), FEE - expectedIntegrator);
     }
 
     function test_SweepLifiOnlyPoolNeedsNoReceivers() public {
@@ -536,7 +534,6 @@ contract VaultWrapperFeesTest is Test {
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (
-                address(asset),
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
@@ -548,23 +545,13 @@ contract VaultWrapperFeesTest is Test {
         w = FeeHarness(factory.deployWrapper(address(beacon), initCall));
     }
 
-    /// @dev Deploy a wrapper over an arbitrary asset/underlying (default split).
-    function _deployFor(
-        address _asset,
-        address _underlying
-    ) internal returns (FeeHarness w) {
+    /// @dev Deploy a wrapper over an arbitrary underlying (default split). The asset is
+    ///      resolved from the underlying via the adapter inside initialize.
+    function _deployFor(address _underlying) internal returns (FeeHarness w) {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (
-                _asset,
-                _underlying,
-                address(adapter),
-                vaultAdmin,
-                SHARE_BPS,
-                fees,
-                ""
-            )
+            (_underlying, address(adapter), vaultAdmin, SHARE_BPS, fees, "")
         );
         w = FeeHarness(factory.deployWrapper(address(beacon), initCall));
     }

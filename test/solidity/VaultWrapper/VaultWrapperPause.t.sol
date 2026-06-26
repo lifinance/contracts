@@ -66,15 +66,7 @@ contract VaultWrapperPauseTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (
-                address(asset),
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                8000,
-                fees,
-                ""
-            )
+            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
         );
         wrapper = LiFiVaultWrapper(
             factory.deployWrapper(address(beacon), initCall)
