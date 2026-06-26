@@ -169,9 +169,10 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Set the default integrator fee share (bps) applied to deploys that don't
     ///         override it; LI.FI implicitly receives the remaining (100% - this value).
-    /// @param _integratorBps The integrator's default share (bps); must be <= 100%.
+    /// @param _integratorBps The integrator's default share (bps); must be < 100% so
+    ///        LI.FI always retains a non-zero share.
     function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
-        if (_integratorBps > BPS_DENOMINATOR) revert InvalidSplit();
+        if (_integratorBps >= BPS_DENOMINATOR) revert InvalidSplit();
         defaultIntegratorShareBps = _integratorBps;
         emit DefaultSplitSet(_integratorBps);
     }
@@ -269,7 +270,7 @@ contract LiFiVaultWrapperFactory is
         uint16 integratorShareBps = _params.integratorShareBps;
         if (integratorShareBps == USE_DEFAULT_SPLIT) {
             integratorShareBps = defaultIntegratorShareBps;
-        } else if (integratorShareBps > BPS_DENOMINATOR) {
+        } else if (integratorShareBps >= BPS_DENOMINATOR) {
             revert InvalidSplit();
         } else if (
             msg.sender != onboardingManager &&
