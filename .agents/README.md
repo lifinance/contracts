@@ -59,7 +59,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 | Command File      | Usage                             | Purpose                                                                                      |
 | ----------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `add-audit.md`    | `/add-audit`                      | Add an audit PDF + update `audit/auditLog.json`                                              |
+| `add-audit.md`    | `/add-audit [--skip-extract]`     | Add an audit PDF + update `audit/auditLog.json`, then refresh the security-review knowledge corpus (skip the refresh with `--skip-extract`) |
 | `add-network.md`  | `/add-network [networkKey]`       | Add a new network (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs) |
 | `add-rule-or-skill.md` | `/add-rule-or-skill`         | Standard workflow for adding/updating rules & commands (scoping, dedupe, naming, validation, **skill-authoring principles**) |
 | `aikido-address-findings.md` | `/aikido-address-findings [<issue-id> \| all \| pr] [repo-name]` | Aikido triage scoped to the PR (default), a single finding, or the whole repo — ignore false positives, fix real findings in code |
@@ -71,6 +71,8 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `deploy-contract.md` | `/deploy-contract <Contract> <network...> [--production]` | Deploy a facet/periphery to networks + register in each LiFiDiamond (verify, diamondCut/diamondUpdatePeriphery, periphery allowlist). Staging/test terminal path and the deploy primitive `multisig-rollout` calls; production rollouts go through `multisig-rollout` |
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
 | `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — remove from networks.json, foundry.toml, deployment logs            |
+| `extract-audit-knowledge.md` | `/extract-audit-knowledge <audit_id>` | Distill an audit PDF into the `audit/knowledge/` corpus (findings.json + lessons.md + by-area/\*.md) consumed by the security-review pipeline |
+| `lifi-security-review.md` | `/lifi-security-review` | PR-time smart-contract security review — LI.FI orchestrator over vendored Trail of Bits skills; emits curated SARIF + sticky-comment summary (Stages 2-3 of `security-review.yml`) |
 | `multisig-rollout.md` | `/multisig-rollout <Contract> \| --whitelist-pr <N>` | Orchestrate a production rollout: deploy (delegated to `deploy-contract`) or whitelist-sync across chains, Safe proposals, draft PR, signing hand-off, signature verification, `#dev-sc-multisig-proposals` thread |
 | `post-pr-for-review.md` | `/post-pr-for-review`            | Post a PR to `#dev-sc-review`, enable auto-merge (squash), tag `@smartcontract_core`     |
 | `pr-ready.md`     | `/pr-ready`                       | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
