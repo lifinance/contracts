@@ -349,7 +349,7 @@
     },
     "LF-011": {
       "source_id": "audit20240902::6.1.1",
-      "title": "extractGenericSwapParameters length check uses >= 484 instead of > 484, accepting calldata with empty SwapData",
+      "title": "extractGenericSwapParameters length check uses < 484 instead of <= 484, accepting calldata with empty SwapData",
       "severity": "low",
       "severity_native": "Low",
       "area": "facets",
