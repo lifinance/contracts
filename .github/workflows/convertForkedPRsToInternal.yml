@@ -94,11 +94,20 @@ jobs:
             printf '%s' "$BODY_CONTENT"
           } > /tmp/pr_body.md
 
+          # Mark the internal PR as mirroring external code so the keyed AI
+          # security review (security-review.yml) skips it. The `fork-pr-` branch
+          # prefix already gates it; this label is the explicit, drift-proof signal.
+          # `--force` makes label creation idempotent across runs.
+          gh label create "external-fork" --color FBCA04 \
+            --description "PR mirrors external/fork code; keyed AI security review is skipped" \
+            --force
+
           NEW_PR_URL=$(gh pr create \
             --base "$BASE_REF" \
             --head "$SAFE_NEW_BRANCH" \
             --title "$PR_TITLE" \
-            --body-file /tmp/pr_body.md)
+            --body-file /tmp/pr_body.md \
+            --label "external-fork")
 
           echo "NEW_PR_URL=$NEW_PR_URL" >> $GITHUB_ENV
           echo "NEW_PR_NUMBER=$(basename "$NEW_PR_URL")" >> $GITHUB_ENV

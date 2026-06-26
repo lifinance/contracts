@@ -82,6 +82,20 @@ ready_for_review) that modifies files matching:
 Draft PRs are skipped. The workflow is also `concurrency`-grouped per PR so
 new commits cancel stale in-flight runs.
 
+### External / fork PRs
+
+Stage 2 (the keyed AI triage) **never runs on external or fork code**, by
+design. The job holds the `ANTHROPIC_API_KEY` plus comment/Code-Scanning write
+access and ingests the PR diff + SARIF; running it on attacker-controlled input
+would expose it to prompt injection (key/comment abuse, or a false "all clear").
+GitHub withholds secrets from direct fork PRs, but `convertForkedPRsToInternal.yml`
+re-pushes a fork onto a same-repo `fork-pr-<N>` branch and opens an internal PR
+that *would* receive the secret — so Stage 2 is gated on two signals: the
+`fork-pr-` branch prefix (set by our bot; an attacker cannot choose it) and the
+`external-fork` label (applied by the conversion workflow). Stage 1
+(Slither/Semgrep) is unprivileged and still runs on these PRs, so external
+contributors keep getting deterministic feedback.
+
 ## How to read the output
 
 Three surfaces present results:

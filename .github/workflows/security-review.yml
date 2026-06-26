@@ -188,7 +188,21 @@ jobs:
     # tool failed and produced no SARIF, the triage proceeds with whatever's
     # available. `continue-on-error: true` keeps the overall workflow advisory.
     name: lifi-security-review
-    if: github.event.pull_request.draft == false
+    # Never run the keyed (secret-bearing, comment-capable) AI review on external
+    # code. GitHub withholds secrets from direct fork PRs, but
+    # convertForkedPRsToInternal.yml re-pushes a fork onto a same-repo `fork-pr-<N>`
+    # branch and opens an internal PR — which WOULD receive the environment secret.
+    # Skipping both the direct-fork and the converted-fork cases keeps the secret
+    # away from attacker-controlled diff/SARIF input (avoids the prompt-injection /
+    # false "all clear" surface). Stage 1 (slither/semgrep) is unprivileged and
+    # still runs on forks. The `fork-pr-` prefix is set by our own bot (an attacker
+    # cannot choose it); the `external-fork` label is a safety-net if that
+    # convention ever changes.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'fork-pr-') &&
+      !contains(github.event.pull_request.labels.*.name, 'external-fork')
     runs-on: ubuntu-latest
     # Dedicated environment so ANTHROPIC_API_KEY is scoped as an environment
     # secret (not a plain repo secret) and can carry additional protections
