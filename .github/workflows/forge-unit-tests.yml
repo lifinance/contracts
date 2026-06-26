@@ -20,6 +20,15 @@ permissions:
   contents: read # required to fetch repository contents
   pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits)
+# so stale, expensive forge-test runs stop burning runner minutes. Keyed per
+# workflow and per PR (falling back to ref) so unrelated branches never cancel
+# each other. cancel-in-progress is scoped to pull_request events so post-merge
+# runs on main and manual workflow_dispatch runs always complete and keep their signal.
+concurrency:
+  group: unit-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   detect-changes:
     # Determines whether files that can influence `forge test` outcomes were touched.

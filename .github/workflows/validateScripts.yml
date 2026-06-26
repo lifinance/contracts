@@ -29,6 +29,15 @@ permissions:
   contents: read # required to fetch repository contents
   pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits)
+# so stale script-validation runs (which build forge + typechain) stop burning
+# runner minutes. Keyed per workflow and per PR (falling back to ref) so unrelated
+# branches never cancel each other. cancel-in-progress is scoped to pull_request
+# events so manual workflow_dispatch runs always complete and keep their signal.
+concurrency:
+  group: validate-scripts-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   detect-changes:
     # Determines whether files that can influence script validity were touched.
