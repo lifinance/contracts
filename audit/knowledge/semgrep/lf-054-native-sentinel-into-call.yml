@@ -18,10 +18,19 @@ rules:
       lf-id: LF-054
       audit: audit20240201
       cwe: CWE-754
-    pattern-either:
-      - pattern: $A.call(abi.encodeWithSelector(IERC20.transfer.selector, ...))
-      - pattern: $A.call(abi.encodeWithSelector(IERC20.transferFrom.selector, ...))
-      - pattern: $A.call(abi.encodeWithSelector(IERC20.approve.selector, ...))
+    patterns:
+      - pattern-either:
+          - pattern: $A.call(abi.encodeWithSelector(IERC20.transfer.selector, ...))
+          - pattern: $A.call(abi.encodeWithSelector(IERC20.transferFrom.selector, ...))
+          - pattern: $A.call(abi.encodeWithSelector(IERC20.approve.selector, ...))
+      # Skip calls lexically inside an explicit non-native branch — the asset
+      # cannot be the native sentinel there, so the ERC20 op is intentional.
+      # Only the `if (!isNativeAsset(...)) { ... }` wrapping form is excluded;
+      # the else-branch of a positive `if (isNativeAsset(...))`, early-return
+      # guards, and sentinel comparisons are not expressible as pattern-not-
+      # inside and are intentionally left to Stage 2 (fp-check) triage.
+      - pattern-not-inside: |
+          if (!LibAsset.isNativeAsset(...)) { ... }
     paths:
       include:
         - "src/Libraries/**"
