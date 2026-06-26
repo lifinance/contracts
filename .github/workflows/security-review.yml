@@ -253,10 +253,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          # Required for .claude/vendor/tob-skills (ToB skills plugins
-          # invoked by the /lifi-security-review skill — fp-check,
-          # differential-review, audit-context-building, etc.).
-          submodules: recursive
+          # Superproject only — do NOT init submodules here. The ToB skills
+          # submodule (.claude/vendor/tob-skills) is initialized from the
+          # trusted base revision in "Restore trusted security-review controls
+          # from base" below. Initializing here would fetch the repo/commit
+          # named by the PR-head .gitmodules + gitlink — attacker-controllable
+          # on a same-repo PR — into this secret-bearing job before the reset.
 
       - name: Prepare workspace
         run: |
