@@ -18,6 +18,14 @@ import { LibAsset } from "../../Libraries/LibAsset.sol";
 ///      This contract is not intended to custody funds; under `delegatecall` the assets
 ///      and yield-source shares belong to the calling wrapper, and a direct call holds
 ///      nothing.
+///      Assumes a STANDARD ERC-4626 (deposit consumes exactly the requested assets,
+///      withdraw returns exactly the requested assets) over a non-fee-on-transfer asset.
+///      `deposit`/`withdraw` return the wrapper's asset balance delta and the wrapper
+///      reverts on a shortfall, which catches a yield source that moves less than asked.
+///      It does NOT catch share-side dilution (a vault that consumes the full asset but
+///      credits fewer shares via an internal deposit fee) — measuring that cleanly is
+///      rounding-sensitive; such non-standard sources are unsupported and require a
+///      dedicated adapter rather than this reference one.
 /// @custom:version 1.1.0
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
@@ -40,9 +48,9 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Returns the asset actually consumed (the wrapper's balance delta), not the
-    ///      requested amount, so the caller can detect a fee-on-transfer/short-accepting
-    ///      yield source rather than assume a 1:1 deposit.
+    /// @dev Returns the asset actually consumed (the wrapper's balance delta), so the caller
+    ///      can revert when the yield source pulls less than requested. See the contract-level
+    ///      note on the standard-ERC-4626 assumption this measurement relies on.
     function deposit(
         address _asset,
         address _underlying,

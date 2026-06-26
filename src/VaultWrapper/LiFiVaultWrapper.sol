@@ -279,9 +279,10 @@ contract LiFiVaultWrapper is
 
     /// @dev Skims the entry fee, then forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
-    ///      shares. Reverts if the adapter reports less invested than the net deposit, so a
-    ///      fee-charging/short-accepting yield source cannot silently dilute the minted shares.
-    ///      With fees unimplemented the skim is zero, so the full amount is invested.
+    ///      shares. Reverts if the adapter reports the source accepted less than the net
+    ///      deposit (a short-accepting source), so assets cannot be left stranded in the
+    ///      wrapper against already-minted shares. With fees unimplemented the skim is zero,
+    ///      so the full amount is invested.
     function _deposit(
         address caller,
         address receiver,
