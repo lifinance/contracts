@@ -8,6 +8,19 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 /// @notice Events and errors emitted by the LI.FI vault wrapper factory.
 /// @custom:version 1.0.0
 interface ILiFiVaultWrapperFactory {
+    /// Functions ///
+
+    /// @notice Returns the adjustable fee bounds (bps) for a fee type.
+    /// @dev ABI-identical to the auto-generated getter for the factory's public
+    ///      `mapping(FeeType => FeeBounds) feeBounds`, which flattens the struct to
+    ///      a `(uint16, uint16)` tuple. Read live by instances enforcing rate changes.
+    /// @param _feeType The fee type to look up.
+    /// @return minBps The lowest rate (bps) an instance may set for the fee type.
+    /// @return maxBps The highest rate (bps) an instance may set for the fee type.
+    function feeBounds(
+        FeeType _feeType
+    ) external view returns (uint16 minBps, uint16 maxBps);
+
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.
