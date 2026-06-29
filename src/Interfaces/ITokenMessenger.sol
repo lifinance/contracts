@@ -22,7 +22,7 @@ pragma solidity ^0.8.17;
 /// @notice Interface for Circle's TokenMessenger contract (CCTP)
 /// https://github.com/circlefin/evm-cctp-contracts/blob/4061786a5726bc05f99fcdb53b0985599f0dbaf7/src/TokenMessenger.sol
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface ITokenMessenger {
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
@@ -53,5 +53,28 @@ interface ITokenMessenger {
         bytes32 destinationCaller,
         uint256 maxFee,
         uint32 minFinalityThreshold
+    ) external;
+
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on destination domain, with hook data appended for execution on the destination.
+     * @dev reverts if 'hookData' is zero-length.
+     * @param amount amount of tokens to burn
+     * @param destinationDomain destination domain to receive message on
+     * @param mintRecipient address of mint recipient on destination domain, as bytes32
+     * @param burnToken token to burn 'amount' of, on local domain
+     * @param destinationCaller authorized caller on the destination domain, as bytes32
+     * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
+     * @param minFinalityThreshold the minimum finality at which a burn message will be attested to
+     * @param hookData hook data appended to burn message for interpretation on destination domain
+     */
+    function depositForBurnWithHook(
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient,
+        address burnToken,
+        bytes32 destinationCaller,
+        uint256 maxFee,
+        uint32 minFinalityThreshold,
+        bytes calldata hookData
     ) external;
 }

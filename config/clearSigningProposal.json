@@ -1974,7 +1974,7 @@
         }
       ]
     },
-    "startBridgeTokensViaPolymerCCTP((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint256 polymerTokenFee, uint256 maxCCTPFee, bytes32 nonEVMReceiver, bytes32 solanaReceiverATA, uint32 minFinalityThreshold) _polymerData)": {
+    "startBridgeTokensViaPolymerCCTP((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint256 polymerTokenFee, uint256 maxCCTPFee, bytes32 nonEVMReceiver, bytes32 solanaReceiverATA, uint32 minFinalityThreshold, bytes32 destinationCaller, bytes hookData) _polymerData)": {
       "intent": "Bridge via PolymerCCTP",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -5131,7 +5131,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaPolymerCCTP((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint256 polymerTokenFee, uint256 maxCCTPFee, bytes32 nonEVMReceiver, bytes32 solanaReceiverATA, uint32 minFinalityThreshold) _polymerData)": {
+    "swapAndStartBridgeTokensViaPolymerCCTP((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint256 polymerTokenFee, uint256 maxCCTPFee, bytes32 nonEVMReceiver, bytes32 solanaReceiverATA, uint32 minFinalityThreshold, bytes32 destinationCaller, bytes hookData) _polymerData)": {
       "intent": "Swap & Bridge via PolymerCCTP",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [

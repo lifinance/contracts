@@ -189,7 +189,7 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0x6ed89349aC140De341574831A91469bC029209e0": {
+      "0x53cfc2B72Af09ea122cd479f81B9878D76271bE9": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
@@ -220,6 +220,10 @@
       "0xEB6803A40B8350286e1E8684068E28c5c57a94AE": {
         "Name": "MayanFacet",
         "Version": "1.3.0"
+      },
+      "0x2F9254d98ad8d5D8E4Aa41D22A04233959Ff1022": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
       }
     },
     "Periphery": {
@@ -228,8 +232,8 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "",
+      "LidoWrapper": "",
       "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",

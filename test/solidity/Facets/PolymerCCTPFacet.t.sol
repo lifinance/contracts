@@ -51,7 +51,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         pure
         returns (ChainMapping[] memory mappings)
     {
-        mappings = new ChainMapping[](20);
+        mappings = new ChainMapping[](21);
         mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
         mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
         mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -72,6 +72,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[17] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
         mappings[18] = ChainMapping({ chainId: 5042, domainId: 26 }); // Arc
         mappings[19] = ChainMapping({ chainId: 1672, domainId: 31 }); // Pharos
+        mappings[20] = ChainMapping({
+            chainId: LIFI_CHAIN_ID_HYPERCORE,
+            domainId: 19
+        }); // HyperCore (same CCTP domain as HyperEVM)
     }
 
     function _toChainIdConfigs(
@@ -151,7 +155,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             maxCCTPFee: (bridgeData.minAmount / 100) * 10, // 10% of bridging amount
             nonEVMReceiver: bytes32(0),
             solanaReceiverATA: bytes32(0),
-            minFinalityThreshold: 1000 // Fast route (1000)
+            minFinalityThreshold: 1000, // Fast route (1000)
+            destinationCaller: bytes32(0),
+            hookData: ""
         });
 
         assertEq(
@@ -230,7 +236,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 maxCCTPFee: maxCCTPFee,
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
-                minFinalityThreshold: validPolymerData.minFinalityThreshold
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: validPolymerData.destinationCaller,
+                hookData: validPolymerData.hookData
             });
 
         usdc.approve(_facetTestContractAddress, amount);
@@ -267,7 +275,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 maxCCTPFee: swapOutputAmount / 10, // 10% of swap output
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
-                minFinalityThreshold: validPolymerData.minFinalityThreshold
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: validPolymerData.destinationCaller,
+                hookData: validPolymerData.hookData
             });
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
@@ -405,6 +415,153 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(adjustedBridgeData);
 
         initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeWithHookData_EVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes memory hookData = hex"01";
+        bytes32 destinationCaller = bytes32(uint256(1));
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: destinationCaller,
+                hookData: hookData
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
+        adjustedBridgeData.minAmount =
+            bridgeData.minAmount -
+            polymerDataWithHook.polymerTokenFee;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(adjustedBridgeData);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToNonEVMChainWithHookData() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bytes memory hookData = hex"01";
+        bytes32 destinationCaller = bytes32(uint256(1));
+        bytes32 nonEVMReceiver = bytes32(uint256(0x1234));
+        bytes32 solanaReceiverATA = bytes32(uint256(0x5678));
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: nonEVMReceiver,
+                solanaReceiverATA: solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: destinationCaller,
+                hookData: hookData
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit ILiFi.BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            polymerDataWithHook.nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
+        adjustedBridgeData.minAmount =
+            bridgeData.minAmount -
+            polymerDataWithHook.polymerTokenFee;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(adjustedBridgeData);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HookDataWithZeroDestinationCaller_EVM() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: validPolymerData.nonEVMReceiver,
+                solanaReceiverATA: validPolymerData.solanaReceiverATA,
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: bytes32(0),
+                hookData: hex"01"
+            });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HookDataWithZeroDestinationCaller_NonEVM() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: validPolymerData.polymerTokenFee,
+                maxCCTPFee: validPolymerData.maxCCTPFee,
+                nonEVMReceiver: bytes32(uint256(0x1234)),
+                solanaReceiverATA: bytes32(uint256(0x5678)),
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                destinationCaller: bytes32(0),
+                hookData: hex"01"
+            });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
 
         vm.stopPrank();
     }
