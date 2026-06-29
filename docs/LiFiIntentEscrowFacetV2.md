@@ -53,6 +53,17 @@ On the non-swap path, `inputAmount` is `bridgeData.minAmount`. On the swap path,
 
 The committed output is derived solely from the backend-supplied multiplier; always use LI.FI backend-generated calldata, which supplies a consistent `outputAmountMultiplier`. The receiver is still validated on-chain.
 
+### Assumption and limits (by design)
+
+The constant multiplier models the input → output rate as proportional — a single rate, fixed at quote time and applied linearly to the input. This is an intentional design choice: the facet is deliberately pricing-agnostic and does not reconstruct fill economics on-chain.
+
+A solver's true fillable rate is **never** strictly proportional. It also reflects fixed components like destination gas, and liquidity-dependent pricing that do not scale linearly with size. Pricing is owned entirely by the off-chain entity that sets `outputAmountMultiplier` per quote and it is up to that entity to capture those components.
+
+Because the rate is fixed at quote time, the committed output diverges from quoted and actualised outputs when the actual input differs from the quoted input. This primarily arises on the swap path, where the input is the realized `swapOutcome`. On the non-swap path the multiplier is applied to `bridgeData.minAmount` and the only difference in output is caused by quote precision and flooring noted above.
+
+- **Realized input below the quoted size** → Fixed costs become a relatively larger component of the intent and may cause an intent to become unprofitable to fill.
+- **Realized input above the quoted size** → Liquidity costs become a relatively larger component of the intent and may cause an intent to become unprofitable to fill. However, for in-kind or stable swaps liquidity costs are negligible and decrease with input, thus this is a volatile assets concern.
+
 ## LIFIIntent Specific Parameters
 
 The methods listed above take a variable labeled `_lifiIntentData`. This data is specific to LIFIIntent and is represented as the following struct type:
