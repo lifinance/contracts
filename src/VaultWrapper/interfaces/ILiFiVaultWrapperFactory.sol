@@ -14,11 +14,6 @@ interface ILiFiVaultWrapperFactory {
     /// @return True when the global circuit breaker is engaged.
     function globalPaused() external view returns (bool);
 
-    /// @notice The address authorized to trigger the global pause and act as the
-    ///         LI.FI emergency authority on deployed instances.
-    /// @return The emergency pauser address.
-    function emergencyPauser() external view returns (address);
-
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.

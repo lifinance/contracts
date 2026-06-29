@@ -399,18 +399,6 @@ contract LiFiVaultWrapper is
     /// Pause authority hooks (VaultWrapperPausable) ///
 
     /// @inheritdoc VaultWrapperPausable
-    /// @dev The LI.FI emergency multisig, read live from the factory so a rotation there
-    ///      applies to every instance without touching the clones.
-    function _emergencyPauseAuthority()
-        internal
-        view
-        override
-        returns (address)
-    {
-        return ILiFiVaultWrapperFactory(factory).emergencyPauser();
-    }
-
-    /// @inheritdoc VaultWrapperPausable
     /// @dev The per-vault controller is the integrator's pause authority.
     function _integratorPauseAuthority()
         internal
