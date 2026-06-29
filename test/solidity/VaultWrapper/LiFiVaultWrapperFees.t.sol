@@ -184,7 +184,7 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         bytes32 sig = keccak256("DilutionFeeAccrued(uint8,uint256,uint256)");
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool found;
+        uint256 matches;
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].topics[0] != sig) continue;
             assertEq(logs[i].emitter, address(wrapper));
@@ -198,9 +198,9 @@ contract LiFiVaultWrapperFeesTest is Test {
             );
             assertEq(shares, expectedShares);
             assertEq(assets, expectedAssets);
-            found = true;
+            ++matches;
         }
-        assertTrue(found);
+        assertEq(matches, 1);
     }
 
     /// Preview == execution invariant (headline) ///
