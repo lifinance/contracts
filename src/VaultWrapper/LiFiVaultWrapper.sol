@@ -190,7 +190,8 @@ contract LiFiVaultWrapper is
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
     error ZeroAddress();
-    /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
+    /// @notice Thrown when the integrator share is 100% (10000 bps) or more, which would
+    ///         leave LI.FI no share; a valid share is strictly below 100%.
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
     /// @notice Thrown when a caller other than the current admin attempts an admin action.
     error NotVaultWrapperAdmin();
