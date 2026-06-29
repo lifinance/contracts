@@ -548,11 +548,24 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Crystallizes the management fee by minting dilution shares to this contract.
-    ///      Mints only when the computed share amount is non-zero, and advances
-    ///      `lastMgmtAccrual` only then, so sub-threshold elapsed time is not discarded.
-    ///      Performance accrual is a separate ticket; the `_pendingFeeShares` seam already
-    ///      reserves a place for it.
+    ///      When no fee can accrue — an uninitialized baseline (e.g. an instance upgraded
+    ///      into this version), the type disabled, or an empty vault — the baseline is moved
+    ///      to now so that dormant time is never charged later at the current rate. Otherwise
+    ///      it mints only when the share amount is non-zero, advancing `lastMgmtAccrual` only
+    ///      then so sub-threshold elapsed time is preserved. Performance accrual is a separate
+    ///      ticket; the `_pendingFeeShares` seam already reserves a place for it.
     function _accrueFees() private {
+        if (
+            lastMgmtAccrual == 0 ||
+            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            totalSupply() == 0 ||
+            totalAssets() == 0
+        ) {
+            lastMgmtAccrual = uint64(block.timestamp);
+
+            return;
+        }
+
         (uint256 feeShares, uint256 feeAssets) = _pendingManagementFee();
         if (feeShares == 0) return;
 
@@ -573,7 +586,10 @@ contract LiFiVaultWrapper is
         view
         returns (uint256 feeShares, uint256 feeAssets)
     {
-        if (!_feeConfig.enabled[uint8(FeeType.Management)]) return (0, 0);
+        if (
+            lastMgmtAccrual == 0 ||
+            !_feeConfig.enabled[uint8(FeeType.Management)]
+        ) return (0, 0);
 
         uint256 supply = totalSupply();
         uint256 assets = totalAssets();
