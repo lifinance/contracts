@@ -4873,6 +4873,32 @@
           }
         ]
       }
+    },
+    {
+      "name": "Rialto",
+      "key": "rialto",
+      "logoURI": "",
+      "webUrl": "https://rialto.xyz/",
+      "contracts": {
+        "arbitrum": [
+          {
+            "address": "0x008d23ba8B6Ce09528b9Cb1b09849977D660D968",
+            "functions": {
+              "0x8fb4309b": "executeExactIn((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(address,uint256,uint256,bytes),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])",
+              "0x77963966": "executeExactInWithAllowance((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])"
+            }
+          }
+        ],
+        "outlaw": [
+          {
+            "address": "0xC94135b63772b91D79d0A2DaAb2a8801f32359bD",
+            "functions": {
+              "0x8fb4309b": "executeExactIn((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(address,uint256,uint256,bytes),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])",
+              "0x77963966": "executeExactInWithAllowance((address,address,uint256,uint256,address,uint64,(address,uint16,uint16,bytes32),bytes32),(uint8,address,address,address,uint256,uint16,uint256,bytes,uint256)[])"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
@@ -9388,6 +9414,60 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
+    "outlaw": [
+      {
+        "name": "FeeCollector",
+        "address": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
+        "selectors": [
+          {
+            "selector": "0xe0cbc5f2",
+            "signature": "collectNativeFees(uint256,uint256,address)"
+          },
+          {
+            "selector": "0xeedd56e1",
+            "signature": "collectTokenFees(address,uint256,uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "FeeForwarder",
+        "address": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x0d0E59aCdc126fA8791C00507b2Ce8DdB4036cbE",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       }

@@ -91,6 +91,9 @@
   "optimism": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
+  "outlaw": {
+    "relayDepository": "0x4cD00E387622C35bDDB9b4c962C136462338BC31"
+  },
   "plasma": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },

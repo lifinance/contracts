@@ -2,10 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
 
-contract OwnershipFacetTest is TestBase {
+contract OwnershipFacetTest is TestBaseLocal {
     OwnershipFacet internal ownershipFacet;
 
     error NoNullOwner();
@@ -24,7 +24,7 @@ contract OwnershipFacetTest is TestBase {
     );
 
     function setUp() public {
-        initTestBase();
+        initTestBaseLocal();
 
         ownershipFacet = OwnershipFacet(address(diamond));
     }

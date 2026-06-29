@@ -1,0 +1,80 @@
+{
+  "LiFiDiamond": {
+    "Facets": {
+      "0x4925491632d4688312433C428f94f9883a49C5a7": {
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
+      },
+      "0x02B307FfcE0b11120124Bc8209CC4fAEef933e69": {
+        "Name": "DiamondLoupeFacet",
+        "Version": "1.0.0"
+      },
+      "0xE32fA08536068CA3A2B341D462AfD2D9C2528d7f": {
+        "Name": "AccessManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xa5498A7a05A0C71b05e27B8558ccE13120B01387": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "0xc0083f4D8dBDD5d2d466B8bd2DF7DF1f864625d5": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x0339c0585F233Ba96f44B689729C62b4E6186531": {
+        "Name": "GenericSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0xB129ce9C3fCD55726Ff314a2764d3937FA496071": {
+        "Name": "GenericSwapFacetV3",
+        "Version": "2.0.0"
+      },
+      "0xe1A910021eDf98F692c9fa08dC699e77e57bd794": {
+        "Name": "OwnershipFacet",
+        "Version": "1.0.0"
+      },
+      "0x5C3C6cE45449d1d4A8B69Cb07Cf025147295c9d7": {
+        "Name": "PeripheryRegistryFacet",
+        "Version": "1.0.0"
+      },
+      "0x1dbaa8086B650a2b8B1ACD6993DF16b05896F6FA": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.1.0"
+      },
+      "0x68ff3e074F27F33DaDC45bAaCeE0fDd073dA987d": {
+        "Name": "WithdrawFacet",
+        "Version": "1.0.0"
+      },
+      "0x628Aa47ba1739EaBD021e7e48d308320cB984378": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0xdF12A02DD62305AB8295b347FDD6057e581A44c8": {
+        "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.1.1"
+      },
+      "0xB2b9903cfCe365e1521D7B961bfCe0d6635D49a9": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      }
+    },
+    "Periphery": {
+      "ERC20Proxy": "0xfb3973800ADf5B997E910F2DD90158924370612A",
+      "Executor": "0x464fC28B9CbC1781286c8626B6E925275c8C14F1",
+      "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
+      "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
+      "GasZipPeriphery": "",
+      "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
+      "LidoWrapper": "",
+      "OutputValidator": "",
+      "Patcher": "",
+      "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",
+      "ReceiverAcrossV3": "",
+      "ReceiverAcrossV4": "",
+      "ReceiverChainflip": "",
+      "ReceiverOIF": "",
+      "ReceiverStargateV2": "",
+      "TokenWrapper": "0x0d0E59aCdc126fA8791C00507b2Ce8DdB4036cbE"
+    }
+  }
+}

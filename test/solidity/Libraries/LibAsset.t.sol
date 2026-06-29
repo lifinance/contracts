@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
@@ -47,12 +47,12 @@ contract LibAssetImplementer {
     }
 }
 
-contract LibAssetTest is TestBase {
+contract LibAssetTest is TestBaseLocal {
     LibAssetImplementer internal implementer;
 
     function setUp() public {
         implementer = new LibAssetImplementer();
-        initTestBase();
+        initTestBaseLocal();
     }
 
     function testRevert_approveToZeroAddress() public {
