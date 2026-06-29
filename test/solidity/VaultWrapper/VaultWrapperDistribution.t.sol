@@ -169,7 +169,30 @@ contract VaultWrapperDistributionTest is Test {
         vm.expectRevert(LiFiVaultWrapper.ZeroReceiver.selector);
         wrapper.setIntegratorReceivers(zero, _full());
 
+        uint16[] memory badSum = new uint16[](1);
+        badSum[0] = 9999;
+        vm.expectRevert(LiFiVaultWrapper.ReceiverBpsSumNot100.selector);
+        wrapper.setIntegratorReceivers(wallets, badSum);
+
         vm.stopPrank();
+    }
+
+    function test_TrustedTransferRejectsExternalCaller() public {
+        wrapper = _deploy(
+            _assetFees(),
+            SPLIT,
+            _single(makeAddr("r")),
+            _full()
+        );
+
+        // The self-call-only guard is the sole protection against arbitrary payout
+        // routing through the sweep helper; a direct external call must revert.
+        vm.expectRevert(LiFiVaultWrapper.OnlySelf.selector);
+        wrapper.trustedTransfer(address(asset), alice, 1);
+
+        vm.prank(vaultAdmin);
+        vm.expectRevert(LiFiVaultWrapper.OnlySelf.selector);
+        wrapper.trustedTransfer(address(asset), alice, 1);
     }
 
     /// Sweep — split correctness ///
