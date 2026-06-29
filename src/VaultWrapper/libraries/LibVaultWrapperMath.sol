@@ -3,15 +3,15 @@ pragma solidity ^0.8.17;
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @title LibVaultWrapperFees
+/// @title LibVaultWrapperMath
 /// @author LI.FI (https://li.fi)
 /// @notice Stateless arithmetic for the LI.FI vault wrapper fee engine: asset-side
-///         deposit/withdrawal fees (OpenZeppelin "Convention B" raw/total split) and
-///         time-based management-fee dilution. Centralizing the novel math here gives
-///         auditing and fuzzing a single, side-effect-free surface; all state, minting,
-///         and routing stay in the wrapper.
+///         deposit/withdrawal fees (the fee is a percentage of the net amount, so gross =
+///         net + fee), time-based management-fee dilution, and the fee-inclusive share/asset
+///         conversions. Centralizing the math here gives auditing and fuzzing a single,
+///         side-effect-free surface; all state, minting, and routing stay in the wrapper.
 /// @custom:version 1.0.0
-library LibVaultWrapperFees {
+library LibVaultWrapperMath {
     using Math for uint256;
 
     /// @notice Basis-point denominator (100% = 10000 bps).
@@ -99,5 +99,57 @@ library LibVaultWrapperFees {
             _totalAssets + 1 - _feeAssets,
             Math.Rounding.Floor
         );
+    }
+
+    /// @notice Shares for an asset amount, valued against a fee-inclusive effective supply.
+    /// @dev OZ's ERC-4626 conversion with the pending dilution fee-shares added to the supply,
+    ///      so the result reflects the post-accrual share price.
+    /// @param _assets The asset amount to value.
+    /// @param _totalSupply Current share supply.
+    /// @param _pendingFeeShares Dilution shares pending since the last accrual.
+    /// @param _totalAssets Gross assets under management.
+    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @param _rounding Rounding direction.
+    /// @return The corresponding share amount.
+    function convertToShares(
+        uint256 _assets,
+        uint256 _totalSupply,
+        uint256 _pendingFeeShares,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset,
+        Math.Rounding _rounding
+    ) internal pure returns (uint256) {
+        return
+            _assets.mulDiv(
+                _totalSupply + _pendingFeeShares + 10 ** _decimalsOffset,
+                _totalAssets + 1,
+                _rounding
+            );
+    }
+
+    /// @notice Assets for a share amount, valued against a fee-inclusive effective supply.
+    /// @dev Mirror of `convertToShares`; the effective supply includes the pending dilution
+    ///      fee-shares so the result reflects the post-accrual share price.
+    /// @param _shares The share amount to value.
+    /// @param _totalSupply Current share supply.
+    /// @param _pendingFeeShares Dilution shares pending since the last accrual.
+    /// @param _totalAssets Gross assets under management.
+    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @param _rounding Rounding direction.
+    /// @return The corresponding asset amount.
+    function convertToAssets(
+        uint256 _shares,
+        uint256 _totalSupply,
+        uint256 _pendingFeeShares,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset,
+        Math.Rounding _rounding
+    ) internal pure returns (uint256) {
+        return
+            _shares.mulDiv(
+                _totalAssets + 1,
+                _totalSupply + _pendingFeeShares + 10 ** _decimalsOffset,
+                _rounding
+            );
     }
 }

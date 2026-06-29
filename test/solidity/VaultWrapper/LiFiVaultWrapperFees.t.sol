@@ -8,9 +8,10 @@ import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.so
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { LibVaultWrapperFees } from "lifi/VaultWrapper/libraries/LibVaultWrapperFees.sol";
+import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
 import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice Integration tests for the LiFiVaultWrapper fee engine (EXSC-410): management
@@ -41,11 +42,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         bool enabled
     );
 
-    event DilutionFeeAccrued(
-        FeeType indexed feeType,
-        uint256 feeShares,
-        uint256 feeAssets
-    );
+    event DilutionFeeAccrued(FeeType indexed feeType, uint256 feeShares);
 
     event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
 
@@ -172,9 +169,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _deposit(alice, DEPOSIT);
 
         vm.warp(block.timestamp + YEAR);
-        (uint256 expectedShares, uint256 expectedAssets) = _expectedMgmt(
-            wrapper
-        );
+        (uint256 expectedShares, ) = _expectedMgmt(wrapper);
 
         // The crystallizing op also emits ERC20 Transfers (fee-share mint, deposit-share
         // mint); scan recorded logs for the DilutionFeeAccrued rather than asserting it is
@@ -182,7 +177,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.recordLogs();
         _crystallize();
 
-        bytes32 sig = keccak256("DilutionFeeAccrued(uint8,uint256,uint256)");
+        bytes32 sig = keccak256("DilutionFeeAccrued(uint8,uint256)");
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 matches;
         for (uint256 i; i < logs.length; ++i) {
@@ -192,12 +187,8 @@ contract LiFiVaultWrapperFeesTest is Test {
                 uint256(logs[i].topics[1]),
                 uint256(uint8(FeeType.Management))
             );
-            (uint256 shares, uint256 assets) = abi.decode(
-                logs[i].data,
-                (uint256, uint256)
-            );
+            uint256 shares = abi.decode(logs[i].data, (uint256));
             assertEq(shares, expectedShares);
-            assertEq(assets, expectedAssets);
             ++matches;
         }
         assertEq(matches, 1);
@@ -302,7 +293,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         uint256 idleBefore = asset.balanceOf(address(wrapper));
 
         uint256 amount = 100e18;
-        uint256 expectedFee = LibVaultWrapperFees.feeOnTotal(amount, DEP_RATE);
+        uint256 expectedFee = LibVaultWrapperMath.feeOnTotal(amount, DEP_RATE);
         uint256 netInvested = amount - expectedFee;
 
         asset.mint(bob, amount);
@@ -329,7 +320,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         uint256 ppsBefore = wrapper.convertToAssets(1e18);
 
         uint256 amount = 100e18;
-        uint256 expectedFee = LibVaultWrapperFees.feeOnRaw(amount, WD_RATE);
+        uint256 expectedFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
 
         vm.prank(alice);
         wrapper.withdraw(amount, alice, alice);
@@ -371,7 +362,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _deposit(alice, DEPOSIT);
 
         uint256 amount = 100e18;
-        uint256 expectedFee = LibVaultWrapperFees.feeOnTotal(amount, DEP_RATE);
+        uint256 expectedFee = LibVaultWrapperMath.feeOnTotal(amount, DEP_RATE);
 
         asset.mint(bob, amount);
         vm.startPrank(bob);
@@ -389,7 +380,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _deposit(alice, DEPOSIT);
 
         uint256 amount = 100e18;
-        uint256 expectedFee = LibVaultWrapperFees.feeOnRaw(amount, WD_RATE);
+        uint256 expectedFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
 
         vm.prank(alice);
         vm.expectEmit(true, false, false, true, address(wrapper));
@@ -480,7 +471,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _stackWithFactory(MGMT_RATE);
 
         vm.prank(makeAddr("stranger"));
-        vm.expectRevert(LiFiVaultWrapper.NotVaultWrapperAdmin.selector);
+        vm.expectRevert(ILiFiVaultWrapper.NotVaultWrapperAdmin.selector);
         wrapper.setFeeRate(FeeType.Management, 500);
     }
 
@@ -490,7 +481,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.prank(vaultAdmin);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.FeeTypeNotConfigurable.selector,
+                ILiFiVaultWrapper.FeeTypeNotConfigurable.selector,
                 FeeType.Performance
             )
         );
@@ -503,7 +494,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.prank(vaultAdmin);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.FeeRateOutOfBounds.selector,
+                ILiFiVaultWrapper.FeeRateOutOfBounds.selector,
                 uint16(1001),
                 uint16(0),
                 uint16(1000)
@@ -520,7 +511,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.prank(vaultAdmin);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.FeeRateOutOfBounds.selector,
+                ILiFiVaultWrapper.FeeRateOutOfBounds.selector,
                 uint16(50),
                 uint16(100),
                 uint16(1000)
@@ -642,17 +633,17 @@ contract LiFiVaultWrapperFeesTest is Test {
         uint256 assets = _w.totalAssets();
         uint256 elapsed = block.timestamp - _w.lastMgmtAccrual();
 
-        feeAssets = LibVaultWrapperFees.managementFeeAssets(
-            assets,
-            MGMT_RATE,
-            elapsed
-        );
-        feeShares = LibVaultWrapperFees.dilutionShares(
-            feeAssets,
-            supply,
-            assets,
-            0
-        );
+        feeAssets = LibVaultWrapperMath.managementFeeAssets({
+            _totalAssets: assets,
+            _rateBps: MGMT_RATE,
+            _elapsed: elapsed
+        });
+        feeShares = LibVaultWrapperMath.dilutionShares({
+            _feeAssets: feeAssets,
+            _totalSupply: supply,
+            _totalAssets: assets,
+            _decimalsOffset: 0
+        });
     }
 
     function _deposit(address _from, uint256 _amount) internal {

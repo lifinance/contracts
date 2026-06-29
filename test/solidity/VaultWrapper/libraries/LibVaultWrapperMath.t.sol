@@ -3,23 +3,23 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { LibVaultWrapperFees } from "lifi/VaultWrapper/libraries/LibVaultWrapperFees.sol";
+import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
 
 /// @notice Thin external harness exposing the internal pure library so tests can
 ///         exercise it across the ABI boundary (and fuzz it directly).
-contract LibFeesHarness {
+contract LibMathHarness {
     function feeOnRaw(
         uint256 _assets,
         uint16 _feeBps
     ) external pure returns (uint256) {
-        return LibVaultWrapperFees.feeOnRaw(_assets, _feeBps);
+        return LibVaultWrapperMath.feeOnRaw(_assets, _feeBps);
     }
 
     function feeOnTotal(
         uint256 _assets,
         uint16 _feeBps
     ) external pure returns (uint256) {
-        return LibVaultWrapperFees.feeOnTotal(_assets, _feeBps);
+        return LibVaultWrapperMath.feeOnTotal(_assets, _feeBps);
     }
 
     function managementFeeAssets(
@@ -28,11 +28,11 @@ contract LibFeesHarness {
         uint256 _elapsed
     ) external pure returns (uint256) {
         return
-            LibVaultWrapperFees.managementFeeAssets(
-                _totalAssets,
-                _rateBps,
-                _elapsed
-            );
+            LibVaultWrapperMath.managementFeeAssets({
+                _totalAssets: _totalAssets,
+                _rateBps: _rateBps,
+                _elapsed: _elapsed
+            });
     }
 
     function dilutionShares(
@@ -42,26 +42,64 @@ contract LibFeesHarness {
         uint8 _decimalsOffset
     ) external pure returns (uint256) {
         return
-            LibVaultWrapperFees.dilutionShares(
-                _feeAssets,
-                _totalSupply,
-                _totalAssets,
-                _decimalsOffset
-            );
+            LibVaultWrapperMath.dilutionShares({
+                _feeAssets: _feeAssets,
+                _totalSupply: _totalSupply,
+                _totalAssets: _totalAssets,
+                _decimalsOffset: _decimalsOffset
+            });
+    }
+
+    function convertToShares(
+        uint256 _assets,
+        uint256 _totalSupply,
+        uint256 _pendingFeeShares,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset,
+        Math.Rounding _rounding
+    ) external pure returns (uint256) {
+        return
+            LibVaultWrapperMath.convertToShares({
+                _assets: _assets,
+                _totalSupply: _totalSupply,
+                _pendingFeeShares: _pendingFeeShares,
+                _totalAssets: _totalAssets,
+                _decimalsOffset: _decimalsOffset,
+                _rounding: _rounding
+            });
+    }
+
+    function convertToAssets(
+        uint256 _shares,
+        uint256 _totalSupply,
+        uint256 _pendingFeeShares,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset,
+        Math.Rounding _rounding
+    ) external pure returns (uint256) {
+        return
+            LibVaultWrapperMath.convertToAssets({
+                _shares: _shares,
+                _totalSupply: _totalSupply,
+                _pendingFeeShares: _pendingFeeShares,
+                _totalAssets: _totalAssets,
+                _decimalsOffset: _decimalsOffset,
+                _rounding: _rounding
+            });
     }
 }
 
-/// @title LibVaultWrapperFeesTest
+/// @title LibVaultWrapperMathTest
 /// @author LI.FI (https://li.fi)
 /// @notice Unit and fuzz/property tests for the stateless vault-wrapper fee math.
-contract LibVaultWrapperFeesTest is Test {
+contract LibVaultWrapperMathTest is Test {
     uint256 internal constant BPS = 10_000;
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
 
-    LibFeesHarness internal lib;
+    LibMathHarness internal lib;
 
     function setUp() public {
-        lib = new LibFeesHarness();
+        lib = new LibMathHarness();
     }
 
     /* ------------------------------- feeOnRaw -------------------------------- */
@@ -403,5 +441,86 @@ contract LibVaultWrapperFeesTest is Test {
             _totalAssets,
             _decimalsOffset
         );
+    }
+
+    /* ----------------------- convertToShares / convertToAssets --------------- */
+
+    // With zero pending fee-shares the conversion is exactly OZ's ERC-4626 formula.
+    function test_Convert_ZeroPendingMatchesOzFormula() public view {
+        uint256 assets = 5e17;
+        uint256 supply = 3e18;
+        uint256 total = 2e18;
+
+        uint256 shares = lib.convertToShares({
+            _assets: assets,
+            _totalSupply: supply,
+            _pendingFeeShares: 0,
+            _totalAssets: total,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+        uint256 backAssets = lib.convertToAssets({
+            _shares: shares,
+            _totalSupply: supply,
+            _pendingFeeShares: 0,
+            _totalAssets: total,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+
+        assertEq(shares, Math.mulDiv(assets, supply + 1, total + 1));
+        assertLe(backAssets, assets);
+    }
+
+    // Pending dilution shares lower the share price: more shares per asset on the way in,
+    // fewer assets per share on the way out.
+    function testFuzz_Convert_PendingSharesDilute(
+        uint256 _assets,
+        uint256 _shares,
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint256 _pending
+    ) public view {
+        _assets = bound(_assets, 1, type(uint96).max);
+        _shares = bound(_shares, 1, type(uint96).max);
+        _totalSupply = bound(_totalSupply, 1, type(uint96).max);
+        _totalAssets = bound(_totalAssets, 1, type(uint96).max);
+        _pending = bound(_pending, 1, type(uint96).max);
+
+        uint256 sharesNoFee = lib.convertToShares({
+            _assets: _assets,
+            _totalSupply: _totalSupply,
+            _pendingFeeShares: 0,
+            _totalAssets: _totalAssets,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+        uint256 sharesWithFee = lib.convertToShares({
+            _assets: _assets,
+            _totalSupply: _totalSupply,
+            _pendingFeeShares: _pending,
+            _totalAssets: _totalAssets,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+        uint256 assetsNoFee = lib.convertToAssets({
+            _shares: _shares,
+            _totalSupply: _totalSupply,
+            _pendingFeeShares: 0,
+            _totalAssets: _totalAssets,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+        uint256 assetsWithFee = lib.convertToAssets({
+            _shares: _shares,
+            _totalSupply: _totalSupply,
+            _pendingFeeShares: _pending,
+            _totalAssets: _totalAssets,
+            _decimalsOffset: 0,
+            _rounding: Math.Rounding.Floor
+        });
+
+        assertGe(sharesWithFee, sharesNoFee);
+        assertLe(assetsWithFee, assetsNoFee);
     }
 }

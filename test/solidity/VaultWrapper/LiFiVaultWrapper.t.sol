@@ -10,6 +10,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
@@ -190,7 +191,7 @@ contract LiFiVaultWrapperTest is Test {
             (address(underlying), address(adapter), address(0), 8000, fees, "")
         );
 
-        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
 
         new BeaconProxy(address(beacon), initCall);
     }
@@ -210,7 +211,7 @@ contract LiFiVaultWrapperTest is Test {
             )
         );
 
-        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
 
         new BeaconProxy(address(beacon), initCall);
     }
@@ -231,7 +232,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidIntegratorShareBps.selector,
+                ILiFiVaultWrapper.InvalidIntegratorShareBps.selector,
                 uint16(10_000)
             )
         );
@@ -242,7 +243,7 @@ contract LiFiVaultWrapperTest is Test {
     function testRevert_FeeGettersRejectInvalidFeeType() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidFeeType.selector,
+                ILiFiVaultWrapper.InvalidFeeType.selector,
                 uint8(4)
             )
         );
@@ -250,7 +251,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidFeeType.selector,
+                ILiFiVaultWrapper.InvalidFeeType.selector,
                 uint8(4)
             )
         );
@@ -450,7 +451,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.AdapterDepositShortfall.selector,
+                ILiFiVaultWrapper.AdapterDepositShortfall.selector,
                 DEPOSIT,
                 (DEPOSIT * 9000) / 10000
             )
@@ -475,7 +476,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.AdapterWithdrawShortfall.selector,
+                ILiFiVaultWrapper.AdapterWithdrawShortfall.selector,
                 DEPOSIT,
                 (DEPOSIT * 9000) / 10000
             )
@@ -513,7 +514,7 @@ contract LiFiVaultWrapperTest is Test {
 
     function testRevert_TransferVaultWrapperAdminNotAdmin() public {
         vm.prank(makeAddr("stranger"));
-        vm.expectRevert(LiFiVaultWrapper.NotVaultWrapperAdmin.selector);
+        vm.expectRevert(ILiFiVaultWrapper.NotVaultWrapperAdmin.selector);
         wrapper.transferVaultWrapperAdmin(makeAddr("newAdmin"));
     }
 
@@ -524,7 +525,9 @@ contract LiFiVaultWrapperTest is Test {
         wrapper.transferVaultWrapperAdmin(newAdmin);
 
         vm.prank(makeAddr("stranger"));
-        vm.expectRevert(LiFiVaultWrapper.NotPendingVaultWrapperAdmin.selector);
+        vm.expectRevert(
+            ILiFiVaultWrapper.NotPendingVaultWrapperAdmin.selector
+        );
         wrapper.acceptVaultWrapperAdmin();
     }
 
