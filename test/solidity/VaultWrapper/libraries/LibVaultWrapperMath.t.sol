@@ -479,20 +479,22 @@ contract LibVaultWrapperMathTest is Test {
         uint256 _shares,
         uint256 _totalSupply,
         uint256 _totalAssets,
-        uint256 _pending
+        uint256 _pending,
+        uint8 _decimalsOffset
     ) public view {
         _assets = bound(_assets, 1, type(uint96).max);
         _shares = bound(_shares, 1, type(uint96).max);
         _totalSupply = bound(_totalSupply, 1, type(uint96).max);
         _totalAssets = bound(_totalAssets, 1, type(uint96).max);
         _pending = bound(_pending, 1, type(uint96).max);
+        _decimalsOffset = uint8(bound(_decimalsOffset, 0, 12));
 
         uint256 sharesNoFee = lib.convertToShares({
             _assets: _assets,
             _totalSupply: _totalSupply,
             _pendingFeeShares: 0,
             _totalAssets: _totalAssets,
-            _decimalsOffset: 0,
+            _decimalsOffset: _decimalsOffset,
             _rounding: Math.Rounding.Floor
         });
         uint256 sharesWithFee = lib.convertToShares({
@@ -500,7 +502,7 @@ contract LibVaultWrapperMathTest is Test {
             _totalSupply: _totalSupply,
             _pendingFeeShares: _pending,
             _totalAssets: _totalAssets,
-            _decimalsOffset: 0,
+            _decimalsOffset: _decimalsOffset,
             _rounding: Math.Rounding.Floor
         });
         uint256 assetsNoFee = lib.convertToAssets({
@@ -508,7 +510,7 @@ contract LibVaultWrapperMathTest is Test {
             _totalSupply: _totalSupply,
             _pendingFeeShares: 0,
             _totalAssets: _totalAssets,
-            _decimalsOffset: 0,
+            _decimalsOffset: _decimalsOffset,
             _rounding: Math.Rounding.Floor
         });
         uint256 assetsWithFee = lib.convertToAssets({
@@ -516,7 +518,7 @@ contract LibVaultWrapperMathTest is Test {
             _totalSupply: _totalSupply,
             _pendingFeeShares: _pending,
             _totalAssets: _totalAssets,
-            _decimalsOffset: 0,
+            _decimalsOffset: _decimalsOffset,
             _rounding: Math.Rounding.Floor
         });
 
