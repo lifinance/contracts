@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
+import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -94,6 +95,19 @@ contract VaultWrapperPauseTest is Test {
         _expectMintReverts(alice, DEPOSIT);
     }
 
+    // The _deposit chokepoint guard is the construction backstop: a zero-amount deposit
+    // passes OZ's `assets > maxDeposit` check (0 > 0 is false) yet still reverts here,
+    // proving no inflow can slip through while paused even if it clears the max check.
+    function testRevert_ZeroDepositHitsChokepointGuardWhilePaused() public {
+        vm.prank(vaultAdmin);
+        wrapper.integratorPause();
+
+        vm.prank(alice);
+        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+
+        wrapper.deposit(0, alice);
+    }
+
     /// Withdrawals stay open under every pause combination ///
 
     function test_WithdrawOpenUnderIntegratorPause() public {
@@ -179,8 +193,39 @@ contract VaultWrapperPauseTest is Test {
     function test_PauseSettersEmitEvents() public {
         vm.expectEmit(true, true, true, true);
         emit IntegratorPauseSet(true, vaultAdmin);
+
         vm.prank(vaultAdmin);
         wrapper.integratorPause();
+    }
+
+    /// EIP-4626 deposit limits report closed while paused ///
+
+    function test_MaxDepositAndMaxMintZeroWhenIntegratorPaused() public {
+        assertEq(wrapper.maxDeposit(alice), type(uint256).max);
+        assertEq(wrapper.maxMint(alice), type(uint256).max);
+
+        vm.prank(vaultAdmin);
+        wrapper.integratorPause();
+
+        assertEq(wrapper.maxDeposit(alice), 0);
+        assertEq(wrapper.maxMint(alice), 0);
+    }
+
+    function test_MaxDepositAndMaxMintZeroWhenGloballyPaused() public {
+        factory.setGlobalPaused(true);
+
+        assertEq(wrapper.maxDeposit(alice), 0);
+        assertEq(wrapper.maxMint(alice), 0);
+    }
+
+    function test_MaxDepositAndMaxMintRestoredAfterUnpause() public {
+        vm.startPrank(vaultAdmin);
+        wrapper.integratorPause();
+        wrapper.integratorUnpause();
+        vm.stopPrank();
+
+        assertEq(wrapper.maxDeposit(alice), type(uint256).max);
+        assertEq(wrapper.maxMint(alice), type(uint256).max);
     }
 
     /// Helpers ///
@@ -193,12 +238,16 @@ contract VaultWrapperPauseTest is Test {
         vm.stopPrank();
     }
 
+    // A paused vault reports maxDeposit/maxMint == 0, so OZ's deposit/mint reject a
+    // non-zero amount with ERC4626ExceededMax* before reaching the _deposit guard.
     function _expectDepositReverts(address _from, uint256 _amount) internal {
         asset.mint(_from, _amount);
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+        vm.expectPartialRevert(
+            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
+        );
 
         wrapper.deposit(_amount, _from);
         vm.stopPrank();
@@ -209,7 +258,9 @@ contract VaultWrapperPauseTest is Test {
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+        vm.expectPartialRevert(
+            ERC4626Upgradeable.ERC4626ExceededMaxMint.selector
+        );
 
         wrapper.mint(_amount, _from);
         vm.stopPrank();
@@ -271,7 +322,9 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(instance), DEPOSIT);
 
-        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+        vm.expectPartialRevert(
+            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
+        );
 
         instance.deposit(DEPOSIT, alice);
         vm.stopPrank();
@@ -302,7 +355,9 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(frozen), DEPOSIT);
 
-        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+        vm.expectPartialRevert(
+            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
+        );
 
         frozen.deposit(DEPOSIT, alice);
         vm.stopPrank();

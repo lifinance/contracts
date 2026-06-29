@@ -251,7 +251,6 @@ contract LiFiVaultWrapper is
         uint256 assets,
         address receiver
     ) public override nonReentrant returns (uint256) {
-        _requireDepositsNotPaused();
         _beforeOperation();
 
         return super.deposit(assets, receiver);
@@ -262,10 +261,29 @@ contract LiFiVaultWrapper is
         uint256 shares,
         address receiver
     ) public override nonReentrant returns (uint256) {
-        _requireDepositsNotPaused();
         _beforeOperation();
 
         return super.mint(shares, receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
+    ///      as closed to deposits and do not build deposits that would revert.
+    function maxDeposit(
+        address receiver
+    ) public view override returns (uint256) {
+        if (depositsPaused()) return 0;
+
+        return super.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
+    ///      as closed to mints and do not build mints that would revert.
+    function maxMint(address receiver) public view override returns (uint256) {
+        if (depositsPaused()) return 0;
+
+        return super.maxMint(receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -326,10 +344,12 @@ contract LiFiVaultWrapper is
 
     /// Internal ///
 
-    /// @dev Skims the entry fee, then forwards the remaining deposited assets into the yield
-    ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
-    ///      shares. Reverts if the adapter reports the source accepted less than the net
-    ///      deposit (a short-accepting source), so assets cannot be left stranded in the
+    /// @dev Single inflow chokepoint: `deposit` and `mint` both route here, so the pause
+    ///      gate lives here once and halts every current and future inflow by construction.
+    ///      Then skims the entry fee and forwards the remaining deposited assets into the
+    ///      yield source via the adapter. OZ's `_deposit` has already pulled the asset in and
+    ///      minted shares. Reverts if the adapter reports the source accepted less than the
+    ///      net deposit (a short-accepting source), so assets cannot be left stranded in the
     ///      wrapper against already-minted shares. With fees unimplemented the skim is zero,
     ///      so the full amount is invested.
     function _deposit(
@@ -338,6 +358,8 @@ contract LiFiVaultWrapper is
         uint256 assets,
         uint256 shares
     ) internal override {
+        _requireDepositsNotPaused();
+
         super._deposit(caller, receiver, assets, shares);
 
         uint256 fee = _entryFee(assets);
