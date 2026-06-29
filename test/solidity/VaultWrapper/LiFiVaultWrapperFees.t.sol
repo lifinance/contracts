@@ -463,6 +463,8 @@ contract LiFiVaultWrapperFeesTest is Test {
 
     function test_SetFeeRateZeroDisablesAndSkipsBounds() public {
         _stackWithFactory(MGMT_RATE);
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Management, 100, 1000);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
         emit FeeConfigUpdated(FeeType.Management, 0, false);
