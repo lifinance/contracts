@@ -9,7 +9,7 @@ import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig, FeeType } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, IntegratorReceivers } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperFees } from "./libraries/LibVaultWrapperFees.sol";
 
 /// @title LiFiVaultWrapper
@@ -27,11 +27,13 @@ import { LibVaultWrapperFees } from "./libraries/LibVaultWrapperFees.sol";
 ///      initial fee configuration are set write-once in `initialize`. Management (dilution),
 ///      deposit, and withdrawal fees are live: management fee-shares are minted to this contract
 ///      via `_accrueFees`/`_pendingManagementFee`, and deposit/withdrawal asset fees are kept idle
-///      and tracked through `_routeFee`; neither is distributed here (payout is a follow-up
-///      ticket). Performance fees, access control, and pause remain no-op seams
+///      and tracked through `_routeFee`. A permissionless `sweep` distributes both accrued
+///      reservoirs to their receivers — each split by `integratorShareBps` into LI.FI's share
+///      (sent to the factory's live `lifiFeeRecipient`) and the integrator's (fanned across its
+///      1..5 wallets). Performance fees, access control, and pause remain no-op seams
 ///      (`_requireNotPaused`, `_checkAccess`) wired into the entrypoints. Inflation-attack
 ///      protection relies on the ERC-4626 virtual-share offset.
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
     // OZ v5's ReentrancyGuard keeps its status in a fixed ERC-7201 namespaced slot
@@ -45,6 +47,13 @@ contract LiFiVaultWrapper is
 {
     using MetadataReaderLib for address;
     using Math for uint256;
+
+    /// Constants ///
+
+    /// @notice Basis-point denominator (100%).
+    uint16 internal constant BPS_DENOMINATOR = 10_000;
+    /// @notice Maximum number of integrator receiver wallets.
+    uint256 internal constant MAX_FEE_RECEIVERS = 5;
 
     /// Storage ///
 
@@ -77,11 +86,17 @@ contract LiFiVaultWrapper is
     /// @notice Timestamp of the last management-fee crystallization.
     uint64 public lastMgmtAccrual;
 
+    /// @dev Integrator payout wallets (1..5), parallel to `_integratorReceiverBps`. Set at
+    ///      `initialize` and mutable by the integrator; always non-empty after deploy.
+    address[] internal _integratorReceivers;
+    /// @dev Per-receiver bps summing to 100%, parallel to `_integratorReceivers`.
+    uint16[] internal _integratorReceiverBps;
+
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
     ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
     ///      append (consuming this gap), never reorder fields or the inheritance list.
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 
     /// Events ///
 
@@ -143,6 +158,32 @@ contract LiFiVaultWrapper is
     /// @param feeAssets The fee amount, in assets.
     event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
 
+    /// @notice Emitted when the integrator's receiver set is configured.
+    /// @param receivers The integrator payout wallets.
+    /// @param bps The per-receiver basis points (sum to 100%).
+    event ReceiversSet(address[] receivers, uint16[] bps);
+
+    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
+    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
+    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
+    /// @param integratorAmount Amount delivered across the integrator wallets.
+    event ReservoirSwept(
+        address indexed token,
+        uint256 lifiAmount,
+        uint256 integratorAmount
+    );
+
+    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
+    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
+    /// @param receiver The integrator wallet whose transfer reverted.
+    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
+    /// @param amount The amount redirected to LI.FI.
+    event IntegratorPayoutRedirected(
+        address indexed receiver,
+        address indexed token,
+        uint256 amount
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
@@ -164,6 +205,16 @@ contract LiFiVaultWrapper is
     error FeeTypeNotConfigurable(FeeType feeType);
     /// @notice Thrown when a requested rate is outside the factory's live bounds.
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
+    /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
+    error InvalidReceiverCount();
+    /// @notice Thrown when the receivers and bps arrays differ in length.
+    error ReceiversLengthMismatch();
+    /// @notice Thrown when a receiver wallet is the zero address.
+    error ZeroReceiver();
+    /// @notice Thrown when the receiver bps do not sum to exactly 100%.
+    error ReceiverBpsSumNot100();
+    /// @notice Thrown when `trustedTransfer` is called by anyone other than this contract.
+    error OnlySelf();
 
     /// Initialization ///
 
@@ -185,14 +236,15 @@ contract LiFiVaultWrapper is
         address _vaultWrapperAdmin,
         uint16 _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData
+        bytes calldata _initData,
+        IntegratorReceivers calldata _receivers
     ) external initializer {
         if (
             _underlying == address(0) ||
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
-        if (_integratorShareBps >= 10_000)
+        if (_integratorShareBps >= BPS_DENOMINATOR)
             revert InvalidIntegratorShareBps(_integratorShareBps);
 
         address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
@@ -208,14 +260,22 @@ contract LiFiVaultWrapper is
         _feeConfig = _fees;
         initData = _initData;
         lastMgmtAccrual = uint64(block.timestamp);
+        _setIntegratorReceivers(_receivers.wallets, _receivers.bps);
 
+        _emitInitialized(asset);
+    }
+
+    /// @dev Emits `Initialized` from stored state, keeping `initialize`'s stack shallow (the
+    ///      contract is compiled without via-IR, so the 6-field event inline would overflow).
+    /// @param _asset The resolved ERC20 asset (not yet a stored field at emit time).
+    function _emitInitialized(address _asset) private {
         emit Initialized(
-            asset,
-            _underlying,
-            _adapter,
-            _vaultWrapperAdmin,
-            msg.sender,
-            _integratorShareBps
+            _asset,
+            underlying,
+            adapter,
+            vaultWrapperAdmin,
+            factory,
+            integratorShareBps
         );
     }
 
@@ -526,6 +586,80 @@ contract LiFiVaultWrapper is
         emit FeeConfigUpdated(_feeType, _newRateBps, _newRateBps != 0);
     }
 
+    /// Fee distribution ///
+
+    /// @notice The configured integrator payout wallets.
+    /// @return The receiver addresses (1..5).
+    function integratorReceivers() external view returns (address[] memory) {
+        return _integratorReceivers;
+    }
+
+    /// @notice The per-receiver basis points, parallel to `integratorReceivers`.
+    /// @return The receiver bps (sum to 100%).
+    function integratorReceiverBps() external view returns (uint16[] memory) {
+        return _integratorReceiverBps;
+    }
+
+    /// @notice Replace the integrator's payout wallets and their bps split.
+    /// @dev Integrator-controlled (the `vaultWrapperAdmin`). Re-validates the full set, so
+    ///      the 1..5 / sum-to-100% invariant set at `initialize` always holds — the receiver
+    ///      set can never be emptied. Only redistributes the integrator's own share, so no
+    ///      sweep is forced first.
+    /// @param _receivers The new payout wallets (1..5, non-zero).
+    /// @param _receiverBps The per-receiver bps, summing to exactly 100%.
+    function setIntegratorReceivers(
+        address[] calldata _receivers,
+        uint16[] calldata _receiverBps
+    ) external {
+        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
+        _setIntegratorReceivers(_receivers, _receiverBps);
+    }
+
+    /// @notice Permissionless: crystallize and distribute both accrued fee reservoirs.
+    /// @dev Accrues pending management fees first (so a sweep is complete even while deposits
+    ///      are paused, since `_beforeOperation` cannot run then), then distributes the idle
+    ///      asset reservoir (`accruedFeeAssets`) and the dilution-share reservoir
+    ///      (`accruedFeeShares`). Each reservoir is split by `integratorShareBps`: LI.FI's
+    ///      portion goes to the factory's live `lifiFeeRecipient`, the integrator's is fanned
+    ///      across its wallets by bps (last absorbs the rounding remainder). CEI: both totals
+    ///      are zeroed before any transfer, and the call is `nonReentrant`. A failing
+    ///      integrator transfer (e.g. a blacklisted wallet) is redirected to LI.FI rather than
+    ///      reverting the sweep, so the integrator can never block it. No-op when both
+    ///      reservoirs are empty.
+    function sweep() external nonReentrant {
+        _accrueFees();
+
+        uint256 assetTotal = accruedFeeAssets;
+        uint256 shareTotal = accruedFeeShares;
+        if (assetTotal == 0 && shareTotal == 0) return;
+
+        accruedFeeAssets = 0;
+        accruedFeeShares = 0;
+
+        address recipient = ILiFiVaultWrapperFactory(factory)
+            .lifiFeeRecipient();
+        uint16 split = integratorShareBps;
+
+        _distributeReservoir(asset(), assetTotal, split, recipient);
+        _distributeReservoir(address(this), shareTotal, split, recipient);
+    }
+
+    /// @notice Transfer a token out of this contract; callable only by this contract itself.
+    /// @dev The `try/catch` seam used by `sweep` so a reverting integrator transfer is caught
+    ///      and redirected instead of bubbling up. Restricted to self-calls; not
+    ///      `nonReentrant` so `sweep`'s guard is not tripped by the self-call.
+    /// @param _token The token to transfer (the vault asset, or this wrapper's own shares).
+    /// @param _to The recipient.
+    /// @param _amount The amount to transfer.
+    function trustedTransfer(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) external {
+        if (msg.sender != address(this)) revert OnlySelf();
+        SafeERC20.safeTransfer(IERC20(_token), _to, _amount);
+    }
+
     /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
     ///      engaged, enforces the vault's access mode on the caller, and accrues
     ///      time/yield-based fees so the operation transacts at the post-accrual share price.
@@ -637,5 +771,93 @@ contract LiFiVaultWrapper is
         accruedFeeAssets += _feeAssets;
 
         emit AssetFeeCharged(_feeType, _feeAssets);
+    }
+
+    /// @dev Validates and stores the integrator receiver set: 1..5 wallets, no zero address,
+    ///      equal-length bps summing to exactly 100%. Reverts the whole call (including a
+    ///      deploy, when reached from `initialize`) on any violation.
+    /// @param _receivers The payout wallets.
+    /// @param _receiverBps The per-receiver bps.
+    function _setIntegratorReceivers(
+        address[] calldata _receivers,
+        uint16[] calldata _receiverBps
+    ) private {
+        uint256 count = _receivers.length;
+        if (count == 0 || count > MAX_FEE_RECEIVERS)
+            revert InvalidReceiverCount();
+        if (_receiverBps.length != count) revert ReceiversLengthMismatch();
+
+        uint256 sum;
+        for (uint256 i; i < count; ++i) {
+            if (_receivers[i] == address(0)) revert ZeroReceiver();
+            sum += _receiverBps[i];
+        }
+        if (sum != BPS_DENOMINATOR) revert ReceiverBpsSumNot100();
+
+        _integratorReceivers = _receivers;
+        _integratorReceiverBps = _receiverBps;
+
+        emit ReceiversSet(_receivers, _receiverBps);
+    }
+
+    /// @dev Distributes one reservoir of `_token`: splits `_total` by `_splitBps` into the
+    ///      integrator portion (fanned across the receiver wallets) and LI.FI's portion. LI.FI
+    ///      is paid last — its base split plus any integrator amount redirected by
+    ///      `_payIntegrators` — and is NOT caught, so a reverting LI.FI recipient
+    ///      (factory-governed) is its own concern. Caller must zero the reservoir total first
+    ///      (CEI). No-op on a zero reservoir.
+    /// @param _token The reservoir token (the vault asset, or this wrapper's shares).
+    /// @param _total The reservoir amount to distribute.
+    /// @param _splitBps The integrator's share of the reservoir, in bps.
+    /// @param _recipient The live LI.FI fee recipient.
+    function _distributeReservoir(
+        address _token,
+        uint256 _total,
+        uint16 _splitBps,
+        address _recipient
+    ) private {
+        if (_total == 0) return;
+
+        uint256 integratorTotal = _total.mulDiv(_splitBps, BPS_DENOMINATOR);
+        uint256 redirected = _payIntegrators(_token, integratorTotal);
+        uint256 lifiPaid = _total - integratorTotal + redirected;
+
+        if (lifiPaid > 0)
+            SafeERC20.safeTransfer(IERC20(_token), _recipient, lifiPaid);
+
+        emit ReservoirSwept(_token, lifiPaid, integratorTotal - redirected);
+    }
+
+    /// @dev Fans `_integratorTotal` of `_token` across the integrator wallets by their bps, the
+    ///      last wallet absorbing the integer-division remainder so the portion zeroes exactly.
+    ///      Each transfer goes through `trustedTransfer`; a revert (e.g. a blacklisted wallet)
+    ///      is caught and the share returned as `redirected` for the caller to route to LI.FI,
+    ///      so one hostile wallet can never block the sweep.
+    /// @param _token The reservoir token to distribute.
+    /// @param _integratorTotal The integrator's portion of the reservoir.
+    /// @return redirected The sum of shares whose transfer reverted (to be paid to LI.FI).
+    function _payIntegrators(
+        address _token,
+        uint256 _integratorTotal
+    ) private returns (uint256 redirected) {
+        address[] memory receivers = _integratorReceivers;
+        uint16[] memory bps = _integratorReceiverBps;
+        uint256 count = receivers.length;
+        uint256 distributed;
+
+        for (uint256 i; i < count; ++i) {
+            uint256 share = i + 1 == count
+                ? _integratorTotal - distributed
+                : _integratorTotal.mulDiv(bps[i], BPS_DENOMINATOR);
+            distributed += share;
+            if (share == 0) continue;
+
+            try this.trustedTransfer(_token, receivers[i], share) {
+                // delivered
+            } catch {
+                redirected += share;
+                emit IntegratorPayoutRedirected(receivers[i], _token, share);
+            }
+        }
     }
 }

@@ -8,7 +8,7 @@ import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFacto
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
-import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { DeployParams, FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice Upgrade target proving a beacon upgrade is observable through clones:
 ///         inherits LiFiVaultWrapper (identical storage + interface) and adds a
@@ -57,6 +57,10 @@ contract BeaconUpgradeTest is Test {
 
     function _deployClone(uint256 nonce_) internal returns (address) {
         FeeConfig memory fees;
+        address[] memory wallets = new address[](1);
+        wallets[0] = address(0xFEE1);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10_000;
         DeployParams memory params = DeployParams({
             namespace: NS,
             vaultWrapperAdmin: vaultAdmin,
@@ -65,7 +69,8 @@ contract BeaconUpgradeTest is Test {
             nonce: nonce_,
             fees: fees,
             integratorShareBps: type(uint16).max,
-            initData: ""
+            initData: "",
+            receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
         });
         vm.prank(onboarder);
         return factory.deploy(params);

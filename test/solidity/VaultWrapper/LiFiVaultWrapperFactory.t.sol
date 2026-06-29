@@ -9,7 +9,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
-import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, DeployParams, FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
@@ -319,6 +319,10 @@ contract LiFiVaultWrapperFactoryTest is Test {
     ) internal view returns (DeployParams memory p) {
         uint16[4] memory rates = [uint16(1000), 0, 0, 0];
         bool[4] memory enabled = [true, false, false, false];
+        address[] memory wallets = new address[](1);
+        wallets[0] = address(0xFEE1);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10_000;
         p = DeployParams({
             namespace: NS,
             vaultWrapperAdmin: vaultAdmin,
@@ -327,7 +331,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
             integratorShareBps: type(uint16).max, // inherit factory default
-            initData: hex"1234"
+            initData: hex"1234",
+            receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
         });
     }
 

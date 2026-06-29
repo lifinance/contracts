@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, IntegratorReceivers } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -16,13 +16,16 @@ interface ILiFiVaultWrapper {
     /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param _integratorShareBps The integrator's fee share (bps), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
+    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
+    /// @param _receivers The integrator payout wallets + bps split; validated on-instance
+    ///        (1..5 non-zero wallets, bps summing to exactly 100%).
     function initialize(
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
         uint16 _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData
+        bytes calldata _initData,
+        IntegratorReceivers calldata _receivers
     ) external;
 }
