@@ -23,6 +23,27 @@ graph LR;
     PaxosTransitFacet -- CALL --> C(Paxos TransitStation)
 ```
 
+## Deployed `TransitStation` & integration dependencies
+
+Paxos deployed and verified the `TransitStation` on 2026-06-29 at
+`0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28` on **both** Ethereum (1) and Robinhood Chain (4663).
+Verified against that deployment:
+
+- `submitOrder(Quote,bytes)` pulls the offer asset from `msg.sender` (three `safeTransferFrom(msg.sender, …)`
+  for `protocolFee` / `integratorFee` / net), so the Diamond is the payer — no on-behalf / permit variant needed.
+- The `submitOrder` capability is **public** (`Authority.canCall` returns true for any caller), so the Diamond
+  can call it directly.
+- The on-chain ABI (`Quote` / `Route` structs, `submitOrder` selector `0x3784896a`) matches `IPaxosTransit`
+  exactly (pinned by a unit test).
+- No failure path returns funds to the caller; admin-only `recoverETH` / `recoverTokens` send to `owner`.
+
+Operational dependencies (Paxos / LI.FI backend, not enforced by this facet):
+
+- The route `(destEID, offerAsset, wantAsset)` must be approved by Paxos (`setRouteApprovals`) or `submitOrder`
+  reverts `RouteNotApproved`.
+- The `Quote` must be EIP-712 signed by Paxos' `quoteSigner`; only LI.FI-backend-generated calldata should be
+  submitted.
+
 ## Public Methods
 
 - `function startBridgeTokensViaPaxosTransit(BridgeData memory _bridgeData, PaxosTransitData calldata _paxosData)`

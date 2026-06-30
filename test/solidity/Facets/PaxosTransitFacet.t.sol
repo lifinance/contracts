@@ -163,6 +163,13 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         new TestPaxosTransitFacet(IPaxosTransit(address(0)));
     }
 
+    function test_InterfaceMatchesDeployedStationABI() public pure {
+        // Pins our IPaxosTransit.submitOrder selector to the deployed + verified Paxos
+        // TransitStation (mainnet/RH 0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28, verified
+        // 2026-06-29). Any drift in the Quote/Route struct layout changes this selector.
+        assertEq(IPaxosTransit.submitOrder.selector, bytes4(0x3784896a));
+    }
+
     function testRevert_WhenTryToBridgeNativeAsset() public {
         vm.startPrank(USER_SENDER);
         bridgeData.sendingAssetId = address(0);
