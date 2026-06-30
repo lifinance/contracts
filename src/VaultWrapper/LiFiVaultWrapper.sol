@@ -122,6 +122,19 @@ contract LiFiVaultWrapper is
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
     error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
 
+    /// Modifiers ///
+
+    /// @dev The owner (integrator) and the factory's emergency pauser can each toggle the
+    ///      clone pause in either direction; there is a single shared `paused` flag, so one
+    ///      authority can lift the other's pause.
+    modifier onlyPauseAuthority() {
+        if (
+            msg.sender != owner() &&
+            msg.sender != ILiFiVaultWrapperFactory(factory).emergencyPauser()
+        ) revert NotPauseAuthority();
+        _;
+    }
+
     /// Initialization ///
 
     /// @dev Locks the implementation contract so only beacon proxies (which have their own
@@ -405,22 +418,10 @@ contract LiFiVaultWrapper is
 
     /// Pause controls ///
 
-    /// @dev The owner (integrator) and the factory's emergency pauser can each toggle the
-    ///      clone pause in either direction; there is a single shared `paused` flag, so one
-    ///      authority can lift the other's pause.
-    modifier onlyPauseAuthority() {
-        if (
-            msg.sender != owner() &&
-            msg.sender != ILiFiVaultWrapperFactory(factory).emergencyPauser()
-        ) revert NotPauseAuthority();
-        _;
-    }
-
     /// @notice Pause this clone's deposits. Withdrawals stay open. Callable by the owner
     ///         (integrator) or the factory's emergency pauser.
     function pause() external onlyPauseAuthority {
         paused = true;
-
         emit PauseSet(true, msg.sender);
     }
 
@@ -429,7 +430,6 @@ contract LiFiVaultWrapper is
     ///         breaker.
     function unpause() external onlyPauseAuthority {
         paused = false;
-
         emit PauseSet(false, msg.sender);
     }
 
