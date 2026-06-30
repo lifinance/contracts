@@ -3,12 +3,14 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { LibVaultWrapperFees } from "lifi/VaultWrapper/libraries/LibVaultWrapperFees.sol";
+import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
 import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice A blacklisting ERC20: `transfer` reverts to any blocked address (mirrors USDC).
@@ -112,7 +114,7 @@ contract VaultWrapperDistributionTest is Test {
         address[] memory wallets = new address[](0);
         uint16[] memory bps = new uint16[](0);
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapper.InvalidReceiverCount.selector);
+        vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
         factory.deploy(_params(_assetFees(), SPLIT, wallets, bps));
     }
 
@@ -121,7 +123,7 @@ contract VaultWrapperDistributionTest is Test {
         uint16[] memory bps = new uint16[](1);
         bps[0] = 9999;
         vm.prank(onboarder);
-        vm.expectRevert(LiFiVaultWrapper.ReceiverBpsSumNot100.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ReceiverBpsSumNot100.selector);
         factory.deploy(_params(_assetFees(), SPLIT, wallets, bps));
     }
 
@@ -136,7 +138,12 @@ contract VaultWrapperDistributionTest is Test {
         address[] memory wallets = _single(makeAddr("new"));
         uint16[] memory bps = _full();
 
-        vm.expectRevert(LiFiVaultWrapper.NotVaultWrapperAdmin.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                address(this)
+            )
+        );
         wrapper.setIntegratorReceivers(wallets, bps);
 
         vm.expectEmit(false, false, false, true, address(wrapper));
@@ -157,21 +164,21 @@ contract VaultWrapperDistributionTest is Test {
 
         address[] memory six = new address[](6);
         uint16[] memory sixBps = new uint16[](6);
-        vm.expectRevert(LiFiVaultWrapper.InvalidReceiverCount.selector);
+        vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
         wrapper.setIntegratorReceivers(six, sixBps);
 
         address[] memory wallets = _single(makeAddr("r"));
         uint16[] memory two = new uint16[](2);
-        vm.expectRevert(LiFiVaultWrapper.ReceiversLengthMismatch.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ReceiversLengthMismatch.selector);
         wrapper.setIntegratorReceivers(wallets, two);
 
         address[] memory zero = _single(address(0));
-        vm.expectRevert(LiFiVaultWrapper.ZeroReceiver.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ZeroReceiver.selector);
         wrapper.setIntegratorReceivers(zero, _full());
 
         uint16[] memory badSum = new uint16[](1);
         badSum[0] = 9999;
-        vm.expectRevert(LiFiVaultWrapper.ReceiverBpsSumNot100.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ReceiverBpsSumNot100.selector);
         wrapper.setIntegratorReceivers(wallets, badSum);
 
         vm.stopPrank();
@@ -187,11 +194,11 @@ contract VaultWrapperDistributionTest is Test {
 
         // The self-call-only guard is the sole protection against arbitrary payout
         // routing through the sweep helper; a direct external call must revert.
-        vm.expectRevert(LiFiVaultWrapper.OnlySelf.selector);
+        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
         wrapper.trustedTransfer(address(asset), alice, 1);
 
         vm.prank(vaultAdmin);
-        vm.expectRevert(LiFiVaultWrapper.OnlySelf.selector);
+        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
         wrapper.trustedTransfer(address(asset), alice, 1);
     }
 
@@ -443,13 +450,13 @@ contract VaultWrapperDistributionTest is Test {
         uint256 supply = wrapper.totalSupply();
         uint256 assets = wrapper.totalAssets();
         uint256 elapsed = block.timestamp - wrapper.lastMgmtAccrual();
-        uint256 feeAssets = LibVaultWrapperFees.managementFeeAssets(
+        uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets(
             assets,
             MGMT_RATE,
             elapsed
         );
         return
-            LibVaultWrapperFees.dilutionShares(feeAssets, supply, assets, 0);
+            LibVaultWrapperMath.dilutionShares(feeAssets, supply, assets, 0);
     }
 
     function _deposit(address _from, uint256 _amount) internal {

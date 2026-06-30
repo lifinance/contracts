@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -10,7 +11,7 @@ import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig, FeeType, IntegratorReceivers } from "./LiFiVaultWrapperTypes.sol";
-import { LibVaultWrapperFees } from "./libraries/LibVaultWrapperFees.sol";
+import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -23,19 +24,26 @@ import { LibVaultWrapperFees } from "./libraries/LibVaultWrapperFees.sol";
 ///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
-///      withdrawal. Identity (`underlying`/`adapter`/`vaultWrapperAdmin`/`factory`) and the
-///      initial fee configuration are set write-once in `initialize`. Management (dilution),
-///      deposit, and withdrawal fees are live: management fee-shares are minted to this contract
-///      via `_accrueFees`/`_pendingManagementFee`, and deposit/withdrawal asset fees are kept idle
-///      and tracked through `_routeFee`. A permissionless `sweep` distributes both accrued
-///      reservoirs to their receivers — each split by `integratorShareBps` into LI.FI's share
-///      (sent to the factory's live `lifiFeeRecipient`) and the integrator's (fanned across its
-///      1..5 wallets). Performance fees, access control, and pause remain no-op seams
-///      (`_requireNotPaused`, `_checkAccess`) wired into the entrypoints. Inflation-attack
-///      protection relies on the ERC-4626 virtual-share offset.
+///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the
+///      initial fee configuration are set write-once in `initialize`. The per-vault admin role
+///      is OZ's two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is
+///      disabled. Management (dilution), deposit, and withdrawal fees are live: management
+///      fee-shares are minted to this contract via `_accrueFees`/`_pendingManagementFee`, and
+///      deposit/withdrawal asset fees are kept idle and tracked through `_routeFee`. A
+///      permissionless `sweep` distributes both accrued reservoirs to their receivers — each
+///      split by `integratorShareBps` into LI.FI's share (sent to the factory's live
+///      `lifiFeeRecipient`) and the integrator's (fanned across its 1..5 wallets). Performance
+///      fees, access control, and pause remain no-op seams (`_requireNotPaused`, `_checkAccess`)
+///      wired into the entrypoints. Inflation-attack protection relies on the ERC-4626
+///      virtual-share offset.
 /// @custom:version 1.2.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
+    // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
+    // namespaced slots, not sequential ones, so they add no slot to this layout and are
+    // collision-free behind a beacon proxy. They provide the per-vault admin role: `owner()`
+    // is the admin, transferred via the standard two-step `transferOwnership`/`acceptOwnership`.
+    Ownable2StepUpgradeable,
     // OZ v5's ReentrancyGuard keeps its status in a fixed ERC-7201 namespaced slot
     // (it is @custom:stateless), not a sequential one, so it occupies no slot in this
     // layout and is collision-free behind a beacon proxy — which is why OZ ships no
@@ -61,10 +69,6 @@ contract LiFiVaultWrapper is
     address public underlying;
     /// @notice The approved yield adapter the wrapper routes deposits/withdrawals through.
     address public adapter;
-    /// @notice The per-vault controller granted the instance admin role.
-    address public vaultWrapperAdmin;
-    /// @notice The proposed next admin, pending acceptance (two-step transfer).
-    address public pendingVaultWrapperAdmin;
     /// @notice The factory that deployed this instance (the initializer); read by later
     ///         modules for the factory-level global circuit breaker.
     address public factory;
@@ -96,126 +100,7 @@ contract LiFiVaultWrapper is
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
     ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
     ///      append (consuming this gap), never reorder fields or the inheritance list.
-    uint256[44] private __gap;
-
-    /// Events ///
-
-    /// @notice Emitted once when the instance is configured.
-    /// @param asset The ERC20 asset the vault is denominated in.
-    /// @param underlying The yield source the wrapper deposits into.
-    /// @param adapter The yield adapter the wrapper routes through.
-    /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's fee share (bps) snapshotted at deploy.
-    event Initialized(
-        address indexed asset,
-        address indexed underlying,
-        address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16 integratorShareBps
-    );
-
-    /// @notice Emitted when an admin transfer is started (pending acceptance).
-    /// @param currentAdmin The admin initiating the transfer.
-    /// @param newAdmin The proposed new admin that must accept.
-    event VaultWrapperAdminTransferStarted(
-        address indexed currentAdmin,
-        address indexed newAdmin
-    );
-
-    /// @notice Emitted when the admin role is transferred (accepted).
-    /// @param previousAdmin The admin being replaced.
-    /// @param newAdmin The admin that accepted the role.
-    event VaultWrapperAdminTransferred(
-        address indexed previousAdmin,
-        address indexed newAdmin
-    );
-
-    /// @notice Emitted when a fee type's rate (and enabled flag) is changed.
-    /// @param feeType The fee type updated.
-    /// @param newRateBps The new rate in basis points (0 when disabled).
-    /// @param enabled Whether the fee type is now active.
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
-
-    /// @notice Emitted when dilution fee-shares are minted to this contract.
-    /// @dev Reports totals before the LI.FI/integrator split. Reused for performance fees.
-    /// @param feeType The fee type that accrued (Management today).
-    /// @param feeShares The shares minted to this contract.
-    /// @param feeAssets The asset value the minted shares represent.
-    event DilutionFeeAccrued(
-        FeeType indexed feeType,
-        uint256 feeShares,
-        uint256 feeAssets
-    );
-
-    /// @notice Emitted when an asset-side fee is charged and held idle.
-    /// @param feeType The fee type charged (Deposit or Withdrawal).
-    /// @param feeAssets The fee amount, in assets.
-    event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
-
-    /// @notice Emitted when the integrator's receiver set is configured.
-    /// @param receivers The integrator payout wallets.
-    /// @param bps The per-receiver basis points (sum to 100%).
-    event ReceiversSet(address[] receivers, uint16[] bps);
-
-    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
-    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
-    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
-    /// @param integratorAmount Amount delivered across the integrator wallets.
-    event ReservoirSwept(
-        address indexed token,
-        uint256 lifiAmount,
-        uint256 integratorAmount
-    );
-
-    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
-    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
-    /// @param receiver The integrator wallet whose transfer reverted.
-    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
-    /// @param amount The amount redirected to LI.FI.
-    event IntegratorPayoutRedirected(
-        address indexed receiver,
-        address indexed token,
-        uint256 amount
-    );
-
-    /// Errors ///
-
-    /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
-    error InvalidFeeType(uint8 feeType);
-    /// @notice Thrown when a required initialization address is the zero address.
-    error ZeroAddress();
-    /// @notice Thrown when the integrator share is 100% (10000 bps) or more, which would
-    ///         leave LI.FI no share; a valid share is strictly below 100%.
-    error InvalidIntegratorShareBps(uint16 integratorShareBps);
-    /// @notice Thrown when a caller other than the current admin attempts an admin action.
-    error NotVaultWrapperAdmin();
-    /// @notice Thrown when a caller other than the pending admin attempts to accept the role.
-    error NotPendingVaultWrapperAdmin();
-    /// @notice Thrown when the adapter invests less than the net deposit into the yield source.
-    error AdapterDepositShortfall(uint256 expected, uint256 actual);
-    /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
-    error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
-    /// @notice Thrown when a rate change is attempted for the performance fee, which is
-    ///         not configurable through this setter.
-    error FeeTypeNotConfigurable(FeeType feeType);
-    /// @notice Thrown when a requested rate is outside the factory's live bounds.
-    error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
-    /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
-    error InvalidReceiverCount();
-    /// @notice Thrown when the receivers and bps arrays differ in length.
-    error ReceiversLengthMismatch();
-    /// @notice Thrown when a receiver wallet is the zero address.
-    error ZeroReceiver();
-    /// @notice Thrown when the receiver bps do not sum to exactly 100%.
-    error ReceiverBpsSumNot100();
-    /// @notice Thrown when `trustedTransfer` is called by anyone other than this contract.
-    error OnlySelf();
+    uint256[46] private __gap;
 
     /// Initialization ///
 
@@ -252,11 +137,11 @@ contract LiFiVaultWrapper is
         if (asset == address(0)) revert ZeroAddress();
 
         _initErc4626Metadata(asset);
+        __Ownable_init(_vaultWrapperAdmin);
 
         factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
-        vaultWrapperAdmin = _vaultWrapperAdmin;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
         initData = _initData;
@@ -274,7 +159,7 @@ contract LiFiVaultWrapper is
             _asset,
             underlying,
             adapter,
-            vaultWrapperAdmin,
+            owner(),
             factory,
             integratorShareBps
         );
@@ -299,27 +184,14 @@ contract LiFiVaultWrapper is
         return _getInitializedVersion() != 0;
     }
 
-    /// Admin transfer (two-step) ///
+    /// Admin role ///
 
-    /// @notice Propose a new vault-wrapper admin; the proposed admin must accept.
-    /// @dev Two-step so a mistyped address can never strand the role. Only the current
-    ///      admin may call. Passing `address(0)` clears any pending transfer.
-    /// @param _newAdmin The proposed next admin.
-    function transferVaultWrapperAdmin(address _newAdmin) external {
-        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
-        pendingVaultWrapperAdmin = _newAdmin;
-        emit VaultWrapperAdminTransferStarted(msg.sender, _newAdmin);
-    }
-
-    /// @notice Accept a pending vault-wrapper admin transfer.
-    /// @dev Only the pending admin may call; promotes the caller and clears the pending slot.
-    function acceptVaultWrapperAdmin() external {
-        if (msg.sender != pendingVaultWrapperAdmin)
-            revert NotPendingVaultWrapperAdmin();
-        address previousAdmin = vaultWrapperAdmin;
-        vaultWrapperAdmin = msg.sender;
-        delete pendingVaultWrapperAdmin;
-        emit VaultWrapperAdminTransferred(previousAdmin, msg.sender);
+    /// @notice Disabled: the per-vault admin role cannot be renounced.
+    /// @dev A custody contract must never be left ownerless. The admin is rotated via OZ's
+    ///      two-step `transferOwnership`/`acceptOwnership`; `renounceOwnership` is the only OZ
+    ///      path to `owner == address(0)` and is overridden to always revert.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
     }
 
     /// ERC-4626 configuration ///
@@ -337,11 +209,14 @@ contract LiFiVaultWrapper is
         Math.Rounding _rounding
     ) internal view override returns (uint256) {
         return
-            _assets.mulDiv(
-                totalSupply() + _pendingFeeShares() + 10 ** _decimalsOffset(),
-                totalAssets() + 1,
-                _rounding
-            );
+            LibVaultWrapperMath.convertToShares({
+                _assets: _assets,
+                _totalSupply: totalSupply(),
+                _pendingFeeShares: _pendingFeeShares(),
+                _totalAssets: totalAssets(),
+                _decimalsOffset: _decimalsOffset(),
+                _rounding: _rounding
+            });
     }
 
     /// @dev See `_convertToShares`: the effective supply (including pending fee-shares) is
@@ -351,11 +226,14 @@ contract LiFiVaultWrapper is
         Math.Rounding _rounding
     ) internal view override returns (uint256) {
         return
-            _shares.mulDiv(
-                totalAssets() + 1,
-                totalSupply() + _pendingFeeShares() + 10 ** _decimalsOffset(),
-                _rounding
-            );
+            LibVaultWrapperMath.convertToAssets({
+                _shares: _shares,
+                _totalSupply: totalSupply(),
+                _pendingFeeShares: _pendingFeeShares(),
+                _totalAssets: totalAssets(),
+                _decimalsOffset: _decimalsOffset(),
+                _rounding: _rounding
+            });
     }
 
     /// @notice Fee config getters ///
@@ -426,10 +304,10 @@ contract LiFiVaultWrapper is
     function previewDeposit(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperFees.feeOnTotal(
-            assets,
-            _rate(FeeType.Deposit)
-        );
+        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Deposit)
+        });
 
         return super.previewDeposit(assets - fee);
     }
@@ -442,17 +320,20 @@ contract LiFiVaultWrapper is
 
         return
             assets +
-            LibVaultWrapperFees.feeOnRaw(assets, _rate(FeeType.Deposit));
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Deposit)
+            });
     }
 
     /// @inheritdoc ERC4626Upgradeable
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperFees.feeOnRaw(
-            assets,
-            _rate(FeeType.Withdrawal)
-        );
+        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
 
         return super.previewWithdraw(assets + fee);
     }
@@ -465,7 +346,10 @@ contract LiFiVaultWrapper is
 
         return
             assets -
-            LibVaultWrapperFees.feeOnTotal(assets, _rate(FeeType.Withdrawal));
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
     }
 
     /// Internal ///
@@ -487,10 +371,10 @@ contract LiFiVaultWrapper is
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
 
-        uint256 fee = LibVaultWrapperFees.feeOnTotal(
-            assets,
-            _rate(FeeType.Deposit)
-        );
+        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Deposit)
+        });
         _routeFee(FeeType.Deposit, fee);
         uint256 invested = assets - fee;
         if (invested == 0) return;
@@ -514,10 +398,10 @@ contract LiFiVaultWrapper is
     ///      withdrawal amount is redeemed.
     function _transferOut(address _to, uint256 _assets) internal override {
         address assetToken = asset();
-        uint256 fee = LibVaultWrapperFees.feeOnRaw(
-            _assets,
-            _rate(FeeType.Withdrawal)
-        );
+        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+            _assets: _assets,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
         uint256 owed = _assets + fee;
         uint256 withdrawn = _routeThroughAdapter(
             abi.encodeCall(
@@ -551,21 +435,22 @@ contract LiFiVaultWrapper is
         result = abi.decode(ret, (uint256));
     }
 
-    /// Fee / pause / access blueprint ///
-    /// @dev The functions below are no-op seams wired into the entrypoints and the
-    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
-    ///      (fees, access control, global pause); today they preserve current behaviour.
+    /// Fee config, pause, and access ///
+    /// @dev `setFeeRate` is live. The pause and access functions below are no-op seams that
+    ///      preserve current behaviour.
 
     /// @notice Sets the rate for a deposit, withdrawal, or management fee.
-    /// @dev Only the vault-wrapper admin may call. A zero rate disables the fee and skips
+    /// @dev Only the owner may call. A zero rate disables the fee and skips
     ///      bounds validation (turning a fee off is always allowed); a non-zero rate must
     ///      sit within the factory's live bounds for the type. Accrues at the OLD rate
     ///      first so elapsed time is priced before the change. The performance fee is not
     ///      configurable here.
     /// @param _feeType The fee type to update (Management, Deposit, or Withdrawal).
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
-    function setFeeRate(FeeType _feeType, uint16 _newRateBps) external {
-        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
+    function setFeeRate(
+        FeeType _feeType,
+        uint16 _newRateBps
+    ) external onlyOwner {
         if (_feeType == FeeType.Performance)
             revert FeeTypeNotConfigurable(_feeType);
 
@@ -602,7 +487,7 @@ contract LiFiVaultWrapper is
     }
 
     /// @notice Replace the integrator's payout wallets and their bps split.
-    /// @dev Integrator-controlled (the `vaultWrapperAdmin`). Re-validates the full set, so
+    /// @dev Owner-controlled (the per-vault admin). Re-validates the full set, so
     ///      the 1..5 / sum-to-100% invariant set at `initialize` always holds — the receiver
     ///      set can never be emptied. Only redistributes the integrator's own share, so no
     ///      sweep is forced first.
@@ -611,8 +496,7 @@ contract LiFiVaultWrapper is
     function setIntegratorReceivers(
         address[] calldata _receivers,
         uint16[] calldata _receiverBps
-    ) external {
-        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
+    ) external onlyOwner {
         _setIntegratorReceivers(_receivers, _receiverBps);
     }
 
@@ -687,8 +571,7 @@ contract LiFiVaultWrapper is
     ///      into this version), the type disabled, or an empty vault — the baseline is moved
     ///      to now so that dormant time is never charged later at the current rate. Otherwise
     ///      it mints only when the share amount is non-zero, advancing `lastMgmtAccrual` only
-    ///      then so sub-threshold elapsed time is preserved. Performance accrual is a separate
-    ///      ticket; the `_pendingFeeShares` seam already reserves a place for it.
+    ///      then so sub-threshold elapsed time is preserved.
     function _accrueFees() private {
         if (
             lastMgmtAccrual == 0 ||
@@ -701,55 +584,49 @@ contract LiFiVaultWrapper is
             return;
         }
 
-        (uint256 feeShares, uint256 feeAssets) = _pendingManagementFee();
+        uint256 feeShares = _pendingManagementFee();
         if (feeShares == 0) return;
 
         _mint(address(this), feeShares);
         accruedFeeShares += feeShares;
         lastMgmtAccrual = uint64(block.timestamp);
 
-        emit DilutionFeeAccrued(FeeType.Management, feeShares, feeAssets);
+        emit DilutionFeeAccrued(FeeType.Management, feeShares);
     }
 
     /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
     ///      `_convertTo*` previews so a preview returned before an operation equals what the
     ///      caller gets after accrual (to the wei, modulo rounding direction).
     /// @return feeShares Dilution shares the pending fee is worth.
-    /// @return feeAssets The pending fee, in assets.
-    function _pendingManagementFee()
-        private
-        view
-        returns (uint256 feeShares, uint256 feeAssets)
-    {
+    function _pendingManagementFee() private view returns (uint256 feeShares) {
         if (
             lastMgmtAccrual == 0 ||
             !_feeConfig.enabled[uint8(FeeType.Management)]
-        ) return (0, 0);
+        ) return 0;
 
         uint256 supply = totalSupply();
         uint256 assets = totalAssets();
-        if (supply == 0 || assets == 0) return (0, 0);
+        if (supply == 0 || assets == 0) return 0;
 
-        feeAssets = LibVaultWrapperFees.managementFeeAssets(
-            assets,
-            _feeConfig.rateBps[uint8(FeeType.Management)],
-            block.timestamp - lastMgmtAccrual
-        );
-        feeShares = LibVaultWrapperFees.dilutionShares(
-            feeAssets,
-            supply,
-            assets,
-            _decimalsOffset()
-        );
+        uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets({
+            _totalAssets: assets,
+            _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
+            _elapsed: block.timestamp - lastMgmtAccrual
+        });
+        feeShares = LibVaultWrapperMath.dilutionShares({
+            _feeAssets: feeAssets,
+            _totalSupply: supply,
+            _totalAssets: assets,
+            _decimalsOffset: _decimalsOffset()
+        });
     }
 
     /// @dev Fee-shares pending since the last accrual, used by the effective-supply
-    ///      conversion overrides. The performance component (EXSC-556) is added here so the
-    ///      preview/accrual invariant extends to it without touching the conversion math.
-    /// @return The management (and, later, performance) dilution shares pending.
+    ///      conversion overrides. Isolated as a seam so further dilution fees can extend it
+    ///      without changing the conversion math.
+    /// @return The dilution shares pending.
     function _pendingFeeShares() private view returns (uint256) {
-        (uint256 feeShares, ) = _pendingManagementFee();
-        return feeShares;
+        return _pendingManagementFee();
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
@@ -762,8 +639,8 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Books an asset-side fee as idle and not-yet-distributed. The LI.FI/integrator
-    ///      split is applied later at payout (separate ticket); here it only tracks the
-    ///      total. No-op on a zero fee.
+    ///      split and payout happen elsewhere; here it only tracks the total. No-op on a
+    ///      zero fee.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
     /// @param _feeAssets The fee amount, in assets, kept idle in this contract.
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {

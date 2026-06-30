@@ -358,7 +358,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.asset(), assetToken);
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
-        assertEq(w.vaultWrapperAdmin(), vaultAdmin);
+        assertEq(w.owner(), vaultAdmin);
         assertEq(w.factory(), address(factory));
         assertEq(w.integratorShareBps(), 8000); // factory default
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
