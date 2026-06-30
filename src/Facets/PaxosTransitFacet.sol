@@ -124,6 +124,11 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Ensure the on-chain bridgeData matches the Paxos-signed quote so we never bridge a
         // different asset, amount or receiver than was authorized, and our volume stays attributed.
+        // NOTE: the routing (quote.route.destEID) and the destination asset (quote.route.wantAsset)
+        // are intentionally NOT cross-checked against _bridgeData.destinationChainId. Funds always
+        // follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated,
+        // Paxos-signed calldata (same trust model as AcrossFacetV4's outputAmount). Only use
+        // backend-generated calldata. _bridgeData.destinationChainId is for analytics/events only.
         if (
             _bridgeData.sendingAssetId != quote.route.offerAsset ||
             _bridgeData.minAmount != quote.offerAmount ||

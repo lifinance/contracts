@@ -6,7 +6,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { MockTransitStation } from "../utils/MockTransitStation.sol";
 import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
-import { InformationMismatch, InvalidConfig, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidConfig, NativeAssetNotSupported, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
 
 // Stub PaxosTransitFacet Contract
 contract TestPaxosTransitFacet is PaxosTransitFacet, TestWhitelistManagerBase {
@@ -237,6 +237,10 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     function test_CanBridgeTokensWithNativeFee() public {
         uint256 nativeFee = 0.01 ether;
         validPaxosData.nativeFee = nativeFee;
+        // the station requires exactly this LayerZero fee; proves the facet forwards enough
+        transitStation.setExpectedNativeFee(nativeFee);
+
+        uint256 senderNativeBefore = USER_SENDER.balance;
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -252,6 +256,70 @@ contract PaxosTransitFacetTest is TestBaseFacet {
 
         assertEq(transitStation.lastNativeFee(), nativeFee);
         assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        // no funds come back to / are stranded in the Diamond, and the caller is charged
+        // exactly the native fee (no over-charge, no refund needed)
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
+        assertEq(USER_SENDER.balance, senderNativeBefore - nativeFee);
+    }
+
+    function testRevert_WhenNativeFeeUnderpaid() public {
+        // station demands more than the facet will forward -> submitOrder reverts,
+        // proving the facet forwards exactly nativeFee (and the order is not silently accepted)
+        validPaxosData.nativeFee = 0.01 ether;
+        transitStation.setExpectedNativeFee(0.01 ether + 1);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(MockTransitStation.InsufficientNativeFee.selector);
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{ value: 0.01 ether }(
+            bridgeData,
+            validPaxosData
+        );
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensWithNonZeroFees() public {
+        // protocolFee / integratorFee live in the signed quote and are deducted by the station
+        // from the output; the full offerAmount is still pulled from the Diamond
+        validPaxosData.quote.protocolFee = 0.02 * 10 ** 6;
+        validPaxosData.quote.integratorFee = 0.5 * 10 ** 6;
+        validPaxosData.quote.integratorFeeReceiver = USER_RECEIVER;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+    }
+
+    function testRevert_WhenSwapOutputBelowOfferAmount() public {
+        // the quote's offerAmount is the swap floor; a swap yielding less must revert
+        validPaxosData.quote.offerAmount = defaultUSDCAmount + 1;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CumulativeSlippageTooHigh.selector,
+                defaultUSDCAmount + 1,
+                defaultUSDCAmount
+            )
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function test_SwapAndBridgeRefundsPositiveSlippage() public {

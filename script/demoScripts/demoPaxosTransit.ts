@@ -195,6 +195,17 @@ async function main() {
       nativeFee,
     }
 
+    // make the mock station require exactly this LayerZero fee, so a successful run
+    // proves the facet actually forwarded it (not just that the call didn't revert)
+    await publicClient.waitForTransactionReceipt({
+      hash: await walletClient.writeContract({
+        address: station,
+        abi: stationAbi,
+        functionName: 'setExpectedNativeFee',
+        args: [nativeFee],
+      }),
+    })
+
     // 4) execute the bridge
     const txHash = await walletClient.writeContract({
       address: facet,
@@ -232,7 +243,9 @@ async function main() {
     if (lastNativeFee !== nativeFee)
       throw new Error('LayerZero nativeFee was not forwarded')
 
-    consola.success('Paxos Transit demo completed: funds flow verified ✔')
+    consola.success(
+      'Paxos Transit demo completed: offer-asset pull + LayerZero nativeFee forwarding verified against the mock station (protocol/integrator fees and destination delivery are mock-stubbed) ✔'
+    )
   } finally {
     anvilProc.kill()
   }

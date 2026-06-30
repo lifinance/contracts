@@ -9,6 +9,7 @@ import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
 ///         from the caller (the Diamond) and records the forwarded native (LayerZero) fee.
 contract MockTransitStation is IPaxosTransit {
     error OfferAssetPullFailed();
+    error InsufficientNativeFee();
 
     event OrderSubmitted(
         bytes32 indexed uuid,
@@ -20,11 +21,21 @@ contract MockTransitStation is IPaxosTransit {
 
     uint256 public lastNativeFee;
     bytes32 public lastUuid;
+    // the LayerZero messaging fee the station requires; submitOrder reverts if underpaid,
+    // mirroring the real station's msg.value gating
+    uint256 public expectedNativeFee;
+
+    function setExpectedNativeFee(uint256 _fee) external {
+        expectedNativeFee = _fee;
+    }
 
     function submitOrder(
         Quote calldata quote,
         bytes calldata
     ) external payable override returns (bytes32 uuid) {
+        if (msg.value < expectedNativeFee) {
+            revert InsufficientNativeFee();
+        }
         if (
             !IERC20(quote.route.offerAsset).transferFrom(
                 msg.sender,
