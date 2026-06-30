@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -146,7 +147,7 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.asset(), address(asset));
         assertEq(wrapper.underlying(), address(underlying));
         assertEq(wrapper.adapter(), address(adapter));
-        assertEq(wrapper.vaultWrapperAdmin(), vaultAdmin);
+        assertEq(wrapper.owner(), vaultAdmin);
         assertEq(wrapper.factory(), address(this));
         assertEq(wrapper.integratorShareBps(), 8000);
         assertEq(wrapper.decimals(), 18);
@@ -492,46 +493,66 @@ contract LiFiVaultWrapperTest is Test {
 
     /// Admin transfer (two-step) ///
 
-    function test_TransferVaultWrapperAdminTwoStep() public {
+    function test_TransferOwnershipTwoStep() public {
         address newAdmin = makeAddr("newAdmin");
 
         vm.prank(vaultAdmin);
-        wrapper.transferVaultWrapperAdmin(newAdmin);
-        assertEq(wrapper.pendingVaultWrapperAdmin(), newAdmin);
-        assertEq(wrapper.vaultWrapperAdmin(), vaultAdmin);
+        wrapper.transferOwnership(newAdmin);
+        assertEq(wrapper.pendingOwner(), newAdmin);
+        assertEq(wrapper.owner(), vaultAdmin);
 
         vm.prank(newAdmin);
-        wrapper.acceptVaultWrapperAdmin();
-        assertEq(wrapper.vaultWrapperAdmin(), newAdmin);
-        assertEq(wrapper.pendingVaultWrapperAdmin(), address(0));
+        wrapper.acceptOwnership();
+        assertEq(wrapper.owner(), newAdmin);
+        assertEq(wrapper.pendingOwner(), address(0));
     }
 
-    function test_TransferVaultWrapperAdminCanBeCancelled() public {
+    function test_TransferOwnershipCanBeCancelled() public {
         address newAdmin = makeAddr("newAdmin");
 
         vm.startPrank(vaultAdmin);
-        wrapper.transferVaultWrapperAdmin(newAdmin);
-        wrapper.transferVaultWrapperAdmin(address(0));
+        wrapper.transferOwnership(newAdmin);
+        wrapper.transferOwnership(address(0));
         vm.stopPrank();
 
-        assertEq(wrapper.pendingVaultWrapperAdmin(), address(0));
+        assertEq(wrapper.pendingOwner(), address(0));
     }
 
-    function testRevert_TransferVaultWrapperAdminNotAdmin() public {
-        vm.prank(makeAddr("stranger"));
-        vm.expectRevert(LiFiVaultWrapper.NotVaultWrapperAdmin.selector);
-        wrapper.transferVaultWrapperAdmin(makeAddr("newAdmin"));
+    function testRevert_TransferOwnershipNotAdmin() public {
+        address stranger = makeAddr("stranger");
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
+        wrapper.transferOwnership(makeAddr("newAdmin"));
     }
 
-    function testRevert_AcceptVaultWrapperAdminNotPending() public {
+    function testRevert_AcceptOwnershipNotPending() public {
         address newAdmin = makeAddr("newAdmin");
 
         vm.prank(vaultAdmin);
-        wrapper.transferVaultWrapperAdmin(newAdmin);
+        wrapper.transferOwnership(newAdmin);
 
-        vm.prank(makeAddr("stranger"));
-        vm.expectRevert(LiFiVaultWrapper.NotPendingVaultWrapperAdmin.selector);
-        wrapper.acceptVaultWrapperAdmin();
+        address stranger = makeAddr("stranger");
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
+        wrapper.acceptOwnership();
+    }
+
+    function testRevert_RenounceOwnershipDisabled() public {
+        vm.prank(vaultAdmin);
+        vm.expectRevert(LiFiVaultWrapper.RenounceDisabled.selector);
+        wrapper.renounceOwnership();
     }
 
     /// Helpers ///
