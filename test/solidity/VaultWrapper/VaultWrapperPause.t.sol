@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -15,12 +14,17 @@ import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes
 
 /// @notice Minimal stand-in for the factory: deploys the instance (so it is the
 ///         `factory`/initializer the wrapper reads back) and exposes a toggleable global
-///         circuit breaker.
+///         circuit breaker plus a settable emergency pauser.
 contract MockPauseFactory {
     bool public globalPaused;
+    address public emergencyPauser;
 
     function setGlobalPaused(bool _paused) external {
         globalPaused = _paused;
+    }
+
+    function setEmergencyPauser(address _pauser) external {
+        emergencyPauser = _pauser;
     }
 
     function deployWrapper(
@@ -40,6 +44,7 @@ contract VaultWrapperPauseTest is Test {
     LiFiVaultWrapper internal wrapper;
 
     address internal vaultAdmin = makeAddr("vaultAdmin");
+    address internal pauser = makeAddr("pauser");
     address internal alice = makeAddr("alice");
     address internal stranger = makeAddr("stranger");
 
@@ -56,6 +61,7 @@ contract VaultWrapperPauseTest is Test {
             address(this)
         );
         factory = new MockPauseFactory();
+        factory.setEmergencyPauser(pauser);
 
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
@@ -159,14 +165,41 @@ contract VaultWrapperPauseTest is Test {
 
     function testRevert_StrangerCannotPause() public {
         vm.prank(stranger);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
-                stranger
-            )
-        );
+        vm.expectRevert(LiFiVaultWrapper.NotPauseAuthority.selector);
 
         wrapper.pause();
+    }
+
+    /// Owner and emergency pauser share the clone pause ///
+
+    function test_EmergencyPauserCanPause() public {
+        vm.prank(pauser);
+        wrapper.pause();
+
+        assertTrue(wrapper.paused());
+        _expectDepositReverts(alice, DEPOSIT);
+    }
+
+    function test_EmergencyPauserCanLiftIntegratorPause() public {
+        vm.prank(vaultAdmin);
+        wrapper.pause();
+
+        vm.prank(pauser);
+        wrapper.unpause();
+
+        _seedDeposit(alice, DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), DEPOSIT);
+    }
+
+    function test_IntegratorCanLiftEmergencyPause() public {
+        vm.prank(pauser);
+        wrapper.pause();
+
+        vm.prank(vaultAdmin);
+        wrapper.unpause();
+
+        _seedDeposit(alice, DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), DEPOSIT);
     }
 
     /// Unpause resumes deposits ///

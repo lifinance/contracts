@@ -61,9 +61,10 @@ contract LiFiVaultWrapper is
     address public factory;
     /// @notice The integrator's fee share (bps), snapshotted from the factory at deploy.
     uint16 public integratorShareBps;
-    /// @notice Whether the integrator (the per-vault `owner`) has paused this clone's deposits.
-    ///         The factory-level global circuit breaker is a separate source read live in
-    ///         `depositsPaused`; both gate inflows, neither gates exits.
+    /// @notice Whether this clone's deposits are paused. Either the per-vault `owner`
+    ///         (integrator) or the factory's emergency pauser can toggle it, in either
+    ///         direction. The factory-level global circuit breaker is a separate source read
+    ///         live in `depositsPaused`; both gate inflows, neither gates exits.
     bool public paused;
     /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
@@ -105,6 +106,9 @@ contract LiFiVaultWrapper is
 
     /// @notice Thrown when a deposit is attempted while any pause source is engaged.
     error DepositsPaused();
+    /// @notice Thrown when a pause toggle is attempted by neither the owner nor the
+    ///         factory's emergency pauser.
+    error NotPauseAuthority();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
@@ -401,16 +405,29 @@ contract LiFiVaultWrapper is
 
     /// Pause controls ///
 
-    /// @notice Pause this clone's deposits. Withdrawals stay open. Integrator-only (`owner`).
-    function pause() external onlyOwner {
+    /// @dev The owner (integrator) and the factory's emergency pauser can each toggle the
+    ///      clone pause in either direction; there is a single shared `paused` flag, so one
+    ///      authority can lift the other's pause.
+    modifier onlyPauseAuthority() {
+        if (
+            msg.sender != owner() &&
+            msg.sender != ILiFiVaultWrapperFactory(factory).emergencyPauser()
+        ) revert NotPauseAuthority();
+        _;
+    }
+
+    /// @notice Pause this clone's deposits. Withdrawals stay open. Callable by the owner
+    ///         (integrator) or the factory's emergency pauser.
+    function pause() external onlyPauseAuthority {
         paused = true;
 
         emit PauseSet(true, msg.sender);
     }
 
-    /// @notice Resume this clone's deposits. Integrator-only (`owner`). Does not affect the
-    ///         factory-level global circuit breaker.
-    function unpause() external onlyOwner {
+    /// @notice Resume this clone's deposits. Callable by the owner (integrator) or the
+    ///         factory's emergency pauser. Does not affect the factory-level global circuit
+    ///         breaker.
+    function unpause() external onlyPauseAuthority {
         paused = false;
 
         emit PauseSet(false, msg.sender);
