@@ -69,6 +69,12 @@ route.offerAsset`, `minAmount == offerAmount`, `receiver == quote.receiver` — 
 `distributorCode == LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of
 "LIFI"). Any mismatch reverts with `InformationMismatch`.
 
+**Not enforced on-chain:** the destination routing (`route.destEID`) and the destination asset
+(`route.wantAsset`) are *not* cross-checked against `_bridgeData.destinationChainId`. Funds always
+follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated, Paxos-signed
+calldata (the same trust model as `AcrossFacetV4`'s `outputAmount`). `_bridgeData.destinationChainId`
+is used only for analytics/events — only ever submit backend-generated calldata.
+
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.
