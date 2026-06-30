@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -23,15 +24,21 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
-///      withdrawal. Identity (`underlying`/`adapter`/`vaultWrapperAdmin`/`factory`) and the
-///      initial fee configuration are set write-once in `initialize`. Management (dilution),
-///      deposit, and withdrawal fees are charged: management fee-shares are minted to this
-///      contract via `_accrueFees`, and deposit/withdrawal asset fees are kept idle and tracked
-///      through `_routeFee`. This contract does not distribute the accrued fees. Inflation-attack
-///      protection relies on the ERC-4626 virtual-share offset.
+///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the initial fee
+///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
+///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
+///      Management (dilution), deposit, and withdrawal fees are charged: management fee-shares
+///      are minted to this contract via `_accrueFees`, and deposit/withdrawal asset fees are
+///      kept idle and tracked through `_routeFee`. This contract does not distribute the
+///      accrued fees. Inflation-attack protection relies on the ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
+    // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
+    // namespaced slots, not sequential ones, so they add no slot to this layout and are
+    // collision-free behind a beacon proxy. They provide the per-vault admin role: `owner()`
+    // is the admin, transferred via the standard two-step `transferOwnership`/`acceptOwnership`.
+    Ownable2StepUpgradeable,
     // OZ v5's ReentrancyGuard keeps its status in a fixed ERC-7201 namespaced slot
     // (it is @custom:stateless), not a sequential one, so it occupies no slot in this
     // layout and is collision-free behind a beacon proxy — which is why OZ ships no
@@ -49,10 +56,6 @@ contract LiFiVaultWrapper is
     address public underlying;
     /// @notice The approved yield adapter the wrapper routes deposits/withdrawals through.
     address public adapter;
-    /// @notice The per-vault controller granted the instance admin role.
-    address public vaultWrapperAdmin;
-    /// @notice The proposed next admin, pending acceptance (two-step transfer).
-    address public pendingVaultWrapperAdmin;
     /// @notice The factory that deployed this instance (the initializer); read by later
     ///         modules for the factory-level global circuit breaker.
     address public factory;
@@ -114,11 +117,11 @@ contract LiFiVaultWrapper is
         if (asset == address(0)) revert ZeroAddress();
 
         _initErc4626Metadata(asset);
+        __Ownable_init(_vaultWrapperAdmin);
 
         factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
-        vaultWrapperAdmin = _vaultWrapperAdmin;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
         initData = _initData;
@@ -153,27 +156,14 @@ contract LiFiVaultWrapper is
         return _getInitializedVersion() != 0;
     }
 
-    /// Admin transfer (two-step) ///
+    /// Admin role ///
 
-    /// @notice Propose a new vault-wrapper admin; the proposed admin must accept.
-    /// @dev Two-step so a mistyped address can never strand the role. Only the current
-    ///      admin may call. Passing `address(0)` clears any pending transfer.
-    /// @param _newAdmin The proposed next admin.
-    function transferVaultWrapperAdmin(address _newAdmin) external {
-        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
-        pendingVaultWrapperAdmin = _newAdmin;
-        emit VaultWrapperAdminTransferStarted(msg.sender, _newAdmin);
-    }
-
-    /// @notice Accept a pending vault-wrapper admin transfer.
-    /// @dev Only the pending admin may call; promotes the caller and clears the pending slot.
-    function acceptVaultWrapperAdmin() external {
-        if (msg.sender != pendingVaultWrapperAdmin)
-            revert NotPendingVaultWrapperAdmin();
-        address previousAdmin = vaultWrapperAdmin;
-        vaultWrapperAdmin = msg.sender;
-        delete pendingVaultWrapperAdmin;
-        emit VaultWrapperAdminTransferred(previousAdmin, msg.sender);
+    /// @notice Disabled: the per-vault admin role cannot be renounced.
+    /// @dev A custody contract must never be left ownerless. The admin is rotated via OZ's
+    ///      two-step `transferOwnership`/`acceptOwnership`; `renounceOwnership` is the only OZ
+    ///      path to `owner == address(0)` and is overridden to always revert.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
     }
 
     /// ERC-4626 configuration ///
@@ -422,15 +412,17 @@ contract LiFiVaultWrapper is
     ///      preserve current behaviour.
 
     /// @notice Sets the rate for a deposit, withdrawal, or management fee.
-    /// @dev Only the vault-wrapper admin may call. A zero rate disables the fee and skips
+    /// @dev Only the owner may call. A zero rate disables the fee and skips
     ///      bounds validation (turning a fee off is always allowed); a non-zero rate must
     ///      sit within the factory's live bounds for the type. Accrues at the OLD rate
     ///      first so elapsed time is priced before the change. The performance fee is not
     ///      configurable here.
     /// @param _feeType The fee type to update (Management, Deposit, or Withdrawal).
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
-    function setFeeRate(FeeType _feeType, uint16 _newRateBps) external {
-        if (msg.sender != vaultWrapperAdmin) revert NotVaultWrapperAdmin();
+    function setFeeRate(
+        FeeType _feeType,
+        uint16 _newRateBps
+    ) external onlyOwner {
         if (_feeType == FeeType.Performance)
             revert FeeTypeNotConfigurable(_feeType);
 

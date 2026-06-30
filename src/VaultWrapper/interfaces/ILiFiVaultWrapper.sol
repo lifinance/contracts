@@ -27,22 +27,6 @@ interface ILiFiVaultWrapper {
         uint16 integratorShareBps
     );
 
-    /// @notice Emitted when an admin transfer is started (pending acceptance).
-    /// @param currentAdmin The admin initiating the transfer.
-    /// @param newAdmin The proposed new admin that must accept.
-    event VaultWrapperAdminTransferStarted(
-        address indexed currentAdmin,
-        address indexed newAdmin
-    );
-
-    /// @notice Emitted when the admin role is transferred (accepted).
-    /// @param previousAdmin The admin being replaced.
-    /// @param newAdmin The admin that accepted the role.
-    event VaultWrapperAdminTransferred(
-        address indexed previousAdmin,
-        address indexed newAdmin
-    );
-
     /// @notice Emitted when a fee type's rate (and enabled flag) is changed.
     /// @param feeType The fee type updated.
     /// @param newRateBps The new rate in basis points (0 when disabled).
@@ -72,10 +56,8 @@ interface ILiFiVaultWrapper {
     error ZeroAddress();
     /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
-    /// @notice Thrown when a caller other than the current admin attempts an admin action.
-    error NotVaultWrapperAdmin();
-    /// @notice Thrown when a caller other than the pending admin attempts to accept the role.
-    error NotPendingVaultWrapperAdmin();
+    /// @notice Thrown when ownership renouncement is attempted; the admin role is non-renounceable.
+    error RenounceDisabled();
     /// @notice Thrown when the adapter invests less than the net deposit into the yield source.
     error AdapterDepositShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.

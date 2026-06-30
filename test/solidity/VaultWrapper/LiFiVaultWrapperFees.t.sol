@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
@@ -470,8 +471,15 @@ contract LiFiVaultWrapperFeesTest is Test {
     function testRevert_SetFeeRateNonAdmin() public {
         _stackWithFactory(MGMT_RATE);
 
-        vm.prank(makeAddr("stranger"));
-        vm.expectRevert(ILiFiVaultWrapper.NotVaultWrapperAdmin.selector);
+        address stranger = makeAddr("stranger");
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
         wrapper.setFeeRate(FeeType.Management, 500);
     }
 
