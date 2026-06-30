@@ -5,10 +5,13 @@ import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/acc
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
+import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType } from "./LiFiVaultWrapperTypes.sol";
+import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -21,14 +24,13 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
-///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the fee
+///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the initial fee
 ///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
-///      Fee, access, and pause logic are
-///      scaffolded as no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
-///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
-///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
-///      ERC-4626 virtual-share offset.
+///      Management (dilution), deposit, and withdrawal fees are charged: management fee-shares
+///      are minted to this contract via `_accrueFees`, and deposit/withdrawal asset fees are
+///      kept idle and tracked through `_routeFee`. This contract does not distribute the
+///      accrued fees. Inflation-attack protection relies on the ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
@@ -66,44 +68,20 @@ contract LiFiVaultWrapper is
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
+    /// @notice Total dilution fee-shares minted to this contract and not yet paid out.
+    ///         The LI.FI/integrator split is applied later at distribution, not here.
+    uint256 public accruedFeeShares;
+    /// @notice Total asset-side (deposit/withdrawal) fees held idle in this contract and
+    ///         not yet paid out. Kept out of the yield source so it does not move PPS.
+    uint256 public accruedFeeAssets;
+    /// @notice Timestamp of the last management-fee crystallization.
+    uint64 public lastMgmtAccrual;
+
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
     ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
     ///      append (consuming this gap), never reorder fields or the inheritance list.
     uint256[50] private __gap;
-
-    /// Events ///
-
-    /// @notice Emitted once when the instance is configured.
-    /// @param asset The ERC20 asset the vault is denominated in.
-    /// @param underlying The yield source the wrapper deposits into.
-    /// @param adapter The yield adapter the wrapper routes through.
-    /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's fee share (bps) snapshotted at deploy.
-    event Initialized(
-        address indexed asset,
-        address indexed underlying,
-        address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16 integratorShareBps
-    );
-
-    /// Errors ///
-
-    /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
-    error InvalidFeeType(uint8 feeType);
-    /// @notice Thrown when a required initialization address is the zero address.
-    error ZeroAddress();
-    /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
-    error InvalidIntegratorShareBps(uint16 integratorShareBps);
-    /// @notice Thrown when ownership renouncement is attempted; the admin role is non-renounceable.
-    error RenounceDisabled();
-    /// @notice Thrown when the adapter invests less than the net deposit into the yield source.
-    error AdapterDepositShortfall(uint256 expected, uint256 actual);
-    /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
-    error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
 
     /// Initialization ///
 
@@ -147,6 +125,7 @@ contract LiFiVaultWrapper is
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
         initData = _initData;
+        lastMgmtAccrual = uint64(block.timestamp);
 
         emit Initialized(
             asset,
@@ -192,6 +171,41 @@ contract LiFiVaultWrapper is
     /// @notice Assets currently redeemable from the yield source, valued by the adapter.
     function totalAssets() public view override returns (uint256) {
         return IYieldAdapter(adapter).totalAssets(underlying, address(this));
+    }
+
+    /// @dev Values shares against an effective supply that already includes the management
+    ///      fee-shares pending since the last accrual, so previews match what a user gets
+    ///      after `_accrueFees` crystallizes them at the top of the operation.
+    function _convertToShares(
+        uint256 _assets,
+        Math.Rounding _rounding
+    ) internal view override returns (uint256) {
+        return
+            LibVaultWrapperMath.convertToShares({
+                _assets: _assets,
+                _totalSupply: totalSupply(),
+                _pendingFeeShares: _pendingFeeShares(),
+                _totalAssets: totalAssets(),
+                _decimalsOffset: _decimalsOffset(),
+                _rounding: _rounding
+            });
+    }
+
+    /// @dev See `_convertToShares`: the effective supply (including pending fee-shares) is
+    ///      used so conversions stay consistent with the post-accrual share price.
+    function _convertToAssets(
+        uint256 _shares,
+        Math.Rounding _rounding
+    ) internal view override returns (uint256) {
+        return
+            LibVaultWrapperMath.convertToAssets({
+                _shares: _shares,
+                _totalSupply: totalSupply(),
+                _pendingFeeShares: _pendingFeeShares(),
+                _totalAssets: totalAssets(),
+                _decimalsOffset: _decimalsOffset(),
+                _rounding: _rounding
+            });
     }
 
     /// @notice Fee config getters ///
@@ -262,7 +276,12 @@ contract LiFiVaultWrapper is
     function previewDeposit(
         uint256 assets
     ) public view override returns (uint256) {
-        return super.previewDeposit(assets - _entryFee(assets));
+        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Deposit)
+        });
+
+        return super.previewDeposit(assets - fee);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -271,14 +290,24 @@ contract LiFiVaultWrapper is
     ) public view override returns (uint256) {
         uint256 assets = super.previewMint(shares);
 
-        return assets + _entryFee(assets);
+        return
+            assets +
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Deposit)
+            });
     }
 
     /// @inheritdoc ERC4626Upgradeable
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        return super.previewWithdraw(assets + _exitFee(assets));
+        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
+
+        return super.previewWithdraw(assets + fee);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -287,7 +316,12 @@ contract LiFiVaultWrapper is
     ) public view override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
 
-        return assets - _exitFee(assets);
+        return
+            assets -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
     }
 
     /// Internal ///
@@ -296,8 +330,11 @@ contract LiFiVaultWrapper is
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
     ///      shares. Reverts if the adapter reports the source accepted less than the net
     ///      deposit (a short-accepting source), so assets cannot be left stranded in the
-    ///      wrapper against already-minted shares. With fees unimplemented the skim is zero,
-    ///      so the full amount is invested.
+    ///      wrapper against already-minted shares. A zero net amount (deposit fee consumed the
+    ///      whole — sub-fee-denominator dust — input, or a bare zero deposit) skips the adapter
+    ///      call entirely: there is nothing to invest, the fee is already routed, and a standard
+    ///      ERC-4626 source reverts on a zero-asset forward, so short-circuiting keeps `deposit`
+    ///      non-reverting in exactly the cases where `previewDeposit` returns 0.
     function _deposit(
         address caller,
         address receiver,
@@ -306,9 +343,14 @@ contract LiFiVaultWrapper is
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
 
-        uint256 fee = _entryFee(assets);
-        _routeFee(fee);
+        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Deposit)
+        });
+        _routeFee(FeeType.Deposit, fee);
         uint256 invested = assets - fee;
+        if (invested == 0) return;
+
         uint256 deposited = _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.deposit,
@@ -328,7 +370,10 @@ contract LiFiVaultWrapper is
     ///      withdrawal amount is redeemed.
     function _transferOut(address _to, uint256 _assets) internal override {
         address assetToken = asset();
-        uint256 fee = _exitFee(_assets);
+        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+            _assets: _assets,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
         uint256 owed = _assets + fee;
         uint256 withdrawn = _routeThroughAdapter(
             abi.encodeCall(
@@ -337,7 +382,7 @@ contract LiFiVaultWrapper is
             )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
-        _routeFee(fee);
+        _routeFee(FeeType.Withdrawal, fee);
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
     }
 
@@ -362,16 +407,47 @@ contract LiFiVaultWrapper is
         result = abi.decode(ret, (uint256));
     }
 
-    /// Fee / pause / access blueprint ///
-    /// @dev The functions below are no-op seams wired into the entrypoints and the
-    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
-    ///      (fees, access control, global pause); today they preserve current behaviour.
+    /// Fee config, pause, and access ///
+    /// @dev `setFeeRate` is live. The pause and access functions below are no-op seams that
+    ///      preserve current behaviour.
+
+    /// @notice Sets the rate for a deposit, withdrawal, or management fee.
+    /// @dev Only the owner may call. A zero rate disables the fee and skips
+    ///      bounds validation (turning a fee off is always allowed); a non-zero rate must
+    ///      sit within the factory's live bounds for the type. Accrues at the OLD rate
+    ///      first so elapsed time is priced before the change. The performance fee is not
+    ///      configurable here.
+    /// @param _feeType The fee type to update (Management, Deposit, or Withdrawal).
+    /// @param _newRateBps The new rate in basis points (0 disables the fee).
+    function setFeeRate(
+        FeeType _feeType,
+        uint16 _newRateBps
+    ) external onlyOwner {
+        if (_feeType == FeeType.Performance)
+            revert FeeTypeNotConfigurable(_feeType);
+
+        _accrueFees();
+
+        uint8 idx = uint8(_feeType);
+        if (_newRateBps == 0) {
+            _feeConfig.enabled[idx] = false;
+            _feeConfig.rateBps[idx] = 0;
+        } else {
+            (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(factory)
+                .feeBounds(_feeType);
+            if (_newRateBps < minBps || _newRateBps > maxBps)
+                revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
+            _feeConfig.enabled[idx] = true;
+            _feeConfig.rateBps[idx] = _newRateBps;
+        }
+
+        emit FeeConfigUpdated(_feeType, _newRateBps, _newRateBps != 0);
+    }
 
     /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
     ///      engaged, enforces the vault's access mode on the caller, and accrues
     ///      time/yield-based fees so the operation transacts at the post-accrual share price.
-    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
-    function _beforeOperation() private view {
+    function _beforeOperation() private {
         _requireNotPaused();
         _checkAccess(msg.sender);
         _accrueFees();
@@ -389,34 +465,88 @@ contract LiFiVaultWrapper is
         // TODO(access): decode the access mode from initData and authorize the caller.
     }
 
-    /// @dev Accrues management (time-based) and performance (high-water-mark) fees by minting
-    ///      fee shares to the integrator/LI.FI recipients, routed via _routeFee. Runs before
-    ///      share math so deposits/withdrawals transact post-accrual. Widens to state-mutating
-    ///      once implemented.
-    function _accrueFees() private pure {
-        // TODO(fees): mint management + performance fee shares before share math runs.
+    /// @dev Crystallizes the management fee by minting dilution shares to this contract.
+    ///      When no fee can accrue — an uninitialized baseline (e.g. an instance upgraded
+    ///      into this version), the type disabled, or an empty vault — the baseline is moved
+    ///      to now so that dormant time is never charged later at the current rate. Otherwise
+    ///      it mints only when the share amount is non-zero, advancing `lastMgmtAccrual` only
+    ///      then so sub-threshold elapsed time is preserved.
+    function _accrueFees() private {
+        if (
+            lastMgmtAccrual == 0 ||
+            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            totalSupply() == 0 ||
+            totalAssets() == 0
+        ) {
+            lastMgmtAccrual = uint64(block.timestamp);
+
+            return;
+        }
+
+        uint256 feeShares = _pendingManagementFee();
+        if (feeShares == 0) return;
+
+        _mint(address(this), feeShares);
+        accruedFeeShares += feeShares;
+        lastMgmtAccrual = uint64(block.timestamp);
+
+        emit DilutionFeeAccrued(FeeType.Management, feeShares);
     }
 
-    /// @dev Entry-fee portion (in assets) skimmed from a deposit of `assets`. Returns 0 until
-    ///      implemented; the gross/net basis must stay consistent with the preview overrides.
-    ///      Widens to `view` once it reads the _feeConfig deposit rate.
-    function _entryFee(uint256 /* assets */) private pure returns (uint256) {
-        // TODO(fees): derive from the _feeConfig deposit rate, bounded by the bytecode cap.
-        return 0;
+    /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
+    ///      `_convertTo*` previews so a preview returned before an operation equals what the
+    ///      caller gets after accrual (to the wei, modulo rounding direction).
+    /// @return feeShares Dilution shares the pending fee is worth.
+    function _pendingManagementFee() private view returns (uint256 feeShares) {
+        if (
+            lastMgmtAccrual == 0 ||
+            !_feeConfig.enabled[uint8(FeeType.Management)]
+        ) return 0;
+
+        uint256 supply = totalSupply();
+        uint256 assets = totalAssets();
+        if (supply == 0 || assets == 0) return 0;
+
+        uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets({
+            _totalAssets: assets,
+            _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
+            _elapsed: block.timestamp - lastMgmtAccrual
+        });
+        feeShares = LibVaultWrapperMath.dilutionShares({
+            _feeAssets: feeAssets,
+            _totalSupply: supply,
+            _totalAssets: assets,
+            _decimalsOffset: _decimalsOffset()
+        });
     }
 
-    /// @dev Exit-fee portion (in assets) skimmed from a withdrawal of `assets`. Returns 0 until
-    ///      implemented; the gross/net basis must stay consistent with the preview overrides.
-    ///      Widens to `view` once it reads the _feeConfig withdrawal rate.
-    function _exitFee(uint256 /* assets */) private pure returns (uint256) {
-        // TODO(fees): derive from the _feeConfig withdrawal rate, bounded by the bytecode cap.
-        return 0;
+    /// @dev Fee-shares pending since the last accrual, used by the effective-supply
+    ///      conversion overrides. Isolated as a seam so further dilution fees can extend it
+    ///      without changing the conversion math.
+    /// @return The dilution shares pending.
+    function _pendingFeeShares() private view returns (uint256) {
+        return _pendingManagementFee();
     }
 
-    /// @dev Splits a collected fee between the integrator (integratorShareBps) and LI.FI
-    ///      (remainder, to the factory-governed lifiFeeRecipient read live) and routes each.
-    ///      Widens to state-mutating once it performs the transfers.
-    function _routeFee(uint256 /* feeAssets */) private pure {
-        // TODO(fees): transfer the integrator share to its recipient, remainder to LI.FI.
+    /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
+    /// @param _feeType The fee type to read.
+    /// @return The effective rate in basis points.
+    function _rate(FeeType _feeType) private view returns (uint16) {
+        uint8 idx = uint8(_feeType);
+        if (!_feeConfig.enabled[idx]) return 0;
+        return _feeConfig.rateBps[idx];
+    }
+
+    /// @dev Books an asset-side fee as idle and not-yet-distributed. The LI.FI/integrator
+    ///      split and payout happen elsewhere; here it only tracks the total. No-op on a
+    ///      zero fee.
+    /// @param _feeType The fee type charged (Deposit or Withdrawal).
+    /// @param _feeAssets The fee amount, in assets, kept idle in this contract.
+    function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
+        if (_feeAssets == 0) return;
+
+        accruedFeeAssets += _feeAssets;
+
+        emit AssetFeeCharged(_feeType, _feeAssets);
     }
 }
