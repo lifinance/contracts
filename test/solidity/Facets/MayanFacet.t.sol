@@ -569,13 +569,16 @@ contract MayanFacetTest is TestBaseFacet {
         testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
-    function test_ParseHypercoreReceiver() public {
+    // The HyperCore receiver-parsing coverage is split across the tests below. It was originally
+    // one function, but under the legacy codegen pipeline (solc 0.8.17 / london, used for
+    // London-EVM production deploys) the combined locals plus the Swift v2 ABI encoder overflowed
+    // the stack ("Stack too deep"). Per-scenario tests keep each frame small, and the shared
+    // order/encoding helpers below keep the 7-argument encoder out of the test frame (EXSC-577).
+
+    function test_ParseHypercoreReceiverFromCreateOrderWithToken() public {
         TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
             IMayan(MAYAN_FORWARDER)
         );
-
-        address tokenIn = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-        address expectedReceiver = 0xd01e6A41E4DE4032830C99aa79c0206753De628A;
 
         // Real on-chain HyperCore deposit on Base (createOrderWithToken 0xa3a30834,
         // payloadType 2). destAddr is Mayan's HCDepositor handler; the real receiver is
@@ -589,7 +592,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         assertEq(
             address(uint160(uint256(receiver))),
-            expectedReceiver,
+            HYPERCORE_RECEIVER,
             "parse hypercore receiver: createOrderWithToken customPayload[0:20]"
         );
 
@@ -604,59 +607,48 @@ contract MayanFacetTest is TestBaseFacet {
                     )
                 )
             ),
-            expectedReceiver,
+            HYPERCORE_RECEIVER,
             "_parseReceiver returns customPayload receiver for genuine hypercore deposit"
+        );
+    }
+
+    function test_ParseHypercoreReceiverFromCreateOrderWithSig() public {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
         );
 
         // createOrderWithSig (0x6147435b) carries the same OrderParams + customPayload layout
-        bytes memory customPayload = abi.encodePacked(
-            expectedReceiver,
-            uint32(0),
-            uint64(500000)
-        );
-        ISwiftV2Encode.OrderParams memory order = ISwiftV2Encode.OrderParams({
-            payloadType: 2,
-            trader: bytes32(uint256(uint160(expectedReceiver))),
-            destAddr: bytes32(
-                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
-            ),
-            destChainId: 47,
-            referrerAddr: bytes32(0),
-            tokenOut: bytes32(0),
-            minAmountOut: 0,
-            gasDrop: 0,
-            cancelFee: 0,
-            refundFee: 0,
-            deadline: 0,
-            referrerBps: 0,
-            auctionMode: 0,
-            random: bytes32(0)
-        });
-        ISwiftV2Encode.PermitParams memory permit;
-
-        protocolData = abi.encodeCall(
-            ISwiftV2Encode.createOrderWithSig,
-            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        bytes memory protocolData = _encodeHypercoreOrderWithSig(
+            _hypercoreOrderToHandler(HYPERCORE_RECEIVER),
+            _hypercoreCustomPayload(HYPERCORE_RECEIVER)
         );
 
-        receiver = testFacet.testParseHypercoreReceiver(protocolData);
+        bytes32 receiver = testFacet.testParseHypercoreReceiver(protocolData);
 
         assertEq(
             address(uint160(uint256(receiver))),
-            expectedReceiver,
+            HYPERCORE_RECEIVER,
             "parse hypercore receiver: createOrderWithSig customPayload[0:20]"
+        );
+    }
+
+    function test_ParseHypercoreReceiverReturnsZeroWhenGatesFail() public {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+
+        bytes memory customPayload = _hypercoreCustomPayload(
+            HYPERCORE_RECEIVER
         );
 
         // Unknown / non-Swift selector (bridgeWithFee 0x94454a5d) -> zero receiver, so the
         // caller's bridgeData.receiver == receiver check reverts.
-        protocolData = vm.parseBytes(
-            "0x94454a5d000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-        );
-
-        receiver = testFacet.testParseHypercoreReceiver(protocolData);
-
         assertEq(
-            receiver,
+            testFacet.testParseHypercoreReceiver(
+                vm.parseBytes(
+                    "0x94454a5d000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e583100000000000000000000000000000000000000000000000000000000004c4b40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001eb6638de8c571c787d7bc24f98bfa735425731c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                )
+            ),
             bytes32(0),
             "non-Swift selector must yield zero receiver"
         );
@@ -664,17 +656,15 @@ contract MayanFacetTest is TestBaseFacet {
         // A Swift v2 order whose destAddr is NOT Mayan's HCDepositor handler must yield zero, so
         // the caller's receiver check reverts rather than trusting an attacker-controlled
         // customPayload routed to a fake handler.
+        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
+            HYPERCORE_RECEIVER
+        );
         order.destAddr = bytes32(uint256(uint160(address(0xdEAD))));
 
-        protocolData = abi.encodeCall(
-            ISwiftV2Encode.createOrderWithSig,
-            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
-        );
-
-        receiver = testFacet.testParseHypercoreReceiver(protocolData);
-
         assertEq(
-            receiver,
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, customPayload)
+            ),
             bytes32(0),
             "non-HCDepositor destAddr must yield zero receiver"
         );
@@ -682,20 +672,13 @@ contract MayanFacetTest is TestBaseFacet {
         // A Swift v2 order to the genuine handler but with a non-HyperCore payloadType (!= 2) must
         // yield zero, so the caller's receiver check reverts rather than trusting customPayload for
         // an order type the HCDepositor would not treat as a deposit.
-        order.destAddr = bytes32(
-            uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
-        );
+        order = _hypercoreOrderToHandler(HYPERCORE_RECEIVER);
         order.payloadType = 1;
 
-        protocolData = abi.encodeCall(
-            ISwiftV2Encode.createOrderWithSig,
-            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
-        );
-
-        receiver = testFacet.testParseHypercoreReceiver(protocolData);
-
         assertEq(
-            receiver,
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, customPayload)
+            ),
             bytes32(0),
             "non-deposit payloadType must yield zero receiver"
         );
@@ -703,33 +686,39 @@ contract MayanFacetTest is TestBaseFacet {
         // A Swift v2 order to the genuine handler with payloadType 2 but a non-HyperEVM destChainId
         // (!= 47) must yield zero, so it falls through to standard destAddr validation rather than
         // trusting customPayload for an order not bound for the HyperCore handler chain.
-        order.payloadType = 2;
+        order = _hypercoreOrderToHandler(HYPERCORE_RECEIVER);
         order.destChainId = 1;
 
-        protocolData = abi.encodeCall(
-            ISwiftV2Encode.createOrderWithSig,
-            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
-        );
-
-        receiver = testFacet.testParseHypercoreReceiver(protocolData);
-
         assertEq(
-            receiver,
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, customPayload)
+            ),
             bytes32(0),
             "non-HyperEVM destChainId must yield zero receiver"
+        );
+    }
+
+    function test_ParseReceiverFallsThroughToDestAddrForNonDepositOrder()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
         );
 
         // A Swift v2 order under the HyperCore chain id but to a real user destAddr with a
         // non-deposit payloadType is treated as an ordinary order: _parseHypercoreReceiver yields
         // 0 (gates fail) and _parseReceiver falls through to standard destAddr parsing, so the
         // user's destAddr is what gets validated against bridgeData.receiver.
-        order.destAddr = bytes32(uint256(uint160(expectedReceiver)));
+        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
+            HYPERCORE_RECEIVER
+        );
+        order.destAddr = bytes32(uint256(uint160(HYPERCORE_RECEIVER)));
         order.payloadType = 1;
         order.destChainId = 1;
 
-        protocolData = abi.encodeCall(
-            ISwiftV2Encode.createOrderWithSig,
-            (tokenIn, 1e6, order, customPayload, 0, bytes(""), permit)
+        bytes memory protocolData = _encodeHypercoreOrderWithSig(
+            order,
+            _hypercoreCustomPayload(HYPERCORE_RECEIVER)
         );
 
         assertEq(
@@ -740,22 +729,38 @@ contract MayanFacetTest is TestBaseFacet {
                     )
                 )
             ),
-            expectedReceiver,
+            HYPERCORE_RECEIVER,
             "non-deposit order under hypercore chainId falls through to destAddr validation"
+        );
+    }
+
+    function test_ParseHypercoreReceiverFollowsCustomPayloadOffsetPointer()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
         );
 
         // Non-canonical encoding: customPayload placed one word later than canonical, with the
         // head word 16 offset pointer updated to match. A fixed-offset parser would read the
         // wrong word; following the pointer locates the receiver Mayan actually decodes. destAddr
         // (head word 4) and destChainId (head word 5) are set so the gate passes.
-        receiver = testFacet.testParseHypercoreReceiver(
-            _buildNonCanonicalHypercoreOrder(expectedReceiver)
+        bytes32 receiver = testFacet.testParseHypercoreReceiver(
+            _buildNonCanonicalHypercoreOrder(HYPERCORE_RECEIVER)
         );
 
         assertEq(
             address(uint160(uint256(receiver))),
-            expectedReceiver,
+            HYPERCORE_RECEIVER,
             "parse hypercore receiver: follows customPayload offset pointer"
+        );
+    }
+
+    function test_ParseReceiverParsesHcDepositInitiatorUnderHypercoreChainId()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
         );
 
         // Regression: an HCDepositInitiator deposit under the HyperCore chain id (1337) must
@@ -777,24 +782,85 @@ contract MayanFacetTest is TestBaseFacet {
         );
     }
 
+    /// @dev A canonical Swift v2 order to Mayan's HCDepositor handler (payloadType 2,
+    ///      destChainId 47 = HyperEVM) — the shape that makes _parseHypercoreReceiver trust
+    ///      customPayload[0:20]. Gate tests start from this and flip one field.
+    function _hypercoreOrderToHandler(
+        address trader
+    ) private pure returns (ISwiftV2Encode.OrderParams memory order) {
+        order = ISwiftV2Encode.OrderParams({
+            payloadType: 2,
+            trader: bytes32(uint256(uint160(trader))),
+            destAddr: bytes32(
+                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
+            ),
+            destChainId: 47,
+            referrerAddr: bytes32(0),
+            tokenOut: bytes32(0),
+            minAmountOut: 0,
+            gasDrop: 0,
+            cancelFee: 0,
+            refundFee: 0,
+            deadline: 0,
+            referrerBps: 0,
+            auctionMode: 0,
+            random: bytes32(0)
+        });
+    }
+
+    /// @dev customPayload whose first 20 bytes are the HyperCore receiver Mayan decodes.
+    function _hypercoreCustomPayload(
+        address receiver
+    ) private pure returns (bytes memory) {
+        return abi.encodePacked(receiver, uint32(0), uint64(500000));
+    }
+
+    /// @dev Encodes a Swift v2 createOrderWithSig call. Kept in its own frame so the 7-argument
+    ///      ABI encoder (incl. the OrderParams tuple) doesn't push the calling test's stack past
+    ///      the solc 0.8.17 limit.
+    function _encodeHypercoreOrderWithSig(
+        ISwiftV2Encode.OrderParams memory order,
+        bytes memory customPayload
+    ) private pure returns (bytes memory) {
+        ISwiftV2Encode.PermitParams memory permit;
+
+        return
+            abi.encodeCall(
+                ISwiftV2Encode.createOrderWithSig,
+                (
+                    0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
+                    1e6,
+                    order,
+                    customPayload,
+                    0,
+                    bytes(""),
+                    permit
+                )
+            );
+    }
+
     /// @dev Builds a createOrderWithToken order whose customPayload sits one word later than the
     ///      canonical position, with the head word 16 offset pointer updated to match. Extracted
-    ///      to its own function to keep test_ParseHypercoreReceiver under the stack limit.
+    ///      to its own function to keep the offset-pointer test under the stack limit.
     function _buildNonCanonicalHypercoreOrder(
         address expectedReceiver
     ) private pure returns (bytes memory) {
+        // Built in two halves: materializing the head to memory frees its stack slots so the
+        // byte-by-byte encodePacked doesn't exceed the solc 0.8.17 stack limit once inlined.
+        bytes memory head = abi.encodePacked(
+            bytes4(0xa3a30834),
+            new bytes(2 * 32), // head words 0..1 (tokenIn, amountIn) filler
+            uint256(2), // word 2: payloadType = 2
+            new bytes(32), // word 3: trader filler
+            bytes32(
+                uint256(uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33))
+            ), // word 4: destAddr = handler
+            uint256(47) // word 5: destChainId = HyperEVM
+        );
+
         return
             abi.encodePacked(
-                bytes4(0xa3a30834),
-                new bytes(2 * 32), // head words 0..1 (tokenIn, amountIn) filler
-                uint256(2), // word 2: payloadType = 2
-                new bytes(32), // word 3: trader filler
-                bytes32(
-                    uint256(
-                        uint160(0x56032241C0AdAb58A29b13E94fb595a4bc414e33)
-                    )
-                ), // word 4: destAddr = handler
-                uint256(47), // word 5: destChainId = HyperEVM
+                head,
                 new bytes(10 * 32), // head words 6..15 filler
                 uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
                 new bytes(32), // extra padding word before customPayload
