@@ -112,6 +112,10 @@
       "0xc4c6357E392d7e57dB157450eF95baD6284Ad9C3": {
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
+      },
+      "0x65cdFdA46FBfA8C584C441F396cd71972aa2520c": {
+        "Name": "PaxosTransitFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -122,6 +126,7 @@
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",
