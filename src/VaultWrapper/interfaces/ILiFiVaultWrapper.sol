@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, IntegratorReceivers } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -48,6 +48,32 @@ interface ILiFiVaultWrapper {
     /// @param feeAssets The fee amount, in assets.
     event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
 
+    /// @notice Emitted when the integrator's receiver set is configured.
+    /// @param receivers The integrator payout wallets.
+    /// @param bps The per-receiver basis points (sum to 100%).
+    event ReceiversSet(address[] receivers, uint16[] bps);
+
+    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
+    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
+    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
+    /// @param integratorAmount Amount delivered across the integrator wallets.
+    event ReservoirSwept(
+        address indexed token,
+        uint256 lifiAmount,
+        uint256 integratorAmount
+    );
+
+    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
+    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
+    /// @param receiver The integrator wallet whose transfer reverted.
+    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
+    /// @param amount The amount redirected to LI.FI.
+    event IntegratorPayoutRedirected(
+        address indexed receiver,
+        address indexed token,
+        uint256 amount
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
@@ -67,6 +93,16 @@ interface ILiFiVaultWrapper {
     error FeeTypeNotConfigurable(FeeType feeType);
     /// @notice Thrown when a requested rate is outside the factory's live bounds.
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
+    /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
+    error InvalidReceiverCount();
+    /// @notice Thrown when the receivers and bps arrays differ in length.
+    error ReceiversLengthMismatch();
+    /// @notice Thrown when a receiver wallet is the zero address.
+    error ZeroReceiver();
+    /// @notice Thrown when the receiver bps do not sum to exactly 100%.
+    error ReceiverBpsSumNot100();
+    /// @notice Thrown when `trustedTransfer` is called by anyone other than this contract.
+    error OnlySelf();
 
     /// Functions ///
 
@@ -78,13 +114,16 @@ interface ILiFiVaultWrapper {
     /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param _integratorShareBps The integrator's fee share (bps), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
+    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
+    /// @param _receivers The integrator payout wallets + bps split; validated on-instance
+    ///        (1..5 non-zero wallets, bps summing to exactly 100%).
     function initialize(
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
         uint16 _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData
+        bytes calldata _initData,
+        IntegratorReceivers calldata _receivers
     ) external;
 }

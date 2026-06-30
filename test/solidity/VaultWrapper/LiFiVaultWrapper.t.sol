@@ -13,7 +13,7 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
@@ -154,7 +154,15 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                "",
+                _defaultReceivers()
+            )
         );
 
         vm.expectEmit(true, true, true, true);
@@ -181,7 +189,8 @@ contract LiFiVaultWrapperTest is Test {
             vaultAdmin,
             8000,
             fees,
-            ""
+            "",
+            _defaultReceivers()
         );
     }
 
@@ -189,7 +198,15 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), address(0), 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                address(0),
+                8000,
+                fees,
+                "",
+                _defaultReceivers()
+            )
         );
 
         vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
@@ -208,7 +225,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 8000,
                 fees,
-                ""
+                "",
+                _defaultReceivers()
             )
         );
 
@@ -227,7 +245,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 10_000,
                 fees,
-                ""
+                "",
+                _defaultReceivers()
             )
         );
 
@@ -280,7 +299,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 8000,
                 fees,
-                ""
+                "",
+                _defaultReceivers()
             )
         );
 
@@ -552,13 +572,33 @@ contract LiFiVaultWrapperTest is Test {
 
     /// Helpers ///
 
+    function _defaultReceivers()
+        internal
+        pure
+        returns (IntegratorReceivers memory r)
+    {
+        address[] memory wallets = new address[](1);
+        wallets[0] = address(0xFEE1);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10_000;
+        r = IntegratorReceivers({ wallets: wallets, bps: bps });
+    }
+
     function _newWrapper(
         address _underlying
     ) internal returns (LiFiVaultWrapper w) {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (_underlying, address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                8000,
+                fees,
+                "",
+                _defaultReceivers()
+            )
         );
 
         w = LiFiVaultWrapper(

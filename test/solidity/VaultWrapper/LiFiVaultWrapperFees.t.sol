@@ -13,7 +13,7 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice Integration tests for the LiFiVaultWrapper fee engine (EXSC-410): management
 ///         dilution accrual, the preview==execution invariant, asset-side deposit/withdrawal
@@ -561,13 +561,26 @@ contract LiFiVaultWrapperFeesTest is Test {
                 vaultAdmin,
                 8000,
                 _fees,
-                ""
+                "",
+                _sweepReceivers()
             )
         );
 
         w = LiFiVaultWrapper(
             address(new BeaconProxy(address(beacon), initCall))
         );
+    }
+
+    function _sweepReceivers()
+        internal
+        pure
+        returns (IntegratorReceivers memory r)
+    {
+        address[] memory wallets = new address[](1);
+        wallets[0] = address(0xFEE1);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10_000;
+        r = IntegratorReceivers({ wallets: wallets, bps: bps });
     }
 
     function _newWrapperMgmtOnly(
@@ -619,6 +632,10 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         uint16[4] memory rates = [uint16(0), _mgmtRate, 0, 0];
         bool[4] memory enabled = [false, _mgmtRate != 0, false, false];
+        address[] memory wallets = new address[](1);
+        wallets[0] = address(0xFEE1);
+        uint16[] memory bps = new uint16[](1);
+        bps[0] = 10_000;
         DeployParams memory p = DeployParams({
             namespace: bytes32("Coinbase"),
             vaultWrapperAdmin: vaultAdmin,
@@ -627,7 +644,8 @@ contract LiFiVaultWrapperFeesTest is Test {
             nonce: 0,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
             integratorShareBps: type(uint16).max,
-            initData: ""
+            initData: "",
+            receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
         });
 
         vm.prank(makeAddr("onboarder"));
