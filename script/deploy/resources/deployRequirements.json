@@ -787,5 +787,14 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "LiFiIntentEscrowFacetV2": {
+    "configData": {
+      "_inputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".lifiEscrowInputSettler",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
