@@ -34,7 +34,8 @@ graph LR;
 ## Destination Calls
 
 The LI.FI intent facet supports destination swaps using the periphery contract `ReceiverOIF`.
-Destination swaps require configuring `.dstCallReceiver` to an instance of `ReceiverOIF` and `dstCallSwapData` as a list of SwapData. When `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`.
+Destination swaps require configuring `.dstCallReceiver` to an instance of `ReceiverOIF` and `.dstCallSwapData` as a list of SwapData. When `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`. `.dstCallReceiver` is not validated beyond being non-zero. If `.dstCallSwapData.length` > 0 and `.dstCallReceiver` is set to an address that accepts an OIF callback without being `ReceiverOIF`, funds may be lost.
+
 
 ## Output Amount Scaling
 
@@ -51,7 +52,7 @@ On the non-swap path, `inputAmount` is `bridgeData.minAmount`. On the swap path,
 - **The multiplier folds price ratio and decimals into one factor.** It is computed off-chain as `multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)`, so it accounts for the quoted price ratio and any difference between the input and output token decimals.
 - **The result floors.** Integer division truncates toward zero (it may under-commit by dust).
 
-The committed output is derived solely from the backend-supplied multiplier; always use LI.FI backend-generated calldata, which supplies a consistent `outputAmountMultiplier`. The receiver is still validated on-chain.
+The committed output is derived solely from the backend-supplied multiplier; always use LI.FI backend-generated calldata, which supplies a consistent `outputAmountMultiplier`.
 
 ### Assumption and limits (by design)
 

@@ -56,7 +56,7 @@ contract LiFiIntentEscrowFacetV2 is
 
     /// Types ///
 
-    /// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored.
+    /// @param dstCallReceiver If dstCallSwapData.length > 0, becomes the on-chain output recipient and must be a `ReceiverOIF` deployment. On-chain it is only checked to be non-zero, not verified to be an instance of `ReceiverOIF`. If it is any other address that accepts an OIF callback, funds may be lost. Ignored when dstCallSwapData.length == 0.
     /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
     /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
     /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
@@ -221,6 +221,9 @@ contract LiFiIntentEscrowFacetV2 is
         bytes memory outputCall = hex"";
         if (dstCallSwapDataLength != 0) {
             // If we have external calldata, we need to swap out our recipient to the remote caller. We won't be using the recipient anymore so this is without side effects.
+            // Trust assumption: `dstCallReceiver` is the on-chain fund recipient here and
+            // is only checked to be non-zero — NOT verified to be a genuine `ReceiverOIF`.
+            // The `bridgeData.receiver` guard above does not protect funds on this path.
             recipient = _lifiIntentData.dstCallReceiver;
             // Check that _lifiIntentData.dstCallReceiver != 0.
             if (recipient == bytes32(0)) revert InvalidReceiver();
