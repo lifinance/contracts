@@ -3,13 +3,13 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { VaultWrapperPausable } from "lifi/VaultWrapper/VaultWrapperPausable.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
@@ -45,7 +45,7 @@ contract VaultWrapperPauseTest is Test {
 
     uint256 internal constant DEPOSIT = 1_000e18;
 
-    event IntegratorPauseSet(bool paused, address indexed by);
+    event PauseSet(bool paused, address indexed by);
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
@@ -71,7 +71,7 @@ contract VaultWrapperPauseTest is Test {
 
     function testRevert_DepositWhenIntegratorPaused() public {
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
 
         _expectDepositReverts(alice, DEPOSIT);
     }
@@ -84,7 +84,7 @@ contract VaultWrapperPauseTest is Test {
 
     function testRevert_MintWhenIntegratorPaused() public {
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
 
         _expectMintReverts(alice, DEPOSIT);
     }
@@ -100,10 +100,10 @@ contract VaultWrapperPauseTest is Test {
     // proving no inflow can slip through while paused even if it clears the max check.
     function testRevert_ZeroDepositHitsChokepointGuardWhilePaused() public {
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
 
         vm.prank(alice);
-        vm.expectRevert(VaultWrapperPausable.DepositsPaused.selector);
+        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.deposit(0, alice);
     }
@@ -113,7 +113,7 @@ contract VaultWrapperPauseTest is Test {
     function test_WithdrawOpenUnderIntegratorPause() public {
         _seedDeposit(alice, DEPOSIT);
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
 
         vm.prank(alice);
         wrapper.withdraw(DEPOSIT, alice, alice);
@@ -134,7 +134,7 @@ contract VaultWrapperPauseTest is Test {
     function test_RedeemOpenUnderAllPausesCombined() public {
         _seedDeposit(alice, DEPOSIT);
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
         factory.setGlobalPaused(true);
 
         uint256 shares = wrapper.balanceOf(alice);
@@ -151,25 +151,30 @@ contract VaultWrapperPauseTest is Test {
 
         // The integrator lifting its own (unset) pause must not clear the global breaker.
         vm.prank(vaultAdmin);
-        wrapper.integratorUnpause();
+        wrapper.unpause();
 
         assertTrue(wrapper.depositsPaused());
         _expectDepositReverts(alice, DEPOSIT);
     }
 
-    function testRevert_StrangerCannotIntegratorPause() public {
+    function testRevert_StrangerCannotPause() public {
         vm.prank(stranger);
-        vm.expectRevert(VaultWrapperPausable.NotIntegratorAdmin.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
 
-        wrapper.integratorPause();
+        wrapper.pause();
     }
 
     /// Unpause resumes deposits ///
 
     function test_IntegratorUnpauseResumesDeposits() public {
         vm.startPrank(vaultAdmin);
-        wrapper.integratorPause();
-        wrapper.integratorUnpause();
+        wrapper.pause();
+        wrapper.unpause();
         vm.stopPrank();
 
         _seedDeposit(alice, DEPOSIT);
@@ -186,16 +191,16 @@ contract VaultWrapperPauseTest is Test {
         factory.setGlobalPaused(false);
 
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
         assertTrue(wrapper.depositsPaused());
     }
 
     function test_PauseSettersEmitEvents() public {
         vm.expectEmit(true, true, true, true);
-        emit IntegratorPauseSet(true, vaultAdmin);
+        emit PauseSet(true, vaultAdmin);
 
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
     }
 
     /// EIP-4626 deposit limits report closed while paused ///
@@ -205,7 +210,7 @@ contract VaultWrapperPauseTest is Test {
         assertEq(wrapper.maxMint(alice), type(uint256).max);
 
         vm.prank(vaultAdmin);
-        wrapper.integratorPause();
+        wrapper.pause();
 
         assertEq(wrapper.maxDeposit(alice), 0);
         assertEq(wrapper.maxMint(alice), 0);
@@ -220,8 +225,8 @@ contract VaultWrapperPauseTest is Test {
 
     function test_MaxDepositAndMaxMintRestoredAfterUnpause() public {
         vm.startPrank(vaultAdmin);
-        wrapper.integratorPause();
-        wrapper.integratorUnpause();
+        wrapper.pause();
+        wrapper.unpause();
         vm.stopPrank();
 
         assertEq(wrapper.maxDeposit(alice), type(uint256).max);

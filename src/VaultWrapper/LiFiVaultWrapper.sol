@@ -10,7 +10,6 @@ import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { VaultWrapperPausable } from "./VaultWrapperPausable.sol";
 import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 
 /// @title LiFiVaultWrapper
@@ -27,8 +26,8 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the fee
 ///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
-///      Pause is enforced via `VaultWrapperPausable` on the deposit/mint path only (withdrawals
-///      stay open); fee and access logic remain no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`,
+///      Pause is enforced on the deposit/mint path only (withdrawals stay open); fee and access
+///      logic remain no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`,
 ///      `_routeFee`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow,
 ///      with bodies landing in follow-up tickets. Inflation-attack protection relies on the
 ///      ERC-4626 virtual-share offset.
@@ -47,7 +46,6 @@ contract LiFiVaultWrapper is
     // slot as NOT_ENTERED, so the guard is correct from the first call even though the
     // implementation's constructor never ran in the proxy's storage context.
     ReentrancyGuard,
-    VaultWrapperPausable,
     ILiFiVaultWrapper
 {
     using MetadataReaderLib for address;
@@ -63,6 +61,10 @@ contract LiFiVaultWrapper is
     address public factory;
     /// @notice The integrator's fee share (bps), snapshotted from the factory at deploy.
     uint16 public integratorShareBps;
+    /// @notice Whether the integrator (the per-vault `owner`) has paused this clone's deposits.
+    ///         The factory-level global circuit breaker is a separate source read live in
+    ///         `depositsPaused`; both gate inflows, neither gates exits.
+    bool public paused;
     /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
     bytes public initData;
@@ -94,8 +96,15 @@ contract LiFiVaultWrapper is
         uint16 integratorShareBps
     );
 
+    /// @notice Emitted when the integrator toggles this clone's deposit pause.
+    /// @param paused The new pause state.
+    /// @param by The owner that toggled it.
+    event PauseSet(bool paused, address indexed by);
+
     /// Errors ///
 
+    /// @notice Thrown when a deposit is attempted while any pause source is engaged.
+    error DepositsPaused();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
@@ -330,7 +339,7 @@ contract LiFiVaultWrapper is
         uint256 assets,
         uint256 shares
     ) internal override {
-        _requireDepositsNotPaused();
+        if (depositsPaused()) revert DepositsPaused();
 
         super._deposit(caller, receiver, assets, shares);
 
@@ -390,30 +399,35 @@ contract LiFiVaultWrapper is
         result = abi.decode(ret, (uint256));
     }
 
-    /// Pause authority hooks (VaultWrapperPausable) ///
+    /// Pause controls ///
 
-    /// @inheritdoc VaultWrapperPausable
-    /// @dev The per-vault controller is the integrator's pause authority.
-    function _integratorPauseAuthority()
-        internal
-        view
-        override
-        returns (address)
-    {
-        return owner();
+    /// @notice Pause this clone's deposits. Withdrawals stay open. Integrator-only (`owner`).
+    function pause() external onlyOwner {
+        paused = true;
+
+        emit PauseSet(true, msg.sender);
     }
 
-    /// @inheritdoc VaultWrapperPausable
-    /// @dev The factory-level global circuit breaker, read live on every deposit.
-    function _globalPaused() internal view override returns (bool) {
-        return ILiFiVaultWrapperFactory(factory).globalPaused();
+    /// @notice Resume this clone's deposits. Integrator-only (`owner`). Does not affect the
+    ///         factory-level global circuit breaker.
+    function unpause() external onlyOwner {
+        paused = false;
+
+        emit PauseSet(false, msg.sender);
+    }
+
+    /// @notice Whether deposits are currently halted by any pause source.
+    /// @return True if this clone is paused by the integrator or the factory-level global
+    ///         circuit breaker is engaged.
+    function depositsPaused() public view returns (bool) {
+        return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
     }
 
     /// Fee / access blueprint ///
     /// @dev The functions below are no-op seams wired into the entrypoints and the
     ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
     ///      (fees, access control); today they preserve current behaviour. Pause is already
-    ///      enforced via `VaultWrapperPausable` on the deposit/mint path.
+    ///      enforced inline on the deposit/mint path (the `_deposit` chokepoint).
 
     /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
     ///      the vault's access mode on the caller and accrues time/yield-based fees so the
