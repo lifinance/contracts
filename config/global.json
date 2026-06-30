@@ -2,7 +2,7 @@
   "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
   "feeCollectorOwner": "0xC06ebbefD94032B85424D51906e2A335EFAe264B",
   "withdrawWallet": "0x08647cc950813966142A416D40C382e2c5DB73bB",
-  "pauserWallet": "0xf9D8BA34a51750cf6abFA9De7aCD37f182081A4A",
+  "pauserWallet": "0xd38743b48d26743C0Ec6898d699394FBc94657Ee",
   "deployerWallet": "0xb05E63458A51731Aad26BdcD6E12246330E6095F",
   "devWallet": "0xcf1A07FEd1b622B1d9B80D86DE06D8c43E4fBDdB",
   "backendSigner": {
@@ -13,7 +13,7 @@
     "refundWallet": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
     "feeCollectorOwner": "TTWhPqF38FneGGN1smz3m5LsNJQYx4mgQy",
     "withdrawWallet": "TAjanapKoCE1ky3L4Qzndnv3YAUmDwCLdZ",
-    "pauserWallet": "TYkGtJi7iQqMvtyeMhhHUCiGfsRExKnAkd",
+    "pauserWallet": "TVFfcsjqBskfjZV6gMSsqqgvtUG4cz5Jjx",
     "deployerWallet": "TS3kzzu8BVn6q5T8pskbhpEftZzk2nUkps",
     "devWallet": "TUrG4T2iYVzHikATZtoGoy1xPxdyKA8M8J"
   },
