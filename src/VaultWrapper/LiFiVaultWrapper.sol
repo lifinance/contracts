@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
+
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -7,6 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
+import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 
@@ -24,10 +26,10 @@ import { FeeConfig } from "./LiFiVaultWrapperTypes.sol";
 ///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the fee
 ///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
-///      Fee, access, and pause logic are
-///      scaffolded as no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`, `_routeFee`,
-///      `_requireNotPaused`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw
-///      flow; their bodies land in follow-up tickets. Inflation-attack protection relies on the
+///      Pause is enforced on the deposit/mint path only (withdrawals stay open); fee and access
+///      logic remain no-op seams (`_accrueFees`, `_entryFee`/`_exitFee`,
+///      `_routeFee`, `_checkAccess`) wired into the entrypoints and the deposit/withdraw flow,
+///      with bodies landing in follow-up tickets. Inflation-attack protection relies on the
 ///      ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
@@ -59,6 +61,11 @@ contract LiFiVaultWrapper is
     address public factory;
     /// @notice The integrator's fee share (bps), snapshotted from the factory at deploy.
     uint16 public integratorShareBps;
+    /// @notice Whether this clone's deposits are paused. Either the per-vault `owner`
+    ///         (integrator) or the factory's emergency pauser can toggle it, in either
+    ///         direction. The factory-level global circuit breaker is a separate source read
+    ///         live in `depositsPaused`; both gate inflows, neither gates exits.
+    bool public paused;
     /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
     bytes public initData;
@@ -90,8 +97,18 @@ contract LiFiVaultWrapper is
         uint16 integratorShareBps
     );
 
+    /// @notice Emitted when the integrator toggles this clone's deposit pause.
+    /// @param paused The new pause state.
+    /// @param by The pause authority (owner or factory emergency pauser) that toggled it.
+    event PauseSet(bool paused, address indexed by);
+
     /// Errors ///
 
+    /// @notice Thrown when a deposit is attempted while any pause source is engaged.
+    error DepositsPaused();
+    /// @notice Thrown when a pause toggle is attempted by neither the owner nor the
+    ///         factory's emergency pauser.
+    error NotPauseAuthority();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
@@ -104,6 +121,19 @@ contract LiFiVaultWrapper is
     error AdapterDepositShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
     error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
+
+    /// Modifiers ///
+
+    /// @dev The owner (integrator) and the factory's emergency pauser can each toggle the
+    ///      clone pause in either direction; there is a single shared `paused` flag, so one
+    ///      authority can lift the other's pause.
+    modifier onlyPauseAuthority() {
+        if (
+            msg.sender != owner() &&
+            msg.sender != ILiFiVaultWrapperFactory(factory).emergencyPauser()
+        ) revert NotPauseAuthority();
+        _;
+    }
 
     /// Initialization ///
 
@@ -215,23 +245,51 @@ contract LiFiVaultWrapper is
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
+    ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers).
     function deposit(
         uint256 assets,
         address receiver
     ) public override nonReentrant returns (uint256) {
+        if (depositsPaused()) revert DepositsPaused();
         _beforeOperation();
 
         return super.deposit(assets, receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
+    ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers).
     function mint(
         uint256 shares,
         address receiver
     ) public override nonReentrant returns (uint256) {
+        if (depositsPaused()) revert DepositsPaused();
         _beforeOperation();
 
         return super.mint(shares, receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
+    ///      as closed to deposits and do not build deposits that would revert.
+    function maxDeposit(
+        address receiver
+    ) public view override returns (uint256) {
+        if (depositsPaused()) return 0;
+
+        return super.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
+    ///      as closed to mints and do not build mints that would revert.
+    function maxMint(address receiver) public view override returns (uint256) {
+        if (depositsPaused()) return 0;
+
+        return super.maxMint(receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -292,12 +350,12 @@ contract LiFiVaultWrapper is
 
     /// Internal ///
 
-    /// @dev Skims the entry fee, then forwards the remaining deposited assets into the yield
+    /// @dev Skims the entry fee and forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
     ///      shares. Reverts if the adapter reports the source accepted less than the net
     ///      deposit (a short-accepting source), so assets cannot be left stranded in the
     ///      wrapper against already-minted shares. With fees unimplemented the skim is zero,
-    ///      so the full amount is invested.
+    ///      so the full amount is invested. Pause is enforced upstream in `deposit`/`mint`.
     function _deposit(
         address caller,
         address receiver,
@@ -362,25 +420,44 @@ contract LiFiVaultWrapper is
         result = abi.decode(ret, (uint256));
     }
 
-    /// Fee / pause / access blueprint ///
-    /// @dev The functions below are no-op seams wired into the entrypoints and the
-    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
-    ///      (fees, access control, global pause); today they preserve current behaviour.
+    /// Pause controls ///
 
-    /// @dev Guards every state-changing entrypoint: rejects when the circuit breaker is
-    ///      engaged, enforces the vault's access mode on the caller, and accrues
-    ///      time/yield-based fees so the operation transacts at the post-accrual share price.
-    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
-    function _beforeOperation() private view {
-        _requireNotPaused();
-        _checkAccess(msg.sender);
-        _accrueFees();
+    /// @notice Pause this clone's deposits. Withdrawals stay open. Callable by the owner
+    ///         (integrator) or the factory's emergency pauser.
+    function pause() external onlyPauseAuthority {
+        paused = true;
+        emit PauseSet(true, msg.sender);
     }
 
-    /// @dev Reverts when the factory-level global pause / circuit breaker is engaged.
-    ///      Widens to `view` once it reads the factory pause state.
-    function _requireNotPaused() private pure {
-        // TODO(pause): revert if the factory circuit breaker is active.
+    /// @notice Resume this clone's deposits. Callable by the owner (integrator) or the
+    ///         factory's emergency pauser. Does not affect the factory-level global circuit
+    ///         breaker.
+    function unpause() external onlyPauseAuthority {
+        paused = false;
+        emit PauseSet(false, msg.sender);
+    }
+
+    /// @notice Whether deposits are currently halted by any pause source.
+    /// @return True if this clone is paused by the integrator or the factory-level global
+    ///         circuit breaker is engaged.
+    function depositsPaused() public view returns (bool) {
+        return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
+    }
+
+    /// Fee / access blueprint ///
+    /// @dev The functions below are no-op seams wired into the entrypoints and the
+    ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
+    ///      (fees, access control); today they preserve current behaviour. Pause is already
+    ///      enforced on the deposit/mint entrypoints.
+
+    /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
+    ///      the vault's access mode on the caller and accrues time/yield-based fees so the
+    ///      operation transacts at the post-accrual share price. Deposit-pause is enforced
+    ///      separately and only on inflows, so this is shared by exits too.
+    ///      Widens to a state-mutating function once `_accrueFees` is implemented.
+    function _beforeOperation() private view {
+        _checkAccess(msg.sender);
+        _accrueFees();
     }
 
     /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.

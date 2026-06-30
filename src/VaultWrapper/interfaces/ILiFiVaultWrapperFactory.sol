@@ -5,9 +5,20 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
-/// @notice Events and errors emitted by the LI.FI vault wrapper factory.
+/// @notice Events, errors, and the live state a vault wrapper reads back from its factory.
 /// @custom:version 1.0.0
 interface ILiFiVaultWrapperFactory {
+    /// Views ///
+
+    /// @notice Whether deposits are globally halted across every vault wrapper.
+    /// @return True when the global circuit breaker is engaged.
+    function globalPaused() external view returns (bool);
+
+    /// @notice The address authorized to pause/unpause individual instances and the global
+    ///         circuit breaker.
+    /// @return The current emergency pauser.
+    function emergencyPauser() external view returns (address);
+
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.
