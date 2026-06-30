@@ -263,6 +263,31 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         assertEq(USER_SENDER.balance, senderNativeBefore - nativeFee);
     }
 
+    function test_OfferAssetIsPulledFromTheDiamond() public {
+        // EXSC-547 core question: the station pulls the offer asset from msg.sender, which is the
+        // Diamond when our facet calls submitOrder. We custody in the Diamond (depositAsset) and
+        // approve the station, so funds flow USER -> Diamond -> Station. No submitOrderWithPermit /
+        // on-behalf call is needed: Paxos confirmed msg.sender is always the payer, and quote.receiver
+        // (validated == bridgeData.receiver) directs the output to the end user.
+        uint256 userBefore = usdc.balanceOf(USER_SENDER);
+
+        // sanity: the station can only pull if the Diamond approved it
+        assertEq(usdc.allowance(address(diamond), address(transitStation)), 0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        // user funded the Diamond; the Diamond (as msg.sender) paid the station; nothing stranded
+        assertEq(usdc.balanceOf(USER_SENDER), userBefore - defaultUSDCAmount);
+        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+        // receiver (end user) is taken from the signed quote, not from msg.sender
+        assertEq(validPaxosData.quote.receiver, bridgeData.receiver);
+        assertTrue(bridgeData.receiver != address(diamond));
+    }
+
     function testRevert_WhenNativeFeeUnderpaid() public {
         // station demands more than the facet will forward -> submitOrder reverts,
         // proving the facet forwards exactly nativeFee (and the order is not silently accepted)
