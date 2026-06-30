@@ -144,6 +144,10 @@
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -162,8 +166,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0x16Fab807095Ecd8DB8aEC7ff84f0e659043dF9f1",
-      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6",
-      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
+      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
     }
   }
 }

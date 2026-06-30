@@ -152,6 +152,10 @@
       "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -170,8 +174,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
-      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
+      "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
   }
 }
