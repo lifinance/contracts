@@ -124,9 +124,13 @@ contract LiFiVaultWrapperTest is Test {
     );
 
     /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
-    ///      wrapper reads the global circuit breaker back from here.
+    ///      wrapper reads the global circuit breaker and emergency pauser back from here.
     function globalPaused() external pure returns (bool) {
         return false;
+    }
+
+    function emergencyPauser() external pure returns (address) {
+        return address(0);
     }
 
     function setUp() public {

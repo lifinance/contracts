@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -101,10 +100,9 @@ contract VaultWrapperPauseTest is Test {
         _expectMintReverts(alice, DEPOSIT);
     }
 
-    // The _deposit chokepoint guard is the construction backstop: a zero-amount deposit
-    // passes OZ's `assets > maxDeposit` check (0 > 0 is false) yet still reverts here,
-    // proving no inflow can slip through while paused even if it clears the max check.
-    function testRevert_ZeroDepositHitsChokepointGuardWhilePaused() public {
+    // The entrypoint guard is unconditional: even a zero-amount deposit (which would clear
+    // OZ's `assets > maxDeposit` check, 0 > 0 being false) reverts DepositsPaused.
+    function testRevert_ZeroDepositRejectedWhilePaused() public {
         vm.prank(vaultAdmin);
         wrapper.pause();
 
@@ -276,16 +274,14 @@ contract VaultWrapperPauseTest is Test {
         vm.stopPrank();
     }
 
-    // A paused vault reports maxDeposit/maxMint == 0, so OZ's deposit/mint reject a
-    // non-zero amount with ERC4626ExceededMax* before reaching the _deposit guard.
+    // A paused vault rejects deposits/mints at the entrypoint with the named DepositsPaused
+    // error (maxDeposit/maxMint also report 0 for EIP-4626 consumers; see their own tests).
     function _expectDepositReverts(address _from, uint256 _amount) internal {
         asset.mint(_from, _amount);
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectPartialRevert(
-            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
-        );
+        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.deposit(_amount, _from);
         vm.stopPrank();
@@ -296,9 +292,7 @@ contract VaultWrapperPauseTest is Test {
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectPartialRevert(
-            ERC4626Upgradeable.ERC4626ExceededMaxMint.selector
-        );
+        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.mint(_amount, _from);
         vm.stopPrank();
@@ -360,9 +354,7 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(instance), DEPOSIT);
 
-        vm.expectPartialRevert(
-            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
-        );
+        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
 
         instance.deposit(DEPOSIT, alice);
         vm.stopPrank();
@@ -393,9 +385,7 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(frozen), DEPOSIT);
 
-        vm.expectPartialRevert(
-            ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector
-        );
+        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
 
         frozen.deposit(DEPOSIT, alice);
         vm.stopPrank();
