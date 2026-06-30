@@ -1,0 +1,116 @@
+# - Verify Floor-Compiler Build
+# - Compiles the deployed contracts (src/) with the minimum pragma compiler (solc 0.8.17)
+#   via the `solc_floor` profile in foundry.toml (every src/ file pins `pragma solidity ^0.8.17`).
+# - Catches PRs that introduce syntax/features requiring a newer solc: the default profile
+#   pins 0.8.29, so such code would otherwise compile green and silently raise the real floor.
+# - Path-gated: the build job runs only when files that can affect src/ compilation change.
+#   A `solc-floor-build-required` aggregator job always reports a final status so this
+#   workflow can stay a required check on `main` branch protection even when the build
+#   job is skipped (see `.agents/rules/500-github-actions.md`).
+# - The profile skips test/script (they trip the legacy pipeline's "stack too deep", a
+#   codegen limit unrelated to floor-feature detection) and matches production codegen.
+
+name: Verify Floor-Compiler Build
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main # makes sure that it runs on main branch after a PR has been merged
+
+  # Allows to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read # required to fetch repository contents
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits) so stale
+# floor-builds stop burning runner minutes. Keyed per workflow, per event type, and per PR
+# (falling back to ref). Scoping by event_name keeps unrelated branches and event types in
+# separate groups; cancel-in-progress is scoped to pull_request events so post-merge runs on
+# main and manual workflow_dispatch runs always complete and keep their signal.
+concurrency:
+  group: solc-floor-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  detect-changes:
+    # Determines whether files that can influence compilation were touched.
+    # Always runs (cheap) so the downstream solc-floor-build-required can report status.
+    runs-on: ubuntu-latest
+    outputs:
+      forge: ${{ steps.filter.outputs.forge }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            forge:
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'src/**'
+              - 'lib/**'
+              - '.gitmodules'
+              - '.github/workflows/solc-floor-build.yml'
+
+  solc-floor-build:
+    # Runs on PRs (once out of draft) and on push/workflow_dispatch.
+    # For non-PR events `github.event.pull_request` is null, so the draft check
+    # is gated behind an event-name guard to avoid `null == false` evaluating to
+    # false and silently skipping the job after a merge to main.
+    needs: detect-changes
+    if: >-
+      ${{
+        needs.detect-changes.outputs.forge == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Install forge Dependencies
+        run: forge install
+
+      - name: Build src/ with floor compiler (solc 0.8.17)
+        # The `solc_floor` profile pins solc 0.8.17 + evm london and skips test/script.
+        # A failure here means a src/ contract uses a language/syntax feature newer than
+        # the `^0.8.17` floor it declares.
+        env:
+          FOUNDRY_PROFILE: solc_floor
+        run: forge build
+
+  solc-floor-build-required:
+    # Aggregator job for branch protection. Reports green when the heavy job
+    # either succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `solc-floor-build`) as the required status check on `main`.
+    needs: [detect-changes, solc-floor-build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `solc-floor-build`
+        # would be `skipped` due to the dependency failure — and treating that
+        # `skipped` as success would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          build_result="${{ needs.solc-floor-build.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31msolc-floor-build-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$build_result" == "success" || "$build_result" == "skipped" ]]; then
+            echo -e "\033[32msolc-floor-build-required OK (solc-floor-build=$build_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31msolc-floor-build-required FAILED (solc-floor-build=$build_result)\033[0m" >&2
+          exit 1
