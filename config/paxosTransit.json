@@ -1,0 +1,7 @@
+{
+  "_comment": "Paxos Transit station (source-chain) addresses. Pending from Paxos (~2026-07-01, see EXSC-547); fill real addresses before deploying. offerAsset is ERC20-only; submitOrder carries msg.value for the LayerZero messaging fee.",
+  "transitStation": {
+    "mainnet": "0x0000000000000000000000000000000000000000",
+    "outlaw": "0x0000000000000000000000000000000000000000"
+  }
+}
