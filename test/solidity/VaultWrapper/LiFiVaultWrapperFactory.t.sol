@@ -5,10 +5,10 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
-import { MockVaultWrapper } from "lifi/VaultWrapper/mocks/MockVaultWrapper.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
-import { LibClone } from "solady/utils/LibClone.sol";
+import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
@@ -17,7 +17,7 @@ import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
-    MockVaultWrapper internal impl;
+    LiFiVaultWrapper internal impl;
     ERC4626Adapter internal adapter;
 
     address internal owner = makeAddr("owner");
@@ -31,8 +31,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal assetToken = makeAddr("asset");
 
     function setUp() public virtual {
-        impl = new MockVaultWrapper();
-        beacon = new UpgradeableBeacon(address(impl));
+        impl = new LiFiVaultWrapper();
+        beacon = new UpgradeableBeacon(address(impl), address(this));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
             owner,
@@ -203,10 +203,16 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.defaultIntegratorShareBps(), 3000);
     }
 
-    function test_SetDefaultSplitRevertsAbove100Percent() public {
+    function test_SetDefaultSplitRevertsAtFullIntegratorShare() public {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
-        factory.setDefaultSplit(10001);
+        factory.setDefaultSplit(10000);
+    }
+
+    function test_OwnerSetsDefaultSplitJustBelowFull() public {
+        vm.prank(owner);
+        factory.setDefaultSplit(9999);
+        assertEq(factory.defaultIntegratorShareBps(), 9999);
     }
 
     function test_OwnerSetsLifiFeeRecipient() public {
@@ -342,12 +348,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(instance, predicted);
         assertTrue(factory.isInstance(instance));
 
-        MockVaultWrapper w = MockVaultWrapper(instance);
+        LiFiVaultWrapper w = LiFiVaultWrapper(instance);
         assertTrue(w.initialized());
         assertEq(w.asset(), assetToken);
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
-        assertEq(w.vaultWrapperAdmin(), vaultAdmin);
+        assertEq(w.owner(), vaultAdmin);
+        assertEq(w.factory(), address(factory));
         assertEq(w.integratorShareBps(), 8000); // factory default
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
@@ -400,7 +407,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.integratorShareBps = 5000;
         vm.prank(onboarder);
         address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).integratorShareBps(), 5000);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 5000);
     }
 
     function test_SelfDeployerSetsSplit() public {
@@ -411,7 +418,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.integratorShareBps = 7000;
         vm.prank(deployer);
         address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).integratorShareBps(), 7000);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 7000);
     }
 
     function test_SelfDeployerCannotSetSplitAboveDefault() public {
@@ -433,13 +440,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.integratorShareBps = 9000; // above the 8000 default; LI.FI's call to make
         vm.prank(onboarder);
         address instance = factory.deploy(p);
-        assertEq(MockVaultWrapper(instance).integratorShareBps(), 9000);
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 9000);
     }
 
-    function test_DeployRevertsOnSplitAbove100Percent() public {
+    function test_DeployRevertsAtFullIntegratorShare() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 10001;
+        p.integratorShareBps = 10000;
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
         factory.deploy(p);
@@ -574,7 +581,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(onboarder);
         factory.deploy(p);
         vm.prank(onboarder);
-        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        vm.expectRevert(Errors.FailedDeployment.selector);
         factory.deploy(p);
     }
 
