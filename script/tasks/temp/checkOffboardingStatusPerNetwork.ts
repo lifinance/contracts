@@ -9,7 +9,6 @@ import {
 
 import 'dotenv/config'
 
-import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import {
   EnvironmentEnum,
@@ -22,15 +21,19 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/utils'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
-// Old addresses (hardcoded - these should be removed)
-const EDMUND_SAFE_SIGNER =
-  '0x1cEC0F949D04b809ab26c1001C9aEf75b1a28eeb' as Address
-const OLD_DEPLOYER = '0x11F1022cA6AdEF6400e5677528a80d49a069C00c' as Address
+// Outgoing addresses for this offboarding cycle (should be removed)
+const MICHAL_SAFE_SIGNER =
+  '0xb4557653119Dd49F7433fef4aE270665Be2cbf4F' as Address
+const OLD_DEPLOYER = '0xb137683965ADC470f140df1a1D05B0D25C14E269' as Address
 const OLD_SC_DEV_WALLET =
   '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62' as Address
 
-// New addresses (from global.json)
-const NEW_DEPLOYER = getAddress(globalConfig.deployerWallet) as Address
+// Incoming addresses for this offboarding cycle.
+// NEW_DEPLOYER is hardcoded rather than read from global.json: deployerWallet
+// still points at the outgoing deployer until the owner-swap proposals execute.
+const NEW_DEPLOYER = getAddress(
+  '0xb05E63458A51731Aad26BdcD6E12246330E6095F'
+) as Address
 const NEW_SC_DEV_WALLET = getAddress(DEV_WALLET_ADDRESS) as Address
 
 // Function selector for batchSetContractSelectorWhitelist
@@ -55,7 +58,7 @@ const OWNERSHIP_FACET_ABI = parseAbi([
 
 interface INetworkStatus {
   network: string
-  edmundRemoved: boolean | null
+  michalRemoved: boolean | null
   oldDeployerRemoved: boolean | null
   newDeployerAdded: boolean | null
   oldDeployerCancellerRemoved: boolean | null
@@ -73,7 +76,7 @@ async function checkNetworkStatus(
 ): Promise<INetworkStatus> {
   const status: INetworkStatus = {
     network: networkName,
-    edmundRemoved: null,
+    michalRemoved: null,
     oldDeployerRemoved: null,
     newDeployerAdded: null,
     oldDeployerCancellerRemoved: null,
@@ -126,8 +129,8 @@ async function checkNetworkStatus(
       })) as Address[]
 
       const ownersLower = owners.map((o) => o.toLowerCase())
-      status.edmundRemoved = !ownersLower.includes(
-        EDMUND_SAFE_SIGNER.toLowerCase()
+      status.michalRemoved = !ownersLower.includes(
+        MICHAL_SAFE_SIGNER.toLowerCase()
       )
       status.oldDeployerRemoved = !ownersLower.includes(
         OLD_DEPLOYER.toLowerCase()
@@ -331,7 +334,7 @@ function printTable(results: INetworkStatus[]) {
   console.log('\n')
   console.log('Legend:')
   console.log(
-    `  1: Edmund safe signer (${EDMUND_SAFE_SIGNER}) removed from multisig`
+    `  1: Michał safe signer (${MICHAL_SAFE_SIGNER}) removed from multisig`
   )
   console.log(`  2: Old deployer (${OLD_DEPLOYER}) removed from multisig`)
   console.log(`  3: New deployer (${NEW_DEPLOYER}) added to multisig`)
@@ -390,7 +393,7 @@ function printTable(results: INetworkStatus[]) {
     const isExcluded = result.excluded === true
     const baseChecksDone =
       !isExcluded &&
-      result.edmundRemoved === true &&
+      result.michalRemoved === true &&
       result.oldDeployerRemoved === true &&
       result.newDeployerAdded === true &&
       result.oldDeployerCancellerRemoved === true &&
@@ -411,8 +414,8 @@ function printTable(results: INetworkStatus[]) {
     const networkName = result.network.padEnd(networkWidth)
 
     // Center-align the status emojis in their columns (emojis have visual width 2)
-    const edmund = centerInColumn(
-      formatStatus(result.edmundRemoved, isExcluded),
+    const michal = centerInColumn(
+      formatStatus(result.michalRemoved, isExcluded),
       colWidth,
       !isExcluded
     )
@@ -455,7 +458,7 @@ function printTable(results: INetworkStatus[]) {
     // Print network name in color - only one line per network
     const line = `${getColorCode(networkColor)}${networkName}${getColorCode(
       'reset'
-    )} | ${edmund} | ${oldDep} | ${newDep} | ${oldCan} | ${newCan} | ${oldWht} | ${newWht} | ${stagingOwnership}`
+    )} | ${michal} | ${oldDep} | ${newDep} | ${oldCan} | ${newCan} | ${oldWht} | ${newWht} | ${stagingOwnership}`
 
     console.log(line)
   }
@@ -464,7 +467,7 @@ function printTable(results: INetworkStatus[]) {
   const allDoneCount = results.filter((r) => {
     if (r.excluded === true) return false // Don't count excluded networks
     const baseChecksDone =
-      r.edmundRemoved === true &&
+      r.michalRemoved === true &&
       r.oldDeployerRemoved === true &&
       r.newDeployerAdded === true &&
       r.oldDeployerCancellerRemoved === true &&
@@ -485,7 +488,7 @@ function printTable(results: INetworkStatus[]) {
   console.log('')
   console.log('Legend:')
   console.log(
-    `  1: Edmund safe signer (${EDMUND_SAFE_SIGNER}) removed from multisig`
+    `  1: Michał safe signer (${MICHAL_SAFE_SIGNER}) removed from multisig`
   )
   console.log(`  2: Old deployer (${OLD_DEPLOYER}) removed from multisig`)
   console.log(`  3: New deployer (${NEW_DEPLOYER}) added to multisig`)
@@ -586,7 +589,7 @@ async function main() {
   for (const excludedNetwork of excludedNetworks) {
     results.push({
       network: excludedNetwork,
-      edmundRemoved: null,
+      michalRemoved: null,
       oldDeployerRemoved: null,
       newDeployerAdded: null,
       oldDeployerCancellerRemoved: null,
@@ -606,7 +609,7 @@ async function main() {
       if (!networkConfig) {
         const errorStatus: INetworkStatus = {
           network: networkName,
-          edmundRemoved: null,
+          michalRemoved: null,
           oldDeployerRemoved: null,
           newDeployerAdded: null,
           oldDeployerCancellerRemoved: null,
@@ -641,7 +644,7 @@ async function main() {
 
     // For non-excluded networks, sort by completion status, then by name
     const aBaseDone =
-      a.edmundRemoved === true &&
+      a.michalRemoved === true &&
       a.oldDeployerRemoved === true &&
       a.newDeployerAdded === true &&
       a.oldDeployerCancellerRemoved === true &&
@@ -654,7 +657,7 @@ async function main() {
     const aDone = aBaseDone && aStagingDone
 
     const bBaseDone =
-      b.edmundRemoved === true &&
+      b.michalRemoved === true &&
       b.oldDeployerRemoved === true &&
       b.newDeployerAdded === true &&
       b.oldDeployerCancellerRemoved === true &&
