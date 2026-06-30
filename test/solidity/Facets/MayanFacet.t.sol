@@ -709,16 +709,22 @@ contract MayanFacetTest is TestBaseFacet {
         // non-deposit payloadType is treated as an ordinary order: _parseHypercoreReceiver yields
         // 0 (gates fail) and _parseReceiver falls through to standard destAddr parsing, so the
         // user's destAddr is what gets validated against bridgeData.receiver.
+        // destAddr and customPayload carry distinct receivers so the assertion proves the fall-
+        // through returned destAddr, not the customPayload that a still-firing HyperCore path
+        // would surface.
+        address destReceiver = HYPERCORE_RECEIVER;
+        address payloadReceiver = address(0xBEEF);
+
         ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
-            HYPERCORE_RECEIVER
+            destReceiver
         );
-        order.destAddr = bytes32(uint256(uint160(HYPERCORE_RECEIVER)));
+        order.destAddr = bytes32(uint256(uint160(destReceiver)));
         order.payloadType = 1;
         order.destChainId = 1;
 
         bytes memory protocolData = _encodeHypercoreOrderWithSig(
             order,
-            _hypercoreCustomPayload(HYPERCORE_RECEIVER)
+            _hypercoreCustomPayload(payloadReceiver)
         );
 
         assertEq(
@@ -729,7 +735,7 @@ contract MayanFacetTest is TestBaseFacet {
                     )
                 )
             ),
-            HYPERCORE_RECEIVER,
+            destReceiver,
             "non-deposit order under hypercore chainId falls through to destAddr validation"
         );
     }
