@@ -21,12 +21,18 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { getRPCEnvVarName } from '../../utils/utils'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
-// Outgoing addresses for this offboarding cycle (should be removed)
-const MICHAL_SAFE_SIGNER =
-  '0xb4557653119Dd49F7433fef4aE270665Be2cbf4F' as Address
-const OLD_DEPLOYER = '0xb137683965ADC470f140df1a1D05B0D25C14E269' as Address
-const OLD_SC_DEV_WALLET =
-  '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62' as Address
+// Outgoing addresses for this offboarding cycle (should be removed).
+// Wrapped in getAddress() so a mistyped literal fails fast at module load
+// rather than silently flipping an owner/role check.
+const MICHAL_SAFE_SIGNER = getAddress(
+  '0xb4557653119Dd49F7433fef4aE270665Be2cbf4F'
+) as Address
+const OLD_DEPLOYER = getAddress(
+  '0xb137683965ADC470f140df1a1D05B0D25C14E269'
+) as Address
+const OLD_SC_DEV_WALLET = getAddress(
+  '0x2b2c52B1b63c4BfC7F1A310a1734641D8e34De62'
+) as Address
 
 // Incoming addresses for this offboarding cycle.
 // NEW_DEPLOYER is hardcoded rather than read from global.json: deployerWallet
