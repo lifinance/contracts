@@ -28,10 +28,11 @@ jobs:
 
       - name: Check if event requires audit label protection
         id: check_event
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           # Define the events that we care about (labeled/unlabeled)
           EVENT_TYPES=("labeled" "unlabeled")
-          EVENT_ACTION="${{ github.event.action }}"
 
           # Check if the action is one of the events we care about
           if [[ " ${EVENT_TYPES[*]} " =~ " $EVENT_ACTION " ]]; then
@@ -44,15 +45,17 @@ jobs:
 
       - name: Check for authorized actor
         if: env.CONTINUE == 'true'
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
 
           ##### Only allow the specific bot to manipulate audit labels
-          if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then
+          if [[ "$GITHUB_ACTOR" == "lifi-action-bot" ]]; then
             echo -e "\033[32mAction triggered by lifi-action-bot. No further checks required.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 0
           fi
-          echo "This action was triggered by: ${{ github.actor }}"
+          echo "This action was triggered by: $GITHUB_ACTOR"
 
       - name: Protect Audit Labels
         if: env.CONTINUE == 'true'
