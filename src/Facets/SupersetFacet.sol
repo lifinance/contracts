@@ -13,6 +13,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { DeadlineExpired, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
@@ -278,9 +279,11 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // never tightens the floor. `validateBridgeData` already rejects
         // `_bridgeData.minAmount == 0`, so `preSwapMinAmount > 0`.
         SupersetData memory modifiedSupersetData = _supersetData;
-        modifiedSupersetData.amountOutMin =
-            (_supersetData.amountOutMin * _bridgeData.minAmount) /
-            preSwapMinAmount;
+        modifiedSupersetData.amountOutMin = FixedPointMathLib.mulDiv(
+            _supersetData.amountOutMin,
+            _bridgeData.minAmount,
+            preSwapMinAmount
+        );
 
         _startBridge(_bridgeData, modifiedSupersetData);
     }
