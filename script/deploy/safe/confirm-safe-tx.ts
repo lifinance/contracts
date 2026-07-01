@@ -885,7 +885,7 @@ const main = defineCommand({
 
     // Create ledger connection once if using ledger
     let ledgerResult: ILedgerAccountResult | undefined
-    if (useLedger)
+    if (useLedger) {
       try {
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
@@ -895,6 +895,20 @@ const main = defineCommand({
         consola.error(`Failed to connect to Ledger: ${errorMsg}`)
         throw error
       }
+
+      // Signing a Safe EIP-712 payload on a Ledger Flex needs blind signing on.
+      // Fail fast with enable instructions rather than dying mid-sign.
+      const { checkBlindSigningEnabled, closeLedgerConnection } = await import(
+        './ledger'
+      )
+      if (
+        ledgerResult &&
+        !(await checkBlindSigningEnabled(ledgerResult.transport))
+      ) {
+        await closeLedgerConnection(ledgerResult.transport)
+        process.exit(1)
+      }
+    }
 
     try {
       // Connect to MongoDB early to use it for network detection
