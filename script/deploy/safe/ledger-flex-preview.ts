@@ -16,14 +16,45 @@
 
 import { getAddress, type Hex } from 'viem'
 
-// Layout constants derived from a Ledger Flex screenshot of the `data` field.
-// The Flex screen is identical across all company devices, so these are fixed.
-const ROW_WIDTH = 18 // hex chars per data row; the `0x` prefix counts inside row 1
-// Approximate chars shown before the "…" (~6 proportional-font rows). The exact
-// count varies with content; tune against a device if the cutoff looks off.
-const DATA_PREVIEW_CHARS = 104
 const INNER = 20 // interior width of each screen box (between the borders)
 const PANEL_GAP = 2 // spaces between panels in the row
+// On-device the `data` preview shows ~6 proportional-font rows before the "…".
+const DATA_PREVIEW_ROWS = 6
+// A row can never exceed the panel interior (1-space left margin + text).
+const MAX_ROW_CHARS = INNER - 1
+
+// The Flex wraps hex by PIXEL width, not character count. These are per-glyph
+// advance widths measured on-device (digit normalized to 1.0, EXSC-580 spike);
+// greedy-filling to LINE_BUDGET reproduces the device's `data` (uppercase) line
+// breaks exactly. Lowercase a-f are a best-guess — the device force-uppercases
+// the `data` field, so they can't be measured there, which makes ADDRESS-field
+// wrapping approximate (see LEDGER_FLEX_WRAP_NOTE). Unlisted glyphs fall back to 1.
+const LINE_BUDGET = 18.8 // digit-widths per line (measured range [18.60, 19.0))
+const GLYPH_WIDTH: Record<string, number> = {
+  '0': 1,
+  '1': 1,
+  '2': 1,
+  '3': 1,
+  '4': 1,
+  '5': 1,
+  '6': 1,
+  '7': 1,
+  '8': 1,
+  '9': 1,
+  x: 1,
+  A: 1.12,
+  B: 1.06,
+  C: 1.12,
+  D: 1.12,
+  E: 1.0,
+  F: 0.95,
+  a: 0.9,
+  b: 0.95,
+  c: 0.9,
+  d: 0.95,
+  e: 0.9,
+  f: 0.85,
+}
 
 // Bold green, to flag on the terminal side that "Accept risk and continue" is
 // the action the operator must tap to proceed (the device renders it plainly).
@@ -34,11 +65,12 @@ const RED = `${ESC}[31m`
 const RESET = `${ESC}[0m`
 
 /**
- * Red caveat to print BELOW the filmstrip: on-device the Flex wraps hex in a
- * proportional font, so line breaks won't match the fixed-width panel. The
- * character sequence still matches 1:1.
+ * Caveat to print BELOW the filmstrip. Rows are wrapped with measured on-device
+ * glyph widths, so the `data` field's breaks match the Ledger; address fields
+ * use best-guess lowercase widths and may wrap a character or two differently.
+ * Either way the character SEQUENCE matches 1:1 — the authoritative check.
  */
-export const LEDGER_FLEX_WRAP_NOTE = `${RED}⚠ Address and data lines may wrap at different points on your Ledger (proportional font) — compare the character sequence, not the line breaks.${RESET}`
+export const LEDGER_FLEX_WRAP_NOTE = `${RED}⚠ Address lines may wrap slightly differently on your Ledger — compare the character sequence, not the line breaks.${RESET}`
 
 interface IFlexLine {
   text: string
@@ -67,10 +99,30 @@ export interface ILedgerFlexFlowParams {
   data: Hex
 }
 
-/** Fixed-width chunk a string into rows of `width` characters. */
-const chunk = (s: string, width: number): string[] => {
+/**
+ * Greedy-fill a hex string into on-device rows by cumulative glyph width,
+ * mirroring how the Flex wraps proportional-font hex. Capped at MAX_ROW_CHARS
+ * so a row can never overflow the ASCII panel.
+ */
+export const pixelWrap = (display: string): string[] => {
   const rows: string[] = []
-  for (let i = 0; i < s.length; i += width) rows.push(s.slice(i, i + width))
+  let cur = ''
+  let width = 0
+  for (const ch of display) {
+    const w = GLYPH_WIDTH[ch] ?? 1
+    if (
+      cur !== '' &&
+      (width + w > LINE_BUDGET || cur.length >= MAX_ROW_CHARS)
+    ) {
+      rows.push(cur)
+      cur = ch
+      width = w
+    } else {
+      cur += ch
+      width += w
+    }
+  }
+  if (cur !== '') rows.push(cur)
   return rows.length ? rows : ['']
 }
 
@@ -101,25 +153,31 @@ const wrapWords = (text: string, width: number): string[] => {
 
 /**
  * Rows for the Ledger `data` field: uppercased hex with a lowercase `0x`
- * prefix, wrapped to `ROW_WIDTH`, truncated with a trailing "…" past the
- * device's preview budget.
+ * prefix, wrapped by on-device glyph width, truncated with a trailing "…" past
+ * the device's ~6-row preview budget.
  */
 const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
   const display = `0x${data.replace(/^0x/i, '').toUpperCase()}`
-  const truncated = display.length > DATA_PREVIEW_CHARS
-  const shown = truncated ? display.slice(0, DATA_PREVIEW_CHARS) : display
-  const rows = chunk(shown, ROW_WIDTH)
-  if (truncated) rows[rows.length - 1] += '…'
+  const all = pixelWrap(display)
+  const truncated = all.length > DATA_PREVIEW_ROWS
+  const rows = truncated ? all.slice(0, DATA_PREVIEW_ROWS) : all
+  if (truncated) {
+    const last = rows.length - 1
+    // leave room for the ellipsis so it can't overflow the panel
+    const lastRow = rows[last] ?? ''
+    rows[last] =
+      (lastRow.length >= MAX_ROW_CHARS
+        ? lastRow.slice(0, MAX_ROW_CHARS - 1)
+        : lastRow) + '…'
+  }
   return { rows, truncated }
 }
 
 // Address fields render EIP-55 checksummed (mixed case), unlike the uppercased
-// `data` field. Wrapping is a fixed ROW_WIDTH approximation: the Flex renders
-// the hex in a PROPORTIONAL font (digits narrower than A–F), so a letter-dense
-// line wraps a character or two earlier on-device. The character sequence still
-// matches 1:1 — only the line breaks differ (compare the chars, not the layout).
+// `data` field. Wrapped by the same on-device glyph widths; lowercase a-f use
+// best-guess widths, so address breaks are approximate (LEDGER_FLEX_WRAP_NOTE).
 const addressRows = (addr: string): string[] =>
-  chunk(getAddress(addr as Hex), ROW_WIDTH)
+  pixelWrap(getAddress(addr as Hex))
 
 const navFooter = (page: number): string => {
   const left = 'Reject'

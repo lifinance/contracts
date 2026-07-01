@@ -5,12 +5,13 @@ import { type Hex } from 'viem'
 import {
   joinPanelsHorizontally,
   LEDGER_FLEX_WRAP_NOTE,
+  pixelWrap,
   renderLedgerFlexFlow,
   type ILedgerFlexFlowParams,
 } from './ledger-flex-preview'
 
-// swapOwner(address,address,address) calldata whose Ledger Flex `data` preview
-// was captured on-device; the first 104 chars drive the truncated preview.
+// swapOwner(address,address,address) calldata; its uppercased `data` wraps to
+// more than the 6-row preview budget, so the filmstrip truncates it with "…".
 const SWAP_OWNER: Hex = ('0xe318b52b' +
   '000000000000000000000000' +
   '9740a8e0197689d144b19da4bdc9ef65fef11cda' +
@@ -53,24 +54,25 @@ describe('renderLedgerFlexFlow', () => {
     expect(joined).not.toContain('nonce')
   })
 
-  it('shows the domain values', () => {
+  it('shows the domain values (checksummed, glyph-width wrapped)', () => {
     expect(joined).toContain('34443')
-    // checksummed, wrapped at 18 chars (0x + 16)
-    expect(joined).toContain('0x031f25F640E0530a')
+    // lowercase glyphs are narrower on-device, so 17 hex + 0x fit on row 1
+    expect(joined).toContain('0x031f25F640E0530a5')
     expect(joined).not.toContain('0x031f25f640e0530a') // not the lowercase form
   })
 
   it('shows the SafeTx to (checksummed) and value', () => {
     expect(joined).toContain('0x57C676A0417233A0')
+    expect(joined).toContain('Bd3Cbbb705Db158D42')
     expect(joined).toContain('value')
   })
 
-  it('reproduces the exact uppercased data rows with truncation', () => {
+  it('reproduces the glyph-width-wrapped data rows with truncation', () => {
     expect(joined).toContain('0xE318B52B00000000')
     expect(joined).toContain('000000000000000097')
     expect(joined).toContain('40A8E0197689D144B1')
     expect(joined).toContain('DA0000000000000000')
-    expect(joined).toContain('00000000B13768…')
+    expect(joined).toContain('00000000B137680000…')
     expect(joined).toContain('( More )')
   })
 
@@ -112,6 +114,41 @@ describe('LEDGER_FLEX_WRAP_NOTE', () => {
     expect(LEDGER_FLEX_WRAP_NOTE).toContain(`${ESC}[31m`)
     expect(LEDGER_FLEX_WRAP_NOTE).toContain(`${ESC}[0m`)
     expect(stripAnsi(LEDGER_FLEX_WRAP_NOTE).toLowerCase()).toContain('wrap')
+  })
+})
+
+describe('pixelWrap (on-device glyph-width wrapping)', () => {
+  // Per-line character counts captured on a physical Ledger Flex (EXSC-580):
+  // each target is `0x` + 60 hex; line 1 includes the `0x` prefix. The pixel
+  // model must reproduce these exactly for the uppercase `data` field.
+  const CALIBRATION: [string, string, number[]][] = [
+    ['digits', '0'.repeat(60), [18, 18, 18, 8]],
+    ['A', 'A'.repeat(60), [16, 16, 16, 14]],
+    ['B', 'B'.repeat(60), [17, 17, 17, 11]],
+    ['C', 'C'.repeat(60), [16, 16, 16, 14]],
+    ['D', 'D'.repeat(60), [16, 16, 16, 14]],
+    ['E', 'E'.repeat(60), [18, 18, 18, 8]],
+    ['F', 'F'.repeat(60), [19, 19, 19, 5]],
+    ['0-9 ruler', '0123456789'.repeat(6), [18, 18, 18, 8]],
+    ['0A alternating', '0A'.repeat(30), [17, 17, 17, 11]],
+    [
+      'realistic mixed',
+      'E318B52B9740A8E0197689D144B19DA4BDC9EF65FEF11CDA000000000000',
+      [18, 18, 18, 8],
+    ],
+  ]
+
+  for (const [name, hex, counts] of CALIBRATION)
+    it(`reproduces device line breaks: ${name}`, () => {
+      const rows = pixelWrap(`0x${hex.toUpperCase()}`)
+      expect(rows.map((r) => r.length)).toEqual(counts)
+      expect(rows.join('')).toBe(`0x${hex.toUpperCase()}`)
+    })
+
+  it('never emits a row wider than the panel interior', () => {
+    // an all-lowercase-f run is the narrowest glyph → most chars/line
+    const rows = pixelWrap(`0x${'f'.repeat(120)}`)
+    expect(Math.max(...rows.map((r) => r.length))).toBeLessThanOrEqual(19)
   })
 })
 
