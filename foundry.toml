@@ -26,6 +26,24 @@ runs = 256
 [profile.ci.fuzz]
 runs = 32
 
+# Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
+# Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that
+# introduces a language/syntax feature requiring a newer solc fails CI instead of slipping
+# through: the default profile pins 0.8.29, which would hide any 0.8.18+ feature use.
+# Run locally to reproduce CI: FOUNDRY_PROFILE=solc_floor forge build
+# - solc 0.8.17 is the floor every src/ file pins via `pragma solidity ^0.8.17`.
+# - evm_version `london` is the newest EVM 0.8.17 supports (cancun needs solc >= 0.8.24);
+#   forge clamps it anyway, but pinning it keeps the profile self-documenting.
+# - optimizer settings are inherited from [profile.default] so the check matches the
+#   codegen that production actually ships (no via_ir).
+# - test/script are skipped: only deployed contracts must honor the floor, and those
+#   suites trip the legacy pipeline's "stack too deep" (a codegen limit, not a
+#   floor-incompatibility signal) which would mask the real check.
+[profile.solc_floor]
+solc_version = '0.8.17'
+evm_version = 'london'
+skip = ['test/**', 'script/**']
+
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
