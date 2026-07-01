@@ -97,6 +97,19 @@ excess native and source-side swap leftovers, so it is validated to be non-zero
 on every path. Backends must supply a non-zero `refundAddress` for both hub and
 spoke origins; `options` may be left as `""` for hub-origin quotes.
 
+## Input Token Binding
+
+The pool manager pulls the token resolved from the first OmniToken ID packed in
+`SupersetData.path` (via its `OmniTokenAddressBook`), not the `sendingAssetId`
+the facet deposits and approves. The facet binds the two: it resolves
+`getAddressForOmniToken(path.firstOmniToken)` on the pool manager and requires
+it to equal `bridgeData.sendingAssetId`, reverting `InvalidConfig` otherwise.
+This prevents a mismatched path from directing the pool manager to pull a
+different token from the diamond via a stale allowance. On
+`swapAndStartBridgeTokensViaSuperset` the facet additionally requires the last
+swap's `receivingAssetId` to equal `sendingAssetId`, so the bridged token, the
+swap output, and the pool-pulled token are all the same asset.
+
 ## `fallbackEoA` Constraint
 
 Superset requires the fallback recipient to be a pure EOA

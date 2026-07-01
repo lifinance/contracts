@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISupersetSpokePoolManager } from "../Interfaces/ISupersetSpokePoolManager.sol";
 import { ISupersetHubPoolManager } from "../Interfaces/ISupersetHubPoolManager.sol";
+import { ISupersetPoolManager } from "../Interfaces/ISupersetPoolManager.sol";
+import { IOmniTokenAddressBook } from "../Interfaces/IOmniTokenAddressBook.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
@@ -27,6 +29,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Chain ID of Arbitrum One (the Superset hub).
     uint256 internal constant ARBITRUM_CHAIN_ID = 42161;
+
+    /// @dev Byte width of a single packed OmniToken ID at the head of `SupersetData.path`.
+    uint256 internal constant OMNI_TOKEN_ID_BYTES = 32;
 
     /// @dev Diamond storage namespace.
     bytes32 internal constant NAMESPACE =
@@ -199,7 +204,11 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
-        _validateSupersetData(_bridgeData.destinationChainId, _supersetData);
+        _validateSupersetData(
+            _bridgeData.destinationChainId,
+            _bridgeData.sendingAssetId,
+            _supersetData
+        );
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
@@ -227,7 +236,21 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateSupersetData(_bridgeData.destinationChainId, _supersetData);
+        // The bridged token is the last swap's output, so it must match
+        // `sendingAssetId` (the token the pool manager is approved to pull).
+        if (
+            _swapData.length > 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InvalidConfig();
+        }
+
+        _validateSupersetData(
+            _bridgeData.destinationChainId,
+            _bridgeData.sendingAssetId,
+            _supersetData
+        );
 
         uint256 preSwapMinAmount = _bridgeData.minAmount;
         _bridgeData.minAmount = _depositAndSwap(
@@ -258,12 +281,31 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev Validates Superset-specific data. Native source asset is rejected
     ///      by the `noNativeAsset` modifier on each external entry.
     /// @param _destinationChainId LI.FI chain ID of the destination spoke.
+    /// @param _sendingAssetId Token the facet deposits and approves to the pool manager.
     /// @param _supersetData Superset-specific parameters
     function _validateSupersetData(
         uint256 _destinationChainId,
+        address _sendingAssetId,
         SupersetData calldata _supersetData
     ) internal view {
-        if (_supersetData.path.length == 0) {
+        if (_supersetData.path.length < OMNI_TOKEN_ID_BYTES) {
+            revert InvalidConfig();
+        }
+
+        // The pool manager pulls the token resolved from the path's first
+        // OmniToken ID, not the approved `sendingAssetId`. Bind them so a
+        // mismatched path cannot drain a different (e.g. stuck) token from the
+        // diamond via a stale allowance.
+        uint256 firstOmniTokenId = abi.decode(
+            _supersetData.path[:OMNI_TOKEN_ID_BYTES],
+            (uint256)
+        );
+        IOmniTokenAddressBook addressBook = ISupersetPoolManager(POOL_MANAGER)
+            .getOmniTokenAddressBook();
+        if (
+            addressBook.getAddressForOmniToken(firstOmniTokenId) !=
+            _sendingAssetId
+        ) {
             revert InvalidConfig();
         }
 

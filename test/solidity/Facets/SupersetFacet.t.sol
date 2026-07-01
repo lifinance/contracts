@@ -6,14 +6,53 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
 import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
+import { ISupersetPoolManager } from "lifi/Interfaces/ISupersetPoolManager.sol";
+import { IOmniTokenAddressBook } from "lifi/Interfaces/IOmniTokenAddressBook.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 import { DeadlineExpired, InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
+/// @dev Resolves OmniToken IDs to local tokens. Defaults to interpreting the ID
+///      as a raw EVM address (mirrors the mocks' test-only path shortcut); an
+///      explicit mapping can be set via `setToken`.
+contract MockOmniTokenAddressBook is IOmniTokenAddressBook {
+    mapping(uint256 => address) private tokens;
+
+    function setToken(uint256 _id, address _token) external {
+        tokens[_id] = _token;
+    }
+
+    function getAddressForOmniToken(
+        uint256 _id
+    ) external view override returns (address) {
+        address token = tokens[_id];
+
+        return token == address(0) ? address(uint160(_id)) : token;
+    }
+}
+
 /// @dev Hub-side mock — 7-arg ABI matching Superset's `HubPoolManager`.
-contract MockSupersetHubPoolManager is ISupersetHubPoolManager {
+contract MockSupersetHubPoolManager is
+    ISupersetHubPoolManager,
+    ISupersetPoolManager
+{
     using SafeERC20 for IERC20;
+
+    IOmniTokenAddressBook public immutable ADDRESS_BOOK;
+
+    constructor() {
+        ADDRESS_BOOK = new MockOmniTokenAddressBook();
+    }
+
+    function getOmniTokenAddressBook()
+        external
+        view
+        override
+        returns (IOmniTokenAddressBook)
+    {
+        return ADDRESS_BOOK;
+    }
 
     struct Call {
         bytes path;
@@ -369,6 +408,48 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_PathTokenMismatch() public {
+        vm.startPrank(USER_SENDER);
+        // Path's first omni-id (2 = USDC on the live Base book) does not match
+        // the deposited/approved sendingAssetId (DAI).
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        bridgeData.minAmount = 100 * 10 ** dai.decimals();
+        dai.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function testRevert_SwapOutputTokenMismatch() public {
+        vm.startPrank(USER_SENDER);
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.hasSourceSwaps = true;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: ADDRESS_UNISWAP,
+                approveTo: ADDRESS_UNISWAP,
+                sendingAssetId: ADDRESS_USDC,
+                // Last swap output (DAI) differs from the bridged token (USDC).
+                receivingAssetId: ADDRESS_DAI,
+                fromAmount: defaultUSDCAmount,
+                callData: "",
+                requiresDeposit: true
+            })
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.swapAndStartBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, swapData, validSupersetData);
+    }
+
     function testRevert_FallbackEoAIsContract() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
@@ -598,6 +679,17 @@ contract SupersetFacetTest is TestBaseFacet {
                 spokeData.toEid,
                 spokeData.options
             )
+        );
+
+        // The path reuses omni-id 2 (USDC on the live book) but this scenario
+        // bridges DAI, so stub the resolver to bind id 2 → DAI for the facet's
+        // path-token check.
+        MockOmniTokenAddressBook book = new MockOmniTokenAddressBook();
+        book.setToken(2, ADDRESS_DAI);
+        vm.mockCall(
+            SPOKE_POOL_MANAGER,
+            abi.encodeCall(ISupersetPoolManager.getOmniTokenAddressBook, ()),
+            abi.encode(address(book))
         );
 
         vm.mockCall(SPOKE_POOL_MANAGER, expectedCalldata, "");
