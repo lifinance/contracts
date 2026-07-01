@@ -4,6 +4,7 @@ import { type Hex } from 'viem'
 
 import {
   joinPanelsHorizontally,
+  LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
   type ILedgerFlexFlowParams,
 } from './ledger-flex-preview'
@@ -103,6 +104,14 @@ describe('renderLedgerFlexFlow', () => {
     expect(j).toContain('0xA9059CBB')
     expect(j).not.toContain('( More )')
     expect(j).not.toContain('…')
+  })
+})
+
+describe('LEDGER_FLEX_WRAP_NOTE', () => {
+  it('is a red caveat about proportional-font line breaks', () => {
+    expect(LEDGER_FLEX_WRAP_NOTE).toContain(`${ESC}[31m`)
+    expect(LEDGER_FLEX_WRAP_NOTE).toContain(`${ESC}[0m`)
+    expect(stripAnsi(LEDGER_FLEX_WRAP_NOTE).toLowerCase()).toContain('wrap')
   })
 })
 

@@ -22,7 +22,10 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
-import { renderLedgerFlexFlow } from './ledger-flex-preview'
+import {
+  LEDGER_FLEX_WRAP_NOTE,
+  renderLedgerFlexFlow,
+} from './ledger-flex-preview'
 import {
   reconcileAllSubmittedSafeTxs,
   reconcileCoverageKey,
@@ -527,9 +530,9 @@ const processTxs = async (
         })
         consola.info(
           [
-            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant).',
-            'Hex fields (addresses and data) wrap in a proportional font on the device, so line breaks may differ — compare the character sequence, not the layout.',
+            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
             ...filmstrip,
+            LEDGER_FLEX_WRAP_NOTE,
           ].join('\n')
         )
       } catch (error) {

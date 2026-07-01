@@ -30,7 +30,15 @@ const PANEL_GAP = 2 // spaces between panels in the row
 const ESC = String.fromCharCode(27)
 const HIGHLIGHT = `${ESC}[1;32m`
 const BOLD = `${ESC}[1m`
+const RED = `${ESC}[31m`
 const RESET = `${ESC}[0m`
+
+/**
+ * Red caveat to print BELOW the filmstrip: on-device the Flex wraps hex in a
+ * proportional font, so line breaks won't match the fixed-width panel. The
+ * character sequence still matches 1:1.
+ */
+export const LEDGER_FLEX_WRAP_NOTE = `${RED}⚠ Address and data lines may wrap at different points on your Ledger (proportional font) — compare the character sequence, not the line breaks.${RESET}`
 
 interface IFlexLine {
   text: string
