@@ -7,8 +7,10 @@ EVM **staging** `LiFiDiamond` and pays staging gas. Production diamonds are owne
 `LiFiTimelockController` and are **out of scope** here — this runbook only rotates staging
 ownership and moves the outgoing wallet's funds to the incoming wallet.
 
-Tron is out of scope (EVM only). If a Tron staging diamond needs rotating, handle it separately
-with the Tron tooling and update `tronWallets.devWallet` in `config/global.json`.
+Tron has **no staging diamond**, so there is no ownership to transfer there — only the outgoing
+Tron wallet's funds are moved to the new wallet, and `tronWallets.devWallet` is updated. The new
+Tron address is the base58 encoding of the same key as the EVM wallet (Tron reuses the secp256k1
+keypair); derive it with `bun troncast address to-base58 <evmAddress>`.
 
 ## Ownership model
 
@@ -29,6 +31,7 @@ from the incoming owner (a read-only `eth_call`).
 | `script/tasks/rotateStagingDiamondOwner.ts` | `check` / `transfer` / `confirm` across all EVM staging diamonds |
 | `script/tasks/moveNativeFundsToNewWallet.ts` | Sweep native gas from the outgoing wallet to the incoming wallet |
 | `script/tasks/moveTokenFundsToNewWallet.ts` | Sweep a curated list of ERC20 balances |
+| `script/tasks/moveTronFundsToNewWallet.ts` | Sweep native TRX on Tron (no staging diamond there) |
 
 The incoming owner defaults to the address derived from `PRIVATE_KEY_NEW`; the outgoing owner /
 signer defaults to `PRIVATE_KEY`. Both are overridable via flags.
@@ -82,6 +85,22 @@ bunx tsx ./script/tasks/rotateStagingDiamondOwner.ts check
 If a `confirm` fails on a chain for insufficient gas (the outgoing wallet held too little native
 to leave the incoming wallet enough), top up that chain and re-run `confirm --execute` — it is
 idempotent and only acts on diamonds still pending.
+
+### Tron
+
+Tron has no staging diamond, so only move funds and update config:
+
+```bash
+# Native TRX (dry-run first, then --execute). Reserve covers the fee + one-time
+# ~1.1 TRX account-activation charge when the destination is a fresh Tron account.
+bunx tsx ./script/tasks/moveTronFundsToNewWallet.ts <newTronBase58>
+bunx tsx ./script/tasks/moveTronFundsToNewWallet.ts <newTronBase58> --execute
+
+# TRC20 (only if held), per token:
+bun troncast send <token> "transfer(address,uint256)" <newTronBase58>,<amount> --private-key <outgoingKey>
+```
+
+Then set `config/global.json` → `tronWallets.devWallet` to the new Tron address.
 
 ## Verifying the new state
 
