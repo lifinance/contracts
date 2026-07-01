@@ -408,6 +408,19 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_ZeroAmountOutMin() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        validSupersetData.amountOutMin = 0;
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
     function testRevert_PathTokenMismatch() public {
         vm.startPrank(USER_SENDER);
         // Path's first omni-id (2 = USDC on the live Base book) does not match

@@ -110,6 +110,14 @@ different token from the diamond via a stale allowance. On
 swap's `receivingAssetId` to equal `sendingAssetId`, so the bridged token, the
 swap output, and the pool-pulled token are all the same asset.
 
+## Slippage Floor
+
+`SupersetData.amountOutMin` is forwarded to the pool manager as the AMM's
+`amountOutMinimum`, whose only slippage check is `amountOut >= amountOutMinimum`.
+The facet rejects `amountOutMin == 0` (`InvalidConfig`): a zero floor makes that
+check vacuous, disabling destination-side slippage protection and exposing the
+bridged amount to unbounded MEV. A zero floor is never a legitimate quote.
+
 ## `fallbackEoA` Constraint
 
 Superset requires the fallback recipient to be a pure EOA

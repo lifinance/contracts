@@ -77,6 +77,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ///        backend says "if the swap returns its 100 USDC floor, accept ≥ 99 USDC on
     ///        the destination." If the swap actually returns 110 USDC, the facet uses
     ///        `99 * 110 / 100 = 108.9 USDC` instead of the static 99 from the quote.
+    ///        Must be non-zero: a zero floor disables the pool manager's slippage
+    ///        check and is never a legitimate quote.
     /// @param refundAddress Source-chain address that receives source-side excess native
     ///        and any swap leftovers from `swapAndStartBridgeTokensViaSuperset`. On a
     ///        spoke origin Superset also forwards `amountIn` here if the hub rejects the
@@ -289,6 +291,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         SupersetData calldata _supersetData
     ) internal view {
         if (_supersetData.path.length < OMNI_TOKEN_ID_BYTES) {
+            revert InvalidConfig();
+        }
+
+        // A zero destination floor is never a valid quote: it disables the
+        // pool manager's `amountOut >= amountOutMinimum` slippage check and
+        // exposes the bridged amount to unbounded MEV.
+        if (_supersetData.amountOutMin == 0) {
             revert InvalidConfig();
         }
 
