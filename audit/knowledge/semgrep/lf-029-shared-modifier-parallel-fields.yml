@@ -1,0 +1,67 @@
+rules:
+  - id: lf-029-shared-modifier-parallel-fields
+    languages: [solidity]
+    severity: WARNING
+    message: |
+      Bridge-specific data struct exposes a `.receiver` field that is read
+      WITHOUT an accompanying `require(bridgeData.receiver ==
+      <specific>.receiver, …)` check. Validation modifiers on the parent
+      `ILiFi.BridgeData` only cover the parent receiver; the bridge-specific
+      receiver — the one actually used by the external protocol — slips
+      through unchecked.
+
+      Either validate equality between the two receivers, or wrap the
+      specific receiver in `LibUtil.validateReceiver(...)` / equivalent.
+
+      Source: LF-029 (audit20241205 — DeBridgeDlnFacet) and recurrences.
+      Pattern: read of `<bridgeSpecificData>.receiver`, where the receiver
+      is NOT `_bridgeData.receiver` and NOT inside an EIP-712 hash binding.
+    metadata:
+      lf-id: LF-029
+      audit: audit20241205
+      cwe: CWE-20
+      # EXP-484 tuning notes:
+      # - Pre-tune rule matched ANY `$SD.receiver` read, including:
+      #     (a) `_bridgeData.receiver` (the canonical parent — NOT the bug)
+      #     (b) `_bridgeData.receiver` inside `keccak256(abi.encode(...))`
+      #         for EIP-712 signature binding (good practice — NOT a bug)
+      #     (c) `if (_bridgeData.receiver == NON_EVM_ADDRESS)` code-path
+      #         branches (also not a bug)
+      # - Fix:
+      #     1. metavariable-regex on $SD excludes `_bridgeData` itself
+      #        (only flag BRIDGE-SPECIFIC structs).
+      #     2. pattern-not-inside excludes reads inside keccak256(...)
+      #        (EIP-712 signature binding only — not a standalone abi.encode
+      #        exclusion, which would also hide receivers packed into bridge
+      #        calldata, the LF-029 bug class).
+      #     3. pattern-not excludes equality checks (== / !=) — those are
+      #        the GUARD, not the bug.
+    patterns:
+      - pattern: $SD.receiver
+      - metavariable-regex:
+          metavariable: $SD
+          # Exclude the canonical _bridgeData. The rule is about
+          # BRIDGE-SPECIFIC data structs (e.g., _dlnData, _acrossData,
+          # _polymerData) whose .receiver may diverge from the parent's.
+          regex: '^(?!_bridgeData$).+'
+      # Signature-binding is safe — the receiver is being hashed, not used as
+      # a destination. `keccak256(...)` covers the EIP-712 case
+      # (keccak256(abi.encode(...))). Deliberately NOT a standalone
+      # abi.encode(...) / abi.encodePacked(...) exclusion: that also suppressed
+      # unchecked receivers packed into bridge calldata / protocol payloads —
+      # exactly the LF-029 bug class.
+      - pattern-not-inside: keccak256(...)
+      # Equality/inequality checks ARE the guard, not the bug. Use
+      # pattern-not-inside (not pattern-not) so we exclude any read of
+      # $SD.receiver that appears INSIDE an equality comparison, even
+      # when the comparison is wrapped in `if (...)` / `require(...)`.
+      - pattern-not-inside: $A == $B
+      - pattern-not-inside: $A != $B
+      - pattern-not-inside: $SD.receiver = $X;
+      # LI.FI canonical guard pattern.
+      - pattern-not-inside: LibUtil.validateReceiver(...)
+    paths:
+      include:
+        - "src/Facets/**"
+      exclude:
+        - "**/*.t.sol"

@@ -1,0 +1,53 @@
+rules:
+  - id: lf-046-bytes32-nonevm-receiver
+    languages: [solidity]
+    severity: ERROR
+    message: |
+      Receiver field for a non-EVM destination is declared as fixed-size
+      `bytes32`. Non-EVM addresses (Bitcoin tb1q…, encoded Cosmos addresses,
+      …) routinely exceed 32 bytes after hex encoding; bytes32 silently
+      truncates, sending funds to an invalid address.
+
+      Use variable-length `bytes` for non-EVM receivers. If a fixed size is
+      truly required, validate the maximum encoded length explicitly.
+
+      Source: LF-046 (audit20250305 — ChainflipFacet).
+      Pattern: bytes32-typed field whose name clearly indicates a non-EVM
+      receiver.
+    metadata:
+      lf-id: LF-046
+      audit: audit20250305
+      cwe: CWE-130
+      # EXP-484 tuning notes:
+      # - Solana addresses ARE 32-byte ed25519 pubkeys; bytes32 is correct
+      #   for Solana per protocol spec. The "solana" keyword is NOT in the
+      #   regex below — adding it caused false positives on PolymerCCTPFacet
+      #   (audit20260423) where Solana receivers safely use bytes32.
+      # - "destination" was previously in the regex but matched things like
+      #   UNRESTRICTED_DESTINATION_CALLER (a bytes32(0) sentinel, not a
+      #   receiver). Removed.
+      # - The previous rule had `metavariable-regex` as a SIBLING of
+      #   `pattern-either` at the top level, which semgrep silently ignored.
+      #   This version wraps both in `patterns:` (AND-conjunction) so the
+      #   regex constraint actually applies.
+    patterns:
+      - pattern-either:
+          - pattern: bytes32 $RECEIVER;
+          - pattern: bytes32 $RECEIVER = $X;
+      # Variable name must clearly indicate non-EVM receiver: a non-EVM
+      # qualifier (nonEvm, btc, bitcoin) adjacent to "receiver". Tightened in
+      # EXP-484 from the earlier over-broad regex that matched
+      # typehashes/namespaces/IDs. metavariable-regex is start-anchored
+      # (re.match), so the leading `.*` is required — without it, prefixed
+      # names like `_nonEvmReceiver`, `bridgeBtcReceiver`, or
+      # `dstBitcoinReceiver` would silently not match.
+      - metavariable-regex:
+          metavariable: $RECEIVER
+          regex: '(?i).*((non[_]?evm|btc|bitcoin)[a-z_]*receiver|receiver[a-z_]*(non[_]?evm|btc|bitcoin))'
+    paths:
+      include:
+        - "src/Facets/**"
+        - "src/Periphery/**"
+        - "src/Interfaces/**"
+      exclude:
+        - "**/*.t.sol"
