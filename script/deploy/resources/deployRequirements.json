@@ -487,6 +487,15 @@
       }
     }
   },
+  "SupersetFacet": {
+    "configData": {
+      "_poolManager": {
+        "configFileName": "superset.json",
+        "keyInConfigFile": ".poolManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "SynapseBridgeFacet": {
     "configData": {
       "_synapseRouter": {
