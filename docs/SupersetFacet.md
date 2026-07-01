@@ -174,7 +174,9 @@ execution — actual swap output = 3,100 USDC (positive slippage):
   bridge tolerance: 31 / 3,100 ≈ 1.0%   ← same as backend's intent
 ```
 
-If the swap had instead landed exactly at the floor (2,970), `modifiedAmountOutMin` would equal `amountOutMin` (no scaling). At any output above the floor, both numerator (`amountOutMin × actualPostSwap`) and denominator (`preSwapMinAmount`) grow together so the percentage tolerance is preserved.
+If the swap had instead landed exactly at the floor (2,970), `modifiedAmountOutMin` would equal `amountOutMin` (no scaling). At any output above the floor, both numerator (`amountOutMin × actualPostSwap`) and denominator (`preSwapMinAmount`) grow together, so the percentage tolerance is preserved **only if the destination pool is linear in the bridged amount**.
+
+Superset's virtual pools are concave (output is sub-linear in input due to price impact), so the linear scaling slightly over-states the achievable floor: the effective destination tolerance tightens as positive swap slippage grows. This is an intentionally conservative approximation — it never under-protects funds, but a large-positive-slippage bridge with a thin slippage budget can revert where a precise (concavity-aware) floor would have passed. We accept the stricter behavior rather than refund the positive slippage, since erring strict on a value-bearing path is the safer default and the over-statement is second-order for typical sub-percent positive slippage.
 
 Both fields are absolute token amounts in their native decimals — there is no multiplier or fraction to encode, and no cross-decimal overflow risk because the scaling ratio is computed from same-decimal pairs (source-token / source-token).
 
