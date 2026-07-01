@@ -22,6 +22,7 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
+import { renderLedgerFlexFlow } from './ledger-flex-preview'
 import {
   reconcileAllSubmittedSafeTxs,
   reconcileCoverageKey,
@@ -490,22 +491,50 @@ const processTxs = async (
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
-    consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[${nonceColor}m${
-      tx.safeTx.data.nonce
-    }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
-    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Operation:       \u001b[32m${
-      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-    }\u001b[0m
-    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
-    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
-    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
-      tx.threshold
-    }\u001b[0m required
-    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
+    const detailLines = [
+      'Safe Transaction Details:',
+      `    Nonce:           \u001b[${nonceColor}m${tx.safeTx.data.nonce}\u001b[0m${nonceWarning}`,
+      `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
+      `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
+      `    Operation:       \u001b[32m${
+        tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+      }\u001b[0m`,
+      `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
+      `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
+      `    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m`,
+      `    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${tx.threshold}\u001b[0m required`,
+      `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
+    ]
+
+    consola.info(detailLines.join('\n'))
+
+    // Ledger Flex signing filmstrip: reproduce the on-device screens the
+    // signer steps through so values can be compared screen-by-screen. EVM
+    // only — the Flex EIP-712 blind-signing flow does not apply to Tron.
+    // A display error must never block signing.
+    if (
+      !isTronNetworkKey(network) &&
+      tx.safeTx.data.data &&
+      tx.safeTx.data.data !== '0x'
+    )
+      try {
+        const filmstrip = renderLedgerFlexFlow({
+          chainId: chain.id,
+          verifyingContract: safeAddress,
+          to: tx.safeTx.data.to,
+          value: String(tx.safeTx.data.value),
+          data: tx.safeTx.data.data as Hex,
+        })
+        consola.info(
+          [
+            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant).',
+            'Hex fields (addresses and data) wrap in a proportional font on the device, so line breaks may differ — compare the character sequence, not the layout.',
+            ...filmstrip,
+          ].join('\n')
+        )
+      } catch (error) {
+        consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
+      }
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
