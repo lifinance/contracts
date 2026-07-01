@@ -180,13 +180,7 @@ describe('deletePendingProposals', () => {
   it('also refuses when signatures arrive as a BSON plain object (not a Map)', async () => {
     // regression guard: an object-shaped count must not read as 0 and slip past
     const col = createFakeCollection([
-      makeDoc(
-        '0xaaa',
-        new Map<string, ISafeSignature>([
-          ['0x1', sig('0x1')],
-          ['0x2', sig('0x2')],
-        ])
-      ),
+      makeDoc('0xaaa', { '0x1': sig('0x1'), '0x2': sig('0x2') }),
     ])
     const results = await deletePendingProposals(col, {
       network: NETWORK,

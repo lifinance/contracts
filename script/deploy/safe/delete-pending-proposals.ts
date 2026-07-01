@@ -37,9 +37,9 @@ export function countSignatures(sigField: unknown): number {
 export type DeleteOutcome = 'deleted' | 'skipped-signed' | 'not-found'
 
 export interface IDeleteResult {
-  hash: string
-  outcome: DeleteOutcome
-  sigCount: number
+  readonly hash: string
+  readonly outcome: DeleteOutcome
+  readonly sigCount: number
 }
 
 /**
