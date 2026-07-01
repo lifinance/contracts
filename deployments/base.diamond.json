@@ -45,7 +45,7 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
@@ -155,6 +155,10 @@
       },
       "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
         "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       }
     },

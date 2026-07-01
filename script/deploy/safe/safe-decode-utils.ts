@@ -542,10 +542,23 @@ const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
 const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
-const ABI_GRANT_ROLE = parseAbi(['function grantRole(bytes32,address)'])
+// grantRole / revokeRole / renounceRole share the (bytes32,address) shape
+const ABI_ACCESS_CONTROL_ROLE = parseAbi([
+  'function grantRole(bytes32,address)',
+  'function revokeRole(bytes32,address)',
+  'function renounceRole(bytes32,address)',
+])
+const ACCESS_CONTROL_ROLE_FUNCTIONS = new Set([
+  'grantRole',
+  'revokeRole',
+  'renounceRole',
+])
 
 // OpenZeppelin TimelockController / AccessControl role names (keccak256 of role string)
-const KNOWN_ROLE_NAMES: Record<string, string> = {}
+const KNOWN_ROLE_NAMES: Record<string, string> = {
+  // DEFAULT_ADMIN_ROLE is bytes32(0), not a keccak256 hash of its name
+  [`0x${'00'.repeat(32)}`]: 'DEFAULT_ADMIN_ROLE',
+}
 for (const name of [
   'TIMELOCK_ADMIN_ROLE',
   'PROPOSER_ROLE',
@@ -556,7 +569,7 @@ for (const name of [
   KNOWN_ROLE_NAMES[hash.toLowerCase()] = name
 }
 
-function getRoleName(roleHash: string): string {
+export function getRoleName(roleHash: string): string {
   const normalized = roleHash.startsWith('0x')
     ? roleHash.toLowerCase()
     : `0x${roleHash}`.toLowerCase()
@@ -675,13 +688,16 @@ function getAbiForKnownFunction(functionName: string): Abi | null {
     case 'registerPeripheryContract':
       return ABI_REGISTER_PERIPHERY_CONTRACT
     case 'grantRole':
-      return ABI_GRANT_ROLE
+    case 'revokeRole':
+    case 'renounceRole':
+      return ABI_ACCESS_CONTROL_ROLE
     default:
       return null
   }
 }
 
-async function formatGrantRole(
+export async function formatRoleChange(
+  functionName: string,
   args: readonly unknown[],
   network: string,
   indent?: string
@@ -695,7 +711,7 @@ async function formatGrantRole(
     typeof account === 'string' ? account : String(account ?? '')
   const roleName = getRoleName(roleStr)
   const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
-  consola.info(`${pre}Function: \u001b[34mgrantRole\u001b[0m`)
+  consola.info(`${pre}Function: \u001b[34m${functionName}\u001b[0m`)
   consola.info(`${pre}  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
   const accountDisplay = formatAddressForNetworkCliDisplay(network, accountStr)
   const accountSuffix = await getTargetSuffix(network, accountStr)
@@ -824,11 +840,12 @@ export async function formatDecodedTxDataForDisplay(
     }
 
     if (
-      decoded?.functionName === 'grantRole' &&
+      decoded?.functionName &&
+      ACCESS_CONTROL_ROLE_FUNCTIONS.has(decoded.functionName) &&
       decoded.args &&
       decoded.args.length >= 2
     ) {
-      await formatGrantRole(decoded.args, network, pre)
+      await formatRoleChange(decoded.functionName, decoded.args, network, pre)
       return
     }
 

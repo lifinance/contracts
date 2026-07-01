@@ -54,7 +54,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -138,7 +139,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -258,7 +260,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -441,7 +444,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -528,7 +532,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "PolymerCCTPFacet": "2.1.0"
       }
     }
   },
@@ -1141,7 +1146,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -1219,7 +1225,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -1814,7 +1821,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2129,7 +2137,8 @@
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.2.0",
         "LiFiIntentEscrowFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2221,7 +2230,8 @@
         "Permit2Proxy": "1.0.4",
         "GlacisFacet": "1.2.0",
         "LiFiIntentEscrowFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2339,7 +2349,8 @@
         "LiFiIntentEscrowFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
         "PolymerCCTPFacet": "2.0.1",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     },
     "staging": {
@@ -2467,7 +2478,8 @@
         "GasZipPeriphery": "1.0.2",
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2525,7 +2537,8 @@
         "FeeForwarder": "1.0.0",
         "GasZipPeriphery": "1.0.2",
         "Permit2Proxy": "1.0.4",
-        "PolymerCCTPFacet": "2.1.0"
+        "PolymerCCTPFacet": "2.1.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   }
