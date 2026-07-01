@@ -147,6 +147,11 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             uint256 chainId = _chainIdConfigs[i].chainId;
             uint32 lzEid = _chainIdConfigs[i].lzEid;
 
+            // `lzEid == 0` collides with the "unset" sentinel, so it would emit
+            // a successful event yet leave the chain unusable; `chainId == 0`
+            // can never match a real destination.
+            if (chainId == 0 || lzEid == 0) revert InvalidConfig();
+
             s.lzEids[chainId] = lzEid;
             // Per-entry event lets indexers subscribe to a single signal
             // (ChainIdToEidSet) for both initial seeding and later updates.
@@ -172,6 +177,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
             uint256 chainId = _chainIdConfigs[i].chainId;
             uint32 lzEid = _chainIdConfigs[i].lzEid;
+
+            if (chainId == 0 || lzEid == 0) revert InvalidConfig();
 
             s.lzEids[chainId] = lzEid;
             emit ChainIdToEidSet(chainId, lzEid);

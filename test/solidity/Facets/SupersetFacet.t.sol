@@ -792,6 +792,34 @@ contract SupersetFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_SetChainIdToEidZeroChainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({ chainId: 0, lzEid: 30364 });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToEidZeroEid() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 0 });
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.setChainIdToEid(configs);
+
+        vm.stopPrank();
+    }
+
     function testRevert_SetChainIdToEidBeforeInit() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
@@ -853,6 +881,32 @@ contract SupersetFacetTest is TestBaseFacet {
         supersetFacet.initSuperset(configs);
 
         vm.stopPrank();
+    }
+
+    function testRevert_InitSupersetZeroChainId() public {
+        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({ chainId: 0, lzEid: 30364 });
+
+        vm.prank(address(0));
+        vm.expectRevert(InvalidConfig.selector);
+
+        fresh.initSuperset(configs);
+    }
+
+    function testRevert_InitSupersetZeroEid() public {
+        TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
+
+        SupersetFacet.ChainIdConfig[]
+            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        configs[0] = SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 0 });
+
+        vm.prank(address(0));
+        vm.expectRevert(InvalidConfig.selector);
+
+        fresh.initSuperset(configs);
     }
 
     // --- Destination chain validation tests ---
