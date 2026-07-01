@@ -116,7 +116,7 @@ async function deploy(
   return receipt.contractAddress
 }
 
-async function main() {
+async function main(): Promise<void> {
   const anvilProc = startAnvil()
   try {
     await waitForAnvil()
