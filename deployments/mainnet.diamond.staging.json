@@ -113,7 +113,7 @@
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
       },
-      "0x65cdFdA46FBfA8C584C441F396cd71972aa2520c": {
+      "0x4DE53512F866ed4e5aa46806d63eB04C56FD04C3": {
         "Name": "PaxosTransitFacet",
         "Version": "1.0.0"
       }
