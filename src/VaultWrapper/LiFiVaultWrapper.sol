@@ -61,10 +61,10 @@ contract LiFiVaultWrapper is
     address public factory;
     /// @notice The integrator's fee share (bps), snapshotted from the factory at deploy.
     uint16 public integratorShareBps;
-    /// @notice Whether this clone's deposits are paused. Either the per-vault `owner`
-    ///         (integrator) or the factory's emergency pauser can toggle it, in either
-    ///         direction. The factory-level global circuit breaker is a separate source read
-    ///         live in `depositsPaused`; both gate inflows, neither gates exits.
+    /// @notice Whether this clone's deposits are paused by the integrator (the per-vault
+    ///         `owner`), the only authority over this flag. LI.FI has no per-instance pause;
+    ///         its lever is the factory-level global circuit breaker, a separate source read
+    ///         live in `depositsPaused`. Both gate inflows, neither gates exits.
     bool public paused;
     /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
@@ -99,16 +99,13 @@ contract LiFiVaultWrapper is
 
     /// @notice Emitted when the integrator toggles this clone's deposit pause.
     /// @param paused The new pause state.
-    /// @param by The pause authority (owner or factory emergency pauser) that toggled it.
+    /// @param by The owner (integrator) that toggled it.
     event PauseSet(bool paused, address indexed by);
 
     /// Errors ///
 
     /// @notice Thrown when a deposit is attempted while any pause source is engaged.
     error DepositsPaused();
-    /// @notice Thrown when a pause toggle is attempted by neither the owner nor the
-    ///         factory's emergency pauser.
-    error NotPauseAuthority();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
@@ -121,19 +118,6 @@ contract LiFiVaultWrapper is
     error AdapterDepositShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
     error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
-
-    /// Modifiers ///
-
-    /// @dev The owner (integrator) and the factory's emergency pauser can each toggle the
-    ///      clone pause in either direction; there is a single shared `paused` flag, so one
-    ///      authority can lift the other's pause.
-    modifier onlyPauseAuthority() {
-        if (
-            msg.sender != owner() &&
-            msg.sender != ILiFiVaultWrapperFactory(factory).emergencyPauser()
-        ) revert NotPauseAuthority();
-        _;
-    }
 
     /// Initialization ///
 
@@ -315,6 +299,10 @@ contract LiFiVaultWrapper is
     }
 
     /// ERC-4626 fee-adjusted previews ///
+    /// @dev Per EIP-4626, previews MUST NOT account for deposit limits, so `previewDeposit`/
+    ///      `previewMint` intentionally ignore pause and return a positive estimate even while
+    ///      `depositsPaused()` is true (when the matching `deposit`/`mint` would revert
+    ///      `DepositsPaused`). `maxDeposit`/`maxMint` are the pause-aware limit views.
 
     /// @inheritdoc ERC4626Upgradeable
     function previewDeposit(
@@ -422,17 +410,16 @@ contract LiFiVaultWrapper is
 
     /// Pause controls ///
 
-    /// @notice Pause this clone's deposits. Withdrawals stay open. Callable by the owner
-    ///         (integrator) or the factory's emergency pauser.
-    function pause() external onlyPauseAuthority {
+    /// @notice Pause this clone's deposits. Withdrawals stay open. Integrator-only (`owner`);
+    ///         LI.FI has no per-instance pause.
+    function pause() external onlyOwner {
         paused = true;
         emit PauseSet(true, msg.sender);
     }
 
-    /// @notice Resume this clone's deposits. Callable by the owner (integrator) or the
-    ///         factory's emergency pauser. Does not affect the factory-level global circuit
-    ///         breaker.
-    function unpause() external onlyPauseAuthority {
+    /// @notice Resume this clone's deposits. Integrator-only (`owner`). Does not affect the
+    ///         factory-level global circuit breaker (LI.FI's only lever over this clone).
+    function unpause() external onlyOwner {
         paused = false;
         emit PauseSet(false, msg.sender);
     }
@@ -449,6 +436,8 @@ contract LiFiVaultWrapper is
     ///      deposit/withdraw flow. Their bodies are implemented in follow-up tickets
     ///      (fees, access control); today they preserve current behaviour. Pause is already
     ///      enforced on the deposit/mint entrypoints.
+    ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
+    ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
 
     /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
     ///      the vault's access mode on the caller and accrues time/yield-based fees so the

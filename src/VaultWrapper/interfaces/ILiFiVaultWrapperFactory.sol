@@ -14,11 +14,6 @@ interface ILiFiVaultWrapperFactory {
     /// @return True when the global circuit breaker is engaged.
     function globalPaused() external view returns (bool);
 
-    /// @notice The address authorized to pause/unpause individual instances and the global
-    ///         circuit breaker.
-    /// @return The current emergency pauser.
-    function emergencyPauser() external view returns (address);
-
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.

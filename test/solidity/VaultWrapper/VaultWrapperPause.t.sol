@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -13,17 +14,12 @@ import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes
 
 /// @notice Minimal stand-in for the factory: deploys the instance (so it is the
 ///         `factory`/initializer the wrapper reads back) and exposes a toggleable global
-///         circuit breaker plus a settable emergency pauser.
+///         circuit breaker.
 contract MockPauseFactory {
     bool public globalPaused;
-    address public emergencyPauser;
 
     function setGlobalPaused(bool _paused) external {
         globalPaused = _paused;
-    }
-
-    function setEmergencyPauser(address _pauser) external {
-        emergencyPauser = _pauser;
     }
 
     function deployWrapper(
@@ -43,7 +39,6 @@ contract VaultWrapperPauseTest is Test {
     LiFiVaultWrapper internal wrapper;
 
     address internal vaultAdmin = makeAddr("vaultAdmin");
-    address internal pauser = makeAddr("pauser");
     address internal alice = makeAddr("alice");
     address internal stranger = makeAddr("stranger");
 
@@ -60,7 +55,6 @@ contract VaultWrapperPauseTest is Test {
             address(this)
         );
         factory = new MockPauseFactory();
-        factory.setEmergencyPauser(pauser);
 
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
@@ -148,6 +142,23 @@ contract VaultWrapperPauseTest is Test {
         assertApproxEqAbs(assetsOut, DEPOSIT, 1);
     }
 
+    /// Admin role rotation stays open under pause ///
+
+    function test_OwnershipTransferOpenUnderPause() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(vaultAdmin);
+        wrapper.pause();
+        factory.setGlobalPaused(true);
+
+        vm.prank(vaultAdmin);
+        wrapper.transferOwnership(newAdmin);
+        vm.prank(newAdmin);
+        wrapper.acceptOwnership();
+
+        assertEq(wrapper.owner(), newAdmin);
+    }
+
     /// Authority separation ///
 
     function test_IntegratorUnpauseCannotClearGlobalPause() public {
@@ -163,41 +174,26 @@ contract VaultWrapperPauseTest is Test {
 
     function testRevert_StrangerCannotPause() public {
         vm.prank(stranger);
-        vm.expectRevert(LiFiVaultWrapper.NotPauseAuthority.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
 
         wrapper.pause();
     }
 
-    /// Owner and emergency pauser share the clone pause ///
+    function testRevert_StrangerCannotUnpause() public {
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
 
-    function test_EmergencyPauserCanPause() public {
-        vm.prank(pauser);
-        wrapper.pause();
-
-        assertTrue(wrapper.paused());
-        _expectDepositReverts(alice, DEPOSIT);
-    }
-
-    function test_EmergencyPauserCanLiftIntegratorPause() public {
-        vm.prank(vaultAdmin);
-        wrapper.pause();
-
-        vm.prank(pauser);
         wrapper.unpause();
-
-        _seedDeposit(alice, DEPOSIT);
-        assertEq(wrapper.balanceOf(alice), DEPOSIT);
-    }
-
-    function test_IntegratorCanLiftEmergencyPause() public {
-        vm.prank(pauser);
-        wrapper.pause();
-
-        vm.prank(vaultAdmin);
-        wrapper.unpause();
-
-        _seedDeposit(alice, DEPOSIT);
-        assertEq(wrapper.balanceOf(alice), DEPOSIT);
     }
 
     /// Unpause resumes deposits ///
@@ -227,7 +223,7 @@ contract VaultWrapperPauseTest is Test {
     }
 
     function test_PauseSettersEmitEvents() public {
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(wrapper));
         emit PauseSet(true, vaultAdmin);
 
         vm.prank(vaultAdmin);
@@ -346,7 +342,9 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         instance = LiFiVaultWrapper(_deploy(0));
     }
 
-    function test_GlobalPauseFromFactoryFreezesInstanceDeposits() public {
+    function testRevert_GlobalPauseFromFactoryFreezesInstanceDeposits()
+        public
+    {
         vm.prank(pauser);
         factory.globalPause();
 
@@ -375,7 +373,9 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         assertEq(instance.balanceOf(alice), DEPOSIT);
     }
 
-    function test_DeployWhileGloballyPausedYieldsFrozenInstance() public {
+    function testRevert_DeployWhileGloballyPausedYieldsFrozenInstance()
+        public
+    {
         vm.prank(pauser);
         factory.globalPause();
 
