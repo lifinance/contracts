@@ -13,6 +13,8 @@
 # NUM OF PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can fund.
 # Status:  OK (>= 2.5 pauses)   WARNING (1 to 2.5)   CRITICAL (< 1 pause)
 #          PAUSED (already paused)   ERROR (estimate/RPC failed)   SKIP (filtered/no diamond)
+# Chains whose gas price is 0 (free gas, e.g. nibiru) report OK with NUM OF PAUSES "inf" —
+# a pause costs nothing there, so any balance affords unlimited pauses.
 # Exit code: 1 if any audited network is CRITICAL, else 0.
 #
 # Must be run from the repository root.
@@ -27,6 +29,7 @@ Usage: ./script/utils/checkPauserFunds.sh [NETWORK ...]
   NETWORK...  audit only the named networks
 NUM OF PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
 Statuses: OK (>=2.5 pauses)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
+Free-gas chains (gas price 0) report OK with NUM OF PAUSES "inf".
 Exit code 1 if any network is CRITICAL.
 EOF
 }
@@ -46,6 +49,11 @@ source script/helperFunctions.sh
 # 2.5x expressed as 5/2 for integer bc math
 readonly WARN_MULT_NUM=5
 readonly WARN_MULT_DEN=2
+
+# Sort key for free-gas rows (gas price 0 → infinite pauses): 1e28, larger than any real ratio
+# (balance in wei tops out around 1e24 even against a 1-wei cost), so they land last among the
+# data rows. A plain digit string keeps `sort -g` portable (no reliance on "inf" parsing).
+readonly FREE_GAS_SORT_RATIO=9999999999999999999999999999
 
 # Retry transient RPC read failures (throttling/timeouts) a few times before marking a network
 # ERROR, so a brief blip on one chain doesn't show as a spurious ERROR row. (estimatePauseCost
@@ -166,7 +174,9 @@ function checkNetwork() {
     echo "$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "PAUSED")"
     return
   fi
-  if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ || "$COST" == "0" ]]; then
+  # COST 0 is NOT an error: estimatePauseCost rejects a zero gas ESTIMATE, so 0 can only mean
+  # the chain's gas PRICE is 0 (free gas) — handled after the balance read below.
+  if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ ]]; then
     echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
     return
   fi
@@ -183,6 +193,14 @@ function checkNetwork() {
     sleep "$RPC_READ_RETRY_SLEEP_SECONDS"
     BAL_ATTEMPT=$((BAL_ATTEMPT + 1))
   done
+
+  # Free-gas chain: a pause costs nothing, so any balance affords unlimited pauses — report OK
+  # (a data row, so it counts as "evaluated" for the blind-sweep guard). Actual RPC/estimation
+  # failures still surface as ERROR above and via the balance-read retry loop.
+  if [[ "$COST" == "0" ]]; then
+    echo "$CAT_DATA|$FREE_GAS_SORT_RATIO|$(fmtRow "$NETWORK" "free gas" "-" "$(fmtAmount "$BALANCE") ${SYMBOL}" "inf" "-" "OK")"
+    return
+  fi
 
   local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
@@ -261,7 +279,7 @@ if ! {
   exit 1
 fi
 
-echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
+echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1 · free gas (price 0) = inf" >&2
 
 # Blind-sweep guard: if we audited in-scope networks but EVERY one returned ERROR — no
 # OK/WARNING/CRITICAL/PAUSED answer anywhere (e.g. a broad RPC outage, or a misconfigured pauser
