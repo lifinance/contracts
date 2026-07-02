@@ -1,39 +1,39 @@
 {
   "optimism": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "base": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "arbitrum": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "celo": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "mainnet": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "ink": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "polygon": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "unichain": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "sonic": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "worldchain": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "bsc": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "hyperevm": {
-    "portal": "0x399Dbd5DF04f83103F77A58cBa2B7c4d3cdede97"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "tron": {
     "portal": "TBhZw2sb5DuqGXf3PcxMKDaqxtoZVUUtR7"

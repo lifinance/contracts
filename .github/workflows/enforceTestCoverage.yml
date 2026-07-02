@@ -16,6 +16,15 @@ permissions:
   contents: read # required to fetch repository contents
   pull-requests: write # required to post the coverage summary as a PR comment
 
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits)
+# so the slow forge-coverage run stops burning runner minutes on stale commits.
+# Keyed per workflow and per PR (falling back to ref) so unrelated branches never
+# cancel each other. cancel-in-progress is scoped to pull_request events; this
+# workflow only runs on PRs, so non-PR events are unaffected.
+concurrency:
+  group: coverage-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   detect-changes:
     # Determines whether files that can influence `forge coverage` outcomes were touched.

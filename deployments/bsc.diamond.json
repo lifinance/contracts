@@ -117,9 +117,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+      "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
@@ -165,13 +165,17 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x6acEAb597fa289AbFC3F2f697f33FAC93Ccc8a71": {
+      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
       "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.2"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

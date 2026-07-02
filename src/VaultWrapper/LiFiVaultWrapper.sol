@@ -127,7 +127,7 @@ contract LiFiVaultWrapper is
         initData = _initData;
         lastMgmtAccrual = uint64(block.timestamp);
 
-        emit Initialized(
+        emit VaultWrapperConfigured(
             asset,
             _underlying,
             _adapter,
