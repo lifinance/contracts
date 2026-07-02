@@ -1,16 +1,18 @@
 /**
  * Demo: PaxosTransitFacet end-to-end against a LOCAL anvil node with a MOCK TransitStation.
  *
- * The real Paxos TransitStation address + live quote endpoint are not available yet
- * (pending from Paxos ~2026-07-01, see EXSC-547), so this demo proves the full on-chain
- * funds flow locally:
+ * This demo proves the full on-chain funds flow locally, without touching the live
+ * Paxos API or real funds (see EXSC-547):
  *   1. spawn anvil (forking mainnet if ETH_NODE_URI_MAINNET is set, otherwise a plain node)
  *   2. deploy a mintable offer token (TestToken), the MockTransitStation, and PaxosTransitFacet
  *   3. mint + approve the offer token, then call startBridgeTokensViaPaxosTransit
  *   4. assert the offer asset moved Diamond/caller -> station and the LayerZero nativeFee was forwarded
  *
- * Once Paxos ships the real station + quote endpoint, swap the mock for the real address and
- * source `quote` + `signature` from the Paxos /v1/transit/orders/data response.
+ * To run against the real station, swap the mock for the real address and source
+ * `quote` + `signature` from the Paxos `GET /v1/transit/orders/quote` response
+ * (endpoint confirmed by Paxos 2026-06-30 — the integration guide's original path is stale).
+ * Note: Paxos enforces a minimum order size of >$5 across all routes, so quote
+ * requests below $5 error.
  *
  * Run:  bunx tsx script/demoScripts/demoPaxosTransit.ts
  */

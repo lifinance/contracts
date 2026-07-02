@@ -43,6 +43,8 @@ Operational dependencies (Paxos / LI.FI backend, not enforced by this facet):
   reverts `RouteNotApproved`.
 - The `Quote` must be EIP-712 signed by Paxos' `quoteSigner`; only LI.FI-backend-generated calldata should be
   submitted.
+- Minimum order size is **>$5** across all routes (Paxos, 2026-06-30) — quote requests below $5
+  error at the Paxos quote endpoint (`GET /v1/transit/orders/quote`).
 
 ## Public Methods
 
