@@ -208,7 +208,7 @@ contract LiFiVaultWrapper is
             });
     }
 
-    /// @notice Fee config getters ///
+    /// Fee config getters ///
 
     /// @notice Returns the configured rate (bps) for a fee type.
     /// @param _feeType The FeeType ordinal (0-3).
@@ -366,9 +366,13 @@ contract LiFiVaultWrapper is
     ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
     ///      rolls back and the owner keeps their shares), skims the fee, then transfers exactly
-    ///      `_assets` to the receiver. With fees unimplemented the skim is zero, so exactly the
-    ///      withdrawal amount is redeemed.
+    ///      `_assets` to the receiver. A zero withdrawal (a dust redeem whose `previewRedeem` is
+    ///      0, or a bare `withdraw(0)`) short-circuits before the adapter call — mirroring
+    ///      `_deposit` — so sources that reject zero-amount withdrawals cannot block exits that
+    ///      preview as 0.
     function _transferOut(address _to, uint256 _assets) internal override {
+        if (_assets == 0) return;
+
         address assetToken = asset();
         uint256 fee = LibVaultWrapperMath.feeOnRaw({
             _assets: _assets,

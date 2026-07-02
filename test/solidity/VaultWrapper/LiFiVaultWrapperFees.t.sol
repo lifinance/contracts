@@ -8,6 +8,8 @@ import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.so
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
+import { ERC4626 } from "solmate/mixins/ERC4626.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
@@ -435,6 +437,29 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(asset.balanceOf(address(wrapper)), idleBefore + dust);
     }
 
+    function test_DustRedeemSucceedsOnZeroRejectingSource() public {
+        // A yield source that rejects zero-amount withdrawals must not block a dust
+        // redeem whose previewRedeem is 0: the wrapper skips the adapter round-trip
+        // entirely (mirroring the zero short-circuit on the deposit side).
+        underlying = MockERC4626(
+            address(new ZeroWithdrawRevertingERC4626(asset))
+        );
+        wrapper = _newWrapperAssetFees(0, WD_RATE);
+        _deposit(alice, DEPOSIT);
+
+        // A single share's gross value (1 wei) is fully consumed by the exit fee.
+        vm.prank(alice);
+        wrapper.transfer(bob, 1);
+
+        assertEq(wrapper.previewRedeem(1), 0);
+
+        vm.prank(bob);
+        uint256 out = wrapper.redeem(1, bob, bob);
+
+        assertEq(out, 0);
+        assertEq(wrapper.balanceOf(bob), 0);
+    }
+
     /// Zero-fee passthrough ///
 
     function test_ZeroFeeConfigIsPurePassthrough() public {
@@ -710,5 +735,22 @@ contract LiFiVaultWrapperFeesTest is Test {
         asset.mint(address(this), 1);
         asset.approve(address(wrapper), 1);
         wrapper.deposit(1, address(this));
+    }
+}
+
+/// @dev A yield source that rejects zero-amount withdrawals, mirroring vaults with
+///      non-standard zero handling (solmate's MockERC4626 hooks are not virtual, so this
+///      subclasses the mixin directly).
+contract ZeroWithdrawRevertingERC4626 is ERC4626 {
+    error ZeroAssets();
+
+    constructor(ERC20 _asset) ERC4626(_asset, "Strict Yield Token", "syTKN") {}
+
+    function totalAssets() public view override returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
+
+    function beforeWithdraw(uint256 _assets, uint256) internal pure override {
+        if (_assets == 0) revert ZeroAssets();
     }
 }
