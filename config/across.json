@@ -208,14 +208,6 @@
       "0x4e107a0000db66f0e9fd2039288bf811dd1f9c74"
     ]
   },
-  "outlaw": {
-    "chainId": 4663,
-    "acrossSpokePool": "0xD29C85F15DF544bA632C9E25829fd29d767d7978",
-    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "tokensToApprove": []
-  },
   "plasma": {
     "chainId": 9745,
     "acrossSpokePool": "0x50039fAEfebef707cFD94D6d462fE6D10B39207a",
@@ -242,6 +234,14 @@
       "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
       "0x25788a1a171ec66da6502f9975a15b609ff54cf6"
     ]
+  },
+  "robinhood": {
+    "chainId": 4663,
+    "acrossSpokePool": "0xD29C85F15DF544bA632C9E25829fd29d767d7978",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
   },
   "scroll": {
     "chainId": 534352,
