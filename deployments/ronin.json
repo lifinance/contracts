@@ -3,7 +3,7 @@
   "CalldataVerificationFacet": "0x2Bf85F0aAC6445031f231dadc29077CF152a4E72",
   "DiamondCutFacet": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
   "DiamondLoupeFacet": "0xFE8BC485d9DBaa93c1982Ab105cd55Dc6F7816eA",
-  "EmergencyPauseFacet": "0x9c367d9F13945b6bA507b697fD5203E971FEB9E0",
+  "EmergencyPauseFacet": "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd",
   "GenericSwapFacet": "0xf3e8493cC4b457f7632abf95Dcd3a11b9A2B45f7",
   "GenericSwapFacetV3": "0x5b2dda586214A186f333A9a22c6120dF5C71c379",
   "OwnershipFacet": "0x70F6de5c89691feE1aAcD5C644776ed90C32b335",

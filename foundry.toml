@@ -26,6 +26,28 @@ runs = 256
 [profile.ci.fuzz]
 runs = 32
 
+# Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
+# Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that
+# introduces a language/syntax feature requiring a newer solc fails CI instead of slipping
+# through: the default profile pins 0.8.29, which would hide any 0.8.18+ feature use.
+# Run locally to reproduce CI: FOUNDRY_PROFILE=solc_floor forge build
+# - solc 0.8.17 is the floor every src/ file pins via `pragma solidity ^0.8.17`.
+# - evm_version `london` is the newest EVM 0.8.17 supports (cancun needs solc >= 0.8.24);
+#   forge clamps it anyway, but pinning it keeps the profile self-documenting.
+# - optimizer settings are inherited from [profile.default] so the check matches the
+#   codegen that production actually ships (no via_ir).
+# - test/script are skipped: only deployed contracts must honor the floor, and those
+#   suites trip the legacy pipeline's "stack too deep" (a codegen limit, not a
+#   floor-incompatibility signal) which would mask the real check.
+# - src/VaultWrapper/** is skipped: the standalone Earn Vault Wrapper builds on
+#   OpenZeppelin v5, which requires solc >= 0.8.24, so the subsystem's real floor is
+#   higher than the Diamond's 0.8.17 and it cannot compile under this profile. Nothing
+#   in the Diamond imports it, so excluding it here does not weaken the Diamond's check.
+[profile.solc_floor]
+solc_version = '0.8.17'
+evm_version = 'london'
+skip = ['test/**', 'script/**', 'src/VaultWrapper/**']
+
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
@@ -65,7 +87,6 @@ bob = "${ETH_NODE_URI_BOB}"
 botanix = "${ETH_NODE_URI_BOTANIX}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
-corn = "${ETH_NODE_URI_CORN}"
 cronos = "${ETH_NODE_URI_CRONOS}"
 evmos = "${ETH_NODE_URI_EVMOS}"
 flare = "${ETH_NODE_URI_FLARE}"
@@ -98,11 +119,11 @@ nibiru = "${ETH_NODE_URI_NIBIRU}"
 okx = "${ETH_NODE_URI_OKX}"
 opbnb = "${ETH_NODE_URI_OPBNB}"
 optimism = "${ETH_NODE_URI_OPTIMISM}"
-outlaw = "${ETH_NODE_URI_OUTLAW}"
 pharos = "${ETH_NODE_URI_PHAROS}"
 plasma = "${ETH_NODE_URI_PLASMA}"
 plume = "${ETH_NODE_URI_PLUME}"
 polygon = "${ETH_NODE_URI_POLYGON}"
+robinhood = "${ETH_NODE_URI_ROBINHOOD}"
 rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
 ronin = "${ETH_NODE_URI_RONIN}"
 sei = "${ETH_NODE_URI_SEI}"
@@ -150,7 +171,6 @@ boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/n
 botanix = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/3637/etherscan", chain = "3637" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
-corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }
 cronos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://cronos.org/explorer/api", verifier = "blockscout", chain = "25" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14" }
 flow = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://evm.flowscan.io/api", chain = "747" , verifier = "blockscout"}
@@ -179,11 +199,11 @@ morph = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-api.
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }
 opbnb = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=204", chain = "204" }
-outlaw = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://8crv4vmq6tiu1yqr.blockscout.com/api", chain = "4663", verifier = "blockscout" }
 pharos = { key = "${PHAROS_SOCIALSCAN_API_KEY}", url = "https://api.socialscan.io/pharos-mainnet/v1/explorer/command_api/contract", chain = "1672", verifier = "custom" }
 plasma = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan", chain = "9745" }
 plume = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
+robinhood = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://robinhoodchain.blockscout.com/api", chain = "4663", verifier = "blockscout" }
 ronin= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.roninchain.com/server", chain = "2020", verifier = "sourcify" }
 rootstock= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }

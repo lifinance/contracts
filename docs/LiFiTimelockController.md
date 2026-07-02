@@ -26,7 +26,7 @@ The timelock uses the following roles from OpenZeppelin's TimelockController:
 
 ```solidity
 constructor(
-    uint256 _minDelay,           // Minimum delay for operations (e.g., 1 day)
+    uint256 _minDelay,           // Minimum delay for operations (production: 3 hours / 10800s, see config/timelockController.json)
     address[] memory _proposers, // Addresses that can propose operations
     address[] memory _executors, // Addresses that can execute operations
     address _cancellerWallet,    // Address that can cancel operations
@@ -107,7 +107,7 @@ function setDiamondAddress(
 
 The timelock requires the following configuration parameters:
 
-- **minDelay**: Minimum delay for operations (typically 1 day for production)
+- **minDelay**: Minimum delay for operations (production: 3 hours / 10800 seconds, as set in `config/timelockController.json`)
 - **proposers**: Array of addresses that can propose operations (usually the LiFi MultiSig)
 - **executors**: Array of addresses that can execute operations (can be address(0) for anyone)
 - **cancellerWallet**: Address that can cancel operations (usually the deployer wallet)

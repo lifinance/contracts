@@ -61,9 +61,9 @@
         "Name": "HopFacet",
         "Version": "2.0.1"
       },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+      "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -137,12 +137,16 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       }
     },
@@ -162,8 +166,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0x16Fab807095Ecd8DB8aEC7ff84f0e659043dF9f1",
-      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6",
-      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
+      "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
     }
   }
 }

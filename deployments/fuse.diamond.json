@@ -41,9 +41,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+      "0x43497fe53eAfc90169a44586B9b2384C6e1d5d5b": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
         "Name": "CalldataVerificationFacet",
