@@ -60,7 +60,14 @@ contract VaultWrapperPauseTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                [uint16(8000), 8000, 8000, 8000],
+                fees,
+                ""
+            )
         );
         wrapper = LiFiVaultWrapper(
             factory.deployWrapper(address(beacon), initCall)
@@ -401,7 +408,12 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
             underlying: address(underlying),
             nonce: _nonce,
             fees: fees,
-            integratorShareBps: type(uint16).max,
+            integratorShareBps: [
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max
+            ],
             initData: ""
         });
 

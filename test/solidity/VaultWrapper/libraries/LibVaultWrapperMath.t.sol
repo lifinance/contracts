@@ -50,6 +50,36 @@ contract LibMathHarness {
             });
     }
 
+    function pricePerShare(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset
+    ) external pure returns (uint256) {
+        return
+            LibVaultWrapperMath.pricePerShare({
+                _totalSupply: _totalSupply,
+                _totalAssets: _totalAssets,
+                _decimalsOffset: _decimalsOffset
+            });
+    }
+
+    function performanceFeeAssets(
+        uint256 _totalAssets,
+        uint256 _totalSupply,
+        uint256 _hwmPps,
+        uint16 _rateBps,
+        uint8 _decimalsOffset
+    ) external pure returns (uint256) {
+        return
+            LibVaultWrapperMath.performanceFeeAssets({
+                _totalAssets: _totalAssets,
+                _totalSupply: _totalSupply,
+                _hwmPps: _hwmPps,
+                _rateBps: _rateBps,
+                _decimalsOffset: _decimalsOffset
+            });
+    }
+
     function convertToShares(
         uint256 _assets,
         uint256 _totalSupply,
@@ -510,5 +540,128 @@ contract LibVaultWrapperMathTest is Test {
 
         assertGe(sharesWithFee, sharesNoFee);
         assertLe(assetsWithFee, assetsNoFee);
+    }
+
+    /* ---------------------- pricePerShare / performanceFeeAssets ------------- */
+
+    function test_PricePerShare_EmptyVaultIsOneToOne() public view {
+        // (0 + 1) * 1e18 / (0 + 10**offset)
+        assertEq(lib.pricePerShare(0, 0, 0), 1e18);
+        assertEq(lib.pricePerShare(0, 0, 3), 1e15);
+    }
+
+    function testFuzz_PricePerShare_MatchesConvertToAssets(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset
+    ) public view {
+        _totalSupply = bound(_totalSupply, 0, type(uint128).max);
+        _totalAssets = bound(_totalAssets, 0, type(uint128).max);
+        _decimalsOffset = uint8(bound(_decimalsOffset, 0, 12));
+
+        // The watermark unit is exactly the price a holder converts at: PPS equals
+        // convertToAssets(PPS_SCALE) under the same virtual-offset convention.
+        assertEq(
+            lib.pricePerShare(_totalSupply, _totalAssets, _decimalsOffset),
+            lib.convertToAssets({
+                _shares: 1e18,
+                _totalSupply: _totalSupply,
+                _pendingFeeShares: 0,
+                _totalAssets: _totalAssets,
+                _decimalsOffset: _decimalsOffset,
+                _rounding: Math.Rounding.Floor
+            })
+        );
+    }
+
+    function test_PerformanceFee_ZeroInputs() public view {
+        assertEq(lib.performanceFeeAssets(0, 1e18, 1e18, 2000, 0), 0);
+        assertEq(lib.performanceFeeAssets(1e18, 0, 1e18, 2000, 0), 0);
+        assertEq(lib.performanceFeeAssets(1e18, 1e18, 1e18, 0, 0), 0);
+    }
+
+    function test_PerformanceFee_NeverChargesAtOrBelowWatermark() public view {
+        // PPS exactly at the watermark: no gain.
+        uint256 pps = lib.pricePerShare(1e21, 1e21, 0);
+
+        assertEq(lib.performanceFeeAssets(1e21, 1e21, pps, 2000, 0), 0);
+        // PPS below the watermark (net loss): no charge.
+        assertEq(lib.performanceFeeAssets(9e20, 1e21, pps, 2000, 0), 0);
+    }
+
+    function test_PerformanceFee_KnownValue() public view {
+        // supply 1000e18, assets 1200e18, hwm 1e18 => gain ~200e18; 20% => ~40e18.
+        // The flooring of the PPS quantizes the gain to steps of supply/PPS_SCALE
+        // (1000 wei here), always in the holders' favour.
+        uint256 fee = lib.performanceFeeAssets(
+            1200e18,
+            1000e18,
+            1e18,
+            2000,
+            0
+        );
+
+        assertLe(fee, 40e18);
+        assertApproxEqAbs(fee, 40e18, 1000);
+    }
+
+    function testFuzz_PerformanceFee_BoundedByRateTimesGain(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint256 _hwmPps,
+        uint16 _rateBps
+    ) public view {
+        _totalSupply = bound(_totalSupply, 1, type(uint96).max);
+        _totalAssets = bound(_totalAssets, 1, type(uint96).max);
+        _hwmPps = bound(_hwmPps, 0, type(uint96).max);
+        _rateBps = uint16(bound(_rateBps, 1, 5000));
+
+        uint256 fee = lib.performanceFeeAssets(
+            _totalAssets,
+            _totalSupply,
+            _hwmPps,
+            _rateBps,
+            0
+        );
+
+        uint256 pps = lib.pricePerShare(_totalSupply, _totalAssets, 0);
+        if (pps <= _hwmPps) {
+            assertEq(fee, 0);
+        } else {
+            uint256 gain = Math.mulDiv(_totalSupply, pps - _hwmPps, 1e18);
+            // feeOnRaw ceil, then clamped strictly below totalAssets.
+            assertLe(fee, Math.mulDiv(gain, _rateBps, BPS) + 1);
+            assertLt(fee, _totalAssets);
+        }
+    }
+
+    function testFuzz_PerformanceFee_MonotonicInAssets(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint256 _extraYield
+    ) public view {
+        _totalSupply = bound(_totalSupply, 1e6, type(uint96).max);
+        _totalAssets = bound(_totalAssets, 1e6, type(uint96).max);
+        _extraYield = bound(_extraYield, 1, type(uint96).max);
+
+        uint256 hwm = lib.pricePerShare(_totalSupply, _totalAssets, 0);
+        uint256 feeBefore = lib.performanceFeeAssets(
+            _totalAssets,
+            _totalSupply,
+            hwm,
+            2000,
+            0
+        );
+        uint256 feeAfter = lib.performanceFeeAssets(
+            _totalAssets + _extraYield,
+            _totalSupply,
+            hwm,
+            2000,
+            0
+        );
+
+        // More yield on the same supply/watermark never charges less.
+        assertEq(feeBefore, 0);
+        assertGe(feeAfter, feeBefore);
     }
 }

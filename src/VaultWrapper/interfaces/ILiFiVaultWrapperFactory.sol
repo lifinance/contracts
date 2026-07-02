@@ -34,7 +34,8 @@ interface ILiFiVaultWrapperFactory {
     /// @param adapter The yield adapter the vault wrapper routes through.
     /// @param asset The ERC20 asset resolved from the underlying.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param integratorShareBps The integrator fee share (bps) snapshotted into the instance.
+    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
+    ///        FeeType ordinal) snapshotted into the instance.
     /// @param nonce The caller-supplied nonce disambiguating instances.
     /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
@@ -44,7 +45,7 @@ interface ILiFiVaultWrapperFactory {
         address adapter,
         address asset,
         address vaultWrapperAdmin,
-        uint16 integratorShareBps,
+        uint16[4] integratorShareBps,
         uint256 nonce,
         bytes32 salt
     );

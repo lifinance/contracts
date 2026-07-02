@@ -40,6 +40,6 @@ struct DeployParams {
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
     FeeConfig fees; // Per-fee-type rates and enabled flags; validated against bounds/caps.
-    uint16 integratorShareBps; // Integrator's fee share (bps); type(uint16).max = factory default, else must be <= 100%.
+    uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
 }

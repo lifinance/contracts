@@ -7,9 +7,10 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Stateless arithmetic for the LI.FI vault wrapper fee engine: asset-side
 ///         deposit/withdrawal fees (the fee is a percentage of the net amount, so gross =
-///         net + fee), time-based management-fee dilution, and the fee-inclusive share/asset
-///         conversions. Centralizing the math here gives auditing and fuzzing a single,
-///         side-effect-free surface; all state, minting, and routing stay in the wrapper.
+///         net + fee), time-based management-fee dilution, high-water-mark performance-fee
+///         dilution, and the fee-inclusive share/asset conversions. Centralizing the math
+///         here gives auditing and fuzzing a single, side-effect-free surface; all state,
+///         minting, and routing stay in the wrapper.
 /// @custom:version 1.0.0
 library LibVaultWrapperMath {
     using Math for uint256;
@@ -19,6 +20,10 @@ library LibVaultWrapperMath {
 
     /// @notice Seconds in a fee year, fixed at 365 days for management accrual.
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
+
+    /// @notice Fixed-point scale of the price-per-share values (`pricePerShare` results
+    ///         and the performance-fee high-water mark).
+    uint256 internal constant PPS_SCALE = 1e18;
 
     /// @notice Fee taken on top of a net amount (gross = net + fee).
     /// @dev Used where `_assets` is the net amount the user wants moved (previewMint,
@@ -73,6 +78,66 @@ library LibVaultWrapperMath {
             BASIS_POINT_SCALE * SECONDS_PER_YEAR,
             Math.Rounding.Floor
         );
+        if (feeAssets >= _totalAssets) feeAssets = _totalAssets - 1;
+    }
+
+    /// @notice Price per share as a `PPS_SCALE`-scaled fixed-point value.
+    /// @dev `convertToAssets(PPS_SCALE)` under OZ's virtual-offset convention:
+    ///      `pps = (totalAssets + 1) * PPS_SCALE / (totalSupply + 10**offset)`, rounded
+    ///      down. The same convention as the share/asset conversions so the performance
+    ///      watermark is measured on exactly the price depositors transact at.
+    /// @param _totalSupply Current share supply.
+    /// @param _totalAssets Gross assets under management.
+    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @return The current price per share, scaled by `PPS_SCALE`.
+    function pricePerShare(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset
+    ) internal pure returns (uint256) {
+        return
+            (_totalAssets + 1).mulDiv(
+                PPS_SCALE,
+                _totalSupply + 10 ** _decimalsOffset,
+                Math.Rounding.Floor
+            );
+    }
+
+    /// @notice Performance fee in assets on the share-price gain above a high-water mark.
+    /// @dev `gainAssets = totalSupply * (pps - hwm) / PPS_SCALE` (only real holder shares
+    ///      participate; the virtual offset shares are excluded), then
+    ///      `feeAssets = feeOnRaw(gainAssets, rateBps)`. Returns 0 when the current price
+    ///      per share is at or below the watermark, so a net loss is never charged.
+    ///      Clamped strictly below `_totalAssets` so the dilution-share denominator stays
+    ///      positive even at extreme watermark/rate inputs.
+    /// @param _totalAssets Gross assets under management at accrual time.
+    /// @param _totalSupply Current share supply.
+    /// @param _hwmPps The high-water mark, a `PPS_SCALE`-scaled price per share.
+    /// @param _rateBps Performance fee rate in basis points.
+    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @return feeAssets The performance fee owed, in assets.
+    function performanceFeeAssets(
+        uint256 _totalAssets,
+        uint256 _totalSupply,
+        uint256 _hwmPps,
+        uint16 _rateBps,
+        uint8 _decimalsOffset
+    ) internal pure returns (uint256 feeAssets) {
+        if (_totalAssets == 0 || _totalSupply == 0 || _rateBps == 0) return 0;
+
+        uint256 pps = pricePerShare(
+            _totalSupply,
+            _totalAssets,
+            _decimalsOffset
+        );
+        if (pps <= _hwmPps) return 0;
+
+        uint256 gainAssets = _totalSupply.mulDiv(
+            pps - _hwmPps,
+            PPS_SCALE,
+            Math.Rounding.Floor
+        );
+        feeAssets = feeOnRaw(gainAssets, _rateBps);
         if (feeAssets >= _totalAssets) feeAssets = _totalAssets - 1;
     }
 

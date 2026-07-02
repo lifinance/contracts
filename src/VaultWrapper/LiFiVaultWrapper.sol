@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
@@ -28,10 +29,13 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the initial fee
 ///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
-///      Management (dilution), deposit, and withdrawal fees are charged: management fee-shares
-///      are minted to this contract via `_accrueFees`, and deposit/withdrawal asset fees are
-///      kept idle and tracked through `_routeFee`. This contract does not distribute the
-///      accrued fees. Pause is enforced on the deposit/mint path only (withdrawals stay open);
+///      All four fee types are charged: management (time-based dilution) and performance
+///      (high-water-mark dilution) fee-shares are minted to this contract via `_accrueFees`,
+///      and deposit/withdrawal asset fees are kept idle and tracked through `_routeFee`.
+///      Every fee is split between LI.FI and the integrator at accrual time using the
+///      fee type's own share, into per-recipient counters. This contract does not
+///      distribute the accrued fees. Pause is enforced on the deposit/mint path only
+///      (withdrawals stay open);
 ///      access logic remains a no-op seam (`_checkAccess`) with its body landing in a
 ///      follow-up ticket. Inflation-attack protection relies on the ERC-4626 virtual-share
 ///      offset.
@@ -63,13 +67,15 @@ contract LiFiVaultWrapper is
     /// @notice The factory that deployed this instance (the initializer); read by later
     ///         modules for the factory-level global circuit breaker.
     address public factory;
-    /// @notice The integrator's fee share (bps), snapshotted from the factory at deploy.
-    uint16 public integratorShareBps;
     /// @notice Whether this clone's deposits are paused by the integrator (the per-vault
     ///         `owner`), the only authority over this flag. LI.FI has no per-instance pause;
     ///         its lever is the factory-level global circuit breaker, a separate source read
     ///         live in `depositsPaused`. Both gate inflows, neither gates exits.
     bool public paused;
+    /// @notice The integrator's fee share (bps) per fee type (indexed by FeeType ordinal),
+    ///         snapshotted from the factory at deploy. LI.FI receives the remainder of
+    ///         each fee.
+    uint16[4] public integratorShareBps;
     /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
     bytes public initData;
@@ -77,14 +83,27 @@ contract LiFiVaultWrapper is
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
-    /// @notice Total dilution fee-shares minted to this contract and not yet paid out.
-    ///         The LI.FI/integrator split is applied later at distribution, not here.
-    uint256 public accruedFeeShares;
-    /// @notice Total asset-side (deposit/withdrawal) fees held idle in this contract and
-    ///         not yet paid out. Kept out of the yield source so it does not move PPS.
-    uint256 public accruedFeeAssets;
+    /// @notice LI.FI's part of the dilution fee-shares minted to this contract and not
+    ///         yet paid out. Split at accrual; packed with the integrator counter so one
+    ///         accrual touches a single slot.
+    uint128 public lifiFeeShares;
+    /// @notice The integrator's part of the dilution fee-shares minted to this contract
+    ///         and not yet paid out.
+    uint128 public integratorFeeShares;
+    /// @notice LI.FI's part of the asset-side (deposit/withdrawal) fees held idle in this
+    ///         contract and not yet paid out. Kept out of the yield source so it does not
+    ///         move PPS.
+    uint128 public lifiFeeAssets;
+    /// @notice The integrator's part of the asset-side fees held idle in this contract
+    ///         and not yet paid out.
+    uint128 public integratorFeeAssets;
     /// @notice Timestamp of the last management-fee crystallization.
     uint64 public lastMgmtAccrual;
+    /// @notice Performance-fee high-water mark: the highest post-crystallization price
+    ///         per share (scaled by `LibVaultWrapperMath.PPS_SCALE`). Anchored at
+    ///         `initialize`, re-anchored when the performance fee is enabled from
+    ///         disabled, and ratcheted whenever a performance accrual mints shares.
+    uint192 public perfHighWaterMarkPps;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
@@ -110,7 +129,7 @@ contract LiFiVaultWrapper is
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16 _integratorShareBps,
+        uint16[4] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData
     ) external initializer {
@@ -119,8 +138,10 @@ contract LiFiVaultWrapper is
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
-        if (_integratorShareBps >= 10_000)
-            revert InvalidIntegratorShareBps(_integratorShareBps);
+        for (uint256 i; i < 4; ++i) {
+            if (_integratorShareBps[i] >= 10_000)
+                revert InvalidIntegratorShareBps(_integratorShareBps[i]);
+        }
 
         address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
         if (asset == address(0)) revert ZeroAddress();
@@ -135,6 +156,15 @@ contract LiFiVaultWrapper is
         _feeConfig = _fees;
         initData = _initData;
         lastMgmtAccrual = uint64(block.timestamp);
+        // Anchor the performance watermark at the empty-vault share price, computed pure
+        // (supply and position are always 0 on a fresh single-shot-initialized proxy).
+        // Deliberately NOT read through the adapter: an underlying whose empty-position
+        // query reverts must not brick deployment. Assets donated to the predicted
+        // address before deployment therefore count as gain at the first accrual —
+        // charging a donation is harmless and disarms watermark-seeding games.
+        perfHighWaterMarkPps = SafeCast.toUint192(
+            LibVaultWrapperMath.pricePerShare(0, 0, _decimalsOffset())
+        );
 
         emit VaultWrapperConfigured(
             asset,
@@ -461,21 +491,20 @@ contract LiFiVaultWrapper is
 
     /// Fee config ///
 
-    /// @notice Sets the rate for a deposit, withdrawal, or management fee.
+    /// @notice Sets the rate for any fee type.
     /// @dev Only the owner may call. A zero rate disables the fee and skips
     ///      bounds validation (turning a fee off is always allowed); a non-zero rate must
     ///      sit within the factory's live bounds for the type. Accrues at the OLD rate
-    ///      first so elapsed time is priced before the change. The performance fee is not
-    ///      configurable here.
-    /// @param _feeType The fee type to update (Management, Deposit, or Withdrawal).
+    ///      first so elapsed time (management) and gains above the watermark
+    ///      (performance) are priced before the change. Enabling the performance fee
+    ///      from disabled re-anchors the watermark at the current share price, so gains
+    ///      made while it was disabled are never charged retroactively.
+    /// @param _feeType The fee type to update.
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
     function setFeeRate(
         FeeType _feeType,
         uint16 _newRateBps
     ) external onlyOwner {
-        if (_feeType == FeeType.Performance)
-            revert FeeTypeNotConfigurable(_feeType);
-
         _accrueFees();
 
         uint8 idx = uint8(_feeType);
@@ -487,6 +516,15 @@ contract LiFiVaultWrapper is
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
+            if (_feeType == FeeType.Performance && !_feeConfig.enabled[idx]) {
+                perfHighWaterMarkPps = SafeCast.toUint192(
+                    LibVaultWrapperMath.pricePerShare(
+                        totalSupply(),
+                        totalAssets(),
+                        _decimalsOffset()
+                    )
+                );
+            }
             _feeConfig.enabled[idx] = true;
             _feeConfig.rateBps[idx] = _newRateBps;
         }
@@ -537,38 +575,51 @@ contract LiFiVaultWrapper is
         // TODO(access): decode the access mode from initData and authorize the caller.
     }
 
-    /// @dev Crystallizes the management fee by minting dilution shares to this contract.
-    ///      The baseline ALWAYS advances to now, whether or not anything was minted:
-    ///      elapsed time must never outlive the accrual that priced it, or it would be
-    ///      re-priced later against a larger AUM (charging depositors for time before they
-    ///      were invested — a dormant dust vault could confiscate most of a new deposit)
-    ///      or against a new rate (voiding `setFeeRate`'s accrue-at-old-rate-first
-    ///      guarantee). The cost is that elapsed time whose fee floors to zero shares is
-    ///      dropped — at most ~one share's worth of assets per accrual, favouring holders.
+    /// @dev Crystallizes the management and performance fees by minting dilution shares
+    ///      to this contract, splitting each between LI.FI and the integrator as it is
+    ///      booked. The management baseline ALWAYS advances to now, whether or not
+    ///      anything was minted: elapsed time must never outlive the accrual that priced
+    ///      it, or it would be re-priced later against a larger AUM (charging depositors
+    ///      for time before they were invested — a dormant dust vault could confiscate
+    ///      most of a new deposit) or against a new rate (voiding `setFeeRate`'s
+    ///      accrue-at-old-rate-first guarantee). The cost is that elapsed time whose fee
+    ///      floors to zero shares is dropped — at most ~one share's worth of assets per
+    ///      accrual, favouring holders. The performance fee is charged AFTER the
+    ///      management dilution (perf is net of management), and its watermark ratchets
+    ///      to the post-crystallization share price only when shares were actually
+    ///      minted — an uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
-        uint256 feeShares = _pendingManagementFee();
+        bool mgmtEnabled = _feeConfig.enabled[uint8(FeeType.Management)];
+        bool perfEnabled = _feeConfig.enabled[uint8(FeeType.Performance)];
+        if (!mgmtEnabled && !perfEnabled) {
+            lastMgmtAccrual = uint64(block.timestamp);
+            return;
+        }
+
+        uint256 supply = totalSupply();
+        uint256 assets = totalAssets();
+
+        uint256 mgmtShares = _pendingManagementFee(supply, assets);
         lastMgmtAccrual = uint64(block.timestamp);
-        if (feeShares == 0) return;
+        if (mgmtShares != 0) {
+            _mint(address(this), mgmtShares);
+            _bookDilution(FeeType.Management, mgmtShares);
+            supply += mgmtShares;
+        }
 
-        _mint(address(this), feeShares);
-        accruedFeeShares += feeShares;
-
-        emit DilutionFeeAccrued(FeeType.Management, feeShares);
-    }
-
-    /// @dev Entry for `_accrueFees`: performs the cheap storage guards (uninitialized
-    ///      baseline, disabled type, zero elapsed) BEFORE paying for the external
-    ///      `totalAssets()` adapter round-trip, then delegates to the parameterized
-    ///      computation.
-    /// @return Dilution shares the pending fee is worth.
-    function _pendingManagementFee() private view returns (uint256) {
-        if (
-            lastMgmtAccrual == 0 ||
-            !_feeConfig.enabled[uint8(FeeType.Management)] ||
-            block.timestamp == lastMgmtAccrual
-        ) return 0;
-
-        return _pendingManagementFee(totalSupply(), totalAssets());
+        uint256 perfShares = _pendingPerformanceFee(supply, assets);
+        if (perfShares != 0) {
+            _mint(address(this), perfShares);
+            _bookDilution(FeeType.Performance, perfShares);
+            supply += perfShares;
+            perfHighWaterMarkPps = SafeCast.toUint192(
+                LibVaultWrapperMath.pricePerShare(
+                    supply,
+                    assets,
+                    _decimalsOffset()
+                )
+            );
+        }
     }
 
     /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
@@ -606,9 +657,45 @@ contract LiFiVaultWrapper is
         });
     }
 
+    /// @dev Dilution shares the pending performance fee is worth: the fee on the share-
+    ///      price gain above the high-water mark. Called with the management fee-shares
+    ///      already included in `_supply` (whether minted or still pending), so the fee
+    ///      is charged on gains net of management dilution — the same sequence in
+    ///      accrual and previews.
+    /// @param _supply The total supply including any management fee-shares.
+    /// @param _assets The current total assets.
+    /// @return Dilution shares the pending fee is worth.
+    function _pendingPerformanceFee(
+        uint256 _supply,
+        uint256 _assets
+    ) private view returns (uint256) {
+        uint8 idx = uint8(FeeType.Performance);
+        if (!_feeConfig.enabled[idx]) return 0;
+
+        uint256 hwm = perfHighWaterMarkPps;
+        if (hwm == 0) return 0;
+
+        uint256 feeAssets = LibVaultWrapperMath.performanceFeeAssets({
+            _totalAssets: _assets,
+            _totalSupply: _supply,
+            _hwmPps: hwm,
+            _rateBps: _feeConfig.rateBps[idx],
+            _decimalsOffset: _decimalsOffset()
+        });
+
+        return
+            LibVaultWrapperMath.dilutionShares({
+                _feeAssets: feeAssets,
+                _totalSupply: _supply,
+                _totalAssets: _assets,
+                _decimalsOffset: _decimalsOffset()
+            });
+    }
+
     /// @dev Fee-shares pending since the last accrual, used by the effective-supply
-    ///      conversion overrides. Isolated as a seam so further dilution fees can extend it
-    ///      without changing the conversion math.
+    ///      conversion overrides. Management first, then performance on the post-
+    ///      management effective supply — the exact sequence `_accrueFees` crystallizes
+    ///      in, so previews match execution.
     /// @param _supply The current total supply (pre-accrual).
     /// @param _assets The current total assets.
     /// @return The dilution shares pending.
@@ -616,7 +703,10 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256) {
-        return _pendingManagementFee(_supply, _assets);
+        uint256 mgmtShares = _pendingManagementFee(_supply, _assets);
+
+        return
+            mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
@@ -628,16 +718,46 @@ contract LiFiVaultWrapper is
         return _feeConfig.rateBps[idx];
     }
 
-    /// @dev Books an asset-side fee as idle and not-yet-distributed. The LI.FI/integrator
-    ///      split and payout happen elsewhere; here it only tracks the total. No-op on a
-    ///      zero fee.
+    /// @dev Books freshly minted dilution fee-shares, split between LI.FI and the
+    ///      integrator using the fee type's own share. The integrator's part rounds
+    ///      down, so split dust (at most 1 wei-share per accrual) goes to LI.FI.
+    ///      Payout happens elsewhere; here it only tracks the per-recipient totals.
+    /// @param _feeType The fee type that accrued (Management or Performance).
+    /// @param _feeShares The total shares minted to this contract for the fee.
+    function _bookDilution(FeeType _feeType, uint256 _feeShares) private {
+        uint256 integratorPart = (_feeShares *
+            integratorShareBps[uint8(_feeType)]) /
+            LibVaultWrapperMath.BASIS_POINT_SCALE;
+        integratorFeeShares = SafeCast.toUint128(
+            integratorFeeShares + integratorPart
+        );
+        lifiFeeShares = SafeCast.toUint128(
+            lifiFeeShares + (_feeShares - integratorPart)
+        );
+
+        emit DilutionFeeAccrued(_feeType, _feeShares, integratorPart);
+    }
+
+    /// @dev Books an asset-side fee as idle and not-yet-distributed, split between
+    ///      LI.FI and the integrator using the fee type's own share. The integrator's
+    ///      part rounds down, so split dust (at most 1 wei per charge) goes to LI.FI.
+    ///      Payout happens elsewhere; here it only tracks the per-recipient totals.
+    ///      No-op on a zero fee.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
     /// @param _feeAssets The fee amount, in assets, kept idle in this contract.
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
         if (_feeAssets == 0) return;
 
-        accruedFeeAssets += _feeAssets;
+        uint256 integratorPart = (_feeAssets *
+            integratorShareBps[uint8(_feeType)]) /
+            LibVaultWrapperMath.BASIS_POINT_SCALE;
+        integratorFeeAssets = SafeCast.toUint128(
+            integratorFeeAssets + integratorPart
+        );
+        lifiFeeAssets = SafeCast.toUint128(
+            lifiFeeAssets + (_feeAssets - integratorPart)
+        );
 
-        emit AssetFeeCharged(_feeType, _feeAssets);
+        emit AssetFeeCharged(_feeType, _feeAssets, integratorPart);
     }
 }

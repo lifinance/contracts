@@ -64,7 +64,12 @@ contract BeaconUpgradeTest is Test {
             underlying: address(underlying),
             nonce: nonce_,
             fees: fees,
-            integratorShareBps: type(uint16).max,
+            integratorShareBps: [
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max
+            ],
             initData: ""
         });
         vm.prank(onboarder);
