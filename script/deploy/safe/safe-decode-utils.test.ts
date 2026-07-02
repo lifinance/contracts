@@ -16,14 +16,16 @@ import { consola } from 'consola'
 import { getRoleName, formatRoleChange } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
+// OpenZeppelin AccessControl role hashes (public, keccak256 of role names) —
+// not private keys, despite matching the 64-hex-char shape.
 const CANCELLER_ROLE =
-  '0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783'
+  '0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783' // pre-commit-checker: not a secret
 const PROPOSER_ROLE =
-  '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1'
+  '0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1' // pre-commit-checker: not a secret
 const EXECUTOR_ROLE =
-  '0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63'
+  '0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63' // pre-commit-checker: not a secret
 const TIMELOCK_ADMIN_ROLE =
-  '0x5f58e3a2316349923ce3780f8d587db2d72378aed66a8261c916544fa6846ca5'
+  '0x5f58e3a2316349923ce3780f8d587db2d72378aed66a8261c916544fa6846ca5' // pre-commit-checker: not a secret
 
 describe('getRoleName', () => {
   it('resolves known OpenZeppelin role hashes', () => {
