@@ -29,7 +29,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
@@ -49,7 +49,7 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.2"
       },
-      "0x92a0479cc9D087874faEBA3402891BEafFfB9d8e": {
+      "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },

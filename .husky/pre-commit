@@ -358,6 +358,15 @@ prepare_env_secrets() {
         ;;
     esac
 
+    # Comma-separated network/contract-name allowlists are public config, not
+    # credentials, and their values legitimately overlap with strings in
+    # foundry.toml/networks.json (e.g. DO_NOT_VERIFY_IN_THESE_NETWORKS=...,localanvil,...).
+    case "$KEY_UPPER" in
+      DO_NOT_VERIFY_IN_THESE_NETWORKS|EXCLUDE_NETWORKS|EXCLUDE_PERIPHERY_CONTRACTS|EXCLUDE_FACET_CONTRACTS)
+        continue
+        ;;
+    esac
+
     # Skip short values only for clearly non-secret keys to avoid blind spots
     if [ ${#VALUE} -lt 8 ]; then
       case "$KEY_UPPER" in
