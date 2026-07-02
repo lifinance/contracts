@@ -151,11 +151,11 @@ contract LiFiVaultWrapper is
         _emitInitialized(asset);
     }
 
-    /// @dev Emits `Initialized` from stored state, keeping `initialize`'s stack shallow (the
-    ///      contract is compiled without via-IR, so the 6-field event inline would overflow).
+    /// @dev Emits `VaultWrapperConfigured` from stored state, keeping `initialize`'s stack shallow
+    ///      (the contract is compiled without via-IR, so the 6-field event inline would overflow).
     /// @param _asset The resolved ERC20 asset (not yet a stored field at emit time).
     function _emitInitialized(address _asset) private {
-        emit Initialized(
+        emit VaultWrapperConfigured(
             _asset,
             underlying,
             adapter,

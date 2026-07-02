@@ -69,9 +69,9 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0xcF8c70683D7c0E2a094348896A46407646b94859": {
+      "0xb50E1Db9b9b724a898901375B54D6A3B5e44e553": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xE1f26d5876F854609a067E5B767ACa44a0271F9d": {
         "Name": "GasZipFacet",

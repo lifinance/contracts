@@ -39,10 +39,7 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         // // no need to add the facet to the diamond, it's already added in DiamondTest.sol
         emergencyPauseFacet = EmergencyPauseFacet(payable(address(diamond)));
 
-        vm.label(
-            address(emergencyPauseFacet),
-            "EmergencyPauseFacet"
-        );
+        vm.label(address(emergencyPauseFacet), "EmergencyPauseFacet");
     }
 
     function test_PauserWalletCanPauseDiamond() public {

@@ -115,7 +115,7 @@ contract LiFiVaultWrapperTest is Test {
 
     uint256 internal constant DEPOSIT = 1_000e18;
 
-    event Initialized(
+    event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
@@ -150,7 +150,7 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.symbol(), "lfTKN");
     }
 
-    function test_InitializeEmitsInitialized() public {
+    function test_InitializeEmitsVaultWrapperConfigured() public {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
@@ -166,7 +166,7 @@ contract LiFiVaultWrapperTest is Test {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit Initialized(
+        emit VaultWrapperConfigured(
             address(asset),
             address(underlying),
             address(adapter),
