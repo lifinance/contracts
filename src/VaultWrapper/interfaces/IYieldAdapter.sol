@@ -19,7 +19,7 @@ pragma solidity ^0.8.17;
 ///        storage (no reads or writes of adapter state) so a shared adapter cannot
 ///        corrupt or be corrupted by the wrapper's storage layout; they may only act on
 ///        their arguments and external calls.
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 interface IYieldAdapter {
     /// @notice Thrown when the adapter cannot resolve the underlying's asset.
     error AssetResolutionFailed();
