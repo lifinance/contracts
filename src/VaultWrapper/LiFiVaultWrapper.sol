@@ -81,7 +81,7 @@ contract LiFiVaultWrapper is
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param factory The factory that deployed and initialized the instance.
     /// @param integratorShareBps The integrator's fee share (bps) snapshotted at deploy.
-    event Initialized(
+    event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
@@ -148,7 +148,7 @@ contract LiFiVaultWrapper is
         _feeConfig = _fees;
         initData = _initData;
 
-        emit Initialized(
+        emit VaultWrapperConfigured(
             asset,
             _underlying,
             _adapter,
