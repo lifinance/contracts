@@ -109,13 +109,11 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidCallData();
         }
 
-        // The station's LayerZero fee must be paid from msg.value, never from diamond balance
-        if (_paxosData.nativeFee > msg.value) {
-            revert InvalidCallData();
-        }
-
         uint256 offerAmount = _paxosData.quote.offerAmount;
 
+        // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
+        // non-swap path): the fee may be funded by an ERC20->native pre-swap, whose output
+        // the nativeReserve below keeps in the diamond for submitOrder.
         // The Paxos quote locks an exact offerAmount, so the swap must yield at least
         // that amount; any positive slippage is refunded so only the offer amount is bridged.
         uint256 receivedAmount = _depositAndSwap(

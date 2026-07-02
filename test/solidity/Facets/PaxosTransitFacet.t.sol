@@ -5,6 +5,7 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { MockTransitStation } from "../utils/MockTransitStation.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
 import { InformationMismatch, InvalidCallData, InvalidConfig, NativeAssetNotSupported, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
@@ -401,20 +402,66 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_WhenSwapAndBridgeNativeFeeExceedsMsgValue() public {
-        validPaxosData.nativeFee = 0.01 ether;
+    function test_CanSwapAndBridgeWhenNativeFeeIsFundedByPreSwap() public {
+        // the LayerZero fee does not have to come from msg.value on the swap path: an
+        // ERC20->native pre-swap can fund it, and _depositAndSwap's nativeReserve keeps
+        // that native in the diamond for submitOrder instead of sweeping it as leftovers
+        uint256 nativeFee = 0.01 ether;
+        validPaxosData.nativeFee = nativeFee;
+        transitStation.setExpectedNativeFee(nativeFee);
 
         vm.startPrank(USER_SENDER);
         bridgeData.hasSourceSwaps = true;
+
+        // final swap must output the offer asset, so the DAI -> native swap goes first
         setDefaultSwapDataSingleDAItoUSDC();
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+        LibSwap.SwapData memory daiToUsdc = swapData[0];
+        delete swapData;
 
-        vm.expectRevert(InvalidCallData.selector);
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        uint256 amountInMax = 50 * 10 ** dai.decimals();
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: amountInMax,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    nativeFee,
+                    amountInMax,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        swapData.push(daiToUsdc);
 
-        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{
-            value: 0.01 ether - 1
-        }(bridgeData, swapData, validPaxosData);
+        dai.approve(
+            _facetTestContractAddress,
+            amountInMax + daiToUsdc.fromAmount
+        );
+
+        // no native sent at all - the fee is funded entirely by the first swap
+        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{ value: 0 }(
+            bridgeData,
+            swapData,
+            validPaxosData
+        );
         vm.stopPrank();
+
+        assertEq(transitStation.lastNativeFee(), nativeFee);
+        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        // unspent DAI from the exact-output swap goes to the refundRecipient, not msg.sender
+        assertGt(dai.balanceOf(USER_REFUND), 0);
+        // nothing stranded in the diamond
+        assertEq(address(diamond).balance, 0);
+        assertEq(dai.balanceOf(address(diamond)), 0);
     }
 
     function testRevert_WhenSwapAndBridgeWithZeroRefundRecipient() public {
