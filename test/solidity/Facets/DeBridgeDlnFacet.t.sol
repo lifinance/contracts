@@ -1,6 +1,7 @@
-// solhint-disable max-line-length
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
+
+// solhint-disable max-line-length
 
 import { stdJson } from "forge-std/StdJson.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
