@@ -143,26 +143,45 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(wrapper.accruedFeeShares(), 0);
     }
 
-    function test_SubThresholdElapsedTimeIsPreserved() public {
+    function test_ZeroShareAccrualStillAdvancesBaseline() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
         // A tiny AUM makes the per-second management fee floor to zero shares, so the
-        // accrual at the top of an operation finds nothing to mint.
+        // accrual at the top of an operation mints nothing.
         _deposit(alice, 1000);
-        uint64 anchorBefore = wrapper.lastMgmtAccrual();
 
         vm.warp(block.timestamp + 1);
         _crystallize();
-        assertEq(wrapper.accruedFeeShares(), 0);
-        // lastMgmtAccrual does NOT advance while sub-threshold, so the elapsed second is
-        // not silently discarded — it is still owed at the next accrual.
-        assertEq(wrapper.lastMgmtAccrual(), anchorBefore);
 
-        // Once enough AUM and time accumulate, the carried-over time accrues.
-        _deposit(bob, DEPOSIT);
-        vm.warp(block.timestamp + YEAR);
+        assertEq(wrapper.accruedFeeShares(), 0);
+        // The baseline still advances: sub-threshold elapsed time is dropped (favouring
+        // holders), never carried forward to be re-priced against a larger future AUM.
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+    }
+
+    function test_DormantDustVaultCannotChargeNewDepositorForPastTime()
+        public
+    {
+        wrapper = _newWrapperMgmtOnly(1000); // 10% / year
+        // Dust-seed the vault, then leave it dormant: at 10 wei AUM the management fee
+        // floors to zero shares at every accrual.
+        _deposit(alice, 10);
+
+        vm.warp(block.timestamp + YEAR - 1);
+
+        // The accrual at the top of this large deposit still floors to zero at the
+        // pre-deposit AUM, but the baseline must advance so the dormant year cannot be
+        // re-priced against the new depositor's assets.
+        _deposit(bob, 1_000_000e18);
+
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+
+        vm.warp(block.timestamp + 1);
         _crystallize();
 
+        // One second at 10%/yr on ~1e24 assets is ~3e15 fee-shares; carrying the dormant
+        // year would have charged ~1e23 (10% of bob's deposit). Assert second-scale.
         assertGt(wrapper.accruedFeeShares(), 0);
+        assertLt(wrapper.accruedFeeShares(), 1e18);
     }
 
     function test_DilutionFeeAccruedEventEmitted() public {
@@ -543,6 +562,23 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         assertEq(wrapper.accruedFeeShares(), expectedShares);
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+    }
+
+    function test_SetFeeRateAdvancesBaselineEvenWhenAccrualFloorsToZero()
+        public
+    {
+        _stackWithFactory(MGMT_RATE);
+        _deposit(alice, 10); // dust: the old-rate accrual floors to zero shares
+
+        vm.warp(block.timestamp + 30 days);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Management, 1000);
+
+        // The elapsed month was priced (to zero) at the old rate and dropped; it must
+        // not be re-priced at the new 10% rate by the next accrual.
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+        assertEq(wrapper.accruedFeeShares(), 0);
     }
 
     /// Helpers ///

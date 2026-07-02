@@ -466,29 +466,20 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Crystallizes the management fee by minting dilution shares to this contract.
-    ///      When no fee can accrue — an uninitialized baseline (e.g. an instance upgraded
-    ///      into this version), the type disabled, or an empty vault — the baseline is moved
-    ///      to now so that dormant time is never charged later at the current rate. Otherwise
-    ///      it mints only when the share amount is non-zero, advancing `lastMgmtAccrual` only
-    ///      then so sub-threshold elapsed time is preserved.
+    ///      The baseline ALWAYS advances to now, whether or not anything was minted:
+    ///      elapsed time must never outlive the accrual that priced it, or it would be
+    ///      re-priced later against a larger AUM (charging depositors for time before they
+    ///      were invested — a dormant dust vault could confiscate most of a new deposit)
+    ///      or against a new rate (voiding `setFeeRate`'s accrue-at-old-rate-first
+    ///      guarantee). The cost is that elapsed time whose fee floors to zero shares is
+    ///      dropped — at most ~one share's worth of assets per accrual, favouring holders.
     function _accrueFees() private {
-        if (
-            lastMgmtAccrual == 0 ||
-            !_feeConfig.enabled[uint8(FeeType.Management)] ||
-            totalSupply() == 0 ||
-            totalAssets() == 0
-        ) {
-            lastMgmtAccrual = uint64(block.timestamp);
-
-            return;
-        }
-
         uint256 feeShares = _pendingManagementFee();
+        lastMgmtAccrual = uint64(block.timestamp);
         if (feeShares == 0) return;
 
         _mint(address(this), feeShares);
         accruedFeeShares += feeShares;
-        lastMgmtAccrual = uint64(block.timestamp);
 
         emit DilutionFeeAccrued(FeeType.Management, feeShares);
     }
