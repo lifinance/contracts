@@ -4,9 +4,30 @@ pragma solidity ^0.8.17;
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 
 /// @notice Adapter that resolves to the zero address without reverting, used to
-///         exercise the factory's zero-asset guard in _resolveAssetViaAdapter.
+///         exercise the factory's zero-asset guard in _resolveAssetViaAdapter. The
+///         runtime methods are unused stubs (the factory only calls resolveAsset).
 contract MockZeroAdapter is IYieldAdapter {
     function resolveAsset(address) external pure returns (address) {
         return address(0);
+    }
+
+    function totalAssets(address, address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function deposit(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
+    }
+
+    function withdraw(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
     }
 }
