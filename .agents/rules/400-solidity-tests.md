@@ -2,9 +2,9 @@
 name: Solidity tests
 description: Foundry test structure, naming, and expectations
 globs:
-  - 'test/**/*.t.sol'
+  - 'test/**/*.sol'
 paths:
-  - 'test/**/*.t.sol'
+  - 'test/**/*.sol'
 ---
 
 ## Test Structure ([CONV:TESTS])
@@ -14,6 +14,23 @@ paths:
 - When tests do not need mainnet state, inherit `TestBaseLocal` and call `initTestBaseLocal()` instead of `initTestBase()`.
 - For facet tests, inherit from `TestBaseFacet` rather than `TestBase`, since standard facet functions need to be overridden.
 - Import ordering: system libraries first (e.g., `forge-std`, `ds-test`), then project files (e.g., `lifi/`, `test/`).
+
+## Real Contracts vs Mocks ([CONV:FORK-FIRST])
+
+- Facet tests run on a mainnet fork (`TestBase`): call the **real deployed third-party contract** on that fork by default. Never mock a contract the test could call for real.
+- If the counterparty verifies signatures produced by **our own backend** (facet has a configurable signer), that is NOT a reason to mock — set a test signer and sign in-test (`TestEIP712` + `Test<Protocol>BackendSig` helper pattern).
+- If the real contract gates calls on third-party-controlled state (a trusted signer, an allowlist, a permissioned caller), first try to **lift the gate on the fork** instead of mocking:
+  - `vm.prank` the contract's owner/admin and call its real setter (e.g. rotate its quote signer to a test key), or write the slot directly via `stdstore`/`vm.store`, then sign in-test,
+  - pin `customBlockNumberForForking` to a block at which the contract is deployed and configured — the suite's default fork block is not a constraint.
+- Mocking the third-party contract is acceptable **only** when real calls stay infeasible after that, e.g.:
+  - the gate is `immutable`/hardcoded in bytecode with no settable or storage-writable path,
+  - its behavior depends on live off-chain state that cannot be pinned at a fork block (auctions, oracle-priced fees),
+  - no forkable network has the contract deployed.
+- Every mock must:
+  - live in `test/solidity/utils/Mock<Name>.sol` and implement the real interface from `src/Interfaces/`,
+  - mirror the real contract's **funds flow and reverts** (pull tokens the same way, enforce the same `msg.value` gating) — not merely record calls or emit events,
+  - state in its NatSpec why the real contract cannot be used.
+- When a facet's unit tests mock the counterparty, real-contract coverage must exist elsewhere (e.g. a demo script executed against the deployed contract) and the PR must reference it.
 
 ## Test Naming
 
