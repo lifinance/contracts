@@ -48,8 +48,15 @@ interface ILiFiVaultWrapper {
     /// @param feeAssets The fee amount, in assets.
     event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
 
+    /// @notice Emitted when the integrator toggles this clone's deposit pause.
+    /// @param paused The new pause state.
+    /// @param by The owner (integrator) that toggled it.
+    event PauseSet(bool paused, address indexed by);
+
     /// Errors ///
 
+    /// @notice Thrown when a deposit is attempted while any pause source is engaged.
+    error DepositsPaused();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.

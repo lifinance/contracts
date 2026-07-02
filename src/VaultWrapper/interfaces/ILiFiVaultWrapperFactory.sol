@@ -5,10 +5,10 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
-/// @notice Events and errors emitted by the LI.FI vault wrapper factory.
+/// @notice Events, errors, and the live state a vault wrapper reads back from its factory.
 /// @custom:version 1.0.0
 interface ILiFiVaultWrapperFactory {
-    /// Functions ///
+    /// Views ///
 
     /// @notice Returns the adjustable fee bounds (bps) for a fee type.
     /// @dev ABI-identical to the auto-generated getter for the factory's public
@@ -20,6 +20,10 @@ interface ILiFiVaultWrapperFactory {
     function feeBounds(
         FeeType _feeType
     ) external view returns (uint16 minBps, uint16 maxBps);
+
+    /// @notice Whether deposits are globally halted across every vault wrapper.
+    /// @return True when the global circuit breaker is engaged.
+    function globalPaused() external view returns (bool);
 
     /// Events ///
 

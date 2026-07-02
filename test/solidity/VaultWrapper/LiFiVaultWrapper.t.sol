@@ -124,6 +124,12 @@ contract LiFiVaultWrapperTest is Test {
         uint16 integratorShareBps
     );
 
+    /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
+    ///      wrapper reads the global circuit breaker back from here.
+    function globalPaused() external pure returns (bool) {
+        return false;
+    }
+
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
