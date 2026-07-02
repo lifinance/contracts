@@ -12,7 +12,7 @@ Before the workflow can run for the first time, a repo admin must:
 1. **Create a GitHub Environment** named `security-review` (Settings → Environments → New environment). This isolates the Anthropic credentials.
 2. **Add `ANTHROPIC_API_KEY`** as an _environment secret_ on that environment (not a plain repo secret).
 3. **Enable GitHub Code Scanning** (Settings → Code security and analysis → Code scanning). The curated SARIF upload (Stage 3) requires it. Stage 1 tool output is not uploaded — it is archived as a run artifact and fed to Stage 2 triage.
-4. (Optional, recommended) Add required reviewers on the environment so the AI triage step can't run without approval on forks.
+4. No extra setup is needed to keep the keyed Stage 2 job safe. Forks never reach Stage 2 (the job skips external code); the residual path is untrusted diff content on an _internal_ PR, which is contained by the agent's restricted toolset (no Bash/WebFetch → no key exfil) and the untrusted-input rule in its prompt. When EXP-485 flips this to a merge gate, keep human review co-required so the AI check is never the sole gatekeeper.
 
 > **First run is post-merge.** `claude-code-action` only runs when this
 > workflow file is byte-identical to the copy on the default branch (its
