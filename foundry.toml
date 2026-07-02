@@ -39,10 +39,14 @@ runs = 32
 # - test/script are skipped: only deployed contracts must honor the floor, and those
 #   suites trip the legacy pipeline's "stack too deep" (a codegen limit, not a
 #   floor-incompatibility signal) which would mask the real check.
+# - src/VaultWrapper/** is skipped: the standalone Earn Vault Wrapper builds on
+#   OpenZeppelin v5, which requires solc >= 0.8.24, so the subsystem's real floor is
+#   higher than the Diamond's 0.8.17 and it cannot compile under this profile. Nothing
+#   in the Diamond imports it, so excluding it here does not weaken the Diamond's check.
 [profile.solc_floor]
 solc_version = '0.8.17'
 evm_version = 'london'
-skip = ['test/**', 'script/**']
+skip = ['test/**', 'script/**', 'src/VaultWrapper/**']
 
 [profile.zksync]
 solc_version = '0.8.29'
