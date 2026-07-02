@@ -1092,7 +1092,7 @@ contract MayanFacetTest is TestBaseFacet {
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(
             receiver,
-            hex"1ccbd4fdcd76cd2e3ba8d05205c012ecd28743f14359a7151b64da60a1679ece",
+            hex"1ccbd4fdcd76cd2e3ba8d05205c012ecd28743f14359a7151b64da60a1679ece", // [pre-commit-checker: not a secret]
             "parse receiver: Swift v2 backend sample destAddr (bytes32)"
         );
         bytes32 wordAt0xc4;
