@@ -50,8 +50,10 @@ Operational dependencies (Paxos / LI.FI backend, not enforced by this facet):
   - Simply bridges tokens using Paxos Transit without performing any swaps
 - `function swapAndStartBridgeTokensViaPaxosTransit(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, PaxosTransitData calldata _paxosData)`
   - Performs swap(s) before bridging tokens using Paxos Transit. The quote's `offerAmount` is fixed,
-    so the swap must yield at least that amount; any positive slippage is refunded to the caller and
-    exactly `offerAmount` is bridged.
+    so the swap must yield at least that amount; any positive slippage and unspent swap inputs are
+    refunded to `refundRecipient` (not `msg.sender`, which may be a relayer or the Permit2Proxy)
+    and exactly `offerAmount` is bridged. Excess native is returned to `msg.sender`, since the
+    caller funds the LayerZero fee.
 
 ## PaxosTransit Specific Parameters
 
@@ -62,10 +64,12 @@ Transit and is represented as the following struct type:
 /// @param quote The Paxos-signed quote describing the transit order
 /// @param signature The Paxos signature over the EIP-712 quote digest
 /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee
+/// @param refundRecipient Address that receives swap leftovers and positive slippage from pre-bridge swaps
 struct PaxosTransitData {
     IPaxosTransit.Quote quote;
     bytes signature;
     uint256 nativeFee;
+    address refundRecipient;
 }
 ```
 
@@ -86,9 +90,13 @@ struct Quote {
 ```
 
 The facet validates that the on-chain `BridgeData` matches the signed quote — `sendingAssetId ==
-route.offerAsset`, `minAmount == offerAmount`, `receiver == quote.receiver` — and that
-`distributorCode == LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of
-"LIFI"). Any mismatch reverts with `InformationMismatch`.
+route.offerAsset`, `receiver == quote.receiver` — and that `distributorCode ==
+LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of "LIFI"). Any
+mismatch reverts with `InformationMismatch`. `minAmount == offerAmount` is guaranteed on both
+paths: the non-swap entrypoint validates it (reverting `InformationMismatch` on mismatch) and the
+swap entrypoint assigns `minAmount = offerAmount` after swapping. `nativeFee` must not exceed
+`msg.value` on either path (reverts `InvalidCallData`), so the LayerZero fee is always paid by the
+caller, never from diamond balance.
 
 **Not enforced on-chain:** the destination routing (`route.destEID`) and the destination asset
 (`route.wantAsset`) are *not* cross-checked against `_bridgeData.destinationChainId`. Funds always

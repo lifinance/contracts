@@ -1907,7 +1907,7 @@
         }
       ]
     },
-    "startBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee) _paxosData)": {
+    "startBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Bridge via PaxosTransit",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PaxosTransit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -5236,7 +5236,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee) _paxosData)": {
+    "swapAndStartBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Swap & Bridge via PaxosTransit",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PaxosTransit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [

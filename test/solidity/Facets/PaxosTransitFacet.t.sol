@@ -4,9 +4,10 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { MockTransitStation } from "../utils/MockTransitStation.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
-import { InformationMismatch, InvalidConfig, NativeAssetNotSupported, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, NativeAssetNotSupported, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
 
 // Stub PaxosTransitFacet Contract
 contract TestPaxosTransitFacet is PaxosTransitFacet, TestWhitelistManagerBase {
@@ -89,7 +90,8 @@ contract PaxosTransitFacetTest is TestBaseFacet {
                 salt: keccak256("paxos-salt")
             }),
             signature: hex"",
-            nativeFee: 0
+            nativeFee: 0,
+            refundRecipient: USER_REFUND
         });
     }
 
@@ -366,15 +368,66 @@ contract PaxosTransitFacetTest is TestBaseFacet {
 
         uint256 senderUsdcBefore = usdc.balanceOf(USER_SENDER);
 
+        // the emitted (and bridged) amount must be the quote's offerAmount, not the
+        // caller-supplied minAmount (which the swap path overwrites)
+        ILiFi.BridgeData memory expectedBridgeData = bridgeData;
+        expectedBridgeData.minAmount = offerAmount;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(expectedBridgeData);
+
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
 
         // only the exact (lower) offer amount is bridged to the station
         assertEq(usdc.balanceOf(address(transitStation)), offerAmount);
-        // the positive slippage (swap output - offer amount) is refunded to the caller
-        assertEq(
-            usdc.balanceOf(USER_SENDER),
-            senderUsdcBefore + (defaultUSDCAmount - offerAmount)
+        // the positive slippage (swap output - offer amount) is refunded to the designated
+        // refundRecipient, NOT to msg.sender (which may be a relayer or the Permit2Proxy)
+        assertEq(usdc.balanceOf(USER_REFUND), defaultUSDCAmount - offerAmount);
+        assertEq(usdc.balanceOf(USER_SENDER), senderUsdcBefore);
+    }
+
+    function testRevert_WhenNativeFeeExceedsMsgValue() public {
+        validPaxosData.nativeFee = 0.01 ether;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{ value: 0.01 ether - 1 }(
+            bridgeData,
+            validPaxosData
         );
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeNativeFeeExceedsMsgValue() public {
+        validPaxosData.nativeFee = 0.01 ether;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{
+            value: 0.01 ether - 1
+        }(bridgeData, swapData, validPaxosData);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeWithZeroRefundRecipient() public {
+        validPaxosData.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 }

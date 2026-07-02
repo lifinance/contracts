@@ -193,6 +193,7 @@ async function main(): Promise<void> {
       },
       signature: '0x' as Hex, // mock station does not verify; real flow uses the Paxos signature
       nativeFee,
+      refundRecipient: receiver, // receives swap leftovers + positive slippage from pre-bridge swaps
     }
 
     // make the mock station require exactly this LayerZero fee, so a successful run

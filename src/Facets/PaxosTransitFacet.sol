@@ -8,7 +8,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
 
 /// @title PaxosTransitFacet
 /// @author LI.FI (https://li.fi)
@@ -29,10 +29,12 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param quote The Paxos-signed quote describing the transit order
     /// @param signature The Paxos signature over the EIP-712 quote digest
     /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee
+    /// @param refundRecipient Address that receives swap leftovers and positive slippage from pre-bridge swaps
     struct PaxosTransitData {
         IPaxosTransit.Quote quote;
         bytes signature;
         uint256 nativeFee;
+        address refundRecipient;
     }
 
     /// Constructor ///
@@ -64,6 +66,17 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
+        // The swap path derives minAmount from the quote itself; only here does the caller
+        // supply it directly, so it must match the Paxos-signed offerAmount.
+        if (_bridgeData.minAmount != _paxosData.quote.offerAmount) {
+            revert InformationMismatch();
+        }
+
+        // The station's LayerZero fee must be paid from msg.value, never from diamond balance
+        if (_paxosData.nativeFee > msg.value) {
+            revert InvalidCallData();
+        }
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -89,25 +102,39 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
+        // msg.sender may be a relayer or the Permit2Proxy, so token value that belongs to
+        // the user (swap leftovers and positive slippage) must go to an explicit
+        // refundRecipient. Excess native stays with msg.sender - the caller funds the fee.
+        if (_paxosData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
+        // The station's LayerZero fee must be paid from msg.value, never from diamond balance
+        if (_paxosData.nativeFee > msg.value) {
+            revert InvalidCallData();
+        }
+
+        uint256 offerAmount = _paxosData.quote.offerAmount;
+
         // The Paxos quote locks an exact offerAmount, so the swap must yield at least
         // that amount; any positive slippage is refunded so only the offer amount is bridged.
         uint256 receivedAmount = _depositAndSwap(
             _bridgeData.transactionId,
-            _paxosData.quote.offerAmount,
+            offerAmount,
             _swapData,
-            payable(msg.sender),
+            payable(_paxosData.refundRecipient),
             _paxosData.nativeFee
         );
 
-        if (receivedAmount > _paxosData.quote.offerAmount) {
+        if (receivedAmount > offerAmount) {
             LibAsset.transferAsset(
                 _bridgeData.sendingAssetId,
-                payable(msg.sender),
-                receivedAmount - _paxosData.quote.offerAmount
+                payable(_paxosData.refundRecipient),
+                receivedAmount - offerAmount
             );
         }
 
-        _bridgeData.minAmount = _paxosData.quote.offerAmount;
+        _bridgeData.minAmount = offerAmount;
         _startBridge(_bridgeData, _paxosData);
     }
 
@@ -123,7 +150,9 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         IPaxosTransit.Quote calldata quote = _paxosData.quote;
 
         // Ensure the on-chain bridgeData matches the Paxos-signed quote so we never bridge a
-        // different asset, amount or receiver than was authorized, and our volume stays attributed.
+        // different asset or receiver than was authorized, and our volume stays attributed.
+        // The amount needs no check here: both entrypoints guarantee minAmount == offerAmount
+        // (the swap path assigns it, the non-swap path validates it).
         // NOTE: the routing (quote.route.destEID) and the destination asset (quote.route.wantAsset)
         // are intentionally NOT cross-checked against _bridgeData.destinationChainId. Funds always
         // follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated,
@@ -131,7 +160,6 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // backend-generated calldata. _bridgeData.destinationChainId is for analytics/events only.
         if (
             _bridgeData.sendingAssetId != quote.route.offerAsset ||
-            _bridgeData.minAmount != quote.offerAmount ||
             _bridgeData.receiver != quote.receiver ||
             quote.distributorCode != LIFI_DISTRIBUTOR_CODE
         ) {
