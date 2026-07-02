@@ -606,6 +606,77 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(wrapper.accruedFeeShares(), 0);
     }
 
+    function test_SetFeeRateDepositChargesNewRateOnNextDeposit() public {
+        _stackWithFactory(0); // no management fee, so fee effects are isolated
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Deposit, 0, 1000);
+        _deposit(alice, DEPOSIT);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Deposit, DEP_RATE);
+
+        // Only the Deposit slot changed.
+        assertEq(wrapper.feeRate(uint8(FeeType.Deposit)), DEP_RATE);
+        assertTrue(wrapper.feeEnabled(uint8(FeeType.Deposit)));
+        assertEq(wrapper.feeRate(uint8(FeeType.Management)), 0);
+        assertEq(wrapper.feeRate(uint8(FeeType.Withdrawal)), 0);
+
+        uint256 amount = 100e18;
+        uint256 expectedFee = LibVaultWrapperMath.feeOnTotal(amount, DEP_RATE);
+
+        asset.mint(bob, amount);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), amount);
+        wrapper.deposit(amount, bob);
+        vm.stopPrank();
+
+        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+    }
+
+    function test_SetFeeRateWithdrawalChargesNewRateOnNextWithdraw() public {
+        _stackWithFactory(0);
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Withdrawal, 0, 1000);
+        _deposit(alice, DEPOSIT);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Withdrawal, WD_RATE);
+
+        assertEq(wrapper.feeRate(uint8(FeeType.Withdrawal)), WD_RATE);
+        assertTrue(wrapper.feeEnabled(uint8(FeeType.Withdrawal)));
+
+        uint256 amount = 100e18;
+        uint256 expectedFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
+
+        vm.prank(alice);
+        wrapper.withdraw(amount, alice, alice);
+
+        assertEq(asset.balanceOf(alice), amount);
+        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+    }
+
+    function testRevert_SetFeeRateDepositValidatedAgainstDepositBounds()
+        public
+    {
+        _stackWithFactory(0); // management bounds are 0..1000
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Deposit, 200, 1000);
+
+        // 100 bps sits inside the management bounds but below the deposit minimum, so
+        // the setter must be reading the DEPOSIT bounds to reject it.
+        vm.prank(vaultAdmin);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.FeeRateOutOfBounds.selector,
+                uint16(100),
+                uint16(200),
+                uint16(1000)
+            )
+        );
+
+        wrapper.setFeeRate(FeeType.Deposit, 100);
+    }
+
     /// Helpers ///
 
     LiFiVaultWrapperFactory internal factory;
