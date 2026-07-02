@@ -180,12 +180,15 @@ contract LiFiVaultWrapper is
         uint256 _assets,
         Math.Rounding _rounding
     ) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 assets = totalAssets();
+
         return
             LibVaultWrapperMath.convertToShares({
                 _assets: _assets,
-                _totalSupply: totalSupply(),
-                _pendingFeeShares: _pendingFeeShares(),
-                _totalAssets: totalAssets(),
+                _totalSupply: supply,
+                _pendingFeeShares: _pendingFeeShares(supply, assets),
+                _totalAssets: assets,
                 _decimalsOffset: _decimalsOffset(),
                 _rounding: _rounding
             });
@@ -197,12 +200,15 @@ contract LiFiVaultWrapper is
         uint256 _shares,
         Math.Rounding _rounding
     ) internal view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 assets = totalAssets();
+
         return
             LibVaultWrapperMath.convertToAssets({
                 _shares: _shares,
-                _totalSupply: totalSupply(),
-                _pendingFeeShares: _pendingFeeShares(),
-                _totalAssets: totalAssets(),
+                _totalSupply: supply,
+                _pendingFeeShares: _pendingFeeShares(supply, assets),
+                _totalAssets: assets,
                 _decimalsOffset: _decimalsOffset(),
                 _rounding: _rounding
             });
@@ -488,29 +494,52 @@ contract LiFiVaultWrapper is
         emit DilutionFeeAccrued(FeeType.Management, feeShares);
     }
 
-    /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
-    ///      `_convertTo*` previews so a preview returned before an operation equals what the
-    ///      caller gets after accrual (to the wei, modulo rounding direction).
-    /// @return feeShares Dilution shares the pending fee is worth.
-    function _pendingManagementFee() private view returns (uint256 feeShares) {
+    /// @dev Entry for `_accrueFees`: performs the cheap storage guards (uninitialized
+    ///      baseline, disabled type, zero elapsed) BEFORE paying for the external
+    ///      `totalAssets()` adapter round-trip, then delegates to the parameterized
+    ///      computation.
+    /// @return Dilution shares the pending fee is worth.
+    function _pendingManagementFee() private view returns (uint256) {
         if (
             lastMgmtAccrual == 0 ||
-            !_feeConfig.enabled[uint8(FeeType.Management)]
+            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            block.timestamp == lastMgmtAccrual
         ) return 0;
 
-        uint256 supply = totalSupply();
-        uint256 assets = totalAssets();
-        if (supply == 0 || assets == 0) return 0;
+        return _pendingManagementFee(totalSupply(), totalAssets());
+    }
+
+    /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
+    ///      `_convertTo*` previews so a preview returned before an operation equals what the
+    ///      caller gets after accrual (to the wei, modulo rounding direction). Parameterized
+    ///      so the conversion overrides, which already hold supply/assets, do not repeat the
+    ///      external `totalAssets()` adapter round-trip.
+    /// @param _supply The current total supply (pre-accrual).
+    /// @param _assets The current total assets.
+    /// @return feeShares Dilution shares the pending fee is worth.
+    function _pendingManagementFee(
+        uint256 _supply,
+        uint256 _assets
+    ) private view returns (uint256 feeShares) {
+        if (
+            lastMgmtAccrual == 0 ||
+            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            _supply == 0 ||
+            _assets == 0
+        ) return 0;
+
+        uint256 elapsed = block.timestamp - lastMgmtAccrual;
+        if (elapsed == 0) return 0;
 
         uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets({
-            _totalAssets: assets,
+            _totalAssets: _assets,
             _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
-            _elapsed: block.timestamp - lastMgmtAccrual
+            _elapsed: elapsed
         });
         feeShares = LibVaultWrapperMath.dilutionShares({
             _feeAssets: feeAssets,
-            _totalSupply: supply,
-            _totalAssets: assets,
+            _totalSupply: _supply,
+            _totalAssets: _assets,
             _decimalsOffset: _decimalsOffset()
         });
     }
@@ -518,9 +547,14 @@ contract LiFiVaultWrapper is
     /// @dev Fee-shares pending since the last accrual, used by the effective-supply
     ///      conversion overrides. Isolated as a seam so further dilution fees can extend it
     ///      without changing the conversion math.
+    /// @param _supply The current total supply (pre-accrual).
+    /// @param _assets The current total assets.
     /// @return The dilution shares pending.
-    function _pendingFeeShares() private view returns (uint256) {
-        return _pendingManagementFee();
+    function _pendingFeeShares(
+        uint256 _supply,
+        uint256 _assets
+    ) private view returns (uint256) {
+        return _pendingManagementFee(_supply, _assets);
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
