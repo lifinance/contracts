@@ -200,25 +200,11 @@ contract LibVaultWrapperMathTest is Test {
 
     /* --------------------- Convention B round-trip identities ---------------- */
 
-    // deposit<->mint: a user minting `net` shares supplies `gross = net + feeOnRaw(net)`.
-    // Extracting the fee back out of that gross via feeOnTotal must recover the same
-    // fee, so the net deposited (gross - feeOnTotal(gross)) equals the original net.
+    // deposit<->mint and withdraw<->redeem both compose feeOnRaw/feeOnTotal the same
+    // way, so one fuzz covers the identity: a `net` amount grossed up via feeOnRaw must
+    // give back the same fee (and net) when decomposed via feeOnTotal. The wrapper-level
+    // withdraw<->redeem inverse is asserted in LiFiVaultWrapperFees.t.sol.
     function testFuzz_DepositMintInverse(
-        uint256 _net,
-        uint16 _feeBps
-    ) public view {
-        _net = bound(_net, 0, type(uint128).max);
-
-        uint256 fee = lib.feeOnRaw(_net, _feeBps);
-        uint256 gross = _net + fee;
-        uint256 feeBack = lib.feeOnTotal(gross, _feeBps);
-
-        assertEq(feeBack, fee, "fee must round-trip");
-        assertEq(gross - feeBack, _net, "net must round-trip");
-    }
-
-    // withdraw<->redeem: same Convention B identity on the withdrawal side.
-    function testFuzz_WithdrawRedeemInverse(
         uint256 _net,
         uint16 _feeBps
     ) public view {

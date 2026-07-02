@@ -8,6 +8,8 @@ import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.so
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
+import { ERC4626 } from "solmate/mixins/ERC4626.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
@@ -143,26 +145,45 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(wrapper.accruedFeeShares(), 0);
     }
 
-    function test_SubThresholdElapsedTimeIsPreserved() public {
+    function test_ZeroShareAccrualStillAdvancesBaseline() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
         // A tiny AUM makes the per-second management fee floor to zero shares, so the
-        // accrual at the top of an operation finds nothing to mint.
+        // accrual at the top of an operation mints nothing.
         _deposit(alice, 1000);
-        uint64 anchorBefore = wrapper.lastMgmtAccrual();
 
         vm.warp(block.timestamp + 1);
         _crystallize();
-        assertEq(wrapper.accruedFeeShares(), 0);
-        // lastMgmtAccrual does NOT advance while sub-threshold, so the elapsed second is
-        // not silently discarded — it is still owed at the next accrual.
-        assertEq(wrapper.lastMgmtAccrual(), anchorBefore);
 
-        // Once enough AUM and time accumulate, the carried-over time accrues.
-        _deposit(bob, DEPOSIT);
-        vm.warp(block.timestamp + YEAR);
+        assertEq(wrapper.accruedFeeShares(), 0);
+        // The baseline still advances: sub-threshold elapsed time is dropped (favouring
+        // holders), never carried forward to be re-priced against a larger future AUM.
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+    }
+
+    function test_DormantDustVaultCannotChargeNewDepositorForPastTime()
+        public
+    {
+        wrapper = _newWrapperMgmtOnly(1000); // 10% / year
+        // Dust-seed the vault, then leave it dormant: at 10 wei AUM the management fee
+        // floors to zero shares at every accrual.
+        _deposit(alice, 10);
+
+        vm.warp(block.timestamp + YEAR - 1);
+
+        // The accrual at the top of this large deposit still floors to zero at the
+        // pre-deposit AUM, but the baseline must advance so the dormant year cannot be
+        // re-priced against the new depositor's assets.
+        _deposit(bob, 1_000_000e18);
+
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+
+        vm.warp(block.timestamp + 1);
         _crystallize();
 
+        // One second at 10%/yr on ~1e24 assets is ~3e15 fee-shares; carrying the dormant
+        // year would have charged ~1e23 (10% of bob's deposit). Assert second-scale.
         assertGt(wrapper.accruedFeeShares(), 0);
+        assertLt(wrapper.accruedFeeShares(), 1e18);
     }
 
     function test_DilutionFeeAccruedEventEmitted() public {
@@ -416,6 +437,29 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(asset.balanceOf(address(wrapper)), idleBefore + dust);
     }
 
+    function test_DustRedeemSucceedsOnZeroRejectingSource() public {
+        // A yield source that rejects zero-amount withdrawals must not block a dust
+        // redeem whose previewRedeem is 0: the wrapper skips the adapter round-trip
+        // entirely (mirroring the zero short-circuit on the deposit side).
+        underlying = MockERC4626(
+            address(new ZeroWithdrawRevertingERC4626(asset))
+        );
+        wrapper = _newWrapperAssetFees(0, WD_RATE);
+        _deposit(alice, DEPOSIT);
+
+        // A single share's gross value (1 wei) is fully consumed by the exit fee.
+        vm.prank(alice);
+        wrapper.transfer(bob, 1);
+
+        assertEq(wrapper.previewRedeem(1), 0);
+
+        vm.prank(bob);
+        uint256 out = wrapper.redeem(1, bob, bob);
+
+        assertEq(out, 0);
+        assertEq(wrapper.balanceOf(bob), 0);
+    }
+
     /// Zero-fee passthrough ///
 
     function test_ZeroFeeConfigIsPurePassthrough() public {
@@ -543,6 +587,94 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         assertEq(wrapper.accruedFeeShares(), expectedShares);
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+    }
+
+    function test_SetFeeRateAdvancesBaselineEvenWhenAccrualFloorsToZero()
+        public
+    {
+        _stackWithFactory(MGMT_RATE);
+        _deposit(alice, 10); // dust: the old-rate accrual floors to zero shares
+
+        vm.warp(block.timestamp + 30 days);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Management, 1000);
+
+        // The elapsed month was priced (to zero) at the old rate and dropped; it must
+        // not be re-priced at the new 10% rate by the next accrual.
+        assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
+        assertEq(wrapper.accruedFeeShares(), 0);
+    }
+
+    function test_SetFeeRateDepositChargesNewRateOnNextDeposit() public {
+        _stackWithFactory(0); // no management fee, so fee effects are isolated
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Deposit, 0, 1000);
+        _deposit(alice, DEPOSIT);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Deposit, DEP_RATE);
+
+        // Only the Deposit slot changed.
+        assertEq(wrapper.feeRate(uint8(FeeType.Deposit)), DEP_RATE);
+        assertTrue(wrapper.feeEnabled(uint8(FeeType.Deposit)));
+        assertEq(wrapper.feeRate(uint8(FeeType.Management)), 0);
+        assertEq(wrapper.feeRate(uint8(FeeType.Withdrawal)), 0);
+
+        uint256 amount = 100e18;
+        uint256 expectedFee = LibVaultWrapperMath.feeOnTotal(amount, DEP_RATE);
+
+        asset.mint(bob, amount);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), amount);
+        wrapper.deposit(amount, bob);
+        vm.stopPrank();
+
+        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+    }
+
+    function test_SetFeeRateWithdrawalChargesNewRateOnNextWithdraw() public {
+        _stackWithFactory(0);
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Withdrawal, 0, 1000);
+        _deposit(alice, DEPOSIT);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Withdrawal, WD_RATE);
+
+        assertEq(wrapper.feeRate(uint8(FeeType.Withdrawal)), WD_RATE);
+        assertTrue(wrapper.feeEnabled(uint8(FeeType.Withdrawal)));
+
+        uint256 amount = 100e18;
+        uint256 expectedFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
+
+        vm.prank(alice);
+        wrapper.withdraw(amount, alice, alice);
+
+        assertEq(asset.balanceOf(alice), amount);
+        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+    }
+
+    function testRevert_SetFeeRateDepositValidatedAgainstDepositBounds()
+        public
+    {
+        _stackWithFactory(0); // management bounds are 0..1000
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Deposit, 200, 1000);
+
+        // 100 bps sits inside the management bounds but below the deposit minimum, so
+        // the setter must be reading the DEPOSIT bounds to reject it.
+        vm.prank(vaultAdmin);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.FeeRateOutOfBounds.selector,
+                uint16(100),
+                uint16(200),
+                uint16(1000)
+            )
+        );
+
+        wrapper.setFeeRate(FeeType.Deposit, 100);
     }
 
     /// Helpers ///
@@ -692,5 +824,22 @@ contract LiFiVaultWrapperFeesTest is Test {
         asset.mint(address(this), 1);
         asset.approve(address(wrapper), 1);
         wrapper.deposit(1, address(this));
+    }
+}
+
+/// @dev A yield source that rejects zero-amount withdrawals, mirroring vaults with
+///      non-standard zero handling (solmate's MockERC4626 hooks are not virtual, so this
+///      subclasses the mixin directly).
+contract ZeroWithdrawRevertingERC4626 is ERC4626 {
+    error ZeroAssets();
+
+    constructor(ERC20 _asset) ERC4626(_asset, "Strict Yield Token", "syTKN") {}
+
+    function totalAssets() public view override returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
+
+    function beforeWithdraw(uint256 _assets, uint256) internal pure override {
+        if (_assets == 0) revert ZeroAssets();
     }
 }
