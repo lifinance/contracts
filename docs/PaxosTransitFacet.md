@@ -94,9 +94,9 @@ struct Quote {
 The facet validates that the on-chain `BridgeData` matches the signed quote — `sendingAssetId ==
 route.offerAsset`, `receiver == quote.receiver` — and that `distributorCode ==
 LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of "LIFI"). Any
-mismatch reverts with `InformationMismatch`. `minAmount == offerAmount` is guaranteed on both
-paths: the non-swap entrypoint validates it (reverting `InformationMismatch` on mismatch) and the
-swap entrypoint assigns `minAmount = offerAmount` after swapping. On the non-swap path `nativeFee`
+mismatch reverts with `InformationMismatch`. Both entrypoints validate `minAmount == offerAmount`
+(reverting `InformationMismatch` on mismatch); on the swap path this also extends the non-zero
+`minAmount` guarantee from `validateBridgeData` to the swap floor. On the non-swap path `nativeFee`
 must not exceed `msg.value` (reverts `InvalidCallData`), so the LayerZero fee can never be paid
 from diamond balance. The swap path has no such check because the fee may be funded by an
 ERC20→native pre-swap — `_depositAndSwap` reserves `nativeFee` of native from the leftover sweep

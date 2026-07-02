@@ -66,8 +66,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        // The swap path derives minAmount from the quote itself; only here does the caller
-        // supply it directly, so it must match the Paxos-signed offerAmount.
+        // The Paxos-signed quote locks the exact amount to bridge, so minAmount must match it
         if (_bridgeData.minAmount != _paxosData.quote.offerAmount) {
             revert InformationMismatch();
         }
@@ -111,6 +110,13 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         uint256 offerAmount = _paxosData.quote.offerAmount;
 
+        // The Paxos-signed quote locks the exact amount to bridge, so minAmount must match it
+        // here too - this also extends validateBridgeData's non-zero minAmount guarantee to
+        // the swap floor below.
+        if (_bridgeData.minAmount != offerAmount) {
+            revert InformationMismatch();
+        }
+
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
         // non-swap path): the fee may be funded by an ERC20->native pre-swap, whose output
         // the nativeReserve below keeps in the diamond for submitOrder.
@@ -132,7 +138,6 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
-        _bridgeData.minAmount = offerAmount;
         _startBridge(_bridgeData, _paxosData);
     }
 
@@ -149,8 +154,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         // Ensure the on-chain bridgeData matches the Paxos-signed quote so we never bridge a
         // different asset or receiver than was authorized, and our volume stays attributed.
-        // The amount needs no check here: both entrypoints guarantee minAmount == offerAmount
-        // (the swap path assigns it, the non-swap path validates it).
+        // The amount needs no check here: both entrypoints validate minAmount == offerAmount.
         // NOTE: the routing (quote.route.destEID) and the destination asset (quote.route.wantAsset)
         // are intentionally NOT cross-checked against _bridgeData.destinationChainId. Funds always
         // follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated,

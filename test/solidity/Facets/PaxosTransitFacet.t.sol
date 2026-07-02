@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { MockTransitStation } from "../utils/MockTransitStation.sol";
-import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
@@ -220,6 +219,22 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WhenSwapAndBridgeOfferAmountMismatchesQuote() public {
+        // guards the swap floor: without this check a zero/low signed offerAmount would
+        // bypass the validateBridgeData non-zero minAmount guarantee
+        validPaxosData.quote.offerAmount = defaultUSDCAmount + 1;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenReceiverMismatchesQuote() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -339,6 +354,7 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     function testRevert_WhenSwapOutputBelowOfferAmount() public {
         // the quote's offerAmount is the swap floor; a swap yielding less must revert
         validPaxosData.quote.offerAmount = defaultUSDCAmount + 1;
+        bridgeData.minAmount = defaultUSDCAmount + 1;
 
         vm.startPrank(USER_SENDER);
         bridgeData.hasSourceSwaps = true;
@@ -360,6 +376,7 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     function test_SwapAndBridgeRefundsPositiveSlippage() public {
         uint256 offerAmount = defaultUSDCAmount - 1 * 10 ** usdc.decimals();
         validPaxosData.quote.offerAmount = offerAmount;
+        bridgeData.minAmount = offerAmount;
 
         vm.startPrank(USER_SENDER);
 
@@ -369,12 +386,10 @@ contract PaxosTransitFacetTest is TestBaseFacet {
 
         uint256 senderUsdcBefore = usdc.balanceOf(USER_SENDER);
 
-        // the emitted (and bridged) amount must be the quote's offerAmount, not the
-        // caller-supplied minAmount (which the swap path overwrites)
-        ILiFi.BridgeData memory expectedBridgeData = bridgeData;
-        expectedBridgeData.minAmount = offerAmount;
+        // the emitted (and bridged) amount is the quote's offerAmount (== minAmount),
+        // even though the swap yields more
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(expectedBridgeData);
+        emit LiFiTransferStarted(bridgeData);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
