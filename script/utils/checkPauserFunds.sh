@@ -13,8 +13,9 @@
 # NUM OF PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can fund.
 # Status:  OK (>= 2.5 pauses)   WARNING (1 to 2.5)   CRITICAL (< 1 pause)
 #          PAUSED (already paused)   ERROR (estimate/RPC failed)   SKIP (filtered/no diamond)
-# Chains whose gas price is 0 (free gas, e.g. nibiru) report OK with NUM OF PAUSES "inf" —
-# a pause costs nothing there, so any balance affords unlimited pauses.
+# Chains whose RPC reports a gas price of 0 show COST "free gas" / NUM OF PAUSES "inf" with
+# status WARNING: a zero gas price is usually an RPC misreport rather than a real fee model,
+# so it needs investigating — but it is not the hard ERROR of a failed estimation/RPC read.
 # Exit code: 1 if any audited network is CRITICAL, else 0.
 #
 # Must be run from the repository root.
@@ -29,7 +30,7 @@ Usage: ./script/utils/checkPauserFunds.sh [NETWORK ...]
   NETWORK...  audit only the named networks
 NUM OF PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
 Statuses: OK (>=2.5 pauses)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
-Free-gas chains (gas price 0) report OK with NUM OF PAUSES "inf".
+Chains whose RPC reports gas price 0 show "free gas" and WARNING (investigate the RPC).
 Exit code 1 if any network is CRITICAL.
 EOF
 }
@@ -49,11 +50,6 @@ source script/helperFunctions.sh
 # 2.5x expressed as 5/2 for integer bc math
 readonly WARN_MULT_NUM=5
 readonly WARN_MULT_DEN=2
-
-# Sort key for free-gas rows (gas price 0 → infinite pauses): 1e28, larger than any real ratio
-# (balance in wei tops out around 1e24 even against a 1-wei cost), so they land last among the
-# data rows. A plain digit string keeps `sort -g` portable (no reliance on "inf" parsing).
-readonly FREE_GAS_SORT_RATIO=9999999999999999999999999999
 
 # Retry transient RPC read failures (throttling/timeouts) a few times before marking a network
 # ERROR, so a brief blip on one chain doesn't show as a spurious ERROR row. (estimatePauseCost
@@ -194,11 +190,12 @@ function checkNetwork() {
     BAL_ATTEMPT=$((BAL_ATTEMPT + 1))
   done
 
-  # Free-gas chain: a pause costs nothing, so any balance affords unlimited pauses — report OK
-  # (a data row, so it counts as "evaluated" for the blind-sweep guard). Actual RPC/estimation
-  # failures still surface as ERROR above and via the balance-read retry loop.
+  # Gas price 0: the pauser could technically pause for free, but a zero gas price is usually
+  # an RPC misreport rather than a real fee model — surface it as WARNING (investigate), not a
+  # quiet OK and not the hard ERROR of a failed estimation. Still a data row, so it counts as
+  # "evaluated" for the blind-sweep guard; sort key 0 places it with the needs-attention rows.
   if [[ "$COST" == "0" ]]; then
-    echo "$CAT_DATA|$FREE_GAS_SORT_RATIO|$(fmtRow "$NETWORK" "free gas" "-" "$(fmtAmount "$BALANCE") ${SYMBOL}" "inf" "-" "OK")"
+    echo "$CAT_DATA|0|$(fmtRow "$NETWORK" "free gas" "-" "$(fmtAmount "$BALANCE") ${SYMBOL}" "inf" "-" "WARNING")"
     return
   fi
 
@@ -279,7 +276,16 @@ if ! {
   exit 1
 fi
 
-echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1 · free gas (price 0) = inf" >&2
+echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1 · gas price 0 = \"free gas\" + WARNING" >&2
+
+# A zero gas price deserves eyes: usually an RPC misreport, occasionally a genuine free-gas
+# chain — either way, verify before trusting the row. Kept out of the exit code (only CRITICAL
+# fails the run), but called out loudly on stderr.
+FREE_GAS_NETWORKS=$(printf '%s\n' "${ROWS[@]}" | grep -F $'\tfree gas\t' | cut -d'|' -f3 | cut -f1 | paste -sd',' -)
+if [[ -n "$FREE_GAS_NETWORKS" ]]; then
+  echo "" >&2
+  warning "gas price reported as 0 on: $FREE_GAS_NETWORKS — verify the RPC / chain fee model before trusting these rows" >&2
+fi
 
 # Blind-sweep guard: if we audited in-scope networks but EVERY one returned ERROR — no
 # OK/WARNING/CRITICAL/PAUSED answer anywhere (e.g. a broad RPC outage, or a misconfigured pauser
