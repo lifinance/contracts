@@ -154,7 +154,9 @@ jobs:
           exit 1
 
       - name: Build contracts
-        run: forge build
+        # Skip .t.sol test contracts: the smoke deploy compiles src/ and the
+        # script/deploy/*.s.sol scripts but never deploys test contracts.
+        run: forge build --skip test
 
       - name: Run deploy smoke test
         run: bash script/deploy/smokeDeploy.sh 2>&1 | tee smoke-deploy.log

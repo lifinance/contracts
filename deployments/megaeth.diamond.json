@@ -25,7 +25,7 @@
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
+      "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -76,6 +76,10 @@
       "0xFe95e509A5AB8C633831183216b10DBc431F41Fa": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.1"
+      },
+      "0xa321de0216de08fe85039B4D021c788f9cad9582": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -94,8 +98,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "",
-      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756",
-      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06"
+      "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
     }
   }
 }

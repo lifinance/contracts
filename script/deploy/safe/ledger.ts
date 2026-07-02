@@ -256,6 +256,53 @@ async function createLedgerAccount({
 }
 
 /**
+ * Verifies that "Blind signing" (arbitrary contract data) is enabled in the
+ * Ledger Ethereum app. Signing a Safe EIP-712 payload on a Ledger Flex requires
+ * it; without it the device rejects the signature mid-flow. Call this on an
+ * already-open transport (the Ethereum app must be running) so the caller can
+ * fail fast with actionable guidance instead.
+ *
+ * @param transport An open Ledger transport with the Ethereum app running
+ * @returns `true` if blind signing is enabled (or the setting can't be read);
+ *   `false` if it is explicitly disabled, after printing enable instructions
+ */
+export async function checkBlindSigningEnabled(
+  transport: Transport
+): Promise<boolean> {
+  const { default: Eth } = await import('@ledgerhq/hw-app-eth')
+  const eth = new Eth(transport)
+
+  let arbitraryDataEnabled: number
+  try {
+    ;({ arbitraryDataEnabled } = await eth.getAppConfiguration())
+  } catch (error: unknown) {
+    // The app is already open (getAddress succeeded), so a read failure here is
+    // unexpected. Warn rather than block — the sign attempt will surface a hard
+    // error if blind signing is genuinely off.
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    consola.warn(`Could not read blind-signing setting: ${errorMsg}`)
+    return true
+  }
+
+  if (arbitraryDataEnabled === 1) {
+    consola.success('Checking blind signing: enabled')
+    return true
+  }
+
+  const YELLOW = `${String.fromCharCode(27)}[33m`
+  const RESET = `${String.fromCharCode(27)}[0m`
+  consola.error('Checking blind signing: DISABLED')
+  console.log(
+    `${YELLOW}Blind signing is turned off on this device. Enable it before signing:\n` +
+      '  1. Open the Ethereum app on the device.\n' +
+      '  2. Tap the settings (gear) icon, top-right.\n' +
+      '  3. Turn "Blind signing" ON ("Enable transaction blind signing").\n' +
+      `  4. Re-run this command.${RESET}`
+  )
+  return false
+}
+
+/**
  * Closes a Ledger transport connection
  *
  * @param transport The transport to close

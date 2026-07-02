@@ -53,9 +53,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xf1e14782c422B7Bd52cEc083BACb8d32e07ED393": {
+      "0x90f8e7239f11F1BC950eF889c7335e736f508F7C": {
         "Name": "EmergencyPauseFacet",
-        "Version": ""
+        "Version": "1.0.1"
       },
       "0x17E0c08d40266d391c710297d7849296CD67cF9F": {
         "Name": "GasZipFacet",

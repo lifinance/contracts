@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.3
+/// @custom:version 1.0.4
 pragma solidity ^0.8.17;
 
 error AlreadyInitialized();
@@ -7,6 +7,8 @@ error CannotAuthoriseSelf();
 error CannotBridgeToSameNetwork();
 error ContractCallNotAllowed();
 error CumulativeSlippageTooHigh(uint256 minAmount, uint256 receivedAmount);
+// TODO: migrate EcoFacet/UnitFacet/NEARIntentsFacet deadline reverts to use this.
+error DeadlineExpired();
 error DiamondIsPaused();
 error ETHTransferFailed();
 error ExternalCallFailed();
