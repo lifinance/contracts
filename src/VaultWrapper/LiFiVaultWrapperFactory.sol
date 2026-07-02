@@ -241,8 +241,8 @@ contract LiFiVaultWrapperFactory is
     ///      `_params.namespace`. Each fee type carries its own integrator share; a
     ///      self-serve deployer (not the onboarding manager) may only set a share at
     ///      or below `defaultIntegratorShareBps`, so it can give LI.FI more than the
-    ///      default cut but never less; the onboarding manager may set any share up
-    ///      to 100%.
+    ///      default cut but never less; the onboarding manager may set any share below
+    ///      100%.
     ///      Deploys are intentionally allowed while `globalPaused` is set: a new
     ///      instance is a beacon proxy that reads the same live flag, so it is frozen
     ///      from birth and poses no deposit risk.
