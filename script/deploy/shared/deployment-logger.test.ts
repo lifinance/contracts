@@ -49,7 +49,10 @@ const MOCK_CONFIG: IConfig = {
 
 const createMockDeployment = (
   overrides?: Partial<IDeploymentRecord>
-): Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'> => {
+): Omit<
+  IDeploymentRecord,
+  'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'
+> => {
   const base = {
     contractName: 'TestContract',
     network: 'testnet',

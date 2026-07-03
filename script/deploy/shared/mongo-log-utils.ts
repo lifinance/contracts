@@ -1,3 +1,5 @@
+import { execSync } from 'child_process'
+
 import { consola } from 'consola'
 import {
   MongoClient,
@@ -42,6 +44,8 @@ export interface IDeploymentRecord {
   evmVersion: string
   /** ZK Solidity compiler version for zkSync deployments (empty string if not specified) */
   zkSolcVersion: string
+  /** Git commit hash of the local codebase at the time this record was logged */
+  gitCommitHash: string
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -78,6 +82,20 @@ export function mongoEq<T>(value: T): { $eq: T } {
   return { $eq: value }
 }
 
+/**
+ * Captures the git commit hash of the local codebase HEAD at call time.
+ * Returns an empty string (with a warning) if it cannot be determined,
+ * e.g. when running outside a git checkout.
+ */
+export function getCurrentGitCommitHash(): string {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
+  } catch (error) {
+    consola.warn(`Failed to determine git commit hash: ${error}`)
+    return ''
+  }
+}
+
 const DEPLOYMENT_QUERY_EQ_KEYS = [
   'contractName',
   'network',
@@ -89,6 +107,7 @@ const DEPLOYMENT_QUERY_EQ_KEYS = [
   'solcVersion',
   'evmVersion',
   'zkSolcVersion',
+  'gitCommitHash',
   'contractNetworkKey',
   'contractVersionKey',
   'timestamp',
@@ -496,6 +515,8 @@ export interface IRawDeploymentData {
   SOLC_VERSION: string
   EVM_VERSION: string
   ZK_SOLC_VERSION: string
+  /** Optional: absent on records logged before EXSC-330 */
+  GIT_COMMIT_HASH?: string
 }
 
 /**
@@ -536,6 +557,7 @@ export class RecordTransformer {
         SOLC_VERSION?: string
         EVM_VERSION?: string
         ZK_SOLC_VERSION?: string
+        GIT_COMMIT_HASH?: string
       }
 
       try {
@@ -553,6 +575,8 @@ export class RecordTransformer {
           solcVersion: validData.SOLC_VERSION || '',
           evmVersion: validData.EVM_VERSION || '',
           zkSolcVersion: validData.ZK_SOLC_VERSION || '',
+          // Absent on records logged before EXSC-330 - default to empty string
+          gitCommitHash: validData.GIT_COMMIT_HASH || '',
           createdAt: new Date(),
           updatedAt: new Date(),
           contractNetworkKey: `${contractName}-${network}`,
