@@ -84,15 +84,17 @@ export function mongoEq<T>(value: T): { $eq: T } {
 
 /**
  * Captures the git commit hash of the local codebase HEAD at call time.
- * Returns an empty string (with a warning) if it cannot be determined,
- * e.g. when running outside a git checkout.
+ * Returns 'UNKNOWN' (with a warning) if it cannot be determined, e.g. when
+ * running outside a git checkout. 'UNKNOWN' is a deliberate sentinel distinct
+ * from the empty string used for records logged before EXSC-330, so a failed
+ * capture stays visible on later audits instead of blending in as legacy data.
  */
 export function getCurrentGitCommitHash(): string {
   try {
     return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
   } catch (error) {
     consola.warn(`Failed to determine git commit hash: ${error}`)
-    return ''
+    return 'UNKNOWN'
   }
 }
 
