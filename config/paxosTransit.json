@@ -2,6 +2,6 @@
   "_comment": "Paxos Transit station (source-chain) addresses, deployed + verified by Paxos 2026-06-29 (EXSC-547). offerAsset is ERC20-only; submitOrder carries msg.value for the LayerZero messaging fee. submitOrder is a PUBLIC capability (verified on-chain), so the Diamond can call it; routes must be approved by Paxos and quotes signed by their quoteSigner.",
   "transitStation": {
     "mainnet": "0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28",
-    "outlaw": "0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28"
+    "robinhood": "0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28"
   }
 }
