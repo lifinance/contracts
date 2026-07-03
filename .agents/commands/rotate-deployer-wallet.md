@@ -44,12 +44,12 @@ The **old** deployer address is derived from `PRIVATE_KEY_PRODUCTION` in `.env` 
 
 ## Guardrails
 
-- **Custody guard.** Only the SC-owned wallets may be rotated: **deployer, dev, pauser**. This skill rotates **deployer** only. NEVER touch refund / feeCollector / withdraw — those are CTO-owned. If the request drifts to a CTO wallet, stop and say so.
-- **Never self-sign.** Secure key generation for the new deployer is a human step — never generate or derive a fresh private key here. The Safe owner swap and canceller-role move are Ledger-signed by the human via `multisig-rollout`'s hand-off (`script/deploy/safe/confirm-safe-tx.ts`); this orchestrator hands off and WAITS — it never runs the signing script and never signs.
-- **Never bypass Safe/timelock** (rule 002-architecture governance). Every **EVM** Safe owner / role / canceller change goes through `multisig-rollout` as a timelock-wrapped Safe proposal. The **Tron** diamond-ownership transfer (Phase 3) is the one different mechanism — `transfer-ownership-to-timelock.ts` — but it is still governed: its confirm step is itself a Safe/Timelock proposal, not an owner shortcut. No direct owner functions, no emergency paths that skip the timelock.
-- **Secrets hygiene.** Never print a private key or a full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
-- **Bootstrap ordering.** Sweep FIRST (Phase 1) so the new deployer has gas before it needs to act; sweep native LAST *within* the sweep (the L1 skill enforces this) so gas needed for other moves isn't stranded.
-- **Dry-run first.** Each step has its own preview/`--check`/`--dryRun`; run the previews before the state-changing pass, and confirm the plan before any broadcast or proposal is minted.
+- **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill rotates **deployer** only. NEVER touch the CTO-owned refund / feeCollector / withdraw — if the request drifts there, stop and say so.
+- **Never self-sign.** New-key generation is a human step. The Safe owner swap and canceller-role move are Ledger-signed by the human via `multisig-rollout`'s hand-off (`script/deploy/safe/confirm-safe-tx.ts`); this orchestrator hands off and WAITS — it never runs the signer.
+- **Never bypass Safe/timelock** (rule 002-architecture). Every EVM Safe owner / role / canceller change is a timelock-wrapped Safe proposal via `multisig-rollout`. The Tron ownership transfer (Phase 3, `transfer-ownership-to-timelock.ts`) is the one different mechanism but still governed — its confirm step is itself a Safe/Timelock proposal, not an owner shortcut.
+- **Secrets hygiene.** Never print a private key or full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
+- **Bootstrap ordering.** Sweep FIRST (Phase 1) so the new deployer has gas before it acts; within the sweep, native goes LAST (the L1 skill enforces this) so gas for other moves isn't stranded.
+- **Dry-run first.** Run each step's preview/`--check`/`--dryRun` and confirm the plan before any broadcast or proposal is minted.
 
 ## Workflow
 

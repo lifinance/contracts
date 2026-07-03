@@ -10,7 +10,7 @@ usage: /rotate-dev-wallet [--new-address 0xNEW] [--check]
 
 Rotate the shared **Dev** wallet — the EOA that owns each network's **staging** LiFiDiamond (`config/global.json.devWallet` + `tronWallets.devWallet`). Because it is SC-owned it is rotatable; because it governs only staging it is the lowest-stakes of the rotations and the reference implementation the heavier siblings mirror.
 
-This skill is a **thin orchestrator**. Every moving part is owned by an L1 skill or an existing skill; this file only sequences them, enforces the guardrails, and gates on the final check. It reimplements none of their logic.
+This skill is a **thin orchestrator**: every moving part is owned by an L1 or existing skill; this file only sequences them, enforces the guardrails, and gates on the final check — it reimplements none of their logic.
 
 ## When to use / when NOT
 
@@ -40,11 +40,11 @@ The **old** dev address is derived from `config/global.json.devWallet` for refer
 
 ## Guardrails
 
-- **Custody guard.** Only the SC-owned wallets may be rotated: **deployer, dev, pauser**. This skill rotates **dev** only. NEVER touch refund / feeCollector / withdraw — those are CTO-owned. If the request drifts to a CTO wallet, stop and say so.
-- **Never self-sign.** Secure key generation for the new wallet is a human step — never generate or derive a fresh private key here. Any Ledger signing that arises (e.g. a Tron ownership-to-Timelock step) is handed to the human via the owning skill; this orchestrator never signs.
-- **Never bypass Safe/timelock** (rule 002-architecture governance). Staging diamonds are EOA-owned, so the staging ownership transfer is a direct owner tx — but any governed on-chain change routes through `multisig-rollout`; this skill never crafts owner shortcuts around governance.
-- **Secrets hygiene.** Never print a private key or a full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
-- **Dry-run first.** Each L1 step below has its own preview/`--check`; run the previews before the state-changing pass, and confirm the plan with the user before broadcasting anything.
+- **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill rotates **dev** only. NEVER touch the CTO-owned refund / feeCollector / withdraw — if the request drifts there, stop and say so.
+- **Never self-sign.** New-key generation is a human step; any Ledger signing (e.g. the Tron ownership-to-Timelock step) is handed off via the owning skill — this orchestrator never signs.
+- **Never bypass Safe/timelock** (rule 002-architecture). Staging diamonds are EOA-owned so the staging transfer is a direct owner tx, but any governed change routes through `multisig-rollout` — never an owner shortcut.
+- **Secrets hygiene.** Never print a private key or full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
+- **Dry-run first.** Run each L1 step's preview/`--check` and confirm the plan with the user before broadcasting anything.
 
 ## Workflow
 

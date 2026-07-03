@@ -34,11 +34,11 @@ NOT for non-SC offboarding (HR/IT deprovisioning is out of scope) and NOT for ro
 
 ## Guardrails
 
-- **Custody guard.** Rotate ONLY the three SC-owned shared wallets — **deployer, dev, pauser** — plus swap the departing person's **personal multisig signer** seat. NEVER rotate refund / feeCollector / withdraw (CTO-owned). If the ticket tree implies touching a CTO wallet, stop and escalate.
-- **Never self-sign.** Secure generation of the new wallet keys is a human step. Every Safe proposal (signer swap, deployer's Safe-owner / CANCELLER moves, pauser diamond cuts) is signed on a Ledger by a human via `multisig-rollout` → `script/deploy/safe/confirm-safe-tx.ts`. This skill and the skills it calls hand off and **wait** — none of them run the signer.
-- **Never bypass Safe/timelock** (rule 002-architecture). All owner/role/pauser on-chain changes go through `multisig-rollout`. No direct cuts, no `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`.
-- **Secrets hygiene.** Never print a private key or a full RPC URL. Derive every old address from its key or from on-chain state, never from `config/global.json`.
-- **Exit-code convention** for the sub-skills / scripts: `0` success; `1` real error (report, stop, no retry); `2` recoverable misconfig (name the missing env/credential). A failing network in one rotation does not silently abort the others — surface it and let the operator decide.
+- **Custody guard.** Rotate only the SC-owned shared wallets (**deployer, dev, pauser**) plus swap the departing person's **personal multisig signer** seat. NEVER rotate the CTO-owned refund / feeCollector / withdraw — if the ticket tree implies touching one, stop and escalate.
+- **Never self-sign.** New-key generation is a human step. Every Safe proposal (signer swap, deployer's Safe-owner / CANCELLER moves, pauser diamond cuts) is human Ledger-signed via `multisig-rollout` → `script/deploy/safe/confirm-safe-tx.ts`; this skill and the ones it calls hand off and WAIT — none run the signer.
+- **Never bypass Safe/timelock** (rule 002-architecture). All owner/role/pauser on-chain changes go through `multisig-rollout` — no direct cuts, no `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`.
+- **Secrets hygiene.** Never print a private key or full RPC URL. Derive every old address from its key or on-chain state, never from `config/global.json`.
+- **Exit-code convention** for sub-skills / scripts: `0` success; `1` real error (report, stop, no retry); `2` recoverable misconfig (name the missing env/credential). A failing network in one rotation must not silently abort the others — surface it and let the operator decide.
 - Scripting is TypeScript (`bunx tsx`) or Bash only, never Python. Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 
 ## Workflow

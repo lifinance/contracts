@@ -14,6 +14,8 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 
 It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
 
+See also: `rotate-pauser-wallet` calls this skill to redeploy `EmergencyPauseFacet` with the new pauser when rotating the pauser wallet.
+
 ## When to use this vs multisig-rollout
 
 | Situation | Skill |

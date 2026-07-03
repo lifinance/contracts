@@ -10,7 +10,7 @@ Rotates the shared **Pauser** EOA — the wallet allowed to call `pause()` on `E
 
 Why this is a redeploy, not a setter call: `EmergencyPauseFacet` stores the pauser as an **immutable** set in its constructor — there is no on-chain function to repoint it. So "rotate the pauser" means **deploy a fresh `EmergencyPauseFacet` carrying the new pauser** and `diamondCut` it into every diamond, replacing the old facet's selectors. The repoint is delegated to `deploy-contract` (staging / testnets) and `multisig-rollout` (production Safe proposals); the old pauser's residual gas is swept to the new one via `sweep-wallet-funds`.
 
-Kept-simple by design: the emergency-pause action window is short and the coverage gap during a per-chain cut is sub-second (the old facet still pauses until its selectors are replaced), so this skill does **not** try to atomically flip every chain at once. It repoints chain-by-chain, then rotates the CI secret and re-verifies the pause flow.
+Kept-simple by design: the coverage gap during a per-chain cut is sub-second (the old facet still pauses until its selectors are replaced), so this skill does **not** atomically flip every chain at once — it repoints chain-by-chain, then rotates the CI secret and re-verifies the pause flow.
 
 ## When to use / when NOT
 
@@ -31,12 +31,12 @@ NOT for changing what `EmergencyPauseFacet` *does* (that is a facet-logic change
 
 ## Guardrails
 
-- **Custody guard.** Only the three SC-owned wallets may be rotated — **deployer, dev, pauser**. This skill touches **pauser only**. NEVER rotate refund / feeCollector / withdraw (CTO-owned) here.
-- **Never self-sign.** Secure key generation for the new pauser is a human step. All production diamond cuts become Safe proposals that a human signs on a Ledger via `multisig-rollout` → `script/deploy/safe/confirm-safe-tx.ts`; this skill hands off and waits, it never runs the signer.
+- **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill touches **pauser** only. NEVER rotate the CTO-owned refund / feeCollector / withdraw.
+- **Never self-sign.** New-key generation is a human step. Production diamond cuts become Safe proposals a human Ledger-signs via `multisig-rollout` → `script/deploy/safe/confirm-safe-tx.ts`; this skill hands off and WAITS — it never runs the signer.
 - **Never bypass Safe/timelock** (rule 002-architecture). Every production repoint is a timelock-wrapped Safe proposal — no direct owner cut, no `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`.
-- **Secrets hygiene.** Never print the new pauser's private key or a full RPC URL; read keys in a subshell and redact. The old pauser address comes from the on-chain facet, not `global.json`.
-- **CI secret is not in this repo.** The CI pauser secret and `verifyEmergencyPauseReadiness.yml` live partly outside `contracts` — coordinate the rotation, do not fake having rotated a secret you cannot see.
-- **Exit-code convention** when shelling to project scripts: `0` success; `1` real error (report stderr, stop, no retry, no fallback); `2` recoverable misconfig (missing env/credential — name the var to set).
+- **Secrets hygiene.** Never print the new pauser's private key or full RPC URL; read keys in a subshell and redact. Derive the old pauser from the on-chain facet, not `global.json`.
+- **CI secret is not in this repo.** The CI pauser secret and `verifyEmergencyPauseReadiness.yml` live partly outside `contracts` — coordinate the rotation, don't fake rotating a secret you can't see.
+- **Exit-code convention** when shelling to scripts: `0` success; `1` real error (report stderr, stop, no retry/fallback); `2` recoverable misconfig (name the missing env/credential).
 - Scripting is TypeScript (`bunx tsx`) or Bash only, never Python. Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 
 ## Workflow
