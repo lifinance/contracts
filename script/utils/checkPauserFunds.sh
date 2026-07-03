@@ -193,6 +193,14 @@ function checkNetwork() {
   # Chains with no native currency (nativeCurrency "N/A") — e.g. tempo — pay gas in an ERC20
   # fee token, so the audit runs against that token instead of the (meaningless) native
   # balance. Without a configured feeTokenAddress there is nothing to audit against → SKIP.
+  #
+  # The discriminator is deliberately "eth_getBalance is decoupled from the gas balance", NOT
+  # "gas is paid in a token". Other ERC20-gas chains (arc/celo/metis/monad/stable) keep the
+  # native path below: they use standard EVM accounting where eth_getBalance IS the gas balance
+  # on the same unit as gas price (verified: celo/metis eth_getBalance == predeploy balanceOf),
+  # so balance ÷ (gasEstimate × gasPrice) is already correct there regardless of token/decimals.
+  # tempo is the sole exception — its TIP-20/FeeManager fee system is decoupled, so eth_getBalance
+  # returns a nonsense sentinel and the real funds must be read from the fee token directly.
   local SYMBOL FEE_TOKEN=""
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
   if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
