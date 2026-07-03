@@ -5763,6 +5763,8 @@ function removeNetworkFromTargetStateJSON() {
 # production LiFiDiamond on NETWORK. EVM only; optional PAUSER_ADDRESS overrides the --from
 # (defaults to config/global.json .pauserWallet).
 # Exit: 0 = cost on stdout · 2 = diamond already paused · 1 = any other failure (reason on stderr).
+# A cost of 0 with exit 0 unambiguously means the chain's gas PRICE is 0 (free gas, e.g. nibiru);
+# a zero gas ESTIMATE is rejected as an RPC anomaly (exit 1), never folded into a zero cost.
 function estimatePauseCost() {
   local NETWORK="${1:-}"
   local PAUSER_ADDRESS="${2:-}"
@@ -5837,6 +5839,13 @@ function estimatePauseCost() {
     sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
     ATTEMPT=$((ATTEMPT + 1))
   done
+
+  # Intrinsic tx gas alone is 21000, so a zero gas ESTIMATE can only be an RPC anomaly. Reject it
+  # here so a returned cost of 0 can only mean "gas price is 0" (free-gas chain) to callers.
+  if [[ "$GAS_ESTIMATE" -eq 0 ]]; then
+    error "estimatePauseCost: RPC returned a zero gas estimate for $NETWORK (implausible; treating as failure)" >&2
+    return 1
+  fi
 
   local GAS_PRICE
   ATTEMPT=1
