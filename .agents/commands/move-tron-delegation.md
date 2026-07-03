@@ -1,7 +1,7 @@
 ---
 name: move-tron-delegation
 description: Move Tron staked-resource (energy/bandwidth) delegation from a rotated-OUT wallet's Tron address to the new wallet's Tron address during a wallet rotation. There is NO repo tooling for this and the delegation is delegator-controlled — the actual undelegate/re-delegate is executed off-repo by the resource-provider wallet holder (Max), not by this skill or any of our keys. This skill derives old+new Tron base58 addresses, drafts the exact move request for the provider, then AFTER the provider executes it verifies on Tronscan (new address shows the energy, old shows 0) and ensures `config/global.json` `tronWallets` is updated. Use when the user says "move the tron energy delegation", "re-delegate tron energy to the new wallet", "hand off the tron staked resources during the rotation", or similar. NOT for moving the Tron DIAMOND ownership to the Timelock — that is `transfer-ownership-to-timelock.ts`, owned by `rotate-deployer-wallet`. NOT an on-chain broadcast from our keys — this skill never signs a delegation tx. Requires `bun` (troncast) and a Tronscan lookup. Reference EXSC-562, which documents this step.
-usage: /move-tron-delegation --old-address 0xOLD --new-address 0xNEW [--role dev|deployer]
+usage: /move-tron-delegation --old-address 0xOLD --new-address 0xNEW [--role dev|deployer] [--resources energy|bandwidth|both]
 ---
 
 # Move Tron Delegation
@@ -59,7 +59,7 @@ Optional:
 
 - **--role** — `dev` or `deployer`, for the request text and the
   `update-wallet-config` follow-up. Ask once if unclear.
-- **resources** — `energy`, `bandwidth`, or both. Default: energy. Confirm the
+- **--resources** — `energy`, `bandwidth`, or both. Default: energy. Confirm the
   actual delegated amount from Tronscan in Step 3 rather than assuming.
 
 Derive the old wallet's address from the private key or the user-supplied

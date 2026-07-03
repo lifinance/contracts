@@ -132,7 +132,7 @@ Offboarding is complete only when ALL hold:
 | Rotate deployer (`safeOwners[0]` + CANCELLER) | `/rotate-deployer-wallet` |
 | Rotate dev (staging owner) | `/rotate-dev-wallet` |
 | Rotate pauser (immutable → redeploy `EmergencyPauseFacet`) | `/rotate-pauser-wallet` |
-| Completeness gate (all roles, all networks) | `/check-rotation-status --old-address <OLD> --new-address <NEW> --role <role> --production` |
+| Completeness gate (signer swap + all roles, all networks) | `/check-rotation-status --old-address <OLD> --new-address <NEW> --role <role> --removed-signer <DEPARTING_SIGNER> --production` |
 | Config PRs per role (called *inside* each rotate-* skill) | `/update-wallet-config` |
 | Fund sweeps per role (called *inside* each rotate-* skill) | `/sweep-wallet-funds` |
 

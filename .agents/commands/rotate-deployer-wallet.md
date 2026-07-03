@@ -46,7 +46,7 @@ The **old** deployer address is derived from `PRIVATE_KEY_PRODUCTION` in `.env` 
 
 - **Custody guard.** Only the SC-owned wallets may be rotated: **deployer, dev, pauser**. This skill rotates **deployer** only. NEVER touch refund / feeCollector / withdraw — those are CTO-owned. If the request drifts to a CTO wallet, stop and say so.
 - **Never self-sign.** Secure key generation for the new deployer is a human step — never generate or derive a fresh private key here. The Safe owner swap and canceller-role move are Ledger-signed by the human via `multisig-rollout`'s hand-off (`script/deploy/safe/confirm-safe-tx.ts`); this orchestrator hands off and WAITS — it never runs the signing script and never signs.
-- **Never bypass Safe/timelock** (rule 002-architecture governance). Every on-chain owner/role/canceller change goes through `multisig-rollout` as a timelock-wrapped Safe proposal. No direct owner functions, no emergency paths that skip the timelock.
+- **Never bypass Safe/timelock** (rule 002-architecture governance). Every **EVM** Safe owner / role / canceller change goes through `multisig-rollout` as a timelock-wrapped Safe proposal. The **Tron** diamond-ownership transfer (Phase 3) is the one different mechanism — `transfer-ownership-to-timelock.ts` — but it is still governed: its confirm step is itself a Safe/Timelock proposal, not an owner shortcut. No direct owner functions, no emergency paths that skip the timelock.
 - **Secrets hygiene.** Never print a private key or a full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
 - **Bootstrap ordering.** Sweep FIRST (Phase 1) so the new deployer has gas before it needs to act; sweep native LAST *within* the sweep (the L1 skill enforces this) so gas needed for other moves isn't stranded.
 - **Dry-run first.** Each step has its own preview/`--check`/`--dryRun`; run the previews before the state-changing pass, and confirm the plan before any broadcast or proposal is minted.
@@ -59,7 +59,7 @@ Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. VP
 
 - Confirm `--new-address` is present, checksum-valid, and NOT any current SC/CTO wallet in `config/global.json`.
 - Report old → new for the EVM field and the derived Tron base58.
-- Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Safe proposals inside `multisig-rollout`, after which the user returns to the chat and the skill finishes.
+- Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Safe proposals inside `multisig-rollout`, after which the user returns to the chat and the skill resumes with the remaining phases (3–7).
 
 ### Phase 1 — Bootstrap the new deployer's gas (`sweep-wallet-funds`) — FIRST
 
@@ -108,7 +108,7 @@ Open the PR that rotates the `deployerWallet` role in config.
 /update-wallet-config --role deployer --new-address <NEW> --production
 ```
 
-`update-wallet-config` updates the EVM `deployerWallet` field AND `tronWallets.deployer` (Tron base58 derived + reverse-checked), honors config-structure rule 004, and ends by calling `/create-pr`. Notion registry update is a flagged follow-up.
+`update-wallet-config` updates the EVM `deployerWallet` field AND `tronWallets.deployerWallet` (Tron base58 derived + reverse-checked), honors config-structure rule 004, and ends by calling `/create-pr`. Notion registry update is a flagged follow-up.
 
 ### Phase 5 — Decommission the old key
 
@@ -140,7 +140,7 @@ Complete only when `check-rotation-status` (Phase 6) passes for every network: n
 | Safe owner swap + canceller move | `multisig-rollout` | proposals → PR → Ledger hand-off → Mongo sig verify → Slack |
 | Tron ownership → Timelock | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron handover (production → tron) |
 | Tron delegation | `move-tron-delegation` | undelegate→re-delegate request + Tronscan verify |
-| Config PR | `update-wallet-config` | `global.json` deployerWallet + `tronWallets.deployer`, `/create-pr` |
+| Config PR | `update-wallet-config` | `global.json` deployerWallet + `tronWallets.deployerWallet`, `/create-pr` |
 | Completeness gate | `check-rotation-status` | read-only cross-network verification |
 
 This skill adds only sequencing (sweep-first bootstrap ordering), the custody/self-sign/no-bypass guardrails, and the confirm gate — no funds-moving, signing, address-deriving, or config-editing logic of its own.

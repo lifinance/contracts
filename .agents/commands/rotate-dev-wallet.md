@@ -28,13 +28,13 @@ Do NOT use for:
 
 ## Inputs
 
-Required:
+Required for rotation runs:
 
-- **--new-address** — the securely generated new dev EOA (`0x…`). If not supplied, ask once; never generate it inside the skill (see Guardrails).
+- **--new-address** — the securely generated new dev EOA (`0x…`). If not supplied, ask once; never generate it inside the skill (see Guardrails). Required only when `--check` is not set.
 
 Optional:
 
-- **--check** — run the completeness check only (delegates straight to `check-rotation-status`, changes nothing) and stop. Use to preview state before rotating or to re-verify after.
+- **--check** — run the completeness check only (delegates straight to `check-rotation-status`, changes nothing) and stop; when set, the new-address requirement is skipped. Use to preview state before rotating or to re-verify after.
 
 The **old** dev address is derived from `config/global.json.devWallet` for reference, but every funds/ownership step derives the acting sender from the private key in `.env`, never from `global.json` (which can be mid-rotation-inconsistent).
 
@@ -52,7 +52,7 @@ Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 
 ### Phase 0 — Preflight & confirm plan
 
-- Confirm `--new-address` is present, checksum-valid, and NOT any current SC/CTO wallet in `config/global.json` (a no-op or a self-collision is a mistake).
+- If `--check` is absent, confirm `--new-address` is present, checksum-valid, and NOT any current SC/CTO wallet in `config/global.json` (a no-op or a self-collision is a mistake). (With `--check`, skip straight to the completeness gate — no address required.)
 - Report old → new for both the EVM field and the derived Tron base58 (the derivation itself is done inside `update-wallet-config` / `move-tron-delegation`).
 - Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for the human key-generation confirmation and, on Tron, for any Ledger signing.
 
@@ -97,7 +97,7 @@ Open the PR that rotates the `devWallet` role in config.
 /update-wallet-config --role dev --new-address <NEW>
 ```
 
-`update-wallet-config` updates the EVM `devWallet` field AND the matching `tronWallets.dev` (Tron base58 derived via `troncast address to-base58`, cross-checked with the reverse `to-hex`), honors config-structure rule 004, and ends by calling `/create-pr`. The Notion registry update is a follow-up it flags (needs auth — don't fake it).
+`update-wallet-config` updates the EVM `devWallet` field AND the matching `tronWallets.devWallet` (Tron base58 derived via `troncast address to-base58`, cross-checked with the reverse `to-hex`), honors config-structure rule 004, and ends by calling `/create-pr`. The Notion registry update is a follow-up it flags (needs auth — don't fake it).
 
 ### Phase 5 — Verify (`check-rotation-status`)
 
@@ -124,7 +124,7 @@ The rotation is complete only when `check-rotation-status` (Phase 5) passes for 
 | Fund new wallet | `sweep-wallet-funds` | native sweep across EVM chains, pre-send report, secrets hygiene |
 | Tron ownership → Timelock | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron network handover (staging → tronshasta) |
 | Tron delegation | `move-tron-delegation` | undelegate→re-delegate request + Tronscan verify |
-| Config PR | `update-wallet-config` | `global.json` devWallet + `tronWallets.dev`, `/create-pr` |
+| Config PR | `update-wallet-config` | `global.json` devWallet + `tronWallets.devWallet`, `/create-pr` |
 | Completeness gate | `check-rotation-status` | read-only cross-network verification |
 
 This skill adds only sequencing, the custody/self-sign guardrails, and the confirm-before-broadcast gate — no funds-moving, address-deriving, or config-editing logic of its own.
