@@ -3,11 +3,64 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { MockTransitStation } from "../utils/MockTransitStation.sol";
+import { TestPaxosTransitBackendSig } from "../utils/TestPaxosTransitBackendSig.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 import { IPaxosTransit } from "lifi/Interfaces/IPaxosTransit.sol";
 import { InformationMismatch, InvalidCallData, InvalidConfig, NativeAssetNotSupported, CumulativeSlippageTooHigh } from "lifi/Errors/GenericErrors.sol";
+
+/// Config/admin/state surface of the real TransitStation needed to run fork tests
+/// against it (rotate the quote signer, quote the LZ fee, inspect order state).
+/// Mirrors the verified mainnet deployment at 0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28.
+interface ITransitStation {
+    struct OrderTerms {
+        bytes32 uuid;
+        address wantAsset;
+        address receiver;
+        address offerAsset;
+        uint256 offerAmountNormalized18AfterFees;
+    }
+
+    error QuoteExpired(uint256 deadline);
+    error InvalidSigner(address recoveredSigner);
+    error SignatureAlreadyUsed(bytes32 digest);
+
+    function owner() external view returns (address);
+
+    function setQuoteSigner(address signer) external;
+
+    function quoteSigner() external view returns (address);
+
+    function quoteSend(
+        uint32 destEID,
+        OrderTerms calldata terms
+    ) external view returns (uint256);
+
+    function usedDigests(bytes32 digest) external view returns (bool);
+
+    function approvedRoutes(
+        uint32 destEID,
+        address offerAsset,
+        address wantAsset
+    ) external view returns (bool);
+
+    function messageGasLimit(uint32 eid) external view returns (uint64);
+
+    function offerReceiver() external view returns (address);
+
+    function protocolFeeRecipient() external view returns (address);
+}
+
+/// LayerZero EndpointV2 error raised when submitOrder forwards less native than the
+/// quoted messaging fee.
+interface ILayerZeroEndpointV2Errors {
+    error LZ_InsufficientFee(
+        uint256 requiredNative,
+        uint256 suppliedNative,
+        uint256 requiredLzToken,
+        uint256 suppliedLzToken
+    );
+}
 
 // Stub PaxosTransitFacet Contract
 contract TestPaxosTransitFacet is PaxosTransitFacet, TestWhitelistManagerBase {
@@ -16,28 +69,50 @@ contract TestPaxosTransitFacet is PaxosTransitFacet, TestWhitelistManagerBase {
     ) PaxosTransitFacet(_transitStation) {}
 }
 
-contract PaxosTransitFacetTest is TestBaseFacet {
+contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
     // left-adjusted bytes32 encoding of "LIFI"
     bytes32 internal constant LIFI_DISTRIBUTOR_CODE =
         0x4c49464900000000000000000000000000000000000000000000000000000000;
     uint256 internal constant DEST_CHAIN_ID = 4663; // Robinhood Chain
     uint32 internal constant DEST_EID = 30416; // LayerZero EID for Robinhood Chain
-    // arbitrary wantAsset placeholder (USDG on the destination chain); the mock ignores it
+
+    // the real Paxos TransitStation on mainnet (verified 2026-06-29)
+    ITransitStation internal constant TRANSIT_STATION =
+        ITransitStation(0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28);
+    // want asset of the globally-approved USDC route to Robinhood (USDG); taken from the
+    // station's on-chain RouteApprovalSet/OrderSubmitted events - the route allowlist is
+    // keyed on it, so an arbitrary placeholder would revert with RouteNotApproved
     address internal constant WANT_ASSET =
-        0x1212121212121212121212121212121212121212;
+        0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
 
     PaxosTransitFacet.PaxosTransitData internal validPaxosData;
     TestPaxosTransitFacet internal paxosFacet;
-    MockTransitStation internal transitStation;
 
     function setUp() public {
-        customBlockNumberForForking = 17130542;
+        // 2026-07-03, after Paxos approved the USDC -> USDG route to EID 30416, set its
+        // LZ gas limit and wired the Robinhood peer (real orders flow at 25449164)
+        customBlockNumberForForking = 25449200;
         initTestBase();
 
-        transitStation = new MockTransitStation();
+        quoteSignerPk = 0xA11CE;
+        quoteSignerAddress = vm.addr(quoteSignerPk);
+
+        // the station gates submitOrder on a Paxos-controlled quote signer; rotate it to a
+        // test key on the fork (plain storage, owner-gated setter) so quotes can be signed
+        // in-test against the station's live EIP-712 domain
+        vm.prank(TRANSIT_STATION.owner());
+        TRANSIT_STATION.setQuoteSigner(quoteSignerAddress);
+
+        // pinned-block guards: fail loudly here (not deep in a funds-flow assert) if a
+        // re-pin lands on a block where Paxos has not configured the route yet
+        assertTrue(
+            TRANSIT_STATION.approvedRoutes(DEST_EID, ADDRESS_USDC, WANT_ASSET)
+        );
+        assertGt(TRANSIT_STATION.messageGasLimit(DEST_EID), 0);
+        assertEq(TRANSIT_STATION.quoteSigner(), quoteSignerAddress);
 
         paxosFacet = new TestPaxosTransitFacet(
-            IPaxosTransit(address(transitStation))
+            IPaxosTransit(address(TRANSIT_STATION))
         );
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = paxosFacet
@@ -72,7 +147,8 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         bridgeData.bridge = "paxosTransit";
         bridgeData.destinationChainId = DEST_CHAIN_ID;
 
-        // produce valid PaxosTransitData matching the default bridgeData
+        // produce valid PaxosTransitData matching the default bridgeData; the signature
+        // is produced per-call in the initiate* helpers so quote mutations stay signed
         validPaxosData = PaxosTransitFacet.PaxosTransitData({
             quote: IPaxosTransit.Quote({
                 route: IPaxosTransit.Route({
@@ -90,12 +166,36 @@ contract PaxosTransitFacetTest is TestBaseFacet {
                 salt: keccak256("paxos-salt")
             }),
             signature: hex"",
-            nativeFee: 0,
+            nativeFee: _lzNativeFee(),
             refundRecipient: USER_REFUND
         });
     }
 
+    /// @dev The real LZ messaging fee for bridging an order to DEST_EID. The bridged
+    ///      OrderTerms payload is fixed-size, so the fee is independent of the quote's
+    ///      values and one setUp-time fetch covers every test (incl. fuzzed amounts).
+    function _lzNativeFee() internal view returns (uint256) {
+        return
+            TRANSIT_STATION.quoteSend(
+                DEST_EID,
+                ITransitStation.OrderTerms({
+                    uuid: bytes32(0),
+                    wantAsset: WANT_ASSET,
+                    receiver: USER_RECEIVER,
+                    offerAsset: ADDRESS_USDC,
+                    offerAmountNormalized18AfterFees: 0
+                })
+            );
+    }
+
     function initiateBridgeTxWithFacet(bool isNative) internal override {
+        // sign the (possibly test-mutated) quote as the LI.FI backend would; tests that
+        // need a broken or foreign signature call the facet directly instead
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
         if (isNative) {
             paxosFacet.startBridgeTokensViaPaxosTransit{
                 value: bridgeData.minAmount
@@ -110,6 +210,11 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
         if (isNative) {
             paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{
                 value: swapData[0].fromAmount
@@ -150,12 +255,12 @@ contract PaxosTransitFacetTest is TestBaseFacet {
 
     function test_WillStoreConstructorParametersCorrectly() public {
         paxosFacet = new TestPaxosTransitFacet(
-            IPaxosTransit(address(transitStation))
+            IPaxosTransit(address(TRANSIT_STATION))
         );
 
         assertEq(
             address(paxosFacet.TRANSIT_STATION()),
-            address(transitStation)
+            address(TRANSIT_STATION)
         );
         assertEq(paxosFacet.LIFI_DISTRIBUTOR_CODE(), LIFI_DISTRIBUTOR_CODE);
     }
@@ -163,13 +268,6 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestPaxosTransitFacet(IPaxosTransit(address(0)));
-    }
-
-    function test_InterfaceMatchesDeployedStationABI() public pure {
-        // Pins our IPaxosTransit.submitOrder selector to the deployed + verified Paxos
-        // TransitStation (mainnet/RH 0x49AAA987b1a7e9E4AE091dcD8332c39F322D7d28, verified
-        // 2026-06-29). Any drift in the Quote/Route struct layout changes this selector.
-        assertEq(IPaxosTransit.submitOrder.selector, bytes4(0x3784896a));
     }
 
     function testRevert_WhenTryToBridgeNativeAsset() public {
@@ -259,13 +357,23 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function test_CanBridgeTokensWithNativeFee() public {
-        uint256 nativeFee = 0.01 ether;
-        validPaxosData.nativeFee = nativeFee;
-        // the station requires exactly this LayerZero fee; proves the facet forwards enough
-        transitStation.setExpectedNativeFee(nativeFee);
-
+    function test_BridgeSubmitsOrderToRealStation() public {
+        // EXSC-547 core question: the station pulls the offer asset from msg.sender, which
+        // is the Diamond when our facet calls submitOrder. We custody in the Diamond
+        // (depositAsset) and approve the station, so funds flow USER -> Diamond -> Paxos.
+        // The station custodies nothing: with a zero-fee quote the full offer amount lands
+        // at its offerReceiver. quote.receiver (validated == bridgeData.receiver) directs
+        // the want asset to the end user on the destination chain.
+        bytes32 digest = _paxosQuoteDigest(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+        address offerReceiver = TRANSIT_STATION.offerReceiver();
+        uint256 offerReceiverBefore = usdc.balanceOf(offerReceiver);
+        uint256 senderUsdcBefore = usdc.balanceOf(USER_SENDER);
         uint256 senderNativeBefore = USER_SENDER.balance;
+
+        assertFalse(TRANSIT_STATION.usedDigests(digest));
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -273,70 +381,49 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        paxosFacet.startBridgeTokensViaPaxosTransit{ value: nativeFee }(
-            bridgeData,
-            validPaxosData
-        );
-        vm.stopPrank();
-
-        assertEq(transitStation.lastNativeFee(), nativeFee);
-        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
-        // no funds come back to / are stranded in the Diamond, and the caller is charged
-        // exactly the native fee (no over-charge, no refund needed)
-        assertEq(usdc.balanceOf(address(diamond)), 0);
-        assertEq(address(diamond).balance, 0);
-        assertEq(USER_SENDER.balance, senderNativeBefore - nativeFee);
-    }
-
-    function test_OfferAssetIsPulledFromTheDiamond() public {
-        // EXSC-547 core question: the station pulls the offer asset from msg.sender, which is the
-        // Diamond when our facet calls submitOrder. We custody in the Diamond (depositAsset) and
-        // approve the station, so funds flow USER -> Diamond -> Station. No submitOrderWithPermit /
-        // on-behalf call is needed: Paxos confirmed msg.sender is always the payer, and quote.receiver
-        // (validated == bridgeData.receiver) directs the output to the end user.
-        uint256 userBefore = usdc.balanceOf(USER_SENDER);
-
-        // sanity: the station can only pull if the Diamond approved it
-        assertEq(usdc.allowance(address(diamond), address(transitStation)), 0);
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
 
-        // user funded the Diamond; the Diamond (as msg.sender) paid the station; nothing stranded
-        assertEq(usdc.balanceOf(USER_SENDER), userBefore - defaultUSDCAmount);
-        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            senderUsdcBefore - defaultUSDCAmount
+        );
+        assertEq(
+            usdc.balanceOf(offerReceiver),
+            offerReceiverBefore + defaultUSDCAmount
+        );
+        // nothing stranded in the Diamond, and the exact quoteSend fee was consumed by
+        // LayerZero (no overage came back, no refund was owed)
         assertEq(usdc.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
+        assertEq(
+            USER_SENDER.balance,
+            senderNativeBefore - validPaxosData.nativeFee
+        );
+        // the order is registered: its EIP-712 digest (== order uuid) is marked used
+        assertTrue(TRANSIT_STATION.usedDigests(digest));
         // receiver (end user) is taken from the signed quote, not from msg.sender
         assertEq(validPaxosData.quote.receiver, bridgeData.receiver);
         assertTrue(bridgeData.receiver != address(diamond));
     }
 
-    function testRevert_WhenNativeFeeUnderpaid() public {
-        // station demands more than the facet will forward -> submitOrder reverts,
-        // proving the facet forwards exactly nativeFee (and the order is not silently accepted)
-        validPaxosData.nativeFee = 0.01 ether;
-        transitStation.setExpectedNativeFee(0.01 ether + 1);
-
-        vm.startPrank(USER_SENDER);
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(MockTransitStation.InsufficientNativeFee.selector);
-
-        paxosFacet.startBridgeTokensViaPaxosTransit{ value: 0.01 ether }(
-            bridgeData,
-            validPaxosData
-        );
-        vm.stopPrank();
-    }
-
     function test_CanBridgeTokensWithNonZeroFees() public {
-        // protocolFee / integratorFee live in the signed quote and are deducted by the station
-        // from the output; the full offerAmount is still pulled from the Diamond
-        validPaxosData.quote.protocolFee = 0.02 * 10 ** 6;
-        validPaxosData.quote.integratorFee = 0.5 * 10 ** 6;
-        validPaxosData.quote.integratorFeeReceiver = USER_RECEIVER;
+        // protocolFee / integratorFee live in the signed quote; the station splits the
+        // pulled offerAmount into protocolFee -> protocolFeeRecipient, integratorFee ->
+        // integratorFeeReceiver and net -> offerReceiver (caps: 50 bps / 10%)
+        uint256 protocolFee = 0.02 * 10 ** 6;
+        uint256 integratorFee = 0.5 * 10 ** 6;
+        address integratorFeeReceiver = address(0xFee1);
+        validPaxosData.quote.protocolFee = protocolFee;
+        validPaxosData.quote.integratorFee = integratorFee;
+        validPaxosData.quote.integratorFeeReceiver = integratorFeeReceiver;
+
+        address offerReceiver = TRANSIT_STATION.offerReceiver();
+        address protocolFeeRecipient = TRANSIT_STATION.protocolFeeRecipient();
+        // at the pinned block Paxos points both at the same address; guard so a re-pin
+        // that breaks this assumption fails here, not in the combined balance assert
+        assertEq(offerReceiver, protocolFeeRecipient);
+        uint256 combinedBefore = usdc.balanceOf(offerReceiver);
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -347,8 +434,135 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
 
-        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        uint256 net = defaultUSDCAmount - protocolFee - integratorFee;
+        assertEq(usdc.balanceOf(integratorFeeReceiver), integratorFee);
+        assertEq(
+            usdc.balanceOf(offerReceiver),
+            combinedBefore + protocolFee + net
+        );
         assertEq(usdc.balanceOf(address(diamond)), 0);
+    }
+
+    function testRevert_WhenQuoteIsReplayed() public {
+        // the station consumes the quote's EIP-712 digest on first submission; replaying
+        // the same signed quote must revert (the digest doubles as the order uuid)
+        bytes32 digest = _paxosQuoteDigest(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, 2 * bridgeData.minAmount);
+
+        initiateBridgeTxWithFacet(false);
+
+        assertTrue(TRANSIT_STATION.usedDigests(digest));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITransitStation.SignatureAlreadyUsed.selector,
+                digest
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenQuoteIsExpired() public {
+        validPaxosData.quote.deadline = block.timestamp - 1;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITransitStation.QuoteExpired.selector,
+                block.timestamp - 1
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenQuoteIsSignedByWrongKey() public {
+        // a well-formed signature from any key other than the station's quoteSigner must
+        // be rejected; the station reports the recovered (wrong) signer
+        uint256 wrongSignerPk = 0xBAD;
+        validPaxosData.signature = _signDigest(
+            wrongSignerPk,
+            _paxosQuoteDigest(validPaxosData.quote, address(TRANSIT_STATION))
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ITransitStation.InvalidSigner.selector,
+                vm.addr(wrongSignerPk)
+            )
+        );
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{
+            value: validPaxosData.nativeFee
+        }(bridgeData, validPaxosData);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenNativeFeeUnderpaid() public {
+        // forwarding less than the quoteSend fee makes the LayerZero endpoint revert,
+        // proving the facet forwards exactly nativeFee (the order is not silently accepted)
+        uint256 quotedFee = validPaxosData.nativeFee;
+        validPaxosData.nativeFee = quotedFee - 1;
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILayerZeroEndpointV2Errors.LZ_InsufficientFee.selector,
+                quotedFee,
+                quotedFee - 1,
+                0,
+                0
+            )
+        );
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{ value: quotedFee - 1 }(
+            bridgeData,
+            validPaxosData
+        );
+        vm.stopPrank();
+    }
+
+    function test_LzFeeOverageIsRefundedToRefundRecipient() public {
+        // when nativeFee overshoots the real LZ fee, the endpoint refunds the overage to
+        // the Diamond mid-call; refundExcessNative must pass it on to the refundRecipient
+        // (this is the flow the facet's refundRecipient NatSpec documents)
+        uint256 overage = 0.001 ether;
+        validPaxosData.nativeFee += overage;
+
+        uint256 refundNativeBefore = USER_REFUND.balance;
+        uint256 senderNativeBefore = USER_SENDER.balance;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundNativeBefore + overage);
+        assertEq(
+            USER_SENDER.balance,
+            senderNativeBefore - validPaxosData.nativeFee
+        );
+        assertEq(address(diamond).balance, 0);
     }
 
     function testRevert_WhenSwapOutputBelowOfferAmount() public {
@@ -378,6 +592,9 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         validPaxosData.quote.offerAmount = offerAmount;
         bridgeData.minAmount = offerAmount;
 
+        address offerReceiver = TRANSIT_STATION.offerReceiver();
+        uint256 offerReceiverBefore = usdc.balanceOf(offerReceiver);
+
         vm.startPrank(USER_SENDER);
 
         bridgeData.hasSourceSwaps = true;
@@ -394,8 +611,11 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
 
-        // only the exact (lower) offer amount is bridged to the station
-        assertEq(usdc.balanceOf(address(transitStation)), offerAmount);
+        // only the exact (lower) offer amount is pulled by the station
+        assertEq(
+            usdc.balanceOf(offerReceiver),
+            offerReceiverBefore + offerAmount
+        );
         // the positive slippage (swap output - offer amount) is refunded to the designated
         // refundRecipient, NOT to msg.sender (which may be a relayer or the Permit2Proxy)
         assertEq(usdc.balanceOf(USER_REFUND), defaultUSDCAmount - offerAmount);
@@ -403,17 +623,19 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenNativeFeeExceedsMsgValue() public {
-        validPaxosData.nativeFee = 0.01 ether;
-
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
         vm.expectRevert(InvalidCallData.selector);
 
-        paxosFacet.startBridgeTokensViaPaxosTransit{ value: 0.01 ether - 1 }(
-            bridgeData,
-            validPaxosData
-        );
+        paxosFacet.startBridgeTokensViaPaxosTransit{
+            value: validPaxosData.nativeFee - 1
+        }(bridgeData, validPaxosData);
         vm.stopPrank();
     }
 
@@ -421,9 +643,13 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         // the LayerZero fee does not have to come from msg.value on the swap path: an
         // ERC20->native pre-swap can fund it, and _depositAndSwap's nativeReserve keeps
         // that native in the diamond for submitOrder instead of sweeping it as leftovers
-        uint256 nativeFee = 0.01 ether;
-        validPaxosData.nativeFee = nativeFee;
-        transitStation.setExpectedNativeFee(nativeFee);
+        uint256 nativeFee = validPaxosData.nativeFee;
+        bytes32 digest = _paxosQuoteDigest(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+        address offerReceiver = TRANSIT_STATION.offerReceiver();
+        uint256 offerReceiverBefore = usdc.balanceOf(offerReceiver);
 
         vm.startPrank(USER_SENDER);
         bridgeData.hasSourceSwaps = true;
@@ -462,6 +688,11 @@ contract PaxosTransitFacetTest is TestBaseFacet {
             amountInMax + daiToUsdc.fromAmount
         );
 
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
         // no native sent at all - the fee is funded entirely by the first swap
         paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{ value: 0 }(
             bridgeData,
@@ -470,8 +701,12 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         );
         vm.stopPrank();
 
-        assertEq(transitStation.lastNativeFee(), nativeFee);
-        assertEq(usdc.balanceOf(address(transitStation)), defaultUSDCAmount);
+        // the order was accepted by the real station and the offer amount pulled
+        assertTrue(TRANSIT_STATION.usedDigests(digest));
+        assertEq(
+            usdc.balanceOf(offerReceiver),
+            offerReceiverBefore + defaultUSDCAmount
+        );
         // unspent DAI from the exact-output swap goes to the refundRecipient, not msg.sender
         assertGt(dai.balanceOf(USER_REFUND), 0);
         // nothing stranded in the diamond
@@ -508,10 +743,8 @@ contract PaxosTransitFacetTest is TestBaseFacet {
     }
 
     function test_ExcessNativeIsRefundedToRefundRecipient() public {
-        uint256 nativeFee = 0.01 ether;
+        // excess above nativeFee never leaves the facet; refundExcessNative returns it
         uint256 excess = 0.002 ether;
-        validPaxosData.nativeFee = nativeFee;
-        transitStation.setExpectedNativeFee(nativeFee);
 
         uint256 refundNativeBefore = USER_REFUND.balance;
         uint256 senderNativeBefore = USER_SENDER.balance;
@@ -519,19 +752,27 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
         paxosFacet.startBridgeTokensViaPaxosTransit{
-            value: nativeFee + excess
+            value: validPaxosData.nativeFee + excess
         }(bridgeData, validPaxosData);
         vm.stopPrank();
 
         // excess native goes to the designated refundRecipient, NOT to msg.sender
         assertEq(USER_REFUND.balance, refundNativeBefore + excess);
-        assertEq(USER_SENDER.balance, senderNativeBefore - nativeFee - excess);
+        assertEq(
+            USER_SENDER.balance,
+            senderNativeBefore - validPaxosData.nativeFee - excess
+        );
         assertEq(address(diamond).balance, 0);
     }
 
     function test_SwapAndBridgeRefundsExcessNativeToRefundRecipient() public {
-        // nativeFee is 0 here, so the entire msg.value is excess native
+        // everything above the reserved nativeFee is excess native on the swap path
         uint256 excess = 0.002 ether;
 
         uint256 refundNativeBefore = USER_REFUND.balance;
@@ -541,11 +782,14 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         setDefaultSwapDataSingleDAItoUSDC();
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{ value: excess }(
-            bridgeData,
-            swapData,
-            validPaxosData
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
         );
+
+        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{
+            value: validPaxosData.nativeFee + excess
+        }(bridgeData, swapData, validPaxosData);
         vm.stopPrank();
 
         assertEq(USER_REFUND.balance, refundNativeBefore + excess);
