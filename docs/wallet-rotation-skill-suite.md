@@ -56,7 +56,10 @@ orchestrator spec.
 
 1. **`sweep-wallet-funds`** — sweep native from old→new across chains, native LAST.
    **This is how EVERY rotation funds the new wallet** — the old wallet already
-   holds gas on every chain it needs, so there is no separate funding step.
+   holds gas on every chain it needs, so the bulk comes from sweeping the old
+   wallet. A freshly generated wallet may still need bootstrap gas before the
+   first on-chain step (e.g. `rotate-deployer-wallet` runs the sweep as Phase 1,
+   before any governance change, so the new key can broadcast at all).
    Wraps `moveNativeFundsToNewWallet.ts`. Consumers: rotate-dev, rotate-deployer,
    rotate-pauser.
 2. **`update-wallet-config`** — PR updating `config/global.json` role (EVM +
@@ -137,8 +140,11 @@ secrets rotation in parallel from day 1.
 2. **Orchestrator v1 is execute-only.** `offboard-sc-dev` assumes the Linear
    ticket tree already exists (modeled on EXSC-558) and runs the rotations;
    templatized ticket-tree creation is a fast-follow.
-3. **One skill per role with `--production`.** Staging vs prod is a flag on each
-   skill (mirrors `deploy-contract`/`multisig-rollout`), not separate skills.
+3. **One skill per role, staging vs prod picked by which delegate it calls.**
+   Each rotate-* skill routes staging/testnets through `deploy-contract` and
+   production through `multisig-rollout` (mirroring how those two skills
+   already split staging/prod) — it is not a `--production` flag on the
+   rotate-* skills themselves; their CLI surface is `--new-address [--check]`.
 4. **Pauser CI-secret rotation is partly outside `contracts`.** The skill
    coordinates and re-verifies the pause flow (`verifyEmergencyPauseReadiness.yml`)
    but cannot fully automate the CI side — flagged, not faked.

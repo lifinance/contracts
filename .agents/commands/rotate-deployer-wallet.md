@@ -59,7 +59,7 @@ Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. VP
 
 - Confirm `--new-address` is present, checksum-valid, and NOT any current SC/CTO wallet in `config/global.json`.
 - Report old → new for the EVM field and the derived Tron base58.
-- Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Safe proposals inside `multisig-rollout`, after which the user returns to the chat and the skill resumes with the remaining phases (3–7).
+- Present the ordered plan (Phases 1–7) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Safe proposals inside `multisig-rollout`, after which the user returns to the chat and the skill resumes with the remaining phases (3–7).
 
 ### Phase 1 — Bootstrap the new deployer's gas (`sweep-wallet-funds`) — FIRST
 

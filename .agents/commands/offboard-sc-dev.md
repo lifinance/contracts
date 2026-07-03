@@ -104,13 +104,13 @@ Beyond the on-chain wallets, the departing person had access to shared secrets t
 
 ### Phase 7 — Completeness gate
 
-The single source of truth that the offboarding actually took effect everywhere:
+The single source of truth that the offboarding actually took effect everywhere, per rotated role:
 
 ```text
 /check-rotation-status --old-address <OLD_ADDR> --new-address <NEW_ADDR> --role <deployer|dev|pauser> --removed-signer <DEPARTING_SIGNER> --production
 ```
 
-Run it per rotated role. It verifies, across all networks: Safe-owner membership (departing removed / replacement added; old deployer removed / new added), Timelock `CANCELLER_ROLE` (old removed / new granted), whitelist role, staging-diamond `owner()`, and wallet funding. Read-only. The offboarding is **not** complete until every role passes on every network. Any red row → go back to the owning rotate-* skill for that role and network.
+Run it once per rotated role. Each invocation verifies only the checks that apply to that role: **deployer** — Safe-owner membership (departing removed / replacement added; old deployer removed / new added), Timelock `CANCELLER_ROLE` (old removed / new granted), whitelist role, and wallet funding; **dev** — staging-diamond `owner()` and wallet funding; **pauser** — wallet funding and CI pauser config. Read-only. The offboarding is **not** complete until every role passes on every network. Any red row → go back to the owning rotate-* skill for that role and network.
 
 ## Verification
 

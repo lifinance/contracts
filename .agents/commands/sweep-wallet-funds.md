@@ -77,9 +77,9 @@ bunx tsx script/tasks/moveNativeFundsToNewWallet.ts \
   --check
 ```
 
-If `moveNativeFundsToNewWallet.ts` exposes no `--check`/dry-run flag, verify at write time via `bunx tsx script/tasks/moveNativeFundsToNewWallet.ts --help` and use whatever preview it offers; if it has none, read balances per active EVM chain with `cast balance "$SOURCE"` and present the same table without invoking the mover. Never broadcast to preview.
+If `moveNativeFundsToNewWallet.ts` exposes no `--check`/dry-run flag, verify at write time via `bunx tsx script/tasks/moveNativeFundsToNewWallet.ts --help` and use whatever preview it offers. If it has none, read balances per active EVM chain with `cast balance "$SOURCE"` — this fallback can only report the raw balance, not the reserve kept or amount-to-move (those come from the mover's own reserve logic); render a balance-only table and say explicitly that reserve/amount figures are unavailable without the mover's preview. Never broadcast to preview.
 
-Render a per-network report: chain, source balance, gas reserve kept, amount to move, destination. Flag chains with a dust/zero balance (will be skipped) and any chain whose RPC is unreachable (surface, don't silently drop).
+When the preview comes from `moveNativeFundsToNewWallet.ts --check`, render a per-network report: chain, source balance, gas reserve kept, amount to move, destination. Flag chains with a dust/zero balance (will be skipped) and any chain whose RPC is unreachable (surface, don't silently drop).
 
 ### Phase 3 — Human confirmation
 
