@@ -264,8 +264,10 @@ export async function getPrivateKey(): Promise<string> {
 }
 
 /**
- * Appends a deployment entry to the JSON log file by calling `logDeployment` in `helperFunctions.sh`.
- * Reads the current environment from `.env` to determine whether to write to the production or staging log.
+ * Records a deployment in the MongoDB deployment log by invoking the same
+ * `update-deployment-logs.ts add` command that `logContractDeploymentInfo` in
+ * `helperFunctions.sh` uses for EVM deployments.
+ * Reads the current environment from `.env` to determine whether to write to the production or staging collection.
  *
  * @param contract - Contract name (e.g. `'LiFiDiamond'`).
  * @param network - Network key from `config/networks.json`.
@@ -293,21 +295,18 @@ export async function logDeployment(
   const solcVersion = getFoundryDefaultSolcVersion()
   const evmVersion = getFoundryDefaultEvmVersion()
   const logCommand = [
-    'script/helperFunctions.sh',
-    'logDeployment',
-    escapeShellArg(contract),
-    escapeShellArg(network),
-    escapeShellArg(timestamp),
-    escapeShellArg(version),
-    '"200"',
-    escapeShellArg(constructorArgs),
-    escapeShellArg(environmentString),
-    escapeShellArg(address),
-    escapeShellArg(String(verified)),
-    escapeShellArg(''),
-    escapeShellArg(solcVersion),
-    escapeShellArg(evmVersion),
-    escapeShellArg(''),
+    'bunx tsx script/deploy/update-deployment-logs.ts add',
+    `--env ${escapeShellArg(environmentString)}`,
+    `--contract ${escapeShellArg(contract)}`,
+    `--network ${escapeShellArg(network)}`,
+    `--version ${escapeShellArg(version)}`,
+    `--address ${escapeShellArg(address)}`,
+    `--optimizer-runs ${escapeShellArg('200')}`,
+    `--timestamp ${escapeShellArg(timestamp)}`,
+    `--constructor-args ${escapeShellArg(constructorArgs)}`,
+    `--verified ${escapeShellArg(String(verified))}`,
+    `--solc-version ${escapeShellArg(solcVersion)}`,
+    `--evm-version ${escapeShellArg(evmVersion)}`,
   ].join(' ')
 
   await executeShellCommand(logCommand)
