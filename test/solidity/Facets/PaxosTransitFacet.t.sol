@@ -492,4 +492,63 @@ contract PaxosTransitFacetTest is TestBaseFacet {
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
+
+    function testRevert_WhenBridgeWithZeroRefundRecipient() public {
+        // without the explicit guard a zero refundRecipient would only revert late in
+        // refundExcessNative, and only if there was excess native to refund
+        validPaxosData.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_ExcessNativeIsRefundedToRefundRecipient() public {
+        uint256 nativeFee = 0.01 ether;
+        uint256 excess = 0.002 ether;
+        validPaxosData.nativeFee = nativeFee;
+        transitStation.setExpectedNativeFee(nativeFee);
+
+        uint256 refundNativeBefore = USER_REFUND.balance;
+        uint256 senderNativeBefore = USER_SENDER.balance;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{
+            value: nativeFee + excess
+        }(bridgeData, validPaxosData);
+        vm.stopPrank();
+
+        // excess native goes to the designated refundRecipient, NOT to msg.sender
+        assertEq(USER_REFUND.balance, refundNativeBefore + excess);
+        assertEq(USER_SENDER.balance, senderNativeBefore - nativeFee - excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SwapAndBridgeRefundsExcessNativeToRefundRecipient() public {
+        // nativeFee is 0 here, so the entire msg.value is excess native
+        uint256 excess = 0.002 ether;
+
+        uint256 refundNativeBefore = USER_REFUND.balance;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        paxosFacet.swapAndStartBridgeTokensViaPaxosTransit{ value: excess }(
+            bridgeData,
+            swapData,
+            validPaxosData
+        );
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundNativeBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
 }

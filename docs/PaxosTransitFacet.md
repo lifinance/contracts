@@ -54,8 +54,7 @@ Operational dependencies (Paxos / LI.FI backend, not enforced by this facet):
   - Performs swap(s) before bridging tokens using Paxos Transit. The quote's `offerAmount` is fixed,
     so the swap must yield at least that amount; any positive slippage and unspent swap inputs are
     refunded to `refundRecipient` (not `msg.sender`, which may be a relayer or the Permit2Proxy)
-    and exactly `offerAmount` is bridged. Excess native is returned to `msg.sender`, since the
-    caller funds the LayerZero fee.
+    and exactly `offerAmount` is bridged. Excess native is likewise returned to `refundRecipient`.
 
 ## PaxosTransit Specific Parameters
 
@@ -66,7 +65,11 @@ Transit and is represented as the following struct type:
 /// @param quote The Paxos-signed quote describing the transit order
 /// @param signature The Paxos signature over the EIP-712 quote digest
 /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee
-/// @param refundRecipient Address that receives swap leftovers and positive slippage from pre-bridge swaps
+/// @param refundRecipient Address that receives swap leftovers and positive slippage
+///        from pre-bridge swaps, as well as any excess source-side native — including
+///        LayerZero fee overage that the TransitStation's endpoint refunds to the
+///        diamond mid-call. Must accept plain native transfers: a refundRecipient
+///        that rejects them reverts the whole bridge (self-inflicted).
 struct PaxosTransitData {
     IPaxosTransit.Quote quote;
     bytes signature;
@@ -96,7 +99,11 @@ route.offerAsset`, `receiver == quote.receiver` — and that `distributorCode ==
 LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of "LIFI"). Any
 mismatch reverts with `InformationMismatch`. Both entrypoints validate `minAmount == offerAmount`
 (reverting `InformationMismatch` on mismatch); on the swap path this also extends the non-zero
-`minAmount` guarantee from `validateBridgeData` to the swap floor. On the non-swap path `nativeFee`
+`minAmount` guarantee from `validateBridgeData` to the swap floor. Both entrypoints require a
+non-zero `refundRecipient` (reverting `InvalidCallData`): all value belonging to the user — swap
+leftovers, positive slippage and excess native (including LayerZero fee overage refunded to the
+Diamond mid-call) — is routed there rather than to `msg.sender`, which may be a relayer or the
+Permit2Proxy. On the non-swap path `nativeFee`
 must not exceed `msg.value` (reverts `InvalidCallData`), so the LayerZero fee can never be paid
 from diamond balance. The swap path has no such check because the fee may be funded by an
 ERC20→native pre-swap — `_depositAndSwap` reserves `nativeFee` of native from the leftover sweep

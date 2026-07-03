@@ -29,7 +29,11 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param quote The Paxos-signed quote describing the transit order
     /// @param signature The Paxos signature over the EIP-712 quote digest
     /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee
-    /// @param refundRecipient Address that receives swap leftovers and positive slippage from pre-bridge swaps
+    /// @param refundRecipient Address that receives swap leftovers and positive slippage
+    ///        from pre-bridge swaps, as well as any excess source-side native — including
+    ///        LayerZero fee overage that the TransitStation's endpoint refunds to the
+    ///        diamond mid-call. Must accept plain native transfers: a refundRecipient
+    ///        that rejects them reverts the whole bridge (self-inflicted).
     struct PaxosTransitData {
         IPaxosTransit.Quote quote;
         bytes signature;
@@ -60,12 +64,19 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_paxosData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
+        // refundExcessNative sends excess native to refundRecipient; with a zero address
+        // that transfer would only revert when LZ fee drift actually leaves an excess -
+        // a data-dependent late revert. Fail fast instead.
+        if (_paxosData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         // The Paxos-signed quote locks the exact amount to bridge, so minAmount must match it
         if (_bridgeData.minAmount != _paxosData.quote.offerAmount) {
             revert InformationMismatch();
@@ -95,15 +106,15 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_paxosData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        // msg.sender may be a relayer or the Permit2Proxy, so token value that belongs to
-        // the user (swap leftovers and positive slippage) must go to an explicit
-        // refundRecipient. Excess native stays with msg.sender - the caller funds the fee.
+        // msg.sender may be a relayer or the Permit2Proxy, so value that belongs to the
+        // user (swap leftovers, positive slippage and excess native) must go to an
+        // explicit refundRecipient.
         if (_paxosData.refundRecipient == address(0)) {
             revert InvalidCallData();
         }
