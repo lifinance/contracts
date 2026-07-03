@@ -141,8 +141,10 @@ matching deployed bytecode.
 
 ### Sync mechanism — direction, order, when to update which
 
-**Direction:** one-way, `contracts` → `contracts-tron`. The fork pulls from
-this repo; it never pushes back to `main`.
+**Direction:** one-way for code, `contracts` → `contracts-tron`. The fork
+pulls from this repo; it never pushes code back to `main`. Deploy logs are
+the explicit exception — they round-trip back upstream (see Part 2) and
+then flow back down through the normal sync.
 
 **Current process (PR-based):** a periodic sync PR is opened on
 `contracts-tron` from a `sync/upstream-YYYY-MM-DD` branch that merges
