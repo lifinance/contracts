@@ -48,7 +48,9 @@ const MOCK_CONFIG: IConfig = {
 }
 
 const createMockDeployment = (
-  overrides?: Partial<IDeploymentRecord>
+  overrides?: Partial<
+    Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'>
+  >
 ): Omit<
   IDeploymentRecord,
   'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'
