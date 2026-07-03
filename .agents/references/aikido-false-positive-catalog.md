@@ -81,16 +81,6 @@ Each pattern has:
 
 ---
 
-## `git_path_scripts`
-
-**Matches when**: issue title contains "path traversal" or "file inclusion"; file is `.claude/scripts/pr-ready-gate.ts`; issue mentions `git rev-parse`, `gitdir`, or `markerPath`
-
-**ignore_reason**:
-> False positive — path comes from `git rev-parse --git-dir` (trusted local binary, not user-controlled input). Code reads only file metadata (mtime via statSync) — file contents are never read or returned. The suggested fix would break git worktrees.
-
-**sast_context**: same as `path_traversal_scripts` — add to the Path Traversal rule in the Aikido UI.
-
----
 
 ## `env_example_placeholder`
 

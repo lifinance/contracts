@@ -73,7 +73,6 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — remove from networks.json, foundry.toml, deployment logs            |
 | `multisig-rollout.md` | `/multisig-rollout <Contract> \| --whitelist-pr <N>` | Orchestrate a production rollout: deploy (delegated to `deploy-contract`) or whitelist-sync across chains, Safe proposals, draft PR, signing hand-off, signature verification, `#dev-sc-multisig-proposals` thread |
 | `post-pr-for-review.md` | `/post-pr-for-review`            | Post a PR to `#dev-sc-review`, enable auto-merge (squash), tag `@smartcontract_core`     |
-| `pr-ready.md`     | `/pr-ready`                       | Run CodeRabbit locally against current branch and resolve findings — mandatory final step before opening/updating a PR |
 | `request-audit.md` | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
 | `request-dev-funds.md` | `/request-dev-funds`            | Request dev funds via the `automate-wallet-dev-fees` PR-based wallet (EVM + Solana)        |
 | `review-bounty-report.md` | `/review-bounty-report`       | Review Cantina bug bounty report vs codebase, docs, audits, scope, severity (log output only) |

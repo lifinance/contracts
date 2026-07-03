@@ -124,7 +124,7 @@ and landing it shouldn't be a manual afterthought.
    all of them. If the output is empty (idempotent re-deploy — same CREATE3
    address, version already registered), there's nothing to land; skip.
 
-2. Delegate the branch / commit / template / `/pr-ready` / push / create mechanic
+2. Delegate the branch / commit / template / push / create mechanic
    to `/create-pr`, passing:
    - **files to stage**: exactly the paths from step 1.
    - **body** (the "Why"): contract, version (old → new per network), network
