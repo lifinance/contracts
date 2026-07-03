@@ -60,6 +60,10 @@
       "0x6E57b4d8e02D5aFD3EdD68C563691C9AA0436CE1": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0x36DBCD6F5Afca9508261F4d533F91C55B41B5109": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       }
     },
     "Periphery": {
