@@ -101,9 +101,11 @@ function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
 
     const extractNumeric = (key: string): number | undefined => {
       const match = sectionBody.match(
-        new RegExp(`^${key}\\s*=\\s*(\\d+)`, 'm')
+        new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)`, 'm')
       )?.[1]
-      return match ? Number(match) : undefined
+      if (!match) return undefined
+      const value = Number(match.replace(/_/g, ''))
+      return Number.isSafeInteger(value) && value >= 0 ? value : undefined
     }
 
     const solc_version = extract('solc_version')
@@ -168,9 +170,13 @@ export function getFoundryDefaultEvmVersion(): EVMVersion {
 export function getFoundryDefaultOptimizerRuns(): number {
   try {
     const optimizerRuns = readFoundryProfileDefaultConfig().optimizer_runs
-    if (optimizerRuns === undefined)
+    if (
+      typeof optimizerRuns !== 'number' ||
+      !Number.isSafeInteger(optimizerRuns) ||
+      optimizerRuns < 0
+    )
       throw new Error(
-        'Missing [profile.default].optimizer_runs in foundry.toml'
+        'Missing or invalid [profile.default].optimizer_runs in foundry.toml'
       )
     return optimizerRuns
   } catch (error) {
