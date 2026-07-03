@@ -85,7 +85,8 @@ contract LiFiVaultWrapper is
 
     /// @notice LI.FI's part of the dilution fee-shares minted to this contract and not
     ///         yet paid out. Split at accrual; packed with the integrator counter so one
-    ///         accrual touches a single slot.
+    ///         accrual touches a single slot. All four fee counters saturate at the
+    ///         uint128 max instead of reverting (see `_splitFee`).
     uint128 public lifiFeeShares;
     /// @notice The integrator's part of the dilution fee-shares minted to this contract
     ///         and not yet paid out.
@@ -101,8 +102,9 @@ contract LiFiVaultWrapper is
     uint64 public lastMgmtAccrual;
     /// @notice Performance-fee high-water mark: the highest post-crystallization price
     ///         per share (scaled by `LibVaultWrapperMath.PPS_SCALE`). Anchored at
-    ///         `initialize`, re-anchored when the performance fee is enabled from
-    ///         disabled, and ratcheted whenever a performance accrual mints shares.
+    ///         `initialize`, re-anchored upward (never down) when the performance fee
+    ///         is enabled from disabled, and ratcheted whenever a performance accrual
+    ///         mints shares.
     uint192 public perfHighWaterMarkPps;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
@@ -443,8 +445,9 @@ contract LiFiVaultWrapper is
     ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
     ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
-    ///      rolls back and the owner keeps their shares), skims the fee, then transfers exactly
-    ///      `_assets` to the receiver. A zero withdrawal (a dust redeem whose `previewRedeem` is
+    ///      rolls back and the owner keeps their shares), skims the fee (plus any overage a
+    ///      round-up source paid beyond the owed amount, so no idle asset is left unattributed),
+    ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem whose `previewRedeem` is
     ///      0, or a bare `withdraw(0)`) short-circuits before the adapter call — mirroring
     ///      `_deposit` — so sources that reject zero-amount withdrawals cannot block exits that
     ///      preview as 0.
@@ -464,7 +467,10 @@ contract LiFiVaultWrapper is
             )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
-        _routeFee(FeeType.Withdrawal, fee);
+        // A round-up source may pay more than owed; book the overage with the fee so
+        // every idle asset stays attributed for payout instead of stranding as
+        // untracked dust that silently left AUM.
+        _routeFee(FeeType.Withdrawal, fee + (withdrawn - owed));
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
     }
 
@@ -497,8 +503,10 @@ contract LiFiVaultWrapper is
     ///      sit within the factory's live bounds for the type. Accrues at the OLD rate
     ///      first so elapsed time (management) and gains above the watermark
     ///      (performance) are priced before the change. Enabling the performance fee
-    ///      from disabled re-anchors the watermark at the current share price, so gains
-    ///      made while it was disabled are never charged retroactively.
+    ///      from disabled re-anchors the watermark UP to the current share price when
+    ///      that is higher, so gains made while it was disabled are never charged
+    ///      retroactively; it never moves the watermark down, so toggling the fee off
+    ///      and on after a drawdown cannot re-charge the recovery to the old peak.
     /// @param _feeType The fee type to update.
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
     function setFeeRate(
@@ -517,13 +525,19 @@ contract LiFiVaultWrapper is
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
             if (_feeType == FeeType.Performance && !_feeConfig.enabled[idx]) {
-                perfHighWaterMarkPps = SafeCast.toUint192(
+                uint192 currentPps = SafeCast.toUint192(
                     LibVaultWrapperMath.pricePerShare(
                         totalSupply(),
                         totalAssets(),
                         _decimalsOffset()
                     )
                 );
+                // Up-only: anchoring below the stored watermark would let the owner
+                // toggle the fee off/on at a trough and charge the recovery back to
+                // the old peak — the double-charge the watermark exists to prevent.
+                if (currentPps > perfHighWaterMarkPps) {
+                    perfHighWaterMarkPps = currentPps;
+                }
             }
             _feeConfig.enabled[idx] = true;
             _feeConfig.rateBps[idx] = _newRateBps;
@@ -719,45 +733,100 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Books freshly minted dilution fee-shares, split between LI.FI and the
-    ///      integrator using the fee type's own share. The integrator's part rounds
-    ///      down, so split dust (at most 1 wei-share per accrual) goes to LI.FI.
-    ///      Payout happens elsewhere; here it only tracks the per-recipient totals.
+    ///      integrator using the fee type's own share via `_splitFee`. Payout happens
+    ///      elsewhere; here it only tracks the per-recipient totals.
     /// @param _feeType The fee type that accrued (Management or Performance).
     /// @param _feeShares The total shares minted to this contract for the fee.
     function _bookDilution(FeeType _feeType, uint256 _feeShares) private {
-        uint256 integratorPart = (_feeShares *
-            integratorShareBps[uint8(_feeType)]) /
-            LibVaultWrapperMath.BASIS_POINT_SCALE;
-        integratorFeeShares = SafeCast.toUint128(
-            integratorFeeShares + integratorPart
-        );
-        lifiFeeShares = SafeCast.toUint128(
-            lifiFeeShares + (_feeShares - integratorPart)
+        uint256 integratorPart;
+        (lifiFeeShares, integratorFeeShares, integratorPart) = _splitFee(
+            _feeType,
+            _feeShares,
+            lifiFeeShares,
+            integratorFeeShares
         );
 
         emit DilutionFeeAccrued(_feeType, _feeShares, integratorPart);
     }
 
-    /// @dev Books an asset-side fee as idle and not-yet-distributed, split between
-    ///      LI.FI and the integrator using the fee type's own share. The integrator's
-    ///      part rounds down, so split dust (at most 1 wei per charge) goes to LI.FI.
+    /// @dev Books an asset-side amount as idle and not-yet-distributed, split between
+    ///      LI.FI and the integrator using the fee type's own share via `_splitFee`.
     ///      Payout happens elsewhere; here it only tracks the per-recipient totals.
-    ///      No-op on a zero fee.
+    ///      No-op on a zero amount.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
-    /// @param _feeAssets The fee amount, in assets, kept idle in this contract.
+    /// @param _feeAssets The amount, in assets, kept idle in this contract: the fee
+    ///        plus, on the withdrawal path, any adapter overage (see `_transferOut`).
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
         if (_feeAssets == 0) return;
 
-        uint256 integratorPart = (_feeAssets *
-            integratorShareBps[uint8(_feeType)]) /
-            LibVaultWrapperMath.BASIS_POINT_SCALE;
-        integratorFeeAssets = SafeCast.toUint128(
-            integratorFeeAssets + integratorPart
-        );
-        lifiFeeAssets = SafeCast.toUint128(
-            lifiFeeAssets + (_feeAssets - integratorPart)
+        uint256 integratorPart;
+        (lifiFeeAssets, integratorFeeAssets, integratorPart) = _splitFee(
+            _feeType,
+            _feeAssets,
+            lifiFeeAssets,
+            integratorFeeAssets
         );
 
         emit AssetFeeCharged(_feeType, _feeAssets, integratorPart);
+    }
+
+    /// @dev Single source of the LI.FI/integrator split semantics, shared by the
+    ///      share-side and asset-side counters. The integrator's part rounds down, so
+    ///      split dust (at most 1 wei per accrual) goes to LI.FI. Accumulation
+    ///      SATURATES at the uint128 counter max instead of reverting: this runs
+    ///      inside `_accrueFees` on every operation including exits, so an
+    ///      overflowing counter must under-attribute payout entitlements (unreachable
+    ///      for any real asset — it requires a cumulative fee of 2^128 wei) rather
+    ///      than permanently brick withdrawals.
+    /// @param _feeType The fee type whose share to apply.
+    /// @param _feeTotal The total fee amount to split.
+    /// @param _lifiAccrued Current LI.FI counter value.
+    /// @param _integratorAccrued Current integrator counter value.
+    /// @return lifiNew Updated LI.FI counter value.
+    /// @return integratorNew Updated integrator counter value.
+    /// @return integratorPart The integrator's part of `_feeTotal` (for events).
+    function _splitFee(
+        FeeType _feeType,
+        uint256 _feeTotal,
+        uint128 _lifiAccrued,
+        uint128 _integratorAccrued
+    )
+        private
+        view
+        returns (
+            uint128 lifiNew,
+            uint128 integratorNew,
+            uint256 integratorPart
+        )
+    {
+        // 512-bit mulDiv: a plain `_feeTotal * shareBps` could overflow for extreme
+        // fee-share mints and revert the accrual path this function must keep alive.
+        integratorPart = Math.mulDiv(
+            _feeTotal,
+            integratorShareBps[uint8(_feeType)],
+            LibVaultWrapperMath.BASIS_POINT_SCALE
+        );
+        lifiNew = _saturatingAddUint128(
+            _lifiAccrued,
+            _feeTotal - integratorPart
+        );
+        integratorNew = _saturatingAddUint128(
+            _integratorAccrued,
+            integratorPart
+        );
+    }
+
+    /// @dev Adds `_delta` to a uint128 accumulator, clamping at the type max instead
+    ///      of reverting (see `_splitFee` for why the accrual path must never revert).
+    /// @param _accrued The current accumulator value.
+    /// @param _delta The amount to add.
+    /// @return The clamped sum.
+    function _saturatingAddUint128(
+        uint128 _accrued,
+        uint256 _delta
+    ) private pure returns (uint128) {
+        uint256 sum = uint256(_accrued) + _delta;
+
+        return sum > type(uint128).max ? type(uint128).max : uint128(sum);
     }
 }
