@@ -17,20 +17,24 @@ paths:
 
 ## Real Contracts vs Mocks ([CONV:FORK-FIRST])
 
-- Facet tests run on a mainnet fork (`TestBase`): call the **real deployed third-party contract** on that fork by default. Never mock a contract the test could call for real.
-- If the counterparty verifies signatures produced by **our own backend** (facet has a configurable signer), that is NOT a reason to mock — set a test signer and sign in-test (`TestEIP712` + `Test<Protocol>BackendSig` helper pattern).
-- If the real contract gates calls on third-party-controlled state (a trusted signer, an allowlist, a permissioned caller), first try to **lift the gate on the fork** instead of mocking:
-  - `vm.prank` the contract's owner/admin and call its real setter (e.g. rotate its quote signer to a test key), or write the slot directly via `stdstore`/`vm.store`, then sign in-test,
-  - pin `customBlockNumberForForking` to a block at which the contract is deployed and configured — the suite's default fork block is not a constraint.
-- Mocking the third-party contract is acceptable **only** when real calls stay infeasible after that, e.g.:
+- Facet tests run on a mainnet fork (`TestBase`): call the **real deployed third-party contract** on that fork. Mocking the counterparty defeats the point of forking — a fork test against a mock proves nothing the same test would not prove on a plain local node. Mocks are a **last resort**, permitted only after the gate-lifting techniques below have been tried and shown infeasible.
+- If the counterparty verifies signatures produced by **our own backend** (facet has a configurable signer), that is NOT a reason to mock — set a test signer and sign in-test (`TestEIP712` + `Test<Protocol>BackendSig` helper pattern) against the counterparty's real, live-computed domain.
+- If the real contract gates calls on third-party-controlled state (a trusted signer, an allowlist, a permissioned caller, missing route/config), **lift the gate on the fork** instead of mocking. The toolbox, in order of preference:
+  - `vm.prank` the contract's owner/admin and call its real setter (e.g. rotate its quote signer to a test key, approve a route, set a gas limit),
+  - override storage directly via `stdstore`/`vm.store` when no setter exists (signer slots, allowlist mappings, balance slots; `deal()` for token balances),
+  - pin `customBlockNumberForForking` to a block at which the contract is deployed and configured — the suite's default fork block is never a reason to mock,
+  - derive live parameters from the protocol's own view/quote functions (messaging fees, rates) instead of inventing constants.
+- Replacing the counterparty's code counts as mocking and falls under the same bar: no `vm.etch` over the real contract, no `vm.mockCall` on its functions, no "real address, fake behavior" hybrids.
+- When setUp depends on pinned on-chain config (an approved route, a set gas limit, a rotated signer), assert that config in `setUp()` so a future re-pin fails loudly there instead of deep inside a funds-flow assert.
+- Mocking the third-party contract is acceptable **only** when real calls stay infeasible after exhausting the toolbox above, e.g.:
   - the gate is `immutable`/hardcoded in bytecode with no settable or storage-writable path,
   - its behavior depends on live off-chain state that cannot be pinned at a fork block (auctions, oracle-priced fees),
   - no forkable network has the contract deployed.
 - Every mock must:
   - live in `test/solidity/utils/Mock<Name>.sol` and implement the real interface from `src/Interfaces/`,
   - mirror the real contract's **funds flow and reverts** (pull tokens the same way, enforce the same `msg.value` gating) — not merely record calls or emit events,
-  - state in its NatSpec why the real contract cannot be used.
-- When a facet's unit tests mock the counterparty, real-contract coverage must exist elsewhere (e.g. a demo script executed against the deployed contract) and the PR must reference it.
+  - state in its NatSpec why the real contract cannot be used **and which gate-lifting techniques were ruled out**.
+- When a facet's unit tests mock the counterparty, the PR must document why gate-lifting was infeasible, and real-contract coverage must exist elsewhere (e.g. a demo script executed against the deployed contract) with the PR referencing it.
 
 ## Test Naming
 
