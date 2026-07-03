@@ -12,7 +12,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.1
+/// @custom:version 2.0.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -107,18 +107,31 @@ contract CalldataVerificationFacet {
         bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
         bytes memory callData = data;
+        bool hasSourceSwaps = _extractBridgeData(data).hasSourceSwaps;
 
-        // Non-EVM address is always the first parameter of bridge specific data
-        if (_extractBridgeData(data).hasSourceSwaps) {
+        // Non-EVM address is always the first parameter of bridge specific data.
+        // `offset` below is read directly out of calldata and is not validated by
+        // the BridgeData decode above (which only covers its own struct region),
+        // so a crafted/corrupted offset could otherwise point outside `callData`
+        // and silently yield a garbage/zero address instead of reverting.
+        uint256 offset;
+        if (hasSourceSwaps) {
             assembly {
-                let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+                offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
             }
         } else {
             assembly {
-                let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+                offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
             }
+        }
+
+        // `offset` is relative to the start of the parameters (i.e. right after
+        // the 4-byte function selector); the non-EVM address occupies the 32
+        // bytes at `offset + 0x24`, so the buffer must reach at least that far.
+        if (offset + 0x24 > callData.length) revert InvalidCallData();
+
+        assembly {
+            nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
         }
     }
 
@@ -142,7 +155,7 @@ contract CalldataVerificationFacet {
             uint256 receivingAmount
         )
     {
-        // valid callData for a genericSwap call should have at least 484 bytes:
+        // valid callData for a genericSwap call should have more than 484 bytes:
         // Function selector: 4 bytes
         // _transactionId: 32 bytes
         // _integrator: 64 bytes
@@ -290,37 +303,6 @@ contract CalldataVerificationFacet {
                 );
         }
 
-        // Case: AcrossV3
-        if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
-            (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                data[4:],
-                (ILiFi.BridgeData, AcrossFacetV3.AcrossV3Data)
-            );
-
-            return
-                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
-                keccak256(callTo) ==
-                keccak256(abi.encode(acrossV3Data.receiverAddress));
-        }
-        if (
-            selector ==
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector
-        ) {
-            (, , AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(
-                data[4:],
-                (
-                    ILiFi.BridgeData,
-                    LibSwap.SwapData[],
-                    AcrossFacetV3.AcrossV3Data
-                )
-            );
-            return
-                keccak256(dstCalldata) == keccak256(acrossV3Data.message) &&
-                keccak256(callTo) ==
-                keccak256(abi.encode(acrossV3Data.receiverAddress));
-        }
-
-        // ---------------------------------------
         // Case: AcrossV3
         if (selector == AcrossFacetV3.startBridgeTokensViaAcrossV3.selector) {
             (, AcrossFacetV3.AcrossV3Data memory acrossV3Data) = abi.decode(

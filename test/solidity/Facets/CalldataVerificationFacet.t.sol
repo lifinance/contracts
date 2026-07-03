@@ -174,6 +174,54 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         assertEq(returnedNonEVMAddress, bytes32("Just some address"));
     }
 
+    function testRevert_ExtractNonEVMAddressWithCorruptedOffset() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        // BridgeData decodes fine on its own (it sits entirely within the first
+        // 548 bytes), but truncating away the tail means the bridge-specific
+        // data offset now points past the end of the buffer.
+        callData = _safeSlice(callData, 0, 547);
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
+    function testRevert_ExtractNonEVMAddressWithSwapsAndCorruptedOffset()
+        public
+    {
+        bridgeData.hasSourceSwaps = true;
+
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.swapAndStartBridgeTokensViaMayan.selector,
+            bridgeData,
+            swapData,
+            mayanData
+        );
+
+        callData = _safeSlice(callData, 0, 931);
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
             AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
