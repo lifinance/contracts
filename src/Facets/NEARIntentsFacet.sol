@@ -172,7 +172,8 @@ contract NEARIntentsFacet is
     /// @notice Performs a swap before bridging via NEAR Intents
     /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
     ///      to msg.sender (which may be a relayer), not _nearData.refundRecipient, unlike the
-    ///      positive slippage refund further down. Align all three to refundRecipient.
+    ///      positive slippage refund further down, which already uses refundRecipient. Align
+    ///      the two msg.sender-based refunds to refundRecipient as well.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps
     /// @param _nearData Data specific to NEAR Intents
