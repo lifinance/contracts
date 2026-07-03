@@ -17,6 +17,9 @@
  * Run:  bunx tsx script/demoScripts/demoPaxosTransit.ts
  */
 import { spawn, type ChildProcess } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
 import { config as dotenvConfig } from 'dotenv'
@@ -33,11 +36,40 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import { anvil } from 'viem/chains'
 
-import mockStationArtifact from '../../out/MockTransitStation.sol/MockTransitStation.json'
-import paxosFacetArtifact from '../../out/PaxosTransitFacet.sol/PaxosTransitFacet.json'
-import testTokenArtifact from '../../out/TestToken.sol/TestToken.json'
-
 dotenvConfig()
+
+// Read Forge artifacts at runtime rather than statically importing them: MockTransitStation
+// and TestToken live under test/solidity/utils/, which the validate-scripts CI job's
+// `forge build src` never compiles, so a static `import ... from '../../out/...json'` fails
+// TS2307 there even though a full local `forge build` produces the file.
+interface IForgeArtifact {
+  abi: Abi
+  bytecode: { object: Hex }
+}
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+function readIForgeArtifact(
+  contractFile: string,
+  contractName: string
+): IForgeArtifact {
+  const artifactPath = path.join(
+    __dirname,
+    '../../out',
+    contractFile,
+    `${contractName}.json`
+  )
+  return JSON.parse(fs.readFileSync(artifactPath, 'utf8')) as IForgeArtifact
+}
+
+const mockStationArtifact = readIForgeArtifact(
+  'MockTransitStation.sol',
+  'MockTransitStation'
+)
+const paxosFacetArtifact = readIForgeArtifact(
+  'PaxosTransitFacet.sol',
+  'PaxosTransitFacet'
+)
+const testTokenArtifact = readIForgeArtifact('TestToken.sol', 'TestToken')
 
 // Well-known anvil account #0 (public test key — safe to hard-code for a local demo only).
 const ANVIL_PRIVATE_KEY: Hex =
@@ -53,12 +85,9 @@ const ROBINHOOD_EID = 30416 // LayerZero EID for Robinhood Chain
 // arbitrary wantAsset placeholder (USDG on the destination chain); the mock ignores it
 const WANT_ASSET: Address = '0x1212121212121212121212121212121212121212'
 
-const MOCK_STATION_BYTECODE = (mockStationArtifact.bytecode as { object: Hex })
-  .object
-const PAXOS_FACET_BYTECODE = (paxosFacetArtifact.bytecode as { object: Hex })
-  .object
-const TEST_TOKEN_BYTECODE = (testTokenArtifact.bytecode as { object: Hex })
-  .object
+const MOCK_STATION_BYTECODE = mockStationArtifact.bytecode.object
+const PAXOS_FACET_BYTECODE = paxosFacetArtifact.bytecode.object
+const TEST_TOKEN_BYTECODE = testTokenArtifact.bytecode.object
 
 const account = privateKeyToAccount(ANVIL_PRIVATE_KEY)
 const publicClient = createPublicClient({
@@ -124,9 +153,9 @@ async function main(): Promise<void> {
     await waitForAnvil()
     consola.success(`anvil ready at ${RPC_URL} (wallet: ${account.address})`)
 
-    const tokenAbi = testTokenArtifact.abi as Abi
-    const facetAbi = paxosFacetArtifact.abi as Abi
-    const stationAbi = mockStationArtifact.abi as Abi
+    const tokenAbi = testTokenArtifact.abi
+    const facetAbi = paxosFacetArtifact.abi
+    const stationAbi = mockStationArtifact.abi
 
     // 1) deploy offer token, mock station, facet
     const offerToken = await deploy(tokenAbi, TEST_TOKEN_BYTECODE, [
