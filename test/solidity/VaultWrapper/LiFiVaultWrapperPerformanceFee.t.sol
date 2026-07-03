@@ -1,57 +1,25 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { Test } from "forge-std/Test.sol";
-import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
-import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
-import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
-import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { VaultWrapperFeeTestBase } from "test/solidity/VaultWrapper/VaultWrapperFeeTestBase.sol";
 
 /// @notice Tests for the performance fee (EXSC-556): high-water-mark dilution charged on
 ///         share-price gains only, watermark ratcheting after crystallization, preview
 ///         consistency with pending performance fees, interaction with the management fee,
-///         and the `setFeeRate` enable/disable/bounds paths. Mirrors the direct
-///         beacon-proxy setup of `LiFiVaultWrapperFees.t.sol`.
-contract LiFiVaultWrapperPerformanceFeeTest is Test {
-    MockERC20 internal asset;
-    MockERC4626 internal underlying;
-    ERC4626Adapter internal adapter;
-    UpgradeableBeacon internal beacon;
-    LiFiVaultWrapper internal wrapper;
-    LiFiVaultWrapperFactory internal factory;
-
-    address internal alice = makeAddr("alice");
-    address internal bob = makeAddr("bob");
-    address internal vaultAdmin = makeAddr("vaultAdmin");
-    address internal owner = makeAddr("owner");
-
-    uint256 internal constant DEPOSIT = 1_000e18;
+///         and the `setFeeRate` enable/disable/bounds paths. Setup and shared helpers live
+///         in `VaultWrapperFeeTestBase`.
+contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
     uint16 internal constant PERF_RATE = 2000; // 20% of gains
-    uint16 internal constant MGMT_RATE = 200; // 2% / year
-    uint16 internal constant SPLIT = 8000; // integrator share used for every fee type here
-    uint256 internal constant YEAR = 365 days;
 
-    /// @dev This test contract is the `factory` for the direct beacon-proxy wrappers (it
-    ///      deploys and initializes them), so the wrapper reads the global circuit breaker
-    ///      back from here.
-    function globalPaused() external pure returns (bool) {
-        return false;
-    }
-
-    function setUp() public {
-        asset = new MockERC20("Token", "TKN", 18);
-        underlying = new MockERC4626(asset, "Yield Token", "yTKN");
-        adapter = new ERC4626Adapter();
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
-            address(this)
-        );
+    function setUp() public override {
+        super.setUp();
+        // 1 gwei crystallize dust (vs a 1000e18 base) so solmate's MockERC4626 does not
+        // revert ZERO_SHARES once its own PPS exceeds 1 after simulated yield.
+        crystallizeDust = 1e9;
     }
 
     /// Charging on gains above the watermark ///
@@ -302,6 +270,37 @@ contract LiFiVaultWrapperPerformanceFeeTest is Test {
         assertGt(_accruedFeeShares(), 0);
     }
 
+    function test_SetFeeRateToggleAtTroughCannotLowerWatermark() public {
+        _stackWithFactory(PERF_RATE);
+        _deposit(alice, DEPOSIT);
+        _simulateYield(500e18);
+        _crystallize(); // charged; watermark ratchets to the post-fee PPS
+
+        uint256 hwmAtPeak = wrapper.perfHighWaterMarkPps();
+        uint256 sharesAtPeak = _accruedFeeShares();
+        assertGt(hwmAtPeak, 1e18);
+
+        _simulateLoss(400e18); // drawdown well below the watermark
+
+        // Toggling the fee off and back on at the trough must NOT re-anchor the
+        // watermark down: the recovery back to the old peak is not new performance,
+        // and the fee-receiving owner must not be able to reset it via setFeeRate.
+        vm.startPrank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Performance, 0);
+        wrapper.setFeeRate(FeeType.Performance, PERF_RATE);
+        vm.stopPrank();
+
+        assertEq(wrapper.perfHighWaterMarkPps(), hwmAtPeak);
+
+        // Recovering to just below the prior peak charges nothing further.
+        _simulateYield(399e18);
+        _crystallize();
+
+        assertLe(_pps(), hwmAtPeak);
+        assertEq(_accruedFeeShares(), sharesAtPeak);
+        assertEq(wrapper.perfHighWaterMarkPps(), hwmAtPeak);
+    }
+
     function test_SetFeeRateDisablePerformanceCrystallizesFirst() public {
         _stackWithFactory(PERF_RATE);
         _deposit(alice, DEPOSIT);
@@ -371,27 +370,6 @@ contract LiFiVaultWrapperPerformanceFeeTest is Test {
 
     /// Helpers ///
 
-    function _newWrapperWithSplits(
-        FeeConfig memory _fees,
-        uint16[4] memory _splits
-    ) internal returns (LiFiVaultWrapper w) {
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                _splits,
-                _fees,
-                ""
-            )
-        );
-
-        w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
-        );
-    }
-
     function _newWrapperPerfOnly(
         uint16 _rate
     ) internal returns (LiFiVaultWrapper) {
@@ -422,40 +400,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is Test {
     /// @dev Stands up the full factory stack and deploys an instance so `setFeeRate`
     ///      reads live `feeBounds` (performance bounds 0..5000).
     function _stackWithFactory(uint16 _perfRate) internal {
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
-            owner,
-            makeAddr("pauser"),
-            makeAddr("onboarder"),
-            makeAddr("lifiRecipient")
-        );
-
-        vm.startPrank(owner);
-        factory.setAdapterApproved(address(adapter), true);
-        factory.setUnderlyingAllowed(address(underlying), true);
-        factory.setFeeBounds(FeeType.Performance, 0, 5000);
-        vm.stopPrank();
-
-        uint16[4] memory rates = [_perfRate, 0, 0, 0];
-        bool[4] memory enabled = [_perfRate != 0, false, false, false];
-        DeployParams memory p = DeployParams({
-            namespace: bytes32("Coinbase"),
-            vaultWrapperAdmin: vaultAdmin,
-            adapter: address(adapter),
-            underlying: address(underlying),
-            nonce: 0,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
-            integratorShareBps: [
-                type(uint16).max,
-                type(uint16).max,
-                type(uint16).max,
-                type(uint16).max
-            ],
-            initData: ""
-        });
-
-        vm.prank(makeAddr("onboarder"));
-        wrapper = LiFiVaultWrapper(factory.deploy(p));
+        _stackWithFactory(FeeType.Performance, _perfRate, 5000);
     }
 
     /// @dev Replicates the pending performance fee for a given state against the
@@ -488,40 +433,5 @@ contract LiFiVaultWrapperPerformanceFeeTest is Test {
                 wrapper.totalAssets(),
                 0
             );
-    }
-
-    function _accruedFeeShares() internal view returns (uint256) {
-        return
-            uint256(wrapper.lifiFeeShares()) + wrapper.integratorFeeShares();
-    }
-
-    function _deposit(address _from, uint256 _amount) internal {
-        asset.mint(_from, _amount);
-        vm.startPrank(_from);
-        asset.approve(address(wrapper), _amount);
-        wrapper.deposit(_amount, _from);
-        vm.stopPrank();
-    }
-
-    function _simulateYield(uint256 _amount) internal {
-        asset.mint(address(underlying), _amount);
-    }
-
-    function _simulateLoss(uint256 _amount) internal {
-        deal(
-            address(asset),
-            address(underlying),
-            asset.balanceOf(address(underlying)) - _amount
-        );
-    }
-
-    /// @dev Triggers `_beforeOperation -> _accrueFees` via a dust deposit. 1 gwei (vs a
-    ///      1000e18 base) so solmate's MockERC4626 does not revert ZERO_SHARES once its
-    ///      own PPS exceeds 1 after simulated yield; the accrual runs before the
-    ///      deposit's own mint, so fee bookkeeping is exact regardless of this dust.
-    function _crystallize() internal {
-        asset.mint(address(this), 1e9);
-        asset.approve(address(wrapper), 1e9);
-        wrapper.deposit(1e9, address(this));
     }
 }

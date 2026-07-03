@@ -637,23 +637,27 @@ contract LibVaultWrapperMathTest is Test {
 
     function testFuzz_PerformanceFee_MonotonicInAssets(
         uint256 _totalSupply,
-        uint256 _totalAssets,
+        uint256 _baseAssets,
+        uint256 _yield,
         uint256 _extraYield
     ) public view {
         _totalSupply = bound(_totalSupply, 1e6, type(uint96).max);
-        _totalAssets = bound(_totalAssets, 1e6, type(uint96).max);
+        _baseAssets = bound(_baseAssets, 1e6, type(uint96).max);
+        _yield = bound(_yield, 1, type(uint96).max);
         _extraYield = bound(_extraYield, 1, type(uint96).max);
 
-        uint256 hwm = lib.pricePerShare(_totalSupply, _totalAssets, 0);
-        uint256 feeBefore = lib.performanceFeeAssets(
-            _totalAssets,
+        // Watermark anchored at the base level; both measurements sit at or above it,
+        // so the property compares two live fee levels, not a fee against zero.
+        uint256 hwm = lib.pricePerShare(_totalSupply, _baseAssets, 0);
+        uint256 feeLow = lib.performanceFeeAssets(
+            _baseAssets + _yield,
             _totalSupply,
             hwm,
             2000,
             0
         );
-        uint256 feeAfter = lib.performanceFeeAssets(
-            _totalAssets + _extraYield,
+        uint256 feeHigh = lib.performanceFeeAssets(
+            _baseAssets + _yield + _extraYield,
             _totalSupply,
             hwm,
             2000,
@@ -661,7 +665,6 @@ contract LibVaultWrapperMathTest is Test {
         );
 
         // More yield on the same supply/watermark never charges less.
-        assertEq(feeBefore, 0);
-        assertGe(feeAfter, feeBefore);
+        assertGe(feeHigh, feeLow);
     }
 }
