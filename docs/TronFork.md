@@ -1,14 +1,12 @@
 # The `contracts-tron` Fork
 
-This guide has two parts. **Part 1** explains why Tron runs off a dedicated
-`contracts-tron` fork and how to keep it in sync with this repo (`contracts`).
-**Part 2** is the operational how-to for deploying contracts to Tron. For
-general Tron-vs-EVM technical reference (address formats, fees, TronWeb code
-samples), see the internal Tron Datasheet linked from the SC team's
-knowledge base.
-
-Read Part 1 first — you deploy _from_ the fork, so the repo situation is
-prerequisite context.
+This guide has two parts: **Part 1** explains why Tron runs off a dedicated
+`contracts-tron` fork and how to keep it in sync with this repo (`contracts`);
+**Part 2** is the operational how-to for deploying contracts to Tron — read
+Part 1 first, since you deploy _from_ the fork and the repo situation is
+prerequisite context. For general Tron-vs-EVM technical reference (address
+formats, fees, TronWeb code samples), see the internal Tron Datasheet linked
+from the SC team's knowledge base.
 
 ## Part 1 · Why the fork exists & how to keep it in sync
 
@@ -255,9 +253,6 @@ single source of truth for deploy logs on every chain, Tron included.
    logs reach `contracts-tron` on the next upstream→fork sync PR (step 1 of
    the next deploy).
 
-**Net result:** code moves one-way `contracts` → `contracts-tron`; deploy
-logs are written during a fork deploy, committed here, then sync back down.
-
 ### Why Tron needs custom deploy scripts
 
 Tron requires custom deployment scripts because Foundry doesn't support it
@@ -317,7 +312,7 @@ the TypeScript conventions that apply to everything under
 - **Free Energy**: Users can stake TRX to get free daily Energy allocation
   (avoids TRX fees).
 - **Contract deployment**: Typically requires 200k–1M Energy depending on
-  contract size.
+  contract size, roughly 200–1000 TRX total once Bandwidth is included.
 
 **Bandwidth**
 
@@ -364,52 +359,15 @@ re-point the delegation at the current `config/global.json` →
 
 ### The TronContractDeployer class
 
-The core deployment engine handling Tron-specific requirements:
-
-- **Energy/Bandwidth estimation**: Calculates required resources before
-  deployment
-- **Retry mechanism**: Handles network failures with configurable retries
-- **Cost calculation**: Estimates TRX costs for deployment
-- **Transaction confirmation**: Waits for on-chain confirmation
-
-Key configuration:
-
-```typescript
-interface ITronDeploymentConfig {
-  fullHost: string // RPC URL
-  privateKey: string // Without 0x prefix
-  safetyMargin?: number // Extra energy margin (default: 1.1)
-  maxRetries?: number // Retry attempts (default: 3)
-  confirmationTimeout?: number // Ms to wait (default: 60000)
-  dryRun?: boolean // Simulate without deploying
-}
-```
-
-### Deployment script pattern
-
-Each deployment script follows this structure:
-
-```typescript
-// 1. Read network configuration
-const network = process.env.NETWORK || 'tron'
-const config = getNetworkConfig(network)
-
-// 2. Initialize deployer
-const deployer = new TronContractDeployer({
-  fullHost: config.rpcUrl,
-  privateKey: process.env.PRIVATE_KEY,
-  verbose: true,
-})
-
-// 3. Read Forge artifact
-const artifact = await readForgeArtifact('ContractName')
-
-// 4. Deploy contract
-const result = await deployer.deployContract(artifact, constructorArgs)
-
-// 5. Update deployment file
-await updateDeploymentFile(network, 'ContractName', result.address)
-```
+`TronContractDeployer.ts` is the core deploy engine: it estimates
+Energy/Bandwidth and TRX cost before deploying, retries on network failures,
+and waits for on-chain confirmation. Every `deploy-and-register-*.ts` script
+follows the same shape — read network config, initialize the deployer, read
+the Forge artifact, deploy, update the deployment file — so the fastest way
+to write a new one is to copy an existing script rather than build the
+pattern from scratch (see [Adding a new contract](#adding-a-new-contract)).
+Read the class and an existing script directly for exact interfaces; they're
+not reproduced here to avoid this doc drifting out of sync with the code.
 
 ### Running the deployment scripts
 
@@ -463,31 +421,18 @@ Tronscan API endpoints (from `config/networks.json`):
 - Mainnet: <https://apilist.tronscan.org/api>
 - Testnet: <https://api.shasta.tronscan.org/api>
 
-### Key differences from EVM deployments
-
-1. **Address format**: Tron uses Base58, contracts store them as hex
-   internally.
-2. **No Foundry support**: Must use TypeScript/TronWeb instead of Solidity
-   scripts.
-3. **Resource model**: Energy + Bandwidth instead of just gas.
-4. **Deployment costs**: Typically 200–1000 TRX per contract depending on
-   size.
-
 ### Adding a new contract
 
 1. Write the Solidity contract in `src/Facets/` or `src/Periphery/` here,
-   in this repo (see [Repo roles](#repo-roles--when-to-use-which)).
-2. Compile with `forge build`.
-3. Sync the fork, then create a deployment script on `contracts-tron` in
-   `script/deploy/tron/`:
-   - Copy an existing script as a template.
-   - Update the contract name and constructor args.
-   - Follow the naming convention: `deploy-and-register-[name].ts`.
-4. Run the deployment script from the fork.
-5. Verify on Tronscan.
-6. Update `deployments/tron.json` and `deployments/tron.diamond.json` on
-   the fork, then PR those logs back here (step 3 of
-   [The end-to-end deploy flow](#the-end-to-end-deploy-flow)).
+   in this repo (see [Repo roles](#repo-roles--when-to-use-which)), and
+   compile with `forge build`.
+2. Create a deployment script on `contracts-tron` in `script/deploy/tron/`
+   by copying an existing script as a template — update the contract name
+   and constructor args, following the naming convention
+   `deploy-and-register-[name].ts`.
+3. Follow [the end-to-end deploy flow](#the-end-to-end-deploy-flow) above:
+   sync the fork, run the script, verify on Tronscan, then PR the updated
+   deploy logs back here.
 
 ## References & resources
 
