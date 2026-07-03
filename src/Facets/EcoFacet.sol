@@ -120,6 +120,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     /// @notice Swaps and bridges tokens via Eco Protocol
+    /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
+    ///      to msg.sender (which may be a relayer), not _ecoData.refundRecipient, unlike the
+    ///      positive slippage refund further down. Align all three to refundRecipient.
     /// @param _bridgeData Bridge data containing core parameters
     /// @param _swapData Array of swap data for source swaps
     /// @param _ecoData Eco-specific parameters for the bridge

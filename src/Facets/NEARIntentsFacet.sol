@@ -144,6 +144,8 @@ contract NEARIntentsFacet is
     /// External Methods ///
 
     /// @notice Bridges tokens via NEAR Intents
+    /// @dev TODO (next iteration): excess native below is refunded to msg.sender (which may
+    ///      be a relayer), not _nearData.refundRecipient. Align to refundRecipient.
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     function startBridgeTokensViaNEARIntents(
@@ -168,6 +170,9 @@ contract NEARIntentsFacet is
     }
 
     /// @notice Performs a swap before bridging via NEAR Intents
+    /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
+    ///      to msg.sender (which may be a relayer), not _nearData.refundRecipient, unlike the
+    ///      positive slippage refund further down. Align all three to refundRecipient.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps
     /// @param _nearData Data specific to NEAR Intents
