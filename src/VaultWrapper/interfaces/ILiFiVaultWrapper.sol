@@ -97,7 +97,8 @@ interface ILiFiVaultWrapper {
     /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
     ///        FeeType ordinal), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
+    /// @param _initData ABI-encoded AccessConfig (gates, adapter, oracle, Merkle root);
+    ///        empty bytes configure a fully open instance.
     function initialize(
         address _underlying,
         address _adapter,

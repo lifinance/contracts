@@ -14,6 +14,7 @@ import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig, FeeType } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
+import { VaultWrapperAccessControl } from "./VaultWrapperAccessControl.sol";
 
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -35,13 +36,17 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      Every fee is split between LI.FI and the integrator at accrual time using the
 ///      fee type's own share, into per-recipient counters. This contract does not
 ///      distribute the accrued fees. Pause is enforced on the deposit/mint path only
-///      (withdrawals stay open);
-///      access logic remains a no-op seam (`_checkAccess`) with its body landing in a
-///      follow-up ticket. Inflation-attack protection relies on the ERC-4626 virtual-share
-///      offset.
+///      (withdrawals stay open). Access control (VaultWrapperAccessControl) gates the
+///      deposit path on the share receiver and freezes transfers while a gate is
+///      active; withdrawals are never gated. Inflation-attack protection relies on the
+///      ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
+    // Access control keeps its state in an ERC-7201 namespaced slot (see the module),
+    // so inheriting it adds no slot to this layout and is collision-free behind a
+    // beacon proxy.
+    VaultWrapperAccessControl,
     // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
     // namespaced slots, not sequential ones, so they add no slot to this layout and are
     // collision-free behind a beacon proxy. They provide the per-vault admin role: `owner()`
@@ -76,10 +81,6 @@ contract LiFiVaultWrapper is
     ///         snapshotted from the factory at deploy. LI.FI receives the remainder of
     ///         each fee.
     uint16[4] public integratorShareBps;
-    /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
-    ///         stored verbatim for later modules to decode.
-    bytes public initData;
-
     /// @dev Per-fee-type rates and enabled flags, validated by the factory.
     FeeConfig internal _feeConfig;
 
@@ -156,7 +157,7 @@ contract LiFiVaultWrapper is
         adapter = _adapter;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
-        initData = _initData;
+        _initializeAccessControl(_initData);
         lastMgmtAccrual = uint64(block.timestamp);
         // Anchor the performance watermark at the empty-vault share price, computed pure
         // (supply and position are always 0 on a fresh single-shot-initialized proxy).
@@ -198,6 +199,14 @@ contract LiFiVaultWrapper is
     }
 
     /// Admin role ///
+
+    /// @dev Supplies the access-control module's admin gate: the module's mutators are
+    ///      owner-only, expressed through OZ's `_checkOwner` (reverts
+    ///      `OwnableUnauthorizedAccount`). Kept as a seam because the module cannot
+    ///      inherit OwnableUpgradeable itself (diamond clash with Ownable2Step).
+    function _requireAccessAdmin() internal view override {
+        _checkOwner();
+    }
 
     /// @notice Disabled: the per-vault admin role cannot be renounced.
     /// @dev A custody contract must never be left ownerless. The admin is rotated via OZ's
@@ -284,7 +293,8 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkDepositAccess(receiver);
+        _accrueFees();
 
         return super.deposit(assets, receiver);
     }
@@ -298,49 +308,56 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkDepositAccess(receiver);
+        _accrueFees();
 
         return super.mint(shares, receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to deposits and do not build deposits that would revert.
+    /// @dev Reports 0 while any pause source is engaged or while the receiver fails the
+    ///      access check, so EIP-4626 consumers see the vault as closed to deposits and
+    ///      do not build deposits that would revert.
     function maxDeposit(
         address receiver
     ) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
+        if (depositsPaused() || !isDepositAllowed(receiver)) return 0;
 
         return super.maxDeposit(receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to mints and do not build mints that would revert.
+    /// @dev Reports 0 while any pause source is engaged or while the receiver fails the
+    ///      access check, so EIP-4626 consumers see the vault as closed to mints and do
+    ///      not build mints that would revert.
     function maxMint(address receiver) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
+        if (depositsPaused() || !isDepositAllowed(receiver)) return 0;
 
         return super.maxMint(receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev No access check: withdrawals are never gated (the structural
+    ///      withdrawals-always-open guarantee), only fee accrual runs up front.
     function withdraw(
         uint256 assets,
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
+        _accrueFees();
 
         return super.withdraw(assets, receiver, owner);
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev No access check: withdrawals are never gated (the structural
+    ///      withdrawals-always-open guarantee), only fee accrual runs up front.
     function redeem(
         uint256 shares,
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
+        _accrueFees();
 
         return super.redeem(shares, receiver, owner);
     }
@@ -570,23 +587,24 @@ contract LiFiVaultWrapper is
     }
 
     /// Fees and access ///
-    /// @dev `_checkAccess` below is a no-op seam; its body lands with access control.
-    ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
+    /// @dev TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
     ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
 
-    /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
-    ///      the vault's access mode on the caller and accrues time/yield-based fees so the
-    ///      operation transacts at the post-accrual share price. Deposit-pause is enforced
-    ///      separately and only on inflows, so this is shared by exits too.
-    function _beforeOperation() private {
-        _checkAccess(msg.sender);
-        _accrueFees();
-    }
+    /// @dev ERC-20 transfer hook, extended with the access perimeter: mints (deposits,
+    ///      fee-share accrual), burns (withdrawals — never gated), and payouts from the
+    ///      wrapper's own fee-share balance are exempt; every other share movement runs
+    ///      the transfer-path access check (frozen while any gate is active, recipient
+    ///      screened by the sanctions oracle otherwise).
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override {
+        if (from != address(0) && to != address(0) && from != address(this)) {
+            _checkTransferAccess(to);
+        }
 
-    /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
-    ///      Widens to `view` once it reads the access mode from initData.
-    function _checkAccess(address /* caller */) private pure {
-        // TODO(access): decode the access mode from initData and authorize the caller.
+        super._update(from, to, value);
     }
 
     /// @dev Crystallizes the management and performance fees by minting dilution shares

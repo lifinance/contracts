@@ -9,7 +9,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
-import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, DeployParams, FeeConfig, AccessConfig, ListBackend } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
@@ -27,6 +27,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal deployer = makeAddr("deployer");
     address internal vaultAdmin = makeAddr("vaultAdmin");
     bytes32 internal constant NS = bytes32("Coinbase");
+    address internal constant SANCTIONS_ORACLE = address(0x5AFE);
     MockERC4626Underlying internal underlying;
     address internal assetToken = makeAddr("asset");
 
@@ -327,7 +328,17 @@ contract LiFiVaultWrapperFactoryTest is Test {
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
             integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
-            initData: hex"1234"
+            // A non-default access config so the deploy→initialize forwarding is
+            // observable through the typed getter.
+            initData: abi.encode(
+                AccessConfig({
+                    allowBackend: ListBackend.Disabled,
+                    denyBackend: ListBackend.Disabled,
+                    externalAdapter: address(0),
+                    sanctionsOracle: SANCTIONS_ORACLE,
+                    allowMerkleRoot: bytes32(0)
+                })
+            )
         });
     }
 
@@ -364,7 +375,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         }
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
-        assertEq(w.initData(), hex"1234");
+        assertEq(w.accessConfig().sanctionsOracle, SANCTIONS_ORACLE);
     }
 
     function test_WrapperDeployedEmitsAssetAndSplit() public {

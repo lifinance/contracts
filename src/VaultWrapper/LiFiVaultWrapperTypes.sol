@@ -32,6 +32,32 @@ struct FeeBounds {
     uint16 maxBps; // Highest rate an instance may set; must not exceed the fee type's cap.
 }
 
+/// @notice The two access gates a wrapper instance can enforce on the deposit path.
+enum ListGate {
+    Allow,
+    Deny
+}
+
+/// @notice Storage backend for one access gate. `Merkle` is valid for the allow gate
+///         only: a Merkle deny gate would require non-inclusion proofs, which plain
+///         Merkle trees cannot provide.
+enum ListBackend {
+    Disabled,
+    Mapping,
+    Merkle,
+    External
+}
+
+/// @notice Deploy-time access-control configuration, ABI-encoded as `initialize`'s
+///         `_initData`. Empty bytes configure a fully open instance.
+struct AccessConfig {
+    ListBackend allowBackend; // Deposits require receiver membership when not Disabled.
+    ListBackend denyBackend; // Deposits require receiver absence when not Disabled; never Merkle.
+    address externalAdapter; // IVaultAccessControl serving both gates; required by an External gate.
+    address sanctionsOracle; // ISanctionsOracle screening receivers; address(0) disables the hook.
+    bytes32 allowMerkleRoot; // Membership root; required when allowBackend is Merkle.
+}
+
 /// @notice Inputs for a single `deploy` call.
 struct DeployParams {
     bytes32 namespace; // Integrator identity seeding the salt (e.g. "Coinbase"); must be assigned to the caller.
