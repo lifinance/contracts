@@ -329,6 +329,23 @@ contract VaultWrapperDistributionTest is Test {
         assertGt(wrapper.balanceOf(lifiRecipient), 0);
     }
 
+    function test_SweepWorksWhileDepositsPaused() public {
+        wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
+        _deposit(alice, DEPOSIT);
+        vm.warp(block.timestamp + YEAR);
+
+        // Deposits paused: _beforeOperation cannot run on inflows, so sweep itself
+        // must accrue the pending management fee and still pay it out.
+        vm.prank(vaultAdmin);
+        wrapper.pause();
+
+        wrapper.sweep();
+
+        assertGt(wrapper.balanceOf(lifiRecipient), 0);
+        assertGt(wrapper.balanceOf(makeAddr("r")), 0);
+        assertEq(_accruedFeeShares(), 0);
+    }
+
     function test_SweepNoOpWhenNothingAccrued() public {
         wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
         _deposit(alice, DEPOSIT);
