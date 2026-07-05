@@ -5,10 +5,10 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
-/// @notice Events and errors emitted by the LI.FI vault wrapper factory.
+/// @notice Events, errors, and the live state a vault wrapper reads back from its factory.
 /// @custom:version 1.0.0
 interface ILiFiVaultWrapperFactory {
-    /// Functions ///
+    /// Views ///
 
     /// @notice Returns the adjustable fee bounds (bps) for a fee type.
     /// @dev ABI-identical to the auto-generated getter for the factory's public
@@ -26,6 +26,10 @@ interface ILiFiVaultWrapperFactory {
     /// @return The LI.FI fee recipient address.
     function lifiFeeRecipient() external view returns (address);
 
+    /// @notice Whether deposits are globally halted across every vault wrapper.
+    /// @return True when the global circuit breaker is engaged.
+    function globalPaused() external view returns (bool);
+
     /// Events ///
 
     /// @notice Emitted when a new vault wrapper is deployed.
@@ -35,7 +39,8 @@ interface ILiFiVaultWrapperFactory {
     /// @param adapter The yield adapter the vault wrapper routes through.
     /// @param asset The ERC20 asset resolved from the underlying.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param integratorShareBps The integrator fee share (bps) snapshotted into the instance.
+    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
+    ///        FeeType ordinal) snapshotted into the instance.
     /// @param nonce The caller-supplied nonce disambiguating instances.
     /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
@@ -45,7 +50,7 @@ interface ILiFiVaultWrapperFactory {
         address adapter,
         address asset,
         address vaultWrapperAdmin,
-        uint16 integratorShareBps,
+        uint16[4] integratorShareBps,
         uint256 nonce,
         bytes32 salt
     );

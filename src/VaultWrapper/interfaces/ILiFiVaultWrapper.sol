@@ -17,14 +17,15 @@ interface ILiFiVaultWrapper {
     /// @param adapter The yield adapter the wrapper routes through.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's fee share (bps) snapshotted at deploy.
+    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
+    ///        FeeType ordinal) snapshotted at deploy.
     event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
         address vaultWrapperAdmin,
         address factory,
-        uint16 integratorShareBps
+        uint16[4] integratorShareBps
     );
 
     /// @notice Emitted when a fee type's rate (and enabled flag) is changed.
@@ -38,15 +39,33 @@ interface ILiFiVaultWrapper {
     );
 
     /// @notice Emitted when dilution fee-shares are minted to the wrapper.
-    /// @dev Reports the total before the LI.FI/integrator split.
-    /// @param feeType The fee type that accrued (Management today).
-    /// @param feeShares The shares minted to the wrapper.
-    event DilutionFeeAccrued(FeeType indexed feeType, uint256 feeShares);
+    /// @dev The LI.FI/integrator split is applied at accrual; LI.FI's part is
+    ///      `feeShares - integratorShares`.
+    /// @param feeType The fee type that accrued (Management or Performance).
+    /// @param feeShares The total shares minted to the wrapper.
+    /// @param integratorShares The integrator's part of the minted shares.
+    event DilutionFeeAccrued(
+        FeeType indexed feeType,
+        uint256 feeShares,
+        uint256 integratorShares
+    );
 
     /// @notice Emitted when an asset-side fee is charged and held idle.
+    /// @dev The LI.FI/integrator split is applied at charge; LI.FI's part is
+    ///      `feeAssets - integratorAssets`.
     /// @param feeType The fee type charged (Deposit or Withdrawal).
-    /// @param feeAssets The fee amount, in assets.
-    event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
+    /// @param feeAssets The total fee amount, in assets.
+    /// @param integratorAssets The integrator's part of the fee, in assets.
+    event AssetFeeCharged(
+        FeeType indexed feeType,
+        uint256 feeAssets,
+        uint256 integratorAssets
+    );
+
+    /// @notice Emitted when the integrator toggles this clone's deposit pause.
+    /// @param paused The new pause state.
+    /// @param by The owner (integrator) that toggled it.
+    event PauseSet(bool paused, address indexed by);
 
     /// @notice Emitted when the integrator's receiver set is configured.
     /// @param receivers The integrator payout wallets.
@@ -76,11 +95,13 @@ interface ILiFiVaultWrapper {
 
     /// Errors ///
 
+    /// @notice Thrown when a deposit is attempted while any pause source is engaged.
+    error DepositsPaused();
     /// @notice Thrown when a fee type ordinal is outside the valid range (0-3).
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
     error ZeroAddress();
-    /// @notice Thrown when the integrator share exceeds 100% (10000 bps).
+    /// @notice Thrown when a fee type's integrator share is 100% (10000 bps) or more.
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
     /// @notice Thrown when ownership renouncement is attempted; the admin role is non-renounceable.
     error RenounceDisabled();
@@ -88,9 +109,6 @@ interface ILiFiVaultWrapper {
     error AdapterDepositShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when the adapter returns less than the requested withdrawal amount.
     error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
-    /// @notice Thrown when a rate change is attempted for the performance fee, which is
-    ///         not configurable through this setter.
-    error FeeTypeNotConfigurable(FeeType feeType);
     /// @notice Thrown when a requested rate is outside the factory's live bounds.
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
     /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
@@ -112,7 +130,8 @@ interface ILiFiVaultWrapper {
     /// @param _underlying The protocol-specific yield source (e.g. an ERC-4626 vault).
     /// @param _adapter The approved yield adapter the vault wrapper routes through at runtime.
     /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param _integratorShareBps The integrator's fee share (bps), resolved and bounded by the factory.
+    /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
+    ///        FeeType ordinal), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
     /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
     /// @param _receivers The integrator payout wallets + bps split; validated on-instance
@@ -121,7 +140,7 @@ interface ILiFiVaultWrapper {
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16 _integratorShareBps,
+        uint16[4] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData,
         IntegratorReceivers calldata _receivers

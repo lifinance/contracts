@@ -121,8 +121,14 @@ contract LiFiVaultWrapperTest is Test {
         address indexed adapter,
         address vaultWrapperAdmin,
         address factory,
-        uint16 integratorShareBps
+        uint16[4] integratorShareBps
     );
+
+    /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
+    ///      wrapper reads the global circuit breaker back from here.
+    function globalPaused() external pure returns (bool) {
+        return false;
+    }
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
@@ -144,7 +150,9 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.adapter(), address(adapter));
         assertEq(wrapper.owner(), vaultAdmin);
         assertEq(wrapper.factory(), address(this));
-        assertEq(wrapper.integratorShareBps(), 8000);
+        for (uint256 i; i < 4; ++i) {
+            assertEq(wrapper.integratorShareBps(i), 8000);
+        }
         assertEq(wrapper.decimals(), 18);
         assertEq(wrapper.name(), "LI.FI Earn TKN");
         assertEq(wrapper.symbol(), "lfTKN");
@@ -158,7 +166,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 "",
                 _defaultReceivers()
@@ -172,7 +180,7 @@ contract LiFiVaultWrapperTest is Test {
             address(adapter),
             vaultAdmin,
             address(this),
-            8000
+            _splits8000()
         );
 
         new BeaconProxy(address(beacon), initCall);
@@ -187,7 +195,7 @@ contract LiFiVaultWrapperTest is Test {
             address(underlying),
             address(adapter),
             vaultAdmin,
-            8000,
+            _splits8000(),
             fees,
             "",
             _defaultReceivers()
@@ -202,7 +210,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(underlying),
                 address(adapter),
                 address(0),
-                8000,
+                _splits8000(),
                 fees,
                 "",
                 _defaultReceivers()
@@ -223,7 +231,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(underlying),
                 address(zeroAdapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 "",
                 _defaultReceivers()
@@ -237,13 +245,14 @@ contract LiFiVaultWrapperTest is Test {
 
     function testRevert_InitializeRejectsFullIntegratorShare() public {
         FeeConfig memory fees;
+        // Only one element is invalid, proving each fee type's share is validated.
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
-                10_000,
+                [uint16(8000), 10_000, 8000, 8000],
                 fees,
                 "",
                 _defaultReceivers()
@@ -297,7 +306,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(noSymbolUnderlying),
                 address(adapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 "",
                 _defaultReceivers()
@@ -584,6 +593,10 @@ contract LiFiVaultWrapperTest is Test {
         r = IntegratorReceivers({ wallets: wallets, bps: bps });
     }
 
+    function _splits8000() internal pure returns (uint16[4] memory) {
+        return [uint16(8000), 8000, 8000, 8000];
+    }
+
     function _newWrapper(
         address _underlying
     ) internal returns (LiFiVaultWrapper w) {
@@ -594,7 +607,7 @@ contract LiFiVaultWrapperTest is Test {
                 _underlying,
                 address(adapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 "",
                 _defaultReceivers()

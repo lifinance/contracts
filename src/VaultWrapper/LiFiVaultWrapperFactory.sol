@@ -35,7 +35,7 @@ contract LiFiVaultWrapperFactory is
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
     /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%).
     uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
-    /// @notice Sentinel for DeployParams.integratorShareBps meaning "inherit the factory default".
+    /// @notice Sentinel for a DeployParams.integratorShareBps element meaning "inherit the factory default".
     uint16 internal constant USE_DEFAULT_SPLIT = type(uint16).max;
     /// @notice Basis-point denominator (100%).
     uint16 internal constant BPS_DENOMINATOR = 10000;
@@ -238,10 +238,11 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Deploy a new wrapper instance under an integrator namespace.
     /// @dev Caller must be the onboarding manager, or the deployer assigned to
-    ///      `_params.namespace`. A self-serve deployer (not the onboarding manager)
-    ///      may only set an integrator share at or below `defaultIntegratorShareBps`,
-    ///      so it can give LI.FI more than the default cut but never less; the
-    ///      onboarding manager may set any share up to 100%.
+    ///      `_params.namespace`. Each fee type carries its own integrator share; a
+    ///      self-serve deployer (not the onboarding manager) may only set a share at
+    ///      or below `defaultIntegratorShareBps`, so it can give LI.FI more than the
+    ///      default cut but never less; the onboarding manager may set any share below
+    ///      100%.
     ///      Deploys are intentionally allowed while `globalPaused` is set: a new
     ///      instance is a beacon proxy that reads the same live flag, so it is frozen
     ///      from birth and poses no deposit risk.
@@ -267,17 +268,9 @@ contract LiFiVaultWrapperFactory is
 
         _validateFees(_params.fees);
 
-        uint16 integratorShareBps = _params.integratorShareBps;
-        if (integratorShareBps == USE_DEFAULT_SPLIT) {
-            integratorShareBps = defaultIntegratorShareBps;
-        } else if (integratorShareBps >= BPS_DENOMINATOR) {
-            revert InvalidSplit();
-        } else if (
-            msg.sender != onboardingManager &&
-            integratorShareBps > defaultIntegratorShareBps
-        ) {
-            revert IntegratorShareAboveDefault();
-        }
+        uint16[4] memory integratorShareBps = _resolveSplits(
+            _params.integratorShareBps
+        );
 
         bytes32 salt = _salt(
             _params.namespace,
@@ -358,6 +351,32 @@ contract LiFiVaultWrapperFactory is
     ) internal pure returns (bytes32) {
         return
             keccak256(abi.encode(_namespace, _adapter, _underlying, _nonce));
+    }
+
+    /// @notice Resolves the requested per-fee-type integrator shares against the factory
+    ///         default and the caller's authority.
+    /// @dev Each element resolves independently: the `USE_DEFAULT_SPLIT` sentinel inherits
+    ///      the factory default; an explicit share must be < 100%, and a self-serve
+    ///      deployer may not set it above the default (which would cut LI.FI's share
+    ///      below its default cut).
+    /// @param _requested The per-fee-type shares from the deploy params.
+    /// @return resolved The validated per-fee-type shares snapshotted into the instance.
+    function _resolveSplits(
+        uint16[4] calldata _requested
+    ) internal view returns (uint16[4] memory resolved) {
+        uint16 defaultShare = defaultIntegratorShareBps;
+        bool selfServe = msg.sender != onboardingManager;
+        for (uint256 i; i < 4; ++i) {
+            uint16 share = _requested[i];
+            if (share == USE_DEFAULT_SPLIT) {
+                resolved[i] = defaultShare;
+                continue;
+            }
+            if (share >= BPS_DENOMINATOR) revert InvalidSplit();
+            if (selfServe && share > defaultShare)
+                revert IntegratorShareAboveDefault();
+            resolved[i] = share;
+        }
     }
 
     /// @notice CREATE2 init code for a wrapper instance: the OZ BeaconProxy

@@ -330,10 +330,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
             underlying: address(underlying),
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates, enabled: enabled }),
-            integratorShareBps: type(uint16).max, // inherit factory default
+            integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
             initData: hex"1234",
             receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
         });
+    }
+
+    function _splitsAll(uint16 _v) internal pure returns (uint16[4] memory) {
+        return [_v, _v, _v, _v];
     }
 
     function test_OnboardingManagerDeploysAndWiresClone() public {
@@ -360,7 +364,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.adapter(), address(adapter));
         assertEq(w.owner(), vaultAdmin);
         assertEq(w.factory(), address(factory));
-        assertEq(w.integratorShareBps(), 8000); // factory default
+        for (uint256 i; i < 4; ++i) {
+            assertEq(w.integratorShareBps(i), 8000); // factory default
+        }
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
         assertEq(w.initData(), hex"1234");
@@ -387,7 +393,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
             address(adapter),
             assetToken,
             vaultAdmin,
-            8000, // factory default
+            _splitsAll(8000), // factory default
             0,
             expectedSalt
         );
@@ -409,10 +415,17 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_DeployWithSplitOverride() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 5000;
+        // Distinct per-fee-type shares, with one element left on the sentinel to prove
+        // each element resolves independently against the factory default.
+        p.integratorShareBps = [uint16(5000), 6000, type(uint16).max, 0];
         vm.prank(onboarder);
         address instance = factory.deploy(p);
-        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 5000);
+
+        LiFiVaultWrapper w = LiFiVaultWrapper(instance);
+        assertEq(w.integratorShareBps(0), 5000);
+        assertEq(w.integratorShareBps(1), 6000);
+        assertEq(w.integratorShareBps(2), 8000); // sentinel -> factory default
+        assertEq(w.integratorShareBps(3), 0);
     }
 
     function test_SelfDeployerSetsSplit() public {
@@ -420,10 +433,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(onboarder);
         factory.setApprovedIntegratorDeployer(NS, deployer);
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 7000;
+        p.integratorShareBps = _splitsAll(7000);
         vm.prank(deployer);
         address instance = factory.deploy(p);
-        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 7000);
+
+        for (uint256 i; i < 4; ++i) {
+            assertEq(LiFiVaultWrapper(instance).integratorShareBps(i), 7000);
+        }
     }
 
     function test_SelfDeployerCannotSetSplitAboveDefault() public {
@@ -431,7 +447,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(onboarder);
         factory.setApprovedIntegratorDeployer(NS, deployer);
         DeployParams memory p = _params(0);
-        p.integratorShareBps = factory.defaultIntegratorShareBps() + 1;
+        // A single above-default element must trip the check, sentinels elsewhere.
+        p.integratorShareBps[2] = factory.defaultIntegratorShareBps() + 1;
         vm.prank(deployer);
         vm.expectRevert(
             ILiFiVaultWrapperFactory.IntegratorShareAboveDefault.selector
@@ -442,16 +459,18 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function test_OnboardingManagerCanSetSplitAboveDefault() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 9000; // above the 8000 default; LI.FI's call to make
+        // above the 8000 default; LI.FI's call to make
+        p.integratorShareBps[1] = 9000;
         vm.prank(onboarder);
         address instance = factory.deploy(p);
-        assertEq(LiFiVaultWrapper(instance).integratorShareBps(), 9000);
+
+        assertEq(LiFiVaultWrapper(instance).integratorShareBps(1), 9000);
     }
 
     function test_DeployRevertsAtFullIntegratorShare() public {
         _enableUnderlyingAndBounds();
         DeployParams memory p = _params(0);
-        p.integratorShareBps = 10000;
+        p.integratorShareBps[3] = 10000;
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidSplit.selector);
         factory.deploy(p);

@@ -1,63 +1,25 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { ERC4626 } from "solmate/mixins/ERC4626.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
-import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { VaultWrapperFeeTestBase } from "test/solidity/VaultWrapper/VaultWrapperFeeTestBase.sol";
 
 /// @notice Integration tests for the LiFiVaultWrapper fee engine (EXSC-410): management
 ///         dilution accrual, the preview==execution invariant, asset-side deposit/withdrawal
-///         fees (Convention B), and the `setFeeRate` admin path. Mirrors the direct
-///         beacon-proxy setup of `LiFiVaultWrapper.t.sol` (real inflatable `MockERC4626`),
-///         and stands up the full factory stack only where live `feeBounds` are needed.
-contract LiFiVaultWrapperFeesTest is Test {
-    MockERC20 internal asset;
-    MockERC4626 internal underlying;
-    ERC4626Adapter internal adapter;
-    UpgradeableBeacon internal beacon;
-    LiFiVaultWrapper internal wrapper;
-
-    address internal alice = makeAddr("alice");
-    address internal bob = makeAddr("bob");
-    address internal vaultAdmin = makeAddr("vaultAdmin");
-
-    uint256 internal constant DEPOSIT = 1_000e18;
-    uint16 internal constant MGMT_RATE = 200; // 2% / year
+///         fees (Convention B), fee-counter saturation, and the `setFeeRate` admin path.
+///         Setup and shared helpers live in `VaultWrapperFeeTestBase`.
+contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
     uint16 internal constant DEP_RATE = 100; // 1%
     uint16 internal constant WD_RATE = 100; // 1%
-    uint256 internal constant YEAR = 365 days;
-
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
-
-    event DilutionFeeAccrued(FeeType indexed feeType, uint256 feeShares);
-
-    event AssetFeeCharged(FeeType indexed feeType, uint256 feeAssets);
-
-    function setUp() public {
-        asset = new MockERC20("Token", "TKN", 18);
-        underlying = new MockERC4626(asset, "Yield Token", "yTKN");
-        adapter = new ERC4626Adapter();
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
-            address(this)
-        );
-    }
 
     /// Management fee accrual ///
 
@@ -65,7 +27,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
         _deposit(alice, DEPOSIT);
 
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
 
         vm.warp(block.timestamp + YEAR);
 
@@ -79,7 +41,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         // the triggering deposit's size.
         _crystallize();
 
-        assertEq(wrapper.accruedFeeShares(), expectedShares);
+        assertEq(_accruedFeeShares(), expectedShares);
         assertEq(wrapper.balanceOf(address(wrapper)), expectedShares);
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
 
@@ -118,7 +80,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _crystallize();
 
         assertEq(wrapper.balanceOf(address(wrapper)), wrapperSharesBefore);
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
     }
 
     function test_DisabledManagementFeeDoesNotAccrue() public {
@@ -131,7 +93,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         _crystallize();
 
         assertEq(wrapper.balanceOf(address(wrapper)), wrapperSharesBefore);
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
     }
 
     function test_ManagementFeeNoAccrualOnEmptyVault() public {
@@ -142,7 +104,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.warp(block.timestamp + YEAR);
         _crystallize();
 
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
     }
 
     function test_ZeroShareAccrualStillAdvancesBaseline() public {
@@ -154,7 +116,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.warp(block.timestamp + 1);
         _crystallize();
 
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
         // The baseline still advances: sub-threshold elapsed time is dropped (favouring
         // holders), never carried forward to be re-priced against a larger future AUM.
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
@@ -182,8 +144,8 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         // One second at 10%/yr on ~1e24 assets is ~3e15 fee-shares; carrying the dormant
         // year would have charged ~1e23 (10% of bob's deposit). Assert second-scale.
-        assertGt(wrapper.accruedFeeShares(), 0);
-        assertLt(wrapper.accruedFeeShares(), 1e18);
+        assertGt(_accruedFeeShares(), 0);
+        assertLt(_accruedFeeShares(), 1e18);
     }
 
     function test_DilutionFeeAccruedEventEmitted() public {
@@ -199,7 +161,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.recordLogs();
         _crystallize();
 
-        bytes32 sig = keccak256("DilutionFeeAccrued(uint8,uint256)");
+        bytes32 sig = keccak256("DilutionFeeAccrued(uint8,uint256,uint256)");
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 matches;
         for (uint256 i; i < logs.length; ++i) {
@@ -209,8 +171,12 @@ contract LiFiVaultWrapperFeesTest is Test {
                 uint256(logs[i].topics[1]),
                 uint256(uint8(FeeType.Management))
             );
-            uint256 shares = abi.decode(logs[i].data, (uint256));
+            (uint256 shares, uint256 integratorShares) = abi.decode(
+                logs[i].data,
+                (uint256, uint256)
+            );
             assertEq(shares, expectedShares);
+            assertEq(integratorShares, (expectedShares * SPLIT) / 10_000);
             ++matches;
         }
         assertEq(matches, 1);
@@ -311,7 +277,7 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         uint256 ppsBefore = wrapper.convertToAssets(1e18);
         uint256 totalAssetsBefore = wrapper.totalAssets();
-        uint256 feeAssetsBefore = wrapper.accruedFeeAssets();
+        uint256 feeAssetsBefore = _accruedFeeAssets();
         uint256 idleBefore = asset.balanceOf(address(wrapper));
 
         uint256 amount = 100e18;
@@ -327,7 +293,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         // bob's shares reflect only the NET (post-fee) amount.
         assertEq(minted, wrapper.previewDeposit(amount));
         // fee assets are tracked and stay idle in the wrapper (not invested).
-        assertEq(wrapper.accruedFeeAssets(), feeAssetsBefore + expectedFee);
+        assertEq(_accruedFeeAssets(), feeAssetsBefore + expectedFee);
         assertEq(asset.balanceOf(address(wrapper)), idleBefore + expectedFee);
         // only the net amount reached the yield source...
         assertEq(wrapper.totalAssets(), totalAssetsBefore + netInvested);
@@ -349,7 +315,7 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         // alice receives exactly the requested amount; the fee is redeemed on top.
         assertEq(asset.balanceOf(alice), amount);
-        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+        assertEq(_accruedFeeAssets(), expectedFee);
         assertEq(asset.balanceOf(address(wrapper)), expectedFee);
         // PPS for the remaining holders is unaffected by the fee event.
         assertEq(wrapper.convertToAssets(1e18), ppsBefore);
@@ -365,6 +331,59 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         // depositing `amount` and minting the resulting shares cost the same gross assets.
         assertApproxEqAbs(assetsForThoseShares, amount, 1);
+    }
+
+    function test_MintWithDepositFeeChargesPreviewedGross() public {
+        wrapper = _newWrapperAssetFees(DEP_RATE, 0);
+        _deposit(alice, DEPOSIT);
+
+        uint256 sharesWanted = 100e18;
+        uint256 previewedGross = wrapper.previewMint(sharesWanted);
+        uint256 feeAssetsBefore = _accruedFeeAssets();
+        uint256 totalAssetsBefore = wrapper.totalAssets();
+
+        asset.mint(bob, previewedGross);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), previewedGross);
+        uint256 paid = wrapper.mint(sharesWanted, bob);
+        vm.stopPrank();
+
+        // The executed mint pulls exactly the previewed gross for exactly the requested
+        // shares, and the fee recomputed on-chain from the gross matches the booked
+        // amount — the rest of the gross reached the yield source.
+        uint256 expectedFee = LibVaultWrapperMath.feeOnTotal(
+            previewedGross,
+            DEP_RATE
+        );
+        assertEq(paid, previewedGross);
+        assertEq(wrapper.balanceOf(bob), sharesWanted);
+        assertEq(_accruedFeeAssets() - feeAssetsBefore, expectedFee);
+        assertEq(
+            wrapper.totalAssets() - totalAssetsBefore,
+            previewedGross - expectedFee
+        );
+    }
+
+    function test_FullExitViaMaxWithdrawWithWithdrawalFee() public {
+        // The classic ERC-4626 fee-wrapper failure: the exit fee pushes the share burn
+        // for withdraw(maxWithdraw(owner)) above the holder's balance. Guards the
+        // maxWithdraw == previewRedeem(maxRedeem(owner)) semantics the wrapper relies on.
+        wrapper = _newWrapperAssetFees(0, WD_RATE);
+        _deposit(alice, DEPOSIT);
+        _simulateYield(50e18); // non-trivial PPS so rounding paths are exercised
+
+        uint256 sharesBefore = wrapper.balanceOf(alice);
+        uint256 maxAssets = wrapper.maxWithdraw(alice);
+        uint256 previewedShares = wrapper.previewWithdraw(maxAssets);
+
+        vm.prank(alice);
+        uint256 burned = wrapper.withdraw(maxAssets, alice, alice);
+
+        assertEq(burned, previewedShares);
+        assertLe(burned, sharesBefore);
+        assertEq(asset.balanceOf(alice), maxAssets);
+        // At most rounding dust may remain; a full exit must never revert.
+        assertLe(wrapper.balanceOf(alice), 2);
     }
 
     function test_WithdrawRedeemInverseWithFee() public {
@@ -391,7 +410,11 @@ contract LiFiVaultWrapperFeesTest is Test {
         asset.approve(address(wrapper), amount);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit AssetFeeCharged(FeeType.Deposit, expectedFee);
+        emit AssetFeeCharged(
+            FeeType.Deposit,
+            expectedFee,
+            (expectedFee * SPLIT) / 10_000
+        );
 
         wrapper.deposit(amount, bob);
         vm.stopPrank();
@@ -406,7 +429,11 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         vm.prank(alice);
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit AssetFeeCharged(FeeType.Withdrawal, expectedFee);
+        emit AssetFeeCharged(
+            FeeType.Withdrawal,
+            expectedFee,
+            (expectedFee * SPLIT) / 10_000
+        );
 
         wrapper.withdraw(amount, alice, alice);
     }
@@ -418,7 +445,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         wrapper = _newWrapperAssetFees(DEP_RATE, 0);
         _deposit(alice, DEPOSIT);
 
-        uint256 feeBefore = wrapper.accruedFeeAssets();
+        uint256 feeBefore = _accruedFeeAssets();
         uint256 idleBefore = asset.balanceOf(address(wrapper));
 
         uint256 dust = 1;
@@ -433,7 +460,7 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         assertEq(minted, previewed);
         // The whole dust input was carved as fee and held idle; nothing reached the source.
-        assertEq(wrapper.accruedFeeAssets(), feeBefore + dust);
+        assertEq(_accruedFeeAssets(), feeBefore + dust);
         assertEq(asset.balanceOf(address(wrapper)), idleBefore + dust);
     }
 
@@ -460,6 +487,26 @@ contract LiFiVaultWrapperFeesTest is Test {
         assertEq(wrapper.balanceOf(bob), 0);
     }
 
+    function test_AdapterWithdrawalOverageIsBookedNotStranded() public {
+        // A round-up source pays 1 wei more than owed on every withdrawal; the overage
+        // must be booked with the fee, not stranded as untracked idle assets.
+        underlying = MockERC4626(address(new OverpayingERC4626(asset)));
+        wrapper = _newWrapperAssetFees(0, WD_RATE);
+        _deposit(alice, DEPOSIT);
+        _simulateYield(10e18); // spare balance the source overpays from
+
+        uint256 amount = 100e18;
+        uint256 expectedFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
+
+        vm.prank(alice);
+        wrapper.withdraw(amount, alice, alice);
+
+        assertEq(asset.balanceOf(alice), amount);
+        // Fee + overage are both attributed, so booked == idle to the wei.
+        assertEq(_accruedFeeAssets(), expectedFee + 1);
+        assertEq(asset.balanceOf(address(wrapper)), expectedFee + 1);
+    }
+
     /// Zero-fee passthrough ///
 
     function test_ZeroFeeConfigIsPurePassthrough() public {
@@ -478,8 +525,119 @@ contract LiFiVaultWrapperFeesTest is Test {
 
         assertEq(out, previewed);
         assertApproxEqAbs(out, DEPOSIT + 50e18, 1);
-        assertEq(wrapper.accruedFeeShares(), 0);
-        assertEq(wrapper.accruedFeeAssets(), 0);
+        assertEq(_accruedFeeShares(), 0);
+        assertEq(_accruedFeeAssets(), 0);
+    }
+
+    /// Per-fee-type LI.FI/integrator split (applied at accrual) ///
+
+    function test_AssetFeeSplitUsesEachFeeTypesOwnShare() public {
+        uint16[4] memory rates = [uint16(0), 0, DEP_RATE, WD_RATE];
+        bool[4] memory enabled = [false, false, true, true];
+        // Distinct shares per fee type: deposit 30% / withdrawal 40% to the integrator.
+        wrapper = _newWrapperWithSplits(
+            FeeConfig({ rateBps: rates, enabled: enabled }),
+            [uint16(0), 0, 3000, 4000]
+        );
+        _deposit(alice, DEPOSIT);
+
+        uint256 depFee = LibVaultWrapperMath.feeOnTotal(DEPOSIT, DEP_RATE);
+        uint256 depIntegrator = (depFee * 3000) / 10_000;
+        assertEq(wrapper.integratorFeeAssets(), depIntegrator);
+        assertEq(wrapper.lifiFeeAssets(), depFee - depIntegrator);
+
+        uint256 amount = 100e18;
+        uint256 wdFee = LibVaultWrapperMath.feeOnRaw(amount, WD_RATE);
+        uint256 wdIntegrator = (wdFee * 4000) / 10_000;
+
+        vm.prank(alice);
+        wrapper.withdraw(amount, alice, alice);
+
+        assertEq(wrapper.integratorFeeAssets(), depIntegrator + wdIntegrator);
+        assertEq(
+            wrapper.lifiFeeAssets(),
+            (depFee - depIntegrator) + (wdFee - wdIntegrator)
+        );
+    }
+
+    function test_DilutionFeeSplitUsesManagementShare() public {
+        uint16[4] memory rates = [uint16(0), MGMT_RATE, 0, 0];
+        bool[4] memory enabled = [false, true, false, false];
+        wrapper = _newWrapperWithSplits(
+            FeeConfig({ rateBps: rates, enabled: enabled }),
+            [uint16(0), 2500, 0, 0]
+        );
+        _deposit(alice, DEPOSIT);
+
+        vm.warp(block.timestamp + YEAR);
+        (uint256 expectedShares, ) = _expectedMgmt(wrapper);
+        assertGt(expectedShares, 0);
+
+        _crystallize();
+
+        uint256 integratorPart = (expectedShares * 2500) / 10_000;
+        assertEq(wrapper.integratorFeeShares(), integratorPart);
+        assertEq(wrapper.lifiFeeShares(), expectedShares - integratorPart);
+        // The wrapper custodies the total; the split is bookkeeping only.
+        assertEq(wrapper.balanceOf(address(wrapper)), expectedShares);
+    }
+
+    function test_SplitRoundingRemainderGoesToLifi() public {
+        uint16[4] memory rates = [uint16(0), 0, DEP_RATE, 0];
+        bool[4] memory enabled = [false, false, true, false];
+        wrapper = _newWrapperWithSplits(
+            FeeConfig({ rateBps: rates, enabled: enabled }),
+            [uint16(0), 0, 3333, 0]
+        );
+        _deposit(alice, DEPOSIT);
+
+        uint256 fee = LibVaultWrapperMath.feeOnTotal(DEPOSIT, DEP_RATE);
+        uint256 integratorPart = (fee * 3333) / 10_000;
+        // The integrator's part rounds down and the split dust goes to LI.FI, so the
+        // two counters always sum to the full fee.
+        assertEq(wrapper.integratorFeeAssets(), integratorPart);
+        assertEq(wrapper.lifiFeeAssets(), fee - integratorPart);
+        assertEq(_accruedFeeAssets(), fee);
+    }
+
+    /// Fee counter saturation ///
+
+    function test_FeeCounterSaturationNeverBricksExits() public {
+        // Books fee-shares beyond uint128 max in a single management accrual: a large
+        // wei-supply left dormant long enough that the fee clamps to ~all of AUM, so
+        // dilutionShares explodes to ~supply * assets / 2 (~5e75 here). The counters
+        // must saturate — never revert — because the accrual runs on every exit and
+        // even on the fee-disable path.
+        wrapper = _newWrapperMgmtOnly(MGMT_RATE);
+        uint256 whale = 1e38; // large, but within solmate's mock 4626 mulDiv range
+        _deposit(alice, whale);
+
+        vm.warp(block.timestamp + 500 * YEAR);
+        _crystallize();
+
+        assertEq(wrapper.integratorFeeShares(), type(uint128).max);
+        assertEq(wrapper.lifiFeeShares(), type(uint128).max);
+
+        // A further accrual on the saturated counters still cannot revert.
+        vm.warp(block.timestamp + YEAR);
+        _crystallize();
+
+        assertEq(wrapper.integratorFeeShares(), type(uint128).max);
+        assertEq(wrapper.lifiFeeShares(), type(uint128).max);
+
+        // Exits stay live (the dilution left alice only dust to withdraw, but the
+        // accrual in the exit path must not revert)...
+        uint256 maxOut = wrapper.maxWithdraw(alice);
+        vm.prank(alice);
+        wrapper.withdraw(maxOut, alice, alice);
+
+        assertEq(asset.balanceOf(alice), maxOut);
+
+        // ...and the fee can still be disabled (setFeeRate accrues first).
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Management, 0);
+
+        assertFalse(wrapper.feeEnabled(uint8(FeeType.Management)));
     }
 
     /// setFeeRate ///
@@ -527,19 +685,6 @@ contract LiFiVaultWrapperFeesTest is Test {
         wrapper.setFeeRate(FeeType.Management, 500);
     }
 
-    function testRevert_SetFeeRatePerformanceRejected() public {
-        _stackWithFactory(MGMT_RATE);
-
-        vm.prank(vaultAdmin);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ILiFiVaultWrapper.FeeTypeNotConfigurable.selector,
-                FeeType.Performance
-            )
-        );
-        wrapper.setFeeRate(FeeType.Performance, 100);
-    }
-
     function testRevert_SetFeeRateAboveBound() public {
         _stackWithFactory(MGMT_RATE); // mgmt bounds set to 0..1000
 
@@ -585,7 +730,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 1000);
 
-        assertEq(wrapper.accruedFeeShares(), expectedShares);
+        assertEq(_accruedFeeShares(), expectedShares);
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
     }
 
@@ -603,7 +748,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         // The elapsed month was priced (to zero) at the old rate and dropped; it must
         // not be re-priced at the new 10% rate by the next accrual.
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
-        assertEq(wrapper.accruedFeeShares(), 0);
+        assertEq(_accruedFeeShares(), 0);
     }
 
     function test_SetFeeRateDepositChargesNewRateOnNextDeposit() public {
@@ -630,7 +775,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         wrapper.deposit(amount, bob);
         vm.stopPrank();
 
-        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+        assertEq(_accruedFeeAssets(), expectedFee);
     }
 
     function test_SetFeeRateWithdrawalChargesNewRateOnNextWithdraw() public {
@@ -652,7 +797,7 @@ contract LiFiVaultWrapperFeesTest is Test {
         wrapper.withdraw(amount, alice, alice);
 
         assertEq(asset.balanceOf(alice), amount);
-        assertEq(wrapper.accruedFeeAssets(), expectedFee);
+        assertEq(_accruedFeeAssets(), expectedFee);
     }
 
     function testRevert_SetFeeRateDepositValidatedAgainstDepositBounds()
@@ -678,42 +823,6 @@ contract LiFiVaultWrapperFeesTest is Test {
     }
 
     /// Helpers ///
-
-    LiFiVaultWrapperFactory internal factory;
-    address internal owner = makeAddr("owner");
-
-    function _newWrapper(
-        FeeConfig memory _fees
-    ) internal returns (LiFiVaultWrapper w) {
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                8000,
-                _fees,
-                "",
-                _sweepReceivers()
-            )
-        );
-
-        w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
-        );
-    }
-
-    function _sweepReceivers()
-        internal
-        pure
-        returns (IntegratorReceivers memory r)
-    {
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
-    }
 
     function _newWrapperMgmtOnly(
         uint16 _rate
@@ -748,40 +857,7 @@ contract LiFiVaultWrapperFeesTest is Test {
     /// @dev Stands up the full factory stack and deploys a management-fee instance so
     ///      `setFeeRate` reads live `feeBounds` (mgmt bounds 0..1000).
     function _stackWithFactory(uint16 _mgmtRate) internal {
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
-            owner,
-            makeAddr("pauser"),
-            makeAddr("onboarder"),
-            makeAddr("lifiRecipient")
-        );
-
-        vm.startPrank(owner);
-        factory.setAdapterApproved(address(adapter), true);
-        factory.setUnderlyingAllowed(address(underlying), true);
-        factory.setFeeBounds(FeeType.Management, 0, 1000);
-        vm.stopPrank();
-
-        uint16[4] memory rates = [uint16(0), _mgmtRate, 0, 0];
-        bool[4] memory enabled = [false, _mgmtRate != 0, false, false];
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        DeployParams memory p = DeployParams({
-            namespace: bytes32("Coinbase"),
-            vaultWrapperAdmin: vaultAdmin,
-            adapter: address(adapter),
-            underlying: address(underlying),
-            nonce: 0,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
-            integratorShareBps: type(uint16).max,
-            initData: "",
-            receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
-        });
-
-        vm.prank(makeAddr("onboarder"));
-        wrapper = LiFiVaultWrapper(factory.deploy(p));
+        _stackWithFactory(FeeType.Management, _mgmtRate, 1000);
     }
 
     function _expectedMgmt(
@@ -803,28 +879,6 @@ contract LiFiVaultWrapperFeesTest is Test {
             _decimalsOffset: 0
         });
     }
-
-    function _deposit(address _from, uint256 _amount) internal {
-        asset.mint(_from, _amount);
-        vm.startPrank(_from);
-        asset.approve(address(wrapper), _amount);
-        wrapper.deposit(_amount, _from);
-        vm.stopPrank();
-    }
-
-    function _simulateYield(uint256 _amount) internal {
-        asset.mint(address(underlying), _amount);
-    }
-
-    /// @dev Triggers `_beforeOperation -> _accrueFees` without depending on a zero-asset
-    ///      deposit (solmate's MockERC4626 reverts ZERO_SHARES on a 0 forward). A 1-wei
-    ///      deposit crystallizes pending management fees; the dust is negligible for the
-    ///      assertions and is netted out where exact accounting is checked.
-    function _crystallize() internal {
-        asset.mint(address(this), 1);
-        asset.approve(address(wrapper), 1);
-        wrapper.deposit(1, address(this));
-    }
 }
 
 /// @dev A yield source that rejects zero-amount withdrawals, mirroring vaults with
@@ -841,5 +895,29 @@ contract ZeroWithdrawRevertingERC4626 is ERC4626 {
 
     function beforeWithdraw(uint256 _assets, uint256) internal pure override {
         if (_assets == 0) revert ZeroAssets();
+    }
+}
+
+/// @dev A yield source that pays 1 wei more than requested on every withdrawal,
+///      mirroring round-up sources (e.g. liquidity-index markets); the extra wei comes
+///      out of the source's idle balance.
+contract OverpayingERC4626 is ERC4626 {
+    using SafeTransferLib for ERC20;
+
+    constructor(
+        ERC20 _asset
+    ) ERC4626(_asset, "Generous Yield Token", "gyTKN") {}
+
+    function totalAssets() public view override returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
+
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner
+    ) public override returns (uint256 shares) {
+        shares = super.withdraw(_assets, _receiver, _owner);
+        asset.safeTransfer(_receiver, 1);
     }
 }
