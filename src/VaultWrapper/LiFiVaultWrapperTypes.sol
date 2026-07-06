@@ -14,9 +14,17 @@ pragma solidity ^0.8.17;
 /// @notice Fee categories a wrapper instance can charge. Each member's ordinal
 ///         indexes the FeeConfig arrays and the factory's per-type bounds/caps.
 enum FeeType {
+    // Charged on share-price gains above the high-water mark, crystallized by
+    // minting dilution shares to the wrapper at accrual time.
     Performance,
+    // Time-based rate on AUM (annualized bps), crystallized by minting dilution
+    // shares to the wrapper for the elapsed time at accrual time.
     Management,
+    // Charged on entry: skimmed from the deposited assets before they are
+    // forwarded to the yield source, held idle in the wrapper.
     Deposit,
+    // Charged on exit: redeemed from the yield source on top of the assets
+    // owed to the receiver, held idle in the wrapper.
     Withdrawal
 }
 

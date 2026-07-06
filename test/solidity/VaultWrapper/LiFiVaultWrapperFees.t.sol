@@ -36,7 +36,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         );
         assertGt(expectedShares, 0);
 
-        // A real operation crystallizes pending fees via _beforeOperation -> _accrueFees
+        // A real operation crystallizes pending fees via _accrueFees
         // before its own shares are minted, so the fee bookkeeping is exact regardless of
         // the triggering deposit's size.
         _crystallize();

@@ -284,7 +284,8 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkAccess(msg.sender);
+        _accrueFees();
 
         return super.deposit(assets, receiver);
     }
@@ -298,9 +299,92 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkAccess(msg.sender);
+        _accrueFees();
 
         return super.mint(shares, receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override nonReentrant returns (uint256) {
+        _checkAccess(msg.sender);
+        _accrueFees();
+
+        return super.withdraw(assets, receiver, owner);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override nonReentrant returns (uint256) {
+        _checkAccess(msg.sender);
+        _accrueFees();
+
+        return super.redeem(shares, receiver, owner);
+    }
+
+    /// ERC-4626 fee-adjusted previews and limits ///
+    /// @dev Per EIP-4626, previews MUST NOT account for deposit limits, so `previewDeposit`/
+    ///      `previewMint` intentionally ignore pause and return a positive estimate even while
+    ///      `depositsPaused()` is true (when the matching `deposit`/`mint` would revert
+    ///      `DepositsPaused`). `maxDeposit`/`maxMint` below are the pause-aware limit views.
+
+    /// @inheritdoc ERC4626Upgradeable
+    function previewDeposit(
+        uint256 assets
+    ) public view override returns (uint256) {
+        uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Deposit)
+        });
+
+        return super.previewDeposit(assets - depositFee);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    function previewMint(
+        uint256 shares
+    ) public view override returns (uint256) {
+        uint256 assets = super.previewMint(shares);
+
+        return
+            assets +
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Deposit)
+            });
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    function previewWithdraw(
+        uint256 assets
+    ) public view override returns (uint256) {
+        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
+            _assets: assets,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
+
+        return super.previewWithdraw(assets + withdrawalFee);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    function previewRedeem(
+        uint256 shares
+    ) public view override returns (uint256) {
+        uint256 assets = super.previewRedeem(shares);
+
+        return
+            assets -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -323,86 +407,6 @@ contract LiFiVaultWrapper is
         return super.maxMint(receiver);
     }
 
-    /// @inheritdoc ERC4626Upgradeable
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
-
-        return super.withdraw(assets, receiver, owner);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
-
-        return super.redeem(shares, receiver, owner);
-    }
-
-    /// ERC-4626 fee-adjusted previews ///
-    /// @dev Per EIP-4626, previews MUST NOT account for deposit limits, so `previewDeposit`/
-    ///      `previewMint` intentionally ignore pause and return a positive estimate even while
-    ///      `depositsPaused()` is true (when the matching `deposit`/`mint` would revert
-    ///      `DepositsPaused`). `maxDeposit`/`maxMint` are the pause-aware limit views.
-
-    /// @inheritdoc ERC4626Upgradeable
-    function previewDeposit(
-        uint256 assets
-    ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperMath.feeOnTotal({
-            _assets: assets,
-            _feeBps: _rate(FeeType.Deposit)
-        });
-
-        return super.previewDeposit(assets - fee);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function previewMint(
-        uint256 shares
-    ) public view override returns (uint256) {
-        uint256 assets = super.previewMint(shares);
-
-        return
-            assets +
-            LibVaultWrapperMath.feeOnRaw({
-                _assets: assets,
-                _feeBps: _rate(FeeType.Deposit)
-            });
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function previewWithdraw(
-        uint256 assets
-    ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperMath.feeOnRaw({
-            _assets: assets,
-            _feeBps: _rate(FeeType.Withdrawal)
-        });
-
-        return super.previewWithdraw(assets + fee);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    function previewRedeem(
-        uint256 shares
-    ) public view override returns (uint256) {
-        uint256 assets = super.previewRedeem(shares);
-
-        return
-            assets -
-            LibVaultWrapperMath.feeOnTotal({
-                _assets: assets,
-                _feeBps: _rate(FeeType.Withdrawal)
-            });
-    }
-
     /// Internal ///
 
     /// @dev Skims the entry fee and forwards the remaining deposited assets into the yield
@@ -423,12 +427,12 @@ contract LiFiVaultWrapper is
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
 
-        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+        uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
             _assets: assets,
             _feeBps: _rate(FeeType.Deposit)
         });
-        _routeFee(FeeType.Deposit, fee);
-        uint256 invested = assets - fee;
+        _routeFee(FeeType.Deposit, depositFee);
+        uint256 invested = assets - depositFee;
         if (invested == 0) return;
 
         uint256 deposited = _routeThroughAdapter(
@@ -455,11 +459,11 @@ contract LiFiVaultWrapper is
         if (_assets == 0) return;
 
         address assetToken = asset();
-        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
             _assets: _assets,
             _feeBps: _rate(FeeType.Withdrawal)
         });
-        uint256 owed = _assets + fee;
+        uint256 owed = _assets + withdrawalFee;
         uint256 withdrawn = _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.withdraw,
@@ -470,7 +474,7 @@ contract LiFiVaultWrapper is
         // A round-up source may pay more than owed; book the overage with the fee so
         // every idle asset stays attributed for payout instead of stranding as
         // untracked dust that silently left AUM.
-        _routeFee(FeeType.Withdrawal, fee + (withdrawn - owed));
+        _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
     }
 
@@ -570,18 +574,13 @@ contract LiFiVaultWrapper is
     }
 
     /// Fees and access ///
-    /// @dev `_checkAccess` below is a no-op seam; its body lands with access control.
+    /// @dev Every state-changing entrypoint (deposit/mint/withdraw/redeem) calls
+    ///      `_checkAccess` then `_accrueFees` first, so the operation is authorized and
+    ///      transacts at the post-accrual share price. Deposit-pause is enforced separately
+    ///      and only on inflows; access and accrual apply to exits too. `_checkAccess` is a
+    ///      no-op seam; its body lands with access control.
     ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
     ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
-
-    /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
-    ///      the vault's access mode on the caller and accrues time/yield-based fees so the
-    ///      operation transacts at the post-accrual share price. Deposit-pause is enforced
-    ///      separately and only on inflows, so this is shared by exits too.
-    function _beforeOperation() private {
-        _checkAccess(msg.sender);
-        _accrueFees();
-    }
 
     /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
     ///      Widens to `view` once it reads the access mode from initData.
@@ -658,13 +657,13 @@ contract LiFiVaultWrapper is
         uint256 elapsed = block.timestamp - lastMgmtAccrual;
         if (elapsed == 0) return 0;
 
-        uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets({
+        uint256 mgmtFeeAssets = LibVaultWrapperMath.managementFeeAssets({
             _totalAssets: _assets,
             _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
             _elapsed: elapsed
         });
         feeShares = LibVaultWrapperMath.dilutionShares({
-            _feeAssets: feeAssets,
+            _feeAssets: mgmtFeeAssets,
             _totalSupply: _supply,
             _totalAssets: _assets,
             _decimalsOffset: _decimalsOffset()
@@ -689,7 +688,7 @@ contract LiFiVaultWrapper is
         uint256 hwm = perfHighWaterMarkPps;
         if (hwm == 0) return 0;
 
-        uint256 feeAssets = LibVaultWrapperMath.performanceFeeAssets({
+        uint256 perfFeeAssets = LibVaultWrapperMath.performanceFeeAssets({
             _totalAssets: _assets,
             _totalSupply: _supply,
             _hwmPps: hwm,
@@ -699,7 +698,7 @@ contract LiFiVaultWrapper is
 
         return
             LibVaultWrapperMath.dilutionShares({
-                _feeAssets: feeAssets,
+                _feeAssets: perfFeeAssets,
                 _totalSupply: _supply,
                 _totalAssets: _assets,
                 _decimalsOffset: _decimalsOffset()

@@ -177,7 +177,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
         );
     }
 
-    /// @dev Triggers `_beforeOperation -> _accrueFees` via a dust deposit (solmate's
+    /// @dev Triggers `_accrueFees` via a dust deposit (solmate's
     ///      MockERC4626 reverts ZERO_SHARES on a 0 forward, so a bare zero deposit
     ///      cannot be used). The accrual runs before the deposit's own mint, so fee
     ///      bookkeeping is exact regardless of the dust; it is netted out where exact
