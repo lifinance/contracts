@@ -27,8 +27,9 @@ import {
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
-const TIMELOCK_DONE_ABI = parseAbi([
+const TIMELOCK_STATUS_ABI = parseAbi([
   'function isOperationDone(bytes32 id) view returns (bool)',
+  'function isOperationReady(bytes32 id) view returns (bool)',
 ])
 
 const QUEUE_STATUSES = ['queued', 'executed', 'cancelled', 'failed'] as const
@@ -46,6 +47,8 @@ export interface IQueueDisplayRow {
   executedAt?: string
   /** Present only with --checkOnChain; null when the RPC check failed. */
   onChainDone?: boolean | null
+  /** Present only with --checkOnChain for not-done rows; true = delay elapsed, executable now. */
+  onChainReady?: boolean | null
 }
 
 /**
@@ -170,11 +173,13 @@ export function classifyMongoError(error: unknown): 'misconfig' | 'error' {
  *
  * @param doc - Queue row from Mongo.
  * @param onChainDone - isOperationDone result (undefined when not checked, null when the check failed).
+ * @param onChainReady - isOperationReady result (undefined when not checked, null when the check failed).
  * @returns Display row with ISO-string dates.
  */
 export function toDisplayRow(
   doc: ITimelockQueueDoc,
-  onChainDone?: boolean | null
+  onChainDone?: boolean | null,
+  onChainReady?: boolean | null
 ): IQueueDisplayRow {
   const row: IQueueDisplayRow = {
     network: doc.network,
@@ -186,20 +191,25 @@ export function toDisplayRow(
   if (doc.executionTxHash) row.executionTxHash = doc.executionTxHash
   if (doc.executedAt) row.executedAt = doc.executedAt.toISOString()
   if (onChainDone !== undefined) row.onChainDone = onChainDone
+  if (onChainReady !== undefined) row.onChainReady = onChainReady
   return row
 }
 
 /**
- * Reads isOperationDone for every row, grouped per network (one client per
- * network; rows sequential within a network to stay under RPC rate caps).
+ * Reads isOperationDone (and isOperationReady for not-done rows) for every
+ * row, grouped per network (one client per network; rows sequential within a
+ * network to stay under RPC rate caps).
  *
  * @param rows - Queue rows to check.
- * @returns operationId->done map (null where the check failed) and error count.
+ * @returns operationId->done and operationId->ready maps (null where the check failed) and error count.
  */
-async function checkOnChainDone(
-  rows: ITimelockQueueDoc[]
-): Promise<{ doneById: Map<string, boolean | null>; errorCount: number }> {
+async function checkOnChainStatus(rows: ITimelockQueueDoc[]): Promise<{
+  doneById: Map<string, boolean | null>
+  readyById: Map<string, boolean | null>
+  errorCount: number
+}> {
   const doneById = new Map<string, boolean | null>()
+  const readyById = new Map<string, boolean | null>()
   let errorCount = 0
   const byNetwork = new Map<string, ITimelockQueueDoc[]>()
   for (const row of rows) {
@@ -218,29 +228,42 @@ async function checkOnChainDone(
       } catch (error) {
         consola.error(`[${network}] Could not create RPC client:`, error)
         errorCount += networkRows.length
-        for (const row of networkRows) doneById.set(row.operationId, null)
+        for (const row of networkRows) {
+          doneById.set(row.operationId, null)
+          readyById.set(row.operationId, null)
+        }
         return
       }
       for (const row of networkRows)
         try {
           const done = await publicClient.readContract({
             address: row.timelockAddress,
-            abi: TIMELOCK_DONE_ABI,
+            abi: TIMELOCK_STATUS_ABI,
             functionName: 'isOperationDone',
             args: [row.operationId],
           })
           doneById.set(row.operationId, done)
+          if (!done) {
+            const ready = await publicClient.readContract({
+              address: row.timelockAddress,
+              abi: TIMELOCK_STATUS_ABI,
+              functionName: 'isOperationReady',
+              args: [row.operationId],
+            })
+            readyById.set(row.operationId, ready)
+          }
         } catch (error) {
           errorCount++
           doneById.set(row.operationId, null)
+          readyById.set(row.operationId, null)
           consola.error(
-            `[${network}] isOperationDone check failed for ${row.operationId}:`,
+            `[${network}] on-chain status check failed for ${row.operationId}:`,
             error
           )
         }
     })
   )
-  return { doneById, errorCount }
+  return { doneById, readyById, errorCount }
 }
 
 const cmd = defineCommand({
@@ -337,14 +360,20 @@ const cmd = defineCommand({
     )
 
     let doneById = new Map<string, boolean | null>()
+    let readyById = new Map<string, boolean | null>()
     let onChainErrors = 0
     if (args.checkOnChain && rows.length > 0)
-      ({ doneById, errorCount: onChainErrors } = await checkOnChainDone(rows))
+      ({
+        doneById,
+        readyById,
+        errorCount: onChainErrors,
+      } = await checkOnChainStatus(rows))
 
     const displayRows = rows.map((row) =>
       toDisplayRow(
         row,
-        args.checkOnChain ? doneById.get(row.operationId) ?? null : undefined
+        args.checkOnChain ? doneById.get(row.operationId) ?? null : undefined,
+        args.checkOnChain ? readyById.get(row.operationId) : undefined
       )
     )
 
@@ -358,6 +387,14 @@ const cmd = defineCommand({
               ? ''
               : ` (on-chain done: ${
                   row.onChainDone === null ? 'CHECK FAILED' : row.onChainDone
+                }${
+                  row.onChainReady === undefined
+                    ? ''
+                    : `, ready: ${
+                        row.onChainReady === null
+                          ? 'CHECK FAILED'
+                          : row.onChainReady
+                      }`
                 })`)
         )
         consola.info(`   safeTxHash: ${row.safeTxHash}`)

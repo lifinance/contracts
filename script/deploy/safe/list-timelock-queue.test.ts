@@ -213,6 +213,17 @@ describe('toDisplayRow', () => {
     expect(toDisplayRow(buildDoc(), null).onChainDone).toBeNull()
   })
 
+  it('includes onChainReady for unexecuted rows when provided', () => {
+    const row = toDisplayRow(buildDoc({ status: 'queued' }), false, true)
+    expect(row.onChainDone).toBe(false)
+    expect(row.onChainReady).toBe(true)
+  })
+
+  it('marks a failed ready check as null and omits it when not provided', () => {
+    expect(toDisplayRow(buildDoc(), false, null).onChainReady).toBeNull()
+    expect(toDisplayRow(buildDoc(), true).onChainReady).toBeUndefined()
+  })
+
   it('omits optional fields and onChainDone when not checked', () => {
     const row = toDisplayRow(buildDoc(), undefined)
     expect(row.executionTxHash).toBeUndefined()
