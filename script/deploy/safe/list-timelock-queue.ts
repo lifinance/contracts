@@ -196,20 +196,33 @@ export function toDisplayRow(
 }
 
 /**
+ * Builds the composite key for on-chain status maps. `operationId` alone is
+ * not unique — structurally identical batches scheduled on two chains share
+ * an id (see the queue's unique index on `(network, operationId)`).
+ *
+ * @param network - Lowercase network name.
+ * @param operationId - Timelock operation id.
+ * @returns Key scoping the operation to its network.
+ */
+export function statusKey(network: string, operationId: string): string {
+  return `${network}:${operationId}`
+}
+
+/**
  * Reads isOperationDone (and isOperationReady for not-done rows) for every
  * row, grouped per network (one client per network; rows sequential within a
  * network to stay under RPC rate caps).
  *
  * @param rows - Queue rows to check.
- * @returns operationId->done and operationId->ready maps (null where the check failed) and error count.
+ * @returns statusKey->done and statusKey->ready maps (null where the check failed) and error count.
  */
 async function checkOnChainStatus(rows: ITimelockQueueDoc[]): Promise<{
-  doneById: Map<string, boolean | null>
-  readyById: Map<string, boolean | null>
+  doneByKey: Map<string, boolean | null>
+  readyByKey: Map<string, boolean | null>
   errorCount: number
 }> {
-  const doneById = new Map<string, boolean | null>()
-  const readyById = new Map<string, boolean | null>()
+  const doneByKey = new Map<string, boolean | null>()
+  const readyByKey = new Map<string, boolean | null>()
   let errorCount = 0
   const byNetwork = new Map<string, ITimelockQueueDoc[]>()
   for (const row of rows) {
@@ -229,12 +242,13 @@ async function checkOnChainStatus(rows: ITimelockQueueDoc[]): Promise<{
         consola.error(`[${network}] Could not create RPC client:`, error)
         errorCount += networkRows.length
         for (const row of networkRows) {
-          doneById.set(row.operationId, null)
-          readyById.set(row.operationId, null)
+          doneByKey.set(statusKey(network, row.operationId), null)
+          readyByKey.set(statusKey(network, row.operationId), null)
         }
         return
       }
-      for (const row of networkRows)
+      for (const row of networkRows) {
+        const key = statusKey(network, row.operationId)
         try {
           const done = await publicClient.readContract({
             address: row.timelockAddress,
@@ -242,28 +256,38 @@ async function checkOnChainStatus(rows: ITimelockQueueDoc[]): Promise<{
             functionName: 'isOperationDone',
             args: [row.operationId],
           })
-          doneById.set(row.operationId, done)
-          if (!done) {
-            const ready = await publicClient.readContract({
-              address: row.timelockAddress,
-              abi: TIMELOCK_STATUS_ABI,
-              functionName: 'isOperationReady',
-              args: [row.operationId],
-            })
-            readyById.set(row.operationId, ready)
-          }
+          doneByKey.set(key, done)
+          if (!done)
+            try {
+              const ready = await publicClient.readContract({
+                address: row.timelockAddress,
+                abi: TIMELOCK_STATUS_ABI,
+                functionName: 'isOperationReady',
+                args: [row.operationId],
+              })
+              readyByKey.set(key, ready)
+            } catch (readyError) {
+              // A failed ready-check must not clobber the successful done result.
+              errorCount++
+              readyByKey.set(key, null)
+              consola.error(
+                `[${network}] isOperationReady check failed for ${row.operationId}:`,
+                readyError
+              )
+            }
         } catch (error) {
           errorCount++
-          doneById.set(row.operationId, null)
-          readyById.set(row.operationId, null)
+          doneByKey.set(key, null)
+          readyByKey.set(key, null)
           consola.error(
             `[${network}] on-chain status check failed for ${row.operationId}:`,
             error
           )
         }
+      }
     })
   )
-  return { doneById, readyById, errorCount }
+  return { doneByKey, readyByKey, errorCount }
 }
 
 const cmd = defineCommand({
@@ -359,21 +383,25 @@ const cmd = defineCommand({
       payloadNeedles
     )
 
-    let doneById = new Map<string, boolean | null>()
-    let readyById = new Map<string, boolean | null>()
+    let doneByKey = new Map<string, boolean | null>()
+    let readyByKey = new Map<string, boolean | null>()
     let onChainErrors = 0
     if (args.checkOnChain && rows.length > 0)
       ({
-        doneById,
-        readyById,
+        doneByKey,
+        readyByKey,
         errorCount: onChainErrors,
       } = await checkOnChainStatus(rows))
 
     const displayRows = rows.map((row) =>
       toDisplayRow(
         row,
-        args.checkOnChain ? doneById.get(row.operationId) ?? null : undefined,
-        args.checkOnChain ? readyById.get(row.operationId) : undefined
+        args.checkOnChain
+          ? doneByKey.get(statusKey(row.network, row.operationId)) ?? null
+          : undefined,
+        args.checkOnChain
+          ? readyByKey.get(statusKey(row.network, row.operationId))
+          : undefined
       )
     )
 

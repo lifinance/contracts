@@ -13,6 +13,7 @@ import {
   filterBySafeTxHashes,
   parseCsvArg,
   parseStatusArg,
+  statusKey,
   toDisplayRow,
 } from './list-timelock-queue'
 import type { ITimelockQueueDoc } from './timelock-queue'
@@ -188,6 +189,16 @@ describe('classifyMongoError', () => {
   it('treats everything else as a real error', () => {
     expect(classifyMongoError(new Error('duplicate key'))).toBe('error')
     expect(classifyMongoError('boom')).toBe('error')
+  })
+})
+
+describe('statusKey', () => {
+  it('scopes operationId by network to avoid cross-chain collisions', () => {
+    const operationId = `0x${'ab'.repeat(32)}`
+    expect(statusKey('0g', operationId)).toBe(`0g:${operationId}`)
+    expect(statusKey('base', operationId)).not.toBe(
+      statusKey('0g', operationId)
+    )
   })
 })
 
