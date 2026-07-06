@@ -814,6 +814,8 @@ contract LiFiVaultWrapper is
 
     /// @dev Adds `_delta` to a uint128 accumulator, clamping at the type max instead
     ///      of reverting (see `_splitFee` for why the accrual path must never revert).
+    ///      Compares before adding: `_delta` is only bounded by the `_mint` supply
+    ///      check, so a plain checked add could itself overflow uint256 and revert.
     /// @param _accrued The current accumulator value.
     /// @param _delta The amount to add.
     /// @return The clamped sum.
@@ -821,8 +823,9 @@ contract LiFiVaultWrapper is
         uint128 _accrued,
         uint256 _delta
     ) private pure returns (uint128) {
-        uint256 sum = uint256(_accrued) + _delta;
+        uint256 accrued = uint256(_accrued);
+        if (_delta > type(uint128).max - accrued) return type(uint128).max;
 
-        return sum > type(uint128).max ? type(uint128).max : uint128(sum);
+        return uint128(accrued + _delta);
     }
 }
