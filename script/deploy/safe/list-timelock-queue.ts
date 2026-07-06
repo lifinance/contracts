@@ -133,9 +133,10 @@ export function filterByPayloadContains(
   needles: string[] | undefined
 ): ITimelockQueueDoc[] {
   if (!needles) return rows
-  const normalized = needles.map((needle) =>
-    needle.toLowerCase().replace(/^0x/, '')
-  )
+  const normalized = needles
+    .map((needle) => needle.toLowerCase().replace(/^0x/, ''))
+    .filter((needle) => needle.length > 0)
+  if (normalized.length === 0) return rows
   return rows.filter((row) =>
     row.payloads.some((payload) => {
       const haystack = payload.toLowerCase()

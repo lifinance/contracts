@@ -152,6 +152,18 @@ describe('filterByPayloadContains', () => {
       )
     ).toEqual([])
   })
+
+  it('ignores empty needles (bare 0x) instead of matching everything', () => {
+    expect(
+      filterByPayloadContains([docWithAddress, docWithout], ['0x'])
+    ).toEqual([docWithAddress, docWithout])
+    expect(
+      filterByPayloadContains(
+        [docWithAddress, docWithout],
+        ['0x', facetAddress]
+      )
+    ).toEqual([docWithAddress])
+  })
 })
 
 describe('classifyMongoError', () => {
