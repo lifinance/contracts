@@ -80,7 +80,7 @@ contract LiFiVaultWrapper is
     ///         stored verbatim for later modules to decode.
     bytes public initData;
 
-    /// @dev Per-fee-type rates and enabled flags, validated by the factory.
+    /// @dev Per-fee-type rates (0 = disabled), validated by the factory.
     FeeConfig internal _feeConfig;
 
     /// @notice LI.FI's part of the dilution fee-shares minted to this contract and not
@@ -265,12 +265,12 @@ contract LiFiVaultWrapper is
         return _feeConfig.rateBps[_feeType];
     }
 
-    /// @notice Returns whether a fee type is enabled.
+    /// @notice Returns whether a fee type is enabled (a non-zero rate is the enabled flag).
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
         if (_feeType > 3) revert InvalidFeeType(_feeType);
-        return _feeConfig.enabled[_feeType];
+        return _feeConfig.rateBps[_feeType] != 0;
     }
 
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
@@ -520,15 +520,14 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         uint8 idx = uint8(_feeType);
-        if (_newRateBps == 0) {
-            _feeConfig.enabled[idx] = false;
-            _feeConfig.rateBps[idx] = 0;
-        } else {
+        if (_newRateBps != 0) {
             (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(factory)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
-            if (_feeType == FeeType.Performance && !_feeConfig.enabled[idx]) {
+            if (
+                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
+            ) {
                 uint192 currentPps = SafeCast.toUint192(
                     LibVaultWrapperMath.pricePerShare(
                         totalSupply(),
@@ -543,11 +542,10 @@ contract LiFiVaultWrapper is
                     perfHighWaterMarkPps = currentPps;
                 }
             }
-            _feeConfig.enabled[idx] = true;
-            _feeConfig.rateBps[idx] = _newRateBps;
         }
+        _feeConfig.rateBps[idx] = _newRateBps;
 
-        emit FeeConfigUpdated(_feeType, _newRateBps, _newRateBps != 0);
+        emit FeeConfigUpdated(_feeType, _newRateBps);
     }
 
     /// Pause controls ///
@@ -602,8 +600,8 @@ contract LiFiVaultWrapper is
     ///      to the post-crystallization share price only when shares were actually
     ///      minted — an uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
-        bool mgmtEnabled = _feeConfig.enabled[uint8(FeeType.Management)];
-        bool perfEnabled = _feeConfig.enabled[uint8(FeeType.Performance)];
+        bool mgmtEnabled = _feeConfig.rateBps[uint8(FeeType.Management)] != 0;
+        bool perfEnabled = _feeConfig.rateBps[uint8(FeeType.Performance)] != 0;
         if (!mgmtEnabled && !perfEnabled) {
             lastMgmtAccrual = uint64(block.timestamp);
             return;
@@ -647,9 +645,10 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256 feeShares) {
+        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Management)];
         if (
             lastMgmtAccrual == 0 ||
-            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            rateBps == 0 ||
             _supply == 0 ||
             _assets == 0
         ) return 0;
@@ -659,7 +658,7 @@ contract LiFiVaultWrapper is
 
         uint256 mgmtFeeAssets = LibVaultWrapperMath.managementFeeAssets({
             _totalAssets: _assets,
-            _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
+            _rateBps: rateBps,
             _elapsed: elapsed
         });
         feeShares = LibVaultWrapperMath.dilutionShares({
@@ -682,8 +681,8 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256) {
-        uint8 idx = uint8(FeeType.Performance);
-        if (!_feeConfig.enabled[idx]) return 0;
+        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Performance)];
+        if (rateBps == 0) return 0;
 
         uint256 hwm = perfHighWaterMarkPps;
         if (hwm == 0) return 0;
@@ -692,7 +691,7 @@ contract LiFiVaultWrapper is
             _totalAssets: _assets,
             _totalSupply: _supply,
             _hwmPps: hwm,
-            _rateBps: _feeConfig.rateBps[idx],
+            _rateBps: rateBps,
             _decimalsOffset: _decimalsOffset()
         });
 
@@ -722,13 +721,11 @@ contract LiFiVaultWrapper is
             mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
     }
 
-    /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
+    /// @dev Reads the configured rate (bps) for a fee type; 0 means disabled.
     /// @param _feeType The fee type to read.
     /// @return The effective rate in basis points.
     function _rate(FeeType _feeType) private view returns (uint16) {
-        uint8 idx = uint8(_feeType);
-        if (!_feeConfig.enabled[idx]) return 0;
-        return _feeConfig.rateBps[idx];
+        return _feeConfig.rateBps[uint8(_feeType)];
     }
 
     /// @dev Books freshly minted dilution fee-shares, split between LI.FI and the

@@ -30,8 +30,7 @@ enum FeeType {
 
 /// @notice Per-instance fee selection, indexed by FeeType ordinal.
 struct FeeConfig {
-    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal).
-    bool[4] enabled; // Whether each FeeType is active; a disabled type must carry a zero rate.
+    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
 }
 
 /// @notice Owner-adjustable min/max rate (bps) for a single fee type, within the immutable cap.
@@ -47,7 +46,7 @@ struct DeployParams {
     address adapter; // Approved yield adapter; resolves the underlying's ERC20 asset.
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
-    FeeConfig fees; // Per-fee-type rates and enabled flags; validated against bounds/caps.
+    FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
     uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
 }

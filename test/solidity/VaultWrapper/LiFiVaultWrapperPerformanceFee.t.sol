@@ -347,10 +347,9 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
 
     function test_PerformanceFeeSplitUsesPerformanceShare() public {
         uint16[4] memory rates = [PERF_RATE, 0, 0, 0];
-        bool[4] memory enabled = [true, false, false, false];
         // Performance split differs from every other type's share (all zero here).
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(4500), 0, 0, 0]
         );
         _deposit(alice, DEPOSIT);
@@ -374,11 +373,10 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         uint16 _rate
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [_rate, 0, 0, 0];
-        bool[4] memory enabled = [_rate != 0, false, false, false];
 
         return
             _newWrapperWithSplits(
-                FeeConfig({ rateBps: rates, enabled: enabled }),
+                FeeConfig({ rateBps: rates }),
                 [SPLIT, SPLIT, SPLIT, SPLIT]
             );
     }
@@ -388,11 +386,10 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         uint16 _mgmt
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [_perf, _mgmt, 0, 0];
-        bool[4] memory enabled = [true, true, false, false];
 
         return
             _newWrapperWithSplits(
-                FeeConfig({ rateBps: rates, enabled: enabled }),
+                FeeConfig({ rateBps: rates }),
                 [SPLIT, SPLIT, SPLIT, SPLIT]
             );
     }

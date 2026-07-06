@@ -28,15 +28,10 @@ interface ILiFiVaultWrapper {
         uint16[4] integratorShareBps
     );
 
-    /// @notice Emitted when a fee type's rate (and enabled flag) is changed.
+    /// @notice Emitted when a fee type's rate is changed.
     /// @param feeType The fee type updated.
-    /// @param newRateBps The new rate in basis points (0 when disabled).
-    /// @param enabled Whether the fee type is now active.
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
+    /// @param newRateBps The new rate in basis points (0 = disabled).
+    event FeeConfigUpdated(FeeType indexed feeType, uint16 newRateBps);
 
     /// @notice Emitted when dilution fee-shares are minted to the wrapper.
     /// @dev The LI.FI/integrator split is applied at accrual; LI.FI's part is
@@ -96,7 +91,7 @@ interface ILiFiVaultWrapper {
     /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
     ///        FeeType ordinal), resolved and bounded by the factory.
-    /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
+    /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
     /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
     function initialize(
         address _underlying,
