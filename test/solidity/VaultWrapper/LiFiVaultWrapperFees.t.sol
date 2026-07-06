@@ -36,7 +36,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         );
         assertGt(expectedShares, 0);
 
-        // A real operation crystallizes pending fees via _beforeOperation -> _accrueFees
+        // A real operation crystallizes pending fees via _accrueFees
         // before its own shares are minted, so the fee bookkeeping is exact regardless of
         // the triggering deposit's size.
         _crystallize();
@@ -533,10 +533,9 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_AssetFeeSplitUsesEachFeeTypesOwnShare() public {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, WD_RATE];
-        bool[4] memory enabled = [false, false, true, true];
         // Distinct shares per fee type: deposit 30% / withdrawal 40% to the integrator.
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 0, 3000, 4000]
         );
         _deposit(alice, DEPOSIT);
@@ -562,9 +561,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_DilutionFeeSplitUsesManagementShare() public {
         uint16[4] memory rates = [uint16(0), MGMT_RATE, 0, 0];
-        bool[4] memory enabled = [false, true, false, false];
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 2500, 0, 0]
         );
         _deposit(alice, DEPOSIT);
@@ -584,9 +582,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_SplitRoundingRemainderGoesToLifi() public {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, 0];
-        bool[4] memory enabled = [false, false, true, false];
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 0, 3333, 0]
         );
         _deposit(alice, DEPOSIT);
@@ -646,7 +643,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         _stackWithFactory(MGMT_RATE);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit FeeConfigUpdated(FeeType.Management, 500, true);
+        emit FeeConfigUpdated(FeeType.Management, 500);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 500);
@@ -661,7 +658,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         factory.setFeeBounds(FeeType.Management, 100, 1000);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit FeeConfigUpdated(FeeType.Management, 0, false);
+        emit FeeConfigUpdated(FeeType.Management, 0);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 0);
@@ -828,9 +825,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _rate
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), _rate, 0, 0];
-        bool[4] memory enabled = [false, _rate != 0, false, false];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     function _newWrapperAssetFees(
@@ -838,9 +834,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _wdRate
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), 0, _depRate, _wdRate];
-        bool[4] memory enabled = [false, false, _depRate != 0, _wdRate != 0];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     function _newWrapperAllThree(
@@ -849,9 +844,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _wd
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), _mgmt, _dep, _wd];
-        bool[4] memory enabled = [false, true, true, true];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     /// @dev Stands up the full factory stack and deploys a management-fee instance so

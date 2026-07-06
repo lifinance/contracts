@@ -38,11 +38,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
     ///      reverts ZERO_SHARES on a forward once its PPS exceeds 1).
     uint256 internal crystallizeDust = 1;
 
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
+    event FeeConfigUpdated(FeeType indexed feeType, uint16 newRateBps);
 
     event DilutionFeeAccrued(
         FeeType indexed feeType,
@@ -137,16 +133,14 @@ abstract contract VaultWrapperFeeTestBase is Test {
         vm.stopPrank();
 
         uint16[4] memory rates;
-        bool[4] memory enabled;
         rates[uint8(_feeType)] = _rate;
-        enabled[uint8(_feeType)] = _rate != 0;
         DeployParams memory p = DeployParams({
             namespace: bytes32("Coinbase"),
             vaultWrapperAdmin: vaultAdmin,
             adapter: address(adapter),
             underlying: address(underlying),
             nonce: 0,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: [
                 type(uint16).max,
                 type(uint16).max,
@@ -193,7 +187,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
         );
     }
 
-    /// @dev Triggers `_beforeOperation -> _accrueFees` via a dust deposit (solmate's
+    /// @dev Triggers `_accrueFees` via a dust deposit (solmate's
     ///      MockERC4626 reverts ZERO_SHARES on a 0 forward, so a bare zero deposit
     ///      cannot be used). The accrual runs before the deposit's own mint, so fee
     ///      bookkeeping is exact regardless of the dust; it is netted out where exact

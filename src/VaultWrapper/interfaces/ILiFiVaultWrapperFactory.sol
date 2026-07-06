@@ -125,6 +125,4 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
     error FeeRateAboveCap();
-    /// @notice Thrown when a disabled fee carries a non-zero rate.
-    error DisabledFeeMustBeZero();
 }

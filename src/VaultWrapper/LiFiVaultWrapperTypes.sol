@@ -14,16 +14,23 @@ pragma solidity ^0.8.17;
 /// @notice Fee categories a wrapper instance can charge. Each member's ordinal
 ///         indexes the FeeConfig arrays and the factory's per-type bounds/caps.
 enum FeeType {
+    // Charged on share-price gains above the high-water mark, crystallized by
+    // minting dilution shares to the wrapper at accrual time.
     Performance,
+    // Time-based rate on AUM (annualized bps), crystallized by minting dilution
+    // shares to the wrapper for the elapsed time at accrual time.
     Management,
+    // Charged on entry: skimmed from the deposited assets before they are
+    // forwarded to the yield source, held idle in the wrapper.
     Deposit,
+    // Charged on exit: redeemed from the yield source on top of the assets
+    // owed to the receiver, held idle in the wrapper.
     Withdrawal
 }
 
 /// @notice Per-instance fee selection, indexed by FeeType ordinal.
 struct FeeConfig {
-    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal).
-    bool[4] enabled; // Whether each FeeType is active; a disabled type must carry a zero rate.
+    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
 }
 
 /// @notice Owner-adjustable min/max rate (bps) for a single fee type, within the immutable cap.
@@ -39,7 +46,7 @@ struct DeployParams {
     address adapter; // Approved yield adapter; resolves the underlying's ERC20 asset.
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
-    FeeConfig fees; // Per-fee-type rates and enabled flags; validated against bounds/caps.
+    FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
     uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
     IntegratorReceivers receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.

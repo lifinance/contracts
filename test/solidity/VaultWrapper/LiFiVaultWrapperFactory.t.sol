@@ -318,7 +318,6 @@ contract LiFiVaultWrapperFactoryTest is Test {
         uint256 nonce_
     ) internal view returns (DeployParams memory p) {
         uint16[4] memory rates = [uint16(1000), 0, 0, 0];
-        bool[4] memory enabled = [true, false, false, false];
         address[] memory wallets = new address[](1);
         wallets[0] = address(0xFEE1);
         uint16[] memory bps = new uint16[](1);
@@ -329,7 +328,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
             adapter: address(adapter),
             underlying: address(underlying),
             nonce: nonce_,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
             initData: hex"1234",
             receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
@@ -569,21 +568,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Management, 0, 1000); // mgmt cap is 1000
         DeployParams memory p = _params(0);
         uint16[4] memory rates = [uint16(0), 1500, 0, 0]; // 15% > 10% cap
-        bool[4] memory enabled = [false, true, false, false];
-        p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
+        p.fees = FeeConfig({ rateBps: rates });
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveCap.selector);
-        factory.deploy(p);
-    }
-
-    function test_DeployRevertsOnDisabledFeeWithNonZeroRate() public {
-        _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(0);
-        p.fees.enabled[0] = false; // disabled but rate is 1000
-        vm.prank(onboarder);
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.DisabledFeeMustBeZero.selector
-        );
         factory.deploy(p);
     }
 

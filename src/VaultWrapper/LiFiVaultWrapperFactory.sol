@@ -422,18 +422,15 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Validates a fee config against the per-type bounds and caps.
-    /// @dev Disabled fee types must carry a zero rate; an enabled rate must sit
-    ///      within both the immutable cap and the owner-set bounds. Unset bounds
-    ///      default to 0..0, so an enabled fee with no configured bounds fails
-    ///      closed.
-    /// @param _fees The per-fee-type rates and enabled flags to validate.
+    /// @dev A zero rate means the fee type is disabled and skips validation; a
+    ///      non-zero rate must sit within both the immutable cap and the
+    ///      owner-set bounds. Unset bounds default to 0..0, so an enabled fee
+    ///      with no configured bounds fails closed.
+    /// @param _fees The per-fee-type rates (0 = disabled) to validate.
     function _validateFees(FeeConfig calldata _fees) internal view {
         for (uint8 i; i <= uint8(type(FeeType).max); ++i) {
-            if (!_fees.enabled[i]) {
-                if (_fees.rateBps[i] != 0) revert DisabledFeeMustBeZero();
-                continue;
-            }
             uint16 rate = _fees.rateBps[i];
+            if (rate == 0) continue;
             if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();
             FeeBounds memory b = feeBounds[FeeType(i)];
             if (rate < b.minBps || rate > b.maxBps) revert FeeRateAboveBound();

@@ -334,7 +334,7 @@ contract VaultWrapperDistributionTest is Test {
         _deposit(alice, DEPOSIT);
         vm.warp(block.timestamp + YEAR);
 
-        // Deposits paused: _beforeOperation cannot run on inflows, so sweep itself
+        // Deposits paused: deposit/mint accrual cannot run on inflows, so sweep itself
         // must accrue the pending management fee and still pay it out.
         vm.prank(vaultAdmin);
         wrapper.pause();
@@ -399,14 +399,12 @@ contract VaultWrapperDistributionTest is Test {
 
     function _assetFees() internal pure returns (FeeConfig memory) {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, WD_RATE];
-        bool[4] memory enabled = [false, false, true, true];
-        return FeeConfig({ rateBps: rates, enabled: enabled });
+        return FeeConfig({ rateBps: rates });
     }
 
     function _mgmtFees() internal pure returns (FeeConfig memory) {
         uint16[4] memory rates = [uint16(0), MGMT_RATE, 0, 0];
-        bool[4] memory enabled = [false, true, false, false];
-        return FeeConfig({ rateBps: rates, enabled: enabled });
+        return FeeConfig({ rateBps: rates });
     }
 
     function _deploy(
