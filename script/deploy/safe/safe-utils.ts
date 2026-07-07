@@ -9,9 +9,20 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import {
+  TronWalletClient,
+  formatAddressForNetworkCliDisplay,
+  getTronNetworkKeyForChainId,
+  isTronTvmChainId,
+} from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { config } from 'dotenv'
-import { MongoClient, type Collection, type InsertOneResult } from 'mongodb'
+import {
+  MongoClient,
+  type Collection,
+  type InsertOneResult,
+  type ObjectId,
+} from 'mongodb'
 import {
   createPublicClient,
   createWalletClient,
@@ -37,21 +48,18 @@ import {
   fetchWithTimeout,
 } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
-import { getEnvVar } from '../../utils/utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
-import { TronWalletClient } from '../tron/helpers/TronWalletClient'
-import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
-import {
-  getTronNetworkKeyForChainId,
-  isTronTvmChainId,
-} from '../tron/helpers/tronTvmChain'
 
 import { SAFE_SINGLETON_ABI } from './config'
-import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
+import {
+  getDeployedFacetVersionFromLog,
+  getTargetStateFacetVersion,
+} from './facet-version-utils'
+import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
 
@@ -86,6 +94,21 @@ export interface ISafeSignature {
   data: Hex
 }
 
+/**
+ * Lifecycle of a Safe tx row in MongoDB.
+ *
+ * - `pending`   : awaiting signatures or execution.
+ * - `submitted` : broadcast on-chain but no confirmed receipt yet. The Safe
+ *                 nonce may or may not have advanced; reconciliation resolves
+ *                 it to `executed`, `reverted`, or back to `pending` on the
+ *                 next run.
+ * - `executed`  : on-chain receipt confirmed success (Safe nonce consumed).
+ * - `reverted`  : on-chain receipt confirmed revert. The Safe nonce was NOT
+ *                 consumed — a top-level revert rolls back the `nonce++`, so
+ *                 the slot can be re-proposed; flagged for manual review.
+ */
+export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -94,15 +117,39 @@ export interface ISafeTxDocument {
   safeTxHash: string
   proposer: string
   timestamp: Date
-  status: 'pending' | 'executed'
+  status: SafeTxStatus
+  executionHash?: string
+  submittedAt?: Date
   intentHash?: string // Optional for backwards compatibility with existing documents
 }
 
-export interface IAugmentedSafeTxDocument extends ISafeTxDocument {
+/** MongoDB row shape — includes the document `_id` returned by `find()`. */
+export interface ISafeTxMongoDocument extends ISafeTxDocument {
+  _id?: ObjectId
+}
+
+export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
   safeTransaction: ISafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
+}
+
+/** Flat, display/JSON-friendly summary of a Safe proposal document. */
+export interface IProposalSummary {
+  network: string
+  chainId: number
+  safeAddress: string
+  nonce: number
+  to: string
+  selector: string
+  status: string
+  signatureCount: number
+  signers: string[]
+  proposer: string
+  safeTxHash: string
+  timestamp: string
+  executionHash?: string
 }
 
 /**
@@ -325,6 +372,12 @@ export class SafeClient {
   // Get Safe address
   public getAddress(): Address {
     return this.safeAddress
+  }
+
+  // Used by reconciliation to issue read-only RPC calls (getTransactionReceipt,
+  // getLogs, getBlockNumber) without re-creating a client.
+  public getPublicClient(): PublicClient {
+    return this.publicClient
   }
 
   public async getChainId(): Promise<number> {
@@ -556,9 +609,7 @@ export class SafeClient {
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)
       const hash = await this.getTransactionHash(safeTx)
-      consola.info(
-        `[safe-utils] Signing Safe tx hash (ENABLE_SAFE_TX_HASH_SIGNING=true): ${hash}`
-      )
+      consola.info(`[safe-utils] Signing Safe tx hash via eth_sign: ${hash}`)
 
       // 2) Sign the hash using eth_sign-compatible flow
       const sig = await this.signHash(hash)
@@ -578,10 +629,11 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
-    // Optional feature flag to switch between EIP-712 signing and hash signing.
-    // If ENABLE_SAFE_TX_HASH_SIGNING === 'true', we sign the Safe tx hash
-    // using eth_sign instead of constructing a large EIP-712 payload.
-    if (getEnvVar('ENABLE_SAFE_TX_HASH_SIGNING') === 'true') {
+    // Optional flag to force tx-hash signing from the start instead of EIP-712
+    // typed data. Read directly from process.env so an unset flag does not
+    // throw — tx-hash signing also runs automatically as a fallback whenever
+    // the EIP-712 path fails.
+    if (process.env.ENABLE_SAFE_TX_HASH_SIGNING === 'true') {
       return this.signTransactionWithHash(safeTx)
     }
 
@@ -645,8 +697,10 @@ export class SafeClient {
       return safeTx
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      console.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${errorMsg}`)
+      consola.warn(
+        `[safe-utils] EIP-712 signing failed, falling back to tx-hash signing. Caught error: ${errorMsg}`
+      )
+      return this.signTransactionWithHash(safeTx)
     }
   }
 
@@ -784,6 +838,77 @@ export class SafeClient {
 export type ViemSafe = SafeClient
 
 /**
+ * Statuses that consumed the Safe nonce on-chain. The single source of truth
+ * shared by every consumed-nonce decision: the runtime predicate
+ * {@link safeTxStatusConsumedNonce} (used by `confirm-safe-tx.ts`) and the
+ * MongoDB highest-consumed-nonce query in `reconcile.ts`. A MongoDB filter
+ * can't call the predicate, so both reference this constant instead.
+ *
+ * Only a fully successful `execTransaction` advances the Safe nonce. A
+ * top-level revert always rolls back the `nonce++`, so `reverted` never
+ * consumes the nonce — this holds unconditionally, regardless of the
+ * executor's gas params. (In this repo `safeTxGas=0` is also why an inner-call
+ * failure surfaces as a top-level revert (GS013) rather than an
+ * `ExecutionFailure` with a consumed nonce.)
+ */
+export const NONCE_CONSUMING_STATUSES: readonly SafeTxStatus[] = ['executed']
+
+/**
+ * Whether a resolved Safe-tx execution status consumed the Safe nonce on-chain.
+ *
+ * A `submitted` row is an unknown outcome (no receipt yet) and must not be
+ * treated as consuming the nonce until reconciliation resolves it. Callers gate
+ * `expectedNonce++` on this — returning true for `reverted` would desync the
+ * expected nonce and make the next-nonce proposal revert with GS026. See
+ * {@link NONCE_CONSUMING_STATUSES} for the rationale.
+ *
+ * @param status - Resolved Safe-tx status after an execution attempt.
+ * @returns true only for `executed`; false for `reverted`, `submitted`, and `pending`.
+ */
+export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
+  return NONCE_CONSUMING_STATUSES.includes(status)
+}
+
+/**
+ * Converts an in-memory Safe tx (Map signatures, bigint fields) into the plain
+ * object shape MongoDB stores. Mirrors propose-to-safe-tron.ts.
+ */
+export function serializeSafeTxForMongo(safeTx: ISafeTransaction): {
+  data: ISafeTransactionData
+  signatures: Record<string, ISafeSignature>
+} {
+  return {
+    data: safeTx.data,
+    signatures: Object.fromEntries(safeTx.signatures),
+  }
+}
+
+/**
+ * Builds a filter that targets exactly one pendingTransactions row.
+ * Prefer `_id` from the fetched document; fall back to pending + identity
+ * fields when `_id` is absent (unit-test fakes).
+ */
+export function mongoSafeTxRowFilter(
+  doc: ISafeTxMongoDocument,
+  networkKey?: string,
+  chainId?: number
+): Record<string, unknown> {
+  if (doc._id) return { _id: { $eq: doc._id } }
+
+  if (networkKey !== undefined && chainId !== undefined)
+    return {
+      status: { $eq: 'pending' },
+      safeTxHash: { $eq: doc.safeTxHash },
+      network: { $eq: networkKey },
+      chainId: { $eq: chainId },
+    }
+
+  throw new Error(
+    'Cannot target a unique pendingTransactions row without _id or (network, chainId)'
+  )
+}
+
+/**
  * Initializes a SafeTransaction from MongoDB document data
  * @param txFromMongo - Transaction document from MongoDB
  * @param safe - SafeClient instance
@@ -809,25 +934,27 @@ export const initializeSafeTransaction = async (
     ],
   })
 
-  // Add existing signatures
+  // Add existing signatures (MongoDB stores a plain object; Map if in-memory)
   if (txFromMongo.safeTx.signatures) {
-    // Convert from document format to Map
     const signatures = new Map<string, { signer: Address; data: Hex }>()
-    Object.entries(txFromMongo.safeTx.signatures).forEach(
-      ([key, value]: [string, unknown]) => {
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'signer' in value &&
-          'data' in value
-        ) {
-          signatures.set(key, {
-            signer: (value as { signer: Address }).signer,
-            data: (value as { data: Hex }).data,
-          })
-        }
+    const raw = txFromMongo.safeTx.signatures
+    const entries =
+      raw instanceof Map
+        ? Array.from(raw.entries())
+        : Object.entries(raw as Record<string, unknown>)
+    entries.forEach(([key, value]: [string, unknown]) => {
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'signer' in value &&
+        'data' in value
+      ) {
+        signatures.set(key, {
+          signer: (value as { signer: Address }).signer,
+          data: (value as { data: Hex }).data,
+        })
       }
-    )
+    })
     safeTransaction.signatures = signatures
   }
 
@@ -863,6 +990,84 @@ export const isSignedByCurrentSigner = (
     sig.signer.toLowerCase()
   )
   return signers.includes(signerAddress.toLowerCase())
+}
+
+/**
+ * Lists the signer addresses on a raw MongoDB Safe tx document. Unlike
+ * `isSignedByCurrentSigner`, this reads the persisted `safeTx.signatures`,
+ * which is a plain object keyed by lowercased signer address (the in-memory
+ * Map is serialized on insert); a Map is also tolerated for safety.
+ * @param doc - Safe tx document from MongoDB
+ * @returns Lowercased signer addresses found on the document
+ */
+export function getSigners(doc: ISafeTxDocument): string[] {
+  const signatures = doc.safeTx?.signatures
+  if (!signatures) return []
+  const entries =
+    signatures instanceof Map
+      ? Array.from(signatures.values())
+      : Object.values(signatures)
+  const signers: string[] = []
+  for (const entry of entries)
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      'signer' in entry &&
+      typeof (entry as { signer: unknown }).signer === 'string'
+    )
+      signers.push((entry as { signer: string }).signer.toLowerCase())
+
+  return signers
+}
+
+/**
+ * Extracts the 4-byte function selector from Safe tx calldata.
+ * @param data - Calldata hex string from the Safe tx document
+ * @returns `0x`-prefixed selector, or `0x` when no calldata is present
+ */
+export function getSelector(data: unknown): string {
+  if (
+    typeof data !== 'string' ||
+    !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(data)
+  )
+    return '0x'
+  return data.substring(0, 10)
+}
+
+/**
+ * Converts a MongoDB Safe tx document into a flat summary row for display or
+ * JSON output (see list-pending-proposals.ts).
+ * @param doc - Safe tx document from MongoDB
+ * @returns Summary with signature count, selector, and normalized fields
+ */
+export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
+  const signers = getSigners(doc)
+  // Real documents always carry a Date; pass through a raw string as-is and
+  // use '' as the missing-sentinel rather than stringifying unexpected types
+  // into a misleading value.
+  const timestamp =
+    doc.timestamp instanceof Date
+      ? doc.timestamp.toISOString()
+      : typeof doc.timestamp === 'string'
+      ? doc.timestamp
+      : ''
+
+  const summary: IProposalSummary = {
+    network: doc.network,
+    chainId: doc.chainId,
+    safeAddress: doc.safeAddress,
+    nonce: Number(doc.safeTx?.data?.nonce ?? 0),
+    to: String(doc.safeTx?.data?.to ?? ''),
+    selector: getSelector(doc.safeTx?.data?.data),
+    status: doc.status,
+    signatureCount: signers.length,
+    signers,
+    proposer: doc.proposer,
+    safeTxHash: doc.safeTxHash,
+    timestamp,
+  }
+  if (doc.executionHash) summary.executionHash = doc.executionHash
+  return summary
 }
 
 /**
@@ -1214,12 +1419,14 @@ export async function getNextNonce(
   chainId: number,
   currentNonce: bigint
 ): Promise<bigint> {
+  // Include 'submitted' rows: a tx broadcast but not yet confirmed still has
+  // its Safe nonce in flight, so a new proposal must not collide with it.
   const latestTx = await pendingTransactions
     .find({
       safeAddress,
       network: network.toLowerCase(),
       chainId,
-      status: 'pending',
+      status: { $in: ['pending', 'submitted'] },
     })
     .sort({ 'safeTx.data.nonce': -1 })
     .limit(1)
@@ -1351,6 +1558,7 @@ export async function initializeSafeClient(
  */
 export function getPrivateKey(
   keyType:
+    | 'PRIVATE_KEY'
     | 'PRIVATE_KEY_PRODUCTION'
     | 'SAFE_SIGNER_PRIVATE_KEY' = 'PRIVATE_KEY_PRODUCTION',
   privateKeyArg?: string
@@ -1375,7 +1583,7 @@ export function getNetworksToProcess(networkArg?: string): string[] {
 
   return Object.keys(networks).filter(
     (network) =>
-      network !== 'localanvil' &&
+      network !== 'localanvil' && // pre-commit-checker: not a secret — network name filter
       networks[network.toLowerCase()]?.status === 'active'
   )
 }
@@ -1867,6 +2075,53 @@ async function createSelectorMap(): Promise<Map<
 }
 
 /**
+ * Displays the to-be-added facet version (resolved from the deployment log)
+ * next to the target-state version and highlights a mismatch so the signer
+ * can catch an unintended version before signing. Display-only.
+ */
+function displayFacetVersionInfo(
+  pre: string,
+  contractName: string,
+  network: string,
+  facetAddressCandidates: string[]
+): void {
+  if (!network) {
+    consola.warn(`${pre}Facet Version: could not resolve (unknown network)`)
+    return
+  }
+
+  const knownName =
+    contractName && contractName.toLowerCase() !== 'unknown'
+      ? contractName
+      : null
+  const deployedVersion = getDeployedFacetVersionFromLog(
+    knownName,
+    network,
+    facetAddressCandidates
+  )
+  const targetVersion = knownName
+    ? getTargetStateFacetVersion(network, knownName)
+    : null
+
+  const deployedDisplay = deployedVersion
+    ? `\u001b[34m${deployedVersion}\u001b[0m`
+    : `\u001b[33munknown (address not found in deployment log)\u001b[0m`
+  const targetDisplay = targetVersion
+    ? `\u001b[34m${targetVersion}\u001b[0m`
+    : knownName
+    ? `\u001b[33mnot in target state\u001b[0m`
+    : `\u001b[33munknown (contract name unresolved)\u001b[0m`
+
+  consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
+  consola.info(`${pre}Target State Version:        ${targetDisplay}`)
+
+  if (deployedVersion && targetVersion && deployedVersion !== targetVersion)
+    consola.warn(
+      `${pre}\u001b[31m⚠️  VERSION MISMATCH: to-be-added facet is v${deployedVersion} but target state expects v${targetVersion}\u001b[0m`
+    )
+}
+
+/**
  * Decodes a diamond cut transaction and displays its details
  * @param diamondCutData - Decoded diamond cut data
  * @param chainId - Chain ID
@@ -1949,100 +2204,48 @@ export async function decodeDiamondCut(
       consola.info(`${pre}${facetLine}`)
       consola.info(`${pre}Action: ${actionMap[actionValue] ?? actionValue}`)
 
-      // Use selector map for efficient lookup
-      if (selectorMap) {
-        let contractName = network
-          ? getContractNameFromNetworkDeployments(network, facetAddress)
-          : 'Unknown'
-        // Remove (2): facet address is not a live deployable contract and the
-        // selector list may be a partial subset — superset matching is unsafe.
-        if (contractName === 'Unknown' && actionNum !== 2)
-          contractName = getContractNameFromSelectorsInOut(selectors)
-        consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
+      let contractName = network
+        ? getContractNameFromNetworkDeployments(network, facetAddress)
+        : 'Unknown'
+      // Remove (2): facet address is the zero address (no live contract) and
+      // the selector list may be a partial subset — superset matching is unsafe.
+      if (contractName === 'Unknown' && actionNum !== 2)
+        contractName = getContractNameFromSelectorsInOut(selectors)
+      consola.info(`${pre}Contract Name: \u001b[34m${contractName}\u001b[0m`)
 
-        for (const selector of selectors) {
-          const normalizedSelector =
-            typeof selector === 'string' ? selector.toLowerCase() : selector
-          const functionInfo = selectorMap.get(normalizedSelector)
-          if (functionInfo) {
-            consola.info(
-              `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
-            )
-          } else {
-            const fourByteName = await lookupSelectorFromFourByte(
-              normalizedSelector
-            )
-            if (fourByteName)
-              consola.info(
-                `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
-              )
-            else consola.warn(`${pre}Unknown function [${selector}]`)
-          }
-        }
-      } else {
-        // Fallback to external API if selector map not available
-        consola.info(`${pre}No diamond ABI found, fetching from anyabi.xyz...`)
-        const url = `https://anyabi.xyz/api/get-abi/${chainId}/${facetAddress}`
-        const response = await fetch(url)
-        const resData = await response.json()
+      if (actionNum === 0 || actionNum === 1)
+        displayFacetVersionInfo(pre, contractName, networkKey, [
+          String(facetAddress),
+          facetDisplay,
+        ])
 
-        if (resData && resData.abi) {
+      // Resolve each selector's name from the local diamond ABI first, then the
+      // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
+      // Remove uses the zero address, and per-selector lookup covers every action
+      // without depending on a live facet contract.
+      for (const selector of selectors) {
+        const normalizedSelector =
+          typeof selector === 'string'
+            ? (selector.startsWith('0x')
+                ? selector
+                : `0x${selector}`
+              ).toLowerCase()
+            : `0x${Buffer.from(selector).toString('hex')}`.toLowerCase()
+        const functionInfo = selectorMap?.get(normalizedSelector)
+        if (functionInfo) {
           consola.info(
-            `${pre}Contract Name: \u001b[34m${
-              resData.name || 'unknown'
-            }\u001b[0m`
+            `${pre}Function: \u001b[34m${functionInfo.name}\u001b[0m [${selector}] - ${functionInfo.signature}`
           )
-
-          for (const selector of selectors)
-            try {
-              // Find matching function in ABI
-              const matchingFunction = resData.abi.find(
-                (abiItem: {
-                  type?: string
-                  name?: string
-                  inputs?: unknown[]
-                  outputs?: unknown[]
-                  stateMutability?: string
-                }) => {
-                  if (abiItem.type !== 'function' || !abiItem.name) return false
-                  try {
-                    // Create a proper ABI function for toFunctionSelector
-                    const abiFunction = {
-                      type: 'function' as const,
-                      name: abiItem.name,
-                      inputs: (abiItem.inputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      outputs: (abiItem.outputs || []) as Array<{
-                        type: string
-                        name?: string
-                      }>,
-                      stateMutability:
-                        (abiItem.stateMutability as
-                          | 'pure'
-                          | 'view'
-                          | 'nonpayable'
-                          | 'payable') || 'nonpayable',
-                    }
-                    const calculatedSelector = toFunctionSelector(abiFunction)
-                    return calculatedSelector === selector
-                  } catch {
-                    return false
-                  }
-                }
-              )
-
-              if (matchingFunction)
-                consola.info(
-                  `${pre}Function: \u001b[34m${matchingFunction.name}\u001b[0m [${selector}]`
-                )
-              else consola.warn(`${pre}Unknown function [${selector}]`)
-            } catch (error) {
-              consola.warn(`${pre}Failed to decode selector: ${selector}`)
-            }
-        } else
-          consola.info(`${pre}Could not fetch ABI for facet ${facetAddress}`)
+          continue
+        }
+        const fourByteName = await lookupSelectorFromFourByte(
+          normalizedSelector
+        )
+        if (fourByteName)
+          consola.info(
+            `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+          )
+        else consola.warn(`${pre}Unknown function [${selector}]`)
       }
     } catch (error) {
       consola.error(`${pre}Error processing facet ${facetAddress}:`, error)
@@ -2107,15 +2310,31 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
 }
 
 /**
- * Helper function to wrap calldata in a timelock schedule call
+ * Wraps one or more calls in a single timelock `scheduleBatch` call.
+ * Inner calls are scheduled (and later executed) in array order, so callers
+ * control execution ordering via the order of `targetAddresses`/`originalCalldatas`.
+ * @param network - Network name
+ * @param rpcUrl - RPC URL (falls back to the chain default when empty)
+ * @param timelockAddress - Address of the timelock controller
+ * @param targetAddresses - Target contract address per inner call (parallel to `originalCalldatas`)
+ * @param originalCalldatas - Calldata per inner call (parallel to `targetAddresses`)
+ * @returns The `scheduleBatch` calldata and the timelock as the new target
+ * @throws If the call arrays are empty or differ in length
  */
 export async function wrapWithTimelockSchedule(
   network: string,
   rpcUrl: string,
   timelockAddress: Address,
-  targetAddress: Address,
-  originalCalldata: Hex
+  targetAddresses: Address[],
+  originalCalldatas: Hex[]
 ): Promise<{ calldata: Hex; targetAddress: Address }> {
+  if (targetAddresses.length === 0)
+    throw new Error('wrapWithTimelockSchedule requires at least one call')
+  if (targetAddresses.length !== originalCalldatas.length)
+    throw new Error(
+      `wrapWithTimelockSchedule: targetAddresses (${targetAddresses.length}) and originalCalldatas (${originalCalldatas.length}) must have the same length`
+    )
+
   const chain = getViemChainForNetworkName(network)
   const parsedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0]
   if (!parsedRpcUrl) throw new Error(`No RPC URL for network ${network}`)
@@ -2172,21 +2391,15 @@ export async function wrapWithTimelockSchedule(
   // Create a unique salt based on the current timestamp
   const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
 
-  const scheduleBatchCalldata = encodeFunctionData({
-    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-    functionName: 'scheduleBatch',
-    args: [
-      [targetAddress], // targets
-      [0n], // values
-      [originalCalldata], // payloads
-      '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex, // [pre-commit-checker: not a secret]
-      salt, // salt
-      minDelay, // delay
-    ],
-  })
+  const scheduleBatchCalldata = encodeTimelockScheduleBatch(
+    targetAddresses,
+    originalCalldatas,
+    salt,
+    minDelay
+  )
 
   consola.info(
-    `Wrapped transaction in timelock scheduleBatch call (batch-of-one) with minimum delay of ${minDelay} seconds`
+    `Wrapped ${targetAddresses.length} call(s) in timelock scheduleBatch with minimum delay of ${minDelay} seconds`
   )
 
   return {

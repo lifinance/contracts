@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { InvalidReceiver, NullAddrIsNotAValidSpender, InvalidAmount } from "lifi/Errors/GenericErrors.sol";
@@ -47,12 +47,12 @@ contract LibAssetImplementer {
     }
 }
 
-contract LibAssetTest is TestBase {
+contract LibAssetTest is TestBaseLocal {
     LibAssetImplementer internal implementer;
 
     function setUp() public {
         implementer = new LibAssetImplementer();
-        initTestBase();
+        initTestBaseLocal();
     }
 
     function testRevert_approveToZeroAddress() public {
@@ -125,18 +125,16 @@ contract LibAssetTest is TestBase {
     }
 
     function test_isContractWithDelegationDesignator() public {
-        // 0xef0100 is the delegation designator
-        // build a 23‑byte blob: 0xef0100 ‖ <20‑byte delegate address>
-        // here we just point back at the test contract itself,
-        // but you can put any 20‑byte address
-        bytes memory aaCode = abi.encodePacked(
-            hex"ef0100",
-            bytes20(address(this))
+        // use a real EIP-7702 delegation (designator 0xef0100 ++ delegate
+        // address, attached via cheatcode) instead of hand-etching the code
+        (address delegatedEoa, uint256 delegatedEoaKey) = makeAddrAndKey(
+            "delegatedEoa"
         );
 
-        vm.etch(USER_SENDER, aaCode); // inject the delegation designator into the USER_SENDER address
+        vm.signAndAttachDelegation(address(implementer), delegatedEoaKey);
 
-        bool result = implementer.isContract(USER_SENDER);
+        bool result = implementer.isContract(delegatedEoa);
+
         assertFalse(result, "Delegated EOA is not a contract");
     }
 }

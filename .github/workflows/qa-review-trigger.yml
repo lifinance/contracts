@@ -1,0 +1,77 @@
+# Trigger Zeus QA Review
+# - Purpose: plugs the contracts repo into the lifinance/QA Zeus QA pipeline. Applying the
+#   "Agent Review Request" label swaps it for "QA AI Reviewing" and dispatches qa-run.yml in
+#   lifinance/QA (agent=zeus, scenario=QAReviewContracts.md, ticket=PR URL).
+# - Triggers: pull_request [labeled]; the job runs only when the applied label is
+#   "Agent Review Request".
+# - Key behaviors: label swap, cross-repo workflow_dispatch via a least-privilege GitHub App
+#   token, and label restore on dispatch failure so the trigger can simply be re-applied.
+# - Known limitations: requires the QA_APP_ID / QA_APP_PRIVATE_KEY secrets and the App
+#   installation to grant Actions:write on lifinance/QA; never touches protected audit labels.
+name: Trigger Zeus QA Review
+
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: qa-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    if: github.event.label.name == 'Agent Review Request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write # required to swap/restore the QA review labels on the PR
+
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.QA_APP_ID }}
+          private-key: ${{ secrets.QA_APP_PRIVATE_KEY }}
+          owner: lifinance
+          repositories: QA
+          permission-actions: write # least privilege: token only dispatches qa-run.yml
+
+      - name: Swap labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/Agent%20Review%20Request" || true
+          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/QA%20AI%20Approved" || true
+          if ! gh api --method POST "repos/$REPO/issues/$PR_NUMBER/labels" \
+            --field "labels[]=QA AI Reviewing"; then
+            echo "❌ Failed to apply QA AI Reviewing label — aborting"
+            exit 1
+          fi
+
+      - name: Dispatch to QA repo
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh api repos/lifinance/QA/actions/workflows/qa-run.yml/dispatches \
+            --method POST \
+            --field ref=main \
+            --field "inputs[scenario]=QAReviewContracts.md" \
+            --field "inputs[agent]=zeus" \
+            --field "inputs[ticket]=$PR_URL"
+
+      - name: Restore labels on dispatch failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/QA%20AI%20Reviewing" || true
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/labels" \
+            --field "labels[]=Agent Review Request" || true
+          echo "⚠️ Dispatch failed — restored Agent Review Request label"

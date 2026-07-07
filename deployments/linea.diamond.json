@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x9A363320A19Dc09D0Dd6FF444bc6fD5f0900fe70": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x2d50a526Bb83F95B1b5d69f25e355f9a7eb5321D": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0x2619cBe40e1136C6Db74E6Ee1F2A15A95442C7AB": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x1e2a304AE9fE9757DD0b1faab2Cf8cC3AB573EB9": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0x9adEa9dCe6c29C8A948D5c047cDa70384F2b81ED": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x340E2d16cb0DE6F4a8bF2B8905cBA287cEE718A3": {
         "Name": "GenericSwapFacet",
@@ -45,20 +45,20 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0x091F6c1722a25AC789F725eA61c9220C9032f524": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0x640feD8831d2d9035dccbB4502022B0a74C16f45": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
       },
-      "0x5654381ec2107D418B71B8c3B4FA08746CDB39ec": {
-        "Name": "StargateFacet",
-        "Version": "2.2.0"
+      "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       },
       "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xa6E0a6A839F75773d26Cc753C389029CA5B31e9e": {
-        "Name": "RelayFacet",
+      "0x0FD79C81f1edA84b7fb8878C0795F63566312787": {
+        "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
       "0xf4E632a8be2164F93427603F6c9A73e182923b02": {
@@ -73,12 +73,12 @@
         "Name": "HopFacetOptimized",
         "Version": "2.0.0"
       },
-      "0x14e65Dd1f9A9a0339a259d70Ec88aC034Eb2aa34": {
-        "Name": "AmarokFacet",
-        "Version": "3.0.0"
+      "0xb312fA96d1206998D815b4e243994DeE6E285d4C": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.1.2"
       },
-      "0x6569c96727C85d8497CDfDC32bEE6686eD474e89": {
-        "Name": "AmarokFacetPacked",
+      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0x57F4d19AeC341F50BaBB55beDF73C4B87EE400ba": {
@@ -113,9 +113,9 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
+      "0x184D1d43E73A002B45f9056770fD8d463c6b9388": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
         "Name": "GasZipFacet",
@@ -125,45 +125,13 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xD4823890beeFBa4ec0c0f6b7E26F4e1d9c01aF69": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
-      },
-      "0x347F16802E9EB023a55b1d8f1e00c2664Ca7d60a": {
-        "Name": "MayanFacet",
-        "Version": "1.2.4"
-      },
-      "0xb7777277Ec16688Fe8C599813a69e8D1478369C6": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0x640feD8831d2d9035dccbB4502022B0a74C16f45": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x0FD79C81f1edA84b7fb8878C0795F63566312787": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
-      },
-      "0x9adEa9dCe6c29C8A948D5c047cDa70384F2b81ED": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xb312fA96d1206998D815b4e243994DeE6E285d4C": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
-      },
-      "0x9B2F096B6544E2275b830845d5654321b64C7fa3": {
+      "0x9B73f333787892e241f2dc3f8A7A8C2411dC6432": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
+        "Version": "2.1.0"
       },
-      "0x2d50a526Bb83F95B1b5d69f25e355f9a7eb5321D": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
+      "0x0B1dcD1e7BA87E3ab9315f33b7661648b6669C7f": {
+        "Name": "MayanFacet",
+        "Version": "1.3.0"
       }
     },
     "Periphery": {
@@ -174,6 +142,7 @@
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",

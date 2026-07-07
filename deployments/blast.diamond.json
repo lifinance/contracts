@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x22B31a1a81d5e594315c866616db793E799556c5": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0xdbffD7A135b332748Df2784D214c5f48eC706C3a": {
         "Name": "AccessManagerFacet",
@@ -29,17 +29,17 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x66861f292099cAF644F4A8b6091De49BEC5E8a15": {
-        "Name": "LIFuelFacet",
-        "Version": "1.0.1"
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
         "Name": "GenericSwapFacet",
         "Version": "2.0.0"
       },
-      "0x175E7799DA0CD40E641352EaB90D8e39e02a4Ca9": {
-        "Name": "StandardizedCallFacet",
-        "Version": "1.1.0"
+      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
       "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
         "Name": "CalldataVerificationFacet",
@@ -81,13 +81,13 @@
         "Name": "AcrossFacetV3",
         "Version": "1.1.0"
       },
-      "0x424BDbbaEda89732443fb1B737b6Dc194a6Ddbd5": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0xf34B594fDBC0dD8477756Cb7C6e77CF9A71691d6": {
+      "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3": {
         "Name": "GlacisFacet",
-        "Version": "1.0.0"
+        "Version": "1.2.0"
+      },
+      "0xce52856e4d95220389350A822C60779D0D921E30": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -95,26 +95,6 @@
       },
       "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
         "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
-      },
-      "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xAE3235B3c69C4A212EAAaabbdAFe26E8800eb143": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
-      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
-        "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       }
     },
@@ -126,6 +106,7 @@
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
+      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",

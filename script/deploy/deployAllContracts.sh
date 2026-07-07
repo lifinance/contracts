@@ -12,7 +12,7 @@ deployAllContracts() {
   source script/tasks/diamondSyncWhitelist.sh
   source script/tasks/diamondUpdateFacet.sh
   source script/tasks/diamondUpdatePeriphery.sh
-  source script/tasks/updateERC20Proxy.sh
+  source script/tasks/verifyERC20ProxyAuthorization.sh
   source script/tasks/updateFacetConfig.sh
 
   # read function arguments into variables
@@ -64,8 +64,8 @@ deployAllContracts() {
       "6) Deploy periphery contracts" \
       "7) Add periphery to diamond" \
       "8) Update whitelist.json and execute sync whitelist script" \
-      "9) Fund PauserWallet" \
-      "10) Update ERC20Proxy" \
+      "9) Fund PauserWallet and DevWallet" \
+      "10) Verify ERC20Proxy authorization" \
       "11) Run health check only" \
       "12) Ownership transfer to timelock (production only)"
   )
@@ -292,23 +292,12 @@ deployAllContracts() {
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 8 completed"
   fi
 
-  # Stage 9: Fund PauserWallet
+  # Stage 9: Fund PauserWallet and DevWallet
   if [[ $START_STAGE -le 9 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet"
-    # get pauserWallet address
-    local PAUSER_WALLET_ADDRESS
-    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
-    if [[ $? -ne 0 ]]; then
-      error "failed to read pauserWallet address from ./config/global.json"
-      exit 1
-    fi
-    if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
-      error "PauserWallet address not found. Cannot fund PauserWallet"
-      exit 1
-    fi
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet and DevWallet"
 
-    # get RPC URL
+    # get RPC URL (shared for both wallet funding steps)
     local RPC_URL
     RPC_URL=$(getRPCUrl "$NETWORK")
     if [[ $? -ne 0 ]]; then
@@ -320,25 +309,52 @@ deployAllContracts() {
       exit 1
     fi
 
-    # get balance in current network
+    local PRIVATE_KEY_TO_USE
+    PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+    if [[ $? -ne 0 || -z "$PRIVATE_KEY_TO_USE" ]]; then
+      error "could not determine private key for network $NETWORK in $ENVIRONMENT environment"
+      exit 1
+    fi
+
+    # --- Fund PauserWallet ---
+    local PAUSER_WALLET_ADDRESS
+    PAUSER_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "pauserWallet")
+    if [[ $? -ne 0 ]]; then
+      error "failed to read pauserWallet address from ./config/global.json"
+      exit 1
+    fi
+    if [[ -z "$PAUSER_WALLET_ADDRESS" || "$PAUSER_WALLET_ADDRESS" == "null" ]]; then
+      error "PauserWallet address not found. Cannot fund PauserWallet"
+      exit 1
+    fi
+
     BALANCE=$(cast balance "$PAUSER_WALLET_ADDRESS" --rpc-url "$RPC_URL")
     checkFailure $? "get PauserWallet balance for $PAUSER_WALLET_ADDRESS on $NETWORK"
     echo "PauserWallet Balance: $BALANCE"
 
     if [[ "$BALANCE" == "0" ]]; then
-      echo "PauserWallet balance is 0. How much wei would you like to send to $PAUSER_WALLET_ADDRESS?"
-      read -r FUNDING_AMOUNT || FUNDING_AMOUNT=""
-
-      # Validate that FUNDING_AMOUNT is a non-empty numeric value
-      if [[ -z "$FUNDING_AMOUNT" ]] || ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
-        error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
-        exit 1
+      # Default funding = 2.5x the real per-chain cost of one pauseDiamond() (~2 pauses +
+      # buffer). Fall back to a flat amount if estimation fails so a deploy is never blocked
+      # on a transient RPC/estimate error.
+      local FALLBACK_FUND_AMOUNT=2000000000000000
+      local DEFAULT_FUND_AMOUNT
+      local SINGLE_PAUSE_COST
+      if SINGLE_PAUSE_COST=$(estimatePauseCost "$NETWORK" "$PAUSER_WALLET_ADDRESS") \
+        && [[ "$SINGLE_PAUSE_COST" =~ ^[0-9]+$ ]] \
+        && DEFAULT_FUND_AMOUNT=$(echo "$SINGLE_PAUSE_COST * 5 / 2" | bc) \
+        && [[ "$DEFAULT_FUND_AMOUNT" =~ ^[0-9]+$ ]]; then
+        echo "Computed PauserWallet funding default: $DEFAULT_FUND_AMOUNT wei (2.5x single pauseDiamond cost of $SINGLE_PAUSE_COST wei)"
+      else
+        DEFAULT_FUND_AMOUNT=$FALLBACK_FUND_AMOUNT
+        warning "could not estimate pause cost for $NETWORK; falling back to default $DEFAULT_FUND_AMOUNT wei"
       fi
+      echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
+      FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+      FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
-      local PRIVATE_KEY_TO_USE
-      PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
-      if [[ $? -ne 0 || -z "$PRIVATE_KEY_TO_USE" ]]; then
-        error "could not determine private key for network $NETWORK in $ENVIRONMENT environment"
+      # Validate that FUNDING_AMOUNT is a numeric value
+      if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+        error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
         exit 1
       fi
 
@@ -347,17 +363,64 @@ deployAllContracts() {
       checkFailure $? "fund PauserWallet $PAUSER_WALLET_ADDRESS on $NETWORK"
     fi
 
+    # --- Fund DevWallet ---
+    # DevWallet executes timelock proposals; the timelock only exists on production non-testnet networks.
+    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
+      local DEV_WALLET_ADDRESS
+      DEV_WALLET_ADDRESS=$(getValueFromJSONFile "./config/global.json" "devWallet")
+      if [[ $? -ne 0 ]]; then
+        error "failed to read devWallet address from ./config/global.json"
+        exit 1
+      fi
+      if [[ -z "$DEV_WALLET_ADDRESS" || "$DEV_WALLET_ADDRESS" == "null" ]]; then
+        error "DevWallet address not found. Cannot fund DevWallet"
+        exit 1
+      fi
+
+      BALANCE=$(cast balance "$DEV_WALLET_ADDRESS" --rpc-url "$RPC_URL")
+      checkFailure $? "get DevWallet balance for $DEV_WALLET_ADDRESS on $NETWORK"
+      echo "DevWallet Balance: $BALANCE"
+
+      if [[ "$BALANCE" == "0" ]]; then
+        local DEFAULT_FUND_AMOUNT=2000000000000000
+        echo "DevWallet balance is 0. Enter wei to send to $DEV_WALLET_ADDRESS (edit or press Enter to confirm default):"
+        FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+        FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
+
+        # Validate that FUNDING_AMOUNT is a numeric value
+        if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
+          error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
+          exit 1
+        fi
+
+        echo "Funding DevWallet $DEV_WALLET_ADDRESS with $FUNDING_AMOUNT wei"
+        universalCast "sendValue" "$NETWORK" "$ENVIRONMENT" "$DEV_WALLET_ADDRESS" "$FUNDING_AMOUNT" "$PRIVATE_KEY_TO_USE"
+        checkFailure $? "fund DevWallet $DEV_WALLET_ADDRESS on $NETWORK"
+      fi
+    else
+      echo "[info] Skipping DevWallet funding for $ENVIRONMENT/$NETWORK (no Timelock; only funded on production non-testnet)"
+    fi
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 9 completed"
   fi
 
-  # Stage 10: Update ERC20Proxy
+  # Stage 10: Verify ERC20Proxy authorization
   if [[ $START_STAGE -le 10 ]]; then
     echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Update ERC20Proxy"
+    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Verify ERC20Proxy authorization"
 
-    # Register Executor as authorized caller in ERC20Proxy
-    # This allows the Executor contract to transfer tokens on behalf of users
-    updateERC20Proxy "$NETWORK" "$ENVIRONMENT"
+    # ERC20Proxy >= 1.2.0 pre-authorizes Executor at deploy time via the predicted CREATE3 address.
+    # On zkEVM, CREATE2 addresses depend on constructor args, so the Executor address cannot be
+    # predicted and pre-authorization is skipped (executor = address(0)) — the owner (refundWallet)
+    # must authorize the Executor manually. That branch funds refundWallet for the one tx and prints
+    # the command; the deploy wallet cannot send it (setAuthorizedCaller is onlyOwner = refundWallet).
+    if isZkEvmNetwork "$NETWORK"; then
+      authorizeExecutorOnZkEvm "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "zkEVM Executor authorization step on $NETWORK"
+    else
+      verifyERC20ProxyAuthorization "$NETWORK" "$ENVIRONMENT"
+      checkFailure $? "verify Executor authorization in ERC20Proxy on $NETWORK"
+    fi
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 10 completed"
   fi

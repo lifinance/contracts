@@ -73,47 +73,35 @@ export class EvmChainExecutor implements IChainExecutor {
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
-    // Try to get receipt with 30 second timeout
-    let receipt: TransactionReceipt | null = null
+    const explorerUrl = this.networkName
+      ? buildExplorerTxUrl(this.networkName, txHash)
+      : undefined
 
+    // After broadcast we must never throw — the tx may have landed on-chain
+    // even when receipt polling fails (timeout, RPC drop, parse error). The
+    // caller persists the hash and the reconciliation step resolves the final
+    // status on the next run. A reverted receipt yields status: 'reverted' so
+    // the caller records that rather than treating it as unknown.
+    let receipt: TransactionReceipt | undefined
     try {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
       )
-
       const receiptPromise = this.publicClient.waitForTransactionReceipt({
         hash: txHash,
       })
-
       receipt = (await Promise.race([
         receiptPromise,
         timeoutPromise,
       ])) as TransactionReceipt
-
-      const explorerUrl = this.networkName
-        ? buildExplorerTxUrl(this.networkName, txHash)
-        : undefined
-
-      if (receipt.status === 'success')
-        return { hash: txHash, receipt, explorerUrl }
-      else throw new Error(`Transaction failed with status: ${receipt.status}`)
-    } catch (timeoutError: unknown) {
+    } catch (pollError: unknown) {
       const errorMsg =
-        timeoutError instanceof Error
-          ? timeoutError.message
-          : String(timeoutError)
-      if (errorMsg.includes('timeout')) {
-        consola.warn(
-          `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
-        )
-        consola.warn(`   Transaction hash: ${txHash}`)
-        consola.warn(`   Please manually verify transaction status later`)
-        const explorerUrl = this.networkName
-          ? buildExplorerTxUrl(this.networkName, txHash)
-          : undefined
-        return { hash: txHash, explorerUrl }
-      }
-      throw timeoutError
+        pollError instanceof Error ? pollError.message : String(pollError)
+      consola.warn(`⚠️  Could not confirm transaction within 30s: ${errorMsg}`)
+      consola.warn(`   Transaction hash: ${txHash}`)
+      consola.warn(`   Reconciliation will resolve the final status next run.`)
     }
+
+    return { hash: txHash, status: receipt?.status, explorerUrl }
   }
 }

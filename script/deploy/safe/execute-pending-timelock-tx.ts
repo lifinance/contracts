@@ -9,6 +9,7 @@
 
 import 'dotenv/config'
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { Address, Hex, PublicClient } from 'viem'
@@ -22,6 +23,7 @@ import {
   type SupportedChain,
 } from '../../common/types'
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
@@ -30,6 +32,7 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
+import { confirmTimelockExecution } from './confirm-timelock-execution'
 import { createChainCaller } from './executors/create-chain-caller'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import {
@@ -166,7 +169,13 @@ const cmd = defineCommand({
     if (notifyWebhook)
       try {
         new URL(notifyWebhook) // Validate webhook URL format
-        slackNotifier = new SlackNotifier(notifyWebhook)
+        // In CI the workflow exports a deep-link to the running job; when present
+        // it is surfaced in failure/summary notifications so on-call can jump
+        // straight to the failing logs. Absent for local runs.
+        slackNotifier = new SlackNotifier(
+          notifyWebhook,
+          process.env.TIMELOCK_RUN_URL
+        )
         consola.info('📢 Slack notifications enabled')
       } catch (error) {
         consola.error('❌ Invalid Slack webhook URL provided')
@@ -416,17 +425,46 @@ const cmd = defineCommand({
 })
 
 /**
- * Checks the status of an operation in the LiFiTimelockController
+ * Checks the status of an operation in the LiFiTimelockController.
+ *
+ * On Tron the three readContract calls run sequentially with an inter-call
+ * delay; TronGrid caps the API key at 15 req/s and a single Promise.all here
+ * combined with the per-row loop bursts past that and trips a 25-second penalty.
  */
 async function checkOperationStatus(
   publicClient: PublicClient,
   timelockAddress: Address,
-  operationId: Hex
+  operationId: Hex,
+  networkName: string
 ): Promise<{
   isDone: boolean
   isPending: boolean
   isReady: boolean
 }> {
+  if (isTronNetworkKey(networkName)) {
+    const isDone = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationDone',
+      args: [operationId],
+    })
+    await sleep(2000) // 2 s — TronGrid 15 req/s cap needs generous spacing
+    const isPending = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationPending',
+      args: [operationId],
+    })
+    await sleep(2000) // 2 s — TronGrid 15 req/s cap needs generous spacing
+    const isReady = await publicClient.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_ABI,
+      functionName: 'isOperationReady',
+      args: [operationId],
+    })
+    return { isDone, isPending, isReady }
+  }
+
   const [isDone, isPending, isReady] = await Promise.all([
     publicClient.readContract({
       address: timelockAddress,
@@ -615,7 +653,7 @@ async function processNetwork(
     let operationsSkipped = 0
     const totalGasUsed = 0n
 
-    for (const operation of readyOperations)
+    for (const operation of readyOperations) {
       if (rejectAll) {
         const rejectResult = await rejectOperation(
           chainCaller,
@@ -633,6 +671,7 @@ async function processNetwork(
 
         const result = await executeOperation(
           chainCaller,
+          publicClient,
           timelockAddress,
           operation,
           isDryRun,
@@ -654,6 +693,10 @@ async function processNetwork(
         else if (result === 'rejected') operationsRejected++
         else if (result === 'skipped') operationsSkipped++
       }
+      // TronGrid caps the API key at 15 req/s; each op fires ~3-5 RPC calls
+      // (simulate + broadcast + receipt poll), so pace iterations on Tron.
+      if (isTronNetworkKey(network.name)) await sleep(2000) // 2 s
+    }
 
     // Only send network completion notification if there were actual operations executed or failures
     if (slackNotifier && (operationsSucceeded > 0 || operationsFailed > 0))
@@ -868,7 +911,8 @@ async function getPendingOperations(
         const status = await checkOperationStatus(
           publicClient,
           timelockAddress,
-          opId
+          opId,
+          networkName
         )
 
         if (status.isDone) {
@@ -879,6 +923,38 @@ async function getPendingOperations(
           await timelockQueue.updateOne(byOperationId(networkName, opId), {
             $set: { status: 'executed', executedAt: now, updatedAt: now },
           })
+
+          // Close the alert loop: a row left 'queued' by an unconfirmed run
+          // already emitted a failure notification, so the retroactive
+          // discovery of its success must be announced too (EXSC-503).
+          const primaryTarget = targets[0]
+          const primaryValue = values[0]
+          const primaryPayload = payloads[0]
+          if (
+            slackNotifier &&
+            primaryTarget &&
+            primaryValue !== undefined &&
+            primaryPayload
+          )
+            try {
+              await slackNotifier.notifyOperationExecuted({
+                network: networkName,
+                operation: {
+                  id: opId,
+                  target: primaryTarget,
+                  value: primaryValue,
+                  data: primaryPayload,
+                  functionName: `batch (${targets.length} calls) — found already executed on-chain`,
+                },
+                status: 'success',
+                transactionHash: row.executionTxHash,
+              })
+            } catch (error) {
+              consola.warn(
+                'Failed to send reconciled-execution notification:',
+                error
+              )
+            }
           continue
         }
 
@@ -1016,6 +1092,7 @@ async function getPendingOperations(
 
 async function executeOperation(
   chainCaller: IChainCaller,
+  publicClient: PublicClient,
   timelockAddress: Address,
   operation: ITimelockOperation,
   isDryRun: boolean,
@@ -1032,6 +1109,30 @@ async function executeOperation(
   const primaryPayload = operation.payloads[0]
   if (!primaryTarget || primaryValue === undefined || !primaryPayload)
     throw new Error('Invalid operation: missing target/value/payload')
+
+  const notifyFailure = async (error: unknown): Promise<void> => {
+    if (!slackNotifier || !networkName) return
+    try {
+      await slackNotifier.notifyOperationFailed({
+        network: networkName,
+        operation: {
+          id: operation.id,
+          target: primaryTarget,
+          value: primaryValue,
+          data: primaryPayload,
+          functionName: operation.functionName,
+        },
+        status: 'failed',
+        error,
+      })
+    } catch (notifyError) {
+      consola.warn(
+        'Failed to send operation failure notification:',
+        notifyError
+      )
+    }
+  }
+
   consola.info(
     `\n${networkPrefix} ⚡ Processing operation: ${operation.id} (batch of ${callCount} calls)`
   )
@@ -1143,9 +1244,38 @@ async function executeOperation(
         `${networkPrefix}    Transaction hash: ${result.hash}${txExplorerSuffix}`
       )
 
-      if (result.receipt && result.receipt.status !== 'success') {
+      // A missing receipt (confirmation timeout, or chains without synchronous
+      // receipts like Tron) must not count as success — only flip the queue row
+      // once isOperationDone confirms the op on-chain (EXSC-503).
+      const confirmation = await confirmTimelockExecution({
+        receipt: result.receipt,
+        isOperationDone: () =>
+          publicClient.readContract({
+            address: timelockAddress,
+            abi: TIMELOCK_ABI,
+            functionName: 'isOperationDone',
+            args: [operation.id],
+          }),
+      })
+
+      if (confirmation === 'reverted') {
         consola.error(
           `${networkPrefix} ❌ Transaction failed for operation ${operation.id}`
+        )
+        await notifyFailure(
+          new Error(`executeBatch tx ${result.hash} reverted on-chain`)
+        )
+        return 'failed'
+      }
+
+      if (confirmation === 'unconfirmed') {
+        consola.warn(
+          `${networkPrefix} ⚠️ Execution of operation ${operation.id} not confirmed on-chain (tx ${result.hash}); leaving queue row 'queued' for retry`
+        )
+        await notifyFailure(
+          new Error(
+            `executeBatch tx ${result.hash} not confirmed on-chain; operation left queued for retry`
+          )
         )
         return 'failed'
       }
@@ -1214,27 +1344,7 @@ async function executeOperation(
       error
     )
 
-    // Send Slack notification for failure if enabled
-    if (slackNotifier && networkName && !isDryRun)
-      try {
-        await slackNotifier.notifyOperationFailed({
-          network: networkName,
-          operation: {
-            id: operation.id,
-            target: primaryTarget,
-            value: primaryValue,
-            data: primaryPayload,
-            functionName: operation.functionName,
-          },
-          status: 'failed',
-          error,
-        })
-      } catch (notifyError) {
-        consola.warn(
-          'Failed to send operation failure notification:',
-          notifyError
-        )
-      }
+    if (!isDryRun) await notifyFailure(error)
 
     return 'failed'
   }

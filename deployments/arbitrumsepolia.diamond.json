@@ -49,8 +49,16 @@
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
       },
-      "0x9f7Cc63E71561209C45d479d410c28B20C778752": {
+      "0x0629DBbF0Cdd9042a0Ce85Ac3d6744A536f405C4": {
         "Name": "LiFiIntentEscrowFacet",
+        "Version": "1.1.1"
+      },
+      "0x861D30214134ba1360AC37e19C10618B563c0902": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
+      },
+      "0xF218bf600e9C9C03DDD176902b94a5FAfb59D99A": {
+        "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       }
     },
@@ -60,8 +68,9 @@
       "FeeCollector": "0xc199Ac0C619e3333F0b80306Fc0657ed7417730F",
       "FeeForwarder": "0xC7e003943dDAE973d7D6455ab54A22E18302aBeb",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0xdC09BA167DB66DEF66390EE956e6B5D30B05Fd49",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xdC09BA167DB66DEF66390EE956e6B5D30B05Fd49",
+      "OutputValidator": "0x500AC17C064e3796004596a5c5d2c65067555692",
       "Patcher": "",
       "Permit2Proxy": "0xC55CB7741da5519f0AdF5f13E9609311e7097A24",
       "ReceiverAcrossV3": "",

@@ -1,0 +1,206 @@
+# Verify Emergency Pause Readiness
+# - Read-only companion to the emergency-pause workflow: verifies the pause CAN fire
+#   on every production diamond, without firing it. Runs script/utils/verifyEmergencyPauseReadinessGitHub.sh.
+# - Secret check (offline): the address derived from PRIV_KEY_PAUSER_WALLET matches the
+#   configured pauser in config/global.json (EVM + Tron). Fail-fast.
+# - Pauser check (on-chain): each production LiFiDiamond's registered pauserWallet() equals
+#   that derived address, read via the real `universalCast "call"` (EVM + Tron).
+# - Governance checks (on-chain, the unpause path), reported as two separate checks: (a)
+#   LiFiTimelockController.diamond() matches the deploy-log diamond, and (b) the Safe holds
+#   TIMELOCK_ADMIN_ROLE (so it can execute unpauseDiamond()). Skipped on testnets/Tron and on any
+#   network with no deployed timelock or configured Safe.
+# - Hexagate PAT check: six checks on the lifi-hexagate-pauser PAT that Hexagate uses to fire
+#   workflow_dispatch on this repo — (1) HEXAGATE_PAUSER_PAT secret is configured, (2) PAT
+#   format is valid (ghp_* classic PAT prefix only), (3) SSO authorized for
+#   lifinance org, (4) not expired/revoked, (5) has push (write) access and workflow/repo scope,
+#   (6) token owner is an active member of the lifinance/diamondpauser gate team. Fails (not
+#   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
+# - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
+#   wallet can afford pauseDiamond() on every production EVM chain, and reports the native TOP-UP
+#   needed to reach OK. A CRITICAL network (cannot fund a single pause) — or a fully-blind sweep where
+#   every network errors — fails the run and shows as a red cross in the consolidated Slack status.
+#   Skipped on PRs: funding is live operational state, independent of the code under review.
+# - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
+#   is triggered; this turns both latent failures into a scheduled, loud one.
+# - Slack: ONE consolidated status (a green check / red cross / fast-forward per check, with a link
+#   to the run) is posted on every WEEKLY SCHEDULED run and every MANUAL (workflow_dispatch) run, pass
+#   or fail — so a green week is confirmed, a silently-broken cron shows up as a missing message, and a
+#   manual run always reports back. PR runs post nothing.
+# - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
+# - Triggers: weekly cron (Thu 07:00 UTC ≈ 09:00 CEST / 08:00 CET) + workflow_dispatch (manual) + pull_request limited to the
+#   paths below (config/global.json, config/networks.json, the involved scripts, this workflow).
+# - Known limitations: needs RPCs (MongoDB) + deploy logs. Transient RPC errors are retried before
+#   failing — the readiness checks via rpcCallWithRetry, the funds path via estimatePauseCost +
+#   balance retries — and the funds check FAILS (rather than false-greening) if EVERY network errors.
+
+name: Verify Emergency Pause Readiness
+
+on:
+  schedule:
+    - cron: '0 7 * * 4' # 07:00 UTC every Thursday (≈09:00 CEST summer / 08:00 CET winter — cron is UTC, no DST)
+  workflow_dispatch: # manual trigger (e.g. after rotating the key or before a drill)
+  pull_request:
+    paths:
+      # Catch a bad pauser/governance config edit, or a change to a script this check runs.
+      # (The funds check is skipped on PRs, so only the readiness check's inputs are covered here.)
+      - config/global.json # pauser wallet (EVM + Tron) — the secret check compares against this
+      - config/networks.json # governance safeAddress + the production network list / types
+      - script/utils/verifyEmergencyPauseReadinessGitHub.sh
+      - script/universalCast.sh
+      - script/helperFunctions.sh
+      - .github/workflows/verifyEmergencyPauseReadiness.yml
+
+permissions:
+  contents: read # required to checkout the repository and read config/deploy logs
+  actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
+
+jobs:
+  verify-emergency-pause-readiness:
+    # Upstream-only: this readiness/funds/Slack check needs lifinance/contracts' secrets,
+    # RPCs and production diamonds. On forks (e.g. contracts-tron) the guard is false, so the
+    # job is skipped (neutral, not failed) across schedule / workflow_dispatch / pull_request.
+    if: ${{ github.repository == 'lifinance/contracts' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # read-only check; no git push/tag/submodule operations
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              # Write the UNQUOTED value so GITHUB_ENV matches the masked value — a quoted .env
+              # value would otherwise be stored with quotes and escape the ::add-mask:: redaction.
+              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      # continue-on-error so the funds check below still runs even if this fails; the final
+      # "Fail if any readiness check failed" step restores the red check.
+      - name: Verify emergency pause readiness
+        id: readiness
+        continue-on-error: true
+        run: bash script/utils/verifyEmergencyPauseReadinessGitHub.sh
+        env:
+          PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
+          HEXAGATE_PAUSER_PAT: ${{ secrets.HEXAGATE_PAUSER_PAT }} # lifi-hexagate-pauser PAT; fails (not skips) if unset
+
+      # Funding is live operational state (independent of the code in a PR), so this runs on
+      # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
+      # secret (it reads the CONFIGURED pauser's balance, not the key); it exits non-zero when
+      # any production chain is CRITICAL (cannot afford a single pauseDiamond()). RPC endpoints
+      # come from the MongoDB fetch step above (ETH_NODE_URI_* in the environment).
+      - name: Check pauser wallet funds
+        id: funds
+        if: ${{ github.event_name != 'pull_request' }}
+        continue-on-error: true
+        run: bash script/utils/checkPauserFunds.sh
+
+      # Restore the red check that continue-on-error suppressed: fail the job if either check
+      # failed. On PR runs the funds step is skipped (outcome 'skipped'), so only the readiness
+      # check gates PRs — unchanged from before the funds check was added.
+      - name: Fail if any readiness check failed
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.readiness.outcome }}" == "failure" || "${{ steps.funds.outcome }}" == "failure" ]]; then
+            echo "Emergency pause readiness FAILED (readiness=${{ steps.readiness.outcome }}, funds=${{ steps.funds.outcome }})."
+            exit 1
+          fi
+
+      # Build ONE consolidated Slack message — a bullet per check (green check = pass, red cross =
+      # fail, fast-forward = not reached) plus a link to this run — and post it once below. Posted on
+      # every scheduled run AND every manual (workflow_dispatch) run, pass or fail: a healthy week is
+      # confirmed, a silently-broken cron shows up as a MISSING message, and a manual drill/check always
+      # reports a result in-channel. PR runs never reach here. Runs unless the job was cancelled, so it
+      # still reports after the "Fail if any readiness check failed" gate.
+      - name: Compose readiness status message
+        id: status_msg
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Deep-link straight to THIS job (…/runs/<run>/job/<job_id>) so the Slack link lands on the
+          # job (and its failing step) rather than the run overview. github.job is the job key, not the
+          # numeric id the URL needs, so resolve the job's html_url via the jobs API; fall back to the
+          # run overview if it can't be read.
+          RUN_OVERVIEW="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null)
+          RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
+          # Per-check emoji: pass/success -> check; skipped (e.g. the on-chain checks not reached
+          # because the secret check fail-fasted) -> fast-forward; anything else (failure / missing
+          # output) -> cross.
+          icon() {
+            case "$1" in
+              pass | success) printf ':white_check_mark:' ;;
+              skipped) printf ':fast_forward:' ;;
+              *) printf ':x:' ;;
+            esac
+          }
+          # Per-check results published by verifyEmergencyPauseReadinessGitHub.sh; funds is its own step.
+          SECRET="${{ steps.readiness.outputs.secret }}"
+          PAUSER="${{ steps.readiness.outputs.pauser }}"
+          TIMELOCK_DIAMOND="${{ steps.readiness.outputs.timelockDiamond }}"
+          SAFE_ROLE="${{ steps.readiness.outputs.safeAdminRole }}"
+          HEXAGATE_PAT="${{ steps.readiness.outputs.hexagatePat }}"
+          # Hexagate PAT sub-checks (rendered as child bullets under the parent)
+          HEX_SECRET="${{ steps.readiness.outputs.hexagatePatSecret }}"
+          HEX_FORMAT="${{ steps.readiness.outputs.hexagatePatFormat }}"
+          HEX_SSO="${{ steps.readiness.outputs.hexagatePatSso }}"
+          HEX_VALIDITY="${{ steps.readiness.outputs.hexagatePatValidity }}"
+          HEX_DISPATCH="${{ steps.readiness.outputs.hexagatePatDispatch }}"
+          HEX_TEAM="${{ steps.readiness.outputs.hexagatePatTeam }}"
+          FUNDS="${{ steps.funds.outcome }}"
+          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$HEXAGATE_PAT" == "pass" && "$FUNDS" == "success" ]]; then
+            HEADER=":white_check_mark: *Emergency pause readiness — all checks passed*"
+          else
+            HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
+          fi
+          # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
+          # The Hexagate PAT entry is a parent bullet with six indented child bullets beneath it.
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* classic PAT)\n    - %s No SSO block on lifinance org access\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+            "$HEADER" \
+            "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
+            "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SECRET")" "$(icon "$HEX_FORMAT")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
+            "$(icon "$FUNDS")" "$RUN_URL")
+          {
+            echo "text<<SLACK_EOF"
+            echo "$TEXT"
+            echo "SLACK_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack with readiness status
+        if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+            }

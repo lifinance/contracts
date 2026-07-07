@@ -1,0 +1,1 @@
+../../.agents/commands/verify-contracts.md

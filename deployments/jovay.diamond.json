@@ -21,11 +21,11 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x759D3cdfFD753F6e057e09CA23FF3a4D07A31469": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
+      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
-      "0x7C8a135cfc2673E1FaC871E6b3092D4BB39714A0": {
+      "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -53,13 +53,13 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x66072dB08cFBD82De18F0D1cbAA30612767b961F": {
+      "0xdFE4De6Af0E906CAd6f52B84D820d74FA5b57E4d": {
         "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
+        "Version": "1.1.2"
       },
-      "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
+      "0xa321de0216de08fe85039B4D021c788f9cad9582": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -70,6 +70,7 @@
       "GasZipPeriphery": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
       "LidoWrapper": "",
+      "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x4F6be713467F6122b40Ec881A0bA44fd0fC52989",
       "ReceiverAcrossV3": "",

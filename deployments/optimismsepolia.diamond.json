@@ -52,6 +52,10 @@
       "0x5515BfA2351dd55510a2ea6590f5c8855822d9f8": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
+      },
+      "0x6f0671e8dfE45606AACAb5E6f20efcbDC2328cdF": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -60,8 +64,9 @@
       "FeeCollector": "0x1f4f48e7370F2c8e6F2112B4482302BA2e094Cbc",
       "FeeForwarder": "0xbb5FBc819F6c81c2DaaF4ACcEe603c70e9206d36",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0x1feDde61B7c86bd82505B1938b647bF9bAd665eF",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x1feDde61B7c86bd82505B1938b647bF9bAd665eF",
+      "OutputValidator": "0x1581cA9890E178E38FC05b44D541a781bb1810ae",
       "Patcher": "",
       "Permit2Proxy": "0x47683851D837209a5362F111DC1532255825Bd4D",
       "ReceiverAcrossV3": "",

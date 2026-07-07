@@ -154,7 +154,10 @@ export class DatabaseConnectionManager {
         await this.client.connect()
         this.db = this.client.db(this.config.databaseName)
         this.isConnected = true
-        consola.info('Connected to MongoDB (shared connection)')
+        // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs batch)
+        process.stderr.write(
+          '[info] Connected to MongoDB (shared connection)\n'
+        )
         return
       } catch (error) {
         retryCount++
@@ -194,7 +197,8 @@ export class DatabaseConnectionManager {
       this.client = null
       this.db = null
       this.isConnected = false
-      consola.info('Disconnected from MongoDB')
+      // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs batch)
+      process.stderr.write('[info] Disconnected from MongoDB\n')
     }
   }
 
@@ -438,7 +442,8 @@ export class IndexManager {
             await collection.createIndex(indexSpec.key, {
               name: indexSpec.name,
             })
-            consola.info(`Created index: ${indexSpec.name}`)
+            // Use stderr so stdout stays JSON-only when used from bash
+            process.stderr.write(`[info] Created index: ${indexSpec.name}\n`)
           } catch (error) {
             consola.warn(`Failed to create index ${indexSpec.name}:`, error)
           }

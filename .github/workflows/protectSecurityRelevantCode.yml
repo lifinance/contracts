@@ -4,6 +4,7 @@ name: Protect security-critical code/system
 #   or altered without approval of the Information Security Manager (or CTO)
 # - protects any git actions in the folder .github/workflows/*
 # - protects the pre-commit checker script stored in .husky/pre-commit
+# - protects the frozen emergency-pause break-glass logic in script/emergency/*
 
 on:
   pull_request_review:
@@ -49,8 +50,8 @@ jobs:
               echo "Warning: File $FILE not found"
               continue
             fi
-            ##### check for github actions and pre-commit checker paths
-            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit'; then
+            ##### check for github actions, pre-commit checker, and emergency-pause break-glass paths
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi

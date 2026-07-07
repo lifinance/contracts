@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
-export HUSKY_SHELL="${HUSKY_SHELL:-bash}"
-. "$(dirname -- "$0")/_/husky.sh"
+# This hook uses bash-only features (process substitution `< <(...)`, array
+# `+=`, `[[ ]]`). husky v8's `.husky/_/husky.sh` re-execs hooks under `sh -e
+# "$0"`, which on macOS is bash-in-POSIX-mode — bash-only syntax fails to
+# parse inside function bodies, and the error fires AFTER git has already
+# accepted the commit, so bad commits slip through silently.
+#
+# We bypass the broken re-exec by replicating the small bits of husky.sh
+# init we actually need (HUSKY=0 skip, ~/.huskyrc) and re-execing under
+# `bash -e` instead of `sh -e`.
+[ "$HUSKY" = "0" ] && exit 0
+if [ -z "$husky_skip_init" ]; then
+  readonly husky_skip_init=1
+  export husky_skip_init
+  [ -f ~/.huskyrc ] && . ~/.huskyrc
+  exec bash -e "$0" "$@"
+fi
 
 # Early exit: Check if there are any staged files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
@@ -14,10 +28,11 @@ cd "$GIT_ROOT" || exit 1
 
 # Determine what types of files changed for conditional execution (optimized single pass)
 HAS_SOL_FILES="no"
+HAS_SRC_SOL_FILES="no"
 HAS_TS_JS_FILES="no"
-
 # Check staged files for Solidity and TypeScript/JavaScript extensions
 echo "$STAGED_FILES" | grep -qE '\.sol$' && HAS_SOL_FILES="yes"
+echo "$STAGED_FILES" | grep -qE '^src/.*\.sol$' && HAS_SRC_SOL_FILES="yes"
 echo "$STAGED_FILES" | grep -qE '\.(ts|js|tsx)$' && HAS_TS_JS_FILES="yes"
 
 # Create temp directory for parallel execution
@@ -62,6 +77,7 @@ EXCLUDED_PATHS=(
   "safe/london/out/"
   "bun.lock"
   ".bun/"
+  ".agents/commands/"
 )
 
 ENV_SECRET_KEYS=()
@@ -342,6 +358,15 @@ prepare_env_secrets() {
         ;;
     esac
 
+    # Comma-separated network/contract-name allowlists are public config, not
+    # credentials, and their values legitimately overlap with strings in
+    # foundry.toml/networks.json (e.g. DO_NOT_VERIFY_IN_THESE_NETWORKS=...,localanvil,...).
+    case "$KEY_UPPER" in
+      DO_NOT_VERIFY_IN_THESE_NETWORKS|EXCLUDE_NETWORKS|EXCLUDE_PERIPHERY_CONTRACTS|EXCLUDE_FACET_CONTRACTS)
+        continue
+        ;;
+    esac
+
     # Skip short values only for clearly non-secret keys to avoid blind spots
     if [ ${#VALUE} -lt 8 ]; then
       case "$KEY_UPPER" in
@@ -509,7 +534,7 @@ else
 fi
 
 print_status "info" "Running lint-staged (formatting & linting)..."
-(bun lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
+(bunx lint-staged > "$LINT_STAGED_OUTPUT" 2>&1; echo $? > "$LINT_STAGED_EXIT") &
 LINT_STAGED_PID=$!
 
 # If we have TS/JS files but no Solidity files, start TypeScript compilation in parallel
@@ -530,8 +555,8 @@ if [ -n "$FORGE_PID" ]; then
   print_status "success" "Forge build completed"
 fi
 
-# Run typechain generation (only if forge succeeded and we have Solidity files)
-if [ "$HAS_SOL_FILES" = "yes" ]; then
+# Run typechain generation (only if forge succeeded, we have Solidity src/ changes)
+if [ "$HAS_SOL_FILES" = "yes" ] && [ "$HAS_SRC_SOL_FILES" = "yes" ]; then
   print_status "info" "Generating TypeChain types..."
   (bun typechain:incremental > "$TYPECHAIN_OUTPUT" 2>&1; echo $? > "$TYPECHAIN_EXIT") &
   TYPECHAIN_PID=$!
@@ -544,6 +569,8 @@ if [ "$HAS_SOL_FILES" = "yes" ]; then
   # Extract and show summary from typechain output (filter verbose lines)
   TYPECHAIN_SUMMARY=$(grep -E "(Successfully|typings)" "$TYPECHAIN_OUTPUT" 2>/dev/null | grep -vE "^\$ " | head -1 || echo "TypeChain types generated")
   print_status "success" "$TYPECHAIN_SUMMARY"
+elif [ "$HAS_SOL_FILES" = "yes" ] && [ "$HAS_SRC_SOL_FILES" = "no" ]; then
+  print_status "skip" "Skipping TypeChain (test-only Solidity changes)"
 fi
 
 # TypeScript compilation check (only if TS/JS files changed)

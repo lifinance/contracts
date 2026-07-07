@@ -40,14 +40,18 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network)
         );
 
-        // get the multisig SAFE address for the given network
-        path = string.concat(root, "/config/networks.json");
-
-        address safeAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".safeAddress")
+        // refundWallet becomes contract owner for potential fund withdrawals
+        string memory globalConfigPath = string.concat(
+            root,
+            "/config/global.json"
         );
 
-        return abi.encode(diamond, permit2Address, safeAddress);
+        string memory globalConfigJson = vm.readFile(globalConfigPath);
+
+        address refundWalletAddress = globalConfigJson.readAddress(
+            ".refundWallet"
+        );
+
+        return abi.encode(diamond, permit2Address, refundWalletAddress);
     }
 }

@@ -24,10 +24,13 @@ paths:
 - **Format**: `owner/repo@<full-40-char-sha>` with an optional trailing comment for traceability (e.g. `# v4.1.7`).
 - **When adding or updating a workflow**: Resolve the action’s tag/branch to its commit SHA (e.g. from the action’s repo releases or `git ls-remote`) and pin to that SHA.
 - **Example (correct)**:
+
   ```yaml
   - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
   ```
+
 - **Anti-pattern (forbidden)**:
+
   ```yaml
   - uses: actions/checkout@v4.1.7
   - uses: some-action@main
@@ -39,11 +42,14 @@ paths:
 - The composite action reads `.foundry-version`, installs that exact version, and verifies the installed binary matches the pin. This keeps every CI runner and every dev's pre-commit hook on the same foundry version.
 - To bump foundry repo-wide, change one line in `.foundry-version`. Every workflow that uses the composite action picks it up on the next run.
 - **Correct**:
+
   ```yaml
   - name: Install Foundry
     uses: ./.github/actions/setup-foundry
   ```
+
 - **Anti-pattern (forbidden)**:
+
   ```yaml
   - uses: foundry-rs/foundry-toolchain@<sha>     # bypasses the .foundry-version pin
     with:
@@ -88,6 +94,10 @@ Example header format:
 
 #### Permissions
 
+- **Default-deny at the workflow level** with `permissions: {}`, then grant the minimal
+  scopes each job needs at the **job level**. A workflow-level grant is inherited by every
+  job, handing low-trust jobs more access than they need (flagged by Aikido as
+  "Overly Broad Permissions").
 - **Always document why each permission is needed** with inline comments
 - Use minimal permissions (principle of least privilege)
 - Common patterns:
@@ -100,10 +110,15 @@ Example header format:
 Example:
 
 ```yaml
-permissions:
-  contents: read # required to fetch repository contents
-  pull-requests: write # required to edit PR title and assign/remove labels
-  actions: write # required to upload/download artifacts between jobs
+# Default-deny at the workflow level; grant only what each job needs at the job level.
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read # required to fetch repository contents
+      pull-requests: write # required to edit PR title and assign/remove labels
+      actions: write # required to upload/download artifacts between jobs
 ```
 
 #### Job Organization
@@ -153,6 +168,7 @@ done <<< "${FILES}"
 - **Naming convention**: Use descriptive names (e.g., `GIT_ACTIONS_BOT_PAT_CLASSIC`, `MONGODB_URI`)
 - **Access control**: Use service account tokens (e.g., `lifi-action-bot`) for automated actions
 - **Token usage**: Unset default `GITHUB_TOKEN` when using custom PATs:
+
   ```bash
   unset GITHUB_TOKEN
   echo $GH_PAT | gh auth login --with-token
@@ -176,6 +192,17 @@ done <<< "${FILES}"
 - **Label assignment**: Pin to full commit SHA for `actions-ecosystem/action-add-labels` and `action-remove-labels`; never use `@v1` or other tags.
 - **Authorization**: Only allow specific bots (e.g., `lifi-action-bot`) to modify protected labels
 - **Verification**: Always verify label state after modification
+
+### Label-gated heavy workflows ([CONV:CI-LABEL-GATE])
+
+Use when a workflow is expensive (Foundry install, type generation, external repo publish) and most PRs do not need it:
+
+1. **Gate the heavy job** on a dedicated label (e.g. `requires-types`) for `pull_request` events; keep unconditional runs for `push` to `main` and `workflow_dispatch`.
+2. **Auto-assign the label** in a separate lightweight workflow using `dorny/paths-filter` on ABI-relevant paths so humans/agents do not need to remember the label for typical contract changes.
+3. **Include `labeled` in triggers** so the heavy workflow runs after the auto-label workflow adds the label (avoids race on the first `synchronize` event).
+4. **Document manual opt-in**: edge-case PRs (e.g. script-only changes needing fresh bindings) can add the label by hand.
+
+Reference: `assignRequiresTypesLabel.yml` + `types.yaml`.
 
 ### PR Comments
 

@@ -16,6 +16,34 @@ ffi = true
 libs = ["node_modules", "lib"]
 cache = true
 
+# CI profile: lower fuzz runs for faster PR feedback. Local default keeps 256 runs.
+[profile.default.fuzz]
+runs = 256
+
+[profile.ci]
+# Inherits [profile.default]; only fuzz runs differ for faster CI.
+
+[profile.ci.fuzz]
+runs = 32
+
+# Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
+# Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that
+# introduces a language/syntax feature requiring a newer solc fails CI instead of slipping
+# through: the default profile pins 0.8.29, which would hide any 0.8.18+ feature use.
+# Run locally to reproduce CI: FOUNDRY_PROFILE=solc_floor forge build
+# - solc 0.8.17 is the floor every src/ file pins via `pragma solidity ^0.8.17`.
+# - evm_version `london` is the newest EVM 0.8.17 supports (cancun needs solc >= 0.8.24);
+#   forge clamps it anyway, but pinning it keeps the profile self-documenting.
+# - optimizer settings are inherited from [profile.default] so the check matches the
+#   codegen that production actually ships (no via_ir).
+# - test/script are skipped: only deployed contracts must honor the floor, and those
+#   suites trip the legacy pipeline's "stack too deep" (a codegen limit, not a
+#   floor-incompatibility signal) which would mask the real check.
+[profile.solc_floor]
+solc_version = '0.8.17'
+evm_version = 'london'
+skip = ['test/**', 'script/**']
+
 [profile.zksync]
 solc_version = '0.8.29'
 evm_version = 'cancun'
@@ -24,12 +52,18 @@ script = "script/deploy/zksync"
 cache_path = "./zkcache"
 out = "out/zksync"
 
+# zkEVM toolchain pins — single source of truth, read by script/helperFunctions.sh.
+# Vanilla forge ignores [external.*] sections without warning (foundry-rs/foundry#11869).
+# zksolc cannot live in a profile because vanilla forge warns on the unknown `zksync` key;
+# helperFunctions.sh exports it to foundry-zksync via the FOUNDRY_ZKSYNC env var instead.
+# foundry_zksync is the binary release installed by install_foundry_zksync()
+# (override via FOUNDRY_ZKSYNC_VERSION env, e.g. to test a new version).
+[external.zksync]
+zksolc = "1.5.15"
+foundry_zksync = "v0.0.32"
+
 [lint]
 lint_on_build = false
-
-# zksolc needs to be defined here as foundry can't detect it if it's under [profile.zksync]
-[profile.default.zksync]
-zksync = { zksolc = '1.5.15' }
 
 [rpc_endpoints]
 mainnet = "${ETH_NODE_URI_MAINNET}"
@@ -38,6 +72,7 @@ abstract = "${ETH_NODE_URI_ABSTRACT}"
 apechain = "${ETH_NODE_URI_APECHAIN}"
 arbitrum = "${ETH_NODE_URI_ARBITRUM}"
 arbitrumnova = "${ETH_NODE_URI_ARBITRUMNOVA}"
+arc = "${ETH_NODE_URI_ARC}"
 arctestnet = "${ETH_NODE_URI_ARCTESTNET}"
 avalanche = "${ETH_NODE_URI_AVALANCHE}"
 base = "${ETH_NODE_URI_BASE}"
@@ -48,7 +83,6 @@ bob = "${ETH_NODE_URI_BOB}"
 botanix = "${ETH_NODE_URI_BOTANIX}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
-corn = "${ETH_NODE_URI_CORN}"
 cronos = "${ETH_NODE_URI_CRONOS}"
 evmos = "${ETH_NODE_URI_EVMOS}"
 flare = "${ETH_NODE_URI_FLARE}"
@@ -85,6 +119,7 @@ pharos = "${ETH_NODE_URI_PHAROS}"
 plasma = "${ETH_NODE_URI_PLASMA}"
 plume = "${ETH_NODE_URI_PLUME}"
 polygon = "${ETH_NODE_URI_POLYGON}"
+robinhood = "${ETH_NODE_URI_ROBINHOOD}"
 rootstock = "${ETH_NODE_URI_ROOTSTOCK}"
 ronin = "${ETH_NODE_URI_RONIN}"
 sei = "${ETH_NODE_URI_SEI}"
@@ -121,6 +156,7 @@ abstract = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://abscan.org
 apechain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=33139", chain = "33139" }
 arbitrum = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161", chain = "42161" }
 arbitrumnova = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://arbitrum-nova.blockscout.com/api", chain = "42170", verifier = "blockscout" }
+arc = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.arc.io/api", chain = "5042", verifier = "blockscout" }
 arctestnet = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://testnet.arcscan.app/api", chain = "5042002", verifier = "blockscout" }
 avalanche = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=43114", chain = "43114" }
 base = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = "8453" }
@@ -131,7 +167,6 @@ boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/n
 botanix = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/3637/etherscan", chain = "3637" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
-corn = { key = "${CORN_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan", chain = "21000000" }
 cronos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://cronos.org/explorer/api", verifier = "blockscout", chain = "25" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14" }
 flow = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://evm.flowscan.io/api", chain = "747" , verifier = "blockscout"}
@@ -164,6 +199,7 @@ pharos = { key = "${PHAROS_SOCIALSCAN_API_KEY}", url = "https://api.socialscan.i
 plasma = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/9745/etherscan", chain = "9745" }
 plume = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-plume-mainnet-1.t.conduit.xyz/api", verifier = "blockscout", chain = "98866" }
 polygon = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137", chain = "137" }
+robinhood = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://robinhoodchain.blockscout.com/api", chain = "4663", verifier = "blockscout" }
 ronin= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.roninchain.com/server", chain = "2020", verifier = "sourcify" }
 rootstock= { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://rootstock.blockscout.com/api", chain = "30", verifier = "blockscout" }
 scroll = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=534352", chain = "534352" }

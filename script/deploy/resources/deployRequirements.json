@@ -487,6 +487,15 @@
       }
     }
   },
+  "SupersetFacet": {
+    "configData": {
+      "_poolManager": {
+        "configFileName": "superset.json",
+        "keyInConfigFile": ".poolManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "SynapseBridgeFacet": {
     "configData": {
       "_synapseRouter": {
@@ -529,6 +538,13 @@
     }
   },
   "Executor": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
     "contractAddresses": {
       "ERC20Proxy": {
         "allowToDeployWithZeroAddress": "false"
@@ -638,6 +654,15 @@
       }
     }
   },
+  "OutputValidator": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "PioneerFacet": {
     "configData": {
       "_pioneerAddress": {
@@ -647,11 +672,25 @@
       }
     }
   },
+  "ERC20Proxy": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "Permit2Proxy": {
     "configData": {
       "permit2Address": {
         "configFileName": "permit2Proxy.json",
         "keyInConfigFile": ".<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -670,6 +709,11 @@
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
         "keyInConfigFile": ".gasZipRouters.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     },
@@ -763,6 +807,15 @@
       "_backendSigner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFiIntentEscrowFacetV2": {
+    "configData": {
+      "_inputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".lifiEscrowInputSettler",
         "allowToDeployWithZeroAddress": "false"
       }
     }

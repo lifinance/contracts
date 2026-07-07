@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x0101B21C9BD0c4A6c1931858FB9360AB45D400A5": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.1"
+      "0x76034228E4EAea848d4835a7217C7fEa986d5dA6": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0xa79AfB8A1bFF1fA86D6488225FE8efa13c1A29F4": {
         "Name": "AccessManagerFacet",
@@ -41,21 +41,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.0"
       },
-      "0x56082b55c73F2d9dFe5C8c06a921d07911042385": {
+      "0xe2efa51874D3A145EFA931793F075CB944aBb5Fc": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
-      },
-      "0xb169B095022D1208d7a8CfF534F7589Dc02BDE36": {
-        "Name": "RelayFacet",
-        "Version": "1.0.0"
-      },
-      "0xe81aB8385FA41d7789c89c802eaB76EB7Dc06066": {
-        "Name": "GlacisFacet",
-        "Version": "1.0.0"
-      },
-      "0x058000bDa8D33d3338baD7244879382178C35930": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
       },
       "0x057F52F74454012dD079d871eEEC314A33904b01": {
         "Name": "RelayDepositoryFacet",
@@ -65,9 +53,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x76034228E4EAea848d4835a7217C7fEa986d5dA6": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+      "0x058000bDa8D33d3338baD7244879382178C35930": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       }
     },
     "Periphery": {
@@ -78,6 +66,7 @@
       "GasZipPeriphery": "0x9949c9A89146299828a96e77c70208Ab076326A2",
       "LiFiDEXAggregator": "0xeDA29b03Be07709064ba36233C0a0430450b5941",
       "LidoWrapper": "",
+      "OutputValidator": "0x1808ceD816EC35C672Bdea98c0239ac469694377",
       "Patcher": "",
       "Permit2Proxy": "0xD2494E9C32b643120d5c8457A9cd0505701B8054",
       "ReceiverAcrossV3": "",

@@ -13,7 +13,7 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "TZ35GFtD5rw1YGBbqaeWUW4dgPGpphUrAw": {
+      "TY2VbJEwPPXWZ1qy4CsVchz1yipYNbgLkH": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
@@ -33,15 +33,15 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz": {
+      "TZD2bfN2dKawq3TeJkbRopeTD4kAbXceWN": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "TGyX2ysGYjKG8PLWiW7exXv3gesV8DJEA4": {
+      "TNDAp17M3vKJ432TLPGGEokuhzf4GTQXR6": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -57,7 +57,7 @@
         "Name": "EcoFacet",
         "Version": "1.0.0"
       },
-      "TYrocWGwdK6o4EBgTANEae9B18MMuhxgjM": {
+      "TG6586TTEv664XWSD875tMk6yDuwedphpW": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
@@ -65,19 +65,20 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
       },
-      "TFFvFi3j5YBMrSBev6bm6ueEaq1XWJ1QJZ": {
+      "TQC7Upeh5DNcR2eZoYXpSok57FiJXCdNpp": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       }
     },
     "Periphery": {
-      "ERC20Proxy": "TUYvdo8bEjPidfSXhRMn9uRvSifesApPTC",
-      "Executor": "TCwvHz3CqPtVor5eqTrnfj1fwmxUNBMKKf",
+      "ERC20Proxy": "TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9",
+      "Executor": "TUJnqSDodwaDo2HFX2Ct2JsVEzWFpkAbht",
       "FeeCollector": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
-      "FeeForwarder": "TCipFFZJkZQ9Ny3W4y6kyZEKrU3FVnzbNQ",
+      "FeeForwarder": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "OutputValidator": "TGYGf6DrV2whLwqYXJp2H2gzJhSiqVrMbR",
       "Patcher": "",
       "Permit2Proxy": "",
       "ReceiverAcrossV3": "",

@@ -6,17 +6,31 @@
  * and provides options to sign and/or execute them.
  */
 
+import {
+  formatAddressForNetworkCliDisplay,
+  isTronNetworkKey,
+} from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { getAddress, type Account, type Address, type Hex } from 'viem'
+import { type Account, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
-import { formatAddressForNetworkCliDisplay } from '../tron/helpers/formatAddressForCliDisplay'
+import { createDefaultCache } from '../shared/deployment-cache'
+import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
+import {
+  LEDGER_FLEX_WRAP_NOTE,
+  renderLedgerFlexFlow,
+} from './ledger-flex-preview'
+import {
+  reconcileAllSubmittedSafeTxs,
+  reconcileCoverageKey,
+  reconcileSubmittedSafeTxs,
+} from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -33,22 +47,20 @@ import {
   isAddressASafeOwner,
   isSignedByCurrentSigner,
   isSignedByProductionWallet,
+  mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
+  safeTxStatusConsumedNonce,
+  serializeSafeTxForMongo,
   shouldShowSignAndExecuteWithDeployer,
   wouldMeetThreshold,
   type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type ISafeTxMongoDocument,
   type SafeClient,
+  type SafeTxStatus,
 } from './safe-utils'
-import {
-  byOperationId,
-  computeOperationIdBatch,
-  decodeScheduleBatch,
-  getTimelockQueueCollection,
-  isScheduleBatchCalldata,
-  serializeScheduleParams,
-} from './timelock-queue'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
@@ -66,84 +78,14 @@ const globalTimeoutExecutions: Array<{
   error: string
 }> = []
 
+// `reconcileCoverageKey` values for each Safe whose `submitted` rows were
+// resolved by the startup reconcile sweep. Used to skip the redundant in-loop
+// reconcile inside processTxs — per Safe, not per network.
+const startupReconciledKeys = new Set<string>()
+
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
 ;(BigInt.prototype as unknown as Record<string, unknown>).toJSON = function () {
   return this.toString()
-}
-
-/**
- * Upserts a row into the timelock execution queue when the just-executed Safe
- * tx scheduled a timelock op. No-op for any other Safe tx.
- *
- * The queue lives in the non-sensitive `MONGODB_URI` cluster.
- *
- * Errors are logged as warnings only — the Safe tx is already mined and is the
- * authoritative record. A missed enqueue can be repaired via the backfill script.
- *
- * @param safeTransaction - The Safe tx that just executed.
- * @param safeTxHash - Safe-side hash of the tx (for traceability).
- * @param executionHash - On-chain hash of the Safe execution tx.
- * @param chainId - Numeric chain id of the network.
- * @param networkName - Network name (lowercased before storage).
- */
-async function enqueueTimelockOpIfApplicable(
-  safeTransaction: ISafeTransaction,
-  safeTxHash: string,
-  executionHash: string,
-  chainId: number,
-  networkName: string
-): Promise<void> {
-  const callData = safeTransaction.data.data
-  if (!isScheduleBatchCalldata(callData)) return
-
-  try {
-    const params = decodeScheduleBatch(callData)
-    const operationId = computeOperationIdBatch(
-      params.targets,
-      params.values,
-      params.payloads,
-      params.predecessor,
-      params.salt
-    )
-    const network = networkName.toLowerCase()
-    const timelockAddress = getAddress(safeTransaction.data.to)
-    const serialized = serializeScheduleParams(params)
-    const now = new Date()
-
-    const { client, timelockQueue } = await getTimelockQueueCollection()
-    try {
-      await timelockQueue.updateOne(
-        byOperationId(network, operationId),
-        {
-          $setOnInsert: {
-            operationId,
-            network,
-            chainId,
-            timelockAddress,
-            ...serialized,
-            createdAt: now,
-          },
-          $set: {
-            status: 'queued',
-            safeTxHash,
-            executionHash,
-            updatedAt: now,
-          },
-        },
-        { upsert: true }
-      )
-      consola.success(
-        `Enqueued timelock op ${operationId} for auto-execution on ${network}`
-      )
-    } finally {
-      await client.close()
-    }
-  } catch (error) {
-    consola.warn(
-      'Failed to enqueue timelock op (Safe tx already on-chain; can be re-enqueued via backfill):',
-      error
-    )
-  }
 }
 
 /**
@@ -189,6 +131,7 @@ const processTxs = async (
 
   // Get signer address
   const signerAddress = safe.account.address
+  const networkKey = network.toLowerCase()
 
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
@@ -229,13 +172,48 @@ const processTxs = async (
   }
 
   /**
+   * Persists a signed Safe tx on the exact MongoDB row being processed.
+   * Filters by `_id` (or pending + identity fields) — never by safeTxHash alone,
+   * which can match multiple rows when a reverted proposal was re-proposed.
+   */
+  async function persistSignedSafeTx(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const result = await pendingTransactions.updateOne(
+      mongoSafeTxRowFilter(txDoc, networkKey, chain.id),
+      {
+        $set: {
+          safeTx: serializeSafeTxForMongo(
+            signedTx
+          ) as unknown as ISafeTransaction,
+        },
+      }
+    )
+    if (result.matchedCount === 0)
+      throw new Error(
+        `MongoDB update matched 0 rows for safeTxHash ${txDoc.safeTxHash}. ` +
+          `A duplicate row with the same hash may exist under a different status (e.g. reverted).`
+      )
+    consola.success('Transaction signed and stored in MongoDB')
+  }
+
+  /**
    * Executes a SafeTransaction and updates its status in MongoDB
    * @param safeTransaction - The transaction to execute
+   * @param txDoc - The pendingTransactions row being processed
    * @param safeClient - The Safe client to use for execution (defaults to main safe client)
    */
-  // Returns true if the transaction was mined (receipt received), false if only submitted
+  // Returns true only for the 'executed' status (receipt success, or the Tron
+  // no-receipt path) — the only outcome that consumes the Safe nonce. A
+  // top-level revert rolls back the nonce increment, so 'reverted' did NOT
+  // consume the nonce (in this repo safeTxGas=0 is why an inner-call failure
+  // surfaces as a top-level revert (GS013) rather than ExecutionFailure). Both
+  // 'reverted' and the unknown 'submitted' outcome return false, and the caller
+  // must not advance expectedNonce in either case.
   async function executeTransaction(
     safeTransaction: ISafeTransaction,
+    txDoc: ISafeTxMongoDocument,
     safeClient: SafeClient = safe
   ): Promise<boolean> {
     consola.info('Preparing to execute Safe transaction...')
@@ -252,34 +230,71 @@ const processTxs = async (
 
       consola.success(`✅ Transaction submitted successfully`)
 
-      // Update MongoDB transaction status
+      // Resolve the DB status from on-chain reality. With safeTxGas=0 the Safe
+      // reverts whenever the inner call reverts, so the executor's normalized
+      // status is authoritative (EVM resolves it from the receipt, Tron
+      // synchronously via getTransactionInfo). An undefined status means the
+      // outcome is unknown (EVM receipt poll timed out) — leave the row
+      // 'submitted' for reconciliation to resolve.
+      let nextStatus: SafeTxStatus
+      if (exec.status)
+        nextStatus = exec.status === 'success' ? 'executed' : 'reverted'
+      else nextStatus = 'submitted'
+
       await pendingTransactions.updateOne(
-        { safeTxHash: safeTxHash },
-        { $set: { status: 'executed', executionHash: executionHash } }
+        mongoSafeTxRowFilter(txDoc, networkKey, chain.id),
+        {
+          $set: {
+            status: nextStatus,
+            executionHash,
+            submittedAt: new Date(),
+          },
+        }
       )
 
-      // If this Safe tx scheduled a timelock op, enqueue it for the
-      // auto-execution runner. The queue lives in the non-sensitive
-      // MONGODB_URI cluster.
-      // Failure here is a warning, never a throw — the Safe tx is already
-      // mined and is the source of truth; the row can be re-enqueued via
-      // the backfill script.
-      await enqueueTimelockOpIfApplicable(
-        safeTransaction,
-        safeTxHash,
-        executionHash,
-        chain.id,
-        chain.name
-      )
+      // Only enqueue a timelock op once the Safe tx is confirmed on-chain.
+      // 'submitted' rows get enqueued by reconcile when it later promotes
+      // them to 'executed'; on 'reverted' the inner schedule never
+      // executed, so nothing to queue.
+      if (nextStatus === 'executed')
+        await enqueueTimelockOpIfApplicable(
+          safeTransaction.data.data,
+          safeTransaction.data.to,
+          safeTxHash,
+          executionHash,
+          chain.id,
+          chain.name
+        )
 
-      if (exec.receipt)
+      if (nextStatus === 'executed')
         consola.success(
-          `✅ Safe transaction confirmed and recorded in database`
+          `✅ Safe transaction confirmed and recorded as executed`
         )
-      else
-        consola.success(
-          `✅ Safe transaction submitted and recorded in database (confirmation pending)`
+      else if (nextStatus === 'reverted') {
+        consola.error(
+          `❌ Safe transaction reverted on-chain — recorded as reverted`
         )
+        consola.error(
+          `   The Safe nonce was NOT consumed — the execTransaction reverted, rolling back the nonce increment, so this nonce can be re-proposed. Inspect the receipt for the revert reason.`
+        )
+        globalFailedExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'on-chain revert',
+        })
+      } else {
+        consola.warn(
+          `⚠️  Safe transaction submitted but not yet confirmed — recorded as submitted`
+        )
+        consola.warn(
+          `   Reconciliation will resolve the final status on the next run.`
+        )
+        globalTimeoutExecutions.push({
+          chain: chain.name,
+          safeTxHash,
+          error: 'confirmation pending',
+        })
+      }
 
       consola.info(`   - Safe Tx Hash:   \u001b[36m${safeTxHash}\u001b[0m`)
       const displayHash = exec.displayHash ?? executionHash
@@ -291,7 +306,7 @@ const processTxs = async (
       )
       consola.log(' ')
 
-      return !!exec.receipt
+      return safeTxStatusConsumedNonce(nextStatus)
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error('❌ Error executing Safe transaction:')
@@ -341,6 +356,44 @@ const processTxs = async (
     throw new Error(
       `Could not get threshold/nonce for Safe ${safeAddress} on ${network}`
     )
+  }
+
+  // Reconcile in-flight Safe tx rows against on-chain state before reading
+  // the pending queue. A 'submitted' row from a prior run is promoted to
+  // 'executed'/'reverted' or sent back to 'pending' depending on the
+  // receipt; on-chain executions we missed entirely are back-filled from
+  // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
+  // detected. Read-only on-chain — failures are warnings, not throws.
+  if (
+    !isTronNetworkKey(network) &&
+    !startupReconciledKeys.has(
+      reconcileCoverageKey(networkKey, chain.id, safeAddress)
+    )
+  ) {
+    try {
+      await reconcileSubmittedSafeTxs(
+        pendingTransactions,
+        safe.getPublicClient(),
+        network,
+        chain.id,
+        safeAddress,
+        onChainNonce
+      )
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
+    }
+
+    // Refresh from MongoDB: Sweep A may have demoted 'submitted' rows back
+    // to 'pending' (those should be processed this run), and Sweep B may
+    // have back-filled 'pending' rows to 'executed'/'reverted' (those
+    // should not be shown to the operator anymore).
+    pendingTxs = await pendingTransactions
+      .find<ISafeTxDocument>({
+        network: { $eq: networkKey },
+        status: { $eq: 'pending' },
+      })
+      .toArray()
   }
 
   // Filter and augment transactions with signature status and nonce validation
@@ -414,10 +467,10 @@ const processTxs = async (
 
     // Get target name for display
     const targetName = await getTargetName(tx.safeTx.data.to, network)
-    const toAddrDisplay = formatAddressForNetworkCliDisplay(
+    const toAddrDisplay = `${formatAddressForNetworkCliDisplay(
       network,
       tx.safeTx.data.to
-    )
+    )}${tronHexSuffix(network, tx.safeTx.data.to)}`
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
@@ -426,10 +479,10 @@ const processTxs = async (
       tx.safeTx.data.to
     )
     const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
-    const proposerDisplay = formatAddressForNetworkCliDisplay(
+    const proposerDisplay = `${formatAddressForNetworkCliDisplay(
       network,
       tx.proposer
-    )
+    )}${tronHexSuffix(network, tx.proposer)}`
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
@@ -441,22 +494,50 @@ const processTxs = async (
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
-    consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[${nonceColor}m${
-      tx.safeTx.data.nonce
-    }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
-    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Operation:       \u001b[32m${
-      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-    }\u001b[0m
-    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
-    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
-    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
-      tx.threshold
-    }\u001b[0m required
-    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
+    const detailLines = [
+      'Safe Transaction Details:',
+      `    Nonce:           \u001b[${nonceColor}m${tx.safeTx.data.nonce}\u001b[0m${nonceWarning}`,
+      `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
+      `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
+      `    Operation:       \u001b[32m${
+        tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+      }\u001b[0m`,
+      `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
+      `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
+      `    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m`,
+      `    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${tx.threshold}\u001b[0m required`,
+      `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
+    ]
+
+    consola.info(detailLines.join('\n'))
+
+    // Ledger Flex signing filmstrip: reproduce the on-device screens the
+    // signer steps through so values can be compared screen-by-screen. EVM
+    // only — the Flex EIP-712 blind-signing flow does not apply to Tron.
+    // A display error must never block signing.
+    if (
+      !isTronNetworkKey(network) &&
+      tx.safeTx.data.data &&
+      tx.safeTx.data.data !== '0x'
+    )
+      try {
+        const filmstrip = renderLedgerFlexFlow({
+          chainId: chain.id,
+          verifyingContract: safeAddress,
+          to: tx.safeTx.data.to,
+          value: String(tx.safeTx.data.value),
+          data: tx.safeTx.data.data as Hex,
+        })
+        consola.info(
+          [
+            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
+            ...filmstrip,
+            LEDGER_FLEX_WRAP_NOTE,
+          ].join('\n')
+        )
+      } catch (error) {
+        consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
+      }
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
@@ -612,16 +693,7 @@ const processTxs = async (
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
-        // Update MongoDB with new signature
-        await pendingTransactions.updateOne(
-          { safeTxHash: tx.safeTxHash },
-          {
-            $set: {
-              [`safeTx`]: signedTx,
-            },
-          }
-        )
-        consola.success('Transaction signed and stored in MongoDB')
+        await persistSignedSafeTx(tx, signedTx)
       } catch (error) {
         consola.error('Error signing transaction:', error)
       }
@@ -630,17 +702,8 @@ const processTxs = async (
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
         const signedTx = await signTransaction(safeTransaction)
-        // Update MongoDB with new signature
-        await pendingTransactions.updateOne(
-          { safeTxHash: tx.safeTxHash },
-          {
-            $set: {
-              [`safeTx`]: signedTx,
-            },
-          }
-        )
-        consola.success('Transaction signed and stored in MongoDB')
-        if (await executeTransaction(signedTx)) expectedNonce++
+        await persistSignedSafeTx(tx, signedTx)
+        if (await executeTransaction(signedTx, tx)) expectedNonce++
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -652,15 +715,7 @@ const processTxs = async (
         const signedTx = await signTransaction(safeTransaction)
 
         // Step 2: Update MongoDB with current user's signature
-        await pendingTransactions.updateOne(
-          { safeTxHash: tx.safeTxHash },
-          {
-            $set: {
-              [`safeTx`]: signedTx,
-            },
-          }
-        )
-        consola.success('Transaction signed and stored in MongoDB')
+        await persistSignedSafeTx(tx, signedTx)
 
         // Step 3: Initialize deployer Safe client
         consola.info('Initializing deployer wallet...')
@@ -684,17 +739,7 @@ const processTxs = async (
           const deployerSignedTx = await deployerSafe.signTransaction(signedTx)
 
           // Update MongoDB with deployer's signature
-          await pendingTransactions.updateOne(
-            { safeTxHash: tx.safeTxHash },
-            {
-              $set: {
-                [`safeTx`]: deployerSignedTx,
-              },
-            }
-          )
-          consola.success(
-            'Transaction signed with deployer and stored in MongoDB'
-          )
+          await persistSignedSafeTx(tx, deployerSignedTx)
           finalTx = deployerSignedTx
         } else
           consola.info(
@@ -703,7 +748,7 @@ const processTxs = async (
 
         // Step 5: Execute with deployer using shared executeTransaction function
         consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(finalTx, deployerSafe)) expectedNonce++
+        if (await executeTransaction(finalTx, tx, deployerSafe)) expectedNonce++
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
@@ -714,7 +759,7 @@ const processTxs = async (
     if (action === 'Execute')
       try {
         const safeTransaction = await initializeSafeTransaction(tx, safe)
-        if (await executeTransaction(safeTransaction)) expectedNonce++
+        if (await executeTransaction(safeTransaction, tx)) expectedNonce++
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
@@ -733,7 +778,7 @@ const processTxs = async (
           txSafeAddress
         )
         consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(safeTransaction, deployerSafe))
+        if (await executeTransaction(safeTransaction, tx, deployerSafe))
           expectedNonce++
       } catch (error) {
         consola.error('Error executing with deployer:', error)
@@ -840,7 +885,7 @@ const main = defineCommand({
 
     // Create ledger connection once if using ledger
     let ledgerResult: ILedgerAccountResult | undefined
-    if (useLedger)
+    if (useLedger) {
       try {
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
@@ -851,10 +896,41 @@ const main = defineCommand({
         throw error
       }
 
+      // Signing a Safe EIP-712 payload on a Ledger Flex needs blind signing on.
+      // Fail fast with enable instructions rather than dying mid-sign.
+      const { checkBlindSigningEnabled, closeLedgerConnection } = await import(
+        './ledger'
+      )
+      if (
+        ledgerResult &&
+        !(await checkBlindSigningEnabled(ledgerResult.transport))
+      ) {
+        await closeLedgerConnection(ledgerResult.transport)
+        process.exit(1)
+      }
+    }
+
     try {
       // Connect to MongoDB early to use it for network detection
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
+
+      // Resolve in-flight `submitted` rows across all networks before the
+      // pending-only selection runs. A network whose only row is `submitted`
+      // (no sibling `pending` proposal) is otherwise never reconciled, so its
+      // timelock op is never enqueued for auto-execution. Read-only on-chain.
+      try {
+        const reconciled = await reconcileAllSubmittedSafeTxs(
+          pendingTransactions,
+          args.network
+            ? { network: args.network, rpcUrl: args.rpcUrl }
+            : undefined
+        )
+        reconciled.forEach((k) => startupReconciledKeys.add(k))
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.warn(`Startup reconcile sweep failed: ${errorMsg}`)
+      }
 
       // Get signer address early (needed for filtering actionable networks)
       let signerAddress: Address
@@ -942,6 +1018,20 @@ const main = defineCommand({
           )
         }
       }
+
+      // Refresh .cache/deployments_production.json from MongoDB so every signer
+      // (not just the deployer's machine) sees up-to-date facet versions in the
+      // signing UI. Requires MONGODB_URI; silently skipped when not set.
+      if (process.env.MONGODB_URI)
+        try {
+          await createDefaultCache({
+            mongoUri: process.env.MONGODB_URI,
+            databaseName: 'contract-deployments',
+            batchSize: 100,
+          }).refresh('production')
+        } catch (error) {
+          consola.debug(`Deployment cache refresh skipped: ${error}`)
+        }
 
       // Fetch all pending transactions for the networks we're processing
       const txsByNetwork = await getPendingTransactionsByNetwork(
