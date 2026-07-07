@@ -87,8 +87,8 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 vaultAdmin,
                 _splits,
                 _fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 

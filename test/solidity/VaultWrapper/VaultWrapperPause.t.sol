@@ -66,8 +66,8 @@ contract VaultWrapperPauseTest is Test {
                 vaultAdmin,
                 [uint16(8000), 8000, 8000, 8000],
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
         wrapper = LiFiVaultWrapper(

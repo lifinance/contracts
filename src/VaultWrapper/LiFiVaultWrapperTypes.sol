@@ -58,3 +58,10 @@ struct IntegratorReceivers {
     address[] wallets; // Payout wallets (1..5, non-zero).
     uint16[] bps; // Per-wallet bps summing to 10_000 (100%); parallel to wallets.
 }
+
+/// @notice Storage form of a single integrator payout wallet: the wallet and its bps share
+///         packed into one slot (address + uint16). The set sums to 10_000 (100%).
+struct Receiver {
+    address wallet; // Payout wallet (non-zero).
+    uint16 bps; // Share in bps.
+}

@@ -16,16 +16,11 @@ interface ILiFiVaultWrapper {
     /// @param underlying The yield source the wrapper deposits into.
     /// @param adapter The yield adapter the wrapper routes through.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
-    ///        FeeType ordinal) snapshotted at deploy.
     event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16[4] integratorShareBps
+        address vaultWrapperAdmin
     );
 
     /// @notice Emitted when a fee type's rate is changed.
@@ -114,8 +109,6 @@ interface ILiFiVaultWrapper {
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
     error ReceiverBpsSumNot100();
-    /// @notice Thrown when `trustedTransfer` is called by anyone other than this contract.
-    error OnlySelf();
 
     /// Functions ///
 
@@ -128,16 +121,16 @@ interface ILiFiVaultWrapper {
     /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
     ///        FeeType ordinal), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
     /// @param _receivers The integrator payout wallets + bps split; validated on-instance
     ///        (1..5 non-zero wallets, bps summing to exactly 100%).
+    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
     function initialize(
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
         uint16[4] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData,
-        IntegratorReceivers calldata _receivers
+        IntegratorReceivers calldata _receivers,
+        bytes calldata _initData
     ) external;
 }

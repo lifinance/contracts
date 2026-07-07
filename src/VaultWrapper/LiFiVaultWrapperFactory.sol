@@ -301,8 +301,8 @@ contract LiFiVaultWrapperFactory is
             _params.vaultWrapperAdmin,
             integratorShareBps,
             _params.fees,
-            _params.initData,
-            _params.receivers
+            _params.receivers,
+            _params.initData
         );
     }
 

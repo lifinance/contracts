@@ -185,24 +185,6 @@ contract VaultWrapperDistributionTest is Test {
         vm.stopPrank();
     }
 
-    function test_TrustedTransferRejectsExternalCaller() public {
-        wrapper = _deploy(
-            _assetFees(),
-            SPLIT,
-            _single(makeAddr("r")),
-            _full()
-        );
-
-        // The self-call-only guard is the sole protection against arbitrary payout
-        // routing through the sweep helper; a direct external call must revert.
-        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
-        wrapper.trustedTransfer(address(asset), alice, 1);
-
-        vm.prank(vaultAdmin);
-        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
-        wrapper.trustedTransfer(address(asset), alice, 1);
-    }
-
     /// Sweep — split correctness ///
 
     function test_SweepSplitsAssetReservoir() public {

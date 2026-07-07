@@ -119,9 +119,7 @@ contract LiFiVaultWrapperTest is Test {
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16[4] integratorShareBps
+        address vaultWrapperAdmin
     );
 
     /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
@@ -168,8 +166,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
@@ -178,9 +176,7 @@ contract LiFiVaultWrapperTest is Test {
             address(asset),
             address(underlying),
             address(adapter),
-            vaultAdmin,
-            address(this),
-            _splits8000()
+            vaultAdmin
         );
 
         new BeaconProxy(address(beacon), initCall);
@@ -197,8 +193,8 @@ contract LiFiVaultWrapperTest is Test {
             vaultAdmin,
             _splits8000(),
             fees,
-            "",
-            _defaultReceivers()
+            _defaultReceivers(),
+            ""
         );
     }
 
@@ -212,8 +208,8 @@ contract LiFiVaultWrapperTest is Test {
                 address(0),
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
@@ -233,8 +229,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
@@ -254,8 +250,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 [uint16(8000), 10_000, 8000, 8000],
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
@@ -308,8 +304,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
@@ -609,8 +605,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                _defaultReceivers(),
+                ""
             )
         );
 
