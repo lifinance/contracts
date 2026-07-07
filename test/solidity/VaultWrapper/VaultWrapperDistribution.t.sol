@@ -284,6 +284,35 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(_accruedFeeAssets(), 0);
     }
 
+    function test_SweepRedirectsOnlyFailedWalletWithinFanOut() public {
+        // A single blocked wallet inside a multi-wallet fan-out redirects only its own share
+        // to LI.FI; the other wallets are still paid in full and the sweep does not revert.
+        _useBlacklistAsset();
+        address[] memory wallets = _wallets3();
+        wrapper = _deploy(_assetFees(), SPLIT, wallets, _bps3()); // 50% / 30% / 20%
+        _deposit(alice, DEPOSIT);
+
+        uint256 lifiPart = wrapper.lifiFeeAssets();
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        uint256 share0 = (integratorPart * 5000) / 10_000;
+        uint256 share1 = (integratorPart * 3000) / 10_000;
+        uint256 share2 = integratorPart - share0 - share1; // last absorbs remainder
+
+        // Block only the middle wallet.
+        BlacklistERC20(address(asset)).setBlocked(wallets[1], true);
+
+        vm.expectEmit(true, true, false, true, address(wrapper));
+        emit IntegratorPayoutRedirected(wallets[1], address(asset), share1);
+        wrapper.sweep(); // must not revert
+
+        assertEq(asset.balanceOf(wallets[0]), share0);
+        assertEq(asset.balanceOf(wallets[1]), 0); // blocked: got nothing
+        assertEq(asset.balanceOf(wallets[2]), share2);
+        // LI.FI receives its booked part plus only the blocked wallet's redirected share.
+        assertEq(asset.balanceOf(lifiRecipient), lifiPart + share1);
+        assertEq(_accruedFeeAssets(), 0);
+    }
+
     function test_SweepIsPermissionless() public {
         wrapper = _deploy(
             _assetFees(),

@@ -9,7 +9,8 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Shared scaffolding for the vault-wrapper fee-engine suites: the direct
 ///         beacon-proxy setup (real inflatable `MockERC4626`), the factory stack for
@@ -87,7 +88,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 vaultAdmin,
                 _splits,
                 _fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -95,20 +96,6 @@ abstract contract VaultWrapperFeeTestBase is Test {
         w = LiFiVaultWrapper(
             address(new BeaconProxy(address(beacon), initCall))
         );
-    }
-
-    /// @dev Single integrator payout wallet holding 100% of the integrator's fan-out —
-    ///      the minimal valid receiver set for suites not exercising distribution.
-    function _defaultReceivers()
-        internal
-        pure
-        returns (IntegratorReceivers memory r)
-    {
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
     }
 
     /// @dev Stands up the full factory stack and deploys an instance with one fee type
@@ -148,7 +135,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 type(uint16).max
             ],
             initData: "",
-            receivers: _defaultReceivers()
+            receivers: defaultReceivers()
         });
 
         vm.prank(makeAddr("onboarder"));

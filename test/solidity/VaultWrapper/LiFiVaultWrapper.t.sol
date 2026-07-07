@@ -13,7 +13,8 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
@@ -166,7 +167,7 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -193,7 +194,7 @@ contract LiFiVaultWrapperTest is Test {
             vaultAdmin,
             _splits8000(),
             fees,
-            _defaultReceivers(),
+            defaultReceivers(),
             ""
         );
     }
@@ -208,7 +209,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(0),
                 _splits8000(),
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -229,7 +230,7 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -250,7 +251,7 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 [uint16(8000), 10_000, 8000, 8000],
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -304,7 +305,7 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
@@ -577,18 +578,6 @@ contract LiFiVaultWrapperTest is Test {
 
     /// Helpers ///
 
-    function _defaultReceivers()
-        internal
-        pure
-        returns (IntegratorReceivers memory r)
-    {
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
-    }
-
     function _splits8000() internal pure returns (uint16[4] memory) {
         return [uint16(8000), 8000, 8000, 8000];
     }
@@ -605,7 +594,7 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                _defaultReceivers(),
+                defaultReceivers(),
                 ""
             )
         );
