@@ -953,11 +953,13 @@ contract LiFiVaultWrapper is
     ) private {
         if (_lifiPart == 0 && _integratorPart == 0) return;
 
+        // pay integrators and note how many fees failed to transfer, those are redirected to lifi
         uint256 redirected = _payIntegrators(_token, _integratorPart);
         uint256 lifiPaid = _lifiPart + redirected;
 
-        if (lifiPaid > 0)
+        if (lifiPaid > 0) {
             SafeERC20.safeTransfer(IERC20(_token), _lifiRecipient, lifiPaid);
+        }
 
         emit ReservoirSwept(_token, lifiPaid, _integratorPart - redirected);
     }
@@ -981,8 +983,10 @@ contract LiFiVaultWrapper is
         for (uint256 i; i < count; ++i) {
             uint256 share;
             if (i + 1 == count) {
+                // last receiver gets the whole remainder to avoid rounding dust
                 share = _integratorTotal - distributed;
             } else {
+                // other receivers get their bps share, rounded down
                 share = _integratorTotal.mulDiv(
                     receivers[i].bps,
                     LibVaultWrapperMath.BASIS_POINT_SCALE
@@ -992,9 +996,12 @@ contract LiFiVaultWrapper is
             if (share == 0) continue;
 
             address wallet = receivers[i].wallet;
-            if (SafeERC20.trySafeTransfer(IERC20(_token), wallet, share))
+            // we use trySafeTransfer here so a failed transfer doesn't block the sweep
+            if (SafeERC20.trySafeTransfer(IERC20(_token), wallet, share)) {
                 continue;
+            }
 
+            // instead we redirect the failed transfer amount to lifi
             redirected += share;
             emit IntegratorPayoutRedirected(wallet, _token, share);
         }
