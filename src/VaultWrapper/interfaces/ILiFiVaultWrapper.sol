@@ -122,7 +122,7 @@ interface ILiFiVaultWrapper {
     ///        FeeType ordinal), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
     /// @param _receivers The integrator payout wallets + bps split; validated on-instance
-    ///        (1..5 non-zero wallets, bps summing to exactly 100%).
+    ///        (1..50 non-zero wallets, bps summing to exactly 100%).
     /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
     function initialize(
         address _underlying,

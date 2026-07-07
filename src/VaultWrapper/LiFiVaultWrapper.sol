@@ -35,7 +35,7 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      Every fee is split between LI.FI and the integrator at accrual time using the
 ///      fee type's own share, into per-recipient counters. A permissionless `sweep` pays
 ///      those tracked entitlements out: LI.FI's parts go to the factory's live
-///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..5 receiver
+///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..50 receiver
 ///      wallets (no re-split happens at distribution). Pause is enforced on the
 ///      deposit/mint path only (withdrawals stay open); access logic remains a no-op seam
 ///      (`_checkAccess`) with its body landing in a follow-up ticket. Inflation-attack
@@ -63,7 +63,7 @@ contract LiFiVaultWrapper is
     /// Constants ///
 
     /// @notice Maximum number of integrator receiver wallets.
-    uint256 internal constant MAX_FEE_RECEIVERS = 5;
+    uint256 internal constant MAX_FEE_RECEIVERS = 50;
 
     /// Storage ///
 
@@ -114,7 +114,7 @@ contract LiFiVaultWrapper is
     ///         mints shares.
     uint192 public perfHighWaterMarkPps;
 
-    /// @dev Integrator payout wallets (1..5) with their bps split, each packed into one slot
+    /// @dev Integrator payout wallets (1..50) with their bps split, each packed into one slot
     ///      (address + uint16). Set at `initialize` and mutable by the integrator; always
     ///      non-empty after deploy. Bps sum to 100%.
     Receiver[] internal _integratorReceivers;
@@ -559,7 +559,7 @@ contract LiFiVaultWrapper is
     /// Fee distribution ///
 
     /// @notice The configured integrator payout wallets.
-    /// @return wallets The receiver addresses (1..5).
+    /// @return wallets The receiver addresses (1..50).
     function integratorReceivers()
         external
         view
@@ -585,10 +585,10 @@ contract LiFiVaultWrapper is
 
     /// @notice Replace the integrator's payout wallets and their bps split.
     /// @dev Owner-controlled (the per-vault admin). Re-validates the full set, so
-    ///      the 1..5 / sum-to-100% invariant set at `initialize` always holds — the receiver
+    ///      the 1..50 / sum-to-100% invariant set at `initialize` always holds — the receiver
     ///      set can never be emptied. Only redistributes the integrator's own share, so no
     ///      sweep is forced first.
-    /// @param _receivers The new payout wallets (1..5, non-zero).
+    /// @param _receivers The new payout wallets (1..50, non-zero).
     /// @param _receiverBps The per-receiver bps, summing to exactly 100%.
     function setIntegratorReceivers(
         address[] calldata _receivers,
@@ -925,7 +925,7 @@ contract LiFiVaultWrapper is
         return uint128(accrued + _delta);
     }
 
-    /// @dev Validates and stores the integrator receiver set: 1..5 wallets, no zero address,
+    /// @dev Validates and stores the integrator receiver set: 1..50 wallets, no zero address,
     ///      equal-length bps summing to exactly 100%. Reverts the whole call (including a
     ///      deploy, when reached from `initialize`) on any violation.
     /// @param _receivers The payout wallets.

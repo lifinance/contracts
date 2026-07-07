@@ -38,7 +38,7 @@ contract BlacklistERC20 is MockERC20 {
 /// @notice Integration tests for the LiFiVaultWrapper fee distribution layer (EXSC-411, S3):
 ///         receiver config, the permissionless `sweep` paying out the per-recipient counters
 ///         booked at accrual (no re-split at distribution) over both reservoirs (idle asset +
-///         dilution shares), the 1..5 wallet fan-out with last-receiver remainder, and the
+///         dilution shares), the 1..50 wallet fan-out with last-receiver remainder, and the
 ///         redirect-failed-integrator-payout-to-LI.FI behaviour. Fees are driven through real
 ///         deposit/withdraw/time accrual (the S2 engine), not seeded directly. Pause-bypass
 ///         coverage is deferred to S5 integration.
@@ -163,10 +163,10 @@ contract VaultWrapperDistributionTest is Test {
         );
         vm.startPrank(vaultAdmin);
 
-        address[] memory six = new address[](6);
-        uint16[] memory sixBps = new uint16[](6);
+        address[] memory tooMany = new address[](51);
+        uint16[] memory tooManyBps = new uint16[](51);
         vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
-        wrapper.setIntegratorReceivers(six, sixBps);
+        wrapper.setIntegratorReceivers(tooMany, tooManyBps);
 
         address[] memory wallets = _single(makeAddr("r"));
         uint16[] memory two = new uint16[](2);
