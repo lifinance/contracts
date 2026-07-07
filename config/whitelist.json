@@ -4870,6 +4870,12 @@
               "0xafeb849c": "swapExactInput(address,address,uint256,uint256,uint256,bytes[])",
               "0x72d76b4b": "swapExactInputETH(address,uint256,uint256,bytes[])"
             }
+          },
+          {
+            "address": "0xdc7a4c55e9573eaa9399124b92019ff68874044c",
+            "functions": {
+              "0xf8989325": ""
+            }
           }
         ]
       }
