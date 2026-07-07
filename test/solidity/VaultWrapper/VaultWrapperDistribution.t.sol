@@ -107,8 +107,11 @@ contract VaultWrapperDistributionTest is Test {
         uint16[] memory bps = _bps3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
 
-        assertEq(wrapper.integratorReceivers().length, 3);
-        assertEq(wrapper.integratorReceiverBps()[1], 3000);
+        (, uint16 secondBps) = wrapper.integratorReceivers(1);
+        assertEq(secondBps, 3000);
+        wrapper.integratorReceivers(2); // third receiver exists
+        vm.expectRevert();
+        wrapper.integratorReceivers(3); // no fourth: exactly three configured
     }
 
     function testRevert_InitRejectsEmptyReceivers() public {
@@ -151,7 +154,8 @@ contract VaultWrapperDistributionTest is Test {
         emit ReceiversSet(wallets, bps);
         vm.prank(vaultAdmin);
         wrapper.setIntegratorReceivers(wallets, bps);
-        assertEq(wrapper.integratorReceivers()[0], makeAddr("new"));
+        (address firstWallet, ) = wrapper.integratorReceivers(0);
+        assertEq(firstWallet, makeAddr("new"));
     }
 
     function testRevert_SetIntegratorReceiversValidation() public {

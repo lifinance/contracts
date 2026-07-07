@@ -62,7 +62,10 @@ contract LiFiVaultWrapper is
 
     /// Constants ///
 
-    /// @notice Maximum number of integrator receiver wallets.
+    /// @notice Maximum number of integrator receiver wallets. This is only a sanity cap to
+    ///         bound the permissionless `sweep` fan-out loop and prevent griefing (an oversized
+    ///         receiver set could otherwise make `sweep` run out of gas and lock distribution),
+    ///         not a product limit.
     uint256 internal constant MAX_FEE_RECEIVERS = 50;
 
     /// Storage ///
@@ -114,10 +117,10 @@ contract LiFiVaultWrapper is
     ///         mints shares.
     uint192 public perfHighWaterMarkPps;
 
-    /// @dev Integrator payout wallets (1..50) with their bps split, each packed into one slot
-    ///      (address + uint16). Set at `initialize` and mutable by the integrator; always
-    ///      non-empty after deploy. Bps sum to 100%.
-    Receiver[] internal _integratorReceivers;
+    /// @notice Integrator payout wallets (1..50) with their bps split, each packed into one
+    ///         slot (address + uint16). Set at `initialize` and mutable by the integrator;
+    ///         always non-empty after deploy. Bps sum to 100%.
+    Receiver[] public integratorReceivers;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
@@ -558,31 +561,6 @@ contract LiFiVaultWrapper is
 
     /// Fee distribution ///
 
-    /// @notice The configured integrator payout wallets.
-    /// @return wallets The receiver addresses (1..50).
-    function integratorReceivers()
-        external
-        view
-        returns (address[] memory wallets)
-    {
-        uint256 count = _integratorReceivers.length;
-        wallets = new address[](count);
-        for (uint256 i; i < count; ++i)
-            wallets[i] = _integratorReceivers[i].wallet;
-    }
-
-    /// @notice The per-receiver basis points, parallel to `integratorReceivers`.
-    /// @return bps The receiver bps (sum to 100%).
-    function integratorReceiverBps()
-        external
-        view
-        returns (uint16[] memory bps)
-    {
-        uint256 count = _integratorReceivers.length;
-        bps = new uint16[](count);
-        for (uint256 i; i < count; ++i) bps[i] = _integratorReceivers[i].bps;
-    }
-
     /// @notice Replace the integrator's payout wallets and their bps split.
     /// @dev Owner-controlled (the per-vault admin). Re-validates the full set, so
     ///      the 1..50 / sum-to-100% invariant set at `initialize` always holds — the receiver
@@ -947,9 +925,9 @@ contract LiFiVaultWrapper is
         if (sum != LibVaultWrapperMath.BASIS_POINT_SCALE)
             revert ReceiverBpsSumNot100();
 
-        delete _integratorReceivers;
+        delete integratorReceivers;
         for (uint256 i; i < count; ++i) {
-            _integratorReceivers.push(
+            integratorReceivers.push(
                 Receiver({ wallet: _receivers[i], bps: _receiverBps[i] })
             );
         }
@@ -996,7 +974,7 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 redirected) {
-        Receiver[] memory receivers = _integratorReceivers;
+        Receiver[] memory receivers = integratorReceivers;
         uint256 count = receivers.length;
         uint256 distributed;
 
