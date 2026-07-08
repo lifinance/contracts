@@ -333,6 +333,22 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
         vm.stopPrank();
     }
 
+    function testRevert_WhenSwapOutputAssetMismatchesBridgeAsset() public {
+        // _depositAndSwap measures output in the last swap's receivingAssetId; it must equal
+        // the bridged sendingAssetId, or the slippage floor and positive-slippage refund
+        // would act on a different token than submitOrder pulls
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenReceiverMismatchesQuote() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);

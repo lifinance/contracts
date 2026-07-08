@@ -128,6 +128,19 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InformationMismatch();
         }
 
+        // The final swap output must be the asset that gets bridged: _depositAndSwap measures
+        // receivedAmount in the last swap's receivingAssetId, while the slippage floor, the
+        // positive-slippage refund, and submitOrder below all act on sendingAssetId. A mismatch
+        // would apply those checks to the wrong token. An empty array is left to _depositAndSwap,
+        // which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InformationMismatch();
+        }
+
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
         // non-swap path): the fee may be funded by an ERC20->native pre-swap, whose output
         // the nativeReserve below keeps in the diamond for submitOrder.
