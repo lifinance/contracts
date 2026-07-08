@@ -89,7 +89,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 _splits,
                 _fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -134,7 +134,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: "",
+            accessGate: address(0),
             receivers: defaultReceivers()
         });
 

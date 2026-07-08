@@ -327,7 +327,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
-            initData: hex"1234",
+            accessGate: address(0xACCE55),
             receivers: defaultReceivers()
         });
     }
@@ -365,7 +365,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         }
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
-        assertEq(w.initData(), hex"1234");
+        assertEq(w.accessGate(), address(0xACCE55));
     }
 
     function test_WrapperDeployedEmitsAssetAndSplit() public {

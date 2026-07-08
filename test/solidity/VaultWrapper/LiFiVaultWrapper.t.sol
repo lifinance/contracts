@@ -168,7 +168,7 @@ contract LiFiVaultWrapperTest is Test {
                 _splits8000(),
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -195,7 +195,7 @@ contract LiFiVaultWrapperTest is Test {
             _splits8000(),
             fees,
             defaultReceivers(),
-            ""
+            address(0)
         );
     }
 
@@ -210,7 +210,7 @@ contract LiFiVaultWrapperTest is Test {
                 _splits8000(),
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -231,7 +231,7 @@ contract LiFiVaultWrapperTest is Test {
                 _splits8000(),
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -252,7 +252,7 @@ contract LiFiVaultWrapperTest is Test {
                 [uint16(8000), 10_000, 8000, 8000],
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -306,7 +306,7 @@ contract LiFiVaultWrapperTest is Test {
                 _splits8000(),
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 
@@ -595,7 +595,7 @@ contract LiFiVaultWrapperTest is Test {
                 _splits8000(),
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
 

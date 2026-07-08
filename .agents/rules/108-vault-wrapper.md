@@ -71,7 +71,7 @@ and counter-intuitive against the repo's Diamond-era conventions.
   adjustable bounds within the cap; disabled fee types carry a zero rate.
 - The integrator/LI.FI split is validated `< 100%` only — there is deliberately
   no additional ceiling. LI.FI's share routes to a factory-governed
-  `lifiFeeRecipient` read live, so integrators cannot redirect it via initData.
+  `lifiFeeRecipient` read live, so integrators cannot redirect it via deploy params.
 
 ## Yield adapters ([CONV:VW-ADAPTERS])
 
