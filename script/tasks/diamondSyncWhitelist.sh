@@ -91,16 +91,17 @@ function diamondSyncWhitelist {
   fi
 
   # Function to check if an address is a token contract
-  # tries to call decimals() function and returns true if a number value is returned
+  # tries to call decimals() and returns true only if a non-zero uint8 is returned
   function isTokenContract {
     local ADDRESS=$1
     local RPC_URL=$2
     local NETWORK=$3  # Add network parameter
     local RESULT
-    
+
     if RESULT=$(universalCast "call" "$NETWORK" "$ADDRESS" "decimals() returns (uint8)" 2>/dev/null); then
-      # Validate 0-255 strictly
-      if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
+      # Accept 1-255 only. A returned 0 means the address has no real decimals()
+      # and is answering via a catch-all fallback that returns zeros, not a token.
+      if [[ "$RESULT" =~ ^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
         return 0
       fi
     fi
