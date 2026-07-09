@@ -40,9 +40,6 @@
   "celo": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
-  "corn": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
   "cronos": {
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
@@ -102,6 +99,9 @@
   },
   "polygonzkevm": {
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
+  },
+  "robinhood": {
+    "relayDepository": "0x4cD00E387622C35bDDB9b4c962C136462338BC31"
   },
   "ronin": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"

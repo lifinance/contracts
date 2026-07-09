@@ -2,7 +2,7 @@
 
 ## How it works
 
-The Optimism Bridge Facet works by forwarding Optimism Bridge specific calls to Optimism Bridge [contract](https://github.com/ethereum-optimism/optimism/blob/master/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol). The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in exchange of the same amount of an equivalent token on L2.
+The Optimism Bridge Facet works by forwarding Optimism Bridge specific calls to Optimism Bridge [contract](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol). The standard bridge functionality provides a method for an ERC20 token to be deposited and locked on L1 in exchange of the same amount of an equivalent token on L2.
 
 ```mermaid
 graph LR;
@@ -66,7 +66,7 @@ This parameter is strictly for analytics purposes. It's used to emit events that
 
 In the following some sample calls are shown that allow you to retrieve a populated transaction that can be sent to our contract via your wallet.
 
-All examples use our [/quote endpoint](https://apidocs.li.finance/reference/get_quote-1) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
+All examples use our [/quote endpoint](https://apidocs.li.fi/reference/get_quote-1) to retrieve a quote which contains a `transactionRequest`. This request can directly be sent to your wallet to trigger the transaction.
 
 The quote result looks like the following:
 
@@ -91,7 +91,7 @@ const quoteResult = {
 }
 ```
 
-A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.finance/reference/how-to-transfer-tokens).
+A detailed explanation on how to use the /quote endpoint and how to trigger the transaction can be found [here](https://apidocs.li.fi/reference/how-to-transfer-tokens).
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet address in the examples.
 

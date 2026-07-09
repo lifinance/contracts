@@ -41,7 +41,7 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.2.0"
       },
-      "0xE48CA2A762503bc317C62f56B46D4270bA41835E": {
+      "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -97,12 +97,16 @@
         "Name": "AllBridgeFacet",
         "Version": "2.1.2"
       },
-      "0xF1C6e8d52dd124Af918A178e67D3454Aa5859D8A": {
+      "0xA338ac518a0aE28d75e0610BD78329241984d49A": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
+      },
+      "0xC19B1ea2c3238b8a06E4ea11aB9574a9B12FF1B2": {
+        "Name": "SupersetFacet",
         "Version": "1.0.0"
       }
     },

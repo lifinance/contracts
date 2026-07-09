@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
-import { TestBase } from "../utils/TestBase.sol";
+import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 
 contract OFTComposeMsgCodecImplementer {
     function encode(
@@ -32,7 +32,7 @@ contract OFTComposeMsgCodecImplementer {
     }
 }
 
-contract OFTComposeMsgCodecTest is TestBase {
+contract OFTComposeMsgCodecTest is TestBaseLocal {
     OFTComposeMsgCodecImplementer internal codec;
 
     // 32 bytes for composeFrom field (address zero-padded to 32 bytes) + 4 bytes payload
@@ -42,7 +42,7 @@ contract OFTComposeMsgCodecTest is TestBase {
 
     function setUp() public {
         codec = new OFTComposeMsgCodecImplementer();
-        initTestBase();
+        initTestBaseLocal();
     }
 
     function _buildMsg(
