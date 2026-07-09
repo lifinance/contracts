@@ -24,8 +24,12 @@ The facet enforces this flow on-chain via `depositForBurnWithHook`:
 
 ### Trust assumptions
 
-- The facet does not validate the remaining hook bytes (magic header, version, length, dex flag). A malformed hook cannot redirect funds (the recipient offset is validated), but it may fail on the forwarder; recovery in that case depends on Circle's forwarder implementation.
-- The forwarder is assumed to be single-purpose and stable: it always decodes `hookData[32:52]` as the deposit recipient. If Circle replaced or upgraded the forwarder's decoding under the same address, the on-chain receiver guarantee would no longer hold.
+Verified against the forwarder's published source ([`circlefin/hyperevm-circle-contracts`](https://github.com/circlefin/hyperevm-circle-contracts), `src/CctpForwarder.sol` + `src/messages/CctpForwarderHookData.sol`):
+
+- The forwarder requires `mintRecipient == address(this)` and decodes the deposit recipient from `hookData[32:52]` — exactly the field the facet validates against `BridgeData.receiver`, so the on-chain receiver guarantee binds to the bytes the forwarder actually uses. Its relay entrypoint (`mintAndForward`) is permissionless, but `destinationCaller` pinning means the mint can only ever happen through it, atomically with the forward.
+- The magic header (`hookData[0:24]`) and length field are ignored by the forwarder on-chain (they signal Circle's off-chain auto-relay service), which is why the facet does not validate them. The forwarder does require hook version `0` and length ≥ 52; a hook violating either makes `mintAndForward` revert, leaving the transfer burned-but-unmintable (hook bytes are part of the attested message and cannot be replayed with different content). The facet's length guard covers the ≥ 52 bound; version correctness is on the calldata source (LI.FI API).
+- `hookData[52:56]` (`destinationId`) selects the HyperCore balance: `0` = perp margin, `0xFFFFFFFF` = spot. It defaults to `0` (perp) if truncated. The facet intentionally does not validate it.
+- The forwarder at `0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757` **is** an EIP-1967 upgradeable proxy administered by Circle, and its owner can unset the per-token forwarding address (which would make relays revert until restored). The receiver guarantee therefore ultimately rests on Circle not changing the decode semantics under the same address.
 - `hasDestinationCall` remains `false` for HyperCore transfers: the hook is Circle/Polymer forwarding infrastructure with a validated recipient, not a user-defined destination call.
 
 ## Public Methods
