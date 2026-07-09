@@ -417,37 +417,16 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  # Prefer broadcast artifact (reliable); fall back to forge stdout (can contain newlines/stray "0x" in value)
-  local BROADCAST_JSON="broadcast/$(basename "$FULL_SCRIPT_PATH")/$(getChainId "$NETWORK")/run-latest.json"
-  if [[ -f "$BROADCAST_JSON" ]]; then
-    CONSTRUCTOR_ARGS=$(jq -r '.returns.constructorArgs.value // empty' "$BROADCAST_JSON" 2>/dev/null || echo "")
+  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+  local JSON_DATA
+  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+  
+  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
   fi
-  if [[ -z "${CONSTRUCTOR_ARGS:-}" || "$CONSTRUCTOR_ARGS" == "null" ]]; then
-    local JSON_DATA
-    JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
-    if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
-    fi
-    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // empty' 2>/dev/null | head -1 | tr -d '\n' || echo "")
-  fi
-  # Sanitize: forge stdout can embed newline + "0x" in the value, which breaks Etherscan verification
-  CONSTRUCTOR_ARGS=$(printf '%s' "${CONSTRUCTOR_ARGS:-0x}" | tr -d '\n\r\t ')
-  if [[ "${CONSTRUCTOR_ARGS: -2}" == "0x" ]]; then
-    local WITHOUT_TRAILING="${CONSTRUCTOR_ARGS%0x}"
-    if [[ $((${#WITHOUT_TRAILING} % 64)) -eq 2 ]]; then
-      CONSTRUCTOR_ARGS="$WITHOUT_TRAILING"
-    fi
-  fi
-  # Stdout path can embed real newlines inside the value; do a final re-extract from JSON_DATA
-  # to guarantee a single clean line. Only runs when we actually parsed JSON_DATA (Path 2);
-  # never overwrites a clean value taken from the broadcast artifact (Path 1).
-  if [[ -n "${JSON_DATA:-}" ]]; then
-    local RE_EXTRACTED
-    RE_EXTRACTED=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // empty' 2>/dev/null | head -1 | tr -d '\n' || echo "")
-    if [[ -n "$RE_EXTRACTED" ]]; then
-      CONSTRUCTOR_ARGS="$RE_EXTRACTED"
-    fi
-  fi
+  
+  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
   CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
