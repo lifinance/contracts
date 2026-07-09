@@ -37,8 +37,9 @@ contract PolymerCCTPFacet is
     /// @notice Circle's CctpForwarder on HyperEVM. HyperCore hook flows mint to this contract,
     ///         which alone may execute the message and deposits the USDC into HyperCore for the
     ///         receiver encoded in the hook data (see _startBridge).
+    ///         https://developers.circle.com/cctp/references/hypercore-contract-addresses
     address internal constant HYPERCORE_CCTP_FORWARDER =
-        0x9765885053Da4835e98546139017EEee41712815;
+        0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757;
 
     /// @dev Byte offsets of the recipient address within CctpForwarder hook data
     ///      (24 bytes magic + 4 bytes version + 4 bytes payload length, then the recipient)

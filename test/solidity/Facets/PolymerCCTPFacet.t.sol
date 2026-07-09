@@ -40,7 +40,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
     // Must match PolymerCCTPFacet.HYPERCORE_CCTP_FORWARDER
     address internal constant HYPERCORE_CCTP_FORWARDER =
-        0x9765885053Da4835e98546139017EEee41712815;
+        0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757;
     uint32 internal constant HYPEREVM_CCTP_DOMAIN = 19;
     address internal polymerFeeReceiver = address(0x123);
 
