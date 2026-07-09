@@ -120,6 +120,12 @@ interface ILiFiVaultWrapper {
     error TransferNotAllowed(address from, address to);
     /// @notice Thrown when the access gate flags an exit party as sanctioned.
     error AccountSanctioned(address account);
+    /// @notice Thrown by the EIP-5143 slippage-guarded entrypoints when the realized
+    ///         amount crosses the caller's bound (below a minimum, or above a maximum).
+    error SlippageExceeded(uint256 actual, uint256 bound);
+    /// @notice Thrown when an operation would leave the total share supply above zero
+    ///         but below the minimum supply floor.
+    error SupplyBelowMinimum(uint256 supply, uint256 minSupply);
 
     /// Functions ///
 

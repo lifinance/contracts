@@ -16,6 +16,11 @@ import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig, FeeType, IntegratorReceivers, Receiver } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
+// One over solhint's 15-state default: the 16th declaration is the write-once
+// `shareDecimalsOffset` (inflation protection), which packs into the `accessGate`
+// slot rather than widening the storage layout.
+// solhint-disable max-states-count
+
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Per-integrator-product ERC-4626 vault that wraps an underlying yield source. Shares
@@ -44,7 +49,12 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
 ///      asset receiver — all fail-closed, so a misbehaving gate blocks the guarded
 ///      operation (including exits) until the owner swaps the gate. Inflation-attack
-///      protection relies on the ERC-4626 virtual-share offset.
+///      protection is layered: the ERC-4626 virtual-share decimals offset is derived
+///      once at `initialize` to normalize shares to 18 decimals (strongest exactly
+///      where a donated wei buys the most), and a post-operation supply floor keeps
+///      the share denominator out of the dust regime. EIP-5143 slippage overloads of
+///      the four entrypoints bound the realized amount against in-flight share-price
+///      or fee-rate changes.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
@@ -73,6 +83,19 @@ contract LiFiVaultWrapper is
     ///         not a product limit.
     uint256 internal constant MAX_FEE_RECEIVERS = 50;
 
+    /// @notice Share decimals target: `initialize` derives the ERC-4626 virtual-share
+    ///         decimals offset as `18 - assetDecimals` (0 for assets with 18+ decimals),
+    ///         normalizing share tokens to 18 decimals.
+    uint8 internal constant TARGET_SHARE_DECIMALS = 18;
+
+    /// @notice Post-operation total-supply floor, in shares: after any deposit, mint,
+    ///         withdraw, or redeem the supply must be zero or at least this. Only
+    ///         load-bearing when the derived decimals offset is 0 (assets with 18+
+    ///         decimals) — below 18 decimals the virtual offset alone already puts a
+    ///         larger constant in the share denominator. At 18 share decimals the floor
+    ///         is ~1e-12 of one token, so no real deposit or exit ever notices it.
+    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
+
     /// Storage ///
 
     /// @notice The yield source this wrapper deposits into (e.g. an ERC-4626 vault).
@@ -95,6 +118,11 @@ contract LiFiVaultWrapper is
     ///         address(0) = fully permissionless (the default posture). Swappable
     ///         instantly by the per-vault `owner` via `setAccessGate`.
     address public accessGate;
+    /// @notice The ERC-4626 virtual-share decimals offset for this instance, written
+    ///         once at `initialize` (`18 - assetDecimals`, floored at 0) and never
+    ///         changed after — it prices shares, so mutating it would reprice every
+    ///         holder. Packs into the `accessGate` slot.
+    uint8 public shareDecimalsOffset;
 
     /// @dev Per-fee-type rates (0 = disabled), validated by the factory.
     FeeConfig internal _feeConfig;
@@ -172,6 +200,13 @@ contract LiFiVaultWrapper is
         if (asset == address(0)) revert ZeroAddress();
 
         _initErc4626Metadata(asset);
+        // decimals() is the raw asset decimals at this point (the stored offset is
+        // still 0); the offset must be written before anything consumes
+        // _decimalsOffset() — the watermark anchor below prices through it.
+        uint8 assetDecimals = decimals();
+        if (assetDecimals < TARGET_SHARE_DECIMALS) {
+            shareDecimalsOffset = TARGET_SHARE_DECIMALS - assetDecimals;
+        }
         __Ownable_init(_vaultWrapperAdmin);
 
         factory = msg.sender;
@@ -232,6 +267,12 @@ contract LiFiVaultWrapper is
     /// @notice Assets currently redeemable from the yield source, valued by the adapter.
     function totalAssets() public view override returns (uint256) {
         return IYieldAdapter(adapter).totalAssets(underlying, address(this));
+    }
+
+    /// @dev The per-instance offset derived at `initialize` (see `shareDecimalsOffset`);
+    ///      OZ's default is a constant 0.
+    function _decimalsOffset() internal view override returns (uint8) {
+        return shareDecimalsOffset;
     }
 
     /// @dev Values shares against an effective supply that already includes the management
@@ -298,55 +339,138 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers).
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
+    ///      post-operation supply floor (see `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
         address receiver
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 shares) {
         if (depositsPaused()) revert DepositsPaused();
         _checkDepositAccess(receiver);
         _accrueFees();
 
-        return super.deposit(assets, receiver);
+        shares = super.deposit(assets, receiver);
+        _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers).
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
+    ///      post-operation supply floor (see `_enforceSupplyFloor`).
     function mint(
         uint256 shares,
         address receiver
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 assets) {
         if (depositsPaused()) revert DepositsPaused();
         _checkDepositAccess(receiver);
         _accrueFees();
 
-        return super.mint(shares, receiver);
+        assets = super.mint(shares, receiver);
+        _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Enforces the post-operation supply floor (see `_enforceSupplyFloor`): an exit
+    ///      may empty the vault entirely but not strand a sub-floor dust supply.
     function withdraw(
         uint256 assets,
         address receiver,
         address owner
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 shares) {
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        return super.withdraw(assets, receiver, owner);
+        shares = super.withdraw(assets, receiver, owner);
+        _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Enforces the post-operation supply floor (see `_enforceSupplyFloor`): an exit
+    ///      may empty the vault entirely but not strand a sub-floor dust supply.
     function redeem(
         uint256 shares,
         address receiver,
         address owner
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 assets) {
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        return super.redeem(shares, receiver, owner);
+        assets = super.redeem(shares, receiver, owner);
+        _enforceSupplyFloor();
+    }
+
+    /// EIP-5143 slippage-guarded entrypoints ///
+    /// @dev Thin overloads of the four ERC-4626 entrypoints that bound the realized
+    ///      amount, per EIP-5143. Each routes through its standard entrypoint (an
+    ///      internal call, so msg.sender semantics and the pause/access/accrual/
+    ///      reentrancy guards apply identically) and reverts `SlippageExceeded` when
+    ///      the result crosses the caller's bound. The bound is checked on the amount
+    ///      the standard entrypoint actually returns, so it also catches an integrator
+    ///      fee-rate change landing between the caller's quote and execution.
+
+    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
+    ///         `_minShares` shares are minted.
+    /// @param _assets The exact asset amount to deposit.
+    /// @param _receiver The share receiver.
+    /// @param _minShares The minimum acceptable amount of shares minted.
+    /// @return shares The shares actually minted.
+    function deposit(
+        uint256 _assets,
+        address _receiver,
+        uint256 _minShares
+    ) external returns (uint256 shares) {
+        shares = deposit(_assets, _receiver);
+        if (shares < _minShares) revert SlippageExceeded(shares, _minShares);
+    }
+
+    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
+    ///         `_maxAssets` assets are pulled.
+    /// @param _shares The exact share amount to mint.
+    /// @param _receiver The share receiver.
+    /// @param _maxAssets The maximum acceptable amount of assets pulled.
+    /// @return assets The assets actually pulled.
+    function mint(
+        uint256 _shares,
+        address _receiver,
+        uint256 _maxAssets
+    ) external returns (uint256 assets) {
+        assets = mint(_shares, _receiver);
+        if (assets > _maxAssets) revert SlippageExceeded(assets, _maxAssets);
+    }
+
+    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
+    ///         `_maxShares` shares are burned.
+    /// @param _assets The exact asset amount to withdraw.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _maxShares The maximum acceptable amount of shares burned.
+    /// @return shares The shares actually burned.
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner,
+        uint256 _maxShares
+    ) external returns (uint256 shares) {
+        shares = withdraw(_assets, _receiver, _owner);
+        if (shares > _maxShares) revert SlippageExceeded(shares, _maxShares);
+    }
+
+    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
+    ///         `_minAssets` assets are paid out.
+    /// @param _shares The exact share amount to redeem.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _minAssets The minimum acceptable amount of assets paid out.
+    /// @return assets The assets actually paid out.
+    function redeem(
+        uint256 _shares,
+        address _receiver,
+        address _owner,
+        uint256 _minAssets
+    ) external returns (uint256 assets) {
+        assets = redeem(_shares, _receiver, _owner);
+        if (assets < _minAssets) revert SlippageExceeded(assets, _minAssets);
     }
 
     /// ERC-4626 fee-adjusted previews and limits ///
@@ -454,6 +578,20 @@ contract LiFiVaultWrapper is
     }
 
     /// Internal ///
+
+    /// @dev Post-operation supply-floor invariant: the total supply is either zero or at
+    ///      least `MIN_SHARE_SUPPLY`, so the share denominator can never sit in the dust
+    ///      regime where donation-rounding losses are material relative to deposits (the
+    ///      first-depositor inflation attack's precondition). A first deposit below the
+    ///      floor and an exit that would strand a sub-floor dust supply both revert; a
+    ///      full exit to zero stays allowed. Deliberately NOT reflected in the max*
+    ///      limit views (a documented EIP-4626 deviation): modeling a ~1e-12-token edge
+    ///      there is not worth the complexity.
+    function _enforceSupplyFloor() private view {
+        uint256 supply = totalSupply();
+        if (supply != 0 && supply < MIN_SHARE_SUPPLY)
+            revert SupplyBelowMinimum(supply, MIN_SHARE_SUPPLY);
+    }
 
     /// @dev Skims the entry fee and forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted

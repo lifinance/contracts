@@ -98,6 +98,9 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_ManagementFeeNoAccrualOnEmptyVault() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
+        // The crystallizing deposit is the vault's first, so it must clear the
+        // supply floor (its accrual still runs against the empty pre-deposit state).
+        crystallizeDust = 1e6;
 
         // No prior deposits: totalSupply()/totalAssets() are zero, so the accrual at the
         // top of the first operation finds nothing to dilute.
@@ -109,9 +112,10 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_ZeroShareAccrualStillAdvancesBaseline() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        // A tiny AUM makes the per-second management fee floor to zero shares, so the
-        // accrual at the top of an operation mints nothing.
-        _deposit(alice, 1000);
+        // A tiny AUM (the smallest floor-clearing deposit) makes the per-second
+        // management fee floor to zero shares, so the accrual at the top of an
+        // operation mints nothing.
+        _deposit(alice, 1e6);
 
         vm.warp(block.timestamp + 1);
         _crystallize();
@@ -126,15 +130,16 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         public
     {
         wrapper = _newWrapperMgmtOnly(1000); // 10% / year
-        // Dust-seed the vault, then leave it dormant: at 10 wei AUM the management fee
-        // floors to zero shares at every accrual.
-        _deposit(alice, 10);
+        // Dust-seed the vault (the smallest floor-clearing deposit), then leave it
+        // dormant for a year.
+        _deposit(alice, 1e6);
 
         vm.warp(block.timestamp + YEAR - 1);
 
-        // The accrual at the top of this large deposit still floors to zero at the
-        // pre-deposit AUM, but the baseline must advance so the dormant year cannot be
-        // re-priced against the new depositor's assets.
+        // The accrual at the top of this large deposit prices the dormant year at the
+        // dust pre-deposit AUM (~1e5 wei of fees — charged to the dust seed, not to
+        // bob), and the baseline must advance so the dormant year cannot be re-priced
+        // against the new depositor's assets.
         _deposit(bob, 1_000_000e18);
 
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
@@ -735,14 +740,16 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         public
     {
         _stackWithFactory(MGMT_RATE);
-        _deposit(alice, 10); // dust: the old-rate accrual floors to zero shares
+        // Dust AUM (the smallest floor-clearing deposit) over a short window: the
+        // old-rate accrual floors to zero shares (1e6 wei * 2%/yr * 20min < 1 wei).
+        _deposit(alice, 1e6);
 
-        vm.warp(block.timestamp + 30 days);
+        vm.warp(block.timestamp + 20 minutes);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 1000);
 
-        // The elapsed month was priced (to zero) at the old rate and dropped; it must
+        // The elapsed window was priced (to zero) at the old rate and dropped; it must
         // not be re-priced at the new 10% rate by the next accrual.
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
         assertEq(_accruedFeeShares(), 0);
