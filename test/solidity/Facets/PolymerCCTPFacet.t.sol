@@ -594,8 +594,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         PolymerCCTPFacet.PolymerCCTPData
             memory polymerDataWithHook = _polymerDataWithHook(hex"01");
 
-        // calldata slice bounds check reverts without data
-        vm.expectRevert();
+        vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
             bridgeData,

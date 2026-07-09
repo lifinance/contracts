@@ -289,7 +289,8 @@ contract PolymerCCTPFacet is
             // pinned forwarder. Add new corridors (e.g. Stellar) as additional arms.
             if (
                 _bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE &&
-                _bridgeData.receiver != NON_EVM_ADDRESS
+                _bridgeData.receiver != NON_EVM_ADDRESS &&
+                _polymerData.hookData.length >= HOOK_RECIPIENT_OFFSET_END
             ) {
                 // The forwarder credits the account encoded in the hook data, so it
                 // must equal the declared receiver or events would misreport the
