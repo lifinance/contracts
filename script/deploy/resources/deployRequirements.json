@@ -672,6 +672,15 @@
       }
     }
   },
+  "PaxosTransitFacet": {
+    "configData": {
+      "_transitStation": {
+        "configFileName": "paxosTransit.json",
+        "keyInConfigFile": ".transitStation.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ERC20Proxy": {
     "configData": {
       "_owner": {
