@@ -19,8 +19,8 @@ pragma solidity ^0.8.17;
  */
 
 /// @title ITokenMessenger
-/// @notice Interface for Circle's TokenMessenger contract (CCTP)
-/// https://github.com/circlefin/evm-cctp-contracts/blob/4061786a5726bc05f99fcdb53b0985599f0dbaf7/src/TokenMessenger.sol
+/// @notice Interface for Circle's TokenMessengerV2 contract (CCTP v2)
+/// https://github.com/circlefin/evm-cctp-contracts/blob/master/src/v2/TokenMessengerV2.sol
 /// @author LI.FI (https://li.fi)
 /// @custom:version 1.1.0
 interface ITokenMessenger {
