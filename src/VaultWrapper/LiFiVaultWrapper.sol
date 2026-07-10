@@ -12,7 +12,7 @@ import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig, FeeType, IntegratorReceivers, Receiver } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, IntegratorReceivers, FeeReceiver } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
 /// @title LiFiVaultWrapper
@@ -120,7 +120,7 @@ contract LiFiVaultWrapper is
     /// @notice Integrator payout wallets (1..50) with their bps split, each packed into one
     ///         slot (address + uint16). Set at `initialize` and mutable by the integrator;
     ///         always non-empty after deploy. Bps sum to 100%.
-    Receiver[] public integratorReceivers;
+    FeeReceiver[] public integratorReceivers;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
@@ -928,7 +928,7 @@ contract LiFiVaultWrapper is
         delete integratorReceivers;
         for (uint256 i; i < count; ++i) {
             integratorReceivers.push(
-                Receiver({ wallet: _receivers[i], bps: _receiverBps[i] })
+                FeeReceiver({ wallet: _receivers[i], bps: _receiverBps[i] })
             );
         }
 
@@ -976,7 +976,7 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 redirected) {
-        Receiver[] memory receivers = integratorReceivers;
+        FeeReceiver[] memory receivers = integratorReceivers;
         uint256 count = receivers.length;
         uint256 distributed;
 
