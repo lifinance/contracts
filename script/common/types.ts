@@ -115,6 +115,7 @@ export interface IFoundryTomlConfig {
     default?: {
       solc_version?: string
       evm_version?: string
+      optimizer_runs?: number
     }
   }
 }
