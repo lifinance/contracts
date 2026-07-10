@@ -101,6 +101,12 @@ contract CalldataVerificationFacet {
     }
 
     /// @notice Extracts the non-EVM address from the calldata
+    /// @dev Only supports facets whose bridge-specific data struct is
+    ///      dynamically encoded (contains at least one dynamic field) and has
+    ///      the bytes32 non-EVM receiver as its first field (e.g. Mayan,
+    ///      NEARIntents, AcrossV4). For facets that don't match this layout
+    ///      (e.g. Chainflip, Eco, DeBridgeDln, Garden, Glacis, AllBridge,
+    ///      PolymerCCTP) the returned value is undefined or the call reverts.
     /// @param data The calldata to extract the non-EVM address from
     /// @return nonEVMAddress The non-EVM address extracted from the calldata
     function extractNonEVMAddress(
@@ -109,7 +115,8 @@ contract CalldataVerificationFacet {
         bytes memory callData = data;
         bool hasSourceSwaps = _extractBridgeData(data).hasSourceSwaps;
 
-        // Non-EVM address is always the first parameter of bridge specific data.
+        // The bridge-specific data struct sits behind an ABI head-slot offset
+        // and starts with the bytes32 non-EVM receiver (see @dev above).
         // `offset` below is read directly out of calldata and is not validated by
         // the BridgeData decode above (which only covers its own struct region),
         // so a crafted/corrupted offset could otherwise point outside `callData`
