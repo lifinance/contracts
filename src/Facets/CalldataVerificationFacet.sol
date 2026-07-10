@@ -135,7 +135,10 @@ contract CalldataVerificationFacet {
         // `offset` is relative to the start of the parameters (i.e. right after
         // the 4-byte function selector); the non-EVM address occupies the 32
         // bytes at `offset + 0x24`, so the buffer must reach at least that far.
-        if (offset + 0x24 > callData.length) revert InvalidCallData();
+        // Subtraction-based guard so attacker-controlled offsets near 2^256
+        // hit InvalidCallData instead of an arithmetic overflow panic.
+        if (callData.length < 0x24 || offset > callData.length - 0x24)
+            revert InvalidCallData();
 
         assembly {
             nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address

@@ -222,6 +222,31 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         calldataVerificationFacet.extractNonEVMAddress(callData);
     }
 
+    function testRevert_ExtractNonEVMAddressWithHugeOffset() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        // overwrite the bridge-specific data offset (second param head slot,
+        // bytes 36..68 of the buffer) with type(uint256).max so the bounds
+        // check must catch it via InvalidCallData, not an overflow panic
+        for (uint256 i = 36; i < 68; i++) {
+            callData[i] = 0xff;
+        }
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
             AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
