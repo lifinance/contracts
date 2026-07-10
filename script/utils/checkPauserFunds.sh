@@ -275,15 +275,6 @@ function checkNetwork() {
     return
   fi
 
-  # Gas price 0: the pauser could technically pause for free, but a zero gas price is usually
-  # an RPC misreport rather than a real fee model — surface it as WARNING (investigate), not a
-  # quiet OK and not the hard ERROR of a failed estimation. Still a data row, so it counts as
-  # "evaluated" for the blind-sweep guard; sort key 0 places it with the needs-attention rows.
-  if [[ "$COST" == "0" ]]; then
-    echo "$CAT_DATA|0|$(fmtRow "$NETWORK" "free gas" "-" "$(fmtAmount "$BALANCE") ${SYMBOL}" "inf" "-" "WARNING")"
-    return
-  fi
-
   local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
   RATIO=$(echo "scale=2; $BALANCE / $COST" | bc)
