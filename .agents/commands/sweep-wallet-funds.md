@@ -60,7 +60,8 @@ Run from the worktree root. `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PAT
 ### Phase 1 — Derive the source + confirm it is the rotated-out wallet
 
 ```bash
-FROM_KEY_VAR="${FROM_KEY:-PRIVATE_KEY_PRODUCTION}"
+# --old-key-env wins; otherwise PRIVATE_KEY_PRODUCTION only with --production, PRIVATE_KEY for staging
+FROM_KEY_VAR="${OLD_KEY_ENV:-$([ "$PRODUCTION" = "true" ] && echo PRIVATE_KEY_PRODUCTION || echo PRIVATE_KEY)}"
 SOURCE=$(set +x; KEY=$(grep -E "^${FROM_KEY_VAR}=" .env | cut -d= -f2- | tr -d '"'); cast wallet address --private-key "$KEY")
 ```
 
@@ -79,7 +80,7 @@ for NET in $(jq -r 'to_entries[] | select(.value.status == "active") | .key | se
 done
 ```
 
-Render a per-network table: chain, source balance, destination (`$NEW`). This preview reports **raw balances only** — the gas reserve kept and exact amount-to-move come from the mover's internal reserve logic and are not available without broadcasting; say so explicitly in the report. Flag chains with a dust/zero balance (the script will skip them) and any chain whose RPC is unreachable (surface, don't silently drop). Never broadcast to preview.
+Render a per-network table: chain, source balance, destination (`$NEW`). The mover's `getAllActiveNetworks()` does NOT exclude Tron — `tron`/`tronshasta` are in its target set and it will attempt (and fail on) them; list them in the table as explicit rows marked "not previewable with `cast`; expected to fail in the sweep; handled manually per Phase 5" so the preview covers exactly the set the script will touch. This preview reports **raw balances only** — the gas reserve kept and exact amount-to-move come from the mover's internal reserve logic and are not available without broadcasting; say so explicitly in the report. Flag chains with a dust/zero balance (the script will skip them) and any chain whose RPC is unreachable (surface, don't silently drop). Never broadcast to preview.
 
 ### Phase 3 — Human confirmation
 
@@ -99,7 +100,7 @@ bunx tsx script/tasks/moveNativeFundsToNewWallet.ts \
 
 ### Phase 5 — Tron native (manual step — no multi-chain script)
 
-`moveNativeFundsToNewWallet.ts` covers EVM chains only. Tron native (TRX) has no multi-chain sweep in this repo, so it is a single manual `troncast send` from the old Tron address to the new one. Derive both Tron base58 addresses from the EVM addresses (see `update-wallet-config` / `troncast address to-base58`), then hand the operator the single-transfer command to run — do not attempt to loop or automate it here. Note explicitly in the report that Tron native was handled (or is pending) manually.
+`moveNativeFundsToNewWallet.ts` can only sweep EVM chains — it does not filter Tron out of its active-network set, so expect `tron`/`tronshasta` to show up as failed rows in its output (don't retry them). Tron native (TRX) has no multi-chain sweep in this repo, so it is a single manual `troncast send` from the old Tron address to the new one. Derive both Tron base58 addresses from the EVM addresses (see `update-wallet-config` / `troncast address to-base58`), then hand the operator the single-transfer command to run — do not attempt to loop or automate it here. Note explicitly in the report that Tron native was handled (or is pending) manually.
 
 ## Verification
 
