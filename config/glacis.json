@@ -2,6 +2,7 @@
   "LinkToDeployedToAddresses": "https://github.com/glacislabs/airlift-evm/blob/main/config/diamond/latest.json",
   "airlift": {
     "mainnet": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
+    "0g": "0x290D54179960984599F16F77DCDA81320301b158",
     "abstract": "0x5501e28f588b3A246a590a391A7Ae7B2bA065ddE",
     "arbitrum": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
     "avalanche": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
@@ -31,6 +32,7 @@
     "plasma": "0x290D54179960984599F16F77DCDA81320301b158",
     "polygon": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
     "polygonzkevm": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
+    "robinhood": "0x290D54179960984599F16F77DCDA81320301b158",
     "ronin": "0x290D54179960984599F16F77DCDA81320301b158",
     "rootstock": "0xB303FEb7c38B7fbee5Bcb0dba2aCC1171478E6D5",
     "scroll": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
