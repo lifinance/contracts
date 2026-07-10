@@ -51,8 +51,8 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      operation (including exits) until the owner swaps the gate. Inflation-attack
 ///      protection is layered: the ERC-4626 virtual-share decimals offset is derived
 ///      once at `initialize` to normalize shares to 18 decimals (strongest exactly
-///      where a donated wei buys the most), and a post-operation supply floor keeps
-///      the share denominator out of the dust regime. EIP-5143 slippage overloads of
+///      where a donated wei buys the most), and a deposit-side supply floor keeps
+///      depositors out of the dust-denominator regime. EIP-5143 slippage overloads of
 ///      the four entrypoints bound the realized amount against in-flight share-price
 ///      or fee-rate changes.
 /// @custom:version 1.0.0
@@ -88,12 +88,13 @@ contract LiFiVaultWrapper is
     ///         normalizing share tokens to 18 decimals.
     uint8 internal constant TARGET_SHARE_DECIMALS = 18;
 
-    /// @notice Post-operation total-supply floor, in shares: after any deposit, mint,
-    ///         withdraw, or redeem the supply must be zero or at least this. Only
-    ///         load-bearing when the derived decimals offset is 0 (assets with 18+
-    ///         decimals) — below 18 decimals the virtual offset alone already puts a
-    ///         larger constant in the share denominator. At 18 share decimals the floor
-    ///         is ~1e-12 of one token, so no real deposit or exit ever notices it.
+    /// @notice Deposit-side total-supply floor, in shares: after any deposit or mint
+    ///         the supply must be at least this (exits are exempt — see
+    ///         `_enforceSupplyFloor`). Only load-bearing when the derived decimals
+    ///         offset is 0 (assets with 18+ decimals) — below 18 decimals the virtual
+    ///         offset alone already puts a larger constant in the share denominator.
+    ///         At 18 share decimals the floor is ~1e-12 of one token, so no real
+    ///         deposit ever notices it.
     uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
     /// Storage ///
@@ -371,33 +372,31 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Enforces the post-operation supply floor (see `_enforceSupplyFloor`): an exit
-    ///      may empty the vault entirely but not strand a sub-floor dust supply.
+    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
+    ///      are exempt): an exit must always be able to empty the caller's position.
     function withdraw(
         uint256 assets,
         address receiver,
         address owner
-    ) public override nonReentrant returns (uint256 shares) {
+    ) public override nonReentrant returns (uint256) {
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        shares = super.withdraw(assets, receiver, owner);
-        _enforceSupplyFloor();
+        return super.withdraw(assets, receiver, owner);
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Enforces the post-operation supply floor (see `_enforceSupplyFloor`): an exit
-    ///      may empty the vault entirely but not strand a sub-floor dust supply.
+    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
+    ///      are exempt): an exit must always be able to empty the caller's position.
     function redeem(
         uint256 shares,
         address receiver,
         address owner
-    ) public override nonReentrant returns (uint256 assets) {
+    ) public override nonReentrant returns (uint256) {
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        assets = super.redeem(shares, receiver, owner);
-        _enforceSupplyFloor();
+        return super.redeem(shares, receiver, owner);
     }
 
     /// EIP-5143 slippage-guarded entrypoints ///
@@ -579,14 +578,18 @@ contract LiFiVaultWrapper is
 
     /// Internal ///
 
-    /// @dev Post-operation supply-floor invariant: the total supply is either zero or at
-    ///      least `MIN_SHARE_SUPPLY`, so the share denominator can never sit in the dust
-    ///      regime where donation-rounding losses are material relative to deposits (the
-    ///      first-depositor inflation attack's precondition). A first deposit below the
-    ///      floor and an exit that would strand a sub-floor dust supply both revert; a
-    ///      full exit to zero stays allowed. Deliberately NOT reflected in the max*
-    ///      limit views (a documented EIP-4626 deviation): modeling a ~1e-12-token edge
-    ///      there is not worth the complexity.
+    /// @dev Deposit-side supply floor: after any deposit/mint the total supply must be
+    ///      zero or at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against
+    ///      a dust-sized share denominator (the first-depositor inflation attack's
+    ///      precondition) — the existing supply plus the deposit's own mint always sum
+    ///      to the floor, capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
+    ///      of the donation. Exits are deliberately exempt: `_accrueFees` mints fee
+    ///      shares to this contract, so an exit-side check could revert the last
+    ///      holder's full exit against sub-floor fee-share residue — and exits must
+    ///      always work. An exit may therefore strand a sub-floor supply, but anyone
+    ///      depositing into that state is still protected by this check. Not reflected
+    ///      in the max* limit views (a documented EIP-4626 deviation): modeling a
+    ///      ~1e-12-token edge there is not worth the complexity.
     function _enforceSupplyFloor() private view {
         uint256 supply = totalSupply();
         if (supply != 0 && supply < MIN_SHARE_SUPPLY)

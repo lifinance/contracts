@@ -263,21 +263,63 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertEq(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
     }
 
-    function testRevert_ExitStrandingDustSupply() public {
+    function test_ExitMayStrandDustSupplyButNextDepositMustClearFloor()
+        public
+    {
+        // Exits are exempt from the floor (they must always work), so a sub-floor
+        // supply can be stranded...
         _deposit(alice, 2 * MIN_SHARE_SUPPLY);
         uint256 leftBehind = MIN_SHARE_SUPPLY / 2;
         uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
 
         vm.prank(alice);
+        wrapper.redeem(toRedeem, alice, alice);
+
+        assertEq(wrapper.totalSupply(), leftBehind);
+
+        // ...but anyone depositing into that state is still protected: the deposit
+        // must bring the supply back to the floor or revert.
+        uint256 dustDeposit = MIN_SHARE_SUPPLY / 4;
+        asset.mint(bob, dustDeposit);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), dustDeposit);
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 ILiFiVaultWrapper.SupplyBelowMinimum.selector,
-                leftBehind,
+                leftBehind + dustDeposit,
                 MIN_SHARE_SUPPLY
             )
         );
 
-        wrapper.redeem(toRedeem, alice, alice);
+        wrapper.deposit(dustDeposit, bob);
+        vm.stopPrank();
+
+        _deposit(bob, MIN_SHARE_SUPPLY);
+
+        assertGe(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
+    }
+
+    function test_FullExitSucceedsDespiteFeeShareDust() public {
+        // Regression: fee accrual mints shares to the wrapper itself, so the last
+        // holder's full exit can leave a sub-floor fee-share residue as the only
+        // supply. The exit must still succeed (exits are exempt from the floor).
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Management)] = MGMT_RATE;
+        wrapper = _newWrapper(fees);
+        _deposit(alice, 2 * MIN_SHARE_SUPPLY);
+
+        vm.warp(block.timestamp + 30 days);
+        uint256 aliceShares = wrapper.balanceOf(alice);
+
+        vm.prank(alice);
+        wrapper.redeem(aliceShares, alice, alice);
+
+        uint256 residue = wrapper.totalSupply();
+        assertEq(wrapper.balanceOf(alice), 0);
+        assertGt(residue, 0);
+        assertLt(residue, MIN_SHARE_SUPPLY);
+        assertEq(wrapper.balanceOf(address(wrapper)), residue);
     }
 
     function test_ExitLeavingFloorSupplyPasses() public {
