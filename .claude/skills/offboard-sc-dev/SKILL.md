@@ -1,0 +1,1 @@
+../../../.agents/commands/offboard-sc-dev.md

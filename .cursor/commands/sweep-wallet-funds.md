@@ -1,0 +1,1 @@
+../../.agents/commands/sweep-wallet-funds.md
