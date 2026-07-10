@@ -87,7 +87,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions about which ticket to link (the validation block below still applies).
   3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query the Linear MCP `list_issues` tool with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
      - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
-     - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
+     - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "none of these" option that falls through to route 4's required-ticket prompt — it is not an opt-out). Use `AskUserQuestion` if available; otherwise plain chat.
 
   **Validation (applies to any ticket resolved via routes 1–3)** — fetch it with the Linear MCP `get_issue` tool and check:
 
