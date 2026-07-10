@@ -60,6 +60,14 @@
       "0x6E57b4d8e02D5aFD3EdD68C563691C9AA0436CE1": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0x36DBCD6F5Afca9508261F4d533F91C55B41B5109": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
+      },
+      "0x12A395526Dc6b257ddb6953b1a0e8Ae91Ac5Fd9b": {
+        "Name": "PaxosTransitFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -68,8 +76,8 @@
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
       "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
       "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",

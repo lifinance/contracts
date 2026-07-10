@@ -140,7 +140,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "WhitelistManagerFacet": "1.0.0",
-        "LiFiIntentEscrowFacetV2": "1.0.0"
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "SupersetFacet": "1.0.0"
       }
     }
   },
@@ -261,7 +262,8 @@
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
         "WhitelistManagerFacet": "1.0.0",
-        "LiFiIntentEscrowFacetV2": "1.0.0"
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "SupersetFacet": "1.0.0"
       }
     }
   },
@@ -1507,7 +1509,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "SupersetFacet": "1.0.0"
       }
     }
   },
