@@ -31,6 +31,8 @@ bun troncast address to-base58 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b   # ->
 
 `troncast` itself accepts either format for `call`/`send`/`code` target addresses, so conversion is only needed when the user needs the *other* format back, or when composing calldata by hand.
 
+**RPC env var required even for offline conversions.** `troncast address to-hex`/`to-base58` always requires `ETH_NODE_URI_TRON` in `.env` — the codec hardcodes the mainnet TronWeb instance, so `ETH_NODE_URI_TRONSHASTA` does not satisfy it and `address` takes no `--env` flag — even though the conversion itself is a pure offline codec operation; the CLI aborts without it. If it's not set, prefix a dummy value for that one invocation rather than editing `.env`.
+
 ## Reading state — `troncast call`
 
 ```bash
@@ -89,3 +91,4 @@ No ABI auto-fetch, no contract verification, no wallet management, limited gas e
 - Function call reverts with no clear reason → dry-run first (`--dry-run`), then check the target address is in the form `troncast` expects (base58 or 0x-hex, not a malformed hybrid).
 - Transaction fails after broadcast with an energy-related error → raise `--fee-limit`/`--energy-limit`, don't assume the calldata was wrong.
 - Request turns out to need Safe/Timelock sequencing (multi-step, quorum, or anything touching production governance) → stop and hand off; this skill is for direct one-off calls only.
+- Command fails with `proto is not defined` → known TronWeb/Bun compatibility hiccup; retry the same command once before investigating further.
