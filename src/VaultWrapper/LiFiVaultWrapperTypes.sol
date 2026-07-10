@@ -28,9 +28,14 @@ enum FeeType {
     Withdrawal
 }
 
+// Number of FeeType members; sizes every per-fee-type array and bounds the
+// accrual/validation loops. Must equal the count of FeeType members (Solidity
+// does not allow deriving an array length from `type(FeeType).max`).
+uint256 constant FEE_TYPE_COUNT = 4;
+
 /// @notice Per-instance fee selection, indexed by FeeType ordinal.
 struct FeeConfig {
-    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
+    uint16[FEE_TYPE_COUNT] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
 }
 
 /// @notice Owner-adjustable min/max rate (bps) for a single fee type, within the immutable cap.
@@ -47,6 +52,6 @@ struct DeployParams {
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
     FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
-    uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
+    uint16[FEE_TYPE_COUNT] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
 }

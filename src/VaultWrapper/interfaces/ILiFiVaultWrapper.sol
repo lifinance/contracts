@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -25,7 +25,7 @@ interface ILiFiVaultWrapper {
         address indexed adapter,
         address vaultWrapperAdmin,
         address factory,
-        uint16[4] integratorShareBps
+        uint16[FEE_TYPE_COUNT] integratorShareBps
     );
 
     /// @notice Emitted when a fee type's rate is changed.
@@ -97,7 +97,7 @@ interface ILiFiVaultWrapper {
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16[4] calldata _integratorShareBps,
+        uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         bytes calldata _initData
     ) external;
