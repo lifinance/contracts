@@ -34,12 +34,13 @@ contract PolymerCCTPFacet is
     /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
     bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
 
-    /// @notice Circle's CctpForwarder on HyperEVM. HyperCore hook flows mint to this contract,
-    ///         which alone may execute the message and deposits the USDC into HyperCore for the
-    ///         receiver encoded in the hook data (see _startBridge).
+    /// @notice Circle's CctpForwarder on HyperEVM (0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757),
+    ///         pre-encoded as the bytes32 mintRecipient/destinationCaller. HyperCore hook flows
+    ///         mint to this contract, which alone may execute the message and deposits the USDC
+    ///         into HyperCore for the receiver encoded in the hook data (see _startBridge).
     ///         https://developers.circle.com/cctp/references/hypercore-contract-addresses
-    address internal constant HYPERCORE_CCTP_FORWARDER =
-        0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757;
+    bytes32 internal constant HYPERCORE_CCTP_FORWARDER =
+        bytes32(uint256(uint160(0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757)));
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.polymercctp");
@@ -334,16 +335,12 @@ contract PolymerCCTPFacet is
                 // Mint to the pinned forwarder (never to the receiver directly) and
                 // restrict execution to it; the forwarder then deposits into
                 // HyperCore for the receiver validated above
-                bytes32 forwarder = bytes32(
-                    uint256(uint160(HYPERCORE_CCTP_FORWARDER))
-                );
-
                 TOKEN_MESSENGER.depositForBurnWithHook(
                     bridgeAmount,
                     domainId,
-                    forwarder,
+                    HYPERCORE_CCTP_FORWARDER,
                     USDC,
-                    forwarder,
+                    HYPERCORE_CCTP_FORWARDER,
                     _polymerData.maxCCTPFee,
                     _polymerData.minFinalityThreshold,
                     _polymerData.hookData

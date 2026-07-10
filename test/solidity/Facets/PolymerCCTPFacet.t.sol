@@ -39,8 +39,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     address internal constant TOKEN_MESSENGER_V2_MAINNET =
         0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
     // Must match PolymerCCTPFacet.HYPERCORE_CCTP_FORWARDER
-    address internal constant HYPERCORE_CCTP_FORWARDER =
-        0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757;
+    bytes32 internal constant HYPERCORE_CCTP_FORWARDER =
+        bytes32(uint256(uint160(0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757)));
     uint32 internal constant HYPEREVM_CCTP_DOMAIN = 19;
     address internal polymerFeeReceiver = address(0x123);
 
@@ -435,9 +435,6 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         uint256 bridgeAmount = bridgeData.minAmount -
             polymerDataWithHook.polymerTokenFee;
-        bytes32 forwarder = bytes32(
-            uint256(uint160(HYPERCORE_CCTP_FORWARDER))
-        );
         vm.expectCall(
             TOKEN_MESSENGER_V2_MAINNET,
             abi.encodeCall(
@@ -445,9 +442,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 (
                     bridgeAmount,
                     HYPEREVM_CCTP_DOMAIN,
-                    forwarder,
+                    HYPERCORE_CCTP_FORWARDER,
                     ADDRESS_USDC,
-                    forwarder,
+                    HYPERCORE_CCTP_FORWARDER,
                     polymerDataWithHook.maxCCTPFee,
                     polymerDataWithHook.minFinalityThreshold,
                     polymerDataWithHook.hookData
