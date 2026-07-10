@@ -449,7 +449,7 @@ contract LiFiVaultWrapper is
     ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
     ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
-    ///      rolls back and the owner keeps their shares), skims the fee (plus any overage a
+    ///      rolls back and the owner keeps their shares), skims the fee (plus any excess a
     ///      round-up source paid beyond the owed amount, so no idle asset is left unattributed),
     ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem
     ///      whose `previewRedeem` is 0, or a bare `withdraw(0)`) short-circuits before the
@@ -471,7 +471,7 @@ contract LiFiVaultWrapper is
             )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
-        // A round-up source may pay more than owed; book the overage with the fee so
+        // A round-up source may pay more than owed; book the excess with the fee so
         // every idle asset stays attributed for payout instead of stranding as
         // untracked dust that silently left AUM.
         _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
@@ -751,7 +751,7 @@ contract LiFiVaultWrapper is
     ///      No-op on a zero amount.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
     /// @param _feeAssets The amount, in assets, kept idle in this contract: the fee
-    ///        plus, on the withdrawal path, any adapter overage (see `_transferOut`).
+    ///        plus, on the withdrawal path, any adapter excess (see `_transferOut`).
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
         if (_feeAssets == 0) return;
 
