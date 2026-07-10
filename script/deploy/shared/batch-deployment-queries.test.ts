@@ -30,6 +30,7 @@ function makeRecord(
     solcVersion: '0.8.29',
     evmVersion: 'cancun',
     zkSolcVersion: '',
+    gitCommitHash: 'abc123def456',
     createdAt: new Date('2025-01-01T00:00:00Z'),
     updatedAt: new Date('2025-01-01T00:00:00Z'),
     contractNetworkKey: 'Executor-mainnet',
