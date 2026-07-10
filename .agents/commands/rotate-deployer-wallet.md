@@ -71,7 +71,7 @@ Sweep native gas from the old deployer to the new one across all active EVM chai
 
 `sweep-wallet-funds` previews balances first, sweeps native LAST (stranding guard), and owns the human-confirmed pre-send report + secrets hygiene. Do not reimplement `moveNativeFundsToNewWallet.ts` here.
 
-> Leave enough in the OLD deployer to sign the Safe/timelock txs it still needs to send in Phase 2 if any are broadcast by the old key — `sweep-wallet-funds`'s dry-run lets you judge this per network before committing.
+> Leave enough in the OLD deployer to sign the Safe/timelock txs it still needs to send in Phase 2 if any are broadcast by the old key — `sweep-wallet-funds`'s balance preview (read-only; the mover script has no dry-run flag) lets you judge this per network before committing.
 
 ### Phase 2 — Swap the Safe owner + move CANCELLER_ROLE (`multisig-rollout`)
 

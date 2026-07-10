@@ -1,6 +1,6 @@
 ---
 name: sweep-wallet-funds
-description: Sweeps all native gas from a rotated-OUT SC wallet to the new wallet across every active EVM chain, via `script/tasks/moveNativeFundsToNewWallet.ts` — this is how every wallet rotation funds its replacement. Previews per-network balances first (dry-run), derives the sender from the private key (never `config/global.json`), shows a human-confirmed pre-sweep report, and reports per-network moved/skipped/failed. Use when the user says "sweep the old wallet", "move the native funds to the new wallet", "drain the rotated-out deployer/dev/pauser to its replacement", or when a `rotate-*` skill needs to fund a new wallet. NOT for funding a brand-new wallet from scratch (out of scope) and NOT for sending gas to an arbitrary recipient — that is `send-deployer-funds` (single-chain, arbitrary address). Only rotates SC-owned wallets (deployer / dev / pauser); never refund / feeCollector / withdraw. Requires Foundry (`cast`), `bun`, and `jq`. EVM sweep only — Tron native is a documented manual step.
+description: Sweeps all native gas from a rotated-OUT SC wallet to the new wallet across every active EVM chain, via `script/tasks/moveNativeFundsToNewWallet.ts` — this is how every wallet rotation funds its replacement. Previews per-network balances first (read-only via `cast balance` — the script itself has no dry-run flag), derives the sender from the private key (never `config/global.json`), shows a human-confirmed pre-sweep report, and reports per-network moved/skipped/failed. Use when the user says "sweep the old wallet", "move the native funds to the new wallet", "drain the rotated-out deployer/dev/pauser to its replacement", or when a `rotate-*` skill needs to fund a new wallet. NOT for funding a brand-new wallet from scratch (out of scope) and NOT for sending gas to an arbitrary recipient — that is `send-deployer-funds` (single-chain, arbitrary address). Only rotates SC-owned wallets (deployer / dev / pauser); never refund / feeCollector / withdraw. Requires Foundry (`cast`), `bun`, and `jq`. EVM sweep only — Tron native is a documented manual step.
 usage: /sweep-wallet-funds --new-address 0xNEW [--old-key-env PRIVATE_KEY_PRODUCTION] [--production] [--check]
 ---
 
@@ -33,7 +33,7 @@ Optional:
 
 - **old-key env var** (`--old-key-env`, default `PRIVATE_KEY_PRODUCTION` in prod / `PRIVATE_KEY` staging) — which `.env` key controls the rotated-out wallet. Maps to the script's `--privateKeyEnvKey`.
 - **--production** — target production (default staging); mirrors the `.env PRODUCTION=true` double-opt-in rail. Selects the default `--old-key-env` (`PRIVATE_KEY_PRODUCTION` when set, `PRIVATE_KEY` otherwise).
-- **--check** — dry-run: read + report per-network balances and the planned move, broadcast nothing.
+- **--check** — preview-only mode of this skill (NOT a script flag): run Phases 0–2 (balance preview via `cast balance`) and stop before any broadcast. `moveNativeFundsToNewWallet.ts` itself has no dry-run flag — never pass `--check` to it; citty silently ignores unknown flags and the script would broadcast a live sweep.
 
 The **old** (source) wallet is never taken as input — it is derived from the key (see Guardrails). If `--new-address` is missing or not a valid EVM address, ask once and stop.
 
@@ -66,20 +66,20 @@ SOURCE=$(set +x; KEY=$(grep -E "^${FROM_KEY_VAR}=" .env | cut -d= -f2- | tr -d '
 
 Report the derived `SOURCE`. Cross-check it equals the role's **current** on-chain / config address (the wallet being rotated out) — if it instead matches `--new-address`, the key has already been rotated and there is nothing to sweep; stop and say so. Do not read the source from `config/global.json`.
 
-### Phase 2 — Dry-run preview (always, before any broadcast)
+### Phase 2 — Balance preview (always, before any broadcast)
 
-Preview balances and the planned per-network move without broadcasting:
+`moveNativeFundsToNewWallet.ts` has **no dry-run / preview flag** (its only citty args are `--newWalletAddress`, `--privateKey`, `--privateKeyEnvKey`; unknown flags are silently ignored and the script broadcasts immediately). Never invoke it to "preview" — the preview is read-only `cast balance` per active EVM chain:
 
 ```bash
-bunx tsx script/tasks/moveNativeFundsToNewWallet.ts \
-  --newWalletAddress "$NEW" \
-  --privateKeyEnvKey "$FROM_KEY_VAR" \
-  --check
+# same selection as the mover's getAllActiveNetworks(), minus Tron (cast is EVM-only)
+for NET in $(jq -r 'to_entries[] | select(.value.status == "active") | .key | select(startswith("tron") | not)' config/networks.json); do
+  RPC=$(jq -r --arg n "$NET" '.[$n].rpcUrl' config/networks.json)
+  BAL=$(cast balance "$SOURCE" --rpc-url "$RPC" 2>/dev/null) || BAL="RPC unreachable"
+  echo "$NET: $BAL"
+done
 ```
 
-If `moveNativeFundsToNewWallet.ts` exposes no `--check`/dry-run flag, verify at write time via `bunx tsx script/tasks/moveNativeFundsToNewWallet.ts --help` and use whatever preview it offers. If it has none, read balances per active EVM chain with `cast balance "$SOURCE"` — this fallback can only report the raw balance, not the reserve kept or amount-to-move (those come from the mover's own reserve logic); render a balance-only table and say explicitly that reserve/amount figures are unavailable without the mover's preview. Never broadcast to preview.
-
-When the preview comes from `moveNativeFundsToNewWallet.ts --check`, render a per-network report: chain, source balance, gas reserve kept, amount to move, destination. Flag chains with a dust/zero balance (will be skipped) and any chain whose RPC is unreachable (surface, don't silently drop).
+Render a per-network table: chain, source balance, destination (`$NEW`). This preview reports **raw balances only** — the gas reserve kept and exact amount-to-move come from the mover's internal reserve logic and are not available without broadcasting; say so explicitly in the report. Flag chains with a dust/zero balance (the script will skip them) and any chain whose RPC is unreachable (surface, don't silently drop). Never broadcast to preview.
 
 ### Phase 3 — Human confirmation
 
@@ -109,7 +109,7 @@ bunx tsx script/tasks/moveNativeFundsToNewWallet.ts \
 
 ## Reuse map
 
-- `script/tasks/moveNativeFundsToNewWallet.ts` — the multi-chain EVM native mover this skill wraps (citty camelCase flags: `--newWalletAddress`, `--privateKeyEnvKey`/`--privateKey`).
+- `script/tasks/moveNativeFundsToNewWallet.ts` — the multi-chain EVM native mover this skill wraps (citty camelCase flags: `--newWalletAddress`, `--privateKeyEnvKey`/`--privateKey`; no dry-run flag).
 - `send-deployer-funds` — the single-chain / arbitrary-recipient sibling whose secrets-hygiene, derive-sender, and human-confirm rails this skill inherits. Use it, not this skill, for a one-off top-up.
 - `troncast address to-base58` / `troncast send` — Tron address derivation + the manual single-transfer for Tron native (Phase 5).
 - `update-wallet-config` — records the new wallet in `config/global.json` after the rotation (separate PR step).

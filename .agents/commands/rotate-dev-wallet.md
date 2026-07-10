@@ -64,7 +64,7 @@ Sweep native gas from the old dev wallet to the new one across all active EVM ch
 /sweep-wallet-funds --new-address <NEW> --old-key-env PRIVATE_KEY   # staging dev key
 ```
 
-`sweep-wallet-funds` previews balances first (dry-run), sweeps native **LAST** to avoid stranding gas, and reports per-network moved/skipped. It owns the human-confirmed pre-send report and secrets hygiene — do not reimplement `cast send` or `moveNativeFundsToNewWallet.ts` here.
+`sweep-wallet-funds` previews balances first (read-only `cast balance` — the mover script has no dry-run flag), sweeps native **LAST** to avoid stranding gas, and reports per-network moved/skipped. It owns the human-confirmed pre-send report and secrets hygiene — do not reimplement `cast send` or `moveNativeFundsToNewWallet.ts` here.
 
 ### Phase 2 — Transfer staging diamond ownership (old → new)
 
