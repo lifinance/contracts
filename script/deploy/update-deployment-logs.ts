@@ -209,13 +209,19 @@ class DeploymentLogManager {
         solcVersion: record.solcVersion,
         evmVersion: record.evmVersion,
         zkSolcVersion: record.zkSolcVersion,
-        gitCommitHash: record.gitCommitHash,
+        // Never blank a hash: the add CLI writes hashes to Mongo only, so a
+        // JSON-sourced record without one must not erase the Mongo value
+        ...(record.gitCommitHash
+          ? { gitCommitHash: record.gitCommitHash }
+          : {}),
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,
         updatedAt: new Date(),
       },
       $setOnInsert: {
         createdAt: new Date(),
+        // Fresh inserts still carry the field: '' = "predates EXSC-330"
+        ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
       },
     }
 
@@ -253,13 +259,19 @@ class DeploymentLogManager {
             solcVersion: record.solcVersion ?? '',
             evmVersion: record.evmVersion ?? '',
             zkSolcVersion: record.zkSolcVersion ?? '',
-            gitCommitHash: record.gitCommitHash ?? '',
+            // Exception to JSON-is-source-of-truth: the add CLI writes hashes
+            // to Mongo only, so a JSON record without one must not erase it
+            ...(record.gitCommitHash
+              ? { gitCommitHash: record.gitCommitHash }
+              : {}),
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
           },
           $setOnInsert: {
             createdAt: new Date(),
+            // Fresh inserts still carry the field: '' = "predates EXSC-330"
+            ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
           },
         },
         upsert: true,
