@@ -115,8 +115,8 @@ The deploy updated `deployments/<net>.json` (and staging logs if staging was dep
 
 Delegate the branch / commit / template / Linear ticket / `/pr-ready` / push / create mechanic to `/create-pr` (as **draft**), passing:
 
-- **files to stage**: the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 1's allowlist sync. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
-- **body** (the "Why"): staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 1 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
+- **files to stage**: the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 2's allowlist sync. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
+- **body** (the "Why"): staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 2 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
 
 Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the `/pr-ready` gate and the EXSC Linear-ticket requirement).
 
