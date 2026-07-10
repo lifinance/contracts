@@ -107,11 +107,11 @@ contract VaultWrapperDistributionTest is Test {
         uint16[] memory bps = _bps3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
 
-        (, uint16 secondBps) = wrapper.integratorReceivers(1);
+        (, uint16 secondBps) = wrapper.integratorFeeReceivers(1);
         assertEq(secondBps, 3000);
-        wrapper.integratorReceivers(2); // third receiver exists
+        wrapper.integratorFeeReceivers(2); // third receiver exists
         vm.expectRevert();
-        wrapper.integratorReceivers(3); // no fourth: exactly three configured
+        wrapper.integratorFeeReceivers(3); // no fourth: exactly three configured
     }
 
     function testRevert_InitRejectsEmptyReceivers() public {
@@ -150,13 +150,13 @@ contract VaultWrapperDistributionTest is Test {
                 address(this)
             )
         );
-        wrapper.setIntegratorReceivers(receivers);
+        wrapper.setIntegratorFeeReceivers(receivers);
 
         vm.expectEmit(false, false, false, true, address(wrapper));
         emit ReceiversSet(receivers);
         vm.prank(vaultAdmin);
-        wrapper.setIntegratorReceivers(receivers);
-        (address firstWallet, ) = wrapper.integratorReceivers(0);
+        wrapper.setIntegratorFeeReceivers(receivers);
+        (address firstWallet, ) = wrapper.integratorFeeReceivers(0);
         assertEq(firstWallet, makeAddr("new"));
     }
 
@@ -171,11 +171,11 @@ contract VaultWrapperDistributionTest is Test {
 
         FeeReceiver[] memory tooMany = new FeeReceiver[](51);
         vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
-        wrapper.setIntegratorReceivers(tooMany);
+        wrapper.setIntegratorFeeReceivers(tooMany);
 
         FeeReceiver[] memory zero = _receivers(_single(address(0)), _full());
         vm.expectRevert(ILiFiVaultWrapper.ZeroReceiver.selector);
-        wrapper.setIntegratorReceivers(zero);
+        wrapper.setIntegratorFeeReceivers(zero);
 
         uint16[] memory badSum = new uint16[](1);
         badSum[0] = 9999;
@@ -184,7 +184,7 @@ contract VaultWrapperDistributionTest is Test {
             badSum
         );
         vm.expectRevert(ILiFiVaultWrapper.ReceiverBpsSumNot100.selector);
-        wrapper.setIntegratorReceivers(badBps);
+        wrapper.setIntegratorFeeReceivers(badBps);
 
         vm.stopPrank();
     }

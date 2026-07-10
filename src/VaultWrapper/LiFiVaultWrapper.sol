@@ -120,7 +120,7 @@ contract LiFiVaultWrapper is
     /// @notice Integrator payout wallets (1..50) with their bps split, each packed into one
     ///         slot (address + uint16). Set at `initialize` and mutable by the integrator;
     ///         always non-empty after deploy. Bps sum to 100%.
-    FeeReceiver[] public integratorReceivers;
+    FeeReceiver[] public integratorFeeReceivers;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
@@ -166,7 +166,7 @@ contract LiFiVaultWrapper is
         // parameters stay live across that external call. `initialize` would otherwise
         // exceed the stack limit without via_ir (the receiver set is a two-slot calldata
         // array; see the subsystem OZ-v5 stack-pressure note).
-        _setIntegratorReceivers(_receivers);
+        _setIntegratorFeeReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
         factory = msg.sender;
         underlying = _underlying;
@@ -573,10 +573,10 @@ contract LiFiVaultWrapper is
     ///      set can never be emptied. Only redistributes the integrator's own share, so no
     ///      sweep is forced first.
     /// @param _receivers The new payout wallets + bps split (1..50, non-zero, summing to 100%).
-    function setIntegratorReceivers(
+    function setIntegratorFeeReceivers(
         FeeReceiver[] calldata _receivers
     ) external onlyOwner {
-        _setIntegratorReceivers(_receivers);
+        _setIntegratorFeeReceivers(_receivers);
     }
 
     /// @notice Permissionless: crystallize and pay out all tracked fee entitlements.
@@ -911,7 +911,7 @@ contract LiFiVaultWrapper is
     ///      bps summing to exactly 100%. Reverts the whole call (including a deploy, when
     ///      reached from `initialize`) on any violation.
     /// @param _receivers The payout wallets with their bps split.
-    function _setIntegratorReceivers(
+    function _setIntegratorFeeReceivers(
         FeeReceiver[] calldata _receivers
     ) private {
         uint256 count = _receivers.length;
@@ -926,9 +926,9 @@ contract LiFiVaultWrapper is
         if (sum != LibVaultWrapperMath.BASIS_POINT_SCALE)
             revert ReceiverBpsSumNot100();
 
-        delete integratorReceivers;
+        delete integratorFeeReceivers;
         for (uint256 i; i < count; ++i) {
-            integratorReceivers.push(_receivers[i]);
+            integratorFeeReceivers.push(_receivers[i]);
         }
 
         emit ReceiversSet(_receivers);
@@ -975,7 +975,7 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 redirected) {
-        FeeReceiver[] memory receivers = integratorReceivers;
+        FeeReceiver[] memory receivers = integratorFeeReceivers;
         uint256 count = receivers.length;
         uint256 distributed;
 
