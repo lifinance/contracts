@@ -21,7 +21,7 @@ interface ILiFiVaultWrapperFactory {
         FeeType _feeType
     ) external view returns (uint16 minBps, uint16 maxBps);
 
-    /// @notice The recipient of LI.FI's fee share, read live by instances at sweep so an
+    /// @notice The recipient of LI.FI's fee share, read live by instances at distribution so an
     ///         integrator can never redirect LI.FI's cut.
     /// @return The LI.FI fee recipient address.
     function lifiFeeRecipient() external view returns (address);

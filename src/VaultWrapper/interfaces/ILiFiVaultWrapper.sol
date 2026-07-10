@@ -61,20 +61,20 @@ interface ILiFiVaultWrapper {
     /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
     event ReceiversSet(FeeReceiver[] receivers);
 
-    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
-    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
+    /// @notice Emitted once per non-empty fee pool distributed by `distributeFees`.
+    /// @param token The fee-pool token (the vault asset, or this wrapper's shares).
     /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
     /// @param integratorAmount Amount delivered across the integrator wallets.
-    event ReservoirSwept(
+    event FeePoolDistributed(
         address indexed token,
         uint256 lifiAmount,
         uint256 integratorAmount
     );
 
     /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
-    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
+    ///         amount is redirected to the LI.FI recipient instead of reverting the distribution.
     /// @param receiver The integrator wallet whose transfer reverted.
-    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
+    /// @param token The fee-pool token redirected (the asset, or this wrapper's shares).
     /// @param amount The amount redirected to LI.FI.
     event IntegratorPayoutRedirected(
         address indexed receiver,
