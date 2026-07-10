@@ -12,7 +12,7 @@ import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig, FeeType, IntegratorReceivers, FeeReceiver } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
 /// @title LiFiVaultWrapper
@@ -148,7 +148,7 @@ contract LiFiVaultWrapper is
         address _vaultWrapperAdmin,
         uint16[4] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        IntegratorReceivers calldata _receivers,
+        FeeReceiver[] calldata _receivers,
         bytes calldata _initData
     ) external initializer {
         if (
@@ -162,12 +162,12 @@ contract LiFiVaultWrapper is
             ) revert InvalidIntegratorShareBps(_integratorShareBps[i]);
         }
 
-        address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
-        if (asset == address(0)) revert ZeroAddress();
-
-        _initErc4626Metadata(asset);
+        // Persist all calldata inputs before resolving the asset, so none of the calldata
+        // parameters stay live across that external call. `initialize` would otherwise
+        // exceed the stack limit without via_ir (the receiver set is a two-slot calldata
+        // array; see the subsystem OZ-v5 stack-pressure note).
+        _setIntegratorReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
-
         factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
@@ -184,7 +184,13 @@ contract LiFiVaultWrapper is
         perfHighWaterMarkPps = SafeCast.toUint192(
             LibVaultWrapperMath.pricePerShare(0, 0, _decimalsOffset())
         );
-        _setIntegratorReceivers(_receivers.wallets, _receivers.bps);
+
+        // Resolve the asset last, reading adapter/underlying from storage rather than the
+        // deep calldata params, to keep this external call shallow on the stack.
+        address asset = IYieldAdapter(adapter).resolveAsset(underlying);
+        if (asset == address(0)) revert ZeroAddress();
+
+        _initErc4626Metadata(asset);
 
         emit VaultWrapperConfigured(asset, underlying, adapter, owner());
     }
@@ -566,13 +572,11 @@ contract LiFiVaultWrapper is
     ///      the 1..50 / sum-to-100% invariant set at `initialize` always holds — the receiver
     ///      set can never be emptied. Only redistributes the integrator's own share, so no
     ///      sweep is forced first.
-    /// @param _receivers The new payout wallets (1..50, non-zero).
-    /// @param _receiverBps The per-receiver bps, summing to exactly 100%.
+    /// @param _receivers The new payout wallets + bps split (1..50, non-zero, summing to 100%).
     function setIntegratorReceivers(
-        address[] calldata _receivers,
-        uint16[] calldata _receiverBps
+        FeeReceiver[] calldata _receivers
     ) external onlyOwner {
-        _setIntegratorReceivers(_receivers, _receiverBps);
+        _setIntegratorReceivers(_receivers);
     }
 
     /// @notice Permissionless: crystallize and pay out all tracked fee entitlements.
@@ -904,35 +908,30 @@ contract LiFiVaultWrapper is
     }
 
     /// @dev Validates and stores the integrator receiver set: 1..50 wallets, no zero address,
-    ///      equal-length bps summing to exactly 100%. Reverts the whole call (including a
-    ///      deploy, when reached from `initialize`) on any violation.
-    /// @param _receivers The payout wallets.
-    /// @param _receiverBps The per-receiver bps.
+    ///      bps summing to exactly 100%. Reverts the whole call (including a deploy, when
+    ///      reached from `initialize`) on any violation.
+    /// @param _receivers The payout wallets with their bps split.
     function _setIntegratorReceivers(
-        address[] calldata _receivers,
-        uint16[] calldata _receiverBps
+        FeeReceiver[] calldata _receivers
     ) private {
         uint256 count = _receivers.length;
         if (count == 0 || count > MAX_FEE_RECEIVERS)
             revert InvalidReceiverCount();
-        if (_receiverBps.length != count) revert ReceiversLengthMismatch();
 
         uint256 sum;
         for (uint256 i; i < count; ++i) {
-            if (_receivers[i] == address(0)) revert ZeroReceiver();
-            sum += _receiverBps[i];
+            if (_receivers[i].wallet == address(0)) revert ZeroReceiver();
+            sum += _receivers[i].bps;
         }
         if (sum != LibVaultWrapperMath.BASIS_POINT_SCALE)
             revert ReceiverBpsSumNot100();
 
         delete integratorReceivers;
         for (uint256 i; i < count; ++i) {
-            integratorReceivers.push(
-                FeeReceiver({ wallet: _receivers[i], bps: _receiverBps[i] })
-            );
+            integratorReceivers.push(_receivers[i]);
         }
 
-        emit ReceiversSet(_receivers, _receiverBps);
+        emit ReceiversSet(_receivers);
     }
 
     /// @dev Pays out one reservoir of `_token` from the per-recipient parts booked at

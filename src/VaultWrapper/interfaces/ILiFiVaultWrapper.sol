@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType, IntegratorReceivers } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -57,10 +57,9 @@ interface ILiFiVaultWrapper {
     /// @param by The owner (integrator) that toggled it.
     event PauseSet(bool paused, address indexed by);
 
-    /// @notice Emitted when the integrator's receiver set is configured.
-    /// @param receivers The integrator payout wallets.
-    /// @param bps The per-receiver basis points (sum to 100%).
-    event ReceiversSet(address[] receivers, uint16[] bps);
+    /// @notice Emitted when the integrator's fee-receiver set is configured.
+    /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
+    event ReceiversSet(FeeReceiver[] receivers);
 
     /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
     /// @param token The reservoir token (the vault asset, or this wrapper's shares).
@@ -103,8 +102,6 @@ interface ILiFiVaultWrapper {
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
     /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
     error InvalidReceiverCount();
-    /// @notice Thrown when the receivers and bps arrays differ in length.
-    error ReceiversLengthMismatch();
     /// @notice Thrown when a receiver wallet is the zero address.
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
@@ -130,7 +127,7 @@ interface ILiFiVaultWrapper {
         address _vaultWrapperAdmin,
         uint16[4] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        IntegratorReceivers calldata _receivers,
+        FeeReceiver[] calldata _receivers,
         bytes calldata _initData
     ) external;
 }

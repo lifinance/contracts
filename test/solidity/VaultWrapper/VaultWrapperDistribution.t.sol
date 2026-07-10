@@ -11,7 +11,7 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice A blacklisting ERC20: `transfer` reverts to any blocked address (mirrors USDC).
 ///         Used to exercise the sweep's redirect-failed-integrator-payout-to-LI.FI path.
@@ -63,7 +63,7 @@ contract VaultWrapperDistributionTest is Test {
     uint16 internal constant MGMT_RATE = 200; // 2% / year
     uint256 internal constant YEAR = 365 days;
 
-    event ReceiversSet(address[] receivers, uint16[] bps);
+    event ReceiversSet(FeeReceiver[] receivers);
     event ReservoirSwept(
         address indexed token,
         uint256 lifiAmount,
@@ -139,8 +139,10 @@ contract VaultWrapperDistributionTest is Test {
             _full()
         );
 
-        address[] memory wallets = _single(makeAddr("new"));
-        uint16[] memory bps = _full();
+        FeeReceiver[] memory receivers = _receivers(
+            _single(makeAddr("new")),
+            _full()
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -148,12 +150,12 @@ contract VaultWrapperDistributionTest is Test {
                 address(this)
             )
         );
-        wrapper.setIntegratorReceivers(wallets, bps);
+        wrapper.setIntegratorReceivers(receivers);
 
         vm.expectEmit(false, false, false, true, address(wrapper));
-        emit ReceiversSet(wallets, bps);
+        emit ReceiversSet(receivers);
         vm.prank(vaultAdmin);
-        wrapper.setIntegratorReceivers(wallets, bps);
+        wrapper.setIntegratorReceivers(receivers);
         (address firstWallet, ) = wrapper.integratorReceivers(0);
         assertEq(firstWallet, makeAddr("new"));
     }
@@ -167,24 +169,22 @@ contract VaultWrapperDistributionTest is Test {
         );
         vm.startPrank(vaultAdmin);
 
-        address[] memory tooMany = new address[](51);
-        uint16[] memory tooManyBps = new uint16[](51);
+        FeeReceiver[] memory tooMany = new FeeReceiver[](51);
         vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
-        wrapper.setIntegratorReceivers(tooMany, tooManyBps);
+        wrapper.setIntegratorReceivers(tooMany);
 
-        address[] memory wallets = _single(makeAddr("r"));
-        uint16[] memory two = new uint16[](2);
-        vm.expectRevert(ILiFiVaultWrapper.ReceiversLengthMismatch.selector);
-        wrapper.setIntegratorReceivers(wallets, two);
-
-        address[] memory zero = _single(address(0));
+        FeeReceiver[] memory zero = _receivers(_single(address(0)), _full());
         vm.expectRevert(ILiFiVaultWrapper.ZeroReceiver.selector);
-        wrapper.setIntegratorReceivers(zero, _full());
+        wrapper.setIntegratorReceivers(zero);
 
         uint16[] memory badSum = new uint16[](1);
         badSum[0] = 9999;
+        FeeReceiver[] memory badBps = _receivers(
+            _single(makeAddr("r")),
+            badSum
+        );
         vm.expectRevert(ILiFiVaultWrapper.ReceiverBpsSumNot100.selector);
-        wrapper.setIntegratorReceivers(wallets, badSum);
+        wrapper.setIntegratorReceivers(badBps);
 
         vm.stopPrank();
     }
@@ -451,11 +451,19 @@ contract VaultWrapperDistributionTest is Test {
                 fees: _fees,
                 integratorShareBps: [_split, _split, _split, _split],
                 initData: "",
-                receivers: IntegratorReceivers({
-                    wallets: _wallets,
-                    bps: _bps
-                })
+                receivers: _receivers(_wallets, _bps)
             });
+    }
+
+    /// @dev Zips parallel wallet/bps arrays into the FeeReceiver[] the wrapper takes.
+    function _receivers(
+        address[] memory _wallets,
+        uint16[] memory _bps
+    ) internal pure returns (FeeReceiver[] memory r) {
+        r = new FeeReceiver[](_wallets.length);
+        for (uint256 i; i < _wallets.length; ++i) {
+            r[i] = FeeReceiver({ wallet: _wallets[i], bps: _bps[i] });
+        }
     }
 
     function _single(address _a) internal pure returns (address[] memory w) {

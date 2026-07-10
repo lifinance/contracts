@@ -49,18 +49,12 @@ struct DeployParams {
     FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
     uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
-    IntegratorReceivers receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.
+    FeeReceiver[] receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.
 }
 
-/// @notice Integrator payout wallets and their basis-point split, validated together on the
-///         wrapper instance (1..50 non-zero wallets, bps summing to exactly 10_000 = 100%).
-struct IntegratorReceivers {
-    address[] wallets; // Payout wallets (1..50, non-zero).
-    uint16[] bps; // Per-wallet bps summing to 10_000 (100%); parallel to wallets.
-}
-
-/// @notice A single integrator payout wallet and its bps share, packed into one slot
-///         (address + uint16). The set sums to 10_000 (100%).
+/// @notice A single integrator payout wallet and its basis-point share, packed into one slot
+///         (address + uint16). A wrapper instance holds 1..50 non-zero wallets whose bps sum
+///         to exactly 10_000 (100%), validated together at initialize.
 struct FeeReceiver {
     address wallet; // Payout wallet (non-zero).
     uint16 bps; // Share in bps.
