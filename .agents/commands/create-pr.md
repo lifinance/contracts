@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request for the current branch: creates a new branch if needed, commits staged/unstaged changes, pushes, and opens a PR using the repo's pull_request_template.md. Use when the user says "create PR", "open PR", "make a pull request", "push and PR", or similar. Fills in Linear task link and implementation rationale from context; leaves reviewer checklist unchecked.
+description: Create a pull request for the current branch: creates a new branch if needed, commits staged/unstaged changes, pushes, and opens a PR using the repo's pull_request_template.md. Use when the user says "create PR", "open PR", "make a pull request", "push and PR", or similar. Requires a SmartContract-team (EXSC) Linear ticket — assigned and estimated — on every PR; resolves one from context or creates one (auto-assigned, proposed estimate) unless the user explicitly opts out. Leaves reviewer checklist unchecked.
 ---
 
 # Create PR
@@ -18,7 +18,8 @@ User says any of:
 
 - **Branch name** (optional). If omitted, derive from staged changes or task context (e.g. `feat/short-description`).
 - **Commit message** (optional). If omitted, derive from the diff.
-- **Linear task link or ID** (optional). If known from context, include in PR body.
+- **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 11. All other steps (template, Linear ticket, `/pr-ready`, tests) apply unchanged.
+- **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned** and has an **estimate** — step 5 validates and repairs this for existing tickets and guarantees it for created ones. If known from context, include in PR body; otherwise step 5 resolves or creates one. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 5 prompt) — the absence of a known ticket is never an opt-out.
 
 ## Related conventions
 
@@ -83,26 +84,37 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as `Fixes <ID>` (or `Ref <ID>`) as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
 
   1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
-  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions.
+  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions about which ticket to link (the validation block below still applies).
   3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query the Linear MCP `list_issues` tool with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
      - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
      - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "skip" option). Use `AskUserQuestion` if available; otherwise plain chat.
-  4. **Not found** — offer to create a new Linear ticket before falling back. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
+
+  **Validation (applies to any ticket resolved via routes 1–3)** — fetch it with the Linear MCP `get_issue` tool and check:
+
+  - **Team**: must belong to the SmartContract team (EXSC prefix). A ticket from another team does not satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant, but fall through to route 4 to create the EXSC ticket.
+  - **Assignee**: if unassigned, assign the current user via `save_issue` with `assignee: "me"`. Never reassign a ticket that already has an assignee.
+  - **Estimate**: if none is set, propose one scaled to the diff (default **1** for simple/small changes), show it to the user for adjustment, and set it via `save_issue`. Unattended runs set the proposed value directly.
+
+  Report any repairs made (assignee/estimate) in the pre-flight summary (step 9).
+
+  4. **Not found** — create a new Linear ticket. A ticket is **required** on every PR; proceeding without one is allowed only on an explicit user opt-out, never as a silent fallback. If the user already opted out earlier in this session, skip this prompt and use `<!-- No Linear task -->`. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
      - Propose in chat (filling in the placeholders with the actual derived values):
 
        ```
-       No Linear ticket found. Create one in EXSC and rename branch?
+       No Linear ticket found — one is required. Create in EXSC and rename branch?
          • Ticket: team=SmartContract, title="<derived title>"
+         • Assignee: <current user>   • Estimate: <proposed, default 1>
          • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
        ```
 
-       - `e` (default) — show the proposed title (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
+       - `e` (default) — show the proposed title and estimate (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
        - `y` — create the ticket with the proposed title as-is **and** rename the branch.
-       - `s` — skip; proceed without a ticket and leave the branch as-is.
-     - On `y` / `e` (after the user confirms the edited title): call the Linear MCP `save_issue` tool with `team: "SmartContract"`, the (edited) title, and a short body summarizing the change + a placeholder for the PR URL. Use the returned ID:
+       - `s` — explicit opt-out; proceed without a ticket and leave the branch as-is. If the change genuinely qualifies (typo / doc-only / dep-bump / single-line fix), suggest adding the `trivial` label so the ticket-linkage metric counts the PR as linked.
+     - If running unattended (no user available to answer), create the ticket with the derived title — do **not** proceed without one.
+     - On `y` / `e` (after the user confirms the edited title): call the Linear MCP `save_issue` tool with `team: "SmartContract"`, the (edited) title, a short body summarizing the change + a placeholder for the PR URL, `assignee: "me"`, and the confirmed `estimate` (default **1** for simple tasks, scaled to the diff). Use the returned ID:
        - Insert `Fixes <ID>` in the PR body's Linear section.
        - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
-     - On `s` (user skipped) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
+     - On `s` (explicit user opt-out) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
 
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
@@ -186,6 +198,9 @@ Self-review:
   • Findings: <none / list any concerns>
   • Single-concern: <yes / no — and why>
 
+Linear: <EXSC-ID> — assignee <name>, estimate <n>   (repairs: <none / assigned <name> / estimate set to <n>>)
+  ↑ or: no ticket (explicit user opt-out)
+
 Checks run:
   • Pre-commit hook ... PASS (enforced lint/typecheck/build/secrets at every commit)
   • /pr-ready ......... CLEAN / N remaining (documented) / N/A
@@ -219,6 +234,8 @@ Write body to a temp file and create via `gh`:
 gh pr create --title "<title>" --body "$(cat /tmp/pr-body.md)" --base main --head <branch-name>
 ```
 
+Append `--draft` if the Draft input was requested.
+
 Print the resulting PR URL to the user.
 
 ### 12. Offer to post for review
@@ -235,7 +252,7 @@ After the PR is created, ask:
 - **Branch already has open PR**: surface URL, offer to push new commits instead.
 - **Push rejected (non-fast-forward)**: report error; do not force-push without explicit user instruction.
 - **No template found**: use minimal body with title + rationale only.
-- **Linear task unknown**: offer to create a new ticket (step 5, bullet 4) with `e` (default, edit title) / `y` (accept as-is) / `s` (skip). On skip, leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
+- **Linear task unknown**: create a new ticket (step 5, bullet 4) with `e` (default, edit title) / `y` (accept as-is) / `s` (explicit opt-out). Only on explicit opt-out, leave the section blank with `<!-- No Linear task -->`; unattended runs must create the ticket. Never fabricate a link.
 - **Tests/lints fail**: stop. Surface failures to the user and do not push unless they explicitly override.
 - **`coderabbit` CLI missing / auth expired / rate-limited**: surface the error from `/pr-ready` and stop. Do not push an "unreviewed" PR to bypass the step.
 - **`/pr-ready` reports unresolved findings**: only allowed if each remaining item is explicitly documented in the PR body's `## /pr-ready deferred findings` section with a rationale.
