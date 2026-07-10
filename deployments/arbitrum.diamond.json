@@ -164,6 +164,10 @@
       "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0x0d0684aB8aBcA9da852630638462bf1F94e3828c": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

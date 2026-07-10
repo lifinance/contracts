@@ -2,8 +2,8 @@
 #
 # checkPauserFunds.sh — audit whether the pauser wallet on each production EVM network can
 # afford pauseDiamond(). Read-only: estimates the single-pause cost, reads the pauser
-# balance, and reports NUM OF PAUSES + a status per network. EVM only (Tron / testnets, and
-# chains with no native currency such as tempo, are skipped).
+# balance, and reports NUM OF PAUSES + a status per network. EVM only (Tron / testnets are
+# skipped).
 #
 # Usage:
 #   ./script/utils/checkPauserFunds.sh [NETWORK ...]
@@ -13,6 +13,16 @@
 # NUM OF PAUSES = balance ÷ cost of ONE pauseDiamond() — how many pauses the wallet can fund.
 # Status:  OK (>= 2.5 pauses)   WARNING (1 to 2.5)   CRITICAL (< 1 pause)
 #          PAUSED (already paused)   ERROR (estimate/RPC failed)   SKIP (filtered/no diamond)
+# Chains whose RPC reports a gas price of 0 show COST "free gas" / NUM OF PAUSES "inf" with
+# status WARNING: a zero gas price is usually an RPC misreport rather than a real fee model,
+# so it needs investigating — but it is not the hard ERROR of a failed estimation/RPC read.
+# Chains with no native currency (nativeCurrency "N/A", e.g. tempo) pay gas in an ERC20 fee
+# token — eth_getBalance returns a meaningless sentinel there. They are audited against the
+# fee token configured in networks.json (feeTokenAddress, plus an optional feeManagerAddress
+# per-account override) instead of the native balance; without that config they are skipped.
+# The math stays on the 1e18 scale: eth_gasPrice on such chains is quoted per-gas in the fee
+# token's 1e18 base units (attodollars on tempo), and the token balance is rescaled from the
+# token's decimals to match.
 # Exit code: 1 if any audited network is CRITICAL, else 0.
 #
 # Must be run from the repository root.
@@ -27,6 +37,9 @@ Usage: ./script/utils/checkPauserFunds.sh [NETWORK ...]
   NETWORK...  audit only the named networks
 NUM OF PAUSES = balance / cost of one pauseDiamond() (how many pauses the wallet can fund).
 Statuses: OK (>=2.5 pauses)  WARNING (1-2.5)  CRITICAL (<1)  PAUSED  ERROR  SKIP
+Chains whose RPC reports gas price 0 show "free gas" and WARNING (investigate the RPC).
+Chains with no native currency (nativeCurrency "N/A") are audited against the fee token
+configured in networks.json (feeTokenAddress); without it they are skipped.
 Exit code 1 if any network is CRITICAL.
 EOF
 }
@@ -49,13 +62,15 @@ readonly WARN_MULT_DEN=2
 
 # Retry transient RPC read failures (throttling/timeouts) a few times before marking a network
 # ERROR, so a brief blip on one chain doesn't show as a spurious ERROR row. (estimatePauseCost
-# retries its own estimate/gas-price reads; this covers the balance read here.)
+# retries its own estimate/gas-price reads; this covers the balance and fee-token reads here,
+# via castReadRetry.)
 readonly RPC_READ_MAX_ATTEMPTS=3
 readonly RPC_READ_RETRY_SLEEP_SECONDS=2
 
-# fmtAmount: show a wei value in native units rounded to 3 significant figures — enough to
-# eyeball funding; full 18-digit precision isn't useful here. %g may switch to scientific
-# notation for extreme values (e.g. near-zero gas costs).
+# fmtAmount: show a 1e18-base-unit value (wei, or a rescaled fee-token balance) in whole-token
+# units rounded to 3 significant figures — enough to eyeball funding; full 18-digit precision
+# isn't useful here. %g may switch to scientific notation for extreme values (e.g. near-zero
+# gas costs).
 # Usage: fmtAmount WEI
 function fmtAmount() {
   local WEI="$1"
@@ -66,6 +81,31 @@ function fmtAmount() {
 function resolveRpc() {
   local NET="$1"
   getRPCUrl "$NET" 2>/dev/null || getRpcUrlFromNetworksJson "$NET"
+}
+
+# castReadRetry: run a read-only `cast` command with the shared RPC retry policy and echo the
+# FIRST whitespace-separated field of its output (cast appends a scientific-notation annotation
+# to large uints) once that field matches PATTERN. A failed call yields an empty field, which
+# never matches, so RPC failures and malformed output take the same retry path.
+# Usage: castReadRetry PATTERN CAST_ARGS...
+# Returns: 0 with the matched field on stdout, 1 after RPC_READ_MAX_ATTEMPTS failed attempts.
+function castReadRetry() {
+  local PATTERN="$1"
+  shift
+  local OUT ATTEMPT=1
+  while :; do
+    OUT=$(cast "$@" 2>/dev/null)
+    OUT=${OUT%%[[:space:]]*}
+    if [[ "$OUT" =~ $PATTERN ]]; then
+      echo "$OUT"
+      return 0
+    fi
+    if [[ $ATTEMPT -ge $RPC_READ_MAX_ATTEMPTS ]]; then
+      return 1
+    fi
+    sleep "$RPC_READ_RETRY_SLEEP_SECONDS"
+    ATTEMPT=$((ATTEMPT + 1))
+  done
 }
 
 # Build the network list: explicit args, else every key in networks.json.
@@ -150,13 +190,25 @@ function checkNetwork() {
     return
   fi
 
-  # Skip chains with no meaningful native currency (nativeCurrency "N/A") — e.g. tempo, which
-  # pays gas in a non-native token, so a native balance vs native gas-cost comparison is moot.
-  local SYMBOL
+  # Chains with no native currency (nativeCurrency "N/A") — e.g. tempo — pay gas in an ERC20
+  # fee token, so the audit runs against that token instead of the (meaningless) native
+  # balance. Without a configured feeTokenAddress there is nothing to audit against → SKIP.
+  #
+  # The discriminator is deliberately "eth_getBalance is decoupled from the gas balance", NOT
+  # "gas is paid in a token". Other ERC20-gas chains (arc/celo/metis/monad/stable) keep the
+  # native path below: they use standard EVM accounting where eth_getBalance IS the gas balance
+  # on the same unit as gas price (verified: celo/metis eth_getBalance == predeploy balanceOf),
+  # so balance ÷ (gasEstimate × gasPrice) is already correct there regardless of token/decimals.
+  # tempo is the sole exception — its TIP-20/FeeManager fee system is decoupled, so eth_getBalance
+  # returns a nonsense sentinel and the real funds must be read from the fee token directly.
+  local SYMBOL FEE_TOKEN=""
   SYMBOL=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.nativeCurrency")
   if [[ -z "$SYMBOL" || "$SYMBOL" == "N/A" ]]; then
-    echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "SKIP")"
-    return
+    FEE_TOKEN=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.feeTokenAddress")
+    if ! isValidEvmAddress "$FEE_TOKEN"; then
+      echo "$CAT_SKIP|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "SKIP")"
+      return
+    fi
   fi
 
   local COST RC
@@ -166,23 +218,62 @@ function checkNetwork() {
     echo "$CAT_PAUSED|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "PAUSED")"
     return
   fi
-  if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ || "$COST" == "0" ]]; then
+  # COST 0 is NOT an error: estimatePauseCost rejects a zero gas ESTIMATE, so 0 can only mean
+  # the chain's gas PRICE is 0 (free gas) — handled after the balance read below.
+  if [[ $RC -ne 0 || ! "$COST" =~ ^[0-9]+$ ]]; then
     echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
     return
   fi
 
-  local RPC_URL BALANCE BAL_ATTEMPT=1
+  local RPC_URL BALANCE
   RPC_URL=$(resolveRpc "$NETWORK")
-  while :; do
-    BALANCE=$(cast balance "$PAUSER" --rpc-url "$RPC_URL" 2>/dev/null)
-    [[ "$BALANCE" =~ ^[0-9]+$ ]] && break
-    if [[ $BAL_ATTEMPT -ge $RPC_READ_MAX_ATTEMPTS ]]; then
+  if [[ -n "$FEE_TOKEN" ]]; then
+    # Fee-preference hierarchy (e.g. tempo's FeeManager predeploy): a per-account preference
+    # overrides the chain-default fee token. When networks.json configures feeManagerAddress,
+    # resolve the pauser's preference dynamically so the audit tracks the token the pauser
+    # would actually pay gas with. (A validator-preference tier sits between user preference
+    # and chain default but is not account-resolvable; the audit assumes the default path.)
+    local FEE_MANAGER USER_FEE_TOKEN
+    FEE_MANAGER=$(getValueFromJSONFile "./config/networks.json" "${NETWORK}.feeManagerAddress")
+    if isValidEvmAddress "$FEE_MANAGER"; then
+      if ! USER_FEE_TOKEN=$(castReadRetry '^0x[0-9a-fA-F]{40}$' call "$FEE_MANAGER" "userTokens(address)(address)" "$PAUSER" --rpc-url "$RPC_URL"); then
+        echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
+        return
+      fi
+      isZeroAddress "$USER_FEE_TOKEN" || FEE_TOKEN="$USER_FEE_TOKEN"
+    fi
+
+    # Rescale the fee-token balance from the token's decimals to the 1e18 base-unit scale COST
+    # already uses (eth_gasPrice on such chains is quoted per-gas in the fee token's 1e18 base
+    # units), so the ratio/threshold math below stays unit-consistent.
+    local DECIMALS RAW_BALANCE
+    if ! DECIMALS=$(castReadRetry '^[0-9]+$' call "$FEE_TOKEN" "decimals()(uint8)" --rpc-url "$RPC_URL") ||
+      ! RAW_BALANCE=$(castReadRetry '^[0-9]+$' call "$FEE_TOKEN" "balanceOf(address)(uint256)" "$PAUSER" --rpc-url "$RPC_URL") ||
+      ! SYMBOL=$(castReadRetry '^.+$' call "$FEE_TOKEN" "symbol()(string)" --rpc-url "$RPC_URL"); then
       echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
       return
     fi
-    sleep "$RPC_READ_RETRY_SLEEP_SECONDS"
-    BAL_ATTEMPT=$((BAL_ATTEMPT + 1))
-  done
+    SYMBOL=${SYMBOL//\"/} # cast prints returned strings quoted
+    if [[ "$DECIMALS" -le 18 ]]; then
+      BALANCE=$(echo "$RAW_BALANCE * 10^(18 - $DECIMALS)" | bc)
+    else
+      BALANCE=$(echo "$RAW_BALANCE / 10^($DECIMALS - 18)" | bc)
+    fi
+  else
+    if ! BALANCE=$(castReadRetry '^[0-9]+$' balance "$PAUSER" --rpc-url "$RPC_URL"); then
+      echo "$CAT_ERROR|0|$(fmtRow "$NETWORK" "-" "-" "-" "-" "-" "ERROR")"
+      return
+    fi
+  fi
+
+  # Gas price 0: the pauser could technically pause for free, but a zero gas price is usually
+  # an RPC misreport rather than a real fee model — surface it as WARNING (investigate), not a
+  # quiet OK and not the hard ERROR of a failed estimation. Still a data row, so it counts as
+  # "evaluated" for the blind-sweep guard; sort key 0 places it with the needs-attention rows.
+  if [[ "$COST" == "0" ]]; then
+    echo "$CAT_DATA|0|$(fmtRow "$NETWORK" "free gas" "-" "$(fmtAmount "$BALANCE") ${SYMBOL}" "inf" "-" "WARNING")"
+    return
+  fi
 
   local REQUIRED RATIO STATUS
   REQUIRED=$(echo "$COST * $WARN_MULT_NUM / $WARN_MULT_DEN" | bc)
@@ -261,7 +352,16 @@ if ! {
   exit 1
 fi
 
-echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1" >&2
+echo "NUM OF PAUSES = balance ÷ cost of one pauseDiamond() · OK ≥2.5 · WARNING 1–2.5 · CRITICAL <1 · gas price 0 = \"free gas\" + WARNING" >&2
+
+# A zero gas price deserves eyes: usually an RPC misreport, occasionally a genuine free-gas
+# chain — either way, verify before trusting the row. Kept out of the exit code (only CRITICAL
+# fails the run), but called out loudly on stderr.
+FREE_GAS_NETWORKS=$(printf '%s\n' "${ROWS[@]}" | grep -F $'\tfree gas\t' | cut -d'|' -f3 | cut -f1 | paste -sd',' -)
+if [[ -n "$FREE_GAS_NETWORKS" ]]; then
+  echo "" >&2
+  warning "gas price reported as 0 on: $FREE_GAS_NETWORKS — verify the RPC / chain fee model before trusting these rows" >&2
+fi
 
 # Blind-sweep guard: if we audited in-scope networks but EVERY one returned ERROR — no
 # OK/WARNING/CRITICAL/PAUSED answer anywhere (e.g. a broad RPC outage, or a misconfigured pauser
