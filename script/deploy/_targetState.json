@@ -2293,7 +2293,8 @@
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "PolymerCCTPFacet": "2.1.0"
       }
     }
   },
