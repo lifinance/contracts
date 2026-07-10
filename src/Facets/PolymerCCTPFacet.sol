@@ -41,11 +41,6 @@ contract PolymerCCTPFacet is
     address internal constant HYPERCORE_CCTP_FORWARDER =
         0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757;
 
-    /// @dev Byte offsets of the recipient address within CctpForwarder hook data
-    ///      (24 bytes magic + 4 bytes version + 4 bytes payload length, then the recipient)
-    uint256 private constant HOOK_RECIPIENT_OFFSET_START = 32;
-    uint256 private constant HOOK_RECIPIENT_OFFSET_END = 52;
-
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.polymercctp");
 
@@ -291,18 +286,16 @@ contract PolymerCCTPFacet is
             if (
                 _bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE &&
                 _bridgeData.receiver != NON_EVM_ADDRESS &&
-                _polymerData.hookData.length >= HOOK_RECIPIENT_OFFSET_END
+                _polymerData.hookData.length >= 52
             ) {
-                // The forwarder credits the account encoded in the hook data, so it
-                // must equal the declared receiver or events would misreport the
+                // CctpForwarder hook layout: magic (24 bytes) + version (4) +
+                // payload length (4), then the recipient address at [32:52].
+                // The forwarder credits the account encoded there, so it must
+                // equal the declared receiver or events would misreport the
                 // beneficiary and calldata could redirect funds unnoticed.
                 if (
-                    address(
-                        bytes20(
-                            _polymerData
-                                .hookData[HOOK_RECIPIENT_OFFSET_START:HOOK_RECIPIENT_OFFSET_END]
-                        )
-                    ) != _bridgeData.receiver
+                    address(bytes20(_polymerData.hookData[32:52])) !=
+                    _bridgeData.receiver
                 ) {
                     revert InvalidReceiver();
                 }
