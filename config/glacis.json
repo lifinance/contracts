@@ -2,6 +2,7 @@
   "LinkToDeployedToAddresses": "https://github.com/glacislabs/airlift-evm/blob/main/config/diamond/latest.json",
   "airlift": {
     "mainnet": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
+    "0g": "0x290D54179960984599F16F77DCDA81320301b158",
     "abstract": "0x5501e28f588b3A246a590a391A7Ae7B2bA065ddE",
     "arbitrum": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
     "avalanche": "0x023fa838682C115c2cFBA96Ef3791CB5Bd931Fc7",
