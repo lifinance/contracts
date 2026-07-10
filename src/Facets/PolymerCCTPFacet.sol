@@ -278,32 +278,31 @@ contract PolymerCCTPFacet is
         ILiFi.BridgeData memory _bridgeData,
         PolymerCCTPData calldata _polymerData
     ) internal {
-        bool isHookFlow = _polymerData.hookData.length > 0;
-
-        if (isHookFlow) {
-            // Corridor dispatch: hooks are only supported toward destinations with a
-            // pinned forwarder. Add new corridors (e.g. Stellar) as additional arms.
+        // Corridor dispatch: HyperCore requires a forwarder hook; hooks toward any
+        // other destination are unsupported. Add new corridors (e.g. Stellar) as
+        // additional arms.
+        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
+            // Without a valid hook the USDC would mint on HyperEVM and never
+            // reach HyperCore
             if (
-                _bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE &&
-                _bridgeData.receiver != NON_EVM_ADDRESS &&
-                _polymerData.hookData.length >= 52
+                _bridgeData.receiver == NON_EVM_ADDRESS ||
+                _polymerData.hookData.length < 52
             ) {
-                // CctpForwarder hook layout: magic (24 bytes) + version (4) +
-                // payload length (4), then the recipient address at [32:52].
-                // The forwarder credits the account encoded there, so it must
-                // equal the declared receiver or events would misreport the
-                // beneficiary and calldata could redirect funds unnoticed.
-                if (
-                    address(bytes20(_polymerData.hookData[32:52])) !=
-                    _bridgeData.receiver
-                ) {
-                    revert InvalidReceiver();
-                }
-            } else {
                 revert InvalidCallData();
             }
-        } else if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
-            // Without a hook the USDC would mint on HyperEVM and never reach HyperCore
+
+            // CctpForwarder hook layout: magic (24 bytes) + version (4) +
+            // payload length (4), then the recipient address at [32:52].
+            // The forwarder credits the account encoded there, so it must
+            // equal the declared receiver or events would misreport the
+            // beneficiary and calldata could redirect funds unnoticed.
+            if (
+                address(bytes20(_polymerData.hookData[32:52])) !=
+                _bridgeData.receiver
+            ) {
+                revert InvalidReceiver();
+            }
+        } else if (_polymerData.hookData.length > 0) {
             revert InvalidCallData();
         }
 
@@ -331,7 +330,7 @@ contract PolymerCCTPFacet is
                 revert InvalidReceiver();
             }
 
-            if (isHookFlow) {
+            if (destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
                 // Mint to the pinned forwarder (never to the receiver directly) and
                 // restrict execution to it; the forwarder then deposits into
                 // HyperCore for the receiver validated above
