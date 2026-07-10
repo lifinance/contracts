@@ -2,11 +2,10 @@
 # - makes sure that every pull_request is at least reviewed by one Smart Contract Core Developer
 #   (member of group https://github.com/orgs/lifinance/teams/smart-contract-core)
 # - re-evaluates on review submission/dismissal AND on PR lifecycle events (opened, reopened,
-#   ready_for_review, synchronize) so a check produced while the PR was a draft can never
-#   satisfy branch protection: GitHub counts a "skipped" check run as passing, so the job
-#   must re-run with a real verdict on the head commit before merge
-# - draft PRs still skip the job (they cannot be merged anyway); leaving draft state fires
-#   ready_for_review, which replaces the skipped check run on the same head SHA
+#   ready_for_review, synchronize) so the verdict on the head commit is always current
+# - runs unconditionally (also on draft PRs): GitHub counts a "skipped" check run as passing
+#   a required status check, so this job must NEVER skip — a draft-time skip standing as the
+#   final verdict is exactly how an unapproved PR could reach main
 
 name: SC Core Dev Approval Check
 
@@ -26,7 +25,7 @@ concurrency:
 
 jobs:
   core-dev-approval:
-    if: ${{ github.event.pull_request.draft == false }} # drafts skip; ready_for_review re-runs the check so the skip can never be the final verdict on a mergeable PR
+    # no draft condition on purpose — a skipped run counts as passing for branch protection
     runs-on: ubuntu-latest
     steps:
       - name: Get smart-contract-core Team Members
