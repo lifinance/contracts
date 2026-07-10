@@ -81,7 +81,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   - the **branch name** contains the issue ID (e.g. `feat/exsc-327-…`, see step 2), or
   - the PR **title or body** contains a magic keyword + ID — `Fixes EXSC-327`, `Closes EXSC-327`, `Resolves EXSC-327`, or `Ref EXSC-327` (case-insensitive; use `Ref` for partial work that should not auto-close the ticket on merge).
 
-  A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as `Fixes <ID>` (or `Ref <ID>`) as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
+  A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as a markdown link — `Fixes [<ID>](<ticket URL>)` (or `Ref [<ID>](<ticket URL>)`), using the `url` returned by the Linear MCP — so reviewers can click through to the ticket, and the keyword + ID still trigger the auto-link as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
 
   1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
   2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions about which ticket to link (the validation block below still applies).
@@ -112,7 +112,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
        - `s` — explicit opt-out; proceed without a ticket and leave the branch as-is. If the change genuinely qualifies (typo / doc-only / dep-bump / single-line fix), suggest adding the `trivial` label so the ticket-linkage metric counts the PR as linked.
      - If running unattended (no user available to answer), create the ticket with the derived title — do **not** proceed without one.
      - On `y` / `e` (after the user confirms the edited title): call the Linear MCP `save_issue` tool with `team: "SmartContract"`, the (edited) title, a short body summarizing the change + a placeholder for the PR URL, `assignee: "me"`, and the confirmed `estimate` (default **1** for simple tasks, scaled to the diff). Use the returned ID:
-       - Insert `Fixes <ID>` in the PR body's Linear section.
+       - Insert `Fixes [<ID>](<ticket URL>)` in the PR body's Linear section (URL from the `save_issue` response).
        - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
      - On `s` (explicit user opt-out) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
 
