@@ -601,6 +601,59 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_HyperCoreHookDataBelowMinLength() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
+
+        // 51 bytes: one below the minimum that contains a full recipient
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(new bytes(51));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeToHyperCoreWithMinimalHookData() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
+
+        // Exactly 52 bytes: header + recipient, no destinationId
+        bytes memory hookData = abi.encodePacked(
+            bytes24("cctp-forward"),
+            uint32(0),
+            uint32(20),
+            bridgeData.receiver
+        );
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(hookData);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
     /// @dev CctpForwarder hook data: magic (24) + version (4) + payload length (4)
     ///      + recipient (20) + destination dex (4, 0xFFFFFFFF = spot balance)
     function _buildHyperCoreHookData(
