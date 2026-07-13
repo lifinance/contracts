@@ -241,6 +241,32 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(asset.balanceOf(oldReceiver), 0);
     }
 
+    function test_DistributeFeesSkipsZeroShareReceiver() public {
+        // Two receivers: a 1-bps wallet and a 9999-bps wallet. With a tiny fee pool the
+        // 1-bps wallet's proportional share rounds down to 0 and is skipped; the last
+        // wallet absorbs the whole integrator total, so nothing is stranded.
+        address dust = makeAddr("dust"); // 1 bps
+        address bulk = makeAddr("bulk"); // 9999 bps
+        address[] memory wallets = new address[](2);
+        wallets[0] = dust;
+        wallets[1] = bulk;
+        uint16[] memory bps = new uint16[](2);
+        bps[0] = 1;
+        bps[1] = 9999;
+        wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
+
+        _deposit(alice, 200_000); // tiny deposit → integrator fee pool < 10_000 wei
+
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        assertGt(integratorPart, 0);
+        assertLt(integratorPart, 10_000); // ensures the 1-bps share floors to 0
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(dust), 0); // zero-share receiver skipped
+        assertEq(asset.balanceOf(bulk), integratorPart); // last absorbs it all
+    }
+
     /// Fee distribution — split correctness ///
 
     function test_DistributeFeesSplitsAssetPool() public {
