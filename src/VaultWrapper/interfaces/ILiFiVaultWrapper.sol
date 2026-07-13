@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -16,16 +16,11 @@ interface ILiFiVaultWrapper {
     /// @param underlying The yield source the wrapper deposits into.
     /// @param adapter The yield adapter the wrapper routes through.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
-    ///        FeeType ordinal) snapshotted at deploy.
     event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16[FEE_TYPE_COUNT] integratorShareBps
+        address vaultWrapperAdmin
     );
 
     /// @notice Emitted when a fee type's rate is changed.
@@ -62,6 +57,31 @@ interface ILiFiVaultWrapper {
     /// @param by The owner (integrator) that toggled it.
     event PauseSet(bool paused, address indexed by);
 
+    /// @notice Emitted when the integrator's fee-receiver set is configured.
+    /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
+    event ReceiversSet(FeeReceiver[] receivers);
+
+    /// @notice Emitted once per non-empty fee pool distributed by `distributeFees`.
+    /// @param token The fee-pool token (the vault asset, or this wrapper's shares).
+    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
+    /// @param integratorAmount Amount delivered across the integrator wallets.
+    event FeePoolDistributed(
+        address indexed token,
+        uint256 lifiAmount,
+        uint256 integratorAmount
+    );
+
+    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
+    ///         amount is redirected to the LI.FI recipient instead of reverting the distribution.
+    /// @param receiver The integrator wallet whose transfer reverted.
+    /// @param token The fee-pool token redirected (the asset, or this wrapper's shares).
+    /// @param amount The amount redirected to LI.FI.
+    event IntegratorPayoutRedirected(
+        address indexed receiver,
+        address indexed token,
+        uint256 amount
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a deposit is attempted while any pause source is engaged.
@@ -80,6 +100,12 @@ interface ILiFiVaultWrapper {
     error AdapterWithdrawShortfall(uint256 expected, uint256 actual);
     /// @notice Thrown when a requested rate is outside the factory's live bounds.
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
+    /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
+    error InvalidReceiverCount();
+    /// @notice Thrown when a receiver wallet is the zero address.
+    error ZeroReceiver();
+    /// @notice Thrown when the receiver bps do not sum to exactly 100%.
+    error ReceiverBpsSumNot100();
 
     /// Functions ///
 
@@ -92,13 +118,16 @@ interface ILiFiVaultWrapper {
     /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
     ///        FeeType ordinal), resolved and bounded by the factory.
     /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, receivers, ToS hash, oracle).
+    /// @param _receivers The integrator payout wallets + bps split; validated on-instance
+    ///        (1..50 non-zero wallets, bps summing to exactly 100%).
+    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
     function initialize(
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
         uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
+        FeeReceiver[] calldata _receivers,
         bytes calldata _initData
     ) external;
 }

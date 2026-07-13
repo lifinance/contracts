@@ -21,6 +21,11 @@ interface ILiFiVaultWrapperFactory {
         FeeType _feeType
     ) external view returns (uint16 minBps, uint16 maxBps);
 
+    /// @notice The recipient of LI.FI's fee share, read live by instances at distribution so an
+    ///         integrator can never redirect LI.FI's cut.
+    /// @return The LI.FI fee recipient address.
+    function lifiFeeRecipient() external view returns (address);
+
     /// @notice Whether deposits are globally halted across every vault wrapper.
     /// @return True when the global circuit breaker is engaged.
     function globalPaused() external view returns (bool);

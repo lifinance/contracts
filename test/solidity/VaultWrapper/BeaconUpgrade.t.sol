@@ -9,6 +9,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Upgrade target proving a beacon upgrade is observable through clones:
 ///         inherits LiFiVaultWrapper (identical storage + interface) and adds a
@@ -70,7 +71,8 @@ contract BeaconUpgradeTest is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: ""
+            initData: "",
+            receivers: defaultReceivers()
         });
         vm.prank(onboarder);
         return factory.deploy(params);

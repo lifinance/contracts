@@ -10,6 +10,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Shared scaffolding for the vault-wrapper fee-engine suites: the direct
 ///         beacon-proxy setup (real inflatable `MockERC4626`), the factory stack for
@@ -87,6 +88,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 vaultAdmin,
                 _splits,
                 _fees,
+                defaultReceivers(),
                 ""
             )
         );
@@ -132,7 +134,8 @@ abstract contract VaultWrapperFeeTestBase is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: ""
+            initData: "",
+            receivers: defaultReceivers()
         });
 
         vm.prank(makeAddr("onboarder"));

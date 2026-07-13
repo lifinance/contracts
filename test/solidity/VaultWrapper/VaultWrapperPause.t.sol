@@ -12,6 +12,7 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Minimal stand-in for the factory: deploys the instance (so it is the
 ///         `factory`/initializer the wrapper reads back) and exposes a toggleable global
@@ -66,6 +67,7 @@ contract VaultWrapperPauseTest is Test {
                 vaultAdmin,
                 [uint16(8000), 8000, 8000, 8000],
                 fees,
+                defaultReceivers(),
                 ""
             )
         );
@@ -414,7 +416,8 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: ""
+            initData: "",
+            receivers: defaultReceivers()
         });
 
         vm.prank(onboarder);

@@ -10,6 +10,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
@@ -326,7 +327,8 @@ contract LiFiVaultWrapperFactoryTest is Test {
             nonce: nonce_,
             fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
-            initData: hex"1234"
+            initData: hex"1234",
+            receivers: defaultReceivers()
         });
     }
 
