@@ -4,6 +4,7 @@ import { resolve } from 'path'
 import { loadForgeArtifact } from '@lifi/tron-devkit'
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
+import type { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum } from '../../common/types'
 import { getEnvironment, getPrivateKey } from '../../utils/utils'
@@ -15,6 +16,61 @@ import {
   parseFunctionSignature,
 } from '../utils/parser'
 import { initTronWeb, parseValue, waitForConfirmation } from '../utils/tronweb'
+
+/**
+ * Signs a prepared transaction, broadcasts it, and returns the resulting tx id.
+ * Shared by the native-transfer and raw-calldata paths.
+ */
+async function signBroadcast(
+  tronWeb: TronWeb,
+  transaction: unknown,
+  privateKey: string
+): Promise<string> {
+  const signedTransaction = (await tronWeb.trx.sign(
+    transaction as Parameters<typeof tronWeb.trx.sign>[0],
+    privateKey
+  )) as Awaited<ReturnType<typeof tronWeb.trx.sign>>
+
+  const result = await tronWeb.trx.sendRawTransaction(
+    signedTransaction as Parameters<typeof tronWeb.trx.sendRawTransaction>[0]
+  )
+
+  if (!result.result)
+    throw new Error(`Transaction send failed: ${JSON.stringify(result)}`)
+
+  const txId = result.txid || result.transaction?.txID
+  if (!txId) throw new Error('Transaction ID not found in result')
+
+  consola.success(`Transaction sent: ${txId}`)
+  return txId
+}
+
+/**
+ * Optionally waits for confirmation and prints the receipt. Shared by every send
+ * path. Throws if the transaction reverted.
+ */
+async function confirmAndReport(
+  tronWeb: TronWeb,
+  txId: string,
+  confirm: boolean,
+  json: boolean
+): Promise<void> {
+  if (!confirm) return
+
+  consola.info('Waiting for confirmation...')
+  const receipt = (await waitForConfirmation(
+    tronWeb,
+    txId
+  )) as ITransactionReceipt
+
+  if (json) consola.log(JSON.stringify(receipt, null, 2))
+  else consola.log(formatReceipt(receipt))
+
+  if (receipt.result === 'FAILED')
+    throw new Error(
+      `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
+    )
+}
 
 export const sendCommand = defineCommand({
   meta: {
@@ -56,7 +112,8 @@ export const sendCommand = defineCommand({
     },
     value: {
       type: 'string',
-      description: 'TRX value to send (e.g., "0.1tron", "100000sun")',
+      description:
+        'TRX value to send (e.g., "0.1tron", "100000sun"). With no signature/calldata, sends a native TRX transfer to the address.',
     },
     feeLimit: {
       type: 'string',
@@ -168,40 +225,13 @@ export const sendCommand = defineCommand({
           return
         }
 
-        const signedTransaction = (await tronWeb.trx.sign(
-          transaction as Parameters<typeof tronWeb.trx.sign>[0],
-          privateKey
-        )) as Awaited<ReturnType<typeof tronWeb.trx.sign>>
-
-        const result = await tronWeb.trx.sendRawTransaction(
-          signedTransaction as Parameters<
-            typeof tronWeb.trx.sendRawTransaction
-          >[0]
+        const txId = await signBroadcast(tronWeb, transaction, privateKey)
+        await confirmAndReport(
+          tronWeb,
+          txId,
+          args.confirm as boolean,
+          args.json as boolean
         )
-
-        if (!result.result)
-          throw new Error(`Transaction send failed: ${JSON.stringify(result)}`)
-
-        const txId = result.txid || result.transaction?.txID
-        if (!txId) throw new Error('Transaction ID not found in result')
-
-        consola.success(`Transaction sent: ${txId}`)
-
-        if (args.confirm) {
-          consola.info('Waiting for confirmation...')
-          const receipt = (await waitForConfirmation(
-            tronWeb,
-            txId
-          )) as ITransactionReceipt
-
-          if (args.json) consola.log(JSON.stringify(receipt, null, 2))
-          else consola.log(formatReceipt(receipt))
-
-          if (receipt.result === 'FAILED')
-            throw new Error(
-              `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
-            )
-        }
 
         return
       }
@@ -281,45 +311,13 @@ export const sendCommand = defineCommand({
           return
         }
 
-        // Sign transaction
-        const signedTransaction = (await tronWeb.trx.sign(
-          transaction as Parameters<typeof tronWeb.trx.sign>[0],
-          privateKey
-        )) as Awaited<ReturnType<typeof tronWeb.trx.sign>>
-
-        // Send transaction
-        const result = await tronWeb.trx.sendRawTransaction(
-          signedTransaction as Parameters<
-            typeof tronWeb.trx.sendRawTransaction
-          >[0]
+        const txId = await signBroadcast(tronWeb, transaction, privateKey)
+        await confirmAndReport(
+          tronWeb,
+          txId,
+          args.confirm as boolean,
+          args.json as boolean
         )
-
-        if (!result.result) {
-          throw new Error(`Transaction send failed: ${JSON.stringify(result)}`)
-        }
-
-        const txId = result.txid || result.transaction?.txID
-        if (!txId) {
-          throw new Error('Transaction ID not found in result')
-        }
-
-        consola.success(`Transaction sent: ${txId}`)
-
-        if (args.confirm) {
-          consola.info('Waiting for confirmation...')
-          const receipt = (await waitForConfirmation(
-            tronWeb,
-            txId
-          )) as ITransactionReceipt
-
-          if (args.json) consola.log(JSON.stringify(receipt, null, 2))
-          else consola.log(formatReceipt(receipt))
-
-          if (receipt.result === 'FAILED')
-            throw new Error(
-              `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
-            )
-        }
 
         return
       }
@@ -555,21 +553,12 @@ export const sendCommand = defineCommand({
 
       consola.success(`Transaction sent: ${txId}`)
 
-      if (args.confirm) {
-        consola.info('Waiting for confirmation...')
-        const receipt = (await waitForConfirmation(
-          tronWeb,
-          txId
-        )) as ITransactionReceipt
-
-        if (args.json) consola.log(JSON.stringify(receipt, null, 2))
-        else consola.log(formatReceipt(receipt))
-
-        if (receipt.result === 'FAILED')
-          throw new Error(
-            `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
-          )
-      }
+      await confirmAndReport(
+        tronWeb,
+        txId,
+        args.confirm as boolean,
+        args.json as boolean
+      )
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
