@@ -1,0 +1,1 @@
+../../.agents/commands/rotate-deployer-wallet.md
