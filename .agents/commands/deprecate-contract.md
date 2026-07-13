@@ -18,6 +18,7 @@ This command completely removes one or more contracts (facets or periphery) from
 - Removing source files, deployment scripts, docs, and config entries
 - Updating whitelist for periphery contracts
 - Running test suite to verify remaining tests pass
+- **Creating on-chain removal proposals** (facets) so the facet is actually removed from the production diamonds that still register it, not just the codebase
 - Searching for remaining occurrences for manual review
 
 ## Quick Start
@@ -93,18 +94,51 @@ The command performs these steps in order:
    - **Run full test suite**: Run `forge test` to verify ALL tests pass (required per `.agents/rules/099-finish.md` - tests must pass after any Solidity changes)
    - Display summary of all changes including coverage comparison (if applicable)
 
-6. **Remaining Occurrences Review**
+6. **On-chain removal — create the multisig proposals (facets)**
+
+   Deprecation removes the facet from the codebase only; it stays **registered
+   and callable on every production diamond** until removed by a governance
+   proposal. Create those removal proposals now, for peer review, driven by the
+   deployment logs (which map the facet → its address on each PROD diamond):
+
+   - **Order matters**: run this **before** any deploy-log cleanup in step 7.
+     The removal resolves each facet's address from `deployments/<network>.json`,
+     so those entries must still be present. Do **not** delete facet entries from
+     `deployments/*.json` until the on-chain removal has executed.
+   - **Dry-run first** (prints a conspicuous `⚠️ IRREVERSIBLE FACET REMOVAL`
+     banner per network — which diamonds have the facet, the on-chain selectors,
+     and any `REFUSED` never-remove-allowlist hits):
+
+     ```bash
+     bunx tsx script/tasks/cleanUpProdDiamond.ts --facets '["FacetA","FacetB"]' --all-networks --environment production
+     ```
+
+   - **Review the banner with the user, then create + send the proposals** for
+     peer review (adds `--yes`; each network gets one timelock-wrapped Safe
+     proposal carrying the runner's signature — the remaining signers review and
+     sign):
+
+     ```bash
+     bunx tsx script/tasks/cleanUpProdDiamond.ts --facets '["FacetA","FacetB"]' --all-networks --environment production --yes
+     ```
+
+   - Selectors come from the on-chain loupe (not `out/`), so this works even
+     though the facet's source was just deleted. Core/machinery facets are
+     refused automatically. Periphery is out of scope here (de-register via the
+     periphery flow). See [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
+
+7. **Remaining Occurrences Review**
 
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
+   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the on-chain removal (step 6) has **executed** on that network — they are the address map the removal depends on and the record of on-chain state.
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 
-7. **Final Reminders**
+8. **Final Reminders**
 
    - **⚠️ CRITICAL: Update Product Target State Spreadsheet**: Display prominent reminder with link to [Product Target State Spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0) - user must manually move contract column(s) to deprecated section
-   - **⚠️ On-chain removal is NOT automatic (facets)**: Deprecation only removes the facet from the codebase and `_targetState.json`. It stays **registered and callable on every production diamond** until removed via a governance proposal. **After this deprecation PR merges to `main`**, remove it on-chain by either (a) letting it ride the next production rollout — `multisig-rollout` Phase 3.5 (opt-in), or (b) a dedicated sweep: `bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --network <network> --environment production --yes` per network (or `--all-networks`). Removal is gated on the source being absent, so it only takes effect once this PR is merged. See [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
    - **⚠️ Review codebase search results**: Remind user to carefully review all occurrences found in step 6 and clean up as needed
 
 ## Key Behaviors
@@ -244,9 +278,9 @@ Please review the above list and indicate which files/occurrences should be remo
 2. ⚠️  Review codebase search results above:
    Action: Clean up any remaining occurrences as needed (deployments, typechain will regenerate, etc.)
 
-3. ⚠️  Remove RelayFacet on-chain (after this PR merges):
-   Action: Still registered on every production diamond. Ride the next rollout
-   (multisig-rollout Phase 3.5) or sweep: `bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --all-networks --environment production --yes`.
+3. ⚠️  On-chain removal proposals (step 6): created for RelayFacet across the
+   PROD diamonds that still register it — now awaiting peer review + signing.
+   Do NOT clean deployments/*.json RelayFacet entries until those execute.
 
 Successfully deprecated RelayFacet.
 ```

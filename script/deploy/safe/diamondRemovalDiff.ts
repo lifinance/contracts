@@ -425,3 +425,118 @@ export async function computeFacetRemovalDiff(
     sourceNames,
   })
 }
+
+/** Result of resolving an explicit set of facet names against one diamond. */
+export interface INamedRemovalResult {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
+  removals: IFacetRemoval[]
+  /** Requested names not registered on this diamond (nothing to remove here). */
+  notFoundOnChain: string[]
+  /** Requested names on the never-remove allowlist — refused (should never be deprecated). */
+  protectedSkipped: string[]
+}
+
+/**
+ * Pure resolution of an explicit set of requested facet names against the
+ * on-chain loupe. Unlike {@link diffFacets} there is no target-state diff and no
+ * source/drift gate: the caller has *explicitly named* the facets to remove
+ * (e.g. via `/deprecate-contract`), so the only checks are "is it actually on
+ * this diamond" and "is it on the never-remove allowlist". Selectors come from
+ * the loupe (the diamond's current routing for that address).
+ */
+export function diffNamedFacets(params: {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
+  requestedNames: Set<string>
+  onChainFacets: IOnChainFacet[]
+  addressToName: Record<string, string>
+  protectedNames: Set<string>
+}): INamedRemovalResult {
+  const {
+    network,
+    environment,
+    diamondAddress,
+    requestedNames,
+    onChainFacets,
+    addressToName,
+    protectedNames,
+  } = params
+
+  const result: INamedRemovalResult = {
+    network,
+    environment,
+    diamondAddress,
+    removals: [],
+    notFoundOnChain: [],
+    protectedSkipped: [],
+  }
+
+  const foundOnChain = new Set<string>()
+  for (const facet of onChainFacets) {
+    const name = addressToName[lower(facet.address)]
+    if (!name || !requestedNames.has(name)) continue
+    foundOnChain.add(name)
+
+    if (protectedNames.has(name)) {
+      result.protectedSkipped.push(name)
+      continue
+    }
+
+    result.removals.push({
+      name,
+      address: facet.address,
+      selectors: facet.selectors,
+    })
+  }
+
+  result.notFoundOnChain = [...requestedNames].filter(
+    (name) => !foundOnChain.has(name)
+  )
+  return result
+}
+
+/**
+ * Resolves an explicit set of facet names against a single diamond and returns
+ * the ones to remove (registered on-chain and not protected), taking selectors
+ * from the loupe so it works after the facet's source/artifact was deleted by
+ * `/deprecate-contract`. This is the deprecation-driven removal path; the
+ * facet-name set comes from the deprecation, not from a target-state diff.
+ *
+ * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
+ */
+export async function computeNamedFacetRemovals(
+  network: string,
+  environment: EnvironmentEnum,
+  names: string[],
+  io: Partial<IRemovalDiffIO> = {}
+): Promise<INamedRemovalResult> {
+  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
+
+  const diamondAddress = await resolved.getDiamondAddress(network, environment)
+  if (!diamondAddress)
+    return {
+      network,
+      environment,
+      removals: [],
+      notFoundOnChain: names,
+      protectedSkipped: [],
+    }
+
+  const [onChainFacets, addressToName] = await Promise.all([
+    resolved.getOnChainFacets(diamondAddress, network),
+    resolved.getAddressToName(network, environment),
+  ])
+
+  return diffNamedFacets({
+    network,
+    environment,
+    diamondAddress,
+    requestedNames: new Set(names),
+    onChainFacets,
+    addressToName,
+    protectedNames: getProtectedNames(),
+  })
+}

@@ -7,7 +7,9 @@ import {
   buildAddressToName,
   collectActiveSelectors,
   computeFacetRemovalDiff,
+  computeNamedFacetRemovals,
   diffFacets,
+  diffNamedFacets,
   fetchOnChainFacets,
   getExpectedFacetNames,
   getProtectedNames,
@@ -255,6 +257,76 @@ describe('computeFacetRemovalDiff', () => {
     ])
     expect(diff.unresolved).toEqual([addr(3)])
     expect(diff.diamondAddress).toBe(addr(0xd))
+  })
+})
+
+describe('diffNamedFacets', () => {
+  const base = {
+    network: 'net',
+    environment: PROD,
+    diamondAddress: addr(0xd),
+  }
+
+  it('removes a requested facet that is registered on-chain', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: 'OldFacet', address: addr(1), selectors: [sel(1)] },
+    ])
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('refuses a requested facet on the never-remove allowlist', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['DiamondCutFacet']),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'DiamondCutFacet' },
+      protectedNames: new Set(['DiamondCutFacet']),
+    })
+    expect(r.protectedSkipped).toEqual(['DiamondCutFacet'])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('reports requested names that are not on-chain', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['Absent']),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'SomethingElse' },
+      protectedNames: new Set(),
+    })
+    expect(r.notFoundOnChain).toEqual(['Absent'])
+    expect(r.removals).toHaveLength(0)
+  })
+})
+
+describe('computeNamedFacetRemovals', () => {
+  it('returns all names as notFoundOnChain when the diamond is absent', async () => {
+    const r = await computeNamedFacetRemovals('net', PROD, ['A', 'B'], {
+      getDiamondAddress: async () => undefined,
+    })
+    expect(r.notFoundOnChain).toEqual(['A', 'B'])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('resolves named removals against the loupe', async () => {
+    const r = await computeNamedFacetRemovals('net', PROD, ['OldFacet'], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [
+        { address: addr(1), selectors: [sel(1), sel(2)] },
+      ],
+      getAddressToName: async () => ({ [addr(1)]: 'OldFacet' }),
+    })
+    expect(r.diamondAddress).toBe(addr(0xd))
+    expect(r.removals).toEqual([
+      { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
+    ])
   })
 })
 

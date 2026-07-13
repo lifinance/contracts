@@ -98,11 +98,15 @@ inferred). `[code]` = read directly this session.
 
 **Goals**
 
-- Reconcile deployed `LiFiDiamond` facets against `_targetState.json` and remove
-  facets that were dropped (i.e. deprecated), through the **existing** Safe +
-  timelock governance path — no new bypass.
-- One reusable diff engine, consumed by both a routine rollout step (default)
-  and an on-demand fleet sweep.
+- **Primary:** when a facet is deprecated via `/deprecate-contract`, remove it
+  from every production diamond that still registers it — driven by the
+  explicit facet name + the deployment logs (the authoritative facet→address map
+  per network), creating one peer-reviewed Safe proposal per network.
+- **Backstop:** reconcile deployed `LiFiDiamond` facets against
+  `_targetState.json` to catch orphans that nobody explicitly deprecated
+  (historical, or deployed to the wrong chain).
+- Both go through the **existing** Safe + timelock governance path — no new
+  bypass — via one shared set of engine + proposal helpers.
 - Removals are conspicuous and hard to fat-finger, because they are
   irreversible timelock+Safe actions.
 
@@ -115,7 +119,41 @@ inferred). `[code]` = read directly this session.
 - Auto-executing anything. The mechanism only **proposes**; humans sign, the
   timelock delays.
 
-## 4. Delivery models
+## 4. Two selection signals, one plumbing
+
+The removal **plumbing** (loupe selectors → `buildDiamondCutRemoveCalldata` →
+timelock wrap → `sendOrPropose`) is shared. What differs is *how the facets to
+remove are selected*:
+
+### Named (primary) — driven by `/deprecate-contract`
+
+The deprecation **names** the facet. So the removal is explicit: for each named
+facet, find the PROD diamonds whose deployment log lists it, read its current
+selectors from the on-chain loupe, and propose the removal. No diff, no
+target-state dependency, no source/drift gate needed — the operator has stated
+intent. Guardrails still apply (never-remove allowlist, immutable diamond,
+on-chain verification). This is `computeNamedFacetRemovals` +
+`cleanUpProdDiamond.ts --facets '[...]' --all-networks`, invoked as step 6 of
+`/deprecate-contract`.
+
+> **Sequencing constraint:** the named path resolves each facet's address from
+> `deployments/<network>.json`, so the removal must run **while those entries
+> still exist** — before any deploy-log cleanup, and the entries must not be
+> deleted until the removal has executed on-chain. `/deprecate-contract` orders
+> its steps accordingly.
+
+### Diff (backstop) — reconcile loupe vs target state
+
+For orphans nobody explicitly named (historical deprecations, wrong-chain
+deploys), diff the on-chain loupe against `_targetState.json`. Here the
+source-presence gate is essential to tell *deprecated* (source gone) from
+*drift* (target state merely lags — Fact 12). This is `computeFacetRemovalDiff`
+
++ `--auto` / `--all-networks`, and it's what the opportunistic rollout step (B)
+and the eager sweep (A) below consume.
+
+The delivery-timing choice (A vs B) applies to the **backstop**; the named path
+fires at deprecation time by construction.
 
 ### (A) Eager fleet sweep
 
@@ -155,23 +193,31 @@ same session as the upgrade proposals.
 
 ### (C) Hybrid — chosen
 
-One **reusable diff engine** (`diamondRemovalDiff.ts`) consumed by:
+The named path (primary, §4 above) fires **at deprecation time** — that's where
+"remove this specific facet" belongs, and it's what `/deprecate-contract`
+drives. The backstop diff engine is then consumed for orphans nobody named, at a
+delivery timing that avoids a mass signing event:
 
-- **(B)** an opt-in step in `multisig-rollout` — the default path stale facets
-  ride out on.
-- **(A)** a `--all-networks` sweep mode on the reconciliation CLI — the
-  deliberate, on-demand escape hatch (e.g. right after a big deprecation, or run
-  on a schedule).
+- **(B)** an opt-in step in `multisig-rollout` — orphans ride out on the next
+  rollout's signing session.
+- **(A)** `--auto --all-networks` on the CLI — the deliberate, on-demand sweep
+  (e.g. periodic hygiene), the escape hatch for networks that rarely roll out.
 
-Both feed the **same** `cleanUpProdDiamond.ts` build → timelock-wrap → propose
-plumbing (Fact 3). Recommendation: **ship the engine + CLI + sweep now; wire the
-rollout step as opt-in.** Rationale in §8.
+Everything (`diamondRemovalDiff.ts` engine, named + diff selection, all three
+CLI modes) feeds the **same** `cleanUpProdDiamond.ts` build → timelock-wrap →
+propose plumbing (Fact 3). Recommendation: **ship all of it now** — the named
+path wired into `/deprecate-contract` (primary), the diff backstop as `--auto`
+
++ the opt-in rollout step. Rationale in §8.
 
 ## 5. Architecture
 
-### 5.1 Diff engine — `script/deploy/safe/diamondRemovalDiff.ts` (new)
+### 5.1 Engine — `script/deploy/safe/diamondRemovalDiff.ts` (new)
 
-Pure, side-effect-free, unit-tested. Signature (illustrative):
+Pure, side-effect-free, unit-tested. Exposes both selection functions
+(`computeFacetRemovalDiff` for the backstop, `computeNamedFacetRemovals` for the
+primary named path) plus the pure cores (`diffFacets`, `diffNamedFacets`).
+Signature (illustrative):
 
 ```ts
 export interface IFacetRemoval {
@@ -193,11 +239,21 @@ export interface IRemovalDiff {
   driftDetected: string[]               // on-chain, absent from target state, but source still exists — NOT removed
 }
 
+// Backstop path: diff loupe vs target state (needs the source/drift gate).
 export async function computeFacetRemovalDiff(
   network: string,
   environment: EnvironmentEnum,
-  publicClient?: PublicClient, // injectable for tests
+  io?: Partial<IRemovalDiffIO>, // all I/O injectable for tests
 ): Promise<IRemovalDiff>
+
+// Primary path: explicit names (from /deprecate-contract). No diff, no source
+// gate — just "is it on this diamond" + never-remove allowlist.
+export async function computeNamedFacetRemovals(
+  network: string,
+  environment: EnvironmentEnum,
+  names: string[],
+  io?: Partial<IRemovalDiffIO>,
+): Promise<INamedRemovalResult>
 ```
 
 **Algorithm**
@@ -246,22 +302,25 @@ export async function computeFacetRemovalDiff(
 
 ### 5.2 CLI — extend `script/tasks/cleanUpProdDiamond.ts`
 
-Add two flags, reusing the file's existing `prepareTimelockCalldata` +
-`sendOrPropose` (no new proposal code):
+All modes share `proposeRemovals` (build → timelock-wrap → `sendOrPropose`); no
+new proposal code. Dry-run unless `--yes` (a non-TTY `prompt` also degrades to
+dry-run so nothing is submitted unconfirmed).
 
-- `--auto` — for the given `--network`/`--environment`, run
-  `computeFacetRemovalDiff`, print the conspicuous diff (§6), build one Remove
-  cut via `buildDiamondCutRemoveCalldata(diff.removals)`, wrap for timelock,
-  propose/send. This is the unit `multisig-rollout` calls per network.
-- `--all-networks` — model (A): iterate `getAllActiveNetworks()` (skipping
-  networks with no `LiFiDiamond` in the target environment), run `--auto` for
-  each. Per-network branching (prod Safe / staging / testnet direct) is already
-  correct via `prepareTimelockCalldata` + `sendOrPropose`.
-- `--yes` — required to actually propose in headless/sweep mode; without it the
-  run is a dry-run that only prints diffs. Interactive mode keeps its existing
-  confirm prompt.
+- `--facets '[...]'` — **named (primary)**. Resolves the named facets on the
+  diamond via `computeNamedFacetRemovals` (loupe selectors — works after source
+  deletion) and proposes their removal. With `--network` for one network, or
+  `--all-networks` to hit every network whose PROD log lists them. This is what
+  `/deprecate-contract` step 6 invokes. (This replaces the old `out/`-based
+  `--facets` selector derivation, which threw for already-deprecated facets.)
+- `--auto` — **diff backstop**. Runs `computeFacetRemovalDiff` for
+  `--network`, prints the conspicuous diff (§6), proposes the stale set. This is
+  the unit `multisig-rollout` Phase 3.5 calls per network.
+- `--auto --all-networks` — model (A) eager sweep: `--auto` across every active
+  network (skipping diamond-less ones). Per-network branching (prod Safe /
+  staging / testnet direct) is handled by `prepareTimelockCalldata` +
+  `sendOrPropose`.
 
-The existing manual `--facets '[...]'` path is untouched.
+The interactive multiselect path is unchanged.
 
 ### 5.3 Rollout wiring — `.agents/commands/multisig-rollout.md`
 
@@ -273,13 +332,25 @@ target network. Its proposals are captured by the existing
 (Fact 9). Off by default in v1 so no rollout silently starts removing facets;
 the operator turns it on when a deprecation is in flight.
 
+### 5.4 `/deprecate-contract` wiring (primary path)
+
+`.agents/commands/deprecate-contract.md` gains a step 6 "On-chain removal —
+create the multisig proposals (facets)": after the codebase removal, it dry-runs
+`cleanUpProdDiamond.ts --facets '[...deprecated names]' --all-networks
+--environment production`, shows the per-network banner, and on confirmation
+re-runs with `--yes` to create the peer-reviewed Safe proposals. The command
+enforces the §4 sequencing constraint: this runs before any deploy-log cleanup,
+and the "Remaining Occurrences" step warns not to delete `deployments/*.json`
+facet entries until the removal has executed.
+
 ## 6. Guardrails (non-negotiable)
 
 | Guardrail | How |
 |---|---|
 | Never-remove allowlist (core + machinery) | Hardcoded `{DiamondCut, DiamondLoupe, Ownership, EmergencyPause}` ∪ `getCoreFacets()` ∪ `getCorePeriphery()`; protected even if dropped from target state (§5.1 step 5). |
 | Skip `LiFiDiamondImmutable` | Engine only queries the `LiFiDiamond` address; immutable diamond never referenced (Fact 10). |
-| Drift ≠ deprecation (source-presence gate) | A facet on-chain and absent from target state is removed **only if its `src/` source is gone**. Source still present → `driftDetected`, never removed (§5.1 step 6; Fact 12). |
+| Drift ≠ deprecation (source-presence gate) | **Backstop path only.** A facet on-chain and absent from target state is removed **only if its `src/` source is gone**. Source still present → `driftDetected`, never removed (§5.1 step 6; Fact 12). The named path doesn't need this gate — intent is explicit. |
+| Deploy-log sequencing (named path) | The named path resolves facet→address from `deployments/<network>.json`. The removal must run **while those entries exist**, and they must not be deleted until it executes on-chain. `/deprecate-contract` orders steps so removal proposals are created before any deploy-log cleanup. |
 | On-chain loupe is source of truth | Selectors come from `facets()`, never from `out/` for the facet being removed (§5.1 step 3/6; fixes Fact 4). |
 | Conspicuous removals | Diff printed as a banner per network: each facet name, address, selector count + list, and any held-back/unresolved items, before any propose; headless requires `--yes`. |
 | Shared / re-registered selectors | Held back if an active facet is expected to own them (§5.1 step 7). |
@@ -321,9 +392,17 @@ Attacks considered and their mitigations:
   hardcoded allowlist covers only true machinery; business facets like
   `GenericSwapFacet` are removable once deprecation drops them from config and
   target state — which is the whole point.
-- **71 proposals → rubber-stamping.** Exactly why (B) is the default and (A) is
-  opt-in.
-- **Deprecated facet has no `out/` artifact.** Loupe selectors, not `out/`.
+- **Many proposals → rubber-stamping.** Deprecating a facet that's live on N
+  diamonds inherently needs N removals — that's the work, not avoidable. Each is
+  a distinct conspicuous banner, an independent peer review, and a timelock
+  delay. For the *backstop* (orphans), (B) rides existing sessions and (A) is a
+  deliberate opt-in, so no gratuitous mass event is manufactured.
+- **Deprecated facet has no `out/` artifact.** Loupe selectors, not `out/` —
+  true for both the named and diff paths.
+- **Deploy log deleted before removal (named path).** The named path resolves
+  address→name from the log; if the entry is gone the facet won't be found (a
+  false *negative*, safe). `/deprecate-contract` sequences removal before any
+  log cleanup so this doesn't happen in practice.
 
 ## 8. Phasing
 
@@ -331,31 +410,36 @@ Effort in Fibonacci points; bucketed by who-blocks.
 
 | Phase | Points | Blocks on |
 |---|---|---|
-| Diff engine + 100% unit tests | 3 | our build |
-| CLI `--auto` / `--all-networks` / `--yes` + dry-run diff | 2 | our build |
-| `multisig-rollout` opt-in step (doc) | 1 | our build |
-| Review + first real sweep (Safe signing + timelock) | 5 | human decision / operational |
+| Engine (named + diff) + unit tests | 3 | our build |
+| CLI `--facets`/`--auto`/`--all-networks`/`--yes` + banners | 2 | our build |
+| `/deprecate-contract` step 6 wiring (primary) | 1 | our build |
+| `multisig-rollout` opt-in step (backstop) | 1 | our build |
+| Review + first real removal (Safe signing + timelock) | 5 | human decision / operational |
 
-Our-build share (engine + CLI + doc): **6/11 ≈ 55%**. The remaining 5 is
-review + the governance-gated first execution, which is human/operational by
-nature and not something code can shorten.
+Our-build share (engine + CLI + both wirings): **7/12 ≈ 58%**. The remaining 5
+is review + the governance-gated first execution, human/operational by nature.
 
-Recommended first PR (this one): engine + tests + CLI + the opt-in rollout doc,
-as a **draft**. The first live sweep is a separate, deliberate operational step.
+Recommended first PR (this one): engine + tests + CLI + `/deprecate-contract`
+wiring + the opt-in rollout doc, as a **draft**. The first live removal is a
+separate, deliberate operational step.
 
 ## 9. Testing
 
 - `diamondRemovalDiff.test.ts` — all decision logic covered
-  (`.agents/rules/200-typescript.md`): removal candidate; **drift (source
-  present) → never removed**; protected-hardcoded; protected-via-config;
+  (`.agents/rules/200-typescript.md`). Diff path: removal candidate; **drift
+  (source present) → never removed**; protected-hardcoded; protected-via-config;
   unresolved address; held-back shared selector (partial and full);
-  `targetStateMissingProtected`; empty diff; no-diamond network; source-scan
-  present/absent. All I/O is injected; the only uncovered function is the
-  thin live-RPC adapter `readFacetsFromChain` (unreachable offline, injected
-  around in tests).
-- **Live smoke run** against the real mainnet production diamond: 0 removals,
-  8 drift facets correctly held back, 1 target-state discrepancy surfaced,
-  nothing proposed — proving the source gate on production data (Fact 12).
+  `targetStateMissingProtected`; empty/no-diamond; source-scan present/absent.
+  Named path: on-chain named removal; protected-name refused; not-on-chain
+  reported; no-diamond. All I/O is injected; the only uncovered function is the
+  thin live-RPC adapter `readFacetsFromChain` (unreachable offline).
+- **Live smoke runs** against the real mainnet production diamond (dry-run,
+  nothing proposed): the *diff* path returned 0 removals with 8 drift facets
+  correctly held back (Fact 12); the *named* path with
+  `["GenericSwapFacet","PaxosTransitFacet","TotallyMadeUpFacet"]` correctly
+  refused the protected `GenericSwapFacet`, flagged `PaxosTransitFacet` for
+  removal with its 4 on-chain selectors, and reported the made-up name as not
+  registered.
 - CLI: dry-run (no `--yes`, or non-TTY) proposes nothing; `--all-networks` skips
   diamond-less networks; per-branch routing via `prepareTimelockCalldata` +
   `sendOrPropose`.
