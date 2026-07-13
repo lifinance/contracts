@@ -4909,6 +4909,8 @@
     {
       "name": "Symbiosis OnchainSwapV3",
       "key": "symbiosisOnchainSwapV3",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/bridges/symbiosis.svg",
+      "webUrl": "https://app.symbiosis.finance/swap",
       "contracts": {
         "mainnet": [
           {
