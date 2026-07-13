@@ -104,6 +104,10 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0xC19B1ea2c3238b8a06E4ea11aB9574a9B12FF1B2": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

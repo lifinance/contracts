@@ -278,6 +278,7 @@ For detailed guidelines and requirements, please refer to [conventions.md](./con
 - [Internal Documentation](./docs/README.md)
 - [Coding Conventions](./conventions.md)
 - [Deployment Guide](./docs/Deploy.md)
+- [Tron Fork — why it exists, sync process, and how to deploy to Tron](./docs/TronFork.md)
 
 ```
 
