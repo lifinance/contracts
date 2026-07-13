@@ -104,6 +104,7 @@ The command performs these steps in order:
 7. **Final Reminders**
 
    - **⚠️ CRITICAL: Update Product Target State Spreadsheet**: Display prominent reminder with link to [Product Target State Spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0) - user must manually move contract column(s) to deprecated section
+   - **⚠️ On-chain removal is NOT automatic (facets)**: Deprecation only removes the facet from the codebase and `_targetState.json`. It stays **registered and callable on every production diamond** until removed via a governance proposal. **After this deprecation PR merges to `main`**, remove it on-chain by either (a) letting it ride the next production rollout — `multisig-rollout` Phase 3.5 (opt-in), or (b) a dedicated sweep: `bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --network <network> --environment production --yes` per network (or `--all-networks`). Removal is gated on the source being absent, so it only takes effect once this PR is merged. See [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
    - **⚠️ Review codebase search results**: Remind user to carefully review all occurrences found in step 6 and clean up as needed
 
 ## Key Behaviors
@@ -242,6 +243,10 @@ Please review the above list and indicate which files/occurrences should be remo
 
 2. ⚠️  Review codebase search results above:
    Action: Clean up any remaining occurrences as needed (deployments, typechain will regenerate, etc.)
+
+3. ⚠️  Remove RelayFacet on-chain (after this PR merges):
+   Action: Still registered on every production diamond. Ride the next rollout
+   (multisig-rollout Phase 3.5) or sweep: `bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --all-networks --environment production --yes`.
 
 Successfully deprecated RelayFacet.
 ```
