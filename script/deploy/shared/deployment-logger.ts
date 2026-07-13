@@ -33,6 +33,7 @@ import type { DeploymentCache } from './deployment-cache'
 import { createDefaultCache } from './deployment-cache'
 import {
   DatabaseConnectionManager,
+  getCurrentGitCommitHash,
   type IDeploymentRecord,
   type IConfig,
   mongoEq,
@@ -96,7 +97,10 @@ export class DeploymentLogger {
    * @param options - Logging options
    */
   public async log(
-    deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
+    deployment: Omit<
+      IDeploymentRecord,
+      'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'
+    >,
     environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
   ): Promise<void> {
@@ -118,6 +122,7 @@ export class DeploymentLogger {
       const now = new Date()
       const record: IDeploymentRecord = {
         ...deployment,
+        gitCommitHash: getCurrentGitCommitHash(),
         createdAt: now,
         updatedAt: now,
         contractNetworkKey: `${deployment.contractName}-${deployment.network}`,
@@ -174,7 +179,10 @@ export class DeploymentLogger {
    */
   public async logBatch(
     deployments: Array<
-      Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
+      Omit<
+        IDeploymentRecord,
+        'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'
+      >
     >,
     environment: keyof typeof EnvironmentEnum,
     options: ILogOptions = {}
@@ -199,11 +207,13 @@ export class DeploymentLogger {
         this.dbManager.getCollection<IDeploymentRecord>(environment)
 
       const now = new Date()
+      const gitCommitHash = getCurrentGitCommitHash()
 
       // Prepare bulk operations
       const operations = deployments.map((deployment) => {
         const record: IDeploymentRecord = {
           ...deployment,
+          gitCommitHash,
           createdAt: now,
           updatedAt: now,
           contractNetworkKey: `${deployment.contractName}-${deployment.network}`,
@@ -251,6 +261,7 @@ export class DeploymentLogger {
         for (const deployment of deployments) {
           const record: IDeploymentRecord = {
             ...deployment,
+            gitCommitHash,
             createdAt: now,
             updatedAt: now,
             contractNetworkKey: `${deployment.contractName}-${deployment.network}`,
@@ -328,6 +339,7 @@ export class DeploymentLogger {
         SOLC_VERSION: record.solcVersion || '',
         EVM_VERSION: record.evmVersion || '',
         ZK_SOLC_VERSION: record.zkSolcVersion || '',
+        GIT_COMMIT_HASH: record.gitCommitHash || '',
       }
 
       if (existingIndex >= 0) versionArray[existingIndex] = jsonRecord
@@ -406,7 +418,10 @@ function getDefaultLogger(): DeploymentLogger {
  * ```
  */
 export async function logDeployment(
-  deployment: Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>,
+  deployment: Omit<
+    IDeploymentRecord,
+    'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'
+  >,
   environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions
 ): Promise<void> {
@@ -423,7 +438,7 @@ export async function logDeployment(
  */
 export async function logDeploymentBatch(
   deployments: Array<
-    Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id'>
+    Omit<IDeploymentRecord, 'createdAt' | 'updatedAt' | '_id' | 'gitCommitHash'>
   >,
   environment: keyof typeof EnvironmentEnum,
   options?: ILogOptions

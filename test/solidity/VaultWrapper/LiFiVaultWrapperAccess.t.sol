@@ -356,12 +356,12 @@ contract LiFiVaultWrapperAccessTest is Test {
         vm.warp(block.timestamp + 30 days);
 
         // Slam the perimeter fully shut: nobody allowed, nothing transferable. The
-        // accrual mint (from == 0) and the sweep payout (from == wrapper) must not care.
+        // accrual mint (from == 0) and the fee payout (from == wrapper) must not care.
         gate.setAllowed(alice, false);
         gate.setAllowed(bob, false);
         gate.setTransfersAllowed(false);
 
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertGt(
             wrapper.balanceOf(integratorWallet) +

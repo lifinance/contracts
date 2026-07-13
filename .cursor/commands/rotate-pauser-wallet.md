@@ -1,0 +1,1 @@
+../../.agents/commands/rotate-pauser-wallet.md

@@ -28,6 +28,7 @@ import { getEnvVar } from '../utils/utils'
 import { createDefaultCache } from './shared/deployment-cache'
 import {
   deploymentRecordEqFilter,
+  getCurrentGitCommitHash,
   type IDeploymentRecord,
   type IUpdateConfig,
   mongoEq,
@@ -208,12 +209,19 @@ class DeploymentLogManager {
         solcVersion: record.solcVersion,
         evmVersion: record.evmVersion,
         zkSolcVersion: record.zkSolcVersion,
+        // Never blank a hash: the add CLI writes hashes to Mongo only, so a
+        // JSON-sourced record without one must not erase the Mongo value
+        ...(record.gitCommitHash
+          ? { gitCommitHash: record.gitCommitHash }
+          : {}),
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,
         updatedAt: new Date(),
       },
       $setOnInsert: {
         createdAt: new Date(),
+        // Fresh inserts still carry the field: '' = "predates EXSC-330"
+        ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
       },
     }
 
@@ -251,12 +259,19 @@ class DeploymentLogManager {
             solcVersion: record.solcVersion ?? '',
             evmVersion: record.evmVersion ?? '',
             zkSolcVersion: record.zkSolcVersion ?? '',
+            // Exception to JSON-is-source-of-truth: the add CLI writes hashes
+            // to Mongo only, so a JSON record without one must not erase it
+            ...(record.gitCommitHash
+              ? { gitCommitHash: record.gitCommitHash }
+              : {}),
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
           },
           $setOnInsert: {
             createdAt: new Date(),
+            // Fresh inserts still carry the field: '' = "predates EXSC-330"
+            ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
           },
         },
         upsert: true,
@@ -732,6 +747,7 @@ const addCommand = defineCommand({
         typeof args['zk-solc-version'] === 'string'
           ? args['zk-solc-version']
           : '',
+      gitCommitHash: getCurrentGitCommitHash(),
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,

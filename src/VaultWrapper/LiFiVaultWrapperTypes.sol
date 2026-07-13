@@ -28,9 +28,14 @@ enum FeeType {
     Withdrawal
 }
 
+// Number of FeeType members; sizes every per-fee-type array and bounds the
+// accrual/validation loops. Must equal the count of FeeType members (Solidity
+// does not allow deriving an array length from `type(FeeType).max`).
+uint256 constant FEE_TYPE_COUNT = 4;
+
 /// @notice Per-instance fee selection, indexed by FeeType ordinal.
 struct FeeConfig {
-    uint16[4] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
+    uint16[FEE_TYPE_COUNT] rateBps; // Rate in bps for each FeeType (index = ordinal); 0 = disabled.
 }
 
 /// @notice Owner-adjustable min/max rate (bps) for a single fee type, within the immutable cap.
@@ -47,21 +52,15 @@ struct DeployParams {
     address underlying; // Protocol-specific yield source (e.g. an ERC-4626 vault).
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
     FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
-    uint16[4] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
+    uint16[FEE_TYPE_COUNT] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
     address accessGate; // Pluggable IAccessGate governing the instance's perimeter; address(0) = fully permissionless.
-    IntegratorReceivers receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.
+    FeeReceiver[] receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.
 }
 
-/// @notice Integrator payout wallets and their basis-point split, validated together on the
-///         wrapper instance (1..50 non-zero wallets, bps summing to exactly 10_000 = 100%).
-struct IntegratorReceivers {
-    address[] wallets; // Payout wallets (1..50, non-zero).
-    uint16[] bps; // Per-wallet bps summing to 10_000 (100%); parallel to wallets.
-}
-
-/// @notice Storage form of a single integrator payout wallet: the wallet and its bps share
-///         packed into one slot (address + uint16). The set sums to 10_000 (100%).
-struct Receiver {
+/// @notice A single integrator payout wallet and its basis-point share, packed into one slot
+///         (address + uint16). A wrapper instance holds 1..50 non-zero wallets whose bps sum
+///         to exactly 10_000 (100%), validated together at initialize.
+struct FeeReceiver {
     address wallet; // Payout wallet (non-zero).
     uint16 bps; // Share in bps.
 }

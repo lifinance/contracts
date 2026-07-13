@@ -118,6 +118,9 @@ bun troncast send <TOKEN_ADDRESS> "approve(address,uint256)" <SPENDER_ADDRESS>,1
 
 # Send with TRX value
 bun troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key YOUR_KEY
+
+# Native TRX transfer (no signature/calldata — mirrors `cast send <to> --value`)
+bun troncast send <RECIPIENT_ADDRESS> --value 0.1tron --private-key YOUR_KEY
 ```
 
 ### Options
@@ -132,7 +135,8 @@ bun troncast send <CONTRACT_ADDRESS> "deposit()" --value 0.1tron --private-key Y
 
 - `--env` - Environment: "mainnet" or "testnet" (default: mainnet)
 - `--private-key` - Private key for signing (or from environment)
-- `--value` - TRX value to send (e.g., "0.1tron", "100000sun")
+- `--private-key-env` - Name of an env var holding the signing key (keeps the key out of shell history; preferred over `--private-key`)
+- `--value` - TRX value to send (e.g., "0.1tron", "100000sun"). With no signature/calldata, sends a native TRX transfer to the address.
 - `--fee-limit` - Maximum fee in TRX (default: 1000)
 - `--energy-limit` - Energy limit
 - `--no-confirm` - Don't wait for confirmation
