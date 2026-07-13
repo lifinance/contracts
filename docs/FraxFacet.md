@@ -106,8 +106,8 @@ native gas.
 - The fee token is resolved as `TIP_FEE_MANAGER.userTokens(diamond)`, falling back
   to `PATH_USD` when the Diamond has not opted into a specific token. Its amount is
   quoted in-token via `HOP.quoteStatic`. The facet pulls the fee token from the
-  caller, approves it to HopV2, and sends with `msg.value == 0` (the non-swap
-  entrypoint reverts `InvalidCallData` if any native is sent on Tempo).
+  caller, approves it to HopV2, and sends with `msg.value == 0` (both entrypoints
+  revert `InvalidCallData` if any native is sent on Tempo).
 - **BE-integration requirement (EXP-514 — to be confirmed).** On Tempo the Diamond
   must be **funded with the fee token**: the caller must approve/transfer the TIP20
   fee token to the Diamond so HopV2's `transferFrom` pull succeeds. This differs
@@ -168,6 +168,10 @@ const quoteResult = {
 A detailed explanation on how to use the /quote endpoint and how to trigger the
 transaction can be found
 [here](https://docs.li.fi/products/more-integration-options/li.fi-api/transferring-tokens-example).
+
+> **Note:** the `tool: 'frax'` / `allowBridges=frax` slug and token symbols in the
+> examples below are placeholders pending the BE integration (EXP-514) — confirm the
+> actual bridge slug and supported symbols with the backend team before relying on them.
 
 **Hint**: Don't forget to replace `{YOUR_WALLET_ADDRESS}` with your real wallet
 address in the examples.
