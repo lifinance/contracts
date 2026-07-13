@@ -133,6 +133,25 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     {
         _validateFraxData(_fraxData);
 
+        // On Tempo the fee is an ERC20 and no native is ever consumed; reject stray msg.value
+        // here too (symmetric with the non-swap path) so it fails fast instead of being
+        // silently refunded late.
+        if (TIP_FEE_MANAGER != address(0) && msg.value != 0) {
+            revert InvalidCallData();
+        }
+
+        // The final swap output must be the bridged asset: _depositAndSwap measures the
+        // slippage floor in the last swap's receivingAssetId, while _startBridge floors,
+        // approves and bridges _bridgeData.sendingAssetId. A mismatch would validate one token
+        // and bridge another. An empty array is left to _depositAndSwap (reverts NoSwapData).
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InformationMismatch();
+        }
+
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
         // non-swap path): on standard chains the fee may be funded by an ERC20->native
         // pre-swap whose output the nativeReserve below keeps in the diamond. On Tempo the
@@ -259,6 +278,14 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             feeToken
         );
 
+        // Snapshot before the deposit so any fee token HopV2 does not pull can be returned to
+        // the user without touching a pre-existing diamond balance. quoteStatic and sendOFT run
+        // in the same tx so the pull normally equals feeAmount, but this keeps the "diamond
+        // retains nothing" invariant even if HopV2's fee logic changes on a proxy upgrade.
+        uint256 feeTokenBalanceBefore = IERC20(feeToken).balanceOf(
+            address(this)
+        );
+
         if (feeAmount != 0) {
             LibAsset.depositAsset(feeToken, feeAmount);
             LibAsset.maxApproveERC20(
@@ -276,5 +303,15 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             0,
             ""
         );
+
+        uint256 unusedFee = IERC20(feeToken).balanceOf(address(this)) -
+            feeTokenBalanceBefore;
+        if (unusedFee != 0) {
+            LibAsset.transferAsset(
+                feeToken,
+                payable(_fraxData.refundRecipient),
+                unusedFee
+            );
+        }
     }
 }
