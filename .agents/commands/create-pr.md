@@ -25,10 +25,9 @@ User says any of:
 This skill creates PRs. For **editing** an existing PR's title/body, follow CLAUDE.md →
 "Creating and editing PRs via gh" (uses `gh api -X PATCH` with a JSON payload).
 
-The `/pr-ready` skill (`.agents/commands/pr-ready.md`) is a mandatory pre-flight per
-`.agents/rules/099-finish.md`: it runs CodeRabbit's local CLI against the branch and
-resolves findings before the PR is opened. This skill integrates `/pr-ready` as step 7
-below.
+There is no local CodeRabbit pre-flight anymore (`/pr-ready` was removed — the CLI was
+hitting rate limits and wasting review cycles). Cloud CodeRabbit still runs in GitHub CI
+on every PR as the review backstop.
 
 ## Workflow
 
@@ -107,8 +106,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 - **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context.
 - **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
   - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
-  - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the file list (`git diff --name-only main...HEAD`). Tick if all touched files serve a single, coherent concern. Do not tick if the branch mixes unrelated changes. Ignore commit granularity: GitHub squashes commits on merge, so fix-up / iterative commits are not a reason to withhold the tick. `/pr-ready` may also add `pr-ready: …` commits — also fine.
-  - `[x] I have run /pr-ready (local CodeRabbit) on this branch and resolved (or explicitly documented) all findings` — tick **only after** step 7 (Run `/pr-ready`) reports either CLEAN or all remaining findings are documented in the PR body.
+  - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the file list (`git diff --name-only main...HEAD`). Tick if all touched files serve a single, coherent concern. Do not tick if the branch mixes unrelated changes. Ignore commit granularity: GitHub squashes commits on merge, so fix-up / iterative commits are not a reason to withhold the tick.
   - `[x] I have added tests that cover the functionality` — tick only if tests were actually added in this diff.
   - `[x] For new facets: ...` — tick only if a new facet was added.
   - `[x] I have updated any required documentation` — tick only if docs were updated.
@@ -125,34 +123,14 @@ never in the revert PR's commit list) — a non-conforming title (e.g.
 `fix: undo facet change`) blocks the merge of a genuine revert that touches
 audited contracts.
 
-### 7. Run `/pr-ready`
-
-Run this **before** the test suite. `/pr-ready` (local CodeRabbit) can land
-auto-fix commits on the branch, and any such fixes must be validated by the
-tests in step 8 — running tests first would mean re-running them after
-`/pr-ready` anyway.
-
-Invoke the sibling skill `/pr-ready` (mandatory per `.agents/rules/099-finish.md`). See
-`.agents/commands/pr-ready.md` for what it does and how — do not duplicate that here.
-
-Two integration touchpoints this skill owns:
-
-- **Checkbox**: tick the `[x] I have run /pr-ready …` item from step 5 only if `/pr-ready` reports `Re-run status: CLEAN` or `N remaining (documented)`.
-- **Deferred findings**: if `/pr-ready` produced a non-empty _Deferred_ or _Rejected_ list,
-  append a `## /pr-ready deferred findings` section to the PR body (under "Why I
-  implemented it this way") with each item + rationale.
-
-If `/pr-ready` errors, stop — do not push.
-
-### 8. Run the test suite
+### 7. Run the test suite
 
 Lint, format, typecheck, build, solhint, and secret scanning are already enforced by
 `.husky/pre-commit` (and `.agents/hooks/post-edit-validate.sh`) at every commit in
-steps 4 and 7. Don't repeat them here.
+step 4. Don't repeat them here.
 
 The one gap pre-commit deliberately leaves is **tests** (`forge build --skip test`, no
-`bun test:ts`). Per `.agents/rules/099-finish.md`, run them now — against the
-post-`/pr-ready` HEAD so any auto-fix commits are validated:
+`bun test:ts`). Per `.agents/rules/099-finish.md`, run them now:
 
 - **Solidity changes**: `bun test:scoped -- <path-or-match>` during iteration; full `bun test` (or `forge test --match-path` if scope is clear) before opening a PR.
 - **TypeScript / JS changes**: `bun test:ts`.
@@ -161,7 +139,7 @@ post-`/pr-ready` HEAD so any auto-fix commits are validated:
 If anything fails, **stop and surface the failure** — do not push without explicit user
 override.
 
-### 9. Show pre-flight summary and confirm
+### 8. Show pre-flight summary and confirm
 
 Before pushing or opening a PR, display a summary and wait for explicit approval:
 
@@ -171,7 +149,6 @@ About to create PR on branch `<branch-name>`:
 
 Commits (<N>) since main (from `git log main..HEAD --oneline`):
   • <sha>  <subject>                          ← step 4
-  • <sha>  pr-ready: <subject>                ← step 7 (if any)
   ...
 
 Files changed (<N>) (from `git diff --name-only main...HEAD`):
@@ -188,7 +165,6 @@ Self-review:
 
 Checks run:
   • Pre-commit hook ... PASS (enforced lint/typecheck/build/secrets at every commit)
-  • /pr-ready ......... CLEAN / N remaining (documented) / N/A
   • forge test ........ PASS / FAIL / N/A
   • bun test:ts ....... PASS / FAIL / N/A
 
@@ -203,15 +179,15 @@ Proceed? (y/n)
 ```
 
 If the user says **n**: ask what to change (title, body, files) and loop back. Do not push.
-If the user says **y**: proceed to steps 10–12.
+If the user says **y**: proceed to steps 9–10.
 
-### 10. Push
+### 9. Push
 
 ```bash
 git push -u origin <branch-name>
 ```
 
-### 11. Create PR
+### 10. Create PR
 
 Write body to a temp file and create via `gh`:
 
@@ -221,7 +197,7 @@ gh pr create --title "<title>" --body "$(cat /tmp/pr-body.md)" --base main --hea
 
 Print the resulting PR URL to the user.
 
-### 12. Offer to post for review
+### 11. Offer to post for review
 
 After the PR is created, ask:
 
@@ -237,8 +213,6 @@ After the PR is created, ask:
 - **No template found**: use minimal body with title + rationale only.
 - **Linear task unknown**: offer to create a new ticket (step 5, bullet 4) with `e` (default, edit title) / `y` (accept as-is) / `s` (skip). On skip, leave the section blank with `<!-- No Linear task -->`. Never fabricate a link.
 - **Tests/lints fail**: stop. Surface failures to the user and do not push unless they explicitly override.
-- **`coderabbit` CLI missing / auth expired / rate-limited**: surface the error from `/pr-ready` and stop. Do not push an "unreviewed" PR to bypass the step.
-- **`/pr-ready` reports unresolved findings**: only allowed if each remaining item is explicitly documented in the PR body's `## /pr-ready deferred findings` section with a rationale.
 
 ## Notes
 

@@ -112,7 +112,7 @@ gh pr create --repo lifinance/contracts \
   --body "Deploy log update from contracts-tron. Commit: $TRON_COMMIT"
 ```
 
-Store the `contracts-tron` commit hash in the PR body (and it flows into MongoDB via the normal deploy-log ingestion) — this is what lets someone re-verify bytecode later by checking out that exact fork commit, without upstream `main` needing to still match. Run this PR through the normal `/pr-ready` gate before opening it, same as any other deploy-log PR.
+Store the `contracts-tron` commit hash in the PR body (and it flows into MongoDB via the normal deploy-log ingestion) — this is what lets someone re-verify bytecode later by checking out that exact fork commit, without upstream `main` needing to still match. Open this PR the same way as any other deploy-log PR.
 
 Once merged upstream, these logs reach `contracts-tron` again on the next upstream→fork sync PR — do not also commit them directly to the fork's `main`.
 
