@@ -4905,6 +4905,60 @@
           }
         ]
       }
+    },
+    {
+      "name": "Symbiosis OnchainSwapV3",
+      "key": "symbiosisOnchainSwapV3",
+      "contracts": {
+        "mainnet": [
+          {
+            "address": "0x92114294e42a96c9ef3163da18ee7efdba6cc661",
+            "functions": {
+              "0x21c69a19": "onswap(address,uint256,address,address,bytes)"
+            }
+          },
+          {
+            "address": "0xdacb78cb349bad001117c90861b32d40972a30a6",
+            "functions": {}
+          }
+        ],
+        "bsc": [
+          {
+            "address": "0x628613064b1902a1a422825cf11b687c6f17961e",
+            "functions": {
+              "0x21c69a19": "onswap(address,uint256,address,address,bytes)"
+            }
+          },
+          {
+            "address": "0x5c5e6cceb3435f49473c5fef0b9506070c5880f1",
+            "functions": {}
+          }
+        ],
+        "rootstock": [
+          {
+            "address": "0xa257f3fe4e4032291516dc355edf90664e9eb932",
+            "functions": {
+              "0x21c69a19": "onswap(address,uint256,address,address,bytes)"
+            }
+          },
+          {
+            "address": "0xa2e7705bbec9acf477115fa12b9fde4b2cb17c36",
+            "functions": {}
+          }
+        ],
+        "zksync": [
+          {
+            "address": "0x35e3dc1f3383bd348ec651edd73fe1d7a7da5aaa",
+            "functions": {
+              "0x21c69a19": "onswap(address,uint256,address,address,bytes)"
+            }
+          },
+          {
+            "address": "0x344ce0b8836a868f3c3418dd4d9059a4bc727ba1",
+            "functions": {}
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
