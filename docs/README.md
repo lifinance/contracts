@@ -1,5 +1,9 @@
 # Smart Contracts Documentation
 
+## Tron Fork
+
+- [Tron Fork — why it exists, sync process, and how to deploy to Tron](./TronFork.md)
+
 ## Facets
 
 - [Access Manager Facet](./AccessManagerFacet.md)

@@ -4,6 +4,7 @@
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
+# - Upstream-only: guarded to lifinance/contracts because forks that sync this file (contracts-tron) lack `LEDGER_SYNC_TOKEN`/Slack secrets and must not push to the EF registry.
 
 name: Sync Clear Signing (ERC-7730) Registry
 
@@ -45,6 +46,7 @@ jobs:
       # never cross-cancel.
       group: sync-ledger-clear-signing-${{ github.event_name }}
       cancel-in-progress: true
+    if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (with submodules)
