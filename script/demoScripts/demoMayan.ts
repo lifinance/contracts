@@ -84,6 +84,7 @@ const main = async () => {
     swapData: '0x',
     middleToken: '0x0000000000000000000000000000000000000000',
     minMiddleAmount: 0,
+    refundRecipient: address,
   }
 
   console.info('Dev Wallet Address: ', address)

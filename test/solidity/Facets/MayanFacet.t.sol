@@ -6,7 +6,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -175,7 +175,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         validMayanDataNative = MayanFacet.MayanData(
@@ -186,7 +187,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         invalidMayanDataEVM2Solana = MayanFacet.MayanData(
@@ -197,7 +199,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
     }
 
@@ -484,7 +487,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         vm.startPrank(DEV_WALLET);
@@ -551,7 +555,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -591,7 +596,8 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             swapCalldata,
             ARBITRUM_WETH,
-            0.99 ether
+            0.99 ether,
+            USER_RECEIVER
         );
 
         vm.startPrank(USER_SENDER);
@@ -685,7 +691,8 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             swapCalldata,
             ARBITRUM_WETH,
-            0.5 ether
+            0.5 ether,
+            USER_RECEIVER
         );
 
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
@@ -742,7 +749,8 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             "",
             ARBITRUM_WETH,
-            0
+            0,
+            USER_RECEIVER
         );
 
         vm.startPrank(USER_SENDER);
@@ -758,6 +766,88 @@ contract MayanFacetTest is TestBaseFacet {
             data
         );
         vm.stopPrank();
+    }
+
+    function testRevert_StartBridgeWithZeroRefundRecipient() public {
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidCallData.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, data);
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndStartBridgeWithZeroRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = address(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+    }
+
+    function test_RefundsExcessNativeToRefundRecipient() public {
+        // The excess native value must be refunded to MayanData.refundRecipient (the user), not to
+        // msg.sender (which may be a relayer). Mayan's forwarder is out of scope, so it is etched
+        // with a recorder that keeps the forwarded value and leaves the excess in the facet.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        address refundRecipient = address(0xD00D);
+
+        // validMayanDataNative.protocolData parses to 0xabc654321 == USER_RECEIVER.
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"c1c0e9c9",
+            ARBITRUM_WETH,
+            0.99 ether,
+            refundRecipient
+        );
+
+        uint256 excess = 0.5 ether;
+        uint256 refundRecipientBalanceBefore = refundRecipient.balance;
+
+        vm.startPrank(USER_SENDER);
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether + excess }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+        assertEq(
+            forwarder.lastValue(),
+            1 ether,
+            "only minAmount must be forwarded to Mayan"
+        );
+        assertEq(
+            refundRecipient.balance - refundRecipientBalanceBefore,
+            excess,
+            "excess native must be refunded to refundRecipient"
+        );
     }
 
     function testRevert_FailsWhenNonEVMChainIntentionAndNonEVMReceiverIsEmpty()
@@ -795,7 +885,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
         // invalid protocolData that produces wrong receiver for payload
 
@@ -1150,7 +1241,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         vm.mockCall(
@@ -1188,7 +1280,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
-            0
+            0,
+            USER_RECEIVER
         );
 
         vm.startPrank(USER_SENDER);

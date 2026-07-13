@@ -60,6 +60,8 @@ The methods listed above take a variable labeled `_mayanData`. This data is spec
 /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
 /// @param middleToken The token the native input is swapped into before forwarding
 /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
+/// @param refundRecipient The address that receives excess native value and swap leftovers;
+///        must be the user, never the relayer, so refunds are not stranded on a relayer
 struct MayanData {
   bytes32 nonEVMReceiver;
   address mayanProtocol;
@@ -68,6 +70,7 @@ struct MayanData {
   bytes swapData;
   address middleToken;
   uint256 minMiddleAmount;
+  address refundRecipient;
 }
 ```
 

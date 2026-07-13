@@ -10,7 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -21,7 +21,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 ///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
 ///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
 ///      orders.
-/// @custom:version 2.0.0
+/// @custom:version 3.0.0
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -56,6 +56,8 @@ contract MayanFacet is
     /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
     /// @param middleToken The token the native input is swapped into before forwarding
     /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
+    /// @param refundRecipient The address that receives excess native value and swap leftovers;
+    ///        must be the user, never the relayer, so refunds are not stranded on a relayer
     struct MayanData {
         bytes32 nonEVMReceiver;
         address mayanProtocol;
@@ -64,6 +66,7 @@ contract MayanFacet is
         bytes swapData;
         address middleToken;
         uint256 minMiddleAmount;
+        address refundRecipient;
     }
 
     /// Errors ///
@@ -91,11 +94,15 @@ contract MayanFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_mayanData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        if (_mayanData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -124,16 +131,20 @@ contract MayanFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_mayanData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        if (_mayanData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_mayanData.refundRecipient)
         );
 
         uint256 decimals;
