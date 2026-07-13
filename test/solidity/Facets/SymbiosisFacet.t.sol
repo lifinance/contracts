@@ -56,8 +56,6 @@ contract SymbiosisFacetTest is TestBaseFacet {
     address internal constant RELAY_RECIPIENT =
         0xb8f275fBf7A959F4BCE59999A2EF122A099e81A8;
 
-    error OnchainSwapV3NotSupported();
-
     event OnswapCalled(address token, uint256 amount, uint256 value);
 
     TestSymbiosisFacet internal symbiosisFacet;
@@ -308,30 +306,6 @@ contract SymbiosisFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_OnchainSwapV3NotConfigured() public {
-        // Facet deployed without an OnchainSwapV3 router (address(0))
-        TestSymbiosisFacet unsupportedFacet = new TestSymbiosisFacet(
-            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
-            SYMBIOSIS_GATEWAY,
-            IOnchainSwapV3(address(0)),
-            address(0)
-        );
-
-        _prepareOnchainSwapV3Data();
-        bridgeData.sendingAssetId = address(0);
-        bridgeData.minAmount = 1 ether;
-
-        vm.deal(USER_SENDER, 1 ether);
-        vm.startPrank(USER_SENDER);
-
-        vm.expectRevert(OnchainSwapV3NotSupported.selector);
-
-        unsupportedFacet.startBridgeTokensViaSymbiosis{
-            value: bridgeData.minAmount
-        }(bridgeData, symbiosisData);
-        vm.stopPrank();
-    }
-
     function testRevert_ConstructorWithZeroMetaRouter() public {
         vm.expectRevert(InvalidConfig.selector);
 
@@ -340,6 +314,39 @@ contract SymbiosisFacetTest is TestBaseFacet {
             SYMBIOSIS_GATEWAY,
             IOnchainSwapV3(address(onchainSwapV3)),
             address(onchainSwapV3)
+        );
+    }
+
+    function testRevert_ConstructorWithZeroGateway() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            address(0),
+            IOnchainSwapV3(address(onchainSwapV3)),
+            address(onchainSwapV3)
+        );
+    }
+
+    function testRevert_ConstructorWithZeroOnchainSwapV3() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(0)),
+            address(onchainSwapV3)
+        );
+    }
+
+    function testRevert_ConstructorWithZeroOnchainSwapV3Gateway() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(onchainSwapV3)),
+            address(0)
         );
     }
 

@@ -9,9 +9,10 @@ The Symbiosis Facet forwards Symbiosis-specific calls to one of two routers:
   Symbiosis bypasses the MetaRouter and burns syBTC to release BTC.
 
 The path is selected by the caller via the `viaOnchainSwapV3` flag in `SymbiosisData`.
-When it is set, the facet requires the destination to be Bitcoin and the OnchainSwapV3
-router to be configured on the source chain, so a wrongly-set flag reverts rather than
-misdirecting funds.
+When it is set, the facet requires the destination to be Bitcoin (a non-EVM receiver and
+the Bitcoin chain id) with a non-empty receiver, so a wrongly-set flag reverts rather than
+misdirecting funds. The OnchainSwapV3 router and its gateway are required, non-zero
+constructor immutables, so the facet is only deployed to chains that support this path.
 
 ```mermaid
 graph LR;

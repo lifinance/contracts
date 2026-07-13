@@ -30,17 +30,11 @@ contract SymbiosisFacet is
     // solhint-disable-next-line immutable-vars-naming
     address private immutable symbiosisGateway;
     /// @notice The Symbiosis OnchainSwapV3 router used for syBTC -> Bitcoin routes
-    ///         (address(0) on chains that do not support this path)
     // solhint-disable-next-line immutable-vars-naming
     IOnchainSwapV3 private immutable onchainSwapV3;
     /// @notice The gateway the OnchainSwapV3 router pulls funds through (approve target)
     // solhint-disable-next-line immutable-vars-naming
     address private immutable onchainSwapV3Gateway;
-
-    /// Errors ///
-
-    /// @notice Thrown when the OnchainSwapV3 path is requested on a chain where it is not configured
-    error OnchainSwapV3NotSupported();
 
     /// Types ///
 
@@ -79,7 +73,7 @@ contract SymbiosisFacet is
     /// @notice Initialize the contract.
     /// @param _symbiosisMetaRouter The contract address of the Symbiosis MetaRouter on the source chain.
     /// @param _symbiosisGateway The contract address of the Symbiosis Gateway on the source chain.
-    /// @param _onchainSwapV3 The Symbiosis OnchainSwapV3 router (address(0) if unsupported on this chain).
+    /// @param _onchainSwapV3 The Symbiosis OnchainSwapV3 router.
     /// @param _onchainSwapV3Gateway The gateway the OnchainSwapV3 router pulls funds through.
     constructor(
         ISymbiosisMetaRouter _symbiosisMetaRouter,
@@ -89,7 +83,9 @@ contract SymbiosisFacet is
     ) {
         if (
             address(_symbiosisMetaRouter) == address(0) ||
-            _symbiosisGateway == address(0)
+            _symbiosisGateway == address(0) ||
+            address(_onchainSwapV3) == address(0) ||
+            _onchainSwapV3Gateway == address(0)
         ) revert InvalidConfig();
 
         symbiosisMetaRouter = _symbiosisMetaRouter;
@@ -213,8 +209,6 @@ contract SymbiosisFacet is
         ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) private {
-        if (address(onchainSwapV3) == address(0))
-            revert OnchainSwapV3NotSupported();
         if (_bridgeData.receiver != NON_EVM_ADDRESS) revert InvalidReceiver();
         if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_BTC)
             revert InvalidDestinationChain();
