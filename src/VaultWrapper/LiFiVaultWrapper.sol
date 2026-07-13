@@ -569,8 +569,10 @@ contract LiFiVaultWrapper is
     /// @notice Replace the integrator's payout wallets and their bps split.
     /// @dev Owner-controlled (the per-vault admin). Re-validates the full set, so
     ///      the 1..50 / sum-to-100% invariant set at `initialize` always holds — the receiver
-    ///      set can never be emptied. Only redistributes the integrator's own share, so no
-    ///      distribution is forced first.
+    ///      set can never be emptied. Accrued-but-not-yet-distributed integrator fees are held
+    ///      as a single total with no per-wallet bookkeeping, so they will be paid to the NEW
+    ///      receiver set at the next `distributeFees`, not the outgoing one. Call `distributeFees`
+    ///      before rotating receivers if the outgoing wallets should receive their earned share.
     /// @param _receivers The new payout wallets + bps split (1..50, non-zero, summing to 100%).
     function setIntegratorFeeReceivers(
         FeeReceiver[] calldata _receivers

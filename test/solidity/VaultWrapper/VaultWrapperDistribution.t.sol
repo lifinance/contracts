@@ -189,6 +189,28 @@ contract VaultWrapperDistributionTest is Test {
         vm.stopPrank();
     }
 
+    function test_SetReceiversThenDistributeUsesNewReceivers() public {
+        address oldReceiver = makeAddr("oldReceiver");
+        address newReceiver = makeAddr("newReceiver");
+        wrapper = _deploy(_assetFees(), SPLIT, _single(oldReceiver), _full());
+        _deposit(alice, DEPOSIT);
+
+        // Fees accrued against the old receiver set but were never distributed.
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        assertGt(integratorPart, 0);
+
+        // Rotate receivers before distributing: the accrued total follows the new set.
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorFeeReceivers(
+            _receivers(_single(newReceiver), _full())
+        );
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(newReceiver), integratorPart);
+        assertEq(asset.balanceOf(oldReceiver), 0);
+    }
+
     /// Fee distribution — split correctness ///
 
     function test_DistributeFeesSplitsAssetPool() public {
