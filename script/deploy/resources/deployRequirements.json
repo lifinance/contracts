@@ -520,12 +520,12 @@
       "_onchainSwapV3": {
         "configFileName": "symbiosis.json",
         "keyInConfigFile": ".<NETWORK>.onchainSwapV3",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "true"
       },
       "_onchainSwapV3Gateway": {
         "configFileName": "symbiosis.json",
         "keyInConfigFile": ".<NETWORK>.onchainSwapV3Gateway",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "true"
       }
     }
   },

@@ -29,13 +29,16 @@ contract DeployScript is DeployScriptBase {
             path,
             string.concat(".", network, ".gateway")
         );
+        // OnchainSwapV3 is optional: address(0) on chains without the syBTC->Bitcoin path
         address onchainSwapV3 = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".onchainSwapV3")
+            string.concat(".", network, ".onchainSwapV3"),
+            true
         );
         address onchainSwapV3Gateway = _getConfigContractAddress(
             path,
-            string.concat(".", network, ".onchainSwapV3Gateway")
+            string.concat(".", network, ".onchainSwapV3Gateway"),
+            true
         );
 
         return
