@@ -1,6 +1,6 @@
 ---
 name: deploy-contract
-description: Deploys a facet/periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — deploy, explorer-verify, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the diamond allowlist sync for diamond-called periphery. Use whenever the user wants to "deploy <Contract> to <networks>", "redeploy <Facet> on staging", "push <Periphery> to base/optimism", or otherwise get a contract on-chain and into the diamond WITHOUT the Safe-proposal lifecycle. This is the staging/test deploy path and is the deploy primitive that `multisig-rollout` calls. For a PRODUCTION rollout — anything that needs Safe proposals shepherded to signing ("roll out vX.Y.Z to all chains", "upgrade <Facet> in production", "create the diamond cut proposals") — use `multisig-rollout` instead; it calls this skill and then drives the proposal → PR → signing → Slack tail. Requires Foundry, gh, and (production only) VPN for MongoDB.
+description: Deploys a facet/periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — deploy, explorer-verify, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the diamond allowlist sync for diamond-called periphery. Use whenever the user wants to "deploy <Contract> to <networks>", "redeploy <Facet> on staging", "push <Periphery> to base/optimism", or otherwise get a contract on-chain and into the diamond WITHOUT the Safe-proposal lifecycle. This is the staging/test deploy path and is the deploy primitive that `multisig-rollout` calls. For a PRODUCTION rollout — anything that needs Safe proposals shepherded to signing ("roll out vX.Y.Z to all chains", "upgrade <Facet> in production", "create the diamond cut proposals") — use `multisig-rollout` instead; it calls this skill and then drives the proposal → PR → signing → Slack tail. If any target network is `tron`/`tronshasta`, route those to `deploy-contract-tron` instead — Foundry has no Tron support and this skill's pipeline cannot deploy there. Requires Foundry, gh, and (production only) VPN for MongoDB.
 usage: /deploy-contract <ContractName> <network...> [--production]
 ---
 
@@ -13,6 +13,8 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 - **diamond-called periphery** → the above **plus** an allowlist sync (a second proposal in production)
 
 It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
+
+See also: `rotate-pauser-wallet` calls this skill to redeploy `EmergencyPauseFacet` with the new pauser when rotating the pauser wallet.
 
 ## When to use this vs multisig-rollout
 
@@ -30,6 +32,8 @@ It stops once the contract is deployed, verified, and registered (production: pr
 The target environment is a double opt-in enforced by the script: staging unless **both** `--production` is passed *and* `PRODUCTION=true` is in `.env`. Default standalone use is staging. Never edit `.env` to flip this — if `--production` and `.env` disagree, the script aborts; relay that to the user.
 
 ## Phase 0 — Preflight
+
+**Tron gate — check first.** If the target network list includes `tron` or `tronshasta`, split them out: this skill's pipeline (`deployContractToNetworks.sh`, Foundry, CREATE3) has no Tron support at all. Hand those networks to `/deploy-contract-tron` (a different repo checkout — `contracts-tron` — and a different toolchain) and continue here only with the remaining EVM networks, if any.
 
 Run from the repo root. Check and report (don't fix silently):
 

@@ -15,6 +15,8 @@ Both modes converge on the same tail: capture proposals → (deploy mode only) d
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
+See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboard-sc-dev` drive this skill to propose Safe owner / CANCELLER-role swaps.
+
 ## Hard rails
 
 - **Never run `confirm-safe-tx.ts` yourself.** Signing uses the user's hardware wallet; only the human can do it. Your job ends at giving the exact command.
