@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType, IntegratorReceivers } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -62,25 +62,24 @@ interface ILiFiVaultWrapper {
     /// @param accessGate The new gate; address(0) = fully permissionless.
     event AccessGateUpdated(address indexed accessGate);
 
-    /// @notice Emitted when the integrator's receiver set is configured.
-    /// @param receivers The integrator payout wallets.
-    /// @param bps The per-receiver basis points (sum to 100%).
-    event ReceiversSet(address[] receivers, uint16[] bps);
+    /// @notice Emitted when the integrator's fee-receiver set is configured.
+    /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
+    event ReceiversSet(FeeReceiver[] receivers);
 
-    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
-    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
+    /// @notice Emitted once per non-empty fee pool distributed by `distributeFees`.
+    /// @param token The fee-pool token (the vault asset, or this wrapper's shares).
     /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
     /// @param integratorAmount Amount delivered across the integrator wallets.
-    event ReservoirSwept(
+    event FeePoolDistributed(
         address indexed token,
         uint256 lifiAmount,
         uint256 integratorAmount
     );
 
     /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
-    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
+    ///         amount is redirected to the LI.FI recipient instead of reverting the distribution.
     /// @param receiver The integrator wallet whose transfer reverted.
-    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
+    /// @param token The fee-pool token redirected (the asset, or this wrapper's shares).
     /// @param amount The amount redirected to LI.FI.
     event IntegratorPayoutRedirected(
         address indexed receiver,
@@ -108,8 +107,6 @@ interface ILiFiVaultWrapper {
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
     /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
     error InvalidReceiverCount();
-    /// @notice Thrown when the receivers and bps arrays differ in length.
-    error ReceiversLengthMismatch();
     /// @notice Thrown when a receiver wallet is the zero address.
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
@@ -140,9 +137,9 @@ interface ILiFiVaultWrapper {
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16[4] calldata _integratorShareBps,
+        uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        IntegratorReceivers calldata _receivers,
+        FeeReceiver[] calldata _receivers,
         address _accessGate
     ) external;
 }

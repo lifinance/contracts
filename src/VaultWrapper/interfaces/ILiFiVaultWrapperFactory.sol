@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeType } from "../LiFiVaultWrapperTypes.sol";
+import { FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
@@ -21,7 +21,7 @@ interface ILiFiVaultWrapperFactory {
         FeeType _feeType
     ) external view returns (uint16 minBps, uint16 maxBps);
 
-    /// @notice The recipient of LI.FI's fee share, read live by instances at sweep so an
+    /// @notice The recipient of LI.FI's fee share, read live by instances at distribution so an
     ///         integrator can never redirect LI.FI's cut.
     /// @return The LI.FI fee recipient address.
     function lifiFeeRecipient() external view returns (address);
@@ -50,7 +50,7 @@ interface ILiFiVaultWrapperFactory {
         address adapter,
         address asset,
         address vaultWrapperAdmin,
-        uint16[4] integratorShareBps,
+        uint16[FEE_TYPE_COUNT] integratorShareBps,
         uint256 nonce,
         bytes32 salt
     );
