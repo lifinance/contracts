@@ -21,7 +21,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 ///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
 ///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
 ///      orders.
-/// @custom:version 1.3.0
+/// @custom:version 2.0.0
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -50,10 +50,20 @@ contract MayanFacet is
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
     /// @param mayanProtocol The address of the Mayan protocol final contract
     /// @param protocolData The protocol data for the Mayan protocol
+    /// @param swapProtocol The address of the Mayan swap protocol used to convert the
+    ///        native input into middleToken; when zero the native path forwards ETH
+    ///        directly via forwardEth (no swap)
+    /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
+    /// @param middleToken The token the native input is swapped into before forwarding
+    /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
     struct MayanData {
         bytes32 nonEVMReceiver;
         address mayanProtocol;
         bytes protocolData;
+        address swapProtocol;
+        bytes swapData;
+        address middleToken;
+        uint256 minMiddleAmount;
     }
 
     /// Errors ///
@@ -200,6 +210,16 @@ contract MayanFacet is
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount,
                 emptyPermitParams,
+                _mayanData.mayanProtocol,
+                _mayanData.protocolData
+            );
+        } else if (_mayanData.swapProtocol != address(0)) {
+            MAYAN.swapAndForwardEth{ value: _bridgeData.minAmount }(
+                _bridgeData.minAmount,
+                _mayanData.swapProtocol,
+                _mayanData.swapData,
+                _mayanData.middleToken,
+                _mayanData.minMiddleAmount,
                 _mayanData.mayanProtocol,
                 _mayanData.protocolData
             );

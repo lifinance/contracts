@@ -41,6 +41,10 @@ const main = async () => {
     slippageBps: 300,
   })
 
+  if (!quote[0]) {
+    throw new Error('No Mayan quote returned')
+  }
+
   const payload = getSwapFromEvmTxPayload(
     quote[0],
     address,
@@ -75,6 +79,11 @@ const main = async () => {
     protocolData: parsed.args.protocolData,
     nonEVMReceiver:
       '0x0000000000000000000000000000000000000000000000000000000000000000',
+    // Native-swap fields (swapAndForwardEth); unused on this ERC20 path
+    swapProtocol: '0x0000000000000000000000000000000000000000',
+    swapData: '0x',
+    middleToken: '0x0000000000000000000000000000000000000000',
+    minMiddleAmount: 0,
   }
 
   console.info('Dev Wallet Address: ', address)

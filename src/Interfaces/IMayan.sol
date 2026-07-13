@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 /// @title Interface for Mayan
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface IMayan {
     struct PermitParams {
         uint256 value;
@@ -16,6 +16,16 @@ interface IMayan {
     function forwardEth(
         address mayanProtocol,
         bytes calldata protocolData
+    ) external payable;
+
+    function swapAndForwardEth(
+        uint256 amountIn,
+        address swapProtocol,
+        bytes calldata swapData,
+        address middleToken,
+        uint256 minMiddleAmount,
+        address mayanProtocol,
+        bytes calldata mayanData
     ) external payable;
 
     function forwardERC20(

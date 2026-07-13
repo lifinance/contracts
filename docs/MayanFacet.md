@@ -54,16 +54,58 @@ The methods listed above take a variable labeled `_mayanData`. This data is spec
 /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
 /// @param mayanProtocol The address of the Mayan protocol final contract
 /// @param protocolData The protocol data for the Mayan protocol
+/// @param swapProtocol The address of the Mayan swap protocol used to convert the
+///        native input into middleToken; when zero the native path forwards ETH
+///        directly via forwardEth (no swap)
+/// @param swapData The calldata forwarded to swapProtocol to perform the native swap
+/// @param middleToken The token the native input is swapped into before forwarding
+/// @param minMiddleAmount The minimum middleToken amount that must result from the swap
 struct MayanData {
   bytes32 nonEVMReceiver;
   address mayanProtocol;
   bytes protocolData;
+  address swapProtocol;
+  bytes swapData;
+  address middleToken;
+  uint256 minMiddleAmount;
 }
 ```
 
 `protocolData` is the opaque calldata forwarded to `mayanProtocol`. The facet parses
 the receiver out of it (see [Receiver validation](#receiver-validation)) and validates
 it against `BridgeData.receiver` before forwarding; it is not otherwise interpreted.
+
+### Native branch semantics
+
+For native inputs (`BridgeData.sendingAssetId` is the zero/native asset) the facet
+selects the Mayan entrypoint based on `swapProtocol`:
+
+- **`swapProtocol == address(0)`** — the native amount is forwarded as-is via
+  `MAYAN.forwardEth{value}(mayanProtocol, protocolData)`. This is the pre-existing
+  no-swap path; `swapData`, `middleToken` and `minMiddleAmount` are ignored and should
+  be left empty/zero.
+- **`swapProtocol != address(0)`** — the native amount is routed through
+  `MAYAN.swapAndForwardEth{value}(minAmount, swapProtocol, swapData, middleToken, minMiddleAmount, mayanProtocol, protocolData)`.
+  This covers the case where Mayan's underlying v2 contracts require WETH rather than
+  raw ETH: Mayan performs an implicit conversion (e.g. a 1:1 ETH→WETH wrap, with
+  `middleToken` set to the chain's WETH) before executing `mayanProtocol`.
+  `minMiddleAmount` is the minimum `middleToken` the swap must yield.
+
+ERC20 inputs are unaffected and always use `MAYAN.forwardERC20(...)`.
+
+The native amount (`BridgeData.minAmount`, normalized to 8 decimals) is passed to
+`swapAndForwardEth` **both** as the call `value` and as the `amountIn` argument. For
+the swap entrypoint (`swapAndStartBridgeTokensViaMayan`) the amount is only ever passed
+as a call argument on the native path, so — unlike the ERC20 path — `_replaceInputAmount`
+is **not** applied to `protocolData` for native swaps; the double-swap (LI.FI source
+swap → native ETH → Mayan ETH→WETH) still forwards the original `protocolData` unchanged.
+The receiver is always validated from `protocolData` regardless of which native
+entrypoint is selected.
+
+`swapProtocol`/`swapData` are opaque source-side swap parameters interpreted by Mayan's
+forwarder, not by this facet. They do not affect the on-chain receiver check (which is
+driven solely by `protocolData`), and Mayan's forwarder is responsible for validating
+`swapProtocol` and enforcing `minMiddleAmount`.
 
 ## Swap Data
 
