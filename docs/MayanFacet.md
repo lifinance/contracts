@@ -12,10 +12,38 @@ graph LR;
 
 ## Receiver validation
 
-Before forwarding to Mayan, the facet validates that the order's destination receiver matches `BridgeData.receiver`:
+The facet has two trust models, partitioned strictly by `BridgeData.hasDestinationCall`:
 
-- **EVM destinations:** the receiver parsed from the Mayan protocol data (`destAddr`) must equal `BridgeData.receiver`.
-- **Non-EVM destinations** (`BridgeData.receiver == NON_EVM_ADDRESS`): the receiver parsed from the protocol data must equal `MayanData.nonEVMReceiver` (full 32-byte comparison).
+- **Plain bridges (`hasDestinationCall == false`)** — permissionless, unchanged: before forwarding to Mayan, the facet validates that the order's destination receiver matches `BridgeData.receiver`:
+  - **EVM destinations:** the receiver parsed from the Mayan protocol data (`destAddr`) must equal `BridgeData.receiver`.
+  - **Non-EVM destinations** (`BridgeData.receiver == NON_EVM_ADDRESS`): the receiver parsed from the protocol data must equal `MayanData.nonEVMReceiver` (full 32-byte comparison).
+- **Destination calls (`hasDestinationCall == true`)** — signature-gated (see [Arbitrary destination calls](#arbitrary-destination-calls)): the on-chain `_parseReceiver` check is **skipped** and the receiver is instead attested by a backend EIP-712 signature.
+
+## Arbitrary destination calls
+
+A Mayan Swift v2 order can carry a `customPayload` that instructs Mayan's destination-side executor to perform an **arbitrary call** (target + calldata) after delivery. That target/calldata **cannot be validated on-chain** against `BridgeData.receiver` — the whole point of a destination call is that funds/control flow go somewhere other than a plain receiver.
+
+Following the repo's opaque-calldata convention, this capability is unlocked **only** behind a backend EIP-712 signature. When `BridgeData.hasDestinationCall == true`, both entrypoints verify — before any deposit or swap, over the **as-submitted** `protocolData` and **pre-swap** `minAmount` — a signature from the authorized backend signer over:
+
+```text
+MayanDestinationCallPayload(
+    bytes32 transactionId,
+    bytes32 receiver,            // NON_EVM-aware: nonEVMReceiver when receiver == NON_EVM_ADDRESS
+    uint256 minAmount,           // pre-swap minAmount, as submitted
+    address sendingAssetId,
+    uint256 destinationChainId,
+    bool    hasDestinationCall,
+    address mayanProtocol,
+    bytes32 protocolDataHash,    // keccak256(MayanData.protocolData), which contains the customPayload
+    uint256 deadline
+)
+```
+
+The domain separator binds `block.chainid` and `address(this)` (the diamond, under delegatecall), so a signature is valid on exactly one chain and one diamond. `deadline` time-boxes every signature, and `BridgeData.transactionId` is consumed in diamond storage (CEI, before the external Mayan call) to prevent same-chain replay.
+
+### Trust assumption (destination calls)
+
+On the destination-call path the receiver is **signer-attested, not on-chain-enforced**: the facet does not (and cannot) validate the opaque call target. The backend is trusted to only sign payloads it constructed for legitimate routes. A leaked signer key can authorize an arbitrary destination call, but the blast radius is bounded to the funds of the specific signed transaction — the facet custodies nothing persistently. The signer is **immutable**; rotation is a governance action (deploy a new facet with the new signer and run `diamondCut` through the Safe/timelock). There is deliberately **no owner setter** for it.
 
 ### HyperCore deposits
 
@@ -60,6 +88,8 @@ The methods listed above take a variable labeled `_mayanData`. This data is spec
 /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
 /// @param middleToken The token the native input is swapped into before forwarding
 /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
+/// @param signature The backend EIP-712 signature; consumed only when hasDestinationCall
+/// @param deadline The signature expiry; enforced only on the signed destination-call path
 struct MayanData {
   bytes32 nonEVMReceiver;
   address mayanProtocol;
@@ -68,6 +98,8 @@ struct MayanData {
   bytes swapData;
   address middleToken;
   uint256 minMiddleAmount;
+  bytes signature;
+  uint256 deadline;
 }
 ```
 

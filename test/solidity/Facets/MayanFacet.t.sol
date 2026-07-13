@@ -12,7 +12,10 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 
 // Stub MayanFacet Contract
 contract TestMayanFacet is MayanFacet, TestWhitelistManagerBase {
-    constructor(IMayan _bridge) MayanFacet(_bridge) {}
+    constructor(
+        IMayan _bridge,
+        address _backendSigner
+    ) MayanFacet(_bridge, _backendSigner) {}
 }
 
 /// @notice Mirrors Mayan Swift v2 encoders for `abi.encodeCall` fixtures (no on-chain deployment).
@@ -63,7 +66,11 @@ interface ISwiftV2Encode {
 /// @notice This contract exposes _parseReceiver, _parseHypercoreReceiver and
 ///         _replaceInputAmount for testing purposes.
 contract TestMayanFacetExposed is MayanFacet {
-    constructor(IMayan _mayan) MayanFacet(_mayan) {}
+    /// @dev A fixed non-zero backend signer keeps the pure/view parser exposers' call sites
+    ///      one-arg; these helpers never verify a signature.
+    constructor(
+        IMayan _mayan
+    ) MayanFacet(_mayan, 0x000000000000000000000000000000000000dEaD) {}
 
     /// @dev Exposes the internal _parseReceiver function on the non-HyperCore (destAddr) path.
     function testParseReceiver(
@@ -153,8 +160,20 @@ contract MayanFacetTest is TestBaseFacet {
     address internal constant ARBITRUM_WETH =
         0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
 
+    /// @dev EIP-712 typehash mirrored from MayanFacet; keeping a local copy proves the on-chain
+    ///      constant matches the type string the backend signs.
+    bytes32 internal constant MAYAN_DESTINATION_CALL_PAYLOAD_TYPEHASH =
+        0x041e97a5598cb2846a732dae40d31cf310e56e48655f817f07fb38dbe29e4535;
+
+    uint256 internal backendSignerPrivateKey =
+        0x1234567890123456789012345678901234567890123456789012345678901234;
+    address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
+
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
+    error InvalidSignature();
+    error SignatureExpired();
+    error TransactionAlreadyProcessed();
 
     function setUp() public {
         customBlockNumberForForking = 19968172;
@@ -175,6 +194,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -186,6 +207,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -197,12 +220,17 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
     }
 
     function setupMayan() internal {
-        mayanBridgeFacet = new TestMayanFacet(MAYAN_FORWARDER);
+        mayanBridgeFacet = new TestMayanFacet(
+            MAYAN_FORWARDER,
+            backendSignerAddress
+        );
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = mayanBridgeFacet
             .startBridgeTokensViaMayan
@@ -271,7 +299,33 @@ contract MayanFacetTest is TestBaseFacet {
     function testRevert_WhenConstructedWithZeroAddress() public {
         vm.expectRevert(InvalidConfig.selector);
 
-        new TestMayanFacet(IMayan(address(0)));
+        new TestMayanFacet(IMayan(address(0)), backendSignerAddress);
+    }
+
+    function testRevert_WhenConstructedWithZeroBackendSigner() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestMayanFacet(MAYAN_FORWARDER, address(0));
+    }
+
+    /// @dev EXSC-604 relaxes the unconditional doesNotContainDestinationCalls modifier: a
+    ///      destination call is now allowed but only with a valid backend signature. An unsigned
+    ///      dest-call (validMayanData carries no signature and deadline 0) therefore no longer
+    ///      reverts with InformationMismatch but with SignatureExpired (deadline checked first).
+    function testBase_Revert_BridgeWithInvalidDestinationCallFlag()
+        public
+        override
+    {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.hasDestinationCall = true;
+
+        vm.expectRevert(SignatureExpired.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function testBase_CanSwapAndBridgeNativeTokens()
@@ -484,6 +538,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -551,6 +607,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -591,7 +649,9 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             swapCalldata,
             ARBITRUM_WETH,
-            0.99 ether
+            0.99 ether,
+            "",
+            0
         );
 
         vm.startPrank(USER_SENDER);
@@ -685,7 +745,9 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             swapCalldata,
             ARBITRUM_WETH,
-            0.5 ether
+            0.5 ether,
+            "",
+            0
         );
 
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
@@ -742,6 +804,8 @@ contract MayanFacetTest is TestBaseFacet {
             MAYAN_NATIVE_SWAP_PROTOCOL,
             "",
             ARBITRUM_WETH,
+            0,
+            "",
             0
         );
 
@@ -795,6 +859,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
         // invalid protocolData that produces wrong receiver for payload
@@ -1150,6 +1216,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -1188,6 +1256,8 @@ contract MayanFacetTest is TestBaseFacet {
             address(0),
             "",
             address(0),
+            0,
+            "",
             0
         );
 
@@ -1488,5 +1558,570 @@ contract MayanFacetTest is TestBaseFacet {
         protocolData = vm.parseBytes("0x99999999");
         receiver = testFacet.testParseReceiver(protocolData);
         assertEq(address(uint160(uint256(receiver))), address(0));
+    }
+
+    /// -----------------------------------------------------------------------
+    /// EXSC-604: signed arbitrary destination-call payloads
+    /// -----------------------------------------------------------------------
+
+    /// @dev EIP-712 domain separator mirrored from the facet; verifyingContract is the diamond.
+    function _mayanDomainSeparator() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Mayan Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(mayanBridgeFacet)
+                )
+            );
+    }
+
+    /// @dev Builds the EIP-712 digest the backend signs for a destination call.
+    function _destCallDigest(
+        ILiFi.BridgeData memory _bd,
+        MayanFacet.MayanData memory _md
+    ) internal view returns (bytes32) {
+        bytes32 receiverBytes32 = _bd.receiver == NON_EVM_ADDRESS
+            ? _md.nonEVMReceiver
+            : bytes32(uint256(uint160(_bd.receiver)));
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                MAYAN_DESTINATION_CALL_PAYLOAD_TYPEHASH,
+                _bd.transactionId,
+                receiverBytes32,
+                _bd.minAmount,
+                _bd.sendingAssetId,
+                _bd.destinationChainId,
+                _bd.hasDestinationCall,
+                _md.mayanProtocol,
+                keccak256(_md.protocolData),
+                _md.deadline
+            )
+        );
+
+        return
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01",
+                    _mayanDomainSeparator(),
+                    structHash
+                )
+            );
+    }
+
+    /// @dev Returns `_md` with `signature` filled in for `_bd`, signed by `_privateKey`.
+    ///      `_md.deadline` must already be set (it is part of the signed struct).
+    function _signDestCall(
+        ILiFi.BridgeData memory _bd,
+        MayanFacet.MayanData memory _md,
+        uint256 _privateKey
+    ) internal view returns (MayanFacet.MayanData memory) {
+        bytes32 digest = _destCallDigest(_bd, _md);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, digest);
+        _md.signature = abi.encodePacked(r, s, v);
+        return _md;
+    }
+
+    /// @dev Reads the facet's usedTransactionIds mapping straight from diamond storage.
+    function _isTxIdUsed(bytes32 _txId) internal view returns (bool) {
+        bytes32 slot = keccak256(
+            abi.encode(_txId, keccak256("com.lifi.facets.mayan"))
+        );
+        return vm.load(address(mayanBridgeFacet), slot) != bytes32(0);
+    }
+
+    /// @dev ERC20 destination-call template based on validMayanData; deadline in the future.
+    function _erc20DestCallData()
+        internal
+        view
+        returns (MayanFacet.MayanData memory md)
+    {
+        md = validMayanData;
+        md.deadline = block.timestamp + 1 hours;
+        md.signature = "";
+    }
+
+    // --- Happy paths ---
+
+    /// @dev H1: signed ERC20 destination call bridges and consumes the transactionId.
+    function test_DestCall_H1_ERC20SignedBridges() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("h1");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+
+        assertTrue(
+            _isTxIdUsed(bridgeData.transactionId),
+            "transactionId must be consumed"
+        );
+    }
+
+    /// @dev H2: signed native destination call routes through forwardEth (swapProtocol == 0).
+    function test_DestCall_H2_NativeSignedBridges() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("h2");
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        MayanFacet.MayanData memory md = validMayanDataNative;
+        md.deadline = block.timestamp + 1 hours;
+        md = _signDestCall(bridgeData, md, backendSignerPrivateKey);
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardEth.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
+            bridgeData,
+            md
+        );
+        vm.stopPrank();
+
+        assertTrue(_isTxIdUsed(bridgeData.transactionId));
+    }
+
+    /// @dev H3: on the swap path the signature (over pre-swap minAmount + as-submitted
+    ///      protocolData) still validates after _depositAndSwap/_replaceInputAmount mutate them.
+    function test_DestCall_H3_SwapPathSignedBridges() public {
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("h3");
+
+        // sign over the pre-swap minAmount and the as-submitted protocolData
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            md
+        );
+        vm.stopPrank();
+
+        assertTrue(_isTxIdUsed(bridgeData.transactionId));
+    }
+
+    /// @dev H4: NON_EVM receiver destination call; the signed receiver is nonEVMReceiver and
+    ///      BridgeToNonEVMChainBytes32 is emitted.
+    function test_DestCall_H4_NonEvmReceiverSignedBridges() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("h4");
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        MayanFacet.MayanData memory md = _erc20DestCallData();
+        md.nonEVMReceiver = ACTUAL_SOL_ADDR;
+        md = _signDestCall(bridgeData, md, backendSignerPrivateKey);
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            ACTUAL_SOL_ADDR
+        );
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev H5: legacy path (hasDestinationCall == false) needs no signature and keeps the
+    ///      on-chain _parseReceiver validation. Proves 604 did not make the signer mandatory.
+    function test_DestCall_H5_LegacyPathNoSignature() public {
+        // validMayanData.protocolData parses to USER_RECEIVER; no signature is provided.
+        assertEq(bridgeData.hasDestinationCall, false);
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
+        vm.stopPrank();
+
+        // legacy path must NOT touch the replay map
+        assertFalse(_isTxIdUsed(bridgeData.transactionId));
+    }
+
+    /// @dev H6: HyperCore deposit (hasDestinationCall == false) still validated via
+    ///      _parseHypercoreReceiver, no signature required.
+    function test_DestCall_H6_HyperCoreNoSignature() public {
+        bridgeData.receiver = HYPERCORE_RECEIVER;
+        bridgeData.destinationChainId = 1337;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+        assertEq(bridgeData.hasDestinationCall, false);
+
+        MayanFacet.MayanData memory md = MayanFacet.MayanData(
+            "",
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
+            _hyperCoreProtocolData(),
+            address(0),
+            "",
+            address(0),
+            0,
+            "",
+            0
+        );
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    // --- Negative guards ---
+
+    /// @dev N1: signature for protocolData A, submit protocolData B (customPayload altered).
+    function test_DestCall_N1_ForgedPayloadReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n1");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        // tamper only the protocolData tail (as a destination-call customPayload would live there)
+        bytes memory tampered = md.protocolData;
+        tampered[tampered.length - 1] = 0xff;
+        md.protocolData = tampered;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N2: destination call with no signature (valid future deadline) reverts.
+    function test_DestCall_N2_AbsentSignatureReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n2");
+
+        MayanFacet.MayanData memory md = _erc20DestCallData(); // signature == ""
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N3: valid signature from a non-authorized key reverts.
+    function test_DestCall_N3_WrongSignerReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n3");
+
+        uint256 wrongKey = 0xB0B;
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            wrongKey
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N4: signing for receiver/mayanProtocol/destChainId/sendingAssetId R1 but submitting
+    ///      a mismatching BridgeData fails recovery.
+    function test_DestCall_N4_ReceiverMismatchReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n4");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        // receiver mismatch
+        ILiFi.BridgeData memory tampered = bridgeData;
+        tampered.receiver = address(0xBEEF);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(tampered, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N4 variants: mayanProtocol / destinationChainId / sendingAssetId mismatch.
+    function test_DestCall_N4_RouteFieldMismatchReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n4b");
+
+        MayanFacet.MayanData memory signed = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        // mayanProtocol mismatch
+        MayanFacet.MayanData memory md1 = signed;
+        md1.mayanProtocol = address(0xDEAD);
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md1);
+
+        // destinationChainId mismatch
+        ILiFi.BridgeData memory bd2 = bridgeData;
+        bd2.destinationChainId = 42161;
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bd2, signed);
+
+        // sendingAssetId mismatch
+        ILiFi.BridgeData memory bd3 = bridgeData;
+        bd3.sendingAssetId = ADDRESS_DAI;
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bd3, signed);
+
+        vm.stopPrank();
+    }
+
+    /// @dev N5: expired deadline reverts SignatureExpired.
+    function test_DestCall_N5_ExpiredReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n5");
+
+        MayanFacet.MayanData memory md = _erc20DestCallData();
+        md.deadline = block.timestamp - 1;
+        md = _signDestCall(bridgeData, md, backendSignerPrivateKey);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(SignatureExpired.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N6a: replaying a consumed transactionId reverts TransactionAlreadyProcessed.
+    function test_DestCall_N6_ReplayReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n6");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+
+        vm.expectRevert(TransactionAlreadyProcessed.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N6b: the same signature under a different chainid fails recovery (domain separator).
+    function test_DestCall_N6_CrossChainReplayReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n6b");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        // move to a different chain; the signature was bound to the original block.chainid
+        vm.chainId(999999);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N7: HyperCore-shaped order flipped to hasDestinationCall == true with no signature
+    ///      cannot bypass into the trusted-customPayload code; it reverts.
+    function test_DestCall_N7_FlagFlipUpReverts() public {
+        bridgeData.receiver = HYPERCORE_RECEIVER;
+        bridgeData.destinationChainId = 1337;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.hasDestinationCall = true;
+
+        MayanFacet.MayanData memory md = MayanFacet.MayanData(
+            "",
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
+            _hyperCoreProtocolData(),
+            address(0),
+            "",
+            address(0),
+            0,
+            "",
+            0 // no deadline / no signature
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(SignatureExpired.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
+    }
+
+    /// @dev N8: an arbitrary-call customPayload with hasDestinationCall == false takes the legacy
+    ///      branch, where _parseReceiver still enforces bridgeData.receiver (T7 boundary preserved).
+    function test_DestCall_N8_FlagFlipDownStillParserEnforced() public {
+        // validMayanData.protocolData parses to USER_RECEIVER; submit a mismatching receiver.
+        bridgeData.receiver = DEV_WALLET;
+        bridgeData.hasDestinationCall = false;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidReceiver.selector,
+                DEV_WALLET,
+                USER_RECEIVER
+            )
+        );
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
+        vm.stopPrank();
+    }
+
+    /// @dev N9: on the swap path, changing the signed minAmount desyncs the hash and reverts
+    ///      (the pre-swap minAmount is committed).
+    function test_DestCall_N9_SignedAmountDesyncReverts() public {
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n9");
+
+        MayanFacet.MayanData memory md = _signDestCall(
+            bridgeData,
+            _erc20DestCallData(),
+            backendSignerPrivateKey
+        );
+
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // submit a different minAmount than what was signed
+        ILiFi.BridgeData memory tampered = bridgeData;
+        tampered.minAmount = bridgeData.minAmount + 1;
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            tampered,
+            swapData,
+            md
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev N10: a malformed / wrong-length signature reverts via solady ECDSA (no silent
+    ///      address(0) acceptance). solady's InvalidSignature shares the facet's selector.
+    function test_DestCall_N10_MalformedSignatureReverts() public {
+        bridgeData.hasDestinationCall = true;
+        bridgeData.transactionId = keccak256("n10");
+
+        MayanFacet.MayanData memory md = _erc20DestCallData();
+        md.signature = hex"1234"; // wrong length
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSignature.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, md);
+        vm.stopPrank();
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { ECDSA } from "solady/utils/ECDSA.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -21,7 +22,17 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 ///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
 ///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
 ///      orders.
-/// @custom:version 2.0.0
+/// @dev Destination calls (BridgeData.hasDestinationCall == true) let a Mayan Swift v2 order carry
+///      a customPayload that instructs Mayan's destination executor to perform an arbitrary call.
+///      That target/calldata cannot be validated on-chain against BridgeData.receiver, so this path
+///      is gated by a backend EIP-712 signature that commits to the BridgeData fields and to
+///      keccak256(protocolData). On this path the destination receiver is SIGNER-ATTESTED, not
+///      parser-enforced: _parseReceiver is intentionally skipped and the backend is trusted to only
+///      sign legitimate payloads. Plain bridges (hasDestinationCall == false) stay permissionless
+///      and keep the existing on-chain _parseReceiver validation. The signer is rotated by
+///      redeploying the facet and running diamondCut through the Safe/timelock governance flow;
+///      there is deliberately no owner setter for it.
+/// @custom:version 3.0.0
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
@@ -32,6 +43,10 @@ contract MayanFacet is
     /// Storage ///
 
     bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.mayan");
+
+    // EIP-712 typehash for MayanDestinationCallPayload: keccak256("MayanDestinationCallPayload(bytes32 transactionId,bytes32 receiver,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bool hasDestinationCall,address mayanProtocol,bytes32 protocolDataHash,uint256 deadline)");
+    bytes32 private constant MAYAN_DESTINATION_CALL_PAYLOAD_TYPEHASH =
+        0x041e97a5598cb2846a732dae40d31cf310e56e48655f817f07fb38dbe29e4535;
 
     /// @dev Mayan's sole HyperCore HCDepositor handler. HyperCore Swift v2 orders set this as
     ///      their destAddr while the real receiver lives in customPayload[0:20]. Mayan commits to
@@ -46,6 +61,16 @@ contract MayanFacet is
 
     IMayan public immutable MAYAN;
 
+    /// @notice The address of the backend signer authorized to sign destination-call payloads
+    address internal immutable BACKEND_SIGNER;
+
+    /// Types ///
+
+    struct Storage {
+        /// @notice Tracks used transaction IDs to prevent replay of signed destination calls
+        mapping(bytes32 => bool) usedTransactionIds;
+    }
+
     /// @dev Mayan specific bridge data
     /// @param nonEVMReceiver The address of the non-EVM receiver if applicable
     /// @param mayanProtocol The address of the Mayan protocol final contract
@@ -56,6 +81,8 @@ contract MayanFacet is
     /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
     /// @param middleToken The token the native input is swapped into before forwarding
     /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
+    /// @param signature The backend EIP-712 signature; consumed only when hasDestinationCall
+    /// @param deadline The signature expiry; enforced only on the signed destination-call path
     struct MayanData {
         bytes32 nonEVMReceiver;
         address mayanProtocol;
@@ -64,19 +91,32 @@ contract MayanFacet is
         bytes swapData;
         address middleToken;
         uint256 minMiddleAmount;
+        bytes signature;
+        uint256 deadline;
     }
 
     /// Errors ///
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
+    /// @notice Thrown when the destination-call signature is invalid
+    error InvalidSignature();
+    /// @notice Thrown when the destination-call signature is expired
+    error SignatureExpired();
+    /// @notice Thrown when a transaction with the same ID has already been processed
+    error TransactionAlreadyProcessed();
 
     /// Constructor ///
 
     /// @notice Constructor for the contract.
-    constructor(IMayan _mayan) {
-        if (address(_mayan) == address(0)) revert InvalidConfig();
+    /// @param _mayan The Mayan forwarder contract
+    /// @param _backendSigner The address authorized to sign destination-call payloads
+    constructor(IMayan _mayan, address _backendSigner) {
+        if (address(_mayan) == address(0) || _backendSigner == address(0)) {
+            revert InvalidConfig();
+        }
 
         MAYAN = _mayan;
+        BACKEND_SIGNER = _backendSigner;
     }
 
     /// External Methods ///
@@ -94,8 +134,13 @@ contract MayanFacet is
         refundExcessNative(payable(msg.sender))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
     {
+        // Arbitrary destination calls are only allowed when a backend signature attests to the
+        // opaque customPayload (verified over the as-submitted protocolData, before any deposit).
+        if (_bridgeData.hasDestinationCall) {
+            _verifyDestinationCallSignature(_bridgeData, _mayanData);
+        }
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -126,9 +171,14 @@ contract MayanFacet is
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
-        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // The signature is intentionally verified with the pre-swap `minAmount` and over the
+        // as-submitted `protocolData`, before `_depositAndSwap`/`_replaceInputAmount` mutate them.
+        if (_bridgeData.hasDestinationCall) {
+            _verifyDestinationCallSignature(_bridgeData, _mayanData);
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
@@ -169,31 +219,42 @@ contract MayanFacet is
         ILiFi.BridgeData memory _bridgeData,
         MayanData memory _mayanData
     ) internal {
-        // Validate receiver address
-        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
-            if (_mayanData.nonEVMReceiver == bytes32(0)) {
-                revert InvalidNonEVMReceiver();
+        if (_bridgeData.hasDestinationCall) {
+            // Signed destination-call path: the receiver is signer-attested (verified at the
+            // entrypoint), so there is no on-chain receiver to compare against. Consume the
+            // transactionId before the external call (CEI) to prevent same-chain replay.
+            Storage storage s = getStorage();
+            if (s.usedTransactionIds[_bridgeData.transactionId]) {
+                revert TransactionAlreadyProcessed();
             }
-            bytes32 receiver = _parseReceiver(
-                _mayanData.protocolData,
-                _bridgeData.destinationChainId
-            );
-            if (_mayanData.nonEVMReceiver != receiver) {
-                revert InvalidNonEVMReceiver();
-            }
+            s.usedTransactionIds[_bridgeData.transactionId] = true;
         } else {
-            address receiver = address(
-                uint160(
-                    uint256(
-                        _parseReceiver(
-                            _mayanData.protocolData,
-                            _bridgeData.destinationChainId
+            // Plain-bridge path (unchanged): validate the receiver on-chain from protocolData.
+            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+                if (_mayanData.nonEVMReceiver == bytes32(0)) {
+                    revert InvalidNonEVMReceiver();
+                }
+                bytes32 receiver = _parseReceiver(
+                    _mayanData.protocolData,
+                    _bridgeData.destinationChainId
+                );
+                if (_mayanData.nonEVMReceiver != receiver) {
+                    revert InvalidNonEVMReceiver();
+                }
+            } else {
+                address receiver = address(
+                    uint160(
+                        uint256(
+                            _parseReceiver(
+                                _mayanData.protocolData,
+                                _bridgeData.destinationChainId
+                            )
                         )
                     )
-                )
-            );
-            if (_bridgeData.receiver != receiver) {
-                revert InvalidReceiver(_bridgeData.receiver, receiver);
+                );
+                if (_bridgeData.receiver != receiver) {
+                    revert InvalidReceiver(_bridgeData.receiver, receiver);
+                }
             }
         }
 
@@ -495,5 +556,75 @@ contract MayanFacet is
         }
 
         return modifiedData;
+    }
+
+    /// @dev Verifies the backend EIP-712 signature authorizing an arbitrary destination call.
+    ///      The struct commits to the BridgeData fields plus keccak256(protocolData) (which
+    ///      contains the opaque customPayload), so an attacker cannot repoint a signature at a
+    ///      different route, receiver, amount, Mayan target, or destination call.
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _mayanData Data specific to Mayan (as submitted, before _replaceInputAmount)
+    function _verifyDestinationCallSignature(
+        ILiFi.BridgeData memory _bridgeData,
+        MayanData memory _mayanData
+    ) internal view {
+        if (block.timestamp > _mayanData.deadline) {
+            revert SignatureExpired();
+        }
+
+        bytes32 receiverBytes32 = _bridgeData.receiver == NON_EVM_ADDRESS
+            ? _mayanData.nonEVMReceiver
+            : bytes32(uint256(uint160(_bridgeData.receiver)));
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                MAYAN_DESTINATION_CALL_PAYLOAD_TYPEHASH,
+                _bridgeData.transactionId,
+                receiverBytes32,
+                _bridgeData.minAmount,
+                _bridgeData.sendingAssetId,
+                _bridgeData.destinationChainId,
+                _bridgeData.hasDestinationCall,
+                _mayanData.mayanProtocol,
+                keccak256(_mayanData.protocolData),
+                _mayanData.deadline
+            )
+        );
+
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
+        );
+
+        if (ECDSA.recover(digest, _mayanData.signature) != BACKEND_SIGNER) {
+            revert InvalidSignature();
+        }
+    }
+
+    /// @notice Returns the EIP-712 domain separator.
+    /// @dev The domain separator is calculated on the fly to ensure that `address(this)`
+    /// always refers to the diamond's address when called via delegatecall.
+    /// @return The EIP-712 domain separator.
+    function _domainSeparator() internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Mayan Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(this) // This will be the diamond's address at runtime
+                )
+            );
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

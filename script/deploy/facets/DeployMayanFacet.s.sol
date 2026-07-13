@@ -27,6 +27,19 @@ contract DeployScript is DeployScriptBase {
             string.concat(".bridges.", network, ".bridge")
         );
 
-        return abi.encode(bridge);
+        string memory json = vm.readFile(path);
+
+        // check if production or staging
+        address backendSigner;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            backendSigner = json.readAddress(".staging.backendSigner");
+        } else {
+            backendSigner = json.readAddress(".production.backendSigner");
+        }
+
+        return abi.encode(bridge, backendSigner);
     }
 }
