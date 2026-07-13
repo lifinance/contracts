@@ -21,7 +21,7 @@ import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors
 ///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
 ///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
 ///      orders.
-/// @custom:version 3.0.0
+/// @custom:version 2.0.0
 contract MayanFacet is
     ILiFi,
     ReentrancyGuard,
