@@ -94,14 +94,15 @@ const FRXUSD_ARBITRUM: Address = getAddress(
   '0x80Eede496655FB9047dd39d9f418d5483ED600df'
 )
 
-// The HopV2 contract (== the quote's approvalAddress) shares one CREATE2 address
-// across all spokes; the Fraxtal hub has its own. Used here only to sanity-check
-// the API response, never sent as calldata (the facet targets its own immutable).
+// The HopV2 contract (== the quote's approvalAddress / transactionRequest.to)
+// shares one CREATE2 address across all spokes. This demo always bridges FROM
+// arbitrum (a spoke), so the source-chain Hop is always this spoke address for
+// both routes — the destination (hub or another spoke) does not change it. Used
+// here only to sanity-check the API response, never sent as calldata (the facet
+// targets its own immutable HOP). The Fraxtal hub 0x00000000e18a…B36 is only the
+// source Hop when bridging FROM Fraxtal, which this demo does not do.
 const FRAX_HOP_SPOKE: Address = getAddress(
   '0x0000006D38568b00B457580b734e0076C62de659'
-)
-const FRAX_HOP_HUB_FRAXTAL: Address = getAddress(
-  '0x00000000e18aFc20Afe54d4B2C8688bB60c06B36'
 )
 
 // 100 frxUSD (18 decimals) — small demo amount.
@@ -243,8 +244,9 @@ async function bridgeViaFrax(routeKey: string): Promise<void> {
   const nativeFee = BigInt(quote.transactionRequest.value)
   const oft = getAddress(quote.meta.sendOftCall.args.oft)
   const dstEid = quote.meta.sendOftCall.args.dstEid
-  const expectedHop =
-    route.apiToChain === 'fraxtal' ? FRAX_HOP_HUB_FRAXTAL : FRAX_HOP_SPOKE
+  // arbitrum is the source (a spoke) for both routes, so the source-chain Hop —
+  // and thus approvalAddress / transactionRequest.to — is always the spoke address.
+  const expectedHop = FRAX_HOP_SPOKE
 
   consola.box('Frax API response -> facet calldata mapping')
   consola.info(`  approvalAddress (HopV2 target): ${quote.approvalAddress}`)
@@ -267,19 +269,24 @@ async function bridgeViaFrax(routeKey: string): Promise<void> {
       `  feeCosts[0].amount:             ${quote.feeCosts[0]?.amount}`
     )
 
-  // Sanity-check the API against our expectations. The source OFT for frxUSD on
-  // arbitrum is the token itself, and the facet only pulls bridgeData.sendingAssetId.
-  if (oft.toLowerCase() !== FRXUSD_ARBITRUM.toLowerCase())
-    consola.warn(
-      `API oft ${oft} != expected arbitrum frxUSD ${FRXUSD_ARBITRUM} — using the API value`
-    )
-  if (dstEid !== route.dstEid)
-    consola.warn(
-      `API dstEid ${dstEid} != expected ${route.dstEid} for ${route.apiToChain} — using the API value`
-    )
-  if (getAddress(quote.approvalAddress) !== expectedHop)
-    consola.warn(
-      `API approvalAddress ${quote.approvalAddress} != expected HopV2 ${expectedHop}`
+  // The API controls oft/dstEid/recipient/amount and the Hop target, so validate
+  // them against what we requested and ABORT on any mismatch — an unexpected dstEid
+  // or Hop could otherwise strand funds. (In production the LI.FI backend enforces
+  // this; here we fail loudly rather than send against a surprising quote.)
+  // recipient is a bytes32 (address left-padded) — compare its trailing 20 bytes
+  const recipientAddr = getAddress(
+    `0x${quote.meta.sendOftCall.args.recipient.slice(-40)}`
+  )
+  if (
+    oft !== FRXUSD_ARBITRUM ||
+    dstEid !== route.dstEid ||
+    recipientAddr !== devWallet ||
+    BigInt(quote.meta.sendOftCall.args.amountLd) !== amount ||
+    getAddress(quote.approvalAddress) !== expectedHop ||
+    getAddress(quote.transactionRequest.to) !== expectedHop
+  )
+    throw new Error(
+      `Frax quote routing does not match the requested ${route.apiFromChain}->${route.apiToChain} route`
     )
 
   // === Ensure balance + allowance (the Diamond pulls frxUSD via depositAsset) ===
