@@ -42,7 +42,6 @@
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
     "GasZipFacet",
-    "GenericSwapFacet",
     "GenericSwapFacetV3",
     "LiFiIntentEscrowFacet",
     "OwnershipFacet",

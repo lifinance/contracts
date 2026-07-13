@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
-import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
+import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
@@ -62,7 +62,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_IgnoresExtraBytes() public view {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -76,7 +76,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeData() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -88,7 +88,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractSwapData() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -102,7 +102,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function test_CanExtractBridgeAndSwapData() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -118,7 +118,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -176,7 +176,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -360,7 +360,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function test_CanExtractMainParametersWithSwap() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -386,7 +386,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanValidateCalldata() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -502,57 +502,6 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
             invalidCallTo,
             bytes("foobarbytes")
         );
-    }
-
-    function test_CanValidateAcrossV3DestinationCalldata() public {
-        AcrossFacetV3.AcrossV3Data memory acrossData = AcrossFacetV3
-            .AcrossV3Data({
-                receiverAddress: USER_RECEIVER,
-                refundAddress: USER_REFUND,
-                receivingAssetId: ADDRESS_USDC,
-                outputAmount: (defaultUSDCAmount * 9) / 10,
-                outputAmountPercent: uint64(1000000000000000000), // 10000 = 100.00%
-                exclusiveRelayer: address(0),
-                quoteTimestamp: uint32(block.timestamp),
-                fillDeadline: uint32(uint32(block.timestamp) + 1000),
-                exclusivityDeadline: 0,
-                message: bytes("foobarbytes")
-            });
-
-        bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
-            bridgeData,
-            acrossData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
-            bridgeData,
-            swapData,
-            acrossData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {

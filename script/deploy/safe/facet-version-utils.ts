@@ -20,7 +20,7 @@ interface ICacheRecord {
  * (`.cache/deployments_production.json`) by matching its address.
  * Only production deployments are considered — the cache file contains
  * production records exclusively.
- * @param contractName - Contract name as used in the cache (e.g. AcrossFacetV3), or null when unknown
+ * @param contractName - Contract name as used in the cache (e.g. AcrossFacetV4), or null when unknown
  * @param network - Network name (e.g. optimism)
  * @param addressCandidates - Address forms to match; compared case-insensitively
  * @param rootDir - Project root containing `.cache/`; defaults to cwd
@@ -77,7 +77,7 @@ export function getDeployedFacetVersionFromLog(
  * Resolves the intended version of a contract from the target state file
  * (`script/deploy/_targetState.json`) for the production LiFiDiamond.
  * @param network - Network name (e.g. optimism)
- * @param contractName - Contract name as used in the target state (e.g. AcrossFacetV3)
+ * @param contractName - Contract name as used in the target state (e.g. AcrossFacetV4)
  * @param rootDir - Project root containing `script/deploy/`; defaults to cwd
  * @returns Target version string if present, otherwise null
  */
