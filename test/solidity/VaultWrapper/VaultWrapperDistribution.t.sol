@@ -189,6 +189,36 @@ contract VaultWrapperDistributionTest is Test {
         vm.stopPrank();
     }
 
+    function test_SetIntegratorFeeReceiversAccepts50Wallets() public {
+        wrapper = _deploy(
+            _assetFees(),
+            SPLIT,
+            _single(makeAddr("r")),
+            _full()
+        );
+
+        FeeReceiver[] memory fifty = new FeeReceiver[](50);
+        for (uint256 i; i < 50; ++i) {
+            fifty[i] = FeeReceiver({
+                wallet: makeAddr(string.concat("w", vm.toString(i))),
+                bps: 200 // 50 * 200 = 10_000
+            });
+        }
+
+        vm.expectEmit(false, false, false, true, address(wrapper));
+        emit ReceiversSet(fifty);
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorFeeReceivers(fifty);
+
+        (address lastWallet, uint16 lastBps) = wrapper.integratorFeeReceivers(
+            49
+        );
+        assertEq(lastWallet, makeAddr("w49"));
+        assertEq(lastBps, 200);
+        vm.expectRevert();
+        wrapper.integratorFeeReceivers(50); // no 51st: exactly 50 configured
+    }
+
     function test_SetReceiversThenDistributeUsesNewReceivers() public {
         address oldReceiver = makeAddr("oldReceiver");
         address newReceiver = makeAddr("newReceiver");
