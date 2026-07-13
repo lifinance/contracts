@@ -84,6 +84,7 @@ const main = async () => {
     swapData: '0x',
     middleToken: '0x0000000000000000000000000000000000000000',
     minMiddleAmount: 0,
+    refundRecipient: address,
     // Destination-call signature fields; unused on this plain (non-dest-call) path
     signature: '0x',
     deadline: 0,

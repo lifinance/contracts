@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -81,6 +81,8 @@ contract MayanFacet is
     /// @param swapData The calldata forwarded to swapProtocol to perform the native swap
     /// @param middleToken The token the native input is swapped into before forwarding
     /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
+    /// @param refundRecipient The address that receives excess native value and swap leftovers;
+    ///        must be the user, never the relayer, so refunds are not stranded on a relayer
     /// @param signature The backend EIP-712 signature; consumed only when hasDestinationCall
     /// @param deadline The signature expiry; enforced only on the signed destination-call path
     struct MayanData {
@@ -91,6 +93,7 @@ contract MayanFacet is
         bytes swapData;
         address middleToken;
         uint256 minMiddleAmount;
+        address refundRecipient;
         bytes signature;
         uint256 deadline;
     }
@@ -131,10 +134,14 @@ contract MayanFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_mayanData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
+        if (_mayanData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         // Arbitrary destination calls are only allowed when a backend signature attests to the
         // opaque customPayload (verified over the as-submitted protocolData, before any deposit).
         if (_bridgeData.hasDestinationCall) {
@@ -169,10 +176,14 @@ contract MayanFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_mayanData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        if (_mayanData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         // The signature is intentionally verified with the pre-swap `minAmount` and over the
         // as-submitted `protocolData`, before `_depositAndSwap`/`_replaceInputAmount` mutate them.
         if (_bridgeData.hasDestinationCall) {
@@ -183,7 +194,7 @@ contract MayanFacet is
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_mayanData.refundRecipient)
         );
 
         uint256 decimals;
