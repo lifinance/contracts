@@ -64,6 +64,10 @@
       "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x747AcfB82E9D59E6f196Ffb473f3521c3B057362": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {
@@ -72,8 +76,9 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "0x462A9B6879770050021823D63aE62470E65Af8D4",
+      "LiFiDEXAggregator": "",
+      "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "0x808eb38763f3F51F9C47bc93Ef8d5aB7E6241F46",
       "ReceiverAcrossV3": "0x3877f47B560819E96BBD7e7700a02dfACe36D696",
@@ -81,8 +86,7 @@
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0xCcC863C0BDae52EA076C44711f3C92D65f07DEb9",
-      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70",
-      "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133"
+      "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }
   }
 }
