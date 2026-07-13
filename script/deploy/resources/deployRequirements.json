@@ -260,6 +260,25 @@
       }
     }
   },
+  "FraxFacet": {
+    "configData": {
+      "_hop": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".hop.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_tipFeeManager": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".tipFeeManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_pathUsd": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".pathUsd.<NETWORK>",
+        "allowToDeployWithZeroAddress": "true"
+      }
+    }
+  },
   "GenericSwapFacetV3": {
     "configData": {
       "_nativeAddress": {
