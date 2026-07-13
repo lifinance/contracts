@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { InvalidContract } from "../Errors/GenericErrors.sol";
-import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeBounds, FeeConfig, DeployParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
@@ -36,7 +36,7 @@ contract LiFiVaultWrapperFactory is
     /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%).
     uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
     /// @notice Sentinel for a DeployParams.integratorShareBps element meaning "inherit the factory default".
-    uint16 internal constant USE_DEFAULT_SPLIT = type(uint16).max;
+    uint16 internal constant DEFAULT_SPLIT_SENTINEL = type(uint16).max;
     /// @notice Basis-point denominator (100%).
     uint16 internal constant BPS_DENOMINATOR = 10000;
 
@@ -268,7 +268,7 @@ contract LiFiVaultWrapperFactory is
 
         _validateFees(_params.fees);
 
-        uint16[4] memory integratorShareBps = _resolveSplits(
+        uint16[FEE_TYPE_COUNT] memory integratorShareBps = _resolveSplits(
             _params.integratorShareBps
         );
 
@@ -355,20 +355,20 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Resolves the requested per-fee-type integrator shares against the factory
     ///         default and the caller's authority.
-    /// @dev Each element resolves independently: the `USE_DEFAULT_SPLIT` sentinel inherits
+    /// @dev Each element resolves independently: the `DEFAULT_SPLIT_SENTINEL` sentinel inherits
     ///      the factory default; an explicit share must be < 100%, and a self-serve
     ///      deployer may not set it above the default (which would cut LI.FI's share
     ///      below its default cut).
     /// @param _requested The per-fee-type shares from the deploy params.
     /// @return resolved The validated per-fee-type shares snapshotted into the instance.
     function _resolveSplits(
-        uint16[4] calldata _requested
-    ) internal view returns (uint16[4] memory resolved) {
+        uint16[FEE_TYPE_COUNT] calldata _requested
+    ) internal view returns (uint16[FEE_TYPE_COUNT] memory resolved) {
         uint16 defaultShare = defaultIntegratorShareBps;
         bool selfServe = msg.sender != onboardingManager;
-        for (uint256 i; i < 4; ++i) {
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
             uint16 share = _requested[i];
-            if (share == USE_DEFAULT_SPLIT) {
+            if (share == DEFAULT_SPLIT_SENTINEL) {
                 resolved[i] = defaultShare;
                 continue;
             }
@@ -397,7 +397,7 @@ contract LiFiVaultWrapperFactory is
     /// @param _feeType The fee type to look up.
     /// @return The highest rate (bps) governance may ever set for this fee type.
     function _cap(FeeType _feeType) internal pure returns (uint16) {
-        uint16[4] memory caps = [
+        uint16[FEE_TYPE_COUNT] memory caps = [
             CAP_PERFORMANCE_BPS,
             CAP_MANAGEMENT_BPS,
             CAP_DEPOSIT_BPS,
@@ -428,7 +428,7 @@ contract LiFiVaultWrapperFactory is
     ///      with no configured bounds fails closed.
     /// @param _fees The per-fee-type rates (0 = disabled) to validate.
     function _validateFees(FeeConfig calldata _fees) internal view {
-        for (uint8 i; i <= uint8(type(FeeType).max); ++i) {
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
             uint16 rate = _fees.rateBps[i];
             if (rate == 0) continue;
             if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();

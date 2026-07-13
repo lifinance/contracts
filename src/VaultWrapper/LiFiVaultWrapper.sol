@@ -12,7 +12,7 @@ import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig, FeeType, FeeReceiver } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
 /// @title LiFiVaultWrapper
@@ -85,8 +85,8 @@ contract LiFiVaultWrapper is
     /// @notice The integrator's fee share (bps) per fee type (indexed by FeeType ordinal),
     ///         snapshotted from the factory at deploy. LI.FI receives the remainder of
     ///         each fee.
-    uint16[4] public integratorShareBps;
-    /// @notice Opaque wrapper-side config (access mode, ToS hash, oracle),
+    uint16[FEE_TYPE_COUNT] public integratorShareBps;
+    /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
     ///         stored verbatim for later modules to decode.
     bytes public initData;
 
@@ -146,7 +146,7 @@ contract LiFiVaultWrapper is
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16[4] calldata _integratorShareBps,
+        uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         FeeReceiver[] calldata _receivers,
         bytes calldata _initData
@@ -156,10 +156,9 @@ contract LiFiVaultWrapper is
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
-        for (uint256 i; i < 4; ++i) {
-            if (
-                _integratorShareBps[i] >= LibVaultWrapperMath.BASIS_POINT_SCALE
-            ) revert InvalidIntegratorShareBps(_integratorShareBps[i]);
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
+            if (_integratorShareBps[i] >= 10_000)
+                revert InvalidIntegratorShareBps(_integratorShareBps[i]);
         }
 
         // Persist all calldata inputs before resolving the asset, so none of the calldata
@@ -466,12 +465,12 @@ contract LiFiVaultWrapper is
     ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
     ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
-    ///      rolls back and the owner keeps their shares), skims the fee (plus any overage a
+    ///      rolls back and the owner keeps their shares), skims the fee (plus any excess a
     ///      round-up source paid beyond the owed amount, so no idle asset is left unattributed),
-    ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem whose `previewRedeem` is
-    ///      0, or a bare `withdraw(0)`) short-circuits before the adapter call — mirroring
-    ///      `_deposit` — so sources that reject zero-amount withdrawals cannot block exits that
-    ///      preview as 0.
+    ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem
+    ///      whose `previewRedeem` is 0, or a bare `withdraw(0)`) short-circuits before the
+    ///      adapter call — mirroring `_deposit` — so sources that reject zero-amount
+    ///      withdrawals cannot block exits that preview as 0.
     function _transferOut(address _to, uint256 _assets) internal override {
         if (_assets == 0) return;
 
@@ -488,7 +487,7 @@ contract LiFiVaultWrapper is
             )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
-        // A round-up source may pay more than owed; book the overage with the fee so
+        // A round-up source may pay more than owed; book the excess with the fee so
         // every idle asset stays attributed for payout instead of stranding as
         // untracked dust that silently left AUM.
         _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
@@ -829,7 +828,7 @@ contract LiFiVaultWrapper is
     ///      No-op on a zero amount.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
     /// @param _feeAssets The amount, in assets, kept idle in this contract: the fee
-    ///        plus, on the withdrawal path, any adapter overage (see `_transferOut`).
+    ///        plus, on the withdrawal path, any adapter excess (see `_transferOut`).
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
         if (_feeAssets == 0) return;
 
