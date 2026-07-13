@@ -84,6 +84,15 @@ inferred). `[code]` = read directly this session.
     the mutable diamond is `LiFiDiamond` — `deployments/mainnet.json`.
 11. `[code]` Scale: 78 networks in `_targetState.json`; 76 active (71 mainnet
     production, 5 testnet) — `config/networks.json`, `jq` counts this session.
+12. `[observed]` **`on-chain ∖ target-state` ≠ deprecated.** A live smoke run of
+    the engine against the real mainnet diamond found 8 facets on-chain and
+    absent from target state that are **not** deprecated — `PaxosTransitFacet`,
+    `MegaETHBridgeFacet`, `PolymerCCTPFacet`, `AcrossV4SwapFacet`,
+    `NEARIntentsFacet`, `EcoFacet`, `GardenFacet`, `UnitFacet` — i.e. target
+    state simply *lags* live deployments. A naïve diff would have proposed
+    removing all 8. The discriminator: a **deprecated** facet has had its `src/`
+    source deleted by `/deprecate-contract`; a drifted-but-live facet still has
+    its `.sol`. Source-presence is therefore a hard removal gate (§5.1 step 7).
 
 ## 3. Goals / non-goals
 
@@ -181,6 +190,7 @@ export interface IRemovalDiff {
     selectors: `0x${string}`[]
   }[]
   targetStateMissingProtected: string[] // allowlisted facet dropped from target state (target-state bug)
+  driftDetected: string[]               // on-chain, absent from target state, but source still exists — NOT removed
 }
 
 export async function computeFacetRemovalDiff(
@@ -216,6 +226,10 @@ export async function computeFacetRemovalDiff(
    - `name ∈ protected` → skip. If also `name ∉ expected`, additionally record
      `targetStateMissingProtected` (a target-state bug worth surfacing loudly).
    - `name ∈ expected` → active, keep.
+   - `name` still has a `.sol` under `src/` → **drift**, not deprecation (Fact
+     12): recorded in `driftDetected`, **never removed**. This is the gate that
+     stops the mechanism from removing a live facet whose target-state entry
+     merely lags. Only a facet whose source was deleted proceeds.
    - else → **removal candidate**, selectors = `sels` (from the loupe, Fact 4 —
      this is why deprecated facets with no `out/` artifact work).
 7. **Shared / re-registered selector guard.** The diamond maps each selector to
@@ -265,6 +279,7 @@ the operator turns it on when a deprecation is in flight.
 |---|---|
 | Never-remove allowlist (core + machinery) | Hardcoded `{DiamondCut, DiamondLoupe, Ownership, EmergencyPause}` ∪ `getCoreFacets()` ∪ `getCorePeriphery()`; protected even if dropped from target state (§5.1 step 5). |
 | Skip `LiFiDiamondImmutable` | Engine only queries the `LiFiDiamond` address; immutable diamond never referenced (Fact 10). |
+| Drift ≠ deprecation (source-presence gate) | A facet on-chain and absent from target state is removed **only if its `src/` source is gone**. Source still present → `driftDetected`, never removed (§5.1 step 6; Fact 12). |
 | On-chain loupe is source of truth | Selectors come from `facets()`, never from `out/` for the facet being removed (§5.1 step 3/6; fixes Fact 4). |
 | Conspicuous removals | Diff printed as a banner per network: each facet name, address, selector count + list, and any held-back/unresolved items, before any propose; headless requires `--yes`. |
 | Shared / re-registered selectors | Held back if an active facet is expected to own them (§5.1 step 7). |
@@ -287,8 +302,14 @@ the same governance path `cleanUpProdDiamond.ts` already uses.
 
 Attacks considered and their mitigations:
 
-- **Remove a still-needed selector because target state is stale.** Target state
-  only decides _whether_ a facet should exist; the loupe decides _which_
+- **Remove a live facet because target state lags (not deprecated).** This is
+  real, not hypothetical: the mainnet smoke run surfaced 8 such facets (Fact 12).
+  Mitigated by the source-presence gate — a facet is removed only if its `src/`
+  source is gone, which happens exclusively via `/deprecate-contract`. Live
+  facets with drifted target state land in `driftDetected` and are never
+  removed.
+- **Remove a still-needed selector of a genuinely-deprecated facet.** Target
+  state only decides _whether_ a facet should exist; the loupe decides _which_
   selectors it owns. Active-facet selectors are held back (§5.1 step 7). Any
   false positive still has to survive a printed banner, ≥ quorum human
   signatures, and the timelock delay.
@@ -324,14 +345,21 @@ as a **draft**. The first live sweep is a separate, deliberate operational step.
 
 ## 9. Testing
 
-- `diamondRemovalDiff.test.ts` — 100% coverage (`.agents/rules/200-typescript.md`):
-  removal candidate; protected-hardcoded; protected-via-config; unresolved
-  address; held-back shared selector; `targetStateMissingProtected`; empty diff;
-  no-diamond network. Loupe + deploy-log + target-state fixtures; `publicClient`
-  injected/mocked.
-- CLI: dry-run (no `--yes`) proposes nothing; `--all-networks` skips
-  diamond-less networks; per-branch routing exercised against staging.
-- No Solidity changes → no `forge` impact; `bun test:ts`, `bunx eslint`,
+- `diamondRemovalDiff.test.ts` — all decision logic covered
+  (`.agents/rules/200-typescript.md`): removal candidate; **drift (source
+  present) → never removed**; protected-hardcoded; protected-via-config;
+  unresolved address; held-back shared selector (partial and full);
+  `targetStateMissingProtected`; empty diff; no-diamond network; source-scan
+  present/absent. All I/O is injected; the only uncovered function is the
+  thin live-RPC adapter `readFacetsFromChain` (unreachable offline, injected
+  around in tests).
+- **Live smoke run** against the real mainnet production diamond: 0 removals,
+  8 drift facets correctly held back, 1 target-state discrepancy surfaced,
+  nothing proposed — proving the source gate on production data (Fact 12).
+- CLI: dry-run (no `--yes`, or non-TTY) proposes nothing; `--all-networks` skips
+  diamond-less networks; per-branch routing via `prepareTimelockCalldata` +
+  `sendOrPropose`.
+- No Solidity changes → no `forge` impact; `bun test`, `bunx eslint`,
   `bunx tsc-files --noEmit` on changed files.
 
 ## 10. Open decisions (recommended defaults in **bold**)

@@ -1,0 +1,427 @@
+/**
+ * Target-state-diff engine for removing deprecated facets from a LiFiDiamond.
+ *
+ * Given a network + environment it compares the diamond's on-chain loupe
+ * (`facets()`) against `script/deploy/_targetState.json` and returns the set of
+ * facets that are registered on-chain but no longer present in target state
+ * (i.e. deprecated) and are therefore safe to remove. The on-chain loupe is the
+ * source of truth for which selectors each facet owns, so this works even for
+ * facets whose source (and `out/` artifact) was already deleted by
+ * `/deprecate-contract`.
+ *
+ * Consumed by `script/tasks/cleanUpProdDiamond.ts` (interactive `--auto` and
+ * fleet `--all-networks` modes). Pure diff logic (`diffFacets`) is separated
+ * from I/O (`computeFacetRemovalDiff`) so both are unit-testable; all I/O is
+ * injectable via the `io` parameter.
+ */
+
+import * as fs from 'fs'
+import * as path from 'path'
+
+import { createPublicClient, getAddress, http, parseAbi } from 'viem'
+
+import type { EnvironmentEnum, SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
+import {
+  getFunctionSelectors,
+  getViemChainForNetworkName,
+} from '../../utils/viemScriptHelpers'
+import targetStateJson from '../_targetState.json'
+import { getCoreFacets, getCorePeriphery } from '../shared/globalContractLists'
+
+/**
+ * Diamond-machinery facets that permanently brick the diamond if removed. They
+ * are protected independent of config/target state: `/deprecate-contract` edits
+ * both, and a bad edit must never make these removable.
+ */
+export const HARDCODED_PROTECTED_FACETS = [
+  'DiamondCutFacet',
+  'DiamondLoupeFacet',
+  'OwnershipFacet',
+  'EmergencyPauseFacet',
+] as const
+
+/** Diamond contract names never treated as removable facets. */
+const DIAMOND_NAMES = ['LiFiDiamond', 'LiFiDiamondImmutable'] as const
+
+const FACETS_ABI = parseAbi([
+  'function facets() view returns ((address facetAddress, bytes4[] functionSelectors)[])',
+])
+
+/** A single facet slated for removal, with the selectors taken from the loupe. */
+export interface IFacetRemoval {
+  name: string
+  address: `0x${string}`
+  selectors: `0x${string}`[]
+}
+
+/** Selectors held back from a removal because an active facet is expected to own them. */
+export interface IHeldBackSelectors {
+  facet: string
+  selectors: `0x${string}`[]
+}
+
+/** Result of diffing on-chain facets against target state for one network. */
+export interface IRemovalDiff {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
+  removals: IFacetRemoval[]
+  /** On-chain, absent from target state, but on the never-remove allowlist. */
+  protectedSkipped: string[]
+  /** On-chain facet addresses not found in the deploy log — never auto-removed. */
+  unresolved: `0x${string}`[]
+  /** Selectors refused because an active facet is expected to own them (mis-wiring signal). */
+  heldBackSelectors: IHeldBackSelectors[]
+  /** Allowlisted facet dropped from target state (a target-state bug worth surfacing). */
+  targetStateMissingProtected: string[]
+  /**
+   * On-chain, absent from target state, but the source still exists in `src/` —
+   * i.e. target-state drift, NOT a deprecation. Surfaced, never removed: only a
+   * facet whose source was deleted by `/deprecate-contract` is a removal candidate.
+   */
+  driftDetected: string[]
+}
+
+/** A facet as returned by the on-chain `facets()` loupe call. */
+export interface IOnChainFacet {
+  address: `0x${string}`
+  selectors: `0x${string}`[]
+}
+
+/** Injectable I/O for {@link computeFacetRemovalDiff}; defaults hit the real chain/files. */
+export interface IRemovalDiffIO {
+  getDiamondAddress: (
+    network: string,
+    environment: EnvironmentEnum
+  ) => Promise<`0x${string}` | undefined>
+  getOnChainFacets: (
+    diamondAddress: `0x${string}`,
+    network: string
+  ) => Promise<IOnChainFacet[]>
+  getAddressToName: (
+    network: string,
+    environment: EnvironmentEnum
+  ) => Promise<Record<string, string>>
+  getExpectedNames: (
+    network: string,
+    environment: EnvironmentEnum
+  ) => Set<string>
+  /** Union of selectors owned by the given (active) facet names whose artifacts exist. */
+  getActiveSelectors: (names: string[]) => Set<string>
+  /** Set of contract names whose `.sol` source still exists under `src/`. */
+  getSourceNames: () => Set<string>
+}
+
+const lower = (s: string): string => s.toLowerCase()
+
+/** Returns the never-remove allowlist: hardcoded machinery ∪ core facets ∪ core periphery ∪ diamonds. */
+export function getProtectedNames(): Set<string> {
+  return new Set<string>([
+    ...HARDCODED_PROTECTED_FACETS,
+    ...getCoreFacets(),
+    ...getCorePeriphery(),
+    ...DIAMOND_NAMES,
+  ])
+}
+
+/**
+ * Recursively collects the basenames (without `.sol`) of every Solidity source
+ * file under `srcDir`. A facet is only a removal candidate if its name is NOT in
+ * this set: a facet on-chain and absent from target state but whose source still
+ * exists is target-state drift (a live facet the state hasn't recorded), not a
+ * deprecation, and must never be auto-removed.
+ */
+export function getSourceContractNames(srcDir = 'src'): Set<string> {
+  const names = new Set<string>()
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (entry.isFile() && entry.name.endsWith('.sol'))
+        names.add(entry.name.replace(/\.sol$/, ''))
+    }
+  }
+  if (fs.existsSync(srcDir)) walk(srcDir)
+  return names
+}
+
+/** Inverts a deploy-log `{name: address}` map into `{lowercasedAddress: name}`. */
+export function buildAddressToName(
+  deployments: Record<string, unknown>
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [name, address] of Object.entries(deployments)) {
+    if (typeof address === 'string' && address.startsWith('0x'))
+      out[lower(address)] = name
+  }
+  return out
+}
+
+/** Returns the set of contract names listed under `LiFiDiamond` in target state for a network/env. */
+export function getExpectedFacetNames(
+  network: string,
+  environment: EnvironmentEnum
+): Set<string> {
+  const state = targetStateJson as Record<
+    string,
+    Record<string, Record<string, Record<string, string>>>
+  >
+  const diamond = state[lower(network)]?.[environment]?.LiFiDiamond
+  if (!diamond) return new Set<string>()
+  return new Set<string>(Object.keys(diamond))
+}
+
+/**
+ * Union of function selectors declared by the given facet names, read from
+ * compiled artifacts. Names without an `out/` artifact (e.g. already-deprecated
+ * facets) are skipped silently — only active facets need be covered here.
+ *
+ * @param selectorsOf - Selector lookup; defaults to reading `out/` artifacts. Injectable for tests.
+ */
+export function collectActiveSelectors(
+  names: string[],
+  selectorsOf: (name: string) => `0x${string}`[] = getFunctionSelectors
+): Set<string> {
+  const selectors = new Set<string>()
+  for (const name of names)
+    try {
+      for (const sel of selectorsOf(name)) selectors.add(lower(sel))
+    } catch {
+      // No artifact for this name (deprecated/never-built) — nothing to protect.
+    }
+  return selectors
+}
+
+/** Maps a raw on-chain `facets()` loupe result into {@link IOnChainFacet}s (checksummed addresses). */
+export function mapLoupeResult(
+  result: readonly {
+    facetAddress: `0x${string}`
+    functionSelectors: readonly `0x${string}`[]
+  }[]
+): IOnChainFacet[] {
+  return result.map((f) => ({
+    address: getAddress(f.facetAddress),
+    selectors: [...f.functionSelectors],
+  }))
+}
+
+/** Live-RPC reader: calls `facets()` on the diamond. Isolated so callers can inject a fake. */
+async function readFacetsFromChain(
+  diamondAddress: `0x${string}`,
+  network: string
+): Promise<
+  readonly {
+    facetAddress: `0x${string}`
+    functionSelectors: readonly `0x${string}`[]
+  }[]
+> {
+  const client = createPublicClient({
+    chain: getViemChainForNetworkName(network),
+    transport: http(),
+  })
+  return client.readContract({
+    address: diamondAddress,
+    abi: FACETS_ABI,
+    functionName: 'facets',
+  })
+}
+
+/**
+ * Fetches and maps the diamond's on-chain facets.
+ *
+ * @param reader - Raw `facets()` reader; defaults to a live RPC call. Injectable for tests.
+ */
+export async function fetchOnChainFacets(
+  diamondAddress: `0x${string}`,
+  network: string,
+  reader = readFacetsFromChain
+): Promise<IOnChainFacet[]> {
+  return mapLoupeResult(await reader(diamondAddress, network))
+}
+
+/**
+ * Pure diff: partitions on-chain facets into removals / protected / unresolved,
+ * holding back any selector an active facet is expected to own.
+ *
+ * @param params.onChainFacets - Facets from the diamond loupe (source of truth for selectors).
+ * @param params.addressToName - Lowercased on-chain address → contract name (from deploy log).
+ * @param params.expectedNames - Contract names present in target state (kept).
+ * @param params.protectedNames - Never-remove allowlist.
+ * @param params.activeSelectors - Lowercased selectors owned by active facets (held back if matched).
+ * @param params.sourceNames - Contract names whose `.sol` source still exists (drift, not deprecation).
+ */
+export function diffFacets(params: {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
+  onChainFacets: IOnChainFacet[]
+  addressToName: Record<string, string>
+  expectedNames: Set<string>
+  protectedNames: Set<string>
+  activeSelectors: Set<string>
+  sourceNames: Set<string>
+}): IRemovalDiff {
+  const {
+    network,
+    environment,
+    diamondAddress,
+    onChainFacets,
+    addressToName,
+    expectedNames,
+    protectedNames,
+    activeSelectors,
+    sourceNames,
+  } = params
+
+  const diff: IRemovalDiff = {
+    network,
+    environment,
+    diamondAddress,
+    removals: [],
+    protectedSkipped: [],
+    unresolved: [],
+    heldBackSelectors: [],
+    targetStateMissingProtected: [],
+    driftDetected: [],
+  }
+
+  for (const facet of onChainFacets) {
+    const name = addressToName[lower(facet.address)]
+
+    if (!name) {
+      diff.unresolved.push(facet.address)
+      continue
+    }
+
+    if (protectedNames.has(name)) {
+      diff.protectedSkipped.push(name)
+      if (!expectedNames.has(name)) diff.targetStateMissingProtected.push(name)
+      continue
+    }
+
+    if (expectedNames.has(name)) continue
+
+    // On-chain and absent from target state, but source still exists → drift, not
+    // deprecation. A live facet the state hasn't recorded — never auto-remove.
+    if (sourceNames.has(name)) {
+      diff.driftDetected.push(name)
+      continue
+    }
+
+    // Removal candidate: hold back any selector an active facet is expected to own.
+    const held: `0x${string}`[] = []
+    const toRemove: `0x${string}`[] = []
+    for (const sel of facet.selectors)
+      if (activeSelectors.has(lower(sel))) held.push(sel)
+      else toRemove.push(sel)
+
+    if (held.length > 0)
+      diff.heldBackSelectors.push({ facet: name, selectors: held })
+    if (toRemove.length > 0)
+      diff.removals.push({ name, address: facet.address, selectors: toRemove })
+  }
+
+  return diff
+}
+
+/** Deploy-log loader shape; defaults to {@link getDeployments}. Injectable for tests. */
+export type DeployLogLoader = (
+  network: string,
+  environment: EnvironmentEnum
+) => Promise<Record<string, unknown>>
+
+const defaultLoader: DeployLogLoader = (network, environment) =>
+  getDeployments(network as SupportedChain, environment)
+
+/** Reads the mutable `LiFiDiamond` address from the deploy log; `undefined` if absent. */
+export async function resolveDiamondAddress(
+  network: string,
+  environment: EnvironmentEnum,
+  loader: DeployLogLoader = defaultLoader
+): Promise<`0x${string}` | undefined> {
+  const deployments = await loader(network, environment)
+  const address = deployments.LiFiDiamond
+  return typeof address === 'string' && address.startsWith('0x')
+    ? getAddress(address)
+    : undefined
+}
+
+/** Reads the deploy log and inverts it to a lowercased address → name map. */
+export async function resolveAddressToName(
+  network: string,
+  environment: EnvironmentEnum,
+  loader: DeployLogLoader = defaultLoader
+): Promise<Record<string, string>> {
+  const deployments = await loader(network, environment)
+  return buildAddressToName(deployments)
+}
+
+const defaultIO: IRemovalDiffIO = {
+  getDiamondAddress: resolveDiamondAddress,
+  getOnChainFacets: fetchOnChainFacets,
+  getAddressToName: resolveAddressToName,
+  getExpectedNames: getExpectedFacetNames,
+  getActiveSelectors: collectActiveSelectors,
+  getSourceNames: () => getSourceContractNames(),
+}
+
+/**
+ * Computes the facet-removal diff for one network/environment by gathering the
+ * on-chain loupe, deploy log, target state and protected sets, then delegating
+ * to {@link diffFacets}. Returns an empty diff (no `diamondAddress`) if the
+ * network has no `LiFiDiamond` deployed in that environment.
+ *
+ * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
+ */
+export async function computeFacetRemovalDiff(
+  network: string,
+  environment: EnvironmentEnum,
+  io: Partial<IRemovalDiffIO> = {}
+): Promise<IRemovalDiff> {
+  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
+
+  const diamondAddress = await resolved.getDiamondAddress(network, environment)
+  const empty: IRemovalDiff = {
+    network,
+    environment,
+    removals: [],
+    protectedSkipped: [],
+    unresolved: [],
+    heldBackSelectors: [],
+    targetStateMissingProtected: [],
+    driftDetected: [],
+  }
+  if (!diamondAddress) return empty
+
+  const [onChainFacets, addressToName] = await Promise.all([
+    resolved.getOnChainFacets(diamondAddress, network),
+    resolved.getAddressToName(network, environment),
+  ])
+
+  const expectedNames = resolved.getExpectedNames(network, environment)
+  const protectedNames = getProtectedNames()
+
+  // Active facets whose selectors must not be swept out from under them: names
+  // that are both registered on-chain and still expected in target state.
+  const activeNames = onChainFacets
+    .map((f) => addressToName[lower(f.address)])
+    .filter(
+      (name): name is string =>
+        typeof name === 'string' && expectedNames.has(name)
+    )
+  const activeSelectors = resolved.getActiveSelectors(activeNames)
+  const sourceNames = resolved.getSourceNames()
+
+  return diffFacets({
+    network,
+    environment,
+    diamondAddress,
+    onChainFacets,
+    addressToName,
+    expectedNames,
+    protectedNames,
+    activeSelectors,
+    sourceNames,
+  })
+}

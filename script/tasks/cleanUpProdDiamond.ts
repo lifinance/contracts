@@ -25,6 +25,10 @@ import { consola } from 'consola'
 import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import {
+  computeFacetRemovalDiff,
+  type IRemovalDiff,
+} from '../deploy/safe/diamondRemovalDiff'
 import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
@@ -166,13 +170,39 @@ const command = defineCommand({
       description:
         'JSON array of periphery contract names (e.g. ["Executor","Receiver"])',
     },
+    auto: {
+      type: 'boolean',
+      description:
+        'Auto-detect stale facets (on-chain loupe ∖ _targetState.json) for the given --network and propose their removal',
+    },
+    allNetworks: {
+      type: 'boolean',
+      description:
+        'Fleet sweep: run auto-detection across every active network (implies --auto)',
+    },
+    yes: {
+      type: 'boolean',
+      description:
+        'Skip confirmation and actually propose/send (auto/sweep modes are dry-run without it)',
+    },
   },
 
   async run({ args }) {
-    const { facets, periphery } = args
+    const { facets, periphery, auto, allNetworks, yes } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
     let calldata: `0x${string}`
+
+    // ---------------- FLEET SWEEP: auto-detected removals across all networks ----------------
+    if (allNetworks) {
+      if (!environment)
+        environment = await selectWithSearch('Select environment', [
+          'production',
+          'staging',
+        ])
+      await runFleetRemoval(castEnv(environment), Boolean(yes))
+      return
+    }
 
     // select network (if not provided via parameter)
     if (!network) {
@@ -191,6 +221,12 @@ const command = defineCommand({
     }
 
     const typedEnv = castEnv(environment)
+
+    // ---------------- AUTO: auto-detected removals for a single network ----------------
+    if (auto) {
+      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'prompt')
+      return
+    }
 
     // get diamond address from deploy log
     const diamondAddress = await getContractAddressForNetwork(
@@ -428,6 +464,156 @@ const command = defineCommand({
     }
   },
 })
+
+/**
+ * Prints the removal diff as a conspicuous banner. Facet removals are
+ * irreversible timelock+Safe governance actions, so they are surfaced loudly,
+ * alongside held-back selectors, unresolved addresses and any target-state bug.
+ */
+function printRemovalDiff(diff: IRemovalDiff): void {
+  consola.box(
+    `⚠️  IRREVERSIBLE FACET REMOVAL — ${diff.network} (${diff.environment})`
+  )
+
+  if (diff.removals.length === 0)
+    consola.success(`[${diff.network}] no stale facets to remove`)
+  else
+    for (const r of diff.removals) {
+      consola.warn(
+        `✗ REMOVE  ${r.name}  @ ${r.address}  (${r.selectors.length} selectors)`
+      )
+      consola.log(`   selectors: ${r.selectors.join(', ')}`)
+    }
+
+  for (const held of diff.heldBackSelectors)
+    consola.warn(
+      `⏸  HELD BACK ${held.selectors.length} selector(s) of ${
+        held.facet
+      }: an active facet is expected to own them (re-point, don't remove). ${held.selectors.join(
+        ', '
+      )}`
+    )
+
+  if (diff.driftDetected.length > 0)
+    consola.warn(
+      `↔️  DRIFT: on-chain & absent from target state but source still exists — NOT removed (target state lags, or deprecate properly first): ${diff.driftDetected.join(
+        ', '
+      )}`
+    )
+
+  if (diff.unresolved.length > 0)
+    consola.warn(
+      `❓ UNRESOLVED on-chain facet address(es) not in the deploy log — NOT removed, review manually:\n   ${diff.unresolved.join(
+        '\n   '
+      )}`
+    )
+
+  if (diff.targetStateMissingProtected.length > 0)
+    consola.error(
+      `🛑 TARGET-STATE BUG: protected facet(s) missing from _targetState.json (kept, but fix target state): ${diff.targetStateMissingProtected.join(
+        ', '
+      )}`
+    )
+}
+
+/**
+ * Auto-detects stale facets for one network via the target-state diff engine and
+ * proposes/sends their removal, reusing the existing timelock-wrap + Safe-propose
+ * plumbing. `confirmMode`: `'yes'` proposes without asking, `'prompt'` asks
+ * interactively, `'dry-run'` only prints the diff (used by the fleet sweep).
+ */
+async function runAutoRemoval(
+  network: string,
+  environment: EnvironmentEnum,
+  confirmMode: 'yes' | 'prompt' | 'dry-run'
+): Promise<void> {
+  const diff = await computeFacetRemovalDiff(network, environment)
+
+  if (!diff.diamondAddress) {
+    consola.info(
+      `[${network}] no LiFiDiamond in ${environment} deploy log — skipping`
+    )
+    return
+  }
+
+  printRemovalDiff(diff)
+
+  if (diff.removals.length === 0) return
+
+  displayEnvironmentConfiguration(environment, network)
+
+  const removalCalldata = buildDiamondCutRemoveCalldata(diff.removals)
+  const { targetAddress, calldata: finalCalldata } =
+    await prepareTimelockCalldata(
+      removalCalldata,
+      diff.diamondAddress,
+      network,
+      environment
+    )
+
+  consola.log('\n📦 Final Calldata:')
+  consola.log(finalCalldata)
+
+  // Non-interactive 'prompt' would crash on TTY init; degrade to a safe dry-run
+  // so a stale-facet removal is never submitted without an explicit confirmation.
+  const effectiveMode =
+    confirmMode === 'prompt' && !process.stdin.isTTY ? 'dry-run' : confirmMode
+
+  if (effectiveMode === 'dry-run') {
+    consola.warn(
+      `[${network}] dry-run — not proposing. Re-run with --yes to submit (or confirm interactively).`
+    )
+    return
+  }
+
+  if (effectiveMode === 'prompt') {
+    const confirm = await consola.prompt(
+      `Propose removal of ${diff.removals.length} stale facet(s) on ${network}?`,
+      { type: 'confirm', initial: false }
+    )
+    if (!confirm) {
+      consola.info('Aborted.')
+      return
+    }
+  }
+
+  await sendOrPropose({
+    calldata: finalCalldata,
+    network,
+    environment,
+    diamondAddress: targetAddress,
+  })
+  consola.success(`[${network}] removal proposal submitted`)
+}
+
+/**
+ * Runs {@link runAutoRemoval} across every active network sequentially (per-network
+ * Safe proposals must not race on nonces). Without `yes` the whole sweep is a
+ * dry-run that only prints per-network diffs. Per-network failures are logged and
+ * do not abort the sweep.
+ */
+async function runFleetRemoval(
+  environment: EnvironmentEnum,
+  yes: boolean
+): Promise<void> {
+  const networkIds = getAllActiveNetworks().map((n) => n.id)
+  consola.box(
+    `Fleet facet-removal sweep — ${
+      networkIds.length
+    } networks (${environment})${yes ? '' : ' [DRY RUN]'}`
+  )
+
+  for (const network of networkIds)
+    try {
+      await runAutoRemoval(network, environment, yes ? 'yes' : 'dry-run')
+    } catch (err) {
+      consola.error(
+        `[${network}] failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    }
+}
 
 async function verifySelectorsExistInDiamond({
   diamondAddress,
