@@ -19,12 +19,14 @@ import { initTronWeb, parseValue, waitForConfirmation } from '../utils/tronweb'
 export const sendCommand = defineCommand({
   meta: {
     name: 'send',
-    description: 'Send a transaction to a Tron contract',
+    description:
+      'Send a transaction to a Tron contract, or a native TRX transfer when only --value is given (no signature/calldata)',
   },
   args: {
     address: {
       type: 'positional',
-      description: 'Contract address',
+      description:
+        'Contract address, or the recipient address for a native TRX transfer (--value with no signature/calldata)',
       required: true,
     },
     signature: {
@@ -46,6 +48,11 @@ export const sendCommand = defineCommand({
     privateKey: {
       type: 'string',
       description: 'Private key for signing',
+    },
+    privateKeyEnv: {
+      type: 'string',
+      description:
+        'Name of an env var holding the signing key (read from .env after load). Prefer this over --privateKey so the key never appears in shell history.',
     },
     value: {
       type: 'string',
@@ -95,19 +102,108 @@ export const sendCommand = defineCommand({
       if (env !== 'mainnet' && env !== 'testnet')
         throw new Error('Environment must be "mainnet" or "testnet"')
 
-      // Get private key
-      const privateKey = args.privateKey || (await getPrivateKey())
+      // Get private key. Precedence: explicit --privateKey, then --privateKeyEnv
+      // (a named env var, avoiding the key in shell history), then the default
+      // getPrivateKey() env var for the current environment.
+      let privateKey = args.privateKey as string | undefined
+      if (!privateKey && args.privateKeyEnv) {
+        privateKey = process.env[args.privateKeyEnv as string]
+        if (!privateKey)
+          throw new Error(
+            `Env var "${args.privateKeyEnv}" is not set (or empty)`
+          )
+      }
+      if (!privateKey) privateKey = await getPrivateKey()
       if (!privateKey)
         throw new Error('Private key is required for sending transactions')
+
+      // TronWeb expects a raw 64-hex key; tolerate a leading 0x (EVM-style keys in .env).
+      if (privateKey.startsWith('0x')) privateKey = privateKey.slice(2)
 
       // Initialize TronWeb with private key and optional custom RPC URL
       const tronWeb = initTronWeb(env, privateKey, args.rpcUrl)
 
-      // Validate that either signature or calldata is provided
+      // Native TRX transfer: `troncast send <recipient> --value <amount>` with no
+      // signature/calldata, mirroring `cast send <to> --value`. TronWeb has no function
+      // to call for a plain EOA→EOA transfer, so build a sendTrx transaction directly.
       if (!args.signature && !args.calldata) {
-        throw new Error(
-          'Either function signature or --calldata must be provided'
+        if (!args.value)
+          throw new Error(
+            'Provide a function signature, --calldata, or --value (for a native TRX transfer)'
+          )
+
+        const callerAddress = tronWeb.address.fromPrivateKey(privateKey)
+        if (!callerAddress)
+          throw new Error('Failed to derive address from private key')
+
+        // parseValue yields SUN; Math.round absorbs any float artifact from the
+        // TRX→SUN multiplication (e.g. 0.1 * 1e6) so the amount is a whole SUN value.
+        const amountSun = Math.round(Number(parseValue(args.value as string)))
+        if (!Number.isFinite(amountSun) || amountSun <= 0)
+          throw new Error(
+            `Invalid --value for native transfer: "${args.value}" (must be a positive TRX/SUN amount)`
+          )
+
+        const recipientHex = tronWeb.address.toHex(args.address)
+        const senderHex = tronWeb.address.toHex(callerAddress)
+
+        consola.info(
+          `Native transfer: ${amountSun} SUN (${
+            amountSun / 1_000_000
+          } TRX) from ${callerAddress} → ${args.address}`
         )
+
+        const transaction = await tronWeb.transactionBuilder.sendTrx(
+          recipientHex,
+          amountSun,
+          senderHex
+        )
+
+        if (args.dryRun) {
+          consola.info('Dry run mode - transaction will not be sent')
+          consola.log(
+            'Transaction prepared:',
+            JSON.stringify(transaction, null, 2)
+          )
+          return
+        }
+
+        const signedTransaction = (await tronWeb.trx.sign(
+          transaction as Parameters<typeof tronWeb.trx.sign>[0],
+          privateKey
+        )) as Awaited<ReturnType<typeof tronWeb.trx.sign>>
+
+        const result = await tronWeb.trx.sendRawTransaction(
+          signedTransaction as Parameters<
+            typeof tronWeb.trx.sendRawTransaction
+          >[0]
+        )
+
+        if (!result.result)
+          throw new Error(`Transaction send failed: ${JSON.stringify(result)}`)
+
+        const txId = result.txid || result.transaction?.txID
+        if (!txId) throw new Error('Transaction ID not found in result')
+
+        consola.success(`Transaction sent: ${txId}`)
+
+        if (args.confirm) {
+          consola.info('Waiting for confirmation...')
+          const receipt = (await waitForConfirmation(
+            tronWeb,
+            txId
+          )) as ITransactionReceipt
+
+          if (args.json) consola.log(JSON.stringify(receipt, null, 2))
+          else consola.log(formatReceipt(receipt))
+
+          if (receipt.result === 'FAILED')
+            throw new Error(
+              `Transaction failed: ${receipt.resMessage || 'Unknown error'}`
+            )
+        }
+
+        return
       }
 
       // Check if raw calldata is provided
