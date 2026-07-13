@@ -1,17 +1,50 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { TestFacet } from "../utils/TestBase.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
+import { IOnchainSwapV3 } from "lifi/Interfaces/IOnchainSwapV3.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+/// @notice Minimal stand-in for the Symbiosis OnchainSwapV3 router. Pulls the
+///         input token from the caller (the facet approves this contract as the
+///         gateway) and records the call so tests can assert on it.
+contract MockOnchainSwapV3 {
+    event OnswapCalled(address token, uint256 amount, uint256 value);
+
+    function onswap(
+        address token,
+        uint256 amount,
+        address,
+        address,
+        bytes calldata
+    ) external payable {
+        if (token != address(0)) {
+            IERC20(token).transferFrom(msg.sender, address(this), amount);
+        }
+
+        emit OnswapCalled(token, amount, msg.value);
+    }
+}
 
 // Stub SymbiosisFacet Contract
-contract TestSymbiosisFacet is SymbiosisFacet, TestFacet {
+contract TestSymbiosisFacet is SymbiosisFacet, TestWhitelistManagerBase {
     constructor(
         ISymbiosisMetaRouter _symbiosisMetaRouter,
-        address _symbiosisGateway
-    ) SymbiosisFacet(_symbiosisMetaRouter, _symbiosisGateway) {}
+        address _symbiosisGateway,
+        IOnchainSwapV3 _onchainSwapV3,
+        address _onchainSwapV3Gateway
+    )
+        SymbiosisFacet(
+            _symbiosisMetaRouter,
+            _symbiosisGateway,
+            _onchainSwapV3,
+            _onchainSwapV3Gateway
+        )
+    {}
 }
 
 contract SymbiosisFacetTest is TestBaseFacet {
@@ -23,21 +56,34 @@ contract SymbiosisFacetTest is TestBaseFacet {
     address internal constant RELAY_RECIPIENT =
         0xb8f275fBf7A959F4BCE59999A2EF122A099e81A8;
 
+    error OnchainSwapV3NotSupported();
+
+    event OnswapCalled(address token, uint256 amount, uint256 value);
+
     TestSymbiosisFacet internal symbiosisFacet;
     SymbiosisFacet.SymbiosisData internal symbiosisData;
+    MockOnchainSwapV3 internal onchainSwapV3;
+    bytes32 internal constant BTC_RECEIVER =
+        bytes32(
+            uint256(
+                0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+            )
+        );
 
     function setUp() public {
         customBlockNumberForForking = 19317492;
         initTestBase();
-        // MockMetaRouter mockMetaRouter = new MockMetaRouter();
-        // vm.etch(SYMBIOSIS_METAROUTER, address(mockMetaRouter).code);
+
+        onchainSwapV3 = new MockOnchainSwapV3();
 
         symbiosisFacet = new TestSymbiosisFacet(
             ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
-            SYMBIOSIS_GATEWAY
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(onchainSwapV3)),
+            address(onchainSwapV3) // mock acts as its own gateway
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](4);
+        bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = symbiosisFacet
             .startBridgeTokensViaSymbiosis
             .selector;
@@ -46,9 +92,6 @@ contract SymbiosisFacetTest is TestBaseFacet {
             .selector;
         functionSelectors[2] = symbiosisFacet
             .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = symbiosisFacet
-            .removeAllowedContractSelector
             .selector;
 
         addFacet(diamond, address(symbiosisFacet), functionSelectors);
@@ -93,16 +136,21 @@ contract SymbiosisFacetTest is TestBaseFacet {
         address[] memory _approvedTokens = new address[](1);
         _approvedTokens[0] = ADDRESS_USDC;
 
-        symbiosisData = SymbiosisFacet.SymbiosisData(
-            "", // first swap calldata
-            "", // second swap calldata
-            address(0), //intermediateToken
-            address(0), // firstDexRouter
-            address(0), // secondDexRouter
-            _approvedTokens, // approvedTokens
-            RELAY_RECIPIENT, // bridging entrypoint
-            _otherSideCalldata // core bridging calldata
-        );
+        symbiosisData = SymbiosisFacet.SymbiosisData({
+            firstSwapCalldata: "",
+            secondSwapCalldata: "",
+            intermediateToken: address(0),
+            firstDexRouter: address(0),
+            secondDexRouter: address(0),
+            approvedTokens: _approvedTokens,
+            callTo: RELAY_RECIPIENT,
+            callData: _otherSideCalldata,
+            viaOnchainSwapV3: false,
+            dex: address(0),
+            dexgateway: address(0),
+            onchainSwapData: "",
+            nonEvmReceiver: bytes32(0)
+        });
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
@@ -130,6 +178,172 @@ contract SymbiosisFacetTest is TestBaseFacet {
             value: addToMessageValue
         }(bridgeData, swapData, symbiosisData);
     }
+
+    /// OnchainSwapV3 path ///
+
+    /// @dev Sets bridgeData for a Bitcoin (non-EVM) destination and enables the
+    ///      OnchainSwapV3 path on symbiosisData.
+    function _prepareOnchainSwapV3Data() internal {
+        // NON_EVM_ADDRESS sentinel + LI.FI custom chain id for Bitcoin
+        bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
+        bridgeData.destinationChainId = 20000000000001;
+
+        symbiosisData.viaOnchainSwapV3 = true;
+        symbiosisData.dex = address(0xDE1);
+        symbiosisData.dexgateway = address(0xDE2);
+        symbiosisData.onchainSwapData = hex"abcdef";
+        symbiosisData.nonEvmReceiver = BTC_RECEIVER;
+    }
+
+    function test_CanBridgeERC20TokensViaOnchainSwapV3() public {
+        _prepareOnchainSwapV3Data();
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, false, true, address(onchainSwapV3));
+        emit OnswapCalled(ADDRESS_USDC, bridgeData.minAmount, 0);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            BTC_RECEIVER
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+
+        assertEq(usdc.balanceOf(address(onchainSwapV3)), bridgeData.minAmount);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeNativeTokensViaOnchainSwapV3() public {
+        _prepareOnchainSwapV3Data();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, false, true, address(onchainSwapV3));
+        emit OnswapCalled(
+            address(0),
+            bridgeData.minAmount,
+            bridgeData.minAmount
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            BTC_RECEIVER
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis{
+            value: bridgeData.minAmount
+        }(bridgeData, symbiosisData);
+
+        assertEq(address(onchainSwapV3).balance, bridgeData.minAmount);
+        vm.stopPrank();
+    }
+
+    function testRevert_OnchainSwapV3WrongDestinationChain() public {
+        _prepareOnchainSwapV3Data();
+        bridgeData.destinationChainId = 137; // not Bitcoin
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidDestinationChain.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_OnchainSwapV3NonNonEvmReceiver() public {
+        _prepareOnchainSwapV3Data();
+        bridgeData.receiver = USER_RECEIVER; // not the non-EVM sentinel
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_OnchainSwapV3EmptyNonEvmReceiver() public {
+        _prepareOnchainSwapV3Data();
+        symbiosisData.nonEvmReceiver = bytes32(0);
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_OnchainSwapV3NotConfigured() public {
+        // Facet deployed without an OnchainSwapV3 router (address(0))
+        TestSymbiosisFacet unsupportedFacet = new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(0)),
+            address(0)
+        );
+
+        _prepareOnchainSwapV3Data();
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        vm.deal(USER_SENDER, 1 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(OnchainSwapV3NotSupported.selector);
+
+        unsupportedFacet.startBridgeTokensViaSymbiosis{
+            value: bridgeData.minAmount
+        }(bridgeData, symbiosisData);
+        vm.stopPrank();
+    }
+
+    function testRevert_ConstructorWithZeroMetaRouter() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(address(0)),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(onchainSwapV3)),
+            address(onchainSwapV3)
+        );
+    }
+
+    /// MetaRouter path (unchanged) ///
 
     function testBase_CanSwapAndBridgeNativeTokens()
         public

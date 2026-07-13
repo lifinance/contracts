@@ -2,12 +2,22 @@
 
 ## How it works
 
-The Symbiosis Facet works by forwarding Symbiosis specific calls to the MetaRouter contract.
+The Symbiosis Facet forwards Symbiosis-specific calls to one of two routers:
+
+- the **MetaRouter** for classic cross-chain swaps through Symbiosis pools (default), or
+- the **OnchainSwapV3** router for swaps from a syBTC-connector chain to Bitcoin, where
+  Symbiosis bypasses the MetaRouter and burns syBTC to release BTC.
+
+The path is selected by the caller via the `viaOnchainSwapV3` flag in `SymbiosisData`.
+When it is set, the facet requires the destination to be Bitcoin and the OnchainSwapV3
+router to be configured on the source chain, so a wrongly-set flag reverts rather than
+misdirecting funds.
 
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->SymbiosisFacet;
-    SymbiosisFacet -- CALL --> C(MetaRouter)
+    SymbiosisFacet -- "CALL (default)" --> C(MetaRouter)
+    SymbiosisFacet -- "CALL (viaOnchainSwapV3, to Bitcoin)" --> O(OnchainSwapV3)
 ```
 
 ## Public Methods
@@ -22,24 +32,34 @@ graph LR;
 Some methods listed above take a variable labeled `_symbiosisData`. This data is specific to Symbiosis and is represented as the following struct type:
 
 ```solidity
-/// @param firstSwapCalldata payload for the first swap on the source chain.
-/// @param secondSwapCalldata payload for the second swap on the source chain.
-/// @param intermediateToken the address of the source token for the second swap.
-/// @param bridgingToken the address of the dest token for the second swap.
-/// @param firstDexRouter address of the first (uni-)dex on the source chain.
-/// @param secondDexRouter address of the second (stable-)dex on the source chain.
-/// @param relayRecipient burn-contract (Synthesis) or synth-contract (Portal) on the source chain for burn and synth schemes respectively.
-/// @param otherSideCalldata payload for the call on the dest chain (metaBurnSyntheticToken for burn scheme or metaSynthesize for synth scheme).
+/// @param firstSwapCalldata payload for the first swap on the source chain (MetaRouter path).
+/// @param secondSwapCalldata payload for the second swap on the source chain (MetaRouter path).
+/// @param intermediateToken the intermediate token used for swapping (MetaRouter path).
+/// @param firstDexRouter address of the first (uni-)dex on the source chain (MetaRouter path).
+/// @param secondDexRouter address of the second (stable-)dex on the source chain (MetaRouter path).
+/// @param approvedTokens the tokens approved for swapping (MetaRouter path).
+/// @param callTo the bridging entrypoint / relayRecipient (MetaRouter path).
+/// @param callData the bridging calldata / otherSideCalldata (MetaRouter path).
+/// @param viaOnchainSwapV3 when true, route via the OnchainSwapV3 router (syBTC -> Bitcoin) instead of the MetaRouter.
+/// @param dex the DEX router for the OnchainSwapV3 input-token -> syBTC swap.
+/// @param dexgateway the spender the DEX is approved through for that swap.
+/// @param onchainSwapData the Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn.
+/// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 
 struct SymbiosisData {
   bytes firstSwapCalldata;
   bytes secondSwapCalldata;
   address intermediateToken;
-  address bridgingToken;
   address firstDexRouter;
   address secondDexRouter;
-  address relayRecipient;
-  bytes otherSideCalldata;
+  address[] approvedTokens;
+  address callTo;
+  bytes callData;
+  bool viaOnchainSwapV3;
+  address dex;
+  address dexgateway;
+  bytes onchainSwapData;
+  bytes32 nonEvmReceiver;
 }
 ```
 
@@ -87,7 +107,8 @@ Example of POST request to API USDC(Ethereum) -> BNB (BNB chain)
 }
 ```
 
-###Response result
+### Response result
+
 ```
 {
   "fee": {

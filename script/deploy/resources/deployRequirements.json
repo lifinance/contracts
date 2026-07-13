@@ -516,6 +516,16 @@
         "configFileName": "symbiosis.json",
         "keyInConfigFile": ".<NETWORK>.gateway",
         "allowToDeployWithZeroAddress": "false"
+      },
+      "_onchainSwapV3": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.onchainSwapV3",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_onchainSwapV3Gateway": {
+        "configFileName": "symbiosis.json",
+        "keyInConfigFile": ".<NETWORK>.onchainSwapV3Gateway",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },

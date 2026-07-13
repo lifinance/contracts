@@ -3,23 +3,44 @@ pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISymbiosisMetaRouter } from "../Interfaces/ISymbiosisMetaRouter.sol";
+import { IOnchainSwapV3 } from "../Interfaces/IOnchainSwapV3.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title Symbiosis Facet
 /// @author Symbiosis (https://symbiosis.finance)
 /// @notice Provides functionality for bridging through Symbiosis Protocol
-/// @custom:version 1.0.0
-contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+/// @custom:version 2.0.0
+contract SymbiosisFacet is
+    ILiFi,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable,
+    LiFiData
+{
     /// Storage ///
 
-    /// @notice The contract address of the Symbiosis router on the source chain
+    /// @notice The contract address of the Symbiosis MetaRouter on the source chain
     // solhint-disable-next-line immutable-vars-naming
     ISymbiosisMetaRouter private immutable symbiosisMetaRouter;
     // solhint-disable-next-line immutable-vars-naming
     address private immutable symbiosisGateway;
+    /// @notice The Symbiosis OnchainSwapV3 router used for syBTC -> Bitcoin routes
+    ///         (address(0) on chains that do not support this path)
+    // solhint-disable-next-line immutable-vars-naming
+    IOnchainSwapV3 private immutable onchainSwapV3;
+    /// @notice The gateway the OnchainSwapV3 router pulls funds through (approve target)
+    // solhint-disable-next-line immutable-vars-naming
+    address private immutable onchainSwapV3Gateway;
+
+    /// Errors ///
+
+    /// @notice Thrown when the OnchainSwapV3 path is requested on a chain where it is not configured
+    error OnchainSwapV3NotSupported();
 
     /// Types ///
 
@@ -32,6 +53,11 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param approvedTokens The tokens approved for swapping
     /// @param callTo The bridging entrypoint
     /// @param callData The bridging calldata
+    /// @param viaOnchainSwapV3 When true, route via the OnchainSwapV3 router (syBTC -> Bitcoin) instead of the MetaRouter
+    /// @param dex The DEX router for the OnchainSwapV3 input-token -> syBTC swap
+    /// @param dexgateway The spender the DEX is approved through for that swap
+    /// @param onchainSwapData The Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn
+    /// @param nonEvmReceiver The Bitcoin receiver, emitted for non-EVM destinations
     struct SymbiosisData {
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
@@ -41,6 +67,11 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address[] approvedTokens;
         address callTo;
         bytes callData;
+        bool viaOnchainSwapV3;
+        address dex;
+        address dexgateway;
+        bytes onchainSwapData;
+        bytes32 nonEvmReceiver;
     }
 
     /// Constructor ///
@@ -48,12 +79,23 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice Initialize the contract.
     /// @param _symbiosisMetaRouter The contract address of the Symbiosis MetaRouter on the source chain.
     /// @param _symbiosisGateway The contract address of the Symbiosis Gateway on the source chain.
+    /// @param _onchainSwapV3 The Symbiosis OnchainSwapV3 router (address(0) if unsupported on this chain).
+    /// @param _onchainSwapV3Gateway The gateway the OnchainSwapV3 router pulls funds through.
     constructor(
         ISymbiosisMetaRouter _symbiosisMetaRouter,
-        address _symbiosisGateway
+        address _symbiosisGateway,
+        IOnchainSwapV3 _onchainSwapV3,
+        address _onchainSwapV3Gateway
     ) {
+        if (
+            address(_symbiosisMetaRouter) == address(0) ||
+            _symbiosisGateway == address(0)
+        ) revert InvalidConfig();
+
         symbiosisMetaRouter = _symbiosisMetaRouter;
         symbiosisGateway = _symbiosisGateway;
+        onchainSwapV3 = _onchainSwapV3;
+        onchainSwapV3Gateway = _onchainSwapV3Gateway;
     }
 
     /// External Methods ///
@@ -81,8 +123,6 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _symbiosisData);
     }
 
-    /// Private Methods ///
-
     /// @notice Performs a swap before bridging via Symbiosis
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
@@ -109,6 +149,8 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         _startBridge(_bridgeData, _symbiosisData);
     }
 
+    /// Private Methods ///
+
     /// @dev Contains the business logic for the bridge via Symbiosis
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
@@ -116,6 +158,20 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) internal {
+        if (_symbiosisData.viaOnchainSwapV3) {
+            _startBridgeViaOnchainSwapV3(_bridgeData, _symbiosisData);
+        } else {
+            _startBridgeViaMetaRouter(_bridgeData, _symbiosisData);
+        }
+    }
+
+    /// @dev Bridges via the Symbiosis MetaRouter (classic cross-chain swap through Symbiosis pools)
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function _startBridgeViaMetaRouter(
+        ILiFi.BridgeData memory _bridgeData,
+        SymbiosisData calldata _symbiosisData
+    ) private {
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount;
 
@@ -141,6 +197,54 @@ contract SymbiosisFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _symbiosisData.callTo,
                 _symbiosisData.callData
             )
+        );
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Bridges via the Symbiosis OnchainSwapV3 router (syBTC-connector chain -> Bitcoin).
+    ///      The router swaps the input token to syBTC (optional) and burns it to release BTC.
+    ///      A wrong `viaOnchainSwapV3` flag can only revert here, never misdirect funds:
+    ///      the destination must be Bitcoin, the router must be configured, and a
+    ///      non-EVM receiver must be supplied.
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function _startBridgeViaOnchainSwapV3(
+        ILiFi.BridgeData memory _bridgeData,
+        SymbiosisData calldata _symbiosisData
+    ) private {
+        if (address(onchainSwapV3) == address(0))
+            revert OnchainSwapV3NotSupported();
+        if (_bridgeData.receiver != NON_EVM_ADDRESS) revert InvalidReceiver();
+        if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_BTC)
+            revert InvalidDestinationChain();
+        if (_symbiosisData.nonEvmReceiver == bytes32(0))
+            revert InvalidNonEVMReceiver();
+
+        uint256 nativeAssetAmount;
+
+        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            nativeAssetAmount = _bridgeData.minAmount;
+        } else {
+            LibAsset.maxApproveERC20(
+                IERC20(_bridgeData.sendingAssetId),
+                onchainSwapV3Gateway,
+                _bridgeData.minAmount
+            );
+        }
+
+        onchainSwapV3.onswap{ value: nativeAssetAmount }(
+            _bridgeData.sendingAssetId,
+            _bridgeData.minAmount,
+            _symbiosisData.dex,
+            _symbiosisData.dexgateway,
+            _symbiosisData.onchainSwapData
+        );
+
+        emit BridgeToNonEVMChainBytes32(
+            _bridgeData.transactionId,
+            _bridgeData.destinationChainId,
+            _symbiosisData.nonEvmReceiver
         );
 
         emit LiFiTransferStarted(_bridgeData);

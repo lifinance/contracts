@@ -2,7 +2,9 @@
   "source for new addresses": "https://github.com/symbiosis-finance/js-sdk/blob/main/src/crosschain/config/mainnet.ts",
   "mainnet": {
     "metaRouter": "0xf621Fb08BBE51aF70e7E0F4EA63496894166Ff7F",
-    "gateway": "0xfCEF2Fe72413b65d3F393d278A714caD87512bcd"
+    "gateway": "0xfCEF2Fe72413b65d3F393d278A714caD87512bcd",
+    "onchainSwapV3": "0x92114294E42A96C9eF3163DA18Ee7eFdbA6cc661",
+    "onchainSwapV3Gateway": "0xdAcb78cB349bAD001117C90861b32d40972A30a6"
   },
   "abstract": {
     "metaRouter": "0x2E818E50b913457015E1277B43E469b63AC5D3d7",
@@ -42,7 +44,9 @@
   },
   "bsc": {
     "metaRouter": "0x44487a445a7595446309464A82244B4bD4e325D5",
-    "gateway": "0x5c97D726bf5130AE15408cE32bc764e458320D2f"
+    "gateway": "0x5c97D726bf5130AE15408cE32bc764e458320D2f",
+    "onchainSwapV3": "0x628613064b1902a1A422825cf11B687C6f17961E",
+    "onchainSwapV3Gateway": "0x5c5e6cceB3435f49473C5fef0b9506070c5880f1"
   },
   "cronos": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
@@ -110,7 +114,9 @@
   },
   "rootstock": {
     "metaRouter": "0x7057AB3fb2Bee9C18E0cde4240dE4fF7F159e365",
-    "gateway": "0xFFfDb2A69AbCbBF55ecB2F6B348E0bd3d0f9f2E1"
+    "gateway": "0xFFfDb2A69AbCbBF55ecB2F6B348E0bd3d0f9f2E1",
+    "onchainSwapV3": "0xA257F3FE4E4032291516DC355eDF90664e9eB932",
+    "onchainSwapV3Gateway": "0xA2e7705BBEc9acf477115fa12B9Fde4b2cb17C36"
   },
   "scroll": {
     "metaRouter": "0x624FFe62eBa13e6057878bCA1D7A9E35651E1D9c",
@@ -146,7 +152,9 @@
   },
   "zksync": {
     "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",
-    "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1"
+    "gateway": "0x8cA239448AdD34b057D1CB5934F12AC899DB66e1",
+    "onchainSwapV3": "0x35e3dc1f3383bD348EC651EdD73fE1d7a7dA5AAa",
+    "onchainSwapV3Gateway": "0x344cE0b8836A868f3c3418DD4D9059a4bC727Ba1"
   },
   "tron": {
     "metaRouter": "TAjZZvBh5rW3ntYNzHxyVgkwXNiTTVhUZV",

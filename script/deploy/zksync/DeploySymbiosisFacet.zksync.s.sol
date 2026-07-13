@@ -29,7 +29,21 @@ contract DeployScript is DeployScriptBase {
             path,
             string.concat(".", network, ".gateway")
         );
+        address onchainSwapV3 = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".onchainSwapV3")
+        );
+        address onchainSwapV3Gateway = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".onchainSwapV3Gateway")
+        );
 
-        return abi.encode(metaRouter, gateway);
+        return
+            abi.encode(
+                metaRouter,
+                gateway,
+                onchainSwapV3,
+                onchainSwapV3Gateway
+            );
     }
 }
