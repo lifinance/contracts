@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { InvalidContract } from "../Errors/GenericErrors.sol";
-import { FeeType, FeeBounds, FeeConfig, DeployParams } from "./LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeBounds, FeeConfig, DeployParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
@@ -35,8 +35,8 @@ contract LiFiVaultWrapperFactory is
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
     /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%).
     uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
-    /// @notice Sentinel for DeployParams.integratorShareBps meaning "inherit the factory default".
-    uint16 internal constant USE_DEFAULT_SPLIT = type(uint16).max;
+    /// @notice Sentinel for a DeployParams.integratorShareBps element meaning "inherit the factory default".
+    uint16 internal constant DEFAULT_SPLIT_SENTINEL = type(uint16).max;
     /// @notice Basis-point denominator (100%).
     uint16 internal constant BPS_DENOMINATOR = 10000;
 
@@ -238,10 +238,11 @@ contract LiFiVaultWrapperFactory is
 
     /// @notice Deploy a new wrapper instance under an integrator namespace.
     /// @dev Caller must be the onboarding manager, or the deployer assigned to
-    ///      `_params.namespace`. A self-serve deployer (not the onboarding manager)
-    ///      may only set an integrator share at or below `defaultIntegratorShareBps`,
-    ///      so it can give LI.FI more than the default cut but never less; the
-    ///      onboarding manager may set any share up to 100%.
+    ///      `_params.namespace`. Each fee type carries its own integrator share; a
+    ///      self-serve deployer (not the onboarding manager) may only set a share at
+    ///      or below `defaultIntegratorShareBps`, so it can give LI.FI more than the
+    ///      default cut but never less; the onboarding manager may set any share below
+    ///      100%.
     ///      Deploys are intentionally allowed while `globalPaused` is set: a new
     ///      instance is a beacon proxy that reads the same live flag, so it is frozen
     ///      from birth and poses no deposit risk.
@@ -267,17 +268,9 @@ contract LiFiVaultWrapperFactory is
 
         _validateFees(_params.fees);
 
-        uint16 integratorShareBps = _params.integratorShareBps;
-        if (integratorShareBps == USE_DEFAULT_SPLIT) {
-            integratorShareBps = defaultIntegratorShareBps;
-        } else if (integratorShareBps >= BPS_DENOMINATOR) {
-            revert InvalidSplit();
-        } else if (
-            msg.sender != onboardingManager &&
-            integratorShareBps > defaultIntegratorShareBps
-        ) {
-            revert IntegratorShareAboveDefault();
-        }
+        uint16[FEE_TYPE_COUNT] memory integratorShareBps = _resolveSplits(
+            _params.integratorShareBps
+        );
 
         bytes32 salt = _salt(
             _params.namespace,
@@ -359,6 +352,32 @@ contract LiFiVaultWrapperFactory is
             keccak256(abi.encode(_namespace, _adapter, _underlying, _nonce));
     }
 
+    /// @notice Resolves the requested per-fee-type integrator shares against the factory
+    ///         default and the caller's authority.
+    /// @dev Each element resolves independently: the `DEFAULT_SPLIT_SENTINEL` sentinel inherits
+    ///      the factory default; an explicit share must be < 100%, and a self-serve
+    ///      deployer may not set it above the default (which would cut LI.FI's share
+    ///      below its default cut).
+    /// @param _requested The per-fee-type shares from the deploy params.
+    /// @return resolved The validated per-fee-type shares snapshotted into the instance.
+    function _resolveSplits(
+        uint16[FEE_TYPE_COUNT] calldata _requested
+    ) internal view returns (uint16[FEE_TYPE_COUNT] memory resolved) {
+        uint16 defaultShare = defaultIntegratorShareBps;
+        bool selfServe = msg.sender != onboardingManager;
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
+            uint16 share = _requested[i];
+            if (share == DEFAULT_SPLIT_SENTINEL) {
+                resolved[i] = defaultShare;
+                continue;
+            }
+            if (share >= BPS_DENOMINATOR) revert InvalidSplit();
+            if (selfServe && share > defaultShare)
+                revert IntegratorShareAboveDefault();
+            resolved[i] = share;
+        }
+    }
+
     /// @notice CREATE2 init code for a wrapper instance: the OZ BeaconProxy
     ///         creation code with the beacon as constructor arg and empty init
     ///         data (the factory calls initialize separately after deploy).
@@ -377,7 +396,7 @@ contract LiFiVaultWrapperFactory is
     /// @param _feeType The fee type to look up.
     /// @return The highest rate (bps) governance may ever set for this fee type.
     function _cap(FeeType _feeType) internal pure returns (uint16) {
-        uint16[4] memory caps = [
+        uint16[FEE_TYPE_COUNT] memory caps = [
             CAP_PERFORMANCE_BPS,
             CAP_MANAGEMENT_BPS,
             CAP_DEPOSIT_BPS,
@@ -402,18 +421,15 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// @notice Validates a fee config against the per-type bounds and caps.
-    /// @dev Disabled fee types must carry a zero rate; an enabled rate must sit
-    ///      within both the immutable cap and the owner-set bounds. Unset bounds
-    ///      default to 0..0, so an enabled fee with no configured bounds fails
-    ///      closed.
-    /// @param _fees The per-fee-type rates and enabled flags to validate.
+    /// @dev A zero rate means the fee type is disabled and skips validation; a
+    ///      non-zero rate must sit within both the immutable cap and the
+    ///      owner-set bounds. Unset bounds default to 0..0, so an enabled fee
+    ///      with no configured bounds fails closed.
+    /// @param _fees The per-fee-type rates (0 = disabled) to validate.
     function _validateFees(FeeConfig calldata _fees) internal view {
-        for (uint8 i; i <= uint8(type(FeeType).max); ++i) {
-            if (!_fees.enabled[i]) {
-                if (_fees.rateBps[i] != 0) revert DisabledFeeMustBeZero();
-                continue;
-            }
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
             uint16 rate = _fees.rateBps[i];
+            if (rate == 0) continue;
             if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();
             FeeBounds memory b = feeBounds[FeeType(i)];
             if (rate < b.minBps || rate > b.maxBps) revert FeeRateAboveBound();

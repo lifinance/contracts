@@ -8,6 +8,7 @@ import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.so
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
@@ -59,7 +60,14 @@ contract VaultWrapperPauseTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                [uint16(8000), 8000, 8000, 8000],
+                fees,
+                ""
+            )
         );
         wrapper = LiFiVaultWrapper(
             factory.deployWrapper(address(beacon), initCall)
@@ -101,7 +109,7 @@ contract VaultWrapperPauseTest is Test {
         wrapper.pause();
 
         vm.prank(alice);
-        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
+        vm.expectRevert(ILiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.deposit(0, alice);
     }
@@ -277,7 +285,7 @@ contract VaultWrapperPauseTest is Test {
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
+        vm.expectRevert(ILiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.deposit(_amount, _from);
         vm.stopPrank();
@@ -288,7 +296,7 @@ contract VaultWrapperPauseTest is Test {
         vm.startPrank(_from);
         asset.approve(address(wrapper), _amount);
 
-        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
+        vm.expectRevert(ILiFiVaultWrapper.DepositsPaused.selector);
 
         wrapper.mint(_amount, _from);
         vm.stopPrank();
@@ -352,7 +360,7 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(instance), DEPOSIT);
 
-        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
+        vm.expectRevert(ILiFiVaultWrapper.DepositsPaused.selector);
 
         instance.deposit(DEPOSIT, alice);
         vm.stopPrank();
@@ -385,7 +393,7 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         vm.startPrank(alice);
         asset.approve(address(frozen), DEPOSIT);
 
-        vm.expectRevert(LiFiVaultWrapper.DepositsPaused.selector);
+        vm.expectRevert(ILiFiVaultWrapper.DepositsPaused.selector);
 
         frozen.deposit(DEPOSIT, alice);
         vm.stopPrank();
@@ -400,7 +408,12 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
             underlying: address(underlying),
             nonce: _nonce,
             fees: fees,
-            integratorShareBps: type(uint16).max,
+            integratorShareBps: [
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max,
+                type(uint16).max
+            ],
             initData: ""
         });
 

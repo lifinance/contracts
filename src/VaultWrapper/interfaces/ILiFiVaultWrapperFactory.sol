@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeType } from "../LiFiVaultWrapperTypes.sol";
+import { FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
@@ -9,6 +9,17 @@ import { FeeType } from "../LiFiVaultWrapperTypes.sol";
 /// @custom:version 1.0.0
 interface ILiFiVaultWrapperFactory {
     /// Views ///
+
+    /// @notice Returns the adjustable fee bounds (bps) for a fee type.
+    /// @dev ABI-identical to the auto-generated getter for the factory's public
+    ///      `mapping(FeeType => FeeBounds) feeBounds`, which flattens the struct to
+    ///      a `(uint16, uint16)` tuple. Read live by instances enforcing rate changes.
+    /// @param _feeType The fee type to look up.
+    /// @return minBps The lowest rate (bps) an instance may set for the fee type.
+    /// @return maxBps The highest rate (bps) an instance may set for the fee type.
+    function feeBounds(
+        FeeType _feeType
+    ) external view returns (uint16 minBps, uint16 maxBps);
 
     /// @notice Whether deposits are globally halted across every vault wrapper.
     /// @return True when the global circuit breaker is engaged.
@@ -23,7 +34,8 @@ interface ILiFiVaultWrapperFactory {
     /// @param adapter The yield adapter the vault wrapper routes through.
     /// @param asset The ERC20 asset resolved from the underlying.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param integratorShareBps The integrator fee share (bps) snapshotted into the instance.
+    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
+    ///        FeeType ordinal) snapshotted into the instance.
     /// @param nonce The caller-supplied nonce disambiguating instances.
     /// @param salt The CREATE2 salt used to deploy the vault wrapper.
     event WrapperDeployed(
@@ -33,7 +45,7 @@ interface ILiFiVaultWrapperFactory {
         address adapter,
         address asset,
         address vaultWrapperAdmin,
-        uint16 integratorShareBps,
+        uint16[FEE_TYPE_COUNT] integratorShareBps,
         uint256 nonce,
         bytes32 salt
     );
@@ -108,6 +120,4 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
     error FeeRateAboveCap();
-    /// @notice Thrown when a disabled fee carries a non-zero rate.
-    error DisabledFeeMustBeZero();
 }

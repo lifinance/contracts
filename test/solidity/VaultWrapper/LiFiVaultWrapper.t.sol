@@ -11,6 +11,7 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
@@ -120,7 +121,7 @@ contract LiFiVaultWrapperTest is Test {
         address indexed adapter,
         address vaultWrapperAdmin,
         address factory,
-        uint16 integratorShareBps
+        uint16[4] integratorShareBps
     );
 
     /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
@@ -149,7 +150,9 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.adapter(), address(adapter));
         assertEq(wrapper.owner(), vaultAdmin);
         assertEq(wrapper.factory(), address(this));
-        assertEq(wrapper.integratorShareBps(), 8000);
+        for (uint256 i; i < 4; ++i) {
+            assertEq(wrapper.integratorShareBps(i), 8000);
+        }
         assertEq(wrapper.decimals(), 18);
         assertEq(wrapper.name(), "LI.FI Earn TKN");
         assertEq(wrapper.symbol(), "lfTKN");
@@ -159,7 +162,14 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                ""
+            )
         );
 
         vm.expectEmit(true, true, true, true);
@@ -169,7 +179,7 @@ contract LiFiVaultWrapperTest is Test {
             address(adapter),
             vaultAdmin,
             address(this),
-            8000
+            _splits8000()
         );
 
         new BeaconProxy(address(beacon), initCall);
@@ -184,7 +194,7 @@ contract LiFiVaultWrapperTest is Test {
             address(underlying),
             address(adapter),
             vaultAdmin,
-            8000,
+            _splits8000(),
             fees,
             ""
         );
@@ -194,10 +204,17 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (address(underlying), address(adapter), address(0), 8000, fees, "")
+            (
+                address(underlying),
+                address(adapter),
+                address(0),
+                _splits8000(),
+                fees,
+                ""
+            )
         );
 
-        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
 
         new BeaconProxy(address(beacon), initCall);
     }
@@ -211,26 +228,27 @@ contract LiFiVaultWrapperTest is Test {
                 address(underlying),
                 address(zeroAdapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 ""
             )
         );
 
-        vm.expectRevert(LiFiVaultWrapper.ZeroAddress.selector);
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
 
         new BeaconProxy(address(beacon), initCall);
     }
 
     function testRevert_InitializeRejectsFullIntegratorShare() public {
         FeeConfig memory fees;
+        // Only one element is invalid, proving each fee type's share is validated.
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
             (
                 address(underlying),
                 address(adapter),
                 vaultAdmin,
-                10_000,
+                [uint16(8000), 10_000, 8000, 8000],
                 fees,
                 ""
             )
@@ -238,7 +256,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidIntegratorShareBps.selector,
+                ILiFiVaultWrapper.InvalidIntegratorShareBps.selector,
                 uint16(10_000)
             )
         );
@@ -249,7 +267,7 @@ contract LiFiVaultWrapperTest is Test {
     function testRevert_FeeGettersRejectInvalidFeeType() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidFeeType.selector,
+                ILiFiVaultWrapper.InvalidFeeType.selector,
                 uint8(4)
             )
         );
@@ -257,7 +275,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.InvalidFeeType.selector,
+                ILiFiVaultWrapper.InvalidFeeType.selector,
                 uint8(4)
             )
         );
@@ -283,7 +301,7 @@ contract LiFiVaultWrapperTest is Test {
                 address(noSymbolUnderlying),
                 address(adapter),
                 vaultAdmin,
-                8000,
+                _splits8000(),
                 fees,
                 ""
             )
@@ -457,7 +475,7 @@ contract LiFiVaultWrapperTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.AdapterDepositShortfall.selector,
+                ILiFiVaultWrapper.AdapterDepositShortfall.selector,
                 DEPOSIT,
                 (DEPOSIT * 9000) / 10000
             )
@@ -482,7 +500,7 @@ contract LiFiVaultWrapperTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                LiFiVaultWrapper.AdapterWithdrawShortfall.selector,
+                ILiFiVaultWrapper.AdapterWithdrawShortfall.selector,
                 DEPOSIT,
                 (DEPOSIT * 9000) / 10000
             )
@@ -551,11 +569,15 @@ contract LiFiVaultWrapperTest is Test {
 
     function testRevert_RenounceOwnershipDisabled() public {
         vm.prank(vaultAdmin);
-        vm.expectRevert(LiFiVaultWrapper.RenounceDisabled.selector);
+        vm.expectRevert(ILiFiVaultWrapper.RenounceDisabled.selector);
         wrapper.renounceOwnership();
     }
 
     /// Helpers ///
+
+    function _splits8000() internal pure returns (uint16[4] memory) {
+        return [uint16(8000), 8000, 8000, 8000];
+    }
 
     function _newWrapper(
         address _underlying
@@ -563,7 +585,14 @@ contract LiFiVaultWrapperTest is Test {
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
             LiFiVaultWrapper.initialize,
-            (_underlying, address(adapter), vaultAdmin, 8000, fees, "")
+            (
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                ""
+            )
         );
 
         w = LiFiVaultWrapper(
