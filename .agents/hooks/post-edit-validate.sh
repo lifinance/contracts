@@ -21,7 +21,7 @@ case "$FILE" in
       OUTPUT=$(bunx solhint "$FILE" 2>&1)
       [[ -n "$OUTPUT" ]] && echo "$OUTPUT"
     fi
-    # [CONV:LICENSE] first-line SPDX check (src/, script/, test/; external copies allowlisted in the script)
+    # [CONV:LICENSE] SPDX header + pragma check (src/, script/, test/; external copies allowlisted in the script)
     if [[ "$REL" == src/* || "$REL" == script/* || "$REL" == test/* ]]; then
       SPDX_OUTPUT=$(bash script/utils/check-spdx-headers.sh "$REL" 2>&1 || true)
       [[ -n "$SPDX_OUTPUT" ]] && echo "$SPDX_OUTPUT"

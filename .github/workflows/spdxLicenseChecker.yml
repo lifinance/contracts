@@ -1,14 +1,14 @@
 # SPDX License Checker
-# - enforces [CONV:LICENSE] (.agents/rules/100-solidity-basics.md): the first line of every
-#   .sol file under src/, script/, and test/ must be exactly
-#   "// SPDX-License-Identifier: LGPL-3.0-only"
+# - enforces [CONV:LICENSE] (.agents/rules/100-solidity-basics.md) on every .sol file under
+#   src/, script/, and test/:
+#     line 1 must be exactly "// SPDX-License-Identifier: LGPL-3.0-only"
+#     line 2 must be the pragma statement (SPDX immediately followed by pragma — no blank
+#             line, NatSpec, or directive in between)
 # - genuine external copies retain their original upstream license; they are allowlisted
 #   in script/utils/check-spdx-headers.sh (single source of truth, also used by the
 #   .agents/hooks/post-edit-validate.sh agent hook)
 # - background: new .sol files are usually created by copying a sibling, so a single wrong
 #   header multiplies; a repo-wide mechanical check stops the copy chain
-# - known limitations: only the first line is checked mechanically; the "SPDX immediately
-#   followed by pragma" part of the rule is enforced by review
 
 name: SPDX License Checker
 on:
@@ -31,6 +31,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # Step 2: Verify the first line of every .sol file in src/, script/, test/
+      # Step 2: Verify the SPDX header + pragma of every .sol file in src/, script/, test/
       - name: Check SPDX license headers
         run: bash script/utils/check-spdx-headers.sh

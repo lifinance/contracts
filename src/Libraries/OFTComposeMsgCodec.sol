@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 // This library was taken from:
@@ -7,6 +6,7 @@ pragma solidity ^0.8.17;
 // /packages/layerzero-v2/evm/oapp/contracts/oft/libs
 // since the Solidity version did not match with ours, we decided to use a copy of this library
 // with adjusted solc version for better compatibility
+/// @custom:version 1.0.0
 library OFTComposeMsgCodec {
     // Offset constants for decoding composed messages
     uint8 private constant NONCE_OFFSET = 8;

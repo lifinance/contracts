@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "../Interfaces/IDiamondLoupe.sol";
 
 /// Library for DiamondLoupe functions (to avoid using external calls when using DiamondLoupe)
+/// @custom:version 1.0.0
 library LibDiamondLoupe {
     function facets()
         internal

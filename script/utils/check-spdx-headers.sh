@@ -1,8 +1,11 @@
 #!/bin/bash
 # check-spdx-headers.sh: Verifies [CONV:LICENSE] SPDX headers on our own Solidity files.
-# The first line of every .sol file under src/, script/, or test/ must be exactly
-# "// SPDX-License-Identifier: LGPL-3.0-only". Genuine external copies retain their
-# original upstream license and are allowlisted in EXTERNAL_COPIES below.
+# For every .sol file under src/, script/, or test/:
+#   line 1 must be exactly "// SPDX-License-Identifier: LGPL-3.0-only"
+#   line 2 must be the pragma statement (immediately follows the header, no blank
+#           line / NatSpec / directive in between)
+# Genuine external copies retain their original upstream license and are
+# allowlisted in EXTERNAL_COPIES below.
 #
 # Usage: script/utils/check-spdx-headers.sh [FILE ...]
 #   FILE - Optional: repo-relative .sol path(s) to check. Paths outside src/, script/,
@@ -50,16 +53,21 @@ for FILE in "${FILES[@]:-}"; do
   [[ "$FILE" == src/* || "$FILE" == script/* || "$FILE" == test/* ]] || continue
   is_external_copy "$FILE" && continue
 
-  FIRST_LINE=$(head -1 "$FILE")
+  FIRST_LINE=$(sed -n '1p' "$FILE")
+  SECOND_LINE=$(sed -n '2p' "$FILE")
   if [[ "$FIRST_LINE" != "$EXPECTED_HEADER" ]]; then
-    VIOLATIONS="${VIOLATIONS}${FILE}: found \"${FIRST_LINE}\""$'\n'
+    VIOLATIONS="${VIOLATIONS}${FILE}: line 1 must be the SPDX header, found \"${FIRST_LINE}\""$'\n'
+  elif [[ "$SECOND_LINE" != "pragma solidity"* ]]; then
+    VIOLATIONS="${VIOLATIONS}${FILE}: line 2 must be the pragma statement, found \"${SECOND_LINE}\""$'\n'
   fi
 done
 
 if [[ -n "$VIOLATIONS" ]]; then
-  echo "[CONV:LICENSE] The first line of each .sol file under src/, script/, or test/ must be exactly:"
+  echo "[CONV:LICENSE] Each .sol file under src/, script/, or test/ must start with exactly:"
   echo "  $EXPECTED_HEADER"
-  echo "(immediately followed by the pragma statement; external copies keep their original license"
+  echo "  pragma solidity ...;"
+  echo "(the pragma must immediately follow the SPDX header on line 2 — no blank line,"
+  echo "NatSpec, or directive in between; external copies keep their original license"
   echo "and must be allowlisted in script/utils/check-spdx-headers.sh)"
   echo ""
   printf '%s' "$VIOLATIONS" | sed 's/^/  /'
