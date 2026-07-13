@@ -271,6 +271,28 @@ contract SymbiosisFacetTest is TestBaseFacet {
         );
     }
 
+    function testRevert_ConstructorWithRouterButNoGateway() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(ONCHAIN_SWAP_V3),
+            address(0)
+        );
+    }
+
+    function testRevert_ConstructorWithGatewayButNoRouter() public {
+        vm.expectRevert(InvalidConfig.selector);
+
+        new TestSymbiosisFacet(
+            ISymbiosisMetaRouter(SYMBIOSIS_METAROUTER),
+            SYMBIOSIS_GATEWAY,
+            IOnchainSwapV3(address(0)),
+            ONCHAIN_SWAP_V3_GATEWAY
+        );
+    }
+
     /// MetaRouter path (unchanged) ///
 
     function testBase_CanSwapAndBridgeNativeTokens()

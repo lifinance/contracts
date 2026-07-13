@@ -92,6 +92,14 @@ contract SymbiosisFacet is
             _symbiosisGateway == address(0)
         ) revert InvalidConfig();
 
+        // Router and its gateway must be configured together: a router with a
+        // zero gateway would approve address(0) for ERC20 inputs in
+        // _startBridgeViaOnchainSwapV3, silently breaking the route.
+        if (
+            (address(_onchainSwapV3) == address(0)) !=
+            (_onchainSwapV3Gateway == address(0))
+        ) revert InvalidConfig();
+
         // _onchainSwapV3 / _onchainSwapV3Gateway are intentionally NOT zero-checked:
         // they are address(0) on chains that do not support the syBTC -> Bitcoin path,
         // where the viaOnchainSwapV3 branch reverts (OnchainSwapV3NotSupported). This
