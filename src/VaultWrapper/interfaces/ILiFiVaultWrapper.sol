@@ -57,6 +57,11 @@ interface ILiFiVaultWrapper {
     /// @param by The owner (integrator) that toggled it.
     event PauseSet(bool paused, address indexed by);
 
+    /// @notice Emitted when the instance's access gate is set (at initialize when
+    ///         non-zero, and on every `setAccessGate`).
+    /// @param accessGate The new gate; address(0) = fully permissionless.
+    event AccessGateUpdated(address indexed accessGate);
+
     /// @notice Emitted when the integrator's fee-receiver set is configured.
     /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
     event ReceiversSet(FeeReceiver[] receivers);
@@ -106,6 +111,12 @@ interface ILiFiVaultWrapper {
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
     error ReceiverBpsSumNot100();
+    /// @notice Thrown when the access gate rejects a deposit/mint share receiver.
+    error AccountNotAllowed(address account);
+    /// @notice Thrown when the access gate rejects a share transfer.
+    error TransferNotAllowed(address from, address to);
+    /// @notice Thrown when the access gate flags an exit party as sanctioned.
+    error AccountSanctioned(address account);
 
     /// Functions ///
 
@@ -120,7 +131,8 @@ interface ILiFiVaultWrapper {
     /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
     /// @param _receivers The integrator payout wallets + bps split; validated on-instance
     ///        (1..50 non-zero wallets, bps summing to exactly 100%).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
+    /// @param _accessGate The pluggable IAccessGate governing the instance's perimeter;
+    ///        address(0) = fully permissionless.
     function initialize(
         address _underlying,
         address _adapter,
@@ -128,6 +140,6 @@ interface ILiFiVaultWrapper {
         uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         FeeReceiver[] calldata _receivers,
-        bytes calldata _initData
+        address _accessGate
     ) external;
 }

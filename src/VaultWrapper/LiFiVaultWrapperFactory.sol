@@ -302,7 +302,7 @@ contract LiFiVaultWrapperFactory is
             integratorShareBps,
             _params.fees,
             _params.receivers,
-            _params.initData
+            _params.accessGate
         );
     }
 

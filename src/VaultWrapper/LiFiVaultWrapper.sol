@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
+import { IAccessGate } from "./interfaces/IAccessGate.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
@@ -37,8 +38,12 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      pays those tracked entitlements out: LI.FI's parts go to the factory's live
 ///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..50 receiver
 ///      wallets (no re-split happens at distribution). Pause is enforced on the
-///      deposit/mint path only (withdrawals stay open); access logic remains a no-op seam
-///      (`_checkAccess`) with its body landing in a follow-up ticket. Inflation-attack
+///      deposit/mint path only (withdrawals stay open). Access control is a single
+///      pluggable `IAccessGate` (`accessGate`, zero = fully permissionless): entry checks
+///      `isAllowed(receiver)`, holder-to-holder share transfers check
+///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
+///      asset receiver — all fail-closed, so a misbehaving gate blocks the guarded
+///      operation (including exits) until the owner swaps the gate. Inflation-attack
 ///      protection relies on the ERC-4626 virtual-share offset.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
@@ -86,9 +91,10 @@ contract LiFiVaultWrapper is
     ///         snapshotted from the factory at deploy. LI.FI receives the remainder of
     ///         each fee.
     uint16[FEE_TYPE_COUNT] public integratorShareBps;
-    /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
-    ///         stored verbatim for later modules to decode.
-    bytes public initData;
+    /// @notice The pluggable access gate governing this instance's perimeter;
+    ///         address(0) = fully permissionless (the default posture). Swappable
+    ///         instantly by the per-vault `owner` via `setAccessGate`.
+    address public accessGate;
 
     /// @dev Per-fee-type rates (0 = disabled), validated by the factory.
     FeeConfig internal _feeConfig;
@@ -149,7 +155,7 @@ contract LiFiVaultWrapper is
         uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
         FeeReceiver[] calldata _receivers,
-        bytes calldata _initData
+        address _accessGate
     ) external initializer {
         if (
             _underlying == address(0) ||
@@ -172,7 +178,10 @@ contract LiFiVaultWrapper is
         adapter = _adapter;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
-        initData = _initData;
+        if (_accessGate != address(0)) {
+            accessGate = _accessGate;
+            emit AccessGateUpdated(_accessGate);
+        }
         lastMgmtAccrual = uint64(block.timestamp);
         // Anchor the performance watermark at the empty-vault share price, computed pure
         // (supply and position are always 0 on a fresh single-shot-initialized proxy).
@@ -300,7 +309,7 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _checkAccess(msg.sender);
+        _checkDepositAccess(receiver);
         _accrueFees();
 
         return super.deposit(assets, receiver);
@@ -315,7 +324,7 @@ contract LiFiVaultWrapper is
         address receiver
     ) public override nonReentrant returns (uint256) {
         if (depositsPaused()) revert DepositsPaused();
-        _checkAccess(msg.sender);
+        _checkDepositAccess(receiver);
         _accrueFees();
 
         return super.mint(shares, receiver);
@@ -327,7 +336,7 @@ contract LiFiVaultWrapper is
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _checkAccess(msg.sender);
+        _checkExitAccess(owner, receiver);
         _accrueFees();
 
         return super.withdraw(assets, receiver, owner);
@@ -339,7 +348,7 @@ contract LiFiVaultWrapper is
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _checkAccess(msg.sender);
+        _checkExitAccess(owner, receiver);
         _accrueFees();
 
         return super.redeem(shares, receiver, owner);
@@ -404,23 +413,49 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to deposits and do not build deposits that would revert.
+    /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
+    ///      the receiver, so EIP-4626 consumers see the vault as closed to deposits and do
+    ///      not build deposits that would revert. Mirrors `deposit`'s guards; a reverting
+    ///      gate reverts this view too (fail-closed, like the entrypoint).
     function maxDeposit(
         address receiver
     ) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
+        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
         return super.maxDeposit(receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to mints and do not build mints that would revert.
+    /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
+    ///      the receiver, so EIP-4626 consumers see the vault as closed to mints and do
+    ///      not build mints that would revert. Mirrors `mint`'s guards; a reverting gate
+    ///      reverts this view too (fail-closed, like the entrypoint).
     function maxMint(address receiver) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
+        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
         return super.maxMint(receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
+    ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
+    ///      is checked in the entrypoint only).
+    function maxWithdraw(
+        address owner
+    ) public view override returns (uint256) {
+        if (_sanctioned(owner)) return 0;
+
+        return super.maxWithdraw(owner);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
+    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
+    ///      is checked in the entrypoint only).
+    function maxRedeem(address owner) public view override returns (uint256) {
+        if (_sanctioned(owner)) return 0;
+
+        return super.maxRedeem(owner);
     }
 
     /// Internal ///
@@ -650,19 +685,100 @@ contract LiFiVaultWrapper is
         return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
     }
 
-    /// Fees and access ///
-    /// @dev Every state-changing entrypoint (deposit/mint/withdraw/redeem) calls
-    ///      `_checkAccess` then `_accrueFees` first, so the operation is authorized and
-    ///      transacts at the post-accrual share price. Deposit-pause is enforced separately
-    ///      and only on inflows; access and accrual apply to exits too. `_checkAccess` is a
-    ///      no-op seam; its body lands with access control.
+    /// Access control ///
+    /// @dev Every state-changing entrypoint (deposit/mint/withdraw/redeem) runs its access
+    ///      check then `_accrueFees` first, so the operation is authorized and transacts at
+    ///      the post-accrual share price. All checks target the END PARTIES (share receiver
+    ///      on entry, share owner + asset receiver on exit) and never `msg.sender`, so
+    ///      direct ERC-4626 calls and proxied (Composer) flows are gated identically. Every
+    ///      gate call is fail-closed with no try/catch: a misbehaving gate blocks the
+    ///      guarded operation — including exits — and its own error bubbles verbatim; the
+    ///      recovery path is the owner's instant `setAccessGate`. Gas-griefing the gate call
+    ///      into a false failure is not a concern: there is no catch to reach, an OOG simply
+    ///      reverts the operation.
     ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
     ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
 
-    /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
-    ///      Widens to `view` once it reads the access mode from initData.
-    function _checkAccess(address /* caller */) private pure {
-        // TODO(access): decode the access mode from initData and authorize the caller.
+    /// @notice Sets or clears this instance's access gate.
+    /// @dev Owner-only and instant, like every other per-vault setter — the integrator
+    ///      brings their own authority model (EOA/multisig/timelock). The gate is not
+    ///      probed or validated: a misconfigured gate closes the instance fail-closed
+    ///      until this setter repairs it, and only harms the integrator's own product.
+    /// @param _accessGate The new gate; address(0) = fully permissionless.
+    function setAccessGate(address _accessGate) external onlyOwner {
+        accessGate = _accessGate;
+
+        emit AccessGateUpdated(_accessGate);
+    }
+
+    /// @dev Entry screen: the share receiver must be allowed by the gate (which is
+    ///      expected to fold its own sanctions view into `isAllowed`). No-op when no
+    ///      gate is set.
+    /// @param _receiver The share receiver of the deposit/mint.
+    function _checkDepositAccess(address _receiver) private view {
+        address gate = accessGate;
+        if (gate == address(0)) return;
+        if (!IAccessGate(gate).isAllowed(_receiver))
+            revert AccountNotAllowed(_receiver);
+    }
+
+    /// @dev Exit screen: sanctions-only, so any non-sanctioned holder can always exit
+    ///      (even after falling off an allowlist). Screens the share owner (freezes a
+    ///      sanctioned holder's funds) AND the asset receiver (never pays assets out to a
+    ///      sanctioned address; a non-sanctioned owner just picks another receiver).
+    ///      No-op when no gate is set.
+    /// @param _owner The share owner being exited.
+    /// @param _receiver The asset receiver of the exit.
+    function _checkExitAccess(address _owner, address _receiver) private view {
+        address gate = accessGate;
+        if (gate == address(0)) return;
+        if (IAccessGate(gate).isSanctioned(_owner))
+            revert AccountSanctioned(_owner);
+        if (_receiver != _owner && IAccessGate(gate).isSanctioned(_receiver))
+            revert AccountSanctioned(_receiver);
+    }
+
+    /// @dev Whether the gate admits `_receiver` on the deposit path; true when no gate
+    ///      is set. Non-reverting only insofar as the gate itself does not revert.
+    /// @param _receiver The share receiver to screen.
+    /// @return True if deposits/mints for `_receiver` would pass the access check.
+    function _depositAllowed(address _receiver) private view returns (bool) {
+        address gate = accessGate;
+
+        return gate == address(0) || IAccessGate(gate).isAllowed(_receiver);
+    }
+
+    /// @dev Whether the gate flags `_account` as sanctioned; false when no gate is set.
+    /// @param _account The account to screen.
+    /// @return True if `_account` is sanction-flagged by the gate.
+    function _sanctioned(address _account) private view returns (bool) {
+        address gate = accessGate;
+
+        return gate != address(0) && IAccessGate(gate).isSanctioned(_account);
+    }
+
+    /// @dev Gates holder-to-holder share transfers on `isTransferable`. Structurally
+    ///      exempt — never reaching the gate — are mints (`from == 0`; entry is already
+    ///      screened in `deposit`/`mint`, and `_accrueFees` mints fee-shares to this
+    ///      contract on every operation), burns (`to == 0`; exits are screened in
+    ///      `withdraw`/`redeem`), and fee payouts from the wrapper itself
+    ///      (`from == address(this)`; `distributeFees` must stay unblockable and the recipients'
+    ///      entitlement was booked at accrual). The fee machinery must never depend on
+    ///      gate behavior.
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override {
+        if (from != address(0) && to != address(0) && from != address(this)) {
+            address gate = accessGate;
+            if (
+                gate != address(0) &&
+                !IAccessGate(gate).isTransferable(from, to)
+            ) revert TransferNotAllowed(from, to);
+        }
+
+        super._update(from, to, value);
     }
 
     /// @dev Crystallizes the management and performance fees by minting dilution shares

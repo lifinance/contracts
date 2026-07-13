@@ -53,7 +53,7 @@ struct DeployParams {
     uint256 nonce; // Disambiguates instances sharing the same (namespace, adapter, underlying).
     FeeConfig fees; // Per-fee-type rates (0 = disabled); validated against bounds/caps.
     uint16[FEE_TYPE_COUNT] integratorShareBps; // Integrator's fee share (bps) per FeeType (index = ordinal); type(uint16).max = factory default, else must be < 100%.
-    bytes initData; // Opaque wrapper-side config forwarded to the instance's initialize.
+    address accessGate; // Pluggable IAccessGate governing the instance's perimeter; address(0) = fully permissionless.
     FeeReceiver[] receivers; // Integrator payout wallets + their bps split; validated on the instance at initialize.
 }
 

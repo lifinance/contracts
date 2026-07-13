@@ -68,7 +68,7 @@ contract VaultWrapperPauseTest is Test {
                 [uint16(8000), 8000, 8000, 8000],
                 fees,
                 defaultReceivers(),
-                ""
+                address(0)
             )
         );
         wrapper = LiFiVaultWrapper(
@@ -416,7 +416,7 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: "",
+            accessGate: address(0),
             receivers: defaultReceivers()
         });
 

@@ -532,7 +532,7 @@ contract VaultWrapperDistributionTest is Test {
                 nonce: 0,
                 fees: _fees,
                 integratorShareBps: [_split, _split, _split, _split],
-                initData: "",
+                accessGate: address(0),
                 receivers: _receivers(_wallets, _bps)
             });
     }

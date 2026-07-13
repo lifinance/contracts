@@ -71,7 +71,7 @@ contract BeaconUpgradeTest is Test {
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: "",
+            accessGate: address(0),
             receivers: defaultReceivers()
         });
         vm.prank(onboarder);
