@@ -623,9 +623,11 @@ contract LiFiVaultWrapper is
     ///      LI.FI's parts go to the factory's live `lifiFeeRecipient`; the integrator's
     ///      parts are fanned across its wallets by bps (last absorbs the rounding
     ///      remainder). CEI: all four counters are zeroed before any transfer, and the call
-    ///      is `nonReentrant`. A failing integrator transfer (e.g. a blacklisted wallet) is
-    ///      redirected to LI.FI rather than reverting the distribution, so the integrator can
-    ///      never block it. No-op when every counter is empty.
+    ///      is `nonReentrant`. A failing integrator transfer (e.g. a blacklisted wallet) does
+    ///      not revert the distribution — its share is left in the wrapper and re-booked as
+    ///      still-owed integrator fees, so the integrator can rotate to a working wallet via
+    ///      `setIntegratorFeeReceivers` and call this again to claim it. No-op when every
+    ///      counter is empty.
     function distributeFees() external nonReentrant {
         _accrueFees();
 
@@ -648,18 +650,24 @@ contract LiFiVaultWrapper is
         address lifiRecipient = ILiFiVaultWrapperFactory(factory)
             .lifiFeeRecipient();
 
-        _distributeFeePool(
+        uint256 assetsRetained = _distributeFeePool(
             asset(),
             lifiAssets,
             integratorAssets,
             lifiRecipient
         );
-        _distributeFeePool(
+        uint256 sharesRetained = _distributeFeePool(
             address(this),
             lifiShares,
             integratorShares,
             lifiRecipient
         );
+
+        // Fees whose integrator transfer failed stay in the wrapper as still-owed
+        // integrator fees, claimable on a later distribution (nonReentrant guards this
+        // post-transfer write).
+        integratorFeeAssets = uint128(assetsRetained);
+        integratorFeeShares = uint128(sharesRetained);
     }
 
     /// Pause controls ///
@@ -1053,49 +1061,44 @@ contract LiFiVaultWrapper is
 
     /// @dev Pays out one fee pool of `_token` from the per-recipient parts booked at
     ///      accrual — no split happens here (see `_splitFee`). The integrator's part is
-    ///      fanned across the receiver wallets; LI.FI is paid last — its booked part plus
-    ///      any integrator amount redirected by `_payIntegrators` — and is NOT caught, so
-    ///      a reverting LI.FI recipient (factory-governed) is its own concern. Caller must
-    ///      zero the counters first (CEI). No-op on an empty fee pool.
+    ///      fanned across the receiver wallets; LI.FI is paid its booked part and is NOT
+    ///      caught, so a reverting LI.FI recipient (factory-governed) is its own concern.
+    ///      Caller must zero the counters first (CEI). No-op on an empty fee pool.
     /// @param _token The fee-pool token (the vault asset, or this wrapper's shares).
     /// @param _lifiPart LI.FI's booked part of the fee pool.
     /// @param _integratorPart The integrator's booked part of the fee pool.
     /// @param _lifiRecipient The live LI.FI fee recipient.
+    /// @return retained The integrator amount whose transfer failed, left in the wrapper.
     function _distributeFeePool(
         address _token,
         uint256 _lifiPart,
         uint256 _integratorPart,
         address _lifiRecipient
-    ) private {
-        if (_lifiPart == 0 && _integratorPart == 0) return;
+    ) private returns (uint256 retained) {
+        if (_lifiPart == 0 && _integratorPart == 0) return 0;
 
-        // pay integrators and note how many fees failed to transfer, those are redirected to lifi
-        uint256 redirected = _payIntegrators(_token, _integratorPart);
-        uint256 lifiPaid = _lifiPart + redirected;
+        // pay integrators; any wallet whose transfer fails leaves its share in the wrapper
+        retained = _payIntegrators(_token, _integratorPart);
 
-        if (lifiPaid > 0) {
-            SafeERC20.safeTransfer(IERC20(_token), _lifiRecipient, lifiPaid);
+        if (_lifiPart > 0) {
+            SafeERC20.safeTransfer(IERC20(_token), _lifiRecipient, _lifiPart);
         }
 
-        emit FeePoolDistributed(
-            _token,
-            lifiPaid,
-            _integratorPart - redirected
-        );
+        emit FeePoolDistributed(_token, _lifiPart, _integratorPart - retained);
     }
 
     /// @dev Fans `_integratorTotal` of `_token` across the integrator wallets by their bps, the
     ///      last wallet absorbing the integer-division remainder so the portion zeroes exactly.
     ///      Each payout uses OZ's non-reverting `trySafeTransfer`; a failed transfer (e.g. a
-    ///      blacklisted wallet) has its share returned as `redirected` for the caller to route
-    ///      to LI.FI, so one hostile wallet can never block the distribution.
+    ///      blacklisted wallet) has its share returned as `retained` and left in the wrapper,
+    ///      so one hostile wallet can never block the distribution.
     /// @param _token The fee-pool token to distribute.
     /// @param _integratorTotal The integrator's portion of the fee pool.
-    /// @return redirected The sum of shares whose transfer failed (to be paid to LI.FI).
+    /// @return retained The sum of shares whose transfer failed (left in the wrapper).
     function _payIntegrators(
         address _token,
         uint256 _integratorTotal
-    ) private returns (uint256 redirected) {
+    ) private returns (uint256 retained) {
         FeeReceiver[] memory receivers = integratorFeeReceivers;
         uint256 count = receivers.length;
         uint256 distributed;
@@ -1121,9 +1124,9 @@ contract LiFiVaultWrapper is
                 continue;
             }
 
-            // instead we redirect the failed transfer amount to lifi
-            redirected += share;
-            emit IntegratorPayoutRedirected(wallet, _token, share);
+            // the failed transfer amount stays in the wrapper as still-owed integrator fees
+            retained += share;
+            emit IntegratorPayoutRetained(wallet, _token, share);
         }
     }
 }

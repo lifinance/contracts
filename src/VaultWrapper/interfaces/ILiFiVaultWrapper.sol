@@ -68,20 +68,24 @@ interface ILiFiVaultWrapper {
 
     /// @notice Emitted once per non-empty fee pool distributed by `distributeFees`.
     /// @param token The fee-pool token (the vault asset, or this wrapper's shares).
-    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
-    /// @param integratorAmount Amount delivered across the integrator wallets.
+    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split only).
+    /// @param integratorAmount Amount delivered across the integrator wallets (excludes any
+    ///        retained after a failed transfer).
     event FeePoolDistributed(
         address indexed token,
         uint256 lifiAmount,
         uint256 integratorAmount
     );
 
-    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
-    ///         amount is redirected to the LI.FI recipient instead of reverting the distribution.
+    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet). The amount
+    ///         is left in the wrapper — still tracked as owed integrator fees — instead of
+    ///         reverting the distribution or being redirected to LI.FI. The integrator can
+    ///         rotate to a working wallet via `setIntegratorFeeReceivers` and call
+    ///         `distributeFees` again to claim it.
     /// @param receiver The integrator wallet whose transfer reverted.
-    /// @param token The fee-pool token redirected (the asset, or this wrapper's shares).
-    /// @param amount The amount redirected to LI.FI.
-    event IntegratorPayoutRedirected(
+    /// @param token The fee-pool token retained (the asset, or this wrapper's shares).
+    /// @param amount The amount retained in the wrapper.
+    event IntegratorPayoutRetained(
         address indexed receiver,
         address indexed token,
         uint256 amount
