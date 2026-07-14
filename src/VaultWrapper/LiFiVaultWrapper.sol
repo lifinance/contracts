@@ -50,9 +50,10 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      asset receiver — all fail-closed, so a misbehaving gate blocks the guarded
 ///      operation (including exits) until the owner swaps the gate. Inflation-attack
 ///      protection is layered: the ERC-4626 virtual-share decimals offset is derived
-///      once at `initialize` to normalize shares to 18 decimals (strongest exactly
-///      where a donated wei buys the most), and a deposit-side supply floor keeps
-///      depositors out of the dust-denominator regime. EIP-5143 slippage overloads of
+///      once at `initialize` (`18 - assetDecimals`, floored at a nonzero minimum so even
+///      high-decimal assets stay donation-resistant — strongest exactly where a donated
+///      wei buys the most), and a deposit-side supply floor keeps depositors out of the
+///      dust-denominator regime. EIP-5143 slippage overloads of
 ///      the four entrypoints bound the realized amount against in-flight share-price
 ///      or fee-rate changes.
 /// @custom:version 1.0.0
@@ -83,10 +84,25 @@ contract LiFiVaultWrapper is
     ///         not a product limit.
     uint256 internal constant MAX_FEE_RECEIVERS = 50;
 
-    /// @notice Share decimals target: `initialize` derives the ERC-4626 virtual-share
-    ///         decimals offset as `18 - assetDecimals` (0 for assets with 18+ decimals),
-    ///         normalizing share tokens to 18 decimals.
+    /// @notice Share-decimals target: `initialize` derives the ERC-4626 virtual-share
+    ///         decimals offset as `18 - assetDecimals`, then floors it at
+    ///         `MIN_DECIMALS_OFFSET`. Assets with up to 12 decimals get shares normalized
+    ///         to exactly 18 decimals; higher-decimal assets take the minimum instead
+    ///         (e.g. an 18-decimal asset yields 24-decimal shares) — trading exact-18
+    ///         normalization for the donation-griefing bound on `MIN_DECIMALS_OFFSET`.
     uint8 internal constant TARGET_SHARE_DECIMALS = 18;
+
+    /// @notice Lower bound on the derived virtual-share decimals offset, applied even when
+    ///         the asset already has >= `TARGET_SHARE_DECIMALS` decimals (where the derived
+    ///         offset would otherwise be 0). The offset divides the asset cost of the
+    ///         fresh-vault donation grief: to push a deposit below the `MIN_SHARE_SUPPLY`
+    ///         floor an attacker must donate ~`MIN_SHARE_SUPPLY / 10 ** offset` times that
+    ///         deposit. A minimum of 6 (= log10(`MIN_SHARE_SUPPLY`)) caps that ratio at 1,
+    ///         so a donation can never block a deposit larger than itself — and since the
+    ///         donation accrues to the first real depositor, the grief is self-defeating.
+    ///         With offset 0 a ~1-token donation would block every sub-1M-token first
+    ///         deposit into an 18-decimal vault.
+    uint8 internal constant MIN_DECIMALS_OFFSET = 6;
 
     /// @notice Deposit-side total-supply floor, in shares: after any deposit or mint
     ///         the supply must be at least this (exits are exempt — see
@@ -120,9 +136,9 @@ contract LiFiVaultWrapper is
     ///         instantly by the per-vault `owner` via `setAccessGate`.
     address public accessGate;
     /// @notice The ERC-4626 virtual-share decimals offset for this instance, written
-    ///         once at `initialize` (`18 - assetDecimals`, floored at 0) and never
-    ///         changed after — it prices shares, so mutating it would reprice every
-    ///         holder. Packs into the `accessGate` slot.
+    ///         once at `initialize` (`18 - assetDecimals`, floored at `MIN_DECIMALS_OFFSET`)
+    ///         and never changed after — it prices shares, so mutating it would reprice
+    ///         every holder. Packs into the `accessGate` slot.
     uint8 public shareDecimalsOffset;
 
     /// @dev Per-fee-type rates (0 = disabled), validated by the factory.
@@ -224,9 +240,12 @@ contract LiFiVaultWrapper is
         // still 0); the offset must be written before anything consumes
         // _decimalsOffset() — the watermark anchor below prices through it.
         uint8 assetDecimals = decimals();
-        if (assetDecimals < TARGET_SHARE_DECIMALS) {
-            shareDecimalsOffset = TARGET_SHARE_DECIMALS - assetDecimals;
-        }
+        uint8 derivedOffset = assetDecimals < TARGET_SHARE_DECIMALS
+            ? TARGET_SHARE_DECIMALS - assetDecimals
+            : 0;
+        shareDecimalsOffset = derivedOffset < MIN_DECIMALS_OFFSET
+            ? MIN_DECIMALS_OFFSET
+            : derivedOffset;
 
         // Anchor the performance watermark at the empty-vault share price, computed pure
         // (supply and position are always 0 on a fresh single-shot-initialized proxy).

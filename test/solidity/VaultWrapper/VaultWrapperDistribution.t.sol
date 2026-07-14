@@ -596,7 +596,12 @@ contract VaultWrapperDistributionTest is Test {
             elapsed
         );
         return
-            LibVaultWrapperMath.dilutionShares(feeAssets, supply, assets, 0);
+            LibVaultWrapperMath.dilutionShares(
+                feeAssets,
+                supply,
+                assets,
+                wrapper.shareDecimalsOffset()
+            );
     }
 
     function _deposit(address _from, uint256 _amount) internal {

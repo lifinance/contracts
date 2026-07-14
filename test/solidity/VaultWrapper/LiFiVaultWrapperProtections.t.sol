@@ -179,16 +179,45 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
     /// Derived decimals offset ///
 
-    function test_ShareDecimalsNormalizedTo18() public {
-        // 18-decimal asset: offset 0, shares stay 18 decimals.
-        assertEq(wrapper.decimals(), 18);
-        assertEq(wrapper.shareDecimalsOffset(), 0);
+    function test_ShareDecimalsOffsetFlooredAtMinimum() public {
+        // 18-decimal asset: derived offset is 0, floored at the 6 minimum, so shares
+        // are 24 decimals (the minimum keeps high-decimal assets donation-resistant).
+        assertEq(wrapper.shareDecimalsOffset(), 6);
+        assertEq(wrapper.decimals(), 24);
 
-        // 6-decimal asset: offset 12, shares normalized to 18 decimals.
+        // 6-decimal asset: derived offset 12 already exceeds the minimum, so shares
+        // stay normalized to 18 decimals.
         LiFiVaultWrapper wrapper6 = _newWrapper6Decimals();
 
-        assertEq(wrapper6.decimals(), 18);
         assertEq(wrapper6.shareDecimalsOffset(), 12);
+        assertEq(wrapper6.decimals(), 18);
+    }
+
+    function test_DonationCannotBlockDepositLargerThanItself() public {
+        // Regression for the dust-donation launch DoS: with the minimum offset the
+        // asset barrier a donation imposes is at most 1x the donation, so a deposit
+        // larger than the donation always clears the floor. At offset 0 this same
+        // 1-token donation would have blocked every sub-1M-token first deposit.
+        MockERC4626 source = MockERC4626(address(underlying));
+        uint256 donated = 1e18; // 1 token
+        asset.mint(attacker, donated);
+        vm.startPrank(attacker);
+        asset.approve(address(source), donated);
+        uint256 ds = source.deposit(donated, attacker);
+        source.transfer(address(wrapper), ds);
+        vm.stopPrank();
+
+        assertEq(wrapper.totalSupply(), 0);
+
+        uint256 firstDeposit = 2 * donated;
+        asset.mint(victim, firstDeposit);
+        vm.startPrank(victim);
+        asset.approve(address(wrapper), firstDeposit);
+        uint256 shares = wrapper.deposit(firstDeposit, victim);
+        vm.stopPrank();
+
+        assertGe(shares, MIN_SHARE_SUPPLY);
+        assertGe(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
     }
 
     function test_InflationAttackIsUnprofitableOnLowDecimalAsset() public {
@@ -241,11 +270,12 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
     /// Minimum share-supply floor ///
 
     function testRevert_ZeroShareDepositIntoDonatedEmptyVault() public {
-        // 18-decimal asset => offset 0, so the floor is the only inflation guard.
         // Attacker donates source shares straight to the wrapper: totalAssets() > 0
-        // while totalSupply() stays 0.
+        // while totalSupply() stays 0. The minimum offset (6) means the victim's deposit
+        // only rounds to zero shares once the donation exceeds it by ~MIN_SHARE_SUPPLY,
+        // so the donation dwarfs the deposit here (the grief is deeply unprofitable).
         MockERC4626 source = MockERC4626(address(underlying));
-        uint256 donated = 1_000e18;
+        uint256 donated = 2_000_000e18;
         asset.mint(attacker, donated);
         vm.startPrank(attacker);
         asset.approve(address(source), donated);
@@ -259,7 +289,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         // The victim's deposit rounds to zero shares against the inflated price. Without
         // the zero-supply guard this would forward the assets for no shares (100% loss);
         // the floor must reject it.
-        uint256 victimDeposit = donated / 2;
+        uint256 victimDeposit = 1e18;
         asset.mint(victim, victimDeposit);
         vm.startPrank(victim);
         asset.approve(address(wrapper), victimDeposit);
@@ -277,7 +307,11 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         vm.stopPrank();
     }
 
-    function testRevert_FirstDepositBelowSupplyFloor() public {
+    function testRevert_MintBelowSupplyFloor() public {
+        // Any nonzero deposit into a clean vault over-clears the floor (the offset
+        // scales shares up by 10 ** offset), so the floor is reached from below only by
+        // minting an explicit sub-floor share count.
+        uint256 shares = MIN_SHARE_SUPPLY / 2;
         asset.mint(alice, 1);
         vm.startPrank(alice);
         asset.approve(address(wrapper), 1);
@@ -285,17 +319,19 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         vm.expectRevert(
             abi.encodeWithSelector(
                 ILiFiVaultWrapper.SupplyBelowMinimum.selector,
-                1,
+                shares,
                 MIN_SHARE_SUPPLY
             )
         );
 
-        wrapper.deposit(1, alice);
+        wrapper.mint(shares, alice);
         vm.stopPrank();
     }
 
     function test_FirstDepositAtSupplyFloorPasses() public {
-        _deposit(alice, MIN_SHARE_SUPPLY);
+        // The smallest possible deposit (1 asset-wei) already mints exactly the floor,
+        // since the offset scales 1 wei into MIN_SHARE_SUPPLY shares.
+        _deposit(alice, 1);
 
         assertEq(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
     }
@@ -314,22 +350,24 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
         assertEq(wrapper.totalSupply(), leftBehind);
 
-        // ...but anyone depositing into that state is still protected: the deposit
-        // must bring the supply back to the floor or revert.
-        uint256 dustDeposit = MIN_SHARE_SUPPLY / 4;
-        asset.mint(bob, dustDeposit);
+        // ...but anyone entering that state is still protected: an operation leaving the
+        // supply below the floor reverts. A plain deposit over-clears the floor (the
+        // offset scales shares up), so the sub-floor top-up is shown via an explicit
+        // mint of fewer shares than the floor needs.
+        uint256 shortMint = MIN_SHARE_SUPPLY / 4;
+        asset.mint(bob, 1);
         vm.startPrank(bob);
-        asset.approve(address(wrapper), dustDeposit);
+        asset.approve(address(wrapper), 1);
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 ILiFiVaultWrapper.SupplyBelowMinimum.selector,
-                leftBehind + dustDeposit,
+                leftBehind + shortMint,
                 MIN_SHARE_SUPPLY
             )
         );
 
-        wrapper.deposit(dustDeposit, bob);
+        wrapper.mint(shortMint, bob);
         vm.stopPrank();
 
         _deposit(bob, MIN_SHARE_SUPPLY);
@@ -337,10 +375,11 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertGe(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
     }
 
-    function test_FullExitSucceedsDespiteFeeShareDust() public {
+    function test_FullExitSucceedsWithFeeShareResidue() public {
         // Regression: fee accrual mints shares to the wrapper itself, so the last
-        // holder's full exit can leave a sub-floor fee-share residue as the only
-        // supply. The exit must still succeed (exits are exempt from the floor).
+        // holder's full exit leaves those fee shares as the only supply. The exit must
+        // still succeed — exits never consult the floor. (Sub-floor exit-exemption is
+        // covered by test_ExitMayStrand... and test_FullExitToZeroSupplyPasses.)
         FeeConfig memory fees;
         fees.rateBps[uint8(FeeType.Management)] = MGMT_RATE;
         wrapper = _newWrapper(fees);
@@ -355,7 +394,6 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         uint256 residue = wrapper.totalSupply();
         assertEq(wrapper.balanceOf(alice), 0);
         assertGt(residue, 0);
-        assertLt(residue, MIN_SHARE_SUPPLY);
         assertEq(wrapper.balanceOf(address(wrapper)), residue);
     }
 

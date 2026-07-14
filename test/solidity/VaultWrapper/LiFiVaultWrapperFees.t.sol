@@ -147,10 +147,15 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         vm.warp(block.timestamp + 1);
         _crystallize();
 
-        // One second at 10%/yr on ~1e24 assets is ~3e15 fee-shares; carrying the dormant
-        // year would have charged ~1e23 (10% of bob's deposit). Assert second-scale.
+        // One second at 10%/yr on ~1e24 assets is ~3e15 asset-equivalent fee, scaled by
+        // 10 ** offset into shares; carrying the dormant year would have charged ~1e23
+        // asset-equivalent (10% of bob's deposit). Assert second-scale against a bound
+        // that tracks the share scale.
         assertGt(_accruedFeeShares(), 0);
-        assertLt(_accruedFeeShares(), 1e18);
+        assertLt(
+            _accruedFeeShares(),
+            1e18 * 10 ** wrapper.shareDecimalsOffset()
+        );
     }
 
     function test_DilutionFeeAccruedEventEmitted() public {
@@ -387,8 +392,12 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         assertEq(burned, previewedShares);
         assertLe(burned, sharesBefore);
         assertEq(asset.balanceOf(alice), maxAssets);
-        // At most rounding dust may remain; a full exit must never revert.
-        assertLe(wrapper.balanceOf(alice), 2);
+        // At most rounding dust may remain; a full exit must never revert. Dust is in
+        // shares, so its bound scales with 10 ** offset (one asset-wei of shares).
+        assertLe(
+            wrapper.balanceOf(alice),
+            2 * 10 ** wrapper.shareDecimalsOffset()
+        );
     }
 
     function test_WithdrawRedeemInverseWithFee() public {
@@ -607,11 +616,13 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
     function test_FeeCounterSaturationNeverBricksExits() public {
         // Books fee-shares beyond uint128 max in a single management accrual: a large
         // wei-supply left dormant long enough that the fee clamps to ~all of AUM, so
-        // dilutionShares explodes to ~supply * assets / 2 (~5e75 here). The counters
+        // dilutionShares explodes to ~supply * assets / 2 (~5e69 here). The counters
         // must saturate — never revert — because the accrual runs on every exit and
         // even on the fee-disable path.
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        uint256 whale = 1e38; // large, but within solmate's mock 4626 mulDiv range
+        // Whale sized so shares (assets * 10 ** offset) and the fee-math intermediates
+        // stay within uint256 while still overflowing the uint128 fee counters.
+        uint256 whale = 1e32;
         _deposit(alice, whale);
 
         vm.warp(block.timestamp + 500 * YEAR);
@@ -877,7 +888,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
             _feeAssets: feeAssets,
             _totalSupply: supply,
             _totalAssets: assets,
-            _decimalsOffset: 0
+            _decimalsOffset: _w.shareDecimalsOffset()
         });
     }
 }

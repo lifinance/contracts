@@ -89,7 +89,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
 
         uint256 hwmAfterCharge = wrapper.perfHighWaterMarkPps();
         uint256 sharesAfterCharge = _accruedFeeShares();
-        assertGt(hwmAfterCharge, 1e18);
+        assertGt(hwmAfterCharge, _parPps());
 
         _simulateLoss(300e18); // drawdown well below the watermark
         _crystallize();
@@ -121,7 +121,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         uint256 expectedHwm = LibVaultWrapperMath.pricePerShare(
             supply + expectedShares,
             assets,
-            0
+            wrapper.shareDecimalsOffset()
         );
 
         _crystallize();
@@ -214,7 +214,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
             _feeAssets: mgmtFeeAssets,
             _totalSupply: supply,
             _totalAssets: assets,
-            _decimalsOffset: 0
+            _decimalsOffset: wrapper.shareDecimalsOffset()
         });
         uint256 perfShares = _expectedPerf(supply + mgmtShares, assets);
         assertGt(mgmtShares, 0);
@@ -278,7 +278,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
 
         uint256 hwmAtPeak = wrapper.perfHighWaterMarkPps();
         uint256 sharesAtPeak = _accruedFeeShares();
-        assertGt(hwmAtPeak, 1e18);
+        assertGt(hwmAtPeak, _parPps());
 
         _simulateLoss(400e18); // drawdown well below the watermark
 
@@ -411,7 +411,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
             _totalSupply: _supply,
             _hwmPps: wrapper.perfHighWaterMarkPps(),
             _rateBps: wrapper.feeRate(uint8(FeeType.Performance)),
-            _decimalsOffset: 0
+            _decimalsOffset: wrapper.shareDecimalsOffset()
         });
 
         return
@@ -419,7 +419,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
                 _feeAssets: feeAssets,
                 _totalSupply: _supply,
                 _totalAssets: _assets,
-                _decimalsOffset: 0
+                _decimalsOffset: wrapper.shareDecimalsOffset()
             });
     }
 
@@ -428,7 +428,18 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
             LibVaultWrapperMath.pricePerShare(
                 wrapper.totalSupply(),
                 wrapper.totalAssets(),
-                0
+                wrapper.shareDecimalsOffset()
+            );
+    }
+
+    /// @dev The empty-vault (par) price-per-share, which scales with the offset:
+    ///      1:1 in asset terms but divided by 10 ** offset in raw share terms.
+    function _parPps() internal view returns (uint256) {
+        return
+            LibVaultWrapperMath.pricePerShare(
+                0,
+                0,
+                wrapper.shareDecimalsOffset()
             );
     }
 }
