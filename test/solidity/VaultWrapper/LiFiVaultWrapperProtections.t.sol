@@ -240,6 +240,43 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
     /// Minimum share-supply floor ///
 
+    function testRevert_ZeroShareDepositIntoDonatedEmptyVault() public {
+        // 18-decimal asset => offset 0, so the floor is the only inflation guard.
+        // Attacker donates source shares straight to the wrapper: totalAssets() > 0
+        // while totalSupply() stays 0.
+        MockERC4626 source = MockERC4626(address(underlying));
+        uint256 donated = 1_000e18;
+        asset.mint(attacker, donated);
+        vm.startPrank(attacker);
+        asset.approve(address(source), donated);
+        uint256 donatedShares = source.deposit(donated, attacker);
+        source.transfer(address(wrapper), donatedShares);
+        vm.stopPrank();
+
+        assertEq(wrapper.totalSupply(), 0);
+        assertGt(wrapper.totalAssets(), 0);
+
+        // The victim's deposit rounds to zero shares against the inflated price. Without
+        // the zero-supply guard this would forward the assets for no shares (100% loss);
+        // the floor must reject it.
+        uint256 victimDeposit = donated / 2;
+        asset.mint(victim, victimDeposit);
+        vm.startPrank(victim);
+        asset.approve(address(wrapper), victimDeposit);
+        assertEq(wrapper.previewDeposit(victimDeposit), 0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.SupplyBelowMinimum.selector,
+                0,
+                MIN_SHARE_SUPPLY
+            )
+        );
+
+        wrapper.deposit(victimDeposit, victim);
+        vm.stopPrank();
+    }
+
     function testRevert_FirstDepositBelowSupplyFloor() public {
         asset.mint(alice, 1);
         vm.startPrank(alice);

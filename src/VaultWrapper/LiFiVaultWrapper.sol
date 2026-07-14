@@ -586,20 +586,24 @@ contract LiFiVaultWrapper is
     /// Internal ///
 
     /// @dev Deposit-side supply floor: after any deposit/mint the total supply must be
-    ///      zero or at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against
-    ///      a dust-sized share denominator (the first-depositor inflation attack's
+    ///      at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
+    ///      dust-sized share denominator (the first-depositor inflation attack's
     ///      precondition) — the existing supply plus the deposit's own mint always sum
     ///      to the floor, capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
-    ///      of the donation. Exits are deliberately exempt: `_accrueFees` mints fee
-    ///      shares to this contract, so an exit-side check could revert the last
-    ///      holder's full exit against sub-floor fee-share residue — and exits must
-    ///      always work. An exit may therefore strand a sub-floor supply, but anyone
-    ///      depositing into that state is still protected by this check. Not reflected
-    ///      in the max* limit views (a documented EIP-4626 deviation): modeling a
-    ///      ~1e-12-token edge there is not worth the complexity.
+    ///      of the donation. A post-operation supply of exactly zero is rejected too:
+    ///      that is only reachable when a deposit mints zero shares (its assets rounded
+    ///      away against a donation-inflated, zero-supply vault), which would forward the
+    ///      caller's assets into the yield source for no shares — a 100% loss. Exits are
+    ///      deliberately exempt (they never call this): `_accrueFees` mints fee shares to
+    ///      this contract, so an exit-side check could revert the last holder's full exit
+    ///      against sub-floor fee-share residue — and exits must always work. An exit may
+    ///      therefore strand a sub-floor supply, but anyone depositing into that state is
+    ///      still protected by this check. Not reflected in the max* limit views (a
+    ///      documented EIP-4626 deviation): modeling a ~1e-12-token edge there is not
+    ///      worth the complexity.
     function _enforceSupplyFloor() private view {
         uint256 supply = totalSupply();
-        if (supply != 0 && supply < MIN_SHARE_SUPPLY)
+        if (supply < MIN_SHARE_SUPPLY)
             revert SupplyBelowMinimum(supply, MIN_SHARE_SUPPLY);
     }
 
