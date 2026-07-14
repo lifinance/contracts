@@ -12,7 +12,9 @@
   },
   "arbitrum": {
     "metaRouter": "0xf7e96217347667064DEE8f20DB747B1C7df45DDe",
-    "gateway": "0x80ddDDa846e779cceE463bDC0BCc2Ae296feDaF9"
+    "gateway": "0x80ddDDa846e779cceE463bDC0BCc2Ae296feDaF9",
+    "onchainSwapV3": "0x0000000000000000000000000000000000000000",
+    "onchainSwapV3Gateway": "0x0000000000000000000000000000000000000000"
   },
   "arbitrumnova": {
     "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
