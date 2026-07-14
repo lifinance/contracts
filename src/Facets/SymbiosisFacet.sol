@@ -245,6 +245,24 @@ contract SymbiosisFacet is
             );
         }
 
+        // ============================================================
+        // OPEN SECURITY QUESTION FOR REVIEWERS (EXSC-267) - DO NOT MERGE
+        // WITHOUT A DECISION
+        // ------------------------------------------------------------
+        // `dex`, `dexgateway` and `onchainSwapData` are CALLER-SUPPLIED and
+        // forwarded into the trusted OnchainSwapV3 router below. The diamond
+        // never calls them directly and holds no standing balances, so only
+        // this transaction's `minAmount` is ever at risk (not a diamond drain)
+        // - but there is NO on-chain guarantee this calldata originated from
+        // the LI.FI backend, so a malicious / phished quote could still make
+        // the router misroute the user's in-flight funds.
+        //
+        // QUESTION: should we lock this path down with an EIP-712 backend
+        // signature (like `UnitFacet` / `NEARIntentsFacet`, reusing
+        // `config/global.json .backendSigner`) so only backend-blessed
+        // dex/dexgateway/onchainSwapData can execute? Options + tradeoffs are
+        // written up in the PR reviewer notes. Deferred pending reviewer call.
+        // ============================================================
         onchainSwapV3.onswap{ value: nativeAssetAmount }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
