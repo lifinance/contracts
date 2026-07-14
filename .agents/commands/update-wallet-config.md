@@ -78,7 +78,7 @@ Map the role to its fields: `deployer → .deployerWallet` / `.tronWallets.deplo
 
 ### Phase 3 — Open the PR
 
-Delegate branch / commit / template / `/pr-ready` / push / create to `/create-pr`, passing:
+Delegate branch / commit / template / push / create to `/create-pr`, passing:
 
 - **files to stage**: exactly `config/global.json` (never `git add -A`).
 - **body** (the "Why"): the role being rotated, old → new EVM + Tron addresses, that this is the config half of a rotation whose on-chain change goes through `multisig-rollout`, and the linked rotation ticket.
@@ -100,7 +100,7 @@ The team's Notion wallet registry is the human-facing record and is **not** in t
 ## Reuse map
 
 - `troncast address to-base58` / `to-hex` — EVM↔Tron address conversion + the round-trip guard (needs a dummy `ETH_NODE_URI_TRON`; kebab-case flags).
-- `/create-pr` — owns branch / commit / PR-template / `/pr-ready` / push / create; this skill only supplies the staged file and PR body.
+- `/create-pr` — owns branch / commit / PR-template / push / create; this skill only supplies the staged file and PR body.
 - `multisig-rollout` — the sibling that performs the on-chain role change this config edit records; run in the same rotation, not by this skill.
 - `move-tron-delegation` — moves staked Tron resources (separate from the config base58 update).
 - `check-rotation-status` — read-only gate confirming the on-chain role change matches the new config.

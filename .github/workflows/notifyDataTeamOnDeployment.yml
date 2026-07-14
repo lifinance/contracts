@@ -2,6 +2,8 @@
 # - posts a Slack message to the data team when a production deployment JSON file changes on main
 # - diffs the changed deployments/<network>.json files against the previous commit to extract contract names and addresses
 # - ignores diamond, staging, and the aggregated deployments log to avoid noise
+# - upstream-only: guarded to lifinance/contracts because forks that sync this file
+#   (contracts-tron) lack the Slack webhook secret and would fail on every push
 # - known limitations: requires fetch-depth: 2 to access the previous commit; does not validate deployment JSON schema
 
 name: Notify Data Team on Contract Deployments
@@ -21,6 +23,7 @@ permissions:
 
 jobs:
   notify-deployments:
+    if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
