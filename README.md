@@ -18,9 +18,6 @@ You can find the ABI of LifiDiamond in our auto generated [lifi-contract-types r
    2. [Diamond Helper Contracts](#diamond-helper-contracts)
 5. [Repository Structure](#repository-structure)
 6. [Getting Started](#getting-started)
-   1. [Prerequisites](#prerequisites)
-   2. [Development Environment](#development-environment)
-   3. [Cursor IDE Setup](#cursor-setup)
 7. [Development Workflow](#development-workflow)
 8. [Code Quality & Standards](#code-quality)
 9. [More Information](#more-information)
@@ -153,67 +150,20 @@ contracts
 
 ## Getting Started<a name="getting-started"></a>
 
-### Prerequisites<a name="prerequisites"></a>
-
-- Node.js (v18 or later)
-- Bun (latest version)
-- Foundry (pinned via `.foundry-version`)
-- Git
-- Cursor IDE (recommended) or VSCode
-
-### Development Environment<a name="development-environment"></a>
-
-1. Clone the repository:
+Quick start:
 
 ```bash
 git clone https://github.com/lifinance/contracts.git
 cd contracts
+bun i && forge install
+foundryup --install "$(cat .foundry-version)"   # match the pinned Foundry version
+cp .env.example .env                             # then edit
 ```
 
-2. Install dependencies:
-
-```bash
-bun i
-forge install
-```
-
-3. Install the pinned Foundry version:
-
-```bash
-foundryup --install "$(cat .foundry-version)"
-```
-
-The pre-commit hook and CI verify that your installed `forge` matches `.foundry-version` and refuse to run on mismatch. To bump the pin, change `.foundry-version` in a PR — every workflow and dev environment picks it up automatically.
-
-4. Set up environment variables:
-
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-5. (LI.FI developers) Set up access to internal resources — the Safe proposal
-   MongoDB and deploy infrastructure are reached through the `lifi-connect`
-   tunnel (AWS SSO). See [Setup — Accessing LI.FI Resources](docs/Setup.md).
-
-### Cursor IDE Setup<a name="cursor-setup"></a>
-
-For optimal AI assistance in Cursor IDE:
-
-1. Copy `.cursorrules.example` to `.cursorrules`:
-
-```bash
-cp .cursorrules.example .cursorrules
-```
-
-2. The `.cursorrules` file provides context for AI interactions with our codebase. It helps the AI understand:
-
-   - Project structure and conventions
-   - Development environment and tools
-   - Key files and their purposes
-   - Testing and deployment requirements
-
-3. You can customize `.cursorrules` based on your needs, but we recommend keeping the core context intact.
+For the full walkthrough — prerequisites, the Foundry version pin, Cursor IDE
+setup, and (LI.FI developers) access to internal resources such as the Safe
+proposal MongoDB and deploy infrastructure via the `lifi-connect` tunnel — see
+**[docs/Setup.md](docs/Setup.md)**.
 
 ## Development Workflow<a name="development-workflow"></a>
 
