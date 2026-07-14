@@ -104,13 +104,13 @@ cp ../contracts-tron/deployments/tron.json deployments/tron.json
 cp ../contracts-tron/deployments/tron.diamond.json deployments/tron.diamond.json
 ```
 
-Then delegate the commit / template / Linear ticket / `/pr-ready` / push / create mechanic to `/create-pr`, passing:
+Then delegate the commit / template / Linear ticket / push / create mechanic to `/create-pr`, passing:
 
 - **files to stage**: `deployments/tron.json`, `deployments/tron.diamond.json` (nothing else).
 - **title / commit message**: `chore(<Contract>): deploy vX.Y.Z-tron to tron`.
 - **body** (the "Why"): deploy-log update from `contracts-tron`, fork commit `$TRON_COMMIT`.
 
-Store the `contracts-tron` commit hash in the PR body (and it flows into MongoDB via the normal deploy-log ingestion) — this is what lets someone re-verify bytecode later by checking out that exact fork commit, without upstream `main` needing to still match. Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the `/pr-ready` gate and the EXSC Linear-ticket requirement).
+Store the `contracts-tron` commit hash in the PR body (and it flows into MongoDB via the normal deploy-log ingestion) — this is what lets someone re-verify bytecode later by checking out that exact fork commit, without upstream `main` needing to still match. Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the EXSC Linear-ticket requirement).
 
 Once merged upstream, these logs reach `contracts-tron` again on the next upstream→fork sync PR — do not also commit them directly to the fork's `main`.
 
