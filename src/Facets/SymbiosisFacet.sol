@@ -45,6 +45,7 @@ contract SymbiosisFacet is
     /// Types ///
 
     /// @notice The data specific to Symbiosis
+    /// @param nonEvmReceiver The Bitcoin receiver, emitted for non-EVM destinations
     /// @param firstSwapCalldata The calldata for the first swap
     /// @param secondSwapCalldata The calldata for the second swap
     /// @param intermediateToken The intermediate token used for swapping
@@ -57,8 +58,8 @@ contract SymbiosisFacet is
     /// @param dex The DEX router for the OnchainSwapV3 input-token -> syBTC swap
     /// @param dexgateway The spender the DEX is approved through for that swap
     /// @param onchainSwapData The Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn
-    /// @param nonEvmReceiver The Bitcoin receiver, emitted for non-EVM destinations
     struct SymbiosisData {
+        bytes32 nonEvmReceiver;
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
         address intermediateToken;
@@ -71,7 +72,6 @@ contract SymbiosisFacet is
         address dex;
         address dexgateway;
         bytes onchainSwapData;
-        bytes32 nonEvmReceiver;
     }
 
     /// Constructor ///
