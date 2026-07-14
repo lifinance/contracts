@@ -20,6 +20,10 @@
  * {@link claimForProposal}. The time-derived timelock salt makes the proposal
  * `intentHash` non-deterministic, so it cannot dedup a re-proposed removal
  * (spec Fact 9); the queue-layer flip is the guarantee instead.
+ *
+ * The drain (out of scope here) sets `safeTxHash` on a claimed record to link it
+ * to the minted `pendingTransactions` proposal (spec §6.3 step 4); that setter
+ * lands with the drain PR, so no `safeTxHash` writer is exposed yet by design.
  */
 
 import { consola } from 'consola'
@@ -378,19 +382,23 @@ export async function markSuperseded(
 }
 
 /**
- * Marks an open (`queued`/`proposed`) task `cancelled` — an operator explicitly
- * cancels (deprecation reverted, facet re-added, or a protected facet was queued
- * in error).
+ * Marks a `queued` task `cancelled` — an operator explicitly abandons the intent
+ * (deprecation reverted, facet re-added, or a protected facet was queued in
+ * error). Restricted to `queued`: a `proposed` task already has a live Safe
+ * removal proposal, and cancelling its record directly would orphan that proposal
+ * from its origin-PR linkage (the first-class requirement of spec §6). To abandon
+ * a claimed task, {@link revertToQueued} it first (which clears the proposal
+ * linkage), then cancel.
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The task to resolve.
- * @returns The updated task, or `null` if it was not open.
+ * @returns The updated task, or `null` if it was not `queued`.
  */
 export async function markCancelled(
   parkedTasks: Collection<IParkedTask>,
   taskKey: string
 ): Promise<WithId<IParkedTask> | null> {
-  return transition(parkedTasks, taskKey, OPEN_STATUSES, {
+  return transition(parkedTasks, taskKey, ['queued'], {
     status: 'cancelled',
     resolvedAt: new Date(),
   })

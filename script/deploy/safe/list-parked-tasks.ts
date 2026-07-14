@@ -89,10 +89,14 @@ const main = defineCommand({
     }
 
     const networks = args.network
-      ? args.network
-          .split(',')
-          .map((n: string) => n.trim().toLowerCase())
-          .filter(Boolean)
+      ? [
+          ...new Set(
+            args.network
+              .split(',')
+              .map((n: string) => n.trim().toLowerCase())
+              .filter(Boolean)
+          ),
+        ]
       : undefined
 
     // JSON consumers parse stdout; suppress info/success but keep errors visible

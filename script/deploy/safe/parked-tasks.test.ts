@@ -158,14 +158,21 @@ function createFakeCollection(
     },
     async findOneAndUpdate(
       filter: Filter<IParkedTask>,
-      update: UpdateFilter<IParkedTask>
+      update: UpdateFilter<IParkedTask>,
+      opts?: { returnDocument?: 'before' | 'after' }
     ): Promise<WithId<IParkedTask> | null> {
       const row = rows.find((r) => matchesFilter(r, filter))
       if (!row) return null
+      // Snapshot BEFORE mutating so the driver-default 'before' is honored — this
+      // is what forces production to pass returnDocument:'after' for the
+      // post-update assertions to hold.
+      const before = { ...row } as WithId<IParkedTask>
       Object.assign(row, update.$set ?? {})
       const record = row as unknown as Record<string, unknown>
       for (const field of Object.keys(update.$unset ?? {})) delete record[field]
-      return row as WithId<IParkedTask>
+      return opts?.returnDocument === 'after'
+        ? (row as WithId<IParkedTask>)
+        : before
     },
     async createIndex(spec: unknown, opts: unknown): Promise<string> {
       createIndexCalls.push({ spec, options: opts })
@@ -453,6 +460,12 @@ describe('status transitions', () => {
   it('markCancelled is a no-op (null) on a cancelled task', async () => {
     const coll = seedOne('cancelled')
     expect(await markCancelled(coll, KEY)).toBeNull()
+  })
+
+  it('markCancelled is a no-op (null) on a proposed task (avoids orphaning its proposal)', async () => {
+    const coll = seedOne('proposed')
+    expect(await markCancelled(coll, KEY)).toBeNull()
+    expect(coll.rows[0]?.status).toBe('proposed')
   })
 
   it('revertToQueued flips proposed→queued and clears proposedAt+safeTxHash', async () => {
