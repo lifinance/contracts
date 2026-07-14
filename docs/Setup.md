@@ -148,16 +148,34 @@ lifi-connect prod smart-contracts     # foreground; leave it running in its own 
 ```
 
 `lifi-connect` prints a **static** `localhost:<port>` for the `smart-contracts`
-MongoDB (the port is stable across sessions). Set `SC_MONGODB_URI` in your `.env`
-to that host, keeping the Mongo **credentials from your 1Password vault** (the
-tunnel provides the network path, not authentication):
+MongoDB (the port is stable across sessions) and the exact connection string to
+use. Set `SC_MONGODB_URI` in your `.env` to that host, keeping the Mongo
+**credentials from your 1Password vault** (the tunnel provides the network path,
+not authentication):
 
 ```text
-SC_MONGODB_URI="mongodb://<user>:<pass>@localhost:<port>/?<options>"
+SC_MONGODB_URI="mongodb://<user>:<pass>@localhost:<port>/?directConnection=true&tls=false"
 ```
 
-Run `lifi-connect list` to see every cluster and endpoint. The tunnel dies when
-your AWS SSO session expires — re-run `awslogin` and restart `lifi-connect`.
+`directConnection=true` is required: without it the driver tries to discover
+replica-set members by their in-cluster hostnames (which aren't tunneled) and
+fails with a server-selection timeout. `tls=false` because TLS terminates at the
+tunnel. Run `lifi-connect list` to see every cluster and endpoint.
+
+The tunnel dies when your AWS SSO session expires — re-run `awslogin` and restart
+`lifi-connect`.
+
+**Convenience wrapper.** To avoid starting the tunnel by hand each time, wrap any
+Safe/Mongo command — it ensures the tunnel is up (starting it if needed, then
+waiting for the port) before running:
+
+```bash
+bun run safe:tunnel                       # just ensure the tunnel, then exit
+bun run safe:tunnel bun confirm-safe-tx   # ensure the tunnel, then run the script
+```
+
+The wrapper never starts a production tunnel silently from inside a signing
+script — it's an explicit, opt-in convenience (see `script/deploy/safe/with-safe-tunnel.sh`).
 
 ### Agent access
 

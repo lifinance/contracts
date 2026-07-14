@@ -73,6 +73,7 @@
     "codegen": "plop",
     "compile": "forge build",
     "confirm-safe-tx": "bun build:typechain-and-abi && bunx tsx ./script/deploy/safe/confirm-safe-tx.ts",
+    "safe:tunnel": "bash script/deploy/safe/with-safe-tunnel.sh",
     "deploy-safe": "bunx tsx ./script/deploy/safe/deploy-safe.ts",
     "coverage": "rm -rf coverage && rm -f lcov-filtered.info && rm -f lcov.info && forge coverage --report lcov --evm-version 'cancun' --ir-minimum && bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/' && genhtml lcov-filtered.info --ignore-errors inconsistent,corrupt --branch-coverage --output-dir coverage && open coverage/index.html",
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
