@@ -8,6 +8,7 @@ import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFacto
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
@@ -33,7 +34,7 @@ contract BeaconUpgradeTest is Test {
     address internal onboarder = makeAddr("onboarder");
     address internal lifiRecipient = makeAddr("lifiRecipient");
     address internal vaultAdmin = makeAddr("vaultAdmin");
-    address internal assetToken = makeAddr("asset");
+    address internal assetToken = address(new MockERC20("Asset", "AST", 18));
     bytes32 internal constant NS = bytes32("Coinbase");
 
     function setUp() public virtual {
@@ -80,7 +81,7 @@ contract BeaconUpgradeTest is Test {
 
     function test_CloneDelegatesToCurrentImpl() public {
         address clone = _deployClone(0);
-        assertEq(LiFiVaultWrapper(clone).name(), "LI.FI Earn VW");
+        assertEq(LiFiVaultWrapper(clone).name(), "LI.FI Earn AST");
         assertEq(beacon.implementation(), address(implV1));
     }
 

@@ -193,6 +193,28 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertEq(wrapper6.decimals(), 18);
     }
 
+    function testRevert_InitializeWithUnreadableAssetDecimals() public {
+        // OZ's ERC-4626 init silently substitutes 18 when the asset's decimals() reverts
+        // or returns an out-of-range value; sizing the virtual-share offset off that
+        // fallback would quietly weaken inflation protection. Both malformed cases must
+        // be rejected at initialization instead.
+        bytes memory revertingInit = _initCallFor(
+            address(new AssetOnlyVault(address(new RevertingDecimalsToken())))
+        );
+
+        vm.expectRevert(ILiFiVaultWrapper.AssetDecimalsUnavailable.selector);
+
+        new BeaconProxy(address(beacon), revertingInit);
+
+        bytes memory oversizedInit = _initCallFor(
+            address(new AssetOnlyVault(address(new OversizedDecimalsToken())))
+        );
+
+        vm.expectRevert(ILiFiVaultWrapper.AssetDecimalsUnavailable.selector);
+
+        new BeaconProxy(address(beacon), oversizedInit);
+    }
+
     function test_DonationCannotBlockDepositLargerThanItself() public {
         // Regression for the dust-donation launch DoS: with the minimum offset the
         // asset barrier a donation imposes is at most 1x the donation, so a deposit
@@ -439,5 +461,57 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         w = LiFiVaultWrapper(
             address(new BeaconProxy(address(beacon), initCall))
         );
+    }
+
+    function _initCallFor(
+        address _underlying
+    ) internal view returns (bytes memory) {
+        FeeConfig memory fees;
+
+        return
+            abi.encodeCall(
+                LiFiVaultWrapper.initialize,
+                (
+                    _underlying,
+                    address(adapter),
+                    vaultAdmin,
+                    [SPLIT, SPLIT, SPLIT, SPLIT],
+                    fees,
+                    defaultReceivers(),
+                    address(0)
+                )
+            );
+    }
+}
+
+/// @dev Asset stub whose decimals() reverts, forcing OZ's ERC-4626 init onto its 18
+///      fallback.
+contract RevertingDecimalsToken {
+    error NoDecimals();
+
+    function decimals() external pure returns (uint8) {
+        revert NoDecimals();
+    }
+}
+
+/// @dev Asset stub whose decimals() returns an out-of-range value, which OZ treats as a
+///      failed read and replaces with 18.
+contract OversizedDecimalsToken {
+    function decimals() external pure returns (uint256) {
+        return 300;
+    }
+}
+
+/// @dev Minimal ERC-4626-shaped underlying exposing only asset(), so the wrapper resolves
+///      the malformed token without the source vault reading its decimals at construction.
+contract AssetOnlyVault {
+    address private immutable ASSET;
+
+    constructor(address _asset) {
+        ASSET = _asset;
+    }
+
+    function asset() external view returns (address) {
+        return ASSET;
     }
 }

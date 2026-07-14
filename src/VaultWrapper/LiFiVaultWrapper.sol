@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -236,10 +237,12 @@ contract LiFiVaultWrapper is
         if (asset == address(0)) revert ZeroAddress();
 
         _initErc4626Metadata(asset);
-        // decimals() is the raw asset decimals at this point (the stored offset is
-        // still 0); the offset must be written before anything consumes
+        // Read the asset's decimals directly, not through decimals(): OZ's ERC-4626 init
+        // silently substitutes 18 when the token's decimals() is unreadable, and sizing
+        // the offset off that fallback would quietly weaken inflation protection for a
+        // low-decimal asset. The offset must be written before anything consumes
         // _decimalsOffset() — the watermark anchor below prices through it.
-        uint8 assetDecimals = decimals();
+        uint8 assetDecimals = _readAssetDecimals(asset);
         uint8 derivedOffset = assetDecimals < TARGET_SHARE_DECIMALS
             ? TARGET_SHARE_DECIMALS - assetDecimals
             : 0;
@@ -272,6 +275,23 @@ contract LiFiVaultWrapper is
             string.concat("lf", assetSymbol)
         );
         __ERC4626_init(IERC20(_asset));
+    }
+
+    /// @dev Reads the asset's ERC-20 decimals via an explicit staticcall and reverts if the
+    ///      token does not expose a well-formed `decimals()`. Mirrors OZ's own detection
+    ///      (`success && length >= 32 && value <= type(uint8).max`) but rejects the asset
+    ///      instead of falling back to 18, so the virtual-share offset is never sized off a
+    ///      fabricated decimals value.
+    function _readAssetDecimals(address _asset) private view returns (uint8) {
+        (bool ok, bytes memory data) = _asset.staticcall(
+            abi.encodeCall(IERC20Metadata.decimals, ())
+        );
+        if (!ok || data.length < 32) revert AssetDecimalsUnavailable();
+
+        uint256 decoded = abi.decode(data, (uint256));
+        if (decoded > type(uint8).max) revert AssetDecimalsUnavailable();
+
+        return uint8(decoded);
     }
 
     /// @notice Whether the instance has been initialized.

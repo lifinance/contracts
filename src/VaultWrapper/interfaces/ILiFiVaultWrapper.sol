@@ -120,9 +120,12 @@ interface ILiFiVaultWrapper {
     /// @notice Thrown by the EIP-5143 slippage-guarded entrypoints when the realized
     ///         amount crosses the caller's bound (below a minimum, or above a maximum).
     error SlippageExceeded(uint256 actual, uint256 bound);
-    /// @notice Thrown when a deposit or mint would leave the total share supply above
-    ///         zero but below the minimum supply floor.
+    /// @notice Thrown when a deposit or mint would leave the total share supply below the
+    ///         minimum supply floor (a post-operation supply of exactly zero included).
     error SupplyBelowMinimum(uint256 supply, uint256 minSupply);
+    /// @notice Thrown at initialization when the asset's ERC-20 decimals() cannot be read
+    ///         as a well-formed uint8, so the virtual-share offset cannot be sized safely.
+    error AssetDecimalsUnavailable();
 
     /// Functions ///
 
