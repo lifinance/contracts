@@ -161,27 +161,7 @@ your AWS SSO session expires — re-run `awslogin` and restart `lifi-connect`.
 
 ### Agent access
 
-An automated agent (e.g. Claude Code) shares the same underlying tooling but
-**cannot perform the interactive steps** — those stay with the human at the
-keyboard. Concretely:
-
-| Step | Who | Why |
-|---|---|---|
-| Browser-based Okta SSO (`generate-aws-config.sh`, `awslogin`) | **Human** | Requires an interactive browser + MFA the agent can't drive |
-| Mongo credentials for `SC_MONGODB_URI` | **Human** | Live in 1Password; agents must not access 1Password |
-| Opening a **production** tunnel (`lifi-connect prod …`) | **Human** | Persistent prod channel — gated behind explicit human approval |
-| Installing CLIs, running `generate-kubeconfig.sh`, editing repo files | Agent OK | Non-interactive, no secrets |
-
-Notes for agents running commands through a non-interactive shell:
-
-- **Shell aliases don't exist** in a non-interactive shell. Use the full command,
-  not the alias: `aws sso login --sso-session LIFI` (there is no `awslogin`).
-- **PATH is not the login shell's.** Prepend the tool locations explicitly:
-  `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"`
-  (`~/.local/bin` is where `lifi-connect` installs).
-- **Assume the human has already authenticated and started the tunnel.** If a
-  Safe/Mongo script fails, it throws an actionable error naming
-  `lifi-connect prod smart-contracts` — surface that to the human rather than
-  attempting the browser login or opening the prod tunnel yourself.
-- **Never** read `.env` secret values, invoke the 1Password `op` CLI, or write
-  the resolved `SC_MONGODB_URI` back into the repo.
+Running an automated agent (Claude Code, Cursor, etc.) against this repo? The
+agent-specific guidance — what an agent must **not** do, and how commands differ
+in a non-interactive shell — is in **[Setup-agents.md](Setup-agents.md)**. The
+steps above are the human path.
