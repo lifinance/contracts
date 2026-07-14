@@ -14,7 +14,7 @@ import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapper
 import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice A blacklisting ERC20: `transfer` reverts to any blocked address (mirrors USDC).
-///         Used to exercise the distributeFees redirect-failed-integrator-payout-to-LI.FI path.
+///         Used to exercise the distributeFees retain-failed-integrator-payout-in-wrapper path.
 contract BlacklistERC20 is MockERC20 {
     mapping(address => bool) public blocked;
 
@@ -39,7 +39,7 @@ contract BlacklistERC20 is MockERC20 {
 ///         receiver config, the permissionless `distributeFees` paying out the per-recipient
 ///         counters booked at accrual (no re-split at distribution) over both fee pools (idle
 ///         asset + dilution shares), the 1..50 wallet fan-out with last-receiver remainder, and the
-///         redirect-failed-integrator-payout-to-LI.FI behaviour. Fees are driven through real
+///         retain-failed-integrator-payout-in-wrapper behaviour. Fees are driven through real
 ///         deposit/withdraw/time accrual (the S2 engine), not seeded directly. Pause-bypass
 ///         coverage is deferred to S5 integration.
 contract VaultWrapperDistributionTest is Test {
@@ -69,7 +69,7 @@ contract VaultWrapperDistributionTest is Test {
         uint256 lifiAmount,
         uint256 integratorAmount
     );
-    event IntegratorPayoutRedirected(
+    event IntegratorPayoutRetained(
         address indexed receiver,
         address indexed token,
         uint256 amount
@@ -337,7 +337,7 @@ contract VaultWrapperDistributionTest is Test {
 
     /// Fee distribution — robustness ///
 
-    function test_DistributeFeesRedirectsFailedIntegratorTransferToLifi()
+    function test_DistributeFeesRetainsFailedIntegratorTransferInWrapper()
         public
     {
         // Rebuild the stack on a blacklisting asset so a blocked integrator wallet reverts.
@@ -346,29 +346,36 @@ contract VaultWrapperDistributionTest is Test {
         wrapper = _deploy(_assetFees(), SPLIT, _single(blocked), _full());
         _deposit(alice, DEPOSIT);
 
-        uint256 fee = _accruedFeeAssets();
+        uint256 lifiPart = wrapper.lifiFeeAssets();
         uint256 integratorPart = wrapper.integratorFeeAssets();
         BlacklistERC20(address(asset)).setBlocked(blocked, true);
 
         vm.expectEmit(true, true, false, true, address(wrapper));
-        emit IntegratorPayoutRedirected(
-            blocked,
-            address(asset),
-            integratorPart
-        );
+        emit IntegratorPayoutRetained(blocked, address(asset), integratorPart);
+
         wrapper.distributeFees(); // must not revert
 
-        // Blocked wallet got nothing; its share was redirected to LI.FI on top of LI.FI's part.
+        // Blocked wallet got nothing; LI.FI got only its own part; the integrator's share is
+        // left in the wrapper, re-booked as still-owed integrator fees (not redirected to LI.FI).
         assertEq(asset.balanceOf(blocked), 0);
-        assertEq(asset.balanceOf(lifiRecipient), fee);
+        assertEq(asset.balanceOf(lifiRecipient), lifiPart);
+        assertEq(wrapper.integratorFeeAssets(), integratorPart);
+        assertEq(wrapper.lifiFeeAssets(), 0);
+
+        // Integrator rotates to a working wallet and re-sweeps — the retained fees are claimed.
+        address fresh = makeAddr("fresh");
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorFeeReceivers(_receivers(_single(fresh), _full()));
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(fresh), integratorPart);
         assertEq(_accruedFeeAssets(), 0);
     }
 
-    function test_DistributeFeesRedirectsOnlyFailedWalletWithinFanOut()
-        public
-    {
-        // A single blocked wallet inside a multi-wallet fan-out redirects only its own share
-        // to LI.FI; the other wallets are still paid in full and distributeFees does not revert.
+    function test_DistributeFeesRetainsOnlyFailedWalletWithinFanOut() public {
+        // A single blocked wallet inside a multi-wallet fan-out leaves only its own share in
+        // the wrapper; the other wallets are still paid in full and distributeFees does not revert.
         _useBlacklistAsset();
         address[] memory wallets = _wallets3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, _bps3()); // 50% / 30% / 20%
@@ -384,14 +391,32 @@ contract VaultWrapperDistributionTest is Test {
         BlacklistERC20(address(asset)).setBlocked(wallets[1], true);
 
         vm.expectEmit(true, true, false, true, address(wrapper));
-        emit IntegratorPayoutRedirected(wallets[1], address(asset), share1);
+        emit IntegratorPayoutRetained(wallets[1], address(asset), share1);
+
         wrapper.distributeFees(); // must not revert
 
         assertEq(asset.balanceOf(wallets[0]), share0);
         assertEq(asset.balanceOf(wallets[1]), 0); // blocked: got nothing
         assertEq(asset.balanceOf(wallets[2]), share2);
-        // LI.FI receives its booked part plus only the blocked wallet's redirected share.
-        assertEq(asset.balanceOf(lifiRecipient), lifiPart + share1);
+        // LI.FI receives only its booked part; the blocked wallet's share stays in the wrapper.
+        assertEq(asset.balanceOf(lifiRecipient), lifiPart);
+        assertEq(wrapper.integratorFeeAssets(), share1);
+        assertEq(wrapper.lifiFeeAssets(), 0);
+
+        // Once the wallet is un-blacklisted, a re-sweep drains the retained pool. Retained fees
+        // carry no per-wallet memory, so the pool is re-fanned across the current receiver set
+        // (not handed back to the originally-failed wallet); the integrator's total is paid out.
+        BlacklistERC20(address(asset)).setBlocked(wallets[1], false);
+
+        wrapper.distributeFees();
+
+        assertEq(
+            asset.balanceOf(wallets[0]) +
+                asset.balanceOf(wallets[1]) +
+                asset.balanceOf(wallets[2]),
+            integratorPart
+        );
+        assertGt(asset.balanceOf(wallets[1]), 0);
         assertEq(_accruedFeeAssets(), 0);
     }
 
