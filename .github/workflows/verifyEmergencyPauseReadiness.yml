@@ -16,9 +16,10 @@
 #   (6) token owner is an active member of the lifinance/diamondpauser gate team. Fails (not
 #   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
-#   wallet can afford pauseDiamond() on every production EVM chain, and reports the native TOP-UP
-#   needed to reach OK. A CRITICAL network (cannot fund a single pause) — or a fully-blind sweep where
-#   every network errors — fails the run and shows as a red cross in the consolidated Slack status.
+#   wallet can afford pauseDiamond() on every production EVM chain, and reports the TOP-UP needed to
+#   reach OK — in the chain's native/gas asset, or in its fee token on chains with no native currency
+#   (e.g. tempo pays gas in pathUSD). A CRITICAL network (cannot fund a single pause) — or a fully-blind
+#   sweep where every network errors — fails the run and shows as a red cross in the consolidated Slack status.
 #   Skipped on PRs: funding is live operational state, independent of the code under review.
 # - GitHub secrets are write-only and on-chain pauser drift is invisible until the pause
 #   is triggered; this turns both latent failures into a scheduled, loud one.

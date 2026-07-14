@@ -14,6 +14,8 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 
 It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
 
+See also: `rotate-pauser-wallet` calls this skill to redeploy `EmergencyPauseFacet` with the new pauser when rotating the pauser wallet.
+
 ## When to use this vs multisig-rollout
 
 | Situation | Skill |
@@ -126,7 +128,7 @@ and landing it shouldn't be a manual afterthought.
    all of them. If the output is empty (idempotent re-deploy — same CREATE3
    address, version already registered), there's nothing to land; skip.
 
-2. Delegate the branch / commit / template / `/pr-ready` / push / create mechanic
+2. Delegate the branch / commit / template / push / create mechanic
    to `/create-pr`, passing:
    - **files to stage**: exactly the paths from step 1.
    - **body** (the "Why"): contract, version (old → new per network), network

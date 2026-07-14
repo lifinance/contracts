@@ -15,6 +15,8 @@ Both modes converge on the same tail: capture proposals → (deploy mode only) d
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
+See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboard-sc-dev` drive this skill to propose Safe owner / CANCELLER-role swaps.
+
 ## Hard rails
 
 - **Never run `confirm-safe-tx.ts` yourself.** Signing uses the user's hardware wallet; only the human can do it. Your job ends at giving the exact command.
@@ -113,7 +115,7 @@ The deploy updated `deployments/<net>.json` (and staging logs if staging was dep
 
 1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 1's allowlist sync, push. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
 2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 1 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
-3. Run `/pr-ready` before `gh pr create --draft` (the pre-PR gate enforces it).
+3. `gh pr create --draft`.
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
 

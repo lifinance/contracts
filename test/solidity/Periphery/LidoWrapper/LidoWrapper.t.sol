@@ -1,6 +1,7 @@
-// solhint-disable
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
+
+// solhint-disable
 
 import { LidoWrapper, IStETH } from "lifi/Periphery/LidoWrapper.sol";
 import { TestBase } from "../../utils/TestBase.sol";

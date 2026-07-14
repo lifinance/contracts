@@ -1,0 +1,1 @@
+../../../.agents/commands/update-wallet-config.md
