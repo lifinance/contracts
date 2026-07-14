@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { ECDSA } from "solady/utils/ECDSA.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ISymbiosisMetaRouter } from "../Interfaces/ISymbiosisMetaRouter.sol";
 import { IOnchainSwapV3 } from "../Interfaces/IOnchainSwapV3.sol";
@@ -13,7 +14,17 @@ import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMR
 
 /// @title Symbiosis Facet
 /// @author Symbiosis (https://symbiosis.finance)
-/// @notice Provides functionality for bridging through Symbiosis Protocol
+/// @notice Provides functionality for bridging through Symbiosis Protocol.
+/// @notice The OnchainSwapV3 (syBTC -> Bitcoin) path forwards caller-supplied
+///         `dex`/`dexgateway`/`onchainSwapData` into a trusted router. Because
+///         the final Bitcoin receiver and that calldata cannot be validated
+///         on-chain, this path additionally requires an EIP-712 backend
+///         signature (see `_verifyOnchainSwapV3Signature`) binding those fields;
+///         only backend-blessed quotes can execute. The MetaRouter path is
+///         unchanged and requires no signature.
+/// @notice This contract is not intended to custody user funds / hold balances;
+///         any funds held are incidental (transient during a bridge tx) and
+///         should not persist.
 /// @custom:version 2.0.0
 contract SymbiosisFacet is
     ILiFi,
@@ -22,6 +33,16 @@ contract SymbiosisFacet is
     Validatable,
     LiFiData
 {
+    /// Constants ///
+
+    /// @notice Namespace for this facet's diamond storage
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.symbiosis");
+
+    // EIP-712 typehash for SymbiosisPayload: keccak256("SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline)");
+    bytes32 private constant SYMBIOSIS_PAYLOAD_TYPEHASH =
+        0xcbef770661caade0f9a99582437a7cf8b10673b081ad0a3d8c9c61e5600c0e0d;
+
     /// Storage ///
 
     /// @notice The contract address of the Symbiosis MetaRouter on the source chain
@@ -36,11 +57,26 @@ contract SymbiosisFacet is
     /// @notice The gateway the OnchainSwapV3 router pulls funds through (approve target)
     // solhint-disable-next-line immutable-vars-naming
     address private immutable onchainSwapV3Gateway;
+    /// @notice The backend signer authorized to sign the OnchainSwapV3 payload
+    // solhint-disable-next-line immutable-vars-naming
+    address private immutable backendSigner;
+
+    /// @notice Diamond storage for the OnchainSwapV3 path (replay protection)
+    struct Storage {
+        /// @dev Tracks used transaction IDs to prevent signature replay
+        mapping(bytes32 => bool) usedTransactionIds;
+    }
 
     /// Errors ///
 
     /// @notice Thrown when the OnchainSwapV3 path is requested on a chain where it is not configured
     error OnchainSwapV3NotSupported();
+    /// @notice Thrown when the backend signature is invalid
+    error InvalidSignature();
+    /// @notice Thrown when the backend signature has expired
+    error SignatureExpired();
+    /// @notice Thrown when a transaction ID has already been processed on the OnchainSwapV3 path
+    error TransactionAlreadyProcessed();
 
     /// Types ///
 
@@ -58,6 +94,8 @@ contract SymbiosisFacet is
     /// @param dex The DEX router for the OnchainSwapV3 input-token -> syBTC swap
     /// @param dexgateway The spender the DEX is approved through for that swap
     /// @param onchainSwapData The Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn
+    /// @param deadline OnchainSwapV3 only: expiry of the backend signature
+    /// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload
     struct SymbiosisData {
         bytes32 nonEvmReceiver;
         bytes firstSwapCalldata;
@@ -72,6 +110,8 @@ contract SymbiosisFacet is
         address dex;
         address dexgateway;
         bytes onchainSwapData;
+        uint256 deadline;
+        bytes signature;
     }
 
     /// Constructor ///
@@ -81,15 +121,18 @@ contract SymbiosisFacet is
     /// @param _symbiosisGateway The contract address of the Symbiosis Gateway on the source chain.
     /// @param _onchainSwapV3 The Symbiosis OnchainSwapV3 router (address(0) if unsupported on this chain).
     /// @param _onchainSwapV3Gateway The gateway the OnchainSwapV3 router pulls funds through.
+    /// @param _backendSigner The backend signer authorized to sign the OnchainSwapV3 payload.
     constructor(
         ISymbiosisMetaRouter _symbiosisMetaRouter,
         address _symbiosisGateway,
         IOnchainSwapV3 _onchainSwapV3,
-        address _onchainSwapV3Gateway
+        address _onchainSwapV3Gateway,
+        address _backendSigner
     ) {
         if (
             address(_symbiosisMetaRouter) == address(0) ||
-            _symbiosisGateway == address(0)
+            _symbiosisGateway == address(0) ||
+            _backendSigner == address(0)
         ) revert InvalidConfig();
 
         // Router and its gateway must be configured together: a router with a
@@ -108,6 +151,7 @@ contract SymbiosisFacet is
         symbiosisGateway = _symbiosisGateway;
         onchainSwapV3 = _onchainSwapV3;
         onchainSwapV3Gateway = _onchainSwapV3Gateway;
+        backendSigner = _backendSigner;
     }
 
     /// External Methods ///
@@ -218,7 +262,10 @@ contract SymbiosisFacet is
     ///      The router swaps the input token to syBTC (optional) and burns it to release BTC.
     ///      A wrong `viaOnchainSwapV3` flag can only revert here, never misdirect funds:
     ///      the destination must be Bitcoin, the router must be configured, and a
-    ///      non-EVM receiver must be supplied.
+    ///      non-EVM receiver must be supplied. `dex`/`dexgateway`/`onchainSwapData`
+    ///      are caller-supplied and forwarded into the trusted router, so they are
+    ///      additionally gated by an EIP-712 backend signature: only backend-blessed
+    ///      quotes can execute, and each transaction ID is single-use (replay-proof).
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function _startBridgeViaOnchainSwapV3(
@@ -233,6 +280,15 @@ contract SymbiosisFacet is
         if (_symbiosisData.nonEvmReceiver == bytes32(0))
             revert InvalidNonEVMReceiver();
 
+        _verifyOnchainSwapV3Signature(_bridgeData, _symbiosisData);
+
+        // Replay protection (CEI): mark this transaction ID used before the
+        // external onswap call so a backend-signed quote executes at most once.
+        Storage storage s = getStorage();
+        if (s.usedTransactionIds[_bridgeData.transactionId])
+            revert TransactionAlreadyProcessed();
+        s.usedTransactionIds[_bridgeData.transactionId] = true;
+
         uint256 nativeAssetAmount;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
@@ -245,24 +301,6 @@ contract SymbiosisFacet is
             );
         }
 
-        // ============================================================
-        // OPEN SECURITY QUESTION FOR REVIEWERS (EXSC-267) - DO NOT MERGE
-        // WITHOUT A DECISION
-        // ------------------------------------------------------------
-        // `dex`, `dexgateway` and `onchainSwapData` are CALLER-SUPPLIED and
-        // forwarded into the trusted OnchainSwapV3 router below. The diamond
-        // never calls them directly and holds no standing balances, so only
-        // this transaction's `minAmount` is ever at risk (not a diamond drain)
-        // - but there is NO on-chain guarantee this calldata originated from
-        // the LI.FI backend, so a malicious / phished quote could still make
-        // the router misroute the user's in-flight funds.
-        //
-        // QUESTION: should we lock this path down with an EIP-712 backend
-        // signature (like `UnitFacet` / `NEARIntentsFacet`, reusing
-        // `config/global.json .backendSigner`) so only backend-blessed
-        // dex/dexgateway/onchainSwapData can execute? Options + tradeoffs are
-        // written up in the PR reviewer notes. Deferred pending reviewer call.
-        // ============================================================
         onchainSwapV3.onswap{ value: nativeAssetAmount }(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
@@ -278,5 +316,69 @@ contract SymbiosisFacet is
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Verifies the EIP-712 backend signature for the OnchainSwapV3 path.
+    ///      Binds the caller-supplied router calldata (`dex`/`dexgateway`/
+    ///      hash of `onchainSwapData`) and the Bitcoin receiver/amount so a
+    ///      malicious or phished quote cannot misroute the user's in-flight funds.
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function _verifyOnchainSwapV3Signature(
+        ILiFi.BridgeData memory _bridgeData,
+        SymbiosisData calldata _symbiosisData
+    ) private view {
+        if (block.timestamp > _symbiosisData.deadline)
+            revert SignatureExpired();
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                SYMBIOSIS_PAYLOAD_TYPEHASH,
+                _bridgeData.transactionId,
+                _bridgeData.minAmount,
+                _bridgeData.sendingAssetId,
+                _bridgeData.destinationChainId,
+                _symbiosisData.nonEvmReceiver,
+                _symbiosisData.dex,
+                _symbiosisData.dexgateway,
+                keccak256(_symbiosisData.onchainSwapData),
+                _symbiosisData.deadline
+            )
+        );
+
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
+        );
+
+        if (ECDSA.recover(digest, _symbiosisData.signature) != backendSigner)
+            revert InvalidSignature();
+    }
+
+    /// @notice Returns the EIP-712 domain separator.
+    /// @dev Calculated on the fly so `address(this)` always resolves to the
+    ///      diamond's address when the facet runs via delegatecall.
+    /// @return The EIP-712 domain separator.
+    function _domainSeparator() private view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI Symbiosis Facet")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(this)
+                )
+            );
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

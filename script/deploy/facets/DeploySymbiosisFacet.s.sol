@@ -43,12 +43,29 @@ contract DeployScript is DeployScriptBase {
             false
         );
 
+        // backend signer gates the OnchainSwapV3 (syBTC -> Bitcoin) path
+        string memory globalJson = vm.readFile(
+            string.concat(root, "/config/global.json")
+        );
+        address backendSigner;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            backendSigner = globalJson.readAddress(".backendSigner.staging");
+        } else {
+            backendSigner = globalJson.readAddress(
+                ".backendSigner.production"
+            );
+        }
+
         return
             abi.encode(
                 metaRouter,
                 gateway,
                 onchainSwapV3,
-                onchainSwapV3Gateway
+                onchainSwapV3Gateway,
+                backendSigner
             );
     }
 }

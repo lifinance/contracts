@@ -13,6 +13,20 @@ When it is set, the facet requires the destination to be Bitcoin and the Onchain
 router to be configured on the source chain, so a wrongly-set flag reverts rather than
 misdirecting funds.
 
+### Trust assumption on the OnchainSwapV3 path
+
+On the OnchainSwapV3 path the final Bitcoin receiver lives in `nonEvmReceiver`, and
+`dex` / `dexgateway` / `onchainSwapData` are **caller-supplied** and forwarded into the
+trusted OnchainSwapV3 router. These cannot be validated purely on-chain against
+`bridgeData.receiver`, so the path is gated by an **EIP-712 backend signature**: the LI.FI
+backend signs a payload binding `transactionId`, `minAmount`, `sendingAssetId`,
+`destinationChainId`, `nonEvmReceiver`, `dex`, `dexgateway`, `keccak256(onchainSwapData)`
+and `deadline`, and the facet verifies it against the configured `backendSigner`
+(`config/global.json .backendSigner`). Each `transactionId` is single-use (replay-proof),
+and expired signatures revert. Integrators must therefore obtain the `signature` and
+`deadline` from the LI.FI backend for this path — a self-constructed OnchainSwapV3 call
+cannot pass verification. The MetaRouter path carries no signature and is unchanged.
+
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->SymbiosisFacet;
@@ -41,12 +55,15 @@ Some methods listed above take a variable labeled `_symbiosisData`. This data is
 /// @param callTo the bridging entrypoint / relayRecipient (MetaRouter path).
 /// @param callData the bridging calldata / otherSideCalldata (MetaRouter path).
 /// @param viaOnchainSwapV3 when true, route via the OnchainSwapV3 router (syBTC -> Bitcoin) instead of the MetaRouter.
+/// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 /// @param dex the DEX router for the OnchainSwapV3 input-token -> syBTC swap.
 /// @param dexgateway the spender the DEX is approved through for that swap.
 /// @param onchainSwapData the Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn.
-/// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
+/// @param deadline OnchainSwapV3 only: expiry of the backend signature.
+/// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload.
 
 struct SymbiosisData {
+  bytes32 nonEvmReceiver;
   bytes firstSwapCalldata;
   bytes secondSwapCalldata;
   address intermediateToken;
@@ -59,7 +76,8 @@ struct SymbiosisData {
   address dex;
   address dexgateway;
   bytes onchainSwapData;
-  bytes32 nonEvmReceiver;
+  uint256 deadline;
+  bytes signature;
 }
 ```
 

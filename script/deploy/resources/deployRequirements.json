@@ -526,6 +526,11 @@
         "configFileName": "symbiosis.json",
         "keyInConfigFile": ".<NETWORK>.onchainSwapV3Gateway",
         "allowToDeployWithZeroAddress": "true"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   },
