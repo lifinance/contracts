@@ -1,4 +1,4 @@
-# Accessing LI.FI Resources (Safe MongoDB & deploy infra)
+# Setup — Accessing LI.FI Resources (Safe MongoDB & deploy infra)
 
 Deploy and Safe tooling in this repo reads and writes LI.FI infrastructure —
 most importantly the **Safe proposal MongoDB** (`sc_private.pendingTransactions`,
