@@ -41,7 +41,9 @@ Read the thread. Extract:
   `<N>x whitelist sync — …` → whitelist mode. Neither → stop and ask.
 - **Networks** from the reply's `Safe proposals live on:` bullets (ignore trailing
   `(nonce N)` annotations).
-- **PR URL** from the reply (`PR with deployed addresses:` / `Whitelist PR:`).
+- **PR URL** from the reply (`PR with deployed addresses:` / `Whitelist PR:`). A thread posted by
+  `multisig-rollout` always carries this link; if it's absent (thread posted by hand, or edited),
+  stop and ask the user for the rollout PR URL rather than guessing from recent merges.
 - **Parent `ts`** for the reaction, thread `ts` for the reply.
 
 ## Phase 2 — Verification gate (all-or-nothing, op-level)
