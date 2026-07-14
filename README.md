@@ -192,6 +192,10 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
+5. (LI.FI developers) Set up access to internal resources — the Safe proposal
+   MongoDB and deploy infrastructure are reached through the `lifi-connect`
+   tunnel (AWS SSO). See [Accessing LI.FI Resources](docs/ResourceAccess.md).
+
 ### Cursor IDE Setup<a name="cursor-setup"></a>
 
 For optimal AI assistance in Cursor IDE:
