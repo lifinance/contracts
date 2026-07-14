@@ -11,7 +11,7 @@ import { InvalidCallData } from "../Errors/GenericErrors.sol";
 /// @title CalldataVerificationFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for verifying calldata
-/// @custom:version 1.3.2
+/// @custom:version 2.0.0
 contract CalldataVerificationFacet {
     using LibBytes for bytes;
 
@@ -100,24 +100,47 @@ contract CalldataVerificationFacet {
     }
 
     /// @notice Extracts the non-EVM address from the calldata
+    /// @dev Only supports facets whose bridge-specific data struct is
+    ///      dynamically encoded (contains at least one dynamic field) and has
+    ///      the bytes32 non-EVM receiver as its first field (e.g. Mayan,
+    ///      NEARIntents, AcrossV4). For facets that don't match this layout
+    ///      (e.g. Chainflip, Eco, DeBridgeDln, Garden, Glacis, AllBridge,
+    ///      PolymerCCTP) the returned value is undefined or the call reverts.
     /// @param data The calldata to extract the non-EVM address from
     /// @return nonEVMAddress The non-EVM address extracted from the calldata
     function extractNonEVMAddress(
         bytes calldata data
     ) external pure returns (bytes32 nonEVMAddress) {
         bytes memory callData = data;
+        bool hasSourceSwaps = _extractBridgeData(data).hasSourceSwaps;
 
-        // Non-EVM address is always the first parameter of bridge specific data
-        if (_extractBridgeData(data).hasSourceSwaps) {
+        // The bridge-specific data struct sits behind an ABI head-slot offset
+        // and starts with the bytes32 non-EVM receiver (see @dev above).
+        // `offset` below is read directly out of calldata and is not validated by
+        // the BridgeData decode above (which only covers its own struct region),
+        // so a crafted/corrupted offset could otherwise point outside `callData`
+        // and silently yield a garbage/zero address instead of reverting.
+        uint256 offset;
+        if (hasSourceSwaps) {
             assembly {
-                let offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+                offset := mload(add(callData, 0x64)) // Get the offset of the bridge specific data
             }
         } else {
             assembly {
-                let offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
-                nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
+                offset := mload(add(callData, 0x44)) // Get the offset of the bridge specific data
             }
+        }
+
+        // `offset` is relative to the start of the parameters (i.e. right after
+        // the 4-byte function selector); the non-EVM address occupies the 32
+        // bytes at `offset + 0x24`, so the buffer must reach at least that far.
+        // Subtraction-based guard so attacker-controlled offsets near 2^256
+        // hit InvalidCallData instead of an arithmetic overflow panic.
+        if (callData.length < 0x24 || offset > callData.length - 0x24)
+            revert InvalidCallData();
+
+        assembly {
+            nonEVMAddress := mload(add(callData, add(offset, 0x24))) // Get the non-EVM address
         }
     }
 
@@ -141,7 +164,7 @@ contract CalldataVerificationFacet {
             uint256 receivingAmount
         )
     {
-        // valid callData for a genericSwap call should have at least 484 bytes:
+        // valid callData for a genericSwap call should have more than 484 bytes:
         // Function selector: 4 bytes
         // _transactionId: 32 bytes
         // _integrator: 64 bytes
