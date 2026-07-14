@@ -172,7 +172,7 @@ Safe proposals live on:
 
 ## Phase 9 — Report
 
-Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay).
+Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay — once they have, finish with `/finish-rollout <thread link>`).
 
 ## Failure modes
 
