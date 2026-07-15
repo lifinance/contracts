@@ -49,9 +49,9 @@ contract LayerSwapFacetTest is TestBaseFacet {
     address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
 
     // EIP-712 typehash (must match the facet constant)
-    // keccak256("LayerSwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,bytes32 requestId,address depositoryReceiver,bytes32 nonEVMReceiver,uint256 destinationChainId,address sendingAssetId,uint256 deadline)")
+    // keccak256("LayerSwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,bytes32 requestId,address depositoryReceiver,address refundRecipient,bytes32 nonEVMReceiver,uint256 destinationChainId,address sendingAssetId,uint256 deadline)")
     bytes32 internal constant LAYERSWAP_PAYLOAD_TYPEHASH =
-        0x36f801a910846003d851067e2763fa7696d5d9e7de9f98805c0ebdcaca4e87c2;
+        0x3368de299775fb99a682a6178a8d9bdc9a7c2b4f1344f296730f79168d578335;
 
     struct LayerSwapPayload {
         bytes32 transactionId;
@@ -59,6 +59,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         address receiver;
         bytes32 requestId;
         address depositoryReceiver;
+        address refundRecipient;
         bytes32 nonEVMReceiver;
         uint256 destinationChainId;
         address sendingAssetId;
@@ -719,6 +720,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             bridgeData,
             validLayerSwapData.requestId,
             validLayerSwapData.depositoryReceiver,
+            validLayerSwapData.refundRecipient,
             validLayerSwapData.nonEVMReceiver,
             validLayerSwapData.deadline
         );
@@ -732,6 +734,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             .LayerSwapData({
                 requestId: validLayerSwapData.requestId,
                 depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: validLayerSwapData.refundRecipient,
                 nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
                 signature: wrongSignature,
                 deadline: validLayerSwapData.deadline
@@ -754,6 +757,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             bridgeData,
             keccak256("testRequestId-expired"),
             depositoryReceiver,
+            USER_REFUND,
             bytes32(0),
             expiredDeadline
         );
@@ -767,6 +771,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             .LayerSwapData({
                 requestId: keccak256("testRequestId-expired"),
                 depositoryReceiver: depositoryReceiver,
+                refundRecipient: USER_REFUND,
                 nonEVMReceiver: bytes32(0),
                 signature: signature,
                 deadline: expiredDeadline
@@ -901,6 +906,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             .LayerSwapData({
                 requestId: keccak256("tamperedRequestId"),
                 depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: validLayerSwapData.refundRecipient,
                 nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
                 signature: validLayerSwapData.signature,
                 deadline: validLayerSwapData.deadline
@@ -940,6 +946,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             .LayerSwapData({
                 requestId: signedData.requestId,
                 depositoryReceiver: signedData.depositoryReceiver,
+                refundRecipient: signedData.refundRecipient,
                 nonEVMReceiver: tamperedNonEVMReceiver,
                 signature: signedData.signature,
                 deadline: signedData.deadline
@@ -951,6 +958,162 @@ contract LayerSwapFacetTest is TestBaseFacet {
         layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
 
         vm.stopPrank();
+    }
+
+    function testRevert_SignatureMismatch_WrongRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        // validLayerSwapData was signed with refundRecipient == USER_REFUND
+        LayerSwapFacet.LayerSwapData memory tamperedData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: validLayerSwapData.requestId,
+                depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: address(0xdead),
+                nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
+                signature: validLayerSwapData.signature,
+                deadline: validLayerSwapData.deadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
+
+        vm.stopPrank();
+    }
+
+    // --- Refund Recipient Tests ---
+
+    function testRevert_WhenBridgeWithZeroRefundRecipient() public {
+        // Without the explicit guard a zero refundRecipient would only revert
+        // late in refundExcessNative, and only if there was excess native.
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-zeroRefund"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+        validLayerSwapData.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeWithZeroRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-zeroRefundSwap"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+        validLayerSwapData.refundRecipient = address(0);
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_ExcessNativeIsRefundedToRefundRecipient() public {
+        // msg.sender (USER_SENDER) may be a relayer or Permit2Proxy; excess native
+        // must go to the signed refundRecipient (USER_REFUND), not msg.sender.
+        uint256 excess = 0.01 ether;
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-excessNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        uint256 refundBefore = USER_REFUND.balance;
+
+        vm.startPrank(USER_SENDER);
+        layerSwapFacet.startBridgeTokensViaLayerSwap{
+            value: bridgeData.minAmount + excess
+        }(bridgeData, validLayerSwapData);
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SwapAndBridgeExcessNativeIsRefundedToRefundRecipient()
+        public
+    {
+        uint256 excess = 0.01 ether;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapExcessNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 refundBefore = USER_REFUND.balance;
+
+        layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap{ value: excess }(
+            bridgeData,
+            swapData,
+            validLayerSwapData
+        );
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SwapAndBridgeLeftoverERC20GoesToRefundRecipient() public {
+        // Exact-output DAI->ETH swap; over-fund the input so unspent DAI is left
+        // over and must be swept to the signed refundRecipient, not msg.sender.
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        setDefaultSwapDataSingleDAItoETH();
+        uint256 leftover = 100 * 10 ** dai.decimals();
+        swapData[0].fromAmount += leftover;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-leftoverERC20"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 refundDaiBefore = dai.balanceOf(USER_REFUND);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(dai.balanceOf(USER_REFUND), refundDaiBefore + leftover);
+        assertEq(dai.balanceOf(address(diamond)), 0);
     }
 
     // ============ EIP-712 Helper Functions ============
@@ -976,6 +1139,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
         ILiFi.BridgeData memory _bridgeData,
         bytes32 _requestId,
         address _depositoryReceiver,
+        address _refundRecipient,
         bytes32 _nonEVMReceiver,
         uint256 _deadline
     ) internal pure returns (LayerSwapPayload memory) {
@@ -986,6 +1150,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
                 receiver: _bridgeData.receiver,
                 requestId: _requestId,
                 depositoryReceiver: _depositoryReceiver,
+                refundRecipient: _refundRecipient,
                 nonEVMReceiver: _nonEVMReceiver,
                 destinationChainId: _bridgeData.destinationChainId,
                 sendingAssetId: _bridgeData.sendingAssetId,
@@ -1005,6 +1170,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
                     _payload.receiver,
                     _payload.requestId,
                     _payload.depositoryReceiver,
+                    _payload.refundRecipient,
                     _payload.nonEVMReceiver,
                     _payload.destinationChainId,
                     _payload.sendingAssetId,
@@ -1044,6 +1210,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             _currentBridgeData,
             _requestId,
             _depositoryReceiver,
+            USER_REFUND,
             _nonEVMReceiver,
             deadline
         );
@@ -1057,6 +1224,7 @@ contract LayerSwapFacetTest is TestBaseFacet {
             LayerSwapFacet.LayerSwapData({
                 requestId: _requestId,
                 depositoryReceiver: _depositoryReceiver,
+                refundRecipient: USER_REFUND,
                 nonEVMReceiver: _nonEVMReceiver,
                 signature: signature,
                 deadline: deadline

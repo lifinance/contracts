@@ -311,6 +311,7 @@ const main = async () => {
         { name: 'receiver', type: 'address' },
         { name: 'requestId', type: 'bytes32' },
         { name: 'depositoryReceiver', type: 'address' },
+        { name: 'refundRecipient', type: 'address' },
         { name: 'nonEVMReceiver', type: 'bytes32' },
         { name: 'destinationChainId', type: 'uint256' },
         { name: 'sendingAssetId', type: 'address' },
@@ -324,6 +325,7 @@ const main = async () => {
       receiver: evmReceiver,
       requestId,
       depositoryReceiver,
+      refundRecipient: callerAddress,
       nonEVMReceiver,
       destinationChainId: BigInt(destinationChainId),
       sendingAssetId,
@@ -337,6 +339,7 @@ const main = async () => {
   const layerSwapData: LayerSwapFacet.LayerSwapDataStruct = {
     requestId,
     depositoryReceiver,
+    refundRecipient: callerAddress,
     nonEVMReceiver,
     signature: backendSignature,
     deadline,

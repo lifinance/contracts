@@ -34,12 +34,17 @@ is specific to LayerSwap and is represented as the following struct type:
 ///        supplied by the LI.FI backend per call. Distinct from
 ///        `bridgeData.receiver`, which is the final recipient on the
 ///        destination chain.
+/// @param refundRecipient Address that receives pre-swap leftovers and excess
+///        source-side native. Set by the LI.FI backend to the owner of the
+///        source-side input, since `msg.sender` may be the Permit2Proxy or a
+///        relayer rather than the user. Must accept plain native transfers.
 /// @param nonEVMReceiver set only if bridging to non-EVM chain
 /// @param signature EIP-712 signature from the backend signer
 /// @param deadline signature expiration timestamp
 struct LayerSwapData {
   bytes32 requestId;
   address depositoryReceiver;
+  address refundRecipient;
   bytes32 nonEVMReceiver;
   bytes signature;
   uint256 deadline;
@@ -67,6 +72,7 @@ The signed payload (`LayerSwapPayload`) covers:
 | `receiver`           | `bridgeData`    |
 | `requestId`          | `layerSwapData` |
 | `depositoryReceiver` | `layerSwapData` |
+| `refundRecipient`    | `layerSwapData` |
 | `nonEVMReceiver`     | `layerSwapData` |
 | `destinationChainId` | `bridgeData`    |
 | `sendingAssetId`     | `bridgeData`    |

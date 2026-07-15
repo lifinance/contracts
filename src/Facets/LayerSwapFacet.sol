@@ -28,9 +28,9 @@ contract LayerSwapFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.layerswap");
 
-    // EIP-712 typehash: keccak256("LayerSwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,bytes32 requestId,address depositoryReceiver,bytes32 nonEVMReceiver,uint256 destinationChainId,address sendingAssetId,uint256 deadline)")
+    // EIP-712 typehash: keccak256("LayerSwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,bytes32 requestId,address depositoryReceiver,address refundRecipient,bytes32 nonEVMReceiver,uint256 destinationChainId,address sendingAssetId,uint256 deadline)")
     bytes32 private constant LAYERSWAP_PAYLOAD_TYPEHASH =
-        0x36f801a910846003d851067e2763fa7696d5d9e7de9f98805c0ebdcaca4e87c2;
+        0x3368de299775fb99a682a6178a8d9bdc9a7c2b4f1344f296730f79168d578335;
 
     /// Storage ///
 
@@ -55,12 +55,18 @@ contract LayerSwapFacet is
     ///        chain; supplied by the LI.FI backend per call. Distinct
     ///        from `bridgeData.receiver`, which is the final recipient
     ///        on the destination chain.
+    /// @param refundRecipient Address that receives pre-swap leftovers and
+    ///        excess source-side native. Set by the LI.FI backend to the
+    ///        owner of the source-side input, since `msg.sender` may be the
+    ///        Permit2Proxy or a relayer rather than the user. Must accept
+    ///        plain native transfers.
     /// @param nonEVMReceiver set only if bridging to non-EVM chain
     /// @param signature EIP-712 signature from the backend signer
     /// @param deadline signature expiration timestamp
     struct LayerSwapData {
         bytes32 requestId;
         address depositoryReceiver;
+        address refundRecipient;
         bytes32 nonEVMReceiver;
         bytes signature;
         uint256 deadline;
@@ -98,7 +104,7 @@ contract LayerSwapFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_layerSwapData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -125,7 +131,7 @@ contract LayerSwapFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_layerSwapData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
@@ -153,7 +159,7 @@ contract LayerSwapFacet is
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_layerSwapData.refundRecipient)
         );
         _startBridge(_bridgeData, _layerSwapData);
     }
@@ -165,7 +171,10 @@ contract LayerSwapFacet is
     function _validateLayerSwapData(
         LayerSwapData calldata _layerSwapData
     ) internal pure {
-        if (_layerSwapData.depositoryReceiver == address(0)) {
+        if (
+            _layerSwapData.depositoryReceiver == address(0) ||
+            _layerSwapData.refundRecipient == address(0)
+        ) {
             revert InvalidCallData();
         }
     }
@@ -238,6 +247,7 @@ contract LayerSwapFacet is
                 _bridgeData.receiver,
                 _layerSwapData.requestId,
                 _layerSwapData.depositoryReceiver,
+                _layerSwapData.refundRecipient,
                 _layerSwapData.nonEVMReceiver,
                 _bridgeData.destinationChainId,
                 _bridgeData.sendingAssetId,

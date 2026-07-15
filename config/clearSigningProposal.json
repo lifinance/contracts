@@ -1438,7 +1438,7 @@
       "intent": "Bridge via HopL2 (L2, native, packed)",
       "fields": []
     },
-    "startBridgeTokensViaLayerSwap((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 requestId, address depositoryReceiver, bytes32 nonEVMReceiver, bytes signature, uint256 deadline) _layerSwapData)": {
+    "startBridgeTokensViaLayerSwap((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 requestId, address depositoryReceiver, address refundRecipient, bytes32 nonEVMReceiver, bytes signature, uint256 deadline) _layerSwapData)": {
       "intent": "Bridge via LayerSwap",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via LayerSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -4631,7 +4631,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaLayerSwap((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (bytes32 requestId, address depositoryReceiver, bytes32 nonEVMReceiver, bytes signature, uint256 deadline) _layerSwapData)": {
+    "swapAndStartBridgeTokensViaLayerSwap((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (bytes32 requestId, address depositoryReceiver, address refundRecipient, bytes32 nonEVMReceiver, bytes signature, uint256 deadline) _layerSwapData)": {
       "intent": "Swap & Bridge via LayerSwap",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via LayerSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
