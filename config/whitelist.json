@@ -7656,6 +7656,36 @@
         ]
       }
     ],
+    "injective": [
+      {
+        "name": "FeeForwarder",
+        "address": "0x2C7475cBe7A9813dbe93C94297491ED7bD86cFab",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x1c9633Cf7E22C36e6b9EAE03CdA5F4042d746683",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      }
+    ],
     "ink": [
       {
         "name": "FeeCollector",
