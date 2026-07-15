@@ -13,6 +13,11 @@
 # window). The underlying TS signing logic never opens a tunnel on its own; that
 # stays here, in one explicit place.
 #
+# Opening a prod tunnel is a human-only step (docs/Setup-agents.md), so auto-
+# start is gated on an interactive TTY: in a non-interactive shell (an agent's
+# environment) the wrapper never opens the prod tunnel — it fails fast and tells
+# the human to start it. An already-running tunnel is used regardless.
+#
 # Usage:
 #   bash script/deploy/safe/with-safe-tunnel.sh                 # ensure only, exit 0
 #   bash script/deploy/safe/with-safe-tunnel.sh bun confirm-safe-tx   # ensure, then run
@@ -123,6 +128,19 @@ main() {
   if port_up "$port"; then
     echo "✓ Safe Mongo tunnel already up (localhost:${port})"
   else
+    # Opening a *production* tunnel is a human-only step (docs/Setup-agents.md):
+    # it's a persistent prod channel gated behind explicit human approval, and an
+    # agent's non-interactive shell can't see the SSO/Okta browser prompt anyway.
+    # So only auto-start when attached to an interactive terminal; otherwise
+    # fail fast with the same guidance getSafeMongoCollection() surfaces and let
+    # the human bring the tunnel up. (The "port already up" pass-through above is
+    # free and stays available to everyone, agents included.)
+    if ! [ -t 1 ]; then
+      echo "Safe Mongo tunnel (localhost:${port}) is down and this is a non-interactive shell." >&2
+      echo "Opening a prod tunnel is a human-only step — start it yourself:" >&2
+      echo "  lifi-connect prod smart-contracts   (see docs/Setup.md)" >&2
+      exit 1
+    fi
     echo "Safe Mongo tunnel (localhost:${port}) is down — starting lifi-connect prod smart-contracts…"
     ensure_sso
     start_tunnel "$bin"
