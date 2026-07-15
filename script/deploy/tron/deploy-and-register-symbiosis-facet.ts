@@ -30,6 +30,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import { TRON_DEPLOY_NETWORK } from './constants'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -51,9 +52,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   }
 
   // Get network configuration from networks.json
-  // Use tronshasta for staging/testnet, tron for production
-  const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  const networkName = TRON_DEPLOY_NETWORK
 
   const network = networkName as SupportedChain
 

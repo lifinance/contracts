@@ -29,6 +29,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import { TRON_DEPLOY_NETWORK } from './constants'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
@@ -45,8 +46,7 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     verbose = getEnvVar('VERBOSE') !== 'false'
   } catch {}
 
-  const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  const networkName = TRON_DEPLOY_NETWORK
 
   const network = networkName as SupportedChain
 

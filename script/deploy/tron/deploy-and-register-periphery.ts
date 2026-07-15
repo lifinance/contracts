@@ -40,6 +40,7 @@ import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
+import { TRON_DEPLOY_NETWORK } from './constants'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import { getTronWallet } from './tronUtils.js'
 
@@ -143,9 +144,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   const onlyContracts = options.onlyContracts
 
   // Get network configuration from networks.json
-  // Use tronshasta for staging/testnet, tron for production
-  const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  const networkName = TRON_DEPLOY_NETWORK
   let tronConfig
   try {
     tronConfig = getNetworkConfig(networkName as SupportedChain)

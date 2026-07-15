@@ -29,6 +29,7 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
+import { TRON_DEPLOY_NETWORK } from './constants'
 import {
   deployContractWithLogging,
   validateBalance,
@@ -100,9 +101,7 @@ async function deployCoreFacetsImpl(options: {
   const networksConfig = await Bun.file('config/networks.json').json()
 
   // Get network configuration from networks.json
-  // Use tronshasta for staging/testnet, tron for production
-  const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  const networkName = TRON_DEPLOY_NETWORK
 
   const tronConfig = networksConfig[networkName]
   if (!tronConfig) {
