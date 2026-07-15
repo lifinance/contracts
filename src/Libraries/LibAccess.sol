@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { CannotAuthoriseSelf, UnAuthorized } from "../Errors/GenericErrors.sol";
@@ -7,6 +6,7 @@ import { CannotAuthoriseSelf, UnAuthorized } from "../Errors/GenericErrors.sol";
 /// @title Access Library
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for managing method level access control
+/// @custom:version 1.0.0
 library LibAccess {
     /// Types ///
     bytes32 internal constant NAMESPACE =
