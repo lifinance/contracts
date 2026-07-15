@@ -487,6 +487,15 @@
       }
     }
   },
+  "SupersetFacet": {
+    "configData": {
+      "_poolManager": {
+        "configFileName": "superset.json",
+        "keyInConfigFile": ".poolManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "SynapseBridgeFacet": {
     "configData": {
       "_synapseRouter": {
@@ -663,6 +672,15 @@
       }
     }
   },
+  "PaxosTransitFacet": {
+    "configData": {
+      "_transitStation": {
+        "configFileName": "paxosTransit.json",
+        "keyInConfigFile": ".transitStation.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "ERC20Proxy": {
     "configData": {
       "_owner": {
@@ -784,6 +802,15 @@
       "_backendSigner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LiFiIntentEscrowFacetV2": {
+    "configData": {
+      "_inputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".lifiEscrowInputSettler",
         "allowToDeployWithZeroAddress": "false"
       }
     }

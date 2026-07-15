@@ -33,9 +33,9 @@
         "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
-      "0xD5734b44Bb7Ada52ea6503088612E70a2a612371": {
+      "0xC46E6a3d62fC140C3475e081B7110aDB656450df": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x9fCFD2F51726a8Be04217967Ab25B797947825ef": {
         "Name": "RelayDepositoryFacet",

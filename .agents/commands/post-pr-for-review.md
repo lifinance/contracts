@@ -70,7 +70,9 @@ Two blocking checks, one soft gate, and one workflow branch:
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`.
 
-- **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore any check whose name ends in `(pull_request_review)` — those are review-gated workflows that haven't fired yet; posting is what triggers them, so blocking would be circular. Match on the suffix only — `version-control`, `audit-verification`, and some `protect-*` checks appear in both push and `(pull_request_review)` forms; only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore any check whose name ends in `(pull_request_review)` — those are review-gated workflows that haven't fired yet; posting is what triggers them, so blocking would be circular. Match on the suffix only — `version-control` and some `protect-*` checks appear in both push and `(pull_request_review)` forms; only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+
+- **Audit checks are NON-blocking** — a check matching `audit-verification` / `audit-*` reporting `FAILURE` (or pending) does NOT block posting, in either its push or `(pull_request_review)` form. LI.FI's flow is SC-team review *first*, then audit (Sujith): the PR is posted to `#dev-sc-review` precisely so reviewers can sign off before the audit is requested. Continue to block on every non-audit failure.
 
 - **Aikido scan** (soft gate) — scan files changed on this branch for security findings:
   1. Try `aikido-mcp:aikido_full_scan` with `[{ relativeFilePath: "test.js", content: "// test" }]` to check availability.

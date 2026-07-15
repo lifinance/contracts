@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { GenericSwapFacet } from "lifi/Facets/GenericSwapFacet.sol";
@@ -8,6 +8,7 @@ import { TestHelpers, MockUniswapDEX, NonETHReceiver } from "../utils/TestHelper
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 import { LibSwap, TestBase } from "../utils/TestBase.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGenericSwapFacetV3 is
@@ -32,11 +33,13 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0;
     address internal constant FEE_COLLECTOR =
         0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
+    address internal constant INTEGRATOR_WALLET = address(0xb33f);
 
     // -----
 
     TestGenericSwapFacet internal genericSwapFacet;
     TestGenericSwapFacetV3 internal genericSwapFacetV3;
+    FeeForwarder internal feeForwarder;
 
     function setUp() public {
         // set custom block number for forking
@@ -146,6 +149,13 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         genericSwapFacetV3.addAllowedContractSelector(
             FEE_COLLECTOR,
             feeCollector.collectNativeFees.selector
+        );
+
+        // deploy FeeForwarder and whitelist it as a swap step (collect fee after swap)
+        feeForwarder = new FeeForwarder(WITHDRAW_WALLET);
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(feeForwarder),
+            feeForwarder.forwardERC20Fees.selector
         );
 
         // set facet address in TestBase
@@ -1576,6 +1586,119 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         emit log_named_uint("gas used V2: ", gasUsed);
 
         vm.stopPrank();
+    }
+
+    // MULTISWAP SWAP TO ERC20 THEN FORWARD ERC20 FEE (FeeForwarder)
+
+    function _produceSwapDataSwapToERC20AndForwardERC20Fee()
+        private
+        view
+        returns (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 amountToReceiver
+        )
+    {
+        amountIn = 100 * 10 ** dai.decimals();
+
+        // Swap1: DAI to USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
+        uint256 swapOutput = amounts[1];
+
+        swapData = new LibSwap.SwapData[](2);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                swapOutput,
+                path,
+                address(genericSwapFacet),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Swap2: forward part of the received USDC to an integrator as a fee
+        integratorFee = 1 * 10 ** usdc.decimals();
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution(
+            INTEGRATOR_WALLET,
+            integratorFee
+        );
+        swapData[1] = LibSwap.SwapData(
+            address(feeForwarder),
+            address(feeForwarder),
+            ADDRESS_USDC,
+            ADDRESS_USDC,
+            integratorFee,
+            abi.encodeWithSelector(
+                feeForwarder.forwardERC20Fees.selector,
+                ADDRESS_USDC,
+                distributions
+            ),
+            false
+        );
+
+        // the diamond forwards everything left after the fee to the receiver
+        amountToReceiver = swapOutput - integratorFee;
+    }
+
+    function test_CanSwapToERC20ThenForwardERC20FeeViaFeeForwarder() public {
+        vm.startPrank(DAI_HOLDER);
+        dai.approve(address(genericSwapFacet), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 amountToReceiver
+        ) = _produceSwapDataSwapToERC20AndForwardERC20Fee();
+
+        uint256 integratorBalanceBefore = usdc.balanceOf(INTEGRATOR_WALLET);
+        uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            ADDRESS_DAI, // fromAssetId,
+            ADDRESS_USDC, // toAssetId,
+            amountIn, // fromAmount,
+            amountToReceiver // toAmount (swap output minus the forwarded fee)
+        );
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(INTEGRATOR_WALLET),
+            integratorBalanceBefore + integratorFee
+        );
+        assertEq(
+            usdc.balanceOf(SOME_WALLET),
+            receiverBalanceBefore + amountToReceiver
+        );
     }
 
     // MULTISWAP COLLECT NATIVE FEE AND SWAP TO ERC20

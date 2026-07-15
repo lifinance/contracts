@@ -24,7 +24,9 @@
     { "chainId": 57073, "domainId": 21 },
     { "chainId": 98866, "domainId": 22 },
     { "chainId": 5042, "domainId": 26 },
-    { "chainId": 1672, "domainId": 31 }
+    { "chainId": 2818, "domainId": 30 },
+    { "chainId": 1672, "domainId": 31 },
+    { "chainId": 25, "domainId": 32 }
   ],
   "mainnet": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
@@ -56,6 +58,11 @@
     "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
+  "cronos": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x3D7F2C478aAfdB65542BCB44bCeeC05849999d2D",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
   "hyperevm": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
@@ -74,6 +81,11 @@
   "monad": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "morph": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xCfb1186F4e93D60E60a8bDd997427D1F33bc372B",
     "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "optimism": {

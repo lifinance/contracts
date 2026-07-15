@@ -1,7 +1,7 @@
 ---
 name: send-deployer-funds
 usage: /send-deployer-funds
-description: Send a chain's gas asset directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send` — native `--value`, or an ERC-20 `transfer()` when the gas asset is an ERC-20 predeploy (e.g. arc, where USDC is gas). Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on outlaw to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move gas funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet). Requires `cast` (Foundry), `jq`, and `bc`. EVM only. Only on an explicit user request — never invoke proactively, and the pre-send report must be confirmed by the human user.
+description: Send a chain's gas asset directly from one of our own wallets (deployer keys in `.env`) to a specified recipient on a specified network via `cast send` — native `--value`, or an ERC-20 `transfer()` when the gas asset is an ERC-20 predeploy (e.g. arc, where USDC is gas). Parses a natural-language request with an absolute amount ("send 0.1 ETH to 0xabc… on base") or a relative amount ("send 10% of our holdings on robinhood to 0xf79…"), resolves the network RPC from `config/networks.json` with an `ETH_NODE_URI_<NETWORK>` fallback, derives the sender address from the private key (never from `config/global.json`), verifies chain-id, shows a pre-send report, and verifies balances after sending. Use when the user says "send funds", "send gas", "transfer ETH from the deployer", "/send-deployer-funds …", or otherwise asks to move gas funds FROM our own wallet. NOT for requesting funds INTO our wallets — that is `request-dev-funds` (PR-based, from the automate-wallet); NOT for sweeping a rotated-OUT wallet's gas across all chains — that is `sweep-wallet-funds`. Requires `cast` (Foundry), `jq`, and `bc`. EVM only — Tron routes to `interact-tron` instead. Only on an explicit user request — never invoke proactively, and the pre-send report must be confirmed by the human user.
 ---
 
 # Send Deployer Funds
@@ -10,7 +10,7 @@ description: Send a chain's gas asset directly from one of our own wallets (depl
 
 User says any of:
 
-- "send 0.1 ETH to 0xabc… on base" / "send gas to 0xf79… on outlaw"
+- "send 0.1 ETH to 0xabc… on base" / "send gas to 0xf79… on robinhood"
 - "send 10% of our holdings on \<network\> to \<address\>"
 - "transfer funds from the deployer wallet to …"
 - "/send-deployer-funds [free-form description]"
@@ -19,7 +19,8 @@ Skip when:
 
 - The user wants funds sent **TO** one of our wallets (deployer top-up, refill, "I need gas on …") → that is the `request-dev-funds` skill (PR against `lifinance/automate-wallet-dev-fees`). This skill is the opposite direction: a direct `cast send` **FROM** our own keys.
 - The user wants to send an ERC-20 token that is **not** the chain's gas asset → out of scope (this skill moves gas only). Say so and stop. The chain's gas asset is in scope even when it is an ERC-20 predeploy (e.g. arc) — Step 1 detects that and switches mechanism.
-- The target chain is non-EVM (Solana / TRON / BTC / SUI) → unsupported. Say so and stop.
+- The target chain is Tron/Tronshasta → `cast` doesn't work there; route to `/interact-tron` (`troncast send ... --value`) instead. Say so and stop here.
+- The target chain is otherwise non-EVM (Solana / BTC / SUI) → unsupported. Say so and stop.
 - No explicit user instruction to send funds exists in the current conversation (see Authorization below).
 
 ## Authorization (explicit user request + human review, non-negotiable)
@@ -40,7 +41,7 @@ This skill signs and broadcasts a **real, irreversible on-chain transfer** from 
 ## Secrets hygiene (non-negotiable)
 
 - **Never print, echo, or log the private key** — not in command output, not in error messages, not in the pre-send report. Read it inside a subshell and pass it via a shell variable; never interpolate it into anything the user (or the transcript) sees.
-- **Never print full RPC URLs** — they may embed API keys. When reporting which RPC was used, show only the host (`https://rpc.example.com/…`) or the env var name (`ETH_NODE_URI_OUTLAW`).
+- **Never print full RPC URLs** — they may embed API keys. When reporting which RPC was used, show only the host (`https://rpc.example.com/…`) or the env var name (`ETH_NODE_URI_ROBINHOOD`).
 - Pipe `cast send` output through a filter that strips both before display (see Step 6).
 
 ## Inputs (parsed from the user's prompt)
@@ -194,9 +195,9 @@ Native mode:
 ```text
 ⚠️  About to broadcast a REAL native transfer. This is irreversible.
 
-  Network:            outlaw  (chainId 4663 — verified via cast chain-id)
+  Network:            robinhood  (chainId 4663 — verified via cast chain-id)
   Mechanism:          native  (cast send --value)
-  RPC source:         ETH_NODE_URI_OUTLAW            (URL not shown — may embed API key)
+  RPC source:         ETH_NODE_URI_ROBINHOOD         (URL not shown — may embed API key)
   Sender:             0x492E267321E863fA45Bc9d97c9f64Fa9Df70d4c4  (derived from PRIVATE_KEY_PRODUCTION)
   Sender balance:     980845853615340000 wei  (0.98084585… ETH)
   Recipient:          0xf79…                        (current balance: 0 wei)
@@ -290,5 +291,5 @@ Report to the user: tx hash, status, sender balance `$BALANCE` → `$SENDER_AFTE
 
 - Direction matters: `request-dev-funds` moves funds **into** our wallets via a reviewed PR pipeline; this skill moves funds **out** of our own keys with no reviewer — hence the mandatory chain-id verification, derived-sender rule, and explicit confirmation gate.
 - All resolutions (RPC, chainId, sender address, balances) happen at runtime from canonical sources (`config/networks.json`, `.env`, the chain itself). The skill body holds zero addresses and zero secrets.
-- The sender address is always derived from the private key because `config/global.json` describes the *intended* deployer, not necessarily the key in the local `.env`.
+- The sender address is always derived from the private key because `config/global.json` describes the _intended_ deployer, not necessarily the key in the local `.env`.
 - "Gas asset", not "native token": on most chains they coincide (`--value`), but on predeploy-gas chains (arc) the gas asset is an ERC-20. The skill moves whatever the chain charges gas in, picking the mechanism from `nativeAddress` — so "send gas to the pauser" works uniformly across both.

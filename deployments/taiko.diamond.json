@@ -57,9 +57,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xe07c030dDC7Fb9ca23b633b1028106DAA5fdbF96": {
+      "0x184D1d43E73A002B45f9056770fD8d463c6b9388": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       }
     },
     "Periphery": {

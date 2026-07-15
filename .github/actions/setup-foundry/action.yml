@@ -9,6 +9,19 @@
 name: Setup Foundry
 description: Install pinned foundry from .foundry-version, restore solc + forge build caches, and verify the installed binary matches.
 
+inputs:
+  cache-key-suffix:
+    description: >-
+      Extra segment folded into the forge-build cache key. Required whenever a
+      single workflow runs more than one build SCOPE in parallel — e.g. matrix
+      shards that each `forge test --match-path <subset>` and therefore compile
+      a different partial out/. Pass the shard id (e.g. matrix.shard) so each
+      scope owns its own cache; otherwise the shards share one key and the first
+      to finish poisons the rest with its partial out/. Leave empty for
+      workflows that produce a single, consistent out/.
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -23,6 +36,27 @@ runs:
           exit 1
         fi
         echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+    - name: Compute fork block pin hash
+      id: fork_blocks
+      shell: bash
+      run: |
+        set -euo pipefail
+        hash="$(bash script/utils/hashForkBlockPins.sh)"
+        if [ -z "$hash" ]; then
+          echo "::error::hashForkBlockPins.sh returned empty hash"
+          exit 1
+        fi
+        echo "hash=${hash}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Foundry RPC state
+      # Fork tests pin deterministic blocks; RPC cache is stable across runs until pins change.
+      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ~/.foundry/cache/rpc
+        key: foundry-rpc-${{ runner.os }}-${{ steps.fork_blocks.outputs.hash }}
+        restore-keys: |
+          foundry-rpc-${{ runner.os }}-
 
     - name: Cache Foundry toolchain state (svm + foundryup)
       # Restored before the install step so foundry-toolchain can detect an existing
@@ -44,16 +78,24 @@ runs:
         version: ${{ steps.pin.outputs.version }}
 
     - name: Cache forge build artifacts (cache/, out/)
-      # Key on every input that influences compilation. A cache miss falls back to
-      # a clean build with no behavior change.
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
           cache
           out
-        key: forge-build-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml', 'remappings.txt', 'src/**', 'test/**', 'lib/**') }}
+        # Key on every input that influences compilation; a miss falls back to a
+        # clean build with no behavior change. Namespaced per workflow
+        # (github.workflow): actions/cache is first-writer-wins and never
+        # overwrites an existing key on a hit, so a SHARED key let any job that
+        # saved a partial out/ poison every other workflow — the stale entry was
+        # restored forever and forced a full recompile despite a "cache hit".
+        # cache-key-suffix further splits a workflow that builds more than one
+        # scope in parallel (matrix shards with different --match-path globs).
+        # The vN prefix is a manual eviction lever — bump it to discard all
+        # existing entries at once.
+        key: forge-build-v2-${{ github.workflow }}-${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml', 'remappings.txt', 'src/**', 'test/**', 'lib/**') }}
         restore-keys: |
-          forge-build-${{ runner.os }}-${{ steps.pin.outputs.version }}-
+          forge-build-v2-${{ github.workflow }}-${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ steps.pin.outputs.version }}-
 
     - name: Verify foundry version
       shell: bash
