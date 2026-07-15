@@ -259,7 +259,7 @@ contract LayerSwapFacet is
             abi.encodePacked("\x19\x01", _domainSeparator(), structHash)
         );
 
-        address recoveredSigner = ECDSA.recover(
+        address recoveredSigner = ECDSA.recoverCalldata(
             digest,
             _layerSwapData.signature
         );
