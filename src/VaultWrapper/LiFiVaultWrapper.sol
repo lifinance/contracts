@@ -387,9 +387,8 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
-    ///      post-operation supply floor for a non-zero deposit; a `deposit(0)` call moves
-    ///      no assets and mints no shares, so it is a no-op that skips the floor (see
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `_deposit` seam enforces the post-operation supply floor (see
     ///      `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
@@ -400,15 +399,13 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         shares = super.deposit(assets, receiver);
-        if (assets != 0) _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
-    ///      post-operation supply floor for a non-zero mint; a `mint(0)` call moves no
-    ///      assets and mints no shares, so it is a no-op that skips the floor (see
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `_deposit` seam enforces the post-operation supply floor (see
     ///      `_enforceSupplyFloor`).
     function mint(
         uint256 shares,
@@ -419,7 +416,6 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         assets = super.mint(shares, receiver);
-        if (shares != 0) _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -665,7 +661,10 @@ contract LiFiVaultWrapper is
     ///      call entirely: there is nothing to invest, the fee is already routed, and a standard
     ///      ERC-4626 source reverts on a zero-asset forward, so short-circuiting keeps `deposit`
     ///      non-reverting in exactly the cases where `previewDeposit` returns 0. Pause is
-    ///      enforced upstream in `deposit`/`mint`.
+    ///      enforced upstream in `deposit`/`mint`. Both `deposit` and `mint` route through
+    ///      this seam, so the post-operation supply floor is enforced here once for every
+    ///      inflow entrypoint (a zero-amount call mints nothing and skips it); exits go
+    ///      through `_withdraw` and are structurally exempt (see `_enforceSupplyFloor`).
     function _deposit(
         address caller,
         address receiver,
@@ -673,6 +672,7 @@ contract LiFiVaultWrapper is
         uint256 shares
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
+        if (assets != 0) _enforceSupplyFloor();
 
         uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
             _assets: assets,
