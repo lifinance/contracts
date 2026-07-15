@@ -135,8 +135,8 @@ export function assertWithinSlippage(
   const lossPct = computeValueLossPct(fromAmountUSD, toAmountUSD)
   if (lossPct === undefined)
     throw new Error(
-      'Cannot verify value loss: the quote has no USD pricing. Refusing to broadcast; ' +
-        'rerun with an explicit --max-slippage only if you accept an unpriced route.'
+      'Cannot verify value loss: the quote has no USD pricing. ' +
+        'The route cannot be broadcast until LI.FI provides USD pricing for it.'
     )
   if (lossPct > maxPct)
     throw new Error(
@@ -157,6 +157,34 @@ export function isChainSupported(
 /** Parse a human amount ("0.1", "50") into base units for the given decimals. */
 export function parseAmount(human: string, decimals: number): bigint {
   return parseUnits(human, decimals)
+}
+
+/** Validate a max-slippage percentage from the CLI (a NaN would silently pass the loss check). */
+export function assertSlippage(pct: number): void {
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100)
+    throw new Error(
+      `Invalid --max-slippage "${pct}": expected a number between 0 and 100.`
+    )
+}
+
+/**
+ * Enforce exactly one amount mode and validate it. Returns the validated percent when
+ * `--percent` is used, or null when `--amount` is used (the caller parses the amount with
+ * the token's decimals). Throws on both/neither, or an out-of-range percent.
+ */
+export function resolveAmountSelection(
+  amount: string | undefined,
+  percent: string | undefined
+): number | null {
+  if ((amount && percent) || (!amount && !percent))
+    throw new Error('Provide exactly one of --amount or --percent.')
+  if (percent === undefined) return null
+  const p = Number(percent)
+  if (!Number.isFinite(p) || p <= 0 || p > 100)
+    throw new Error(
+      `Invalid --percent "${percent}": expected a number in (0, 100].`
+    )
+  return p
 }
 
 /** Resolve a token argument to an address the LI.FI API understands. */
@@ -203,6 +231,8 @@ export interface ILifiQuote {
   action: {
     fromToken: ILifiToken
     toToken: ILifiToken
+    fromAddress?: Address
+    toAddress?: Address
   }
   tool: string
 }
@@ -214,7 +244,7 @@ async function lifiGet<T>(
   const url = `${LIFI_API_BASE}${path}?${new URLSearchParams(
     params
   ).toString()}`
-  const res = await fetch(url)
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`LI.FI ${path} ${res.status}: ${body.slice(0, 300)}`)

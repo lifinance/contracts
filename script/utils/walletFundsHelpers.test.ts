@@ -9,12 +9,14 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   assertSameWallet,
+  assertSlippage,
   assertWithinSlippage,
   computeValueLossPct,
   flattenWalletKeys,
   isChainSupported,
   normalizeTokenArg,
   parseAmount,
+  resolveAmountSelection,
   resolveEnvKeyForRole,
   scanEnvForPrivateKeyVars,
   NATIVE_SENTINEL,
@@ -146,5 +148,41 @@ describe('normalizeTokenArg', () => {
   })
   it('flags a symbol for API resolution', () => {
     expect(normalizeTokenArg('USDC')).toBe('SYMBOL')
+  })
+})
+
+describe('assertSlippage', () => {
+  it('accepts values within 0..100', () => {
+    expect(() => assertSlippage(3)).not.toThrow()
+    expect(() => assertSlippage(0)).not.toThrow()
+  })
+  it('rejects NaN (which would silently pass the loss check)', () => {
+    expect(() => assertSlippage(NaN)).toThrow(/max-slippage/i)
+  })
+  it('rejects negative and out-of-range values', () => {
+    expect(() => assertSlippage(-1)).toThrow()
+    expect(() => assertSlippage(101)).toThrow()
+  })
+})
+
+describe('resolveAmountSelection', () => {
+  it('returns null for amount mode', () => {
+    expect(resolveAmountSelection('0.5', undefined)).toBeNull()
+  })
+  it('returns the validated percent for percent mode', () => {
+    expect(resolveAmountSelection(undefined, '25')).toBe(25)
+  })
+  it('rejects both modes at once', () => {
+    expect(() => resolveAmountSelection('0.5', '25')).toThrow(/exactly one/i)
+  })
+  it('rejects neither mode', () => {
+    expect(() => resolveAmountSelection(undefined, undefined)).toThrow(
+      /exactly one/i
+    )
+  })
+  it('rejects out-of-range or non-numeric percent', () => {
+    expect(() => resolveAmountSelection(undefined, '0')).toThrow()
+    expect(() => resolveAmountSelection(undefined, '150')).toThrow()
+    expect(() => resolveAmountSelection(undefined, 'abc')).toThrow()
   })
 })

@@ -51,6 +51,7 @@ import {
 import {
   accountFromPrivateKey,
   assertSameWallet,
+  assertSlippage,
   assertWithinSlippage,
   fetchLifiChains,
   fetchLifiQuote,
@@ -61,6 +62,7 @@ import {
   NATIVE_SENTINEL,
   normalizeTokenArg,
   parseAmount,
+  resolveAmountSelection,
   resolveEnvKeyForRole,
   scanEnvForPrivateKeyVars,
   type IWalletKeysConfig,
@@ -106,7 +108,7 @@ function resolveWallet(walletArg: string): IResolvedWallet {
         `Role "${walletArg}" maps to ${envVar}, which is not set in .env.`
       )
     const address = accountFromPrivateKey(key).address
-    crossCheckAgainstGlobal(walletArg, address)
+    assertKeyMatchesRole(walletArg, address)
     return { address, privateKey: key, label: walletArg, envVar }
   }
 
@@ -129,21 +131,48 @@ function resolveWallet(walletArg: string): IResolvedWallet {
   )
 }
 
-/** Warn (do not block) when a role's key derives to a different address than global.json records. */
-function crossCheckAgainstGlobal(role: string, derived: Address): void {
-  const flat = flattenWalletKeys(walletKeys)
-  // Only roles that also exist as address entries can be cross-checked.
-  const recorded = (globalConfig as Record<string, unknown>)[role]
-  if (typeof recorded === 'string' && /^0x/.test(recorded)) {
-    if (getAddress(recorded) !== getAddress(derived))
-      consola.warn(
-        `Key in .env for "${role}" derives to ${derived}, but global.json records ${getAddress(
-          recorded
-        )}. Using the .env-derived address (the key is authoritative).`
-      )
-  } else if (!flat[role]) {
-    // no-op: nested roles (backendSigner*) have no flat address entry
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+
+/**
+ * Resolve the address `global.json` records for a (possibly nested) role, so a role
+ * like `backendSignerProduction` maps to `backendSigner.production`. Returns undefined
+ * for roles with no recorded address (scratch keys), which simply can't be checked.
+ */
+function recordedAddressForRole(role: string): Address | undefined {
+  const cfg = globalConfig as Record<string, unknown>
+  const direct = cfg[role]
+  if (typeof direct === 'string' && ADDRESS_RE.test(direct))
+    return getAddress(direct)
+  for (const [key, value] of Object.entries(cfg)) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      role.startsWith(key) &&
+      role.length > key.length
+    ) {
+      const sub = role.slice(key.length)
+      const subKey = sub.charAt(0).toLowerCase() + sub.slice(1)
+      const nested = (value as Record<string, unknown>)[subKey]
+      if (typeof nested === 'string' && ADDRESS_RE.test(nested))
+        return getAddress(nested)
+    }
   }
+  return undefined
+}
+
+/**
+ * Refuse to operate a role whose `.env` key derives to a different address than
+ * `global.json` records. A mistyped or stale key would otherwise let an autonomous
+ * bridge/swap move a wallet the operator never intended; blocking is the safe default.
+ * If a rotation is legitimate, `global.json` must be updated first.
+ */
+function assertKeyMatchesRole(role: string, derived: Address): void {
+  const recorded = recordedAddressForRole(role)
+  if (recorded && recorded !== getAddress(derived))
+    throw new Error(
+      `Refusing to proceed: the .env key for "${role}" derives to ${derived}, but global.json ` +
+        `records ${recorded}. If the wallet was rotated, update config/global.json first.`
+    )
 }
 
 function requireNetwork(name: string) {
@@ -268,7 +297,9 @@ async function ensureAllowance(
     functionName: 'approve',
     args: [spender, amount],
   } as unknown as Parameters<typeof walletClient.writeContract>[0])
-  await publicClient.waitForTransactionReceipt({ hash })
+  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success')
+    throw new Error(`Approval transaction reverted (${hash}).`)
 }
 
 async function pollBridgeStatus(
@@ -289,12 +320,12 @@ async function pollBridgeStatus(
       consola.success('Destination funds delivered.')
       return
     }
-    if (status.status === 'FAILED') {
-      consola.error(
-        'Bridge reported FAILED — check the source tx and LI.FI status.'
+    if (status.status === 'FAILED')
+      throw new Error(
+        `Bridge reported FAILED: ${
+          status.substatusMessage ?? status.substatus ?? 'unknown reason'
+        }`
       )
-      return
-    }
     await sleep(stepSeconds * 1000)
   }
   consola.warn(
@@ -353,6 +384,7 @@ const main = defineCommand({
       throw new Error(`Unknown mode "${mode}". Use bridge | swap | send.`)
 
     const maxSlippage = args['max-slippage'] ? Number(args['max-slippage']) : 3
+    assertSlippage(maxSlippage)
     const dryRun = !!args['dry-run']
 
     const wallet = resolveWallet(args.wallet)
@@ -422,8 +454,9 @@ const main = defineCommand({
     )
 
     // Amount in the input asset's base units.
+    const percentSel = resolveAmountSelection(args.amount, args.percent)
     let fromAmount: bigint
-    if (args.percent) {
+    if (percentSel !== null) {
       if (!fromToken.isNative)
         throw new Error(
           '--percent is only supported when the input asset is native.'
@@ -431,17 +464,12 @@ const main = defineCommand({
       fromAmount = await nativeAmountFromPercent(
         publicClient,
         wallet.address,
-        Number(args.percent)
+        percentSel
       )
-    } else if (args.amount) {
-      fromAmount = parseAmount(args.amount, fromToken.decimals)
     } else {
-      throw new Error('Provide --amount or --percent.')
+      fromAmount = parseAmount(args.amount as string, fromToken.decimals)
     }
     if (fromAmount <= 0n) throw new Error('Resolved amount is zero.')
-
-    // The same-wallet boundary: we quote with toAddress == fromAddress and assert it.
-    assertSameWallet(wallet.address, wallet.address)
 
     const quote = await fetchLifiQuote({
       fromChain: srcNet.chainId,
@@ -453,6 +481,14 @@ const main = defineCommand({
       fromAmount: fromAmount.toString(),
       slippage: maxSlippage / 100,
     })
+
+    // Same-wallet boundary: the quote is requested with toAddress == fromAddress == our
+    // wallet; verify the returned route echoes that, so any recipient drift is caught
+    // before signing.
+    if (quote.action.fromAddress)
+      assertSameWallet(wallet.address, quote.action.fromAddress)
+    if (quote.action.toAddress)
+      assertSameWallet(wallet.address, quote.action.toAddress)
 
     const { lossPct } = assertWithinSlippage(
       quote.estimate.fromAmountUSD,
@@ -507,7 +543,11 @@ const main = defineCommand({
     )
     const explorer = buildExplorerTxUrl(srcName, txHash) ?? txHash
     consola.success(`Broadcast: ${explorer}`)
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+    })
+    if (receipt.status !== 'success')
+      throw new Error(`Transaction reverted on ${srcName} (${txHash}).`)
 
     if (isBridge) {
       consola.info(
@@ -578,15 +618,15 @@ async function runSend(
     account: accountFromPrivateKey(wallet.privateKey),
   })
 
-  let value: bigint
-  if (args.percent)
-    value = await nativeAmountFromPercent(
-      publicClient,
-      wallet.address,
-      Number(args.percent)
-    )
-  else if (args.amount) value = parseAmount(args.amount as string, 18)
-  else throw new Error('Provide --amount or --percent.')
+  const percentSel = resolveAmountSelection(
+    args.amount as string | undefined,
+    args.percent as string | undefined
+  )
+  const value =
+    percentSel !== null
+      ? await nativeAmountFromPercent(publicClient, wallet.address, percentSel)
+      : parseAmount(args.amount as string, 18)
+  if (value <= 0n) throw new Error('Resolved amount is zero.')
 
   consola.box(
     [
@@ -617,7 +657,11 @@ async function runSend(
   } as Parameters<typeof walletClient.sendTransaction>[0])
   const explorer = buildExplorerTxUrl(networkName, txHash) ?? txHash
   consola.success(`Broadcast: ${explorer}`)
-  await publicClient.waitForTransactionReceipt({ hash: txHash })
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+  })
+  if (receipt.status !== 'success')
+    throw new Error(`Send transaction reverted on ${networkName} (${txHash}).`)
   consola.success('Send confirmed.')
 }
 

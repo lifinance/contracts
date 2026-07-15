@@ -65,9 +65,9 @@ Pass `--wallet` as a role or a raw address:
   refuses — it can only move funds it holds the key for.
 
 The address is always derived from the key, and cross-checked against the address
-`global.json` records for that role; a mismatch prints a warning and the key-derived
-address wins (the key is what actually signs). `feeCollectorOwner` has no key in `.env`
-and cannot be driven here.
+`global.json` records for that role; a mismatch **aborts** — a wrong or stale key must
+not silently operate a different wallet, so if the wallet was rotated, update
+`global.json` first. `feeCollectorOwner` has no key in `.env` and cannot be driven here.
 
 Prefer the wallet the request names. `refundWallet` / `withdrawWallet` are CTO-owned —
 double-check intent before moving their funds.
@@ -86,10 +86,14 @@ bunx tsx script/tasks/manageWalletFunds.ts bridge --wallet devWallet \
 bunx tsx script/tasks/manageWalletFunds.ts swap --wallet devWallet \
   --network base --from-token native --to-token USDC --amount 0.01 [--dry-run]
 
-# send native gas to a different recipient (human confirms)
+# send native gas to a different recipient — prints a report and STOPS
 bunx tsx script/tasks/manageWalletFunds.ts send --wallet devWallet \
-  --network bsc --to 0xRecipient --amount 0.01 --confirm
+  --network bsc --to 0xRecipient --amount 0.01
 ```
+
+For `send`, a **human** appends `--confirm` to the command above after reading the report. An agent must never add it — that is the whole point of the gate, so the example is intentionally left un-confirmed.
+
+One broadcast per invocation: each command signs at most one transaction; confirm the result before running the next. Do not loop this script to fire several transfers inside a single step.
 
 Amount is either `--amount <human>` (of the input asset) or `--percent <n>` of the native
 balance (native inputs only; leaves headroom for gas). `--max-slippage` caps tolerated
