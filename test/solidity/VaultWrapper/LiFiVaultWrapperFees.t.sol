@@ -36,7 +36,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         );
         assertGt(expectedShares, 0);
 
-        // A real operation crystallizes pending fees via _beforeOperation -> _accrueFees
+        // A real operation crystallizes pending fees via _accrueFees
         // before its own shares are minted, so the fee bookkeeping is exact regardless of
         // the triggering deposit's size.
         _crystallize();
@@ -100,7 +100,9 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
 
         // No prior deposits: totalSupply()/totalAssets() are zero, so the accrual at the
-        // top of the first operation finds nothing to dilute.
+        // top of the first operation finds nothing to dilute. The 1-wei crystallizing
+        // deposit is the vault's first and mints 1e6 shares (18-dec asset, offset 6),
+        // so it clears the supply floor on its own.
         vm.warp(block.timestamp + YEAR);
         _crystallize();
 
@@ -109,9 +111,10 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_ZeroShareAccrualStillAdvancesBaseline() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        // A tiny AUM makes the per-second management fee floor to zero shares, so the
-        // accrual at the top of an operation mints nothing.
-        _deposit(alice, 1000);
+        // A tiny AUM (the smallest floor-clearing deposit) makes the per-second
+        // management fee floor to zero shares, so the accrual at the top of an
+        // operation mints nothing.
+        _deposit(alice, 1e6);
 
         vm.warp(block.timestamp + 1);
         _crystallize();
@@ -126,15 +129,16 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         public
     {
         wrapper = _newWrapperMgmtOnly(1000); // 10% / year
-        // Dust-seed the vault, then leave it dormant: at 10 wei AUM the management fee
-        // floors to zero shares at every accrual.
-        _deposit(alice, 10);
+        // Dust-seed the vault (the smallest floor-clearing deposit), then leave it
+        // dormant for a year.
+        _deposit(alice, 1e6);
 
         vm.warp(block.timestamp + YEAR - 1);
 
-        // The accrual at the top of this large deposit still floors to zero at the
-        // pre-deposit AUM, but the baseline must advance so the dormant year cannot be
-        // re-priced against the new depositor's assets.
+        // The accrual at the top of this large deposit prices the dormant year at the
+        // dust pre-deposit AUM (~1e5 wei of fees — charged to the dust seed, not to
+        // bob), and the baseline must advance so the dormant year cannot be re-priced
+        // against the new depositor's assets.
         _deposit(bob, 1_000_000e18);
 
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
@@ -142,10 +146,15 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         vm.warp(block.timestamp + 1);
         _crystallize();
 
-        // One second at 10%/yr on ~1e24 assets is ~3e15 fee-shares; carrying the dormant
-        // year would have charged ~1e23 (10% of bob's deposit). Assert second-scale.
+        // One second at 10%/yr on ~1e24 assets is ~3e15 asset-equivalent fee, scaled by
+        // 10 ** offset into shares; carrying the dormant year would have charged ~1e23
+        // asset-equivalent (10% of bob's deposit). Assert second-scale against a bound
+        // that tracks the share scale.
         assertGt(_accruedFeeShares(), 0);
-        assertLt(_accruedFeeShares(), 1e18);
+        assertLt(
+            _accruedFeeShares(),
+            1e18 * 10 ** wrapper.shareDecimalsOffset()
+        );
     }
 
     function test_DilutionFeeAccruedEventEmitted() public {
@@ -382,8 +391,12 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         assertEq(burned, previewedShares);
         assertLe(burned, sharesBefore);
         assertEq(asset.balanceOf(alice), maxAssets);
-        // At most rounding dust may remain; a full exit must never revert.
-        assertLe(wrapper.balanceOf(alice), 2);
+        // At most rounding dust may remain; a full exit must never revert. Dust is in
+        // shares, so its bound scales with 10 ** offset (one asset-wei of shares).
+        assertLe(
+            wrapper.balanceOf(alice),
+            2 * 10 ** wrapper.shareDecimalsOffset()
+        );
     }
 
     function test_WithdrawRedeemInverseWithFee() public {
@@ -533,10 +546,9 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_AssetFeeSplitUsesEachFeeTypesOwnShare() public {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, WD_RATE];
-        bool[4] memory enabled = [false, false, true, true];
         // Distinct shares per fee type: deposit 30% / withdrawal 40% to the integrator.
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 0, 3000, 4000]
         );
         _deposit(alice, DEPOSIT);
@@ -562,9 +574,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_DilutionFeeSplitUsesManagementShare() public {
         uint16[4] memory rates = [uint16(0), MGMT_RATE, 0, 0];
-        bool[4] memory enabled = [false, true, false, false];
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 2500, 0, 0]
         );
         _deposit(alice, DEPOSIT);
@@ -584,9 +595,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_SplitRoundingRemainderGoesToLifi() public {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, 0];
-        bool[4] memory enabled = [false, false, true, false];
         wrapper = _newWrapperWithSplits(
-            FeeConfig({ rateBps: rates, enabled: enabled }),
+            FeeConfig({ rateBps: rates }),
             [uint16(0), 0, 3333, 0]
         );
         _deposit(alice, DEPOSIT);
@@ -605,11 +615,13 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
     function test_FeeCounterSaturationNeverBricksExits() public {
         // Books fee-shares beyond uint128 max in a single management accrual: a large
         // wei-supply left dormant long enough that the fee clamps to ~all of AUM, so
-        // dilutionShares explodes to ~supply * assets / 2 (~5e75 here). The counters
+        // dilutionShares explodes to ~supply * assets / 2 (~5e69 here). The counters
         // must saturate — never revert — because the accrual runs on every exit and
         // even on the fee-disable path.
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        uint256 whale = 1e38; // large, but within solmate's mock 4626 mulDiv range
+        // Whale sized so shares (assets * 10 ** offset) and the fee-math intermediates
+        // stay within uint256 while still overflowing the uint128 fee counters.
+        uint256 whale = 1e32;
         _deposit(alice, whale);
 
         vm.warp(block.timestamp + 500 * YEAR);
@@ -646,7 +658,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         _stackWithFactory(MGMT_RATE);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit FeeConfigUpdated(FeeType.Management, 500, true);
+        emit FeeConfigUpdated(FeeType.Management, 500);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 500);
@@ -661,7 +673,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         factory.setFeeBounds(FeeType.Management, 100, 1000);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit FeeConfigUpdated(FeeType.Management, 0, false);
+        emit FeeConfigUpdated(FeeType.Management, 0);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 0);
@@ -738,14 +750,16 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         public
     {
         _stackWithFactory(MGMT_RATE);
-        _deposit(alice, 10); // dust: the old-rate accrual floors to zero shares
+        // Dust AUM (the smallest floor-clearing deposit) over a short window: the
+        // old-rate accrual floors to zero shares (1e6 wei * 2%/yr * 20min < 1 wei).
+        _deposit(alice, 1e6);
 
-        vm.warp(block.timestamp + 30 days);
+        vm.warp(block.timestamp + 20 minutes);
 
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Management, 1000);
 
-        // The elapsed month was priced (to zero) at the old rate and dropped; it must
+        // The elapsed window was priced (to zero) at the old rate and dropped; it must
         // not be re-priced at the new 10% rate by the next accrual.
         assertEq(wrapper.lastMgmtAccrual(), block.timestamp);
         assertEq(_accruedFeeShares(), 0);
@@ -828,9 +842,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _rate
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), _rate, 0, 0];
-        bool[4] memory enabled = [false, _rate != 0, false, false];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     function _newWrapperAssetFees(
@@ -838,9 +851,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _wdRate
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), 0, _depRate, _wdRate];
-        bool[4] memory enabled = [false, false, _depRate != 0, _wdRate != 0];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     function _newWrapperAllThree(
@@ -849,9 +861,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint16 _wd
     ) internal returns (LiFiVaultWrapper) {
         uint16[4] memory rates = [uint16(0), _mgmt, _dep, _wd];
-        bool[4] memory enabled = [false, true, true, true];
 
-        return _newWrapper(FeeConfig({ rateBps: rates, enabled: enabled }));
+        return _newWrapper(FeeConfig({ rateBps: rates }));
     }
 
     /// @dev Stands up the full factory stack and deploys a management-fee instance so
@@ -876,7 +887,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
             _feeAssets: feeAssets,
             _totalSupply: supply,
             _totalAssets: assets,
-            _decimalsOffset: 0
+            _decimalsOffset: _w.shareDecimalsOffset()
         });
     }
 }

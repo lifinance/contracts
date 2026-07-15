@@ -9,10 +9,12 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
-import { FeeType, DeployParams, FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
@@ -28,7 +30,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal vaultAdmin = makeAddr("vaultAdmin");
     bytes32 internal constant NS = bytes32("Coinbase");
     MockERC4626Underlying internal underlying;
-    address internal assetToken = makeAddr("asset");
+    address internal assetToken = address(new MockERC20("Asset", "AST", 18));
 
     function setUp() public virtual {
         impl = new LiFiVaultWrapper();
@@ -318,21 +320,16 @@ contract LiFiVaultWrapperFactoryTest is Test {
         uint256 nonce_
     ) internal view returns (DeployParams memory p) {
         uint16[4] memory rates = [uint16(1000), 0, 0, 0];
-        bool[4] memory enabled = [true, false, false, false];
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
         p = DeployParams({
             namespace: NS,
             vaultWrapperAdmin: vaultAdmin,
             adapter: address(adapter),
             underlying: address(underlying),
             nonce: nonce_,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: _splitsAll(type(uint16).max), // inherit factory default
-            initData: hex"1234",
-            receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
+            accessGate: address(0xACCE55),
+            receivers: defaultReceivers()
         });
     }
 
@@ -369,7 +366,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         }
         assertEq(w.feeRate(uint8(FeeType.Performance)), 1000);
         assertTrue(w.feeEnabled(uint8(FeeType.Performance)));
-        assertEq(w.initData(), hex"1234");
+        assertEq(w.accessGate(), address(0xACCE55));
     }
 
     function test_WrapperDeployedEmitsAssetAndSplit() public {
@@ -569,21 +566,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Management, 0, 1000); // mgmt cap is 1000
         DeployParams memory p = _params(0);
         uint16[4] memory rates = [uint16(0), 1500, 0, 0]; // 15% > 10% cap
-        bool[4] memory enabled = [false, true, false, false];
-        p.fees = FeeConfig({ rateBps: rates, enabled: enabled });
+        p.fees = FeeConfig({ rateBps: rates });
         vm.prank(onboarder);
         vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveCap.selector);
-        factory.deploy(p);
-    }
-
-    function test_DeployRevertsOnDisabledFeeWithNonZeroRate() public {
-        _enableUnderlyingAndBounds();
-        DeployParams memory p = _params(0);
-        p.fees.enabled[0] = false; // disabled but rate is 1000
-        vm.prank(onboarder);
-        vm.expectRevert(
-            ILiFiVaultWrapperFactory.DisabledFeeMustBeZero.selector
-        );
         factory.deploy(p);
     }
 

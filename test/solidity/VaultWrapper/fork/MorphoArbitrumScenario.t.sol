@@ -12,7 +12,7 @@ import { VaultWrapperForkTestBase } from "test/solidity/VaultWrapper/fork/VaultW
 ///         simulated donation. Asserts, per operation: deposit/withdrawal asset fees exactly,
 ///         management/performance dilution against an independent `LibVaultWrapperMath`
 ///         recomputation, and a non-decreasing high-water mark. Then settles the whole
-///         system — sweep fan-out to the two integrator wallets + LI.FI, full drain — and
+///         system — fee-distribution fan-out to the two integrator wallets + LI.FI, full drain — and
 ///         checks nothing is stranded and real positive yield was distributed. A second test
 ///         proves withdrawals stay open while deposits are paused.
 contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
@@ -65,7 +65,7 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         _exit(carol, wrapper.balanceOf(carol));
         _exit(alice, wrapper.balanceOf(alice));
 
-        _sweepAndAssertDistribution();
+        _distributeFeesAndAssertFanOut();
         _drainAndAssertConservation();
     }
 
@@ -168,10 +168,10 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         );
     }
 
-    /// @dev Sweeps and asserts the S3 fan-out: LI.FI's booked parts land on the live
-    ///      recipient, the integrator's parts fan 60/40 across its two wallets (second
+    /// @dev Distributes fees and asserts the S3 fan-out: LI.FI's booked parts land on the
+    ///      live recipient, the integrator's parts fan 60/40 across its two wallets (second
     ///      absorbs the remainder), and every fee counter is zeroed.
-    function _sweepAndAssertDistribution() internal {
+    function _distributeFeesAndAssertFanOut() internal {
         uint256 lifiAssets = wrapper.lifiFeeAssets();
         uint256 integratorAssets = wrapper.integratorFeeAssets();
         uint256 lifiShares = wrapper.lifiFeeShares();
@@ -179,14 +179,14 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         assertGt(lifiAssets + integratorAssets, 0, "no asset fees booked");
         assertGt(lifiShares + integratorShares, 0, "no dilution fees booked");
 
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(wrapper.lifiFeeAssets(), 0);
         assertEq(wrapper.integratorFeeAssets(), 0);
         assertEq(wrapper.lifiFeeShares(), 0);
         assertEq(wrapper.integratorFeeShares(), 0);
 
-        // Recipients started empty, so post-sweep balances equal the payouts outright.
+        // Recipients started empty, so post-distribution balances equal the payouts outright.
         _assertFanOut(
             asset.balanceOf(lifiRecipient),
             asset.balanceOf(integrator1),

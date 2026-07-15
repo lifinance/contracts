@@ -13,7 +13,8 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeConfig, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
@@ -119,9 +120,7 @@ contract LiFiVaultWrapperTest is Test {
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16[4] integratorShareBps
+        address vaultWrapperAdmin
     );
 
     /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
@@ -153,7 +152,9 @@ contract LiFiVaultWrapperTest is Test {
         for (uint256 i; i < 4; ++i) {
             assertEq(wrapper.integratorShareBps(i), 8000);
         }
-        assertEq(wrapper.decimals(), 18);
+        // 18-decimal asset: derived offset 0 is floored at the 6 minimum, so shares
+        // are 24 decimals (see MIN_DECIMALS_OFFSET).
+        assertEq(wrapper.decimals(), 24);
         assertEq(wrapper.name(), "LI.FI Earn TKN");
         assertEq(wrapper.symbol(), "lfTKN");
     }
@@ -168,8 +169,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 
@@ -178,9 +179,7 @@ contract LiFiVaultWrapperTest is Test {
             address(asset),
             address(underlying),
             address(adapter),
-            vaultAdmin,
-            address(this),
-            _splits8000()
+            vaultAdmin
         );
 
         new BeaconProxy(address(beacon), initCall);
@@ -197,8 +196,8 @@ contract LiFiVaultWrapperTest is Test {
             vaultAdmin,
             _splits8000(),
             fees,
-            "",
-            _defaultReceivers()
+            defaultReceivers(),
+            address(0)
         );
     }
 
@@ -212,8 +211,8 @@ contract LiFiVaultWrapperTest is Test {
                 address(0),
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 
@@ -233,8 +232,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 
@@ -254,8 +253,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 [uint16(8000), 10_000, 8000, 8000],
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 
@@ -308,8 +307,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 
@@ -326,23 +325,27 @@ contract LiFiVaultWrapperTest is Test {
     function test_DepositForwardsAssetsToUnderlying() public {
         _deposit(alice, DEPOSIT);
 
+        // Shares carry the virtual-share offset, so they scale the asset amount by
+        // 10 ** offset; the asset-side balances stay 1:1 with the deposit.
+        uint256 expectedShares = DEPOSIT * 10 ** wrapper.shareDecimalsOffset();
         assertEq(asset.balanceOf(address(wrapper)), 0);
         assertEq(asset.balanceOf(address(underlying)), DEPOSIT);
         assertEq(underlying.balanceOf(address(wrapper)), DEPOSIT);
         assertEq(wrapper.totalAssets(), DEPOSIT);
-        assertEq(wrapper.balanceOf(alice), DEPOSIT);
-        assertEq(wrapper.totalSupply(), DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), expectedShares);
+        assertEq(wrapper.totalSupply(), expectedShares);
     }
 
     function test_MintForwardsAssetsToUnderlying() public {
+        uint256 shares = DEPOSIT * 10 ** wrapper.shareDecimalsOffset();
         asset.mint(alice, DEPOSIT);
         vm.startPrank(alice);
         asset.approve(address(wrapper), DEPOSIT);
-        uint256 assetsIn = wrapper.mint(DEPOSIT, alice);
+        uint256 assetsIn = wrapper.mint(shares, alice);
         vm.stopPrank();
 
         assertEq(assetsIn, DEPOSIT);
-        assertEq(wrapper.balanceOf(alice), DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), shares);
         assertEq(wrapper.totalAssets(), DEPOSIT);
         assertEq(asset.balanceOf(address(wrapper)), 0);
     }
@@ -364,12 +367,14 @@ contract LiFiVaultWrapperTest is Test {
     function test_WithdrawRoundTrip() public {
         _deposit(alice, DEPOSIT);
 
+        uint256 scale = 10 ** wrapper.shareDecimalsOffset();
+
         vm.prank(alice);
         uint256 sharesBurned = wrapper.withdraw(DEPOSIT, alice, alice);
 
-        assertApproxEqAbs(sharesBurned, DEPOSIT, 1);
+        assertApproxEqAbs(sharesBurned, DEPOSIT * scale, scale);
         assertApproxEqAbs(asset.balanceOf(alice), DEPOSIT, 1);
-        assertApproxEqAbs(wrapper.balanceOf(alice), 0, 1);
+        assertApproxEqAbs(wrapper.balanceOf(alice), 0, scale);
     }
 
     /// Accounting ///
@@ -422,9 +427,11 @@ contract LiFiVaultWrapperTest is Test {
     }
 
     function test_VirtualSharesGiveSecondDepositorFairShares() public {
-        // A 1-wei first deposit must not let virtual-share accounting zero out a
-        // normal-sized second deposit (the empty-vault edge the inflation attack targets).
-        _deposit(alice, 1);
+        // The smallest floor-clearing first deposit (1e6 shares = MIN_SHARE_SUPPLY;
+        // anything smaller reverts SupplyBelowMinimum) must not let virtual-share
+        // accounting zero out a normal-sized second deposit (the empty-vault edge
+        // the inflation attack targets).
+        _deposit(alice, 1e6);
         _deposit(bob, DEPOSIT);
 
         uint256 bobShares = wrapper.balanceOf(bob);
@@ -581,18 +588,6 @@ contract LiFiVaultWrapperTest is Test {
 
     /// Helpers ///
 
-    function _defaultReceivers()
-        internal
-        pure
-        returns (IntegratorReceivers memory r)
-    {
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
-    }
-
     function _splits8000() internal pure returns (uint16[4] memory) {
         return [uint16(8000), 8000, 8000, 8000];
     }
@@ -609,8 +604,8 @@ contract LiFiVaultWrapperTest is Test {
                 vaultAdmin,
                 _splits8000(),
                 fees,
-                "",
-                _defaultReceivers()
+                defaultReceivers(),
+                address(0)
             )
         );
 

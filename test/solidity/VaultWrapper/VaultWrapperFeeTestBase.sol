@@ -9,7 +9,8 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Shared scaffolding for the vault-wrapper fee-engine suites: the direct
 ///         beacon-proxy setup (real inflatable `MockERC4626`), the factory stack for
@@ -32,17 +33,16 @@ abstract contract VaultWrapperFeeTestBase is Test {
     uint16 internal constant MGMT_RATE = 200; // 2% / year
     uint16 internal constant SPLIT = 8000; // integrator share used for every fee type here
     uint256 internal constant YEAR = 365 days;
+    // Mirror of the wrapper's internal MIN_SHARE_SUPPLY (deposit-side supply floor); the
+    // production constant is internal, so the suites read this single shared copy.
+    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
     /// @dev Dust `_crystallize` deposits. 1 wei suffices while the underlying's own PPS
     ///      is 1:1; suites that inflate the underlying raise it (solmate's MockERC4626
     ///      reverts ZERO_SHARES on a forward once its PPS exceeds 1).
     uint256 internal crystallizeDust = 1;
 
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
+    event FeeConfigUpdated(FeeType indexed feeType, uint16 newRateBps);
 
     event DilutionFeeAccrued(
         FeeType indexed feeType,
@@ -82,37 +82,50 @@ abstract contract VaultWrapperFeeTestBase is Test {
     function _newWrapperWithSplits(
         FeeConfig memory _fees,
         uint16[4] memory _splits
-    ) internal returns (LiFiVaultWrapper w) {
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                _splits,
-                _fees,
-                "",
-                _defaultReceivers()
-            )
-        );
+    ) internal returns (LiFiVaultWrapper) {
+        return _newWrapperFor(address(underlying), _fees, _splits);
+    }
 
+    /// @dev Deploys a wrapper beacon proxy over an arbitrary yield source. The single
+    ///      place the `initialize` signature is encoded, so a signature change lands here
+    ///      once for every suite (default 18-decimal source, 6-decimal source, malformed
+    ///      assets) instead of being re-typed per test.
+    function _newWrapperFor(
+        address _underlying,
+        FeeConfig memory _fees,
+        uint16[4] memory _splits
+    ) internal returns (LiFiVaultWrapper w) {
         w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
+            address(
+                new BeaconProxy(
+                    address(beacon),
+                    _initFor(_underlying, _fees, _splits)
+                )
+            )
         );
     }
 
-    /// @dev Single integrator payout wallet holding 100% of the integrator's fan-out —
-    ///      the minimal valid receiver set for suites not exercising distribution.
-    function _defaultReceivers()
-        internal
-        pure
-        returns (IntegratorReceivers memory r)
-    {
-        address[] memory wallets = new address[](1);
-        wallets[0] = address(0xFEE1);
-        uint16[] memory bps = new uint16[](1);
-        bps[0] = 10_000;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
+    /// @dev ABI-encodes the wrapper's `initialize` call for `_underlying`; shared by the
+    ///      deploy helpers and by tests that need the raw init calldata (e.g. asserting an
+    ///      initializer revert on a malformed asset).
+    function _initFor(
+        address _underlying,
+        FeeConfig memory _fees,
+        uint16[4] memory _splits
+    ) internal view returns (bytes memory) {
+        return
+            abi.encodeCall(
+                LiFiVaultWrapper.initialize,
+                (
+                    _underlying,
+                    address(adapter),
+                    vaultAdmin,
+                    _splits,
+                    _fees,
+                    defaultReceivers(),
+                    address(0)
+                )
+            );
     }
 
     /// @dev Stands up the full factory stack and deploys an instance with one fee type
@@ -137,24 +150,22 @@ abstract contract VaultWrapperFeeTestBase is Test {
         vm.stopPrank();
 
         uint16[4] memory rates;
-        bool[4] memory enabled;
         rates[uint8(_feeType)] = _rate;
-        enabled[uint8(_feeType)] = _rate != 0;
         DeployParams memory p = DeployParams({
             namespace: bytes32("Coinbase"),
             vaultWrapperAdmin: vaultAdmin,
             adapter: address(adapter),
             underlying: address(underlying),
             nonce: 0,
-            fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+            fees: FeeConfig({ rateBps: rates }),
             integratorShareBps: [
                 type(uint16).max,
                 type(uint16).max,
                 type(uint16).max,
                 type(uint16).max
             ],
-            initData: "",
-            receivers: _defaultReceivers()
+            accessGate: address(0),
+            receivers: defaultReceivers()
         });
 
         vm.prank(makeAddr("onboarder"));
@@ -193,7 +204,7 @@ abstract contract VaultWrapperFeeTestBase is Test {
         );
     }
 
-    /// @dev Triggers `_beforeOperation -> _accrueFees` via a dust deposit (solmate's
+    /// @dev Triggers `_accrueFees` via a dust deposit (solmate's
     ///      MockERC4626 reverts ZERO_SHARES on a 0 forward, so a bare zero deposit
     ///      cannot be used). The accrual runs before the deposit's own mint, so fee
     ///      bookkeeping is exact regardless of the dust; it is netted out where exact

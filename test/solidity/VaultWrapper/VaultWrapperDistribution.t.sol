@@ -11,10 +11,10 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice A blacklisting ERC20: `transfer` reverts to any blocked address (mirrors USDC).
-///         Used to exercise the sweep's redirect-failed-integrator-payout-to-LI.FI path.
+///         Used to exercise the distributeFees retain-failed-integrator-payout-in-wrapper path.
 contract BlacklistERC20 is MockERC20 {
     mapping(address => bool) public blocked;
 
@@ -36,10 +36,10 @@ contract BlacklistERC20 is MockERC20 {
 }
 
 /// @notice Integration tests for the LiFiVaultWrapper fee distribution layer (EXSC-411, S3):
-///         receiver config, the permissionless `sweep` paying out the per-recipient counters
-///         booked at accrual (no re-split at distribution) over both reservoirs (idle asset +
-///         dilution shares), the 1..5 wallet fan-out with last-receiver remainder, and the
-///         redirect-failed-integrator-payout-to-LI.FI behaviour. Fees are driven through real
+///         receiver config, the permissionless `distributeFees` paying out the per-recipient
+///         counters booked at accrual (no re-split at distribution) over both fee pools (idle
+///         asset + dilution shares), the 1..50 wallet fan-out with last-receiver remainder, and the
+///         retain-failed-integrator-payout-in-wrapper behaviour. Fees are driven through real
 ///         deposit/withdraw/time accrual (the S2 engine), not seeded directly. Pause-bypass
 ///         coverage is deferred to S5 integration.
 contract VaultWrapperDistributionTest is Test {
@@ -63,13 +63,13 @@ contract VaultWrapperDistributionTest is Test {
     uint16 internal constant MGMT_RATE = 200; // 2% / year
     uint256 internal constant YEAR = 365 days;
 
-    event ReceiversSet(address[] receivers, uint16[] bps);
-    event ReservoirSwept(
+    event ReceiversSet(FeeReceiver[] receivers);
+    event FeePoolDistributed(
         address indexed token,
         uint256 lifiAmount,
         uint256 integratorAmount
     );
-    event IntegratorPayoutRedirected(
+    event IntegratorPayoutRetained(
         address indexed receiver,
         address indexed token,
         uint256 amount
@@ -107,8 +107,11 @@ contract VaultWrapperDistributionTest is Test {
         uint16[] memory bps = _bps3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
 
-        assertEq(wrapper.integratorReceivers().length, 3);
-        assertEq(wrapper.integratorReceiverBps()[1], 3000);
+        (, uint16 secondBps) = wrapper.integratorFeeReceivers(1);
+        assertEq(secondBps, 3000);
+        wrapper.integratorFeeReceivers(2); // third receiver exists
+        vm.expectRevert();
+        wrapper.integratorFeeReceivers(3); // no fourth: exactly three configured
     }
 
     function testRevert_InitRejectsEmptyReceivers() public {
@@ -136,8 +139,10 @@ contract VaultWrapperDistributionTest is Test {
             _full()
         );
 
-        address[] memory wallets = _single(makeAddr("new"));
-        uint16[] memory bps = _full();
+        FeeReceiver[] memory receivers = _receivers(
+            _single(makeAddr("new")),
+            _full()
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -145,13 +150,14 @@ contract VaultWrapperDistributionTest is Test {
                 address(this)
             )
         );
-        wrapper.setIntegratorReceivers(wallets, bps);
+        wrapper.setIntegratorFeeReceivers(receivers);
 
         vm.expectEmit(false, false, false, true, address(wrapper));
-        emit ReceiversSet(wallets, bps);
+        emit ReceiversSet(receivers);
         vm.prank(vaultAdmin);
-        wrapper.setIntegratorReceivers(wallets, bps);
-        assertEq(wrapper.integratorReceivers()[0], makeAddr("new"));
+        wrapper.setIntegratorFeeReceivers(receivers);
+        (address firstWallet, ) = wrapper.integratorFeeReceivers(0);
+        assertEq(firstWallet, makeAddr("new"));
     }
 
     function testRevert_SetIntegratorReceiversValidation() public {
@@ -163,29 +169,27 @@ contract VaultWrapperDistributionTest is Test {
         );
         vm.startPrank(vaultAdmin);
 
-        address[] memory six = new address[](6);
-        uint16[] memory sixBps = new uint16[](6);
+        FeeReceiver[] memory tooMany = new FeeReceiver[](51);
         vm.expectRevert(ILiFiVaultWrapper.InvalidReceiverCount.selector);
-        wrapper.setIntegratorReceivers(six, sixBps);
+        wrapper.setIntegratorFeeReceivers(tooMany);
 
-        address[] memory wallets = _single(makeAddr("r"));
-        uint16[] memory two = new uint16[](2);
-        vm.expectRevert(ILiFiVaultWrapper.ReceiversLengthMismatch.selector);
-        wrapper.setIntegratorReceivers(wallets, two);
-
-        address[] memory zero = _single(address(0));
+        FeeReceiver[] memory zero = _receivers(_single(address(0)), _full());
         vm.expectRevert(ILiFiVaultWrapper.ZeroReceiver.selector);
-        wrapper.setIntegratorReceivers(zero, _full());
+        wrapper.setIntegratorFeeReceivers(zero);
 
         uint16[] memory badSum = new uint16[](1);
         badSum[0] = 9999;
+        FeeReceiver[] memory badBps = _receivers(
+            _single(makeAddr("r")),
+            badSum
+        );
         vm.expectRevert(ILiFiVaultWrapper.ReceiverBpsSumNot100.selector);
-        wrapper.setIntegratorReceivers(wallets, badSum);
+        wrapper.setIntegratorFeeReceivers(badBps);
 
         vm.stopPrank();
     }
 
-    function test_TrustedTransferRejectsExternalCaller() public {
+    function test_SetIntegratorFeeReceiversAccepts50Wallets() public {
         wrapper = _deploy(
             _assetFees(),
             SPLIT,
@@ -193,19 +197,81 @@ contract VaultWrapperDistributionTest is Test {
             _full()
         );
 
-        // The self-call-only guard is the sole protection against arbitrary payout
-        // routing through the sweep helper; a direct external call must revert.
-        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
-        wrapper.trustedTransfer(address(asset), alice, 1);
+        FeeReceiver[] memory fifty = new FeeReceiver[](50);
+        for (uint256 i; i < 50; ++i) {
+            fifty[i] = FeeReceiver({
+                wallet: makeAddr(string.concat("w", vm.toString(i))),
+                bps: 200 // 50 * 200 = 10_000
+            });
+        }
 
+        vm.expectEmit(false, false, false, true, address(wrapper));
+        emit ReceiversSet(fifty);
         vm.prank(vaultAdmin);
-        vm.expectRevert(ILiFiVaultWrapper.OnlySelf.selector);
-        wrapper.trustedTransfer(address(asset), alice, 1);
+        wrapper.setIntegratorFeeReceivers(fifty);
+
+        (address lastWallet, uint16 lastBps) = wrapper.integratorFeeReceivers(
+            49
+        );
+        assertEq(lastWallet, makeAddr("w49"));
+        assertEq(lastBps, 200);
+        vm.expectRevert();
+        wrapper.integratorFeeReceivers(50); // no 51st: exactly 50 configured
     }
 
-    /// Sweep — split correctness ///
+    function test_SetReceiversThenDistributeUsesNewReceivers() public {
+        address oldReceiver = makeAddr("oldReceiver");
+        address newReceiver = makeAddr("newReceiver");
+        wrapper = _deploy(_assetFees(), SPLIT, _single(oldReceiver), _full());
+        _deposit(alice, DEPOSIT);
 
-    function test_SweepSplitsAssetReservoir() public {
+        // Fees accrued against the old receiver set but were never distributed.
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        assertGt(integratorPart, 0);
+
+        // Rotate receivers before distributing: the accrued total follows the new set.
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorFeeReceivers(
+            _receivers(_single(newReceiver), _full())
+        );
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(newReceiver), integratorPart);
+        assertEq(asset.balanceOf(oldReceiver), 0);
+    }
+
+    function test_DistributeFeesSkipsZeroShareReceiver() public {
+        // Two receivers: a 1-bps wallet and a 9999-bps wallet. With a tiny fee pool the
+        // 1-bps wallet's proportional share rounds down to 0 and is skipped; the last
+        // wallet absorbs the whole integrator total, so nothing is stranded.
+        address dust = makeAddr("dust"); // 1 bps
+        address bulk = makeAddr("bulk"); // 9999 bps
+        address[] memory wallets = new address[](2);
+        wallets[0] = dust;
+        wallets[1] = bulk;
+        uint16[] memory bps = new uint16[](2);
+        bps[0] = 1;
+        bps[1] = 9999;
+        wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
+
+        // Small floor-clearing deposit (~1.09e6 shares minted) whose integrator fee
+        // pool still stays < 10_000 wei.
+        _deposit(alice, 1_100_000);
+
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        assertGt(integratorPart, 0);
+        assertLt(integratorPart, 10_000); // ensures the 1-bps share floors to 0
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(dust), 0); // zero-share receiver skipped
+        assertEq(asset.balanceOf(bulk), integratorPart); // last absorbs it all
+    }
+
+    /// Fee distribution — split correctness ///
+
+    function test_DistributeFeesSplitsAssetPool() public {
         wrapper = _deploy(
             _assetFees(),
             SPLIT,
@@ -214,7 +280,7 @@ contract VaultWrapperDistributionTest is Test {
         );
         _deposit(alice, DEPOSIT);
 
-        // The split was applied at accrual; the sweep pays out exactly the tracked parts.
+        // The split was applied at accrual; distributeFees pays out exactly the tracked parts.
         uint256 lifiPart = wrapper.lifiFeeAssets();
         uint256 integratorPart = wrapper.integratorFeeAssets();
         uint256 fee = lifiPart + integratorPart;
@@ -222,8 +288,8 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(integratorPart, (fee * SPLIT) / 10_000);
 
         vm.expectEmit(true, false, false, true, address(wrapper));
-        emit ReservoirSwept(address(asset), lifiPart, integratorPart);
-        wrapper.sweep();
+        emit FeePoolDistributed(address(asset), lifiPart, integratorPart);
+        wrapper.distributeFees();
 
         assertEq(_accruedFeeAssets(), 0);
         assertEq(asset.balanceOf(lifiRecipient), lifiPart);
@@ -234,7 +300,7 @@ contract VaultWrapperDistributionTest is Test {
         );
     }
 
-    function test_SweepSplitsShareReservoir() public {
+    function test_DistributeFeesSplitsSharePool() public {
         wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
         _deposit(alice, DEPOSIT);
         vm.warp(block.timestamp + YEAR);
@@ -244,7 +310,7 @@ contract VaultWrapperDistributionTest is Test {
         uint256 integratorPart = (expectedShares * SPLIT) / 10_000;
         uint256 lifiPart = expectedShares - integratorPart;
 
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(_accruedFeeShares(), 0);
         assertEq(wrapper.balanceOf(address(wrapper)), 0);
@@ -252,7 +318,7 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(wrapper.balanceOf(makeAddr("r")), integratorPart);
     }
 
-    function test_SweepFansAcrossWalletsWithRemainderToLast() public {
+    function test_DistributeFeesFansAcrossWalletsWithRemainderToLast() public {
         address[] memory wallets = _wallets3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, _bps3());
         _deposit(alice, DEPOSIT);
@@ -263,7 +329,7 @@ contract VaultWrapperDistributionTest is Test {
         uint256 w1 = (integratorPart * 3000) / 10_000;
         uint256 w2 = integratorPart - w0 - w1; // last absorbs remainder
 
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(asset.balanceOf(wallets[0]), w0);
         assertEq(asset.balanceOf(wallets[1]), w1);
@@ -271,34 +337,92 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(w0 + w1 + w2, integratorPart);
     }
 
-    /// Sweep — robustness ///
+    /// Fee distribution — robustness ///
 
-    function test_SweepRedirectsFailedIntegratorTransferToLifi() public {
+    function test_DistributeFeesRetainsFailedIntegratorTransferInWrapper()
+        public
+    {
         // Rebuild the stack on a blacklisting asset so a blocked integrator wallet reverts.
         _useBlacklistAsset();
         address blocked = makeAddr("blocked");
         wrapper = _deploy(_assetFees(), SPLIT, _single(blocked), _full());
         _deposit(alice, DEPOSIT);
 
-        uint256 fee = _accruedFeeAssets();
+        uint256 lifiPart = wrapper.lifiFeeAssets();
         uint256 integratorPart = wrapper.integratorFeeAssets();
         BlacklistERC20(address(asset)).setBlocked(blocked, true);
 
         vm.expectEmit(true, true, false, true, address(wrapper));
-        emit IntegratorPayoutRedirected(
-            blocked,
-            address(asset),
-            integratorPart
-        );
-        wrapper.sweep(); // must not revert
+        emit IntegratorPayoutRetained(blocked, address(asset), integratorPart);
 
-        // Blocked wallet got nothing; its share was redirected to LI.FI on top of LI.FI's part.
+        wrapper.distributeFees(); // must not revert
+
+        // Blocked wallet got nothing; LI.FI got only its own part; the integrator's share is
+        // left in the wrapper, re-booked as still-owed integrator fees (not redirected to LI.FI).
         assertEq(asset.balanceOf(blocked), 0);
-        assertEq(asset.balanceOf(lifiRecipient), fee);
+        assertEq(asset.balanceOf(lifiRecipient), lifiPart);
+        assertEq(wrapper.integratorFeeAssets(), integratorPart);
+        assertEq(wrapper.lifiFeeAssets(), 0);
+
+        // Integrator rotates to a working wallet and re-sweeps — the retained fees are claimed.
+        address fresh = makeAddr("fresh");
+        vm.prank(vaultAdmin);
+        wrapper.setIntegratorFeeReceivers(_receivers(_single(fresh), _full()));
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(fresh), integratorPart);
         assertEq(_accruedFeeAssets(), 0);
     }
 
-    function test_SweepIsPermissionless() public {
+    function test_DistributeFeesRetainsOnlyFailedWalletWithinFanOut() public {
+        // A single blocked wallet inside a multi-wallet fan-out leaves only its own share in
+        // the wrapper; the other wallets are still paid in full and distributeFees does not revert.
+        _useBlacklistAsset();
+        address[] memory wallets = _wallets3();
+        wrapper = _deploy(_assetFees(), SPLIT, wallets, _bps3()); // 50% / 30% / 20%
+        _deposit(alice, DEPOSIT);
+
+        uint256 lifiPart = wrapper.lifiFeeAssets();
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        uint256 share0 = (integratorPart * 5000) / 10_000;
+        uint256 share1 = (integratorPart * 3000) / 10_000;
+        uint256 share2 = integratorPart - share0 - share1; // last absorbs remainder
+
+        // Block only the middle wallet.
+        BlacklistERC20(address(asset)).setBlocked(wallets[1], true);
+
+        vm.expectEmit(true, true, false, true, address(wrapper));
+        emit IntegratorPayoutRetained(wallets[1], address(asset), share1);
+
+        wrapper.distributeFees(); // must not revert
+
+        assertEq(asset.balanceOf(wallets[0]), share0);
+        assertEq(asset.balanceOf(wallets[1]), 0); // blocked: got nothing
+        assertEq(asset.balanceOf(wallets[2]), share2);
+        // LI.FI receives only its booked part; the blocked wallet's share stays in the wrapper.
+        assertEq(asset.balanceOf(lifiRecipient), lifiPart);
+        assertEq(wrapper.integratorFeeAssets(), share1);
+        assertEq(wrapper.lifiFeeAssets(), 0);
+
+        // Once the wallet is un-blacklisted, a re-sweep drains the retained pool. Retained fees
+        // carry no per-wallet memory, so the pool is re-fanned across the current receiver set
+        // (not handed back to the originally-failed wallet); the integrator's total is paid out.
+        BlacklistERC20(address(asset)).setBlocked(wallets[1], false);
+
+        wrapper.distributeFees();
+
+        assertEq(
+            asset.balanceOf(wallets[0]) +
+                asset.balanceOf(wallets[1]) +
+                asset.balanceOf(wallets[2]),
+            integratorPart
+        );
+        assertGt(asset.balanceOf(wallets[1]), 0);
+        assertEq(_accruedFeeAssets(), 0);
+    }
+
+    function test_DistributeFeesIsPermissionless() public {
         wrapper = _deploy(
             _assetFees(),
             SPLIT,
@@ -308,54 +432,54 @@ contract VaultWrapperDistributionTest is Test {
         _deposit(alice, DEPOSIT);
 
         vm.prank(makeAddr("randomCaller"));
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(_accruedFeeAssets(), 0);
     }
 
-    function test_SweepCrystallizesPendingManagementWithoutAnOperation()
+    function test_DistributeFeesCrystallizesPendingManagementWithoutAnOperation()
         public
     {
         wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
         _deposit(alice, DEPOSIT);
         vm.warp(block.timestamp + YEAR);
 
-        // No deposit/withdraw between the warp and the sweep: sweep itself must accrue.
+        // No deposit/withdraw between the warp and the call: distributeFees itself must accrue.
         assertEq(_accruedFeeShares(), 0);
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(_accruedFeeShares(), 0); // accrued then fully distributed
         assertGt(wrapper.balanceOf(makeAddr("r")), 0);
         assertGt(wrapper.balanceOf(lifiRecipient), 0);
     }
 
-    function test_SweepWorksWhileDepositsPaused() public {
+    function test_DistributeFeesWorksWhileDepositsPaused() public {
         wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
         _deposit(alice, DEPOSIT);
         vm.warp(block.timestamp + YEAR);
 
-        // Deposits paused: _beforeOperation cannot run on inflows, so sweep itself
+        // Deposits paused: deposit/mint accrual cannot run on inflows, so distributeFees itself
         // must accrue the pending management fee and still pay it out.
         vm.prank(vaultAdmin);
         wrapper.pause();
 
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertGt(wrapper.balanceOf(lifiRecipient), 0);
         assertGt(wrapper.balanceOf(makeAddr("r")), 0);
         assertEq(_accruedFeeShares(), 0);
     }
 
-    function test_SweepNoOpWhenNothingAccrued() public {
+    function test_DistributeFeesNoOpWhenNothingAccrued() public {
         wrapper = _deploy(_mgmtFees(), SPLIT, _single(makeAddr("r")), _full());
         _deposit(alice, DEPOSIT);
 
-        wrapper.sweep(); // same block, nothing accrued
+        wrapper.distributeFees(); // same block, nothing accrued
         assertEq(asset.balanceOf(lifiRecipient), 0);
         assertEq(wrapper.balanceOf(lifiRecipient), 0);
     }
 
-    function test_SweepReadsLifiRecipientLive() public {
+    function test_DistributeFeesReadsLifiRecipientLive() public {
         wrapper = _deploy(
             _assetFees(),
             SPLIT,
@@ -368,7 +492,7 @@ contract VaultWrapperDistributionTest is Test {
         vm.prank(owner);
         factory.setLifiFeeRecipient(newRecipient);
 
-        wrapper.sweep();
+        wrapper.distributeFees();
         assertGt(asset.balanceOf(newRecipient), 0);
         assertEq(asset.balanceOf(lifiRecipient), 0);
     }
@@ -381,7 +505,7 @@ contract VaultWrapperDistributionTest is Test {
         uint256 fee = wrapper.lifiFeeAssets();
         assertGt(fee, 0);
         assertEq(wrapper.integratorFeeAssets(), 0);
-        wrapper.sweep();
+        wrapper.distributeFees();
 
         assertEq(asset.balanceOf(lifiRecipient), fee);
         assertEq(asset.balanceOf(makeAddr("r")), 0);
@@ -399,14 +523,12 @@ contract VaultWrapperDistributionTest is Test {
 
     function _assetFees() internal pure returns (FeeConfig memory) {
         uint16[4] memory rates = [uint16(0), 0, DEP_RATE, WD_RATE];
-        bool[4] memory enabled = [false, false, true, true];
-        return FeeConfig({ rateBps: rates, enabled: enabled });
+        return FeeConfig({ rateBps: rates });
     }
 
     function _mgmtFees() internal pure returns (FeeConfig memory) {
         uint16[4] memory rates = [uint16(0), MGMT_RATE, 0, 0];
-        bool[4] memory enabled = [false, true, false, false];
-        return FeeConfig({ rateBps: rates, enabled: enabled });
+        return FeeConfig({ rateBps: rates });
     }
 
     function _deploy(
@@ -437,12 +559,20 @@ contract VaultWrapperDistributionTest is Test {
                 nonce: 0,
                 fees: _fees,
                 integratorShareBps: [_split, _split, _split, _split],
-                initData: "",
-                receivers: IntegratorReceivers({
-                    wallets: _wallets,
-                    bps: _bps
-                })
+                accessGate: address(0),
+                receivers: _receivers(_wallets, _bps)
             });
+    }
+
+    /// @dev Zips parallel wallet/bps arrays into the FeeReceiver[] the wrapper takes.
+    function _receivers(
+        address[] memory _wallets,
+        uint16[] memory _bps
+    ) internal pure returns (FeeReceiver[] memory r) {
+        r = new FeeReceiver[](_wallets.length);
+        for (uint256 i; i < _wallets.length; ++i) {
+            r[i] = FeeReceiver({ wallet: _wallets[i], bps: _bps[i] });
+        }
     }
 
     function _single(address _a) internal pure returns (address[] memory w) {
@@ -491,7 +621,12 @@ contract VaultWrapperDistributionTest is Test {
             elapsed
         );
         return
-            LibVaultWrapperMath.dilutionShares(feeAssets, supply, assets, 0);
+            LibVaultWrapperMath.dilutionShares(
+                feeAssets,
+                supply,
+                assets,
+                wrapper.shareDecimalsOffset()
+            );
     }
 
     function _deposit(address _from, uint256 _amount) internal {

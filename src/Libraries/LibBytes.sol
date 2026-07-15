@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
+/// @custom:version 1.0.0
 library LibBytes {
     // solhint-disable no-inline-assembly
 

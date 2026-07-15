@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { FeeConfig, FeeType, IntegratorReceivers } from "../LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
 /// @title ILiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -16,27 +16,17 @@ interface ILiFiVaultWrapper {
     /// @param underlying The yield source the wrapper deposits into.
     /// @param adapter The yield adapter the wrapper routes through.
     /// @param vaultWrapperAdmin The per-vault controller granted the instance admin role.
-    /// @param factory The factory that deployed and initialized the instance.
-    /// @param integratorShareBps The integrator's per-fee-type shares (bps, indexed by
-    ///        FeeType ordinal) snapshotted at deploy.
     event VaultWrapperConfigured(
         address indexed asset,
         address indexed underlying,
         address indexed adapter,
-        address vaultWrapperAdmin,
-        address factory,
-        uint16[4] integratorShareBps
+        address vaultWrapperAdmin
     );
 
-    /// @notice Emitted when a fee type's rate (and enabled flag) is changed.
+    /// @notice Emitted when a fee type's rate is changed.
     /// @param feeType The fee type updated.
-    /// @param newRateBps The new rate in basis points (0 when disabled).
-    /// @param enabled Whether the fee type is now active.
-    event FeeConfigUpdated(
-        FeeType indexed feeType,
-        uint16 newRateBps,
-        bool enabled
-    );
+    /// @param newRateBps The new rate in basis points (0 = disabled).
+    event FeeConfigUpdated(FeeType indexed feeType, uint16 newRateBps);
 
     /// @notice Emitted when dilution fee-shares are minted to the wrapper.
     /// @dev The LI.FI/integrator split is applied at accrual; LI.FI's part is
@@ -67,27 +57,35 @@ interface ILiFiVaultWrapper {
     /// @param by The owner (integrator) that toggled it.
     event PauseSet(bool paused, address indexed by);
 
-    /// @notice Emitted when the integrator's receiver set is configured.
-    /// @param receivers The integrator payout wallets.
-    /// @param bps The per-receiver basis points (sum to 100%).
-    event ReceiversSet(address[] receivers, uint16[] bps);
+    /// @notice Emitted when the instance's access gate is set (at initialize when
+    ///         non-zero, and on every `setAccessGate`).
+    /// @param accessGate The new gate; address(0) = fully permissionless.
+    event AccessGateUpdated(address indexed accessGate);
 
-    /// @notice Emitted once per non-empty reservoir distributed by `sweep`.
-    /// @param token The reservoir token (the vault asset, or this wrapper's shares).
-    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split + any redirected).
-    /// @param integratorAmount Amount delivered across the integrator wallets.
-    event ReservoirSwept(
+    /// @notice Emitted when the integrator's fee-receiver set is configured.
+    /// @param receivers The integrator payout wallets with their bps split (sum to 100%).
+    event ReceiversSet(FeeReceiver[] receivers);
+
+    /// @notice Emitted once per non-empty fee pool distributed by `distributeFees`.
+    /// @param token The fee-pool token (the vault asset, or this wrapper's shares).
+    /// @param lifiAmount Amount delivered to the LI.FI recipient (LI.FI's split only).
+    /// @param integratorAmount Amount delivered across the integrator wallets (excludes any
+    ///        retained after a failed transfer).
+    event FeePoolDistributed(
         address indexed token,
         uint256 lifiAmount,
         uint256 integratorAmount
     );
 
-    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet) and the
-    ///         amount is redirected to the LI.FI recipient instead of reverting the sweep.
+    /// @notice Emitted when an integrator payout fails (e.g. a blacklisted wallet). The amount
+    ///         is left in the wrapper — still tracked as owed integrator fees — instead of
+    ///         reverting the distribution or being redirected to LI.FI. The integrator can
+    ///         rotate to a working wallet via `setIntegratorFeeReceivers` and call
+    ///         `distributeFees` again to claim it.
     /// @param receiver The integrator wallet whose transfer reverted.
-    /// @param token The reservoir token redirected (the asset, or this wrapper's shares).
-    /// @param amount The amount redirected to LI.FI.
-    event IntegratorPayoutRedirected(
+    /// @param token The fee-pool token retained (the asset, or this wrapper's shares).
+    /// @param amount The amount retained in the wrapper.
+    event IntegratorPayoutRetained(
         address indexed receiver,
         address indexed token,
         uint256 amount
@@ -113,14 +111,25 @@ interface ILiFiVaultWrapper {
     error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
     /// @notice Thrown when the receiver count is zero or above MAX_FEE_RECEIVERS.
     error InvalidReceiverCount();
-    /// @notice Thrown when the receivers and bps arrays differ in length.
-    error ReceiversLengthMismatch();
     /// @notice Thrown when a receiver wallet is the zero address.
     error ZeroReceiver();
     /// @notice Thrown when the receiver bps do not sum to exactly 100%.
     error ReceiverBpsSumNot100();
-    /// @notice Thrown when `trustedTransfer` is called by anyone other than this contract.
-    error OnlySelf();
+    /// @notice Thrown when the access gate rejects a deposit/mint share receiver.
+    error AccountNotAllowed(address account);
+    /// @notice Thrown when the access gate rejects a share transfer.
+    error TransferNotAllowed(address from, address to);
+    /// @notice Thrown when the access gate flags an exit party as sanctioned.
+    error AccountSanctioned(address account);
+    /// @notice Thrown by the EIP-5143 slippage-guarded entrypoints when the realized
+    ///         amount crosses the caller's bound (below a minimum, or above a maximum).
+    error SlippageExceeded(uint256 actual, uint256 bound);
+    /// @notice Thrown when a deposit or mint would leave the total share supply below the
+    ///         minimum supply floor (a post-operation supply of exactly zero included).
+    error SupplyBelowMinimum(uint256 supply, uint256 minSupply);
+    /// @notice Thrown at initialization when the asset's ERC-20 decimals() cannot be read
+    ///         as a well-formed uint8, so the virtual-share offset cannot be sized safely.
+    error AssetDecimalsUnavailable();
 
     /// Functions ///
 
@@ -132,17 +141,70 @@ interface ILiFiVaultWrapper {
     /// @param _vaultWrapperAdmin The per-vault controller granted the instance admin role.
     /// @param _integratorShareBps The integrator's fee share (bps) per fee type (indexed by
     ///        FeeType ordinal), resolved and bounded by the factory.
-    /// @param _fees The per-fee-type rates and enabled flags (already validated by the factory).
-    /// @param _initData Opaque vault-wrapper-side config (access mode, ToS hash, oracle).
+    /// @param _fees The per-fee-type rates, 0 = disabled (already validated by the factory).
     /// @param _receivers The integrator payout wallets + bps split; validated on-instance
-    ///        (1..5 non-zero wallets, bps summing to exactly 100%).
+    ///        (1..50 non-zero wallets, bps summing to exactly 100%).
+    /// @param _accessGate The pluggable IAccessGate governing the instance's perimeter;
+    ///        address(0) = fully permissionless.
     function initialize(
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16[4] calldata _integratorShareBps,
+        uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData,
-        IntegratorReceivers calldata _receivers
+        FeeReceiver[] calldata _receivers,
+        address _accessGate
     ) external;
+
+    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
+    ///         `_minShares` shares are minted (EIP-5143 slippage-guarded deposit).
+    /// @param _assets The exact asset amount to deposit.
+    /// @param _receiver The share receiver.
+    /// @param _minShares The minimum acceptable amount of shares minted.
+    /// @return shares The shares actually minted.
+    function deposit(
+        uint256 _assets,
+        address _receiver,
+        uint256 _minShares
+    ) external returns (uint256 shares);
+
+    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
+    ///         `_maxAssets` assets are pulled (EIP-5143 slippage-guarded mint).
+    /// @param _shares The exact share amount to mint.
+    /// @param _receiver The share receiver.
+    /// @param _maxAssets The maximum acceptable amount of assets pulled.
+    /// @return assets The assets actually pulled.
+    function mint(
+        uint256 _shares,
+        address _receiver,
+        uint256 _maxAssets
+    ) external returns (uint256 assets);
+
+    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
+    ///         `_maxShares` shares are burned (EIP-5143 slippage-guarded withdraw).
+    /// @param _assets The exact asset amount to withdraw.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _maxShares The maximum acceptable amount of shares burned.
+    /// @return shares The shares actually burned.
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner,
+        uint256 _maxShares
+    ) external returns (uint256 shares);
+
+    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
+    ///         `_minAssets` assets are paid out (EIP-5143 slippage-guarded redeem).
+    /// @param _shares The exact share amount to redeem.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _minAssets The minimum acceptable amount of assets paid out.
+    /// @return assets The assets actually paid out.
+    function redeem(
+        uint256 _shares,
+        address _receiver,
+        address _owner,
+        uint256 _minAssets
+    ) external returns (uint256 assets);
 }

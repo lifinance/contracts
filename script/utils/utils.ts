@@ -99,10 +99,24 @@ function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
         new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
       )?.[1]
 
+    const extractNumeric = (key: string): number | undefined => {
+      const match = sectionBody.match(
+        new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)`, 'm')
+      )?.[1]
+      if (!match) return undefined
+      const value = Number(match.replace(/_/g, ''))
+      return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+    }
+
     const solc_version = extract('solc_version')
     const evm_version = extract('evm_version')
+    const optimizer_runs = extractNumeric('optimizer_runs')
 
-    return { solc_version, evm_version } as IFoundryProfileDefaultConfig
+    return {
+      solc_version,
+      evm_version,
+      optimizer_runs,
+    } as IFoundryProfileDefaultConfig
   }
 }
 
@@ -145,6 +159,30 @@ export function getFoundryDefaultEvmVersion(): EVMVersion {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
       `Failed to determine EVM version from foundry.toml: ${message}`
+    )
+  }
+}
+
+/**
+ * Returns `optimizer_runs` from `[profile.default]` in `foundry.toml`.
+ * @throws If `foundry.toml` cannot be read or `optimizer_runs` is missing.
+ */
+export function getFoundryDefaultOptimizerRuns(): number {
+  try {
+    const optimizerRuns = readFoundryProfileDefaultConfig().optimizer_runs
+    if (
+      typeof optimizerRuns !== 'number' ||
+      !Number.isSafeInteger(optimizerRuns) ||
+      optimizerRuns < 0
+    )
+      throw new Error(
+        'Missing or invalid [profile.default].optimizer_runs in foundry.toml'
+      )
+    return optimizerRuns
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to determine optimizer runs from foundry.toml: ${message}`
     )
   }
 }
@@ -264,8 +302,10 @@ export async function getPrivateKey(): Promise<string> {
 }
 
 /**
- * Appends a deployment entry to the JSON log file by calling `logDeployment` in `helperFunctions.sh`.
- * Reads the current environment from `.env` to determine whether to write to the production or staging log.
+ * Records a deployment in the MongoDB deployment log by invoking the same
+ * `update-deployment-logs.ts add` command that `logContractDeploymentInfo` in
+ * `helperFunctions.sh` uses for EVM deployments.
+ * Reads the current environment from `.env` to determine whether to write to the production or staging collection.
  *
  * @param contract - Contract name (e.g. `'LiFiDiamond'`).
  * @param network - Network key from `config/networks.json`.
@@ -292,22 +332,20 @@ export async function logDeployment(
     environment === EnvironmentEnum.production ? 'production' : 'staging'
   const solcVersion = getFoundryDefaultSolcVersion()
   const evmVersion = getFoundryDefaultEvmVersion()
+  const optimizerRuns = getFoundryDefaultOptimizerRuns()
   const logCommand = [
-    'script/helperFunctions.sh',
-    'logDeployment',
-    escapeShellArg(contract),
-    escapeShellArg(network),
-    escapeShellArg(timestamp),
-    escapeShellArg(version),
-    '"200"',
-    escapeShellArg(constructorArgs),
-    escapeShellArg(environmentString),
-    escapeShellArg(address),
-    escapeShellArg(String(verified)),
-    escapeShellArg(''),
-    escapeShellArg(solcVersion),
-    escapeShellArg(evmVersion),
-    escapeShellArg(''),
+    'bunx tsx script/deploy/update-deployment-logs.ts add',
+    `--env ${escapeShellArg(environmentString)}`,
+    `--contract ${escapeShellArg(contract)}`,
+    `--network ${escapeShellArg(network)}`,
+    `--version ${escapeShellArg(version)}`,
+    `--address ${escapeShellArg(address)}`,
+    `--optimizer-runs ${escapeShellArg(String(optimizerRuns))}`,
+    `--timestamp ${escapeShellArg(timestamp)}`,
+    `--constructor-args ${escapeShellArg(constructorArgs)}`,
+    `--verified ${escapeShellArg(String(verified))}`,
+    `--solc-version ${escapeShellArg(solcVersion)}`,
+    `--evm-version ${escapeShellArg(evmVersion)}`,
   ].join(' ')
 
   await executeShellCommand(logCommand)

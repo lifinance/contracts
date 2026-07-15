@@ -11,7 +11,7 @@ import { FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 /// @notice Handler that drives a single `LiFiVaultWrapper` through bounded, randomized
 ///         multi-actor sequences for the invariant suite: three depositors enter/exit while
 ///         the underlying's price per share is moved by injected yield/loss and time warps,
-///         the vaultAdmin retunes fee rates and toggles pause, and anyone sweeps. Every input
+///         the vaultAdmin retunes fee rates and toggles pause, and anyone distributes fees. Every input
 ///         is bounded so no operation reverts for a legitimate reason (the suite runs
 ///         `fail-on-revert = true`, so any revert is a real defect); deposits are the only
 ///         path gated by pause, so they are skipped while paused while exits are left
@@ -129,8 +129,8 @@ contract VaultWrapperInvariantHandler is Test {
         _ratchetHwm();
     }
 
-    function sweep() external {
-        WRAPPER.sweep();
+    function distributeFees() external {
+        WRAPPER.distributeFees();
 
         _ratchetHwm();
     }

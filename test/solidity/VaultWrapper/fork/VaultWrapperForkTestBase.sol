@@ -9,7 +9,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice Shared scaffolding for vault-wrapper fork scenarios: forks a live chain at a
 ///         pinned block, stands up the full factory stack against a REAL ERC-4626 yield
@@ -111,7 +111,6 @@ abstract contract VaultWrapperForkTestBase is Test {
             DEPOSIT_RATE,
             WITHDRAWAL_RATE
         ];
-        bool[4] memory enabled = [true, true, true, true];
 
         return
             DeployParams({
@@ -120,9 +119,9 @@ abstract contract VaultWrapperForkTestBase is Test {
                 adapter: address(adapter),
                 underlying: address(underlying),
                 nonce: 0,
-                fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+                fees: FeeConfig({ rateBps: rates }),
                 integratorShareBps: [SPLIT, SPLIT, SPLIT, SPLIT],
-                initData: "",
+                accessGate: address(0),
                 receivers: _standardReceivers()
             });
     }
@@ -131,15 +130,11 @@ abstract contract VaultWrapperForkTestBase is Test {
     function _standardReceivers()
         internal
         view
-        returns (IntegratorReceivers memory r)
+        returns (FeeReceiver[] memory r)
     {
-        address[] memory wallets = new address[](2);
-        wallets[0] = integrator1;
-        wallets[1] = integrator2;
-        uint16[] memory bps = new uint16[](2);
-        bps[0] = RECEIVER_1_BPS;
-        bps[1] = RECEIVER_2_BPS;
-        r = IntegratorReceivers({ wallets: wallets, bps: bps });
+        r = new FeeReceiver[](2);
+        r[0] = FeeReceiver({ wallet: integrator1, bps: RECEIVER_1_BPS });
+        r[1] = FeeReceiver({ wallet: integrator2, bps: RECEIVER_2_BPS });
     }
 
     /// @dev Sets an actor's asset balance and verifies the cheatcode took (native USDC is a
@@ -194,7 +189,7 @@ abstract contract VaultWrapperForkTestBase is Test {
             LibVaultWrapperMath.pricePerShare(
                 wrapper.totalSupply(),
                 wrapper.totalAssets(),
-                0
+                wrapper.shareDecimalsOffset()
             );
     }
 
@@ -228,7 +223,7 @@ abstract contract VaultWrapperForkTestBase is Test {
                 _feeAssets: feeAssets,
                 _totalSupply: _supply,
                 _totalAssets: _assets,
-                _decimalsOffset: 0
+                _decimalsOffset: wrapper.shareDecimalsOffset()
             });
     }
 
@@ -243,7 +238,7 @@ abstract contract VaultWrapperForkTestBase is Test {
             _totalSupply: _supply,
             _hwmPps: wrapper.perfHighWaterMarkPps(),
             _rateBps: wrapper.feeRate(uint8(FeeType.Performance)),
-            _decimalsOffset: 0
+            _decimalsOffset: wrapper.shareDecimalsOffset()
         });
 
         return
@@ -251,7 +246,7 @@ abstract contract VaultWrapperForkTestBase is Test {
                 _feeAssets: feeAssets,
                 _totalSupply: _supply,
                 _totalAssets: _assets,
-                _decimalsOffset: 0
+                _decimalsOffset: wrapper.shareDecimalsOffset()
             });
     }
 

@@ -8,12 +8,12 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeType, FeeConfig, DeployParams, IntegratorReceivers } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { VaultWrapperInvariantHandler } from "test/solidity/VaultWrapper/invariant/VaultWrapperInvariantHandler.sol";
 
 /// @notice Stateful invariant suite for the assembled vault wrapper (EXSC-421 / S12). A handler
 ///         drives randomized multi-actor sequences — deposits, mints, withdrawals, redeems,
-///         sweeps, fee retunes, pause toggles, and injected yield/loss/time — against one
+///         fee distributions, fee retunes, pause toggles, and injected yield/loss/time — against one
 ///         wrapper charging all four fee types over an inflatable mock underlying. The math
 ///         library is already property-fuzzed in isolation; this suite proves the stateful
 ///         composition holds under arbitrary interleavings: idle assets and the wrapper's own
@@ -103,8 +103,8 @@ contract VaultWrapperInvariantTest is Test {
     /// forge-config: default.invariant.depth = 32
     /// forge-config: default.invariant.fail-on-revert = true
     /// @dev The idle asset balance is exactly the deposit/withdrawal fees booked but not yet
-    ///      swept: nothing enters the wrapper's own balance except routed asset fees, and a
-    ///      sweep transfers out precisely the booked amounts.
+    ///      distributed: nothing enters the wrapper's own balance except routed asset fees, and a
+    ///      fee distribution transfers out precisely the booked amounts.
     function invariant_idleAssetsMatchBookedAssetFees() public view {
         assertEq(
             asset.balanceOf(address(wrapper)),
@@ -117,8 +117,8 @@ contract VaultWrapperInvariantTest is Test {
     /// forge-config: default.invariant.depth = 32
     /// forge-config: default.invariant.fail-on-revert = true
     /// @dev The wrapper's own share balance is exactly the dilution fee-shares booked but not
-    ///      yet swept: performance/management fees mint shares to the wrapper, and a sweep
-    ///      transfers out precisely the booked amounts.
+    ///      yet distributed: performance/management fees mint shares to the wrapper, and a fee
+    ///      distribution transfers out precisely the booked amounts.
     function invariant_wrapperSharesMatchBookedFeeShares() public view {
         assertEq(
             wrapper.balanceOf(address(wrapper)),
@@ -144,7 +144,7 @@ contract VaultWrapperInvariantTest is Test {
     /// forge-config: default.invariant.depth = 32
     /// forge-config: default.invariant.fail-on-revert = true
     /// @dev No shares exist outside the known holder set (the three actors, the wrapper's own
-    ///      fee-share balance, and the three sweep recipients), so total supply is fully
+    ///      fee-share balance, and the three fee recipients), so total supply is fully
     ///      accounted for and none is silently minted or burned elsewhere.
     function invariant_shareSupplyFullyAccounted() public view {
         uint256 sum = wrapper.balanceOf(address(wrapper)) +
@@ -169,14 +169,15 @@ contract VaultWrapperInvariantTest is Test {
             DEPOSIT_RATE,
             WITHDRAWAL_RATE
         ];
-        bool[4] memory enabled = [true, true, true, true];
-
-        address[] memory wallets = new address[](2);
-        wallets[0] = integrator1;
-        wallets[1] = integrator2;
-        uint16[] memory bps = new uint16[](2);
-        bps[0] = RECEIVER_1_BPS;
-        bps[1] = RECEIVER_2_BPS;
+        FeeReceiver[] memory receivers = new FeeReceiver[](2);
+        receivers[0] = FeeReceiver({
+            wallet: integrator1,
+            bps: RECEIVER_1_BPS
+        });
+        receivers[1] = FeeReceiver({
+            wallet: integrator2,
+            bps: RECEIVER_2_BPS
+        });
 
         return
             DeployParams({
@@ -185,10 +186,10 @@ contract VaultWrapperInvariantTest is Test {
                 adapter: address(adapter),
                 underlying: address(underlying),
                 nonce: 0,
-                fees: FeeConfig({ rateBps: rates, enabled: enabled }),
+                fees: FeeConfig({ rateBps: rates }),
                 integratorShareBps: [SPLIT, SPLIT, SPLIT, SPLIT],
-                initData: "",
-                receivers: IntegratorReceivers({ wallets: wallets, bps: bps })
+                accessGate: address(0),
+                receivers: receivers
             });
     }
 
@@ -199,7 +200,7 @@ contract VaultWrapperInvariantTest is Test {
         selectors[1] = VaultWrapperInvariantHandler.mint.selector;
         selectors[2] = VaultWrapperInvariantHandler.withdraw.selector;
         selectors[3] = VaultWrapperInvariantHandler.redeem.selector;
-        selectors[4] = VaultWrapperInvariantHandler.sweep.selector;
+        selectors[4] = VaultWrapperInvariantHandler.distributeFees.selector;
         selectors[5] = VaultWrapperInvariantHandler.injectYield.selector;
         selectors[6] = VaultWrapperInvariantHandler.injectLoss.selector;
         selectors[7] = VaultWrapperInvariantHandler.warp.selector;

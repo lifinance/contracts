@@ -4,16 +4,23 @@ pragma solidity ^0.8.17;
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { MetadataReaderLib } from "solady/utils/MetadataReaderLib.sol";
+import { IAccessGate } from "./interfaces/IAccessGate.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { FeeConfig, FeeType, IntegratorReceivers } from "./LiFiVaultWrapperTypes.sol";
+import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
+
+// One over solhint's 15-state default: the 16th declaration is the write-once
+// `shareDecimalsOffset` (inflation protection), which packs into the `accessGate`
+// slot rather than widening the storage layout.
+// solhint-disable max-states-count
 
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
@@ -33,19 +40,24 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      (high-water-mark dilution) fee-shares are minted to this contract via `_accrueFees`,
 ///      and deposit/withdrawal asset fees are kept idle and tracked through `_routeFee`.
 ///      Every fee is split between LI.FI and the integrator at accrual time using the
-///      fee type's own share, into per-recipient counters. A permissionless `sweep` pays
-///      those tracked entitlements out: LI.FI's parts go to the factory's live
-///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..5 receiver
+///      fee type's own share, into per-recipient counters. A permissionless `distributeFees`
+///      pays those tracked entitlements out: LI.FI's parts go to the factory's live
+///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..50 receiver
 ///      wallets (no re-split happens at distribution). Pause is enforced on the
-///      deposit/mint path only (withdrawals stay open); access logic remains a no-op seam
-///      (`_checkAccess`) with its body landing in a follow-up ticket. Inflation-attack
-///      protection relies on the ERC-4626 virtual-share offset.
-/// @custom:version 1.2.0
-// 16 state declarations: this contract is the single beacon-proxy storage host for the
-// wrapper subsystem (identity, fee config, per-recipient fee counters, watermark,
-// receiver set, gap); state mixins were deliberately rejected (see the inlined pause
-// module), so the count cannot be reduced without re-fragmenting the layout.
-// solhint-disable-next-line max-states-count
+///      deposit/mint path only (withdrawals stay open). Access control is a single
+///      pluggable `IAccessGate` (`accessGate`, zero = fully permissionless): entry checks
+///      `isAllowed(receiver)`, holder-to-holder share transfers check
+///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
+///      asset receiver — all fail-closed, so a misbehaving gate blocks the guarded
+///      operation (including exits) until the owner swaps the gate. Inflation-attack
+///      protection is layered: the ERC-4626 virtual-share decimals offset is derived
+///      once at `initialize` (`18 - assetDecimals`, floored at a nonzero minimum so even
+///      high-decimal assets stay donation-resistant — strongest exactly where a donated
+///      wei buys the most), and a deposit-side supply floor keeps depositors out of the
+///      dust-denominator regime. EIP-5143 slippage overloads of
+///      the four entrypoints bound the realized amount against in-flight share-price
+///      or fee-rate changes.
+/// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
     // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
@@ -67,8 +79,41 @@ contract LiFiVaultWrapper is
 
     /// Constants ///
 
-    /// @notice Maximum number of integrator receiver wallets.
-    uint256 internal constant MAX_FEE_RECEIVERS = 5;
+    /// @notice Maximum number of integrator receiver wallets. This is only a sanity cap to
+    ///         bound the permissionless `distributeFees` fan-out loop and prevent griefing (an
+    ///         oversized receiver set could otherwise make it run out of gas and lock distribution),
+    ///         not a product limit.
+    uint256 internal constant MAX_FEE_RECEIVERS = 50;
+
+    /// @notice Share-decimals target: `initialize` derives the ERC-4626 virtual-share
+    ///         decimals offset as `18 - assetDecimals`, then floors it at
+    ///         `MIN_DECIMALS_OFFSET`. Assets with up to 12 decimals get shares normalized
+    ///         to exactly 18 decimals; higher-decimal assets take the minimum instead
+    ///         (e.g. an 18-decimal asset yields 24-decimal shares) — trading exact-18
+    ///         normalization for the donation-griefing bound on `MIN_DECIMALS_OFFSET`.
+    uint8 internal constant TARGET_SHARE_DECIMALS = 18;
+
+    /// @notice Lower bound on the derived virtual-share decimals offset, applied even when
+    ///         the asset already has >= `TARGET_SHARE_DECIMALS` decimals (where the derived
+    ///         offset would otherwise be 0). The offset divides the asset cost of the
+    ///         fresh-vault donation grief: to push a deposit below the `MIN_SHARE_SUPPLY`
+    ///         floor an attacker must donate ~`MIN_SHARE_SUPPLY / 10 ** offset` times that
+    ///         deposit. A minimum of 6 (= log10(`MIN_SHARE_SUPPLY`)) caps that ratio at 1,
+    ///         so a donation can never block a deposit larger than itself — and since the
+    ///         donation accrues to the first real depositor, the grief is self-defeating.
+    ///         With offset 0 a ~1-token donation would block every sub-1M-token first
+    ///         deposit into an 18-decimal vault.
+    uint8 internal constant MIN_DECIMALS_OFFSET = 6;
+
+    /// @notice Deposit-side total-supply floor, in shares: after any deposit or mint
+    ///         the supply must be at least this (exits are exempt — see
+    ///         `_enforceSupplyFloor`). With the offset floored at `MIN_DECIMALS_OFFSET`,
+    ///         any nonzero first deposit already mints at least this many shares, so the
+    ///         floor is a backstop rather than the primary inflation guard: it catches
+    ///         the donation-inflated zero-share deposit and the sub-floor dust an exit can
+    ///         strand. At >= 18 share decimals it is at most ~1e-12 of one token, so no
+    ///         real deposit ever notices it.
+    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
     /// Storage ///
 
@@ -87,12 +132,18 @@ contract LiFiVaultWrapper is
     /// @notice The integrator's fee share (bps) per fee type (indexed by FeeType ordinal),
     ///         snapshotted from the factory at deploy. LI.FI receives the remainder of
     ///         each fee.
-    uint16[4] public integratorShareBps;
-    /// @notice Opaque wrapper-side config (access mode, receivers, ToS hash, oracle),
-    ///         stored verbatim for later modules to decode.
-    bytes public initData;
+    uint16[FEE_TYPE_COUNT] public integratorShareBps;
+    /// @notice The pluggable access gate governing this instance's perimeter;
+    ///         address(0) = fully permissionless (the default posture). Swappable
+    ///         instantly by the per-vault `owner` via `setAccessGate`.
+    address public accessGate;
+    /// @notice The ERC-4626 virtual-share decimals offset for this instance, written
+    ///         once at `initialize` (`18 - assetDecimals`, floored at `MIN_DECIMALS_OFFSET`)
+    ///         and never changed after — it prices shares, so mutating it would reprice
+    ///         every holder. Packs into the `accessGate` slot.
+    uint8 public shareDecimalsOffset;
 
-    /// @dev Per-fee-type rates and enabled flags, validated by the factory.
+    /// @dev Per-fee-type rates (0 = disabled), validated by the factory.
     FeeConfig internal _feeConfig;
 
     /// @notice LI.FI's part of the dilution fee-shares minted to this contract and not
@@ -119,17 +170,16 @@ contract LiFiVaultWrapper is
     ///         mints shares.
     uint192 public perfHighWaterMarkPps;
 
-    /// @dev Integrator payout wallets (1..5), parallel to `_integratorReceiverBps`. Set at
-    ///      `initialize` and mutable by the integrator; always non-empty after deploy.
-    address[] internal _integratorReceivers;
-    /// @dev Per-receiver bps summing to 100%, parallel to `_integratorReceivers`.
-    uint16[] internal _integratorReceiverBps;
+    /// @notice Integrator payout wallets (1..50) with their bps split, each packed into one
+    ///         slot (address + uint16). Set at `initialize` and mutable by the integrator;
+    ///         always non-empty after deploy. Bps sum to 100%.
+    FeeReceiver[] public integratorFeeReceivers;
 
     /// @dev Reserved slots so future versions can append wrapper-level state without
     ///      shifting any storage that inheriting/derived modules occupy. This impl sits
     ///      behind an upgradeable beacon, so storage layout is an upgrade invariant: only
     ///      append (consuming this gap), never reorder fields or the inheritance list.
-    uint256[46] private __gap;
+    uint256[50] private __gap;
 
     /// Initialization ///
 
@@ -149,35 +199,58 @@ contract LiFiVaultWrapper is
         address _underlying,
         address _adapter,
         address _vaultWrapperAdmin,
-        uint16[4] calldata _integratorShareBps,
+        uint16[FEE_TYPE_COUNT] calldata _integratorShareBps,
         FeeConfig calldata _fees,
-        bytes calldata _initData,
-        IntegratorReceivers calldata _receivers
+        FeeReceiver[] calldata _receivers,
+        address _accessGate
     ) external initializer {
         if (
             _underlying == address(0) ||
             _adapter == address(0) ||
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
-        for (uint256 i; i < 4; ++i) {
-            if (
-                _integratorShareBps[i] >= LibVaultWrapperMath.BASIS_POINT_SCALE
-            ) revert InvalidIntegratorShareBps(_integratorShareBps[i]);
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
+            if (_integratorShareBps[i] >= 10_000)
+                revert InvalidIntegratorShareBps(_integratorShareBps[i]);
         }
 
-        address asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
-        if (asset == address(0)) revert ZeroAddress();
-
-        _initErc4626Metadata(asset);
+        // Persist all calldata inputs before resolving the asset, so none of the calldata
+        // parameters stay live across that external call. `initialize` would otherwise
+        // exceed the stack limit without via_ir (the receiver set is a two-slot calldata
+        // array; see the subsystem OZ-v5 stack-pressure note).
+        _setIntegratorFeeReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
-
         factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
         integratorShareBps = _integratorShareBps;
         _feeConfig = _fees;
-        initData = _initData;
+        if (_accessGate != address(0)) {
+            accessGate = _accessGate;
+            emit AccessGateUpdated(_accessGate);
+        }
         lastMgmtAccrual = uint64(block.timestamp);
+
+        // Resolve the asset only after every calldata input is persisted, reading
+        // adapter/underlying from storage rather than the deep calldata params, to keep
+        // this external call shallow on the stack.
+        address asset = IYieldAdapter(adapter).resolveAsset(underlying);
+        if (asset == address(0)) revert ZeroAddress();
+
+        _initErc4626Metadata(asset);
+        // Read the asset's decimals directly, not through decimals(): OZ's ERC-4626 init
+        // silently substitutes 18 when the token's decimals() is unreadable, and sizing
+        // the offset off that fallback would quietly weaken inflation protection for a
+        // low-decimal asset. The offset must be written before anything consumes
+        // _decimalsOffset() — the watermark anchor below prices through it.
+        uint8 assetDecimals = _readAssetDecimals(asset);
+        uint8 derivedOffset = assetDecimals < TARGET_SHARE_DECIMALS
+            ? TARGET_SHARE_DECIMALS - assetDecimals
+            : 0;
+        shareDecimalsOffset = derivedOffset < MIN_DECIMALS_OFFSET
+            ? MIN_DECIMALS_OFFSET
+            : derivedOffset;
+
         // Anchor the performance watermark at the empty-vault share price, computed pure
         // (supply and position are always 0 on a fresh single-shot-initialized proxy).
         // Deliberately NOT read through the adapter: an underlying whose empty-position
@@ -187,23 +260,8 @@ contract LiFiVaultWrapper is
         perfHighWaterMarkPps = SafeCast.toUint192(
             LibVaultWrapperMath.pricePerShare(0, 0, _decimalsOffset())
         );
-        _setIntegratorReceivers(_receivers.wallets, _receivers.bps);
 
-        _emitInitialized(asset);
-    }
-
-    /// @dev Emits `VaultWrapperConfigured` from stored state, keeping `initialize`'s stack shallow
-    ///      (the contract is compiled without via-IR, so the 6-field event inline would overflow).
-    /// @param _asset The resolved ERC20 asset (not yet a stored field at emit time).
-    function _emitInitialized(address _asset) private {
-        emit VaultWrapperConfigured(
-            _asset,
-            underlying,
-            adapter,
-            owner(),
-            factory,
-            integratorShareBps
-        );
+        emit VaultWrapperConfigured(asset, underlying, adapter, owner());
     }
 
     /// @dev Derives the share name/symbol from the asset symbol (falling back to "VW") and
@@ -218,6 +276,23 @@ contract LiFiVaultWrapper is
             string.concat("lf", assetSymbol)
         );
         __ERC4626_init(IERC20(_asset));
+    }
+
+    /// @dev Reads the asset's ERC-20 decimals via an explicit staticcall and reverts if the
+    ///      token does not expose a well-formed `decimals()`. Mirrors OZ's own detection
+    ///      (`success && length >= 32 && value <= type(uint8).max`) but rejects the asset
+    ///      instead of falling back to 18, so the virtual-share offset is never sized off a
+    ///      fabricated decimals value.
+    function _readAssetDecimals(address _asset) private view returns (uint8) {
+        (bool ok, bytes memory data) = _asset.staticcall(
+            abi.encodeCall(IERC20Metadata.decimals, ())
+        );
+        if (!ok || data.length < 32) revert AssetDecimalsUnavailable();
+
+        uint256 decoded = abi.decode(data, (uint256));
+        if (decoded > type(uint8).max) revert AssetDecimalsUnavailable();
+
+        return uint8(decoded);
     }
 
     /// @notice Whether the instance has been initialized.
@@ -240,6 +315,12 @@ contract LiFiVaultWrapper is
     /// @notice Assets currently redeemable from the yield source, valued by the adapter.
     function totalAssets() public view override returns (uint256) {
         return IYieldAdapter(adapter).totalAssets(underlying, address(this));
+    }
+
+    /// @dev The per-instance offset derived at `initialize` (see `shareDecimalsOffset`);
+    ///      OZ's default is a constant 0.
+    function _decimalsOffset() internal view override returns (uint8) {
+        return shareDecimalsOffset;
     }
 
     /// @dev Values shares against an effective supply that already includes the management
@@ -293,12 +374,12 @@ contract LiFiVaultWrapper is
         return _feeConfig.rateBps[_feeType];
     }
 
-    /// @notice Returns whether a fee type is enabled.
+    /// @notice Returns whether a fee type is enabled (a non-zero rate is the enabled flag).
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
         if (_feeType > 3) revert InvalidFeeType(_feeType);
-        return _feeConfig.enabled[_feeType];
+        return _feeConfig.rateBps[_feeType] != 0;
     }
 
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
@@ -306,89 +387,154 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers).
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `_deposit` seam enforces the post-operation supply floor (see
+    ///      `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
         address receiver
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 shares) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkDepositAccess(receiver);
+        _accrueFees();
 
-        return super.deposit(assets, receiver);
+        shares = super.deposit(assets, receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers).
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `_deposit` seam enforces the post-operation supply floor (see
+    ///      `_enforceSupplyFloor`).
     function mint(
         uint256 shares,
         address receiver
-    ) public override nonReentrant returns (uint256) {
+    ) public override nonReentrant returns (uint256 assets) {
         if (depositsPaused()) revert DepositsPaused();
-        _beforeOperation();
+        _checkDepositAccess(receiver);
+        _accrueFees();
 
-        return super.mint(shares, receiver);
+        assets = super.mint(shares, receiver);
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to deposits and do not build deposits that would revert.
-    function maxDeposit(
-        address receiver
-    ) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
-
-        return super.maxDeposit(receiver);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while any pause source is engaged so EIP-4626 consumers see the vault
-    ///      as closed to mints and do not build mints that would revert.
-    function maxMint(address receiver) public view override returns (uint256) {
-        if (depositsPaused()) return 0;
-
-        return super.maxMint(receiver);
-    }
-
-    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
+    ///      are exempt): an exit must always be able to empty the caller's position.
     function withdraw(
         uint256 assets,
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
+        _checkExitAccess(owner, receiver);
+        _accrueFees();
 
         return super.withdraw(assets, receiver, owner);
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
+    ///      are exempt): an exit must always be able to empty the caller's position.
     function redeem(
         uint256 shares,
         address receiver,
         address owner
     ) public override nonReentrant returns (uint256) {
-        _beforeOperation();
+        _checkExitAccess(owner, receiver);
+        _accrueFees();
 
         return super.redeem(shares, receiver, owner);
     }
 
-    /// ERC-4626 fee-adjusted previews ///
+    /// EIP-5143 slippage-guarded entrypoints ///
+    /// @dev Thin overloads of the four ERC-4626 entrypoints that bound the realized
+    ///      amount, per EIP-5143. Each routes through its standard entrypoint (an
+    ///      internal call, so msg.sender semantics and the pause/access/accrual/
+    ///      reentrancy guards apply identically) and reverts `SlippageExceeded` when
+    ///      the result crosses the caller's bound. The bound is checked on the amount
+    ///      the standard entrypoint actually returns, so it also catches an integrator
+    ///      fee-rate change landing between the caller's quote and execution.
+
+    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
+    ///         `_minShares` shares are minted.
+    /// @param _assets The exact asset amount to deposit.
+    /// @param _receiver The share receiver.
+    /// @param _minShares The minimum acceptable amount of shares minted.
+    /// @return shares The shares actually minted.
+    function deposit(
+        uint256 _assets,
+        address _receiver,
+        uint256 _minShares
+    ) external override returns (uint256 shares) {
+        shares = deposit(_assets, _receiver);
+        if (shares < _minShares) revert SlippageExceeded(shares, _minShares);
+    }
+
+    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
+    ///         `_maxAssets` assets are pulled.
+    /// @param _shares The exact share amount to mint.
+    /// @param _receiver The share receiver.
+    /// @param _maxAssets The maximum acceptable amount of assets pulled.
+    /// @return assets The assets actually pulled.
+    function mint(
+        uint256 _shares,
+        address _receiver,
+        uint256 _maxAssets
+    ) external override returns (uint256 assets) {
+        assets = mint(_shares, _receiver);
+        if (assets > _maxAssets) revert SlippageExceeded(assets, _maxAssets);
+    }
+
+    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
+    ///         `_maxShares` shares are burned.
+    /// @param _assets The exact asset amount to withdraw.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _maxShares The maximum acceptable amount of shares burned.
+    /// @return shares The shares actually burned.
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner,
+        uint256 _maxShares
+    ) external override returns (uint256 shares) {
+        shares = withdraw(_assets, _receiver, _owner);
+        if (shares > _maxShares) revert SlippageExceeded(shares, _maxShares);
+    }
+
+    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
+    ///         `_minAssets` assets are paid out.
+    /// @param _shares The exact share amount to redeem.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _minAssets The minimum acceptable amount of assets paid out.
+    /// @return assets The assets actually paid out.
+    function redeem(
+        uint256 _shares,
+        address _receiver,
+        address _owner,
+        uint256 _minAssets
+    ) external override returns (uint256 assets) {
+        assets = redeem(_shares, _receiver, _owner);
+        if (assets < _minAssets) revert SlippageExceeded(assets, _minAssets);
+    }
+
+    /// ERC-4626 fee-adjusted previews and limits ///
     /// @dev Per EIP-4626, previews MUST NOT account for deposit limits, so `previewDeposit`/
     ///      `previewMint` intentionally ignore pause and return a positive estimate even while
     ///      `depositsPaused()` is true (when the matching `deposit`/`mint` would revert
-    ///      `DepositsPaused`). `maxDeposit`/`maxMint` are the pause-aware limit views.
+    ///      `DepositsPaused`). `maxDeposit`/`maxMint` below are the pause-aware limit views.
 
     /// @inheritdoc ERC4626Upgradeable
     function previewDeposit(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+        uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
             _assets: assets,
             _feeBps: _rate(FeeType.Deposit)
         });
 
-        return super.previewDeposit(assets - fee);
+        return super.previewDeposit(assets - depositFee);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -409,12 +555,12 @@ contract LiFiVaultWrapper is
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
             _assets: assets,
             _feeBps: _rate(FeeType.Withdrawal)
         });
 
-        return super.previewWithdraw(assets + fee);
+        return super.previewWithdraw(assets + withdrawalFee);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -431,7 +577,80 @@ contract LiFiVaultWrapper is
             });
     }
 
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
+    ///      the receiver, so EIP-4626 consumers see the vault as closed to deposits and do
+    ///      not build deposits that would revert. Mirrors `deposit`'s guards; a reverting
+    ///      gate reverts this view too (fail-closed, like the entrypoint).
+    function maxDeposit(
+        address receiver
+    ) public view override returns (uint256) {
+        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
+
+        return super.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
+    ///      the receiver, so EIP-4626 consumers see the vault as closed to mints and do
+    ///      not build mints that would revert. Mirrors `mint`'s guards; a reverting gate
+    ///      reverts this view too (fail-closed, like the entrypoint).
+    function maxMint(address receiver) public view override returns (uint256) {
+        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
+
+        return super.maxMint(receiver);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
+    ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
+    ///      is checked in the entrypoint only).
+    function maxWithdraw(
+        address owner
+    ) public view override returns (uint256) {
+        if (_sanctioned(owner)) return 0;
+
+        return super.maxWithdraw(owner);
+    }
+
+    /// @inheritdoc ERC4626Upgradeable
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
+    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
+    ///      is checked in the entrypoint only).
+    function maxRedeem(address owner) public view override returns (uint256) {
+        if (_sanctioned(owner)) return 0;
+
+        return super.maxRedeem(owner);
+    }
+
     /// Internal ///
+
+    /// @dev Deposit-side supply floor: after a non-zero deposit/mint the total supply must
+    ///      be at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
+    ///      dust-sized share denominator (the first-depositor inflation attack's
+    ///      precondition) — the existing supply plus the deposit's own mint always sum
+    ///      to the floor, capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
+    ///      of the donation. A post-operation supply of exactly zero is rejected too:
+    ///      that is only reachable when a non-zero deposit mints zero shares (its assets
+    ///      rounded away against a donation-inflated, zero-supply vault), which would
+    ///      forward the caller's assets into the yield source for no shares — a 100% loss.
+    ///      A zero-amount `deposit(0)`/`mint(0)` moves nothing and mints nothing, so the
+    ///      caller skips this check entirely: the no-op stays a no-op even in a sub-floor
+    ///      state. Exits are also deliberately exempt (they never call this): `_accrueFees`
+    ///      mints fee shares to this contract, so an exit-side check could revert the last
+    ///      holder's full exit against sub-floor fee-share residue — and exits must always
+    ///      work. An exit may therefore strand a sub-floor supply, but any non-zero deposit
+    ///      into that state is still protected by this check. Not reflected in the max*
+    ///      limit views (a documented EIP-4626 deviation): with the offset floored at
+    ///      `MIN_DECIMALS_OFFSET`, an ordinary deposit into a clean vault always clears the
+    ///      floor, so the only amounts `<= maxDeposit` that still revert are non-zero
+    ///      deposits into a donation-inflated empty vault or an exit-stranded sub-floor
+    ///      vault — edge states not worth modeling in the limit views.
+    function _enforceSupplyFloor() private view {
+        uint256 supply = totalSupply();
+        if (supply < MIN_SHARE_SUPPLY)
+            revert SupplyBelowMinimum(supply, MIN_SHARE_SUPPLY);
+    }
 
     /// @dev Skims the entry fee and forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
@@ -442,7 +661,10 @@ contract LiFiVaultWrapper is
     ///      call entirely: there is nothing to invest, the fee is already routed, and a standard
     ///      ERC-4626 source reverts on a zero-asset forward, so short-circuiting keeps `deposit`
     ///      non-reverting in exactly the cases where `previewDeposit` returns 0. Pause is
-    ///      enforced upstream in `deposit`/`mint`.
+    ///      enforced upstream in `deposit`/`mint`. Both `deposit` and `mint` route through
+    ///      this seam, so the post-operation supply floor is enforced here once for every
+    ///      inflow entrypoint (a zero-amount call mints nothing and skips it); exits go
+    ///      through `_withdraw` and are structurally exempt (see `_enforceSupplyFloor`).
     function _deposit(
         address caller,
         address receiver,
@@ -450,13 +672,14 @@ contract LiFiVaultWrapper is
         uint256 shares
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
+        if (assets != 0) _enforceSupplyFloor();
 
-        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+        uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
             _assets: assets,
             _feeBps: _rate(FeeType.Deposit)
         });
-        _routeFee(FeeType.Deposit, fee);
-        uint256 invested = assets - fee;
+        _routeFee(FeeType.Deposit, depositFee);
+        uint256 invested = assets - depositFee;
         if (invested == 0) return;
 
         uint256 deposited = _routeThroughAdapter(
@@ -473,21 +696,21 @@ contract LiFiVaultWrapper is
     ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
     ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
-    ///      rolls back and the owner keeps their shares), skims the fee (plus any overage a
+    ///      rolls back and the owner keeps their shares), skims the fee (plus any excess a
     ///      round-up source paid beyond the owed amount, so no idle asset is left unattributed),
-    ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem whose `previewRedeem` is
-    ///      0, or a bare `withdraw(0)`) short-circuits before the adapter call — mirroring
-    ///      `_deposit` — so sources that reject zero-amount withdrawals cannot block exits that
-    ///      preview as 0.
+    ///      then transfers exactly `_assets` to the receiver. A zero withdrawal (a dust redeem
+    ///      whose `previewRedeem` is 0, or a bare `withdraw(0)`) short-circuits before the
+    ///      adapter call — mirroring `_deposit` — so sources that reject zero-amount
+    ///      withdrawals cannot block exits that preview as 0.
     function _transferOut(address _to, uint256 _assets) internal override {
         if (_assets == 0) return;
 
         address assetToken = asset();
-        uint256 fee = LibVaultWrapperMath.feeOnRaw({
+        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
             _assets: _assets,
             _feeBps: _rate(FeeType.Withdrawal)
         });
-        uint256 owed = _assets + fee;
+        uint256 owed = _assets + withdrawalFee;
         uint256 withdrawn = _routeThroughAdapter(
             abi.encodeCall(
                 IYieldAdapter.withdraw,
@@ -495,10 +718,10 @@ contract LiFiVaultWrapper is
             )
         );
         if (withdrawn < owed) revert AdapterWithdrawShortfall(owed, withdrawn);
-        // A round-up source may pay more than owed; book the overage with the fee so
+        // A round-up source may pay more than owed; book the excess with the fee so
         // every idle asset stays attributed for payout instead of stranding as
         // untracked dust that silently left AUM.
-        _routeFee(FeeType.Withdrawal, fee + (withdrawn - owed));
+        _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
     }
 
@@ -544,15 +767,14 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         uint8 idx = uint8(_feeType);
-        if (_newRateBps == 0) {
-            _feeConfig.enabled[idx] = false;
-            _feeConfig.rateBps[idx] = 0;
-        } else {
+        if (_newRateBps != 0) {
             (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(factory)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
-            if (_feeType == FeeType.Performance && !_feeConfig.enabled[idx]) {
+            if (
+                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
+            ) {
                 uint192 currentPps = SafeCast.toUint192(
                     LibVaultWrapperMath.pricePerShare(
                         totalSupply(),
@@ -567,53 +789,42 @@ contract LiFiVaultWrapper is
                     perfHighWaterMarkPps = currentPps;
                 }
             }
-            _feeConfig.enabled[idx] = true;
-            _feeConfig.rateBps[idx] = _newRateBps;
         }
+        _feeConfig.rateBps[idx] = _newRateBps;
 
-        emit FeeConfigUpdated(_feeType, _newRateBps, _newRateBps != 0);
+        emit FeeConfigUpdated(_feeType, _newRateBps);
     }
 
     /// Fee distribution ///
 
-    /// @notice The configured integrator payout wallets.
-    /// @return The receiver addresses (1..5).
-    function integratorReceivers() external view returns (address[] memory) {
-        return _integratorReceivers;
-    }
-
-    /// @notice The per-receiver basis points, parallel to `integratorReceivers`.
-    /// @return The receiver bps (sum to 100%).
-    function integratorReceiverBps() external view returns (uint16[] memory) {
-        return _integratorReceiverBps;
-    }
-
     /// @notice Replace the integrator's payout wallets and their bps split.
     /// @dev Owner-controlled (the per-vault admin). Re-validates the full set, so
-    ///      the 1..5 / sum-to-100% invariant set at `initialize` always holds — the receiver
-    ///      set can never be emptied. Only redistributes the integrator's own share, so no
-    ///      sweep is forced first.
-    /// @param _receivers The new payout wallets (1..5, non-zero).
-    /// @param _receiverBps The per-receiver bps, summing to exactly 100%.
-    function setIntegratorReceivers(
-        address[] calldata _receivers,
-        uint16[] calldata _receiverBps
+    ///      the 1..50 / sum-to-100% invariant set at `initialize` always holds — the receiver
+    ///      set can never be emptied. Accrued-but-not-yet-distributed integrator fees are held
+    ///      as a single total with no per-wallet bookkeeping, so they will be paid to the NEW
+    ///      receiver set at the next `distributeFees`, not the outgoing one. Call `distributeFees`
+    ///      before rotating receivers if the outgoing wallets should receive their earned share.
+    /// @param _receivers The new payout wallets + bps split (1..50, non-zero, summing to 100%).
+    function setIntegratorFeeReceivers(
+        FeeReceiver[] calldata _receivers
     ) external onlyOwner {
-        _setIntegratorReceivers(_receivers, _receiverBps);
+        _setIntegratorFeeReceivers(_receivers);
     }
 
     /// @notice Permissionless: crystallize and pay out all tracked fee entitlements.
-    /// @dev Accrues pending management/performance fees first (so a sweep is complete even
-    ///      while deposits are paused, since `_beforeOperation` cannot run then), then pays
+    /// @dev Accrues pending management/performance fees first (so distribution is complete even
+    ///      while deposits are paused, when the deposit/mint accrual cannot run), then pays
     ///      out the four per-recipient counters booked at accrual — the LI.FI/integrator
     ///      split already happened when each fee accrued, so nothing is re-split here.
     ///      LI.FI's parts go to the factory's live `lifiFeeRecipient`; the integrator's
     ///      parts are fanned across its wallets by bps (last absorbs the rounding
     ///      remainder). CEI: all four counters are zeroed before any transfer, and the call
-    ///      is `nonReentrant`. A failing integrator transfer (e.g. a blacklisted wallet) is
-    ///      redirected to LI.FI rather than reverting the sweep, so the integrator can
-    ///      never block it. No-op when every counter is empty.
-    function sweep() external nonReentrant {
+    ///      is `nonReentrant`. A failing integrator transfer (e.g. a blacklisted wallet) does
+    ///      not revert the distribution — its share is left in the wrapper and re-booked as
+    ///      still-owed integrator fees, so the integrator can rotate to a working wallet via
+    ///      `setIntegratorFeeReceivers` and call this again to claim it. No-op when every
+    ///      counter is empty.
+    function distributeFees() external nonReentrant {
         _accrueFees();
 
         uint256 lifiAssets = lifiFeeAssets;
@@ -632,32 +843,27 @@ contract LiFiVaultWrapper is
         lifiFeeShares = 0;
         integratorFeeShares = 0;
 
-        address recipient = ILiFiVaultWrapperFactory(factory)
+        address lifiRecipient = ILiFiVaultWrapperFactory(factory)
             .lifiFeeRecipient();
 
-        _distributeReservoir(asset(), lifiAssets, integratorAssets, recipient);
-        _distributeReservoir(
+        uint256 assetsRetained = _distributeFeePool(
+            asset(),
+            lifiAssets,
+            integratorAssets,
+            lifiRecipient
+        );
+        uint256 sharesRetained = _distributeFeePool(
             address(this),
             lifiShares,
             integratorShares,
-            recipient
+            lifiRecipient
         );
-    }
 
-    /// @notice Transfer a token out of this contract; callable only by this contract itself.
-    /// @dev The `try/catch` seam used by `sweep` so a reverting integrator transfer is caught
-    ///      and redirected instead of bubbling up. Restricted to self-calls; not
-    ///      `nonReentrant` so `sweep`'s guard is not tripped by the self-call.
-    /// @param _token The token to transfer (the vault asset, or this wrapper's own shares).
-    /// @param _to The recipient.
-    /// @param _amount The amount to transfer.
-    function trustedTransfer(
-        address _token,
-        address _to,
-        uint256 _amount
-    ) external {
-        if (msg.sender != address(this)) revert OnlySelf();
-        SafeERC20.safeTransfer(IERC20(_token), _to, _amount);
+        // Fees whose integrator transfer failed stay in the wrapper as still-owed
+        // integrator fees, claimable on a later distribution (nonReentrant guards this
+        // post-transfer write).
+        integratorFeeAssets = uint128(assetsRetained);
+        integratorFeeShares = uint128(sharesRetained);
     }
 
     /// Pause controls ///
@@ -683,24 +889,100 @@ contract LiFiVaultWrapper is
         return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
     }
 
-    /// Fees and access ///
-    /// @dev `_checkAccess` below is a no-op seam; its body lands with access control.
+    /// Access control ///
+    /// @dev Every state-changing entrypoint (deposit/mint/withdraw/redeem) runs its access
+    ///      check then `_accrueFees` first, so the operation is authorized and transacts at
+    ///      the post-accrual share price. All checks target the END PARTIES (share receiver
+    ///      on entry, share owner + asset receiver on exit) and never `msg.sender`, so
+    ///      direct ERC-4626 calls and proxied (Composer) flows are gated identically. Every
+    ///      gate call is fail-closed with no try/catch: a misbehaving gate blocks the
+    ///      guarded operation — including exits — and its own error bubbles verbatim; the
+    ///      recovery path is the owner's instant `setAccessGate`. Gas-griefing the gate call
+    ///      into a false failure is not a concern: there is no catch to reach, an OOG simply
+    ///      reverts the operation.
     ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
     ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
 
-    /// @dev Runs on every state-changing entrypoint (deposit/mint/withdraw/redeem): enforces
-    ///      the vault's access mode on the caller and accrues time/yield-based fees so the
-    ///      operation transacts at the post-accrual share price. Deposit-pause is enforced
-    ///      separately and only on inflows, so this is shared by exits too.
-    function _beforeOperation() private {
-        _checkAccess(msg.sender);
-        _accrueFees();
+    /// @notice Sets or clears this instance's access gate.
+    /// @dev Owner-only and instant, like every other per-vault setter — the integrator
+    ///      brings their own authority model (EOA/multisig/timelock). The gate is not
+    ///      probed or validated: a misconfigured gate closes the instance fail-closed
+    ///      until this setter repairs it, and only harms the integrator's own product.
+    /// @param _accessGate The new gate; address(0) = fully permissionless.
+    function setAccessGate(address _accessGate) external onlyOwner {
+        accessGate = _accessGate;
+
+        emit AccessGateUpdated(_accessGate);
     }
 
-    /// @dev Enforces the vault's access mode (open / allowlist / permissioned) on the caller.
-    ///      Widens to `view` once it reads the access mode from initData.
-    function _checkAccess(address /* caller */) private pure {
-        // TODO(access): decode the access mode from initData and authorize the caller.
+    /// @dev Entry screen: the share receiver must be allowed by the gate (which is
+    ///      expected to fold its own sanctions view into `isAllowed`). No-op when no
+    ///      gate is set.
+    /// @param _receiver The share receiver of the deposit/mint.
+    function _checkDepositAccess(address _receiver) private view {
+        address gate = accessGate;
+        if (gate == address(0)) return;
+        if (!IAccessGate(gate).isAllowed(_receiver))
+            revert AccountNotAllowed(_receiver);
+    }
+
+    /// @dev Exit screen: sanctions-only, so any non-sanctioned holder can always exit
+    ///      (even after falling off an allowlist). Screens the share owner (freezes a
+    ///      sanctioned holder's funds) AND the asset receiver (never pays assets out to a
+    ///      sanctioned address; a non-sanctioned owner just picks another receiver).
+    ///      No-op when no gate is set.
+    /// @param _owner The share owner being exited.
+    /// @param _receiver The asset receiver of the exit.
+    function _checkExitAccess(address _owner, address _receiver) private view {
+        address gate = accessGate;
+        if (gate == address(0)) return;
+        if (IAccessGate(gate).isSanctioned(_owner))
+            revert AccountSanctioned(_owner);
+        if (_receiver != _owner && IAccessGate(gate).isSanctioned(_receiver))
+            revert AccountSanctioned(_receiver);
+    }
+
+    /// @dev Whether the gate admits `_receiver` on the deposit path; true when no gate
+    ///      is set. Non-reverting only insofar as the gate itself does not revert.
+    /// @param _receiver The share receiver to screen.
+    /// @return True if deposits/mints for `_receiver` would pass the access check.
+    function _depositAllowed(address _receiver) private view returns (bool) {
+        address gate = accessGate;
+
+        return gate == address(0) || IAccessGate(gate).isAllowed(_receiver);
+    }
+
+    /// @dev Whether the gate flags `_account` as sanctioned; false when no gate is set.
+    /// @param _account The account to screen.
+    /// @return True if `_account` is sanction-flagged by the gate.
+    function _sanctioned(address _account) private view returns (bool) {
+        address gate = accessGate;
+
+        return gate != address(0) && IAccessGate(gate).isSanctioned(_account);
+    }
+
+    /// @dev Gates holder-to-holder share transfers on `isTransferable`. Structurally
+    ///      exempt — never reaching the gate — are mints (`from == 0`; entry is already
+    ///      screened in `deposit`/`mint`, and `_accrueFees` mints fee-shares to this
+    ///      contract on every operation), burns (`to == 0`; exits are screened in
+    ///      `withdraw`/`redeem`), and fee payouts from the wrapper itself
+    ///      (`from == address(this)`; `distributeFees` must stay unblockable and the recipients'
+    ///      entitlement was booked at accrual). The fee machinery must never depend on
+    ///      gate behavior.
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override {
+        if (from != address(0) && to != address(0) && from != address(this)) {
+            address gate = accessGate;
+            if (
+                gate != address(0) &&
+                !IAccessGate(gate).isTransferable(from, to)
+            ) revert TransferNotAllowed(from, to);
+        }
+
+        super._update(from, to, value);
     }
 
     /// @dev Crystallizes the management and performance fees by minting dilution shares
@@ -717,8 +999,8 @@ contract LiFiVaultWrapper is
     ///      to the post-crystallization share price only when shares were actually
     ///      minted — an uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
-        bool mgmtEnabled = _feeConfig.enabled[uint8(FeeType.Management)];
-        bool perfEnabled = _feeConfig.enabled[uint8(FeeType.Performance)];
+        bool mgmtEnabled = _feeConfig.rateBps[uint8(FeeType.Management)] != 0;
+        bool perfEnabled = _feeConfig.rateBps[uint8(FeeType.Performance)] != 0;
         if (!mgmtEnabled && !perfEnabled) {
             lastMgmtAccrual = uint64(block.timestamp);
             return;
@@ -762,9 +1044,10 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256 feeShares) {
+        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Management)];
         if (
             lastMgmtAccrual == 0 ||
-            !_feeConfig.enabled[uint8(FeeType.Management)] ||
+            rateBps == 0 ||
             _supply == 0 ||
             _assets == 0
         ) return 0;
@@ -772,13 +1055,13 @@ contract LiFiVaultWrapper is
         uint256 elapsed = block.timestamp - lastMgmtAccrual;
         if (elapsed == 0) return 0;
 
-        uint256 feeAssets = LibVaultWrapperMath.managementFeeAssets({
+        uint256 mgmtFeeAssets = LibVaultWrapperMath.managementFeeAssets({
             _totalAssets: _assets,
-            _rateBps: _feeConfig.rateBps[uint8(FeeType.Management)],
+            _rateBps: rateBps,
             _elapsed: elapsed
         });
         feeShares = LibVaultWrapperMath.dilutionShares({
-            _feeAssets: feeAssets,
+            _feeAssets: mgmtFeeAssets,
             _totalSupply: _supply,
             _totalAssets: _assets,
             _decimalsOffset: _decimalsOffset()
@@ -797,23 +1080,23 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256) {
-        uint8 idx = uint8(FeeType.Performance);
-        if (!_feeConfig.enabled[idx]) return 0;
+        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Performance)];
+        if (rateBps == 0) return 0;
 
         uint256 hwm = perfHighWaterMarkPps;
         if (hwm == 0) return 0;
 
-        uint256 feeAssets = LibVaultWrapperMath.performanceFeeAssets({
+        uint256 perfFeeAssets = LibVaultWrapperMath.performanceFeeAssets({
             _totalAssets: _assets,
             _totalSupply: _supply,
             _hwmPps: hwm,
-            _rateBps: _feeConfig.rateBps[idx],
+            _rateBps: rateBps,
             _decimalsOffset: _decimalsOffset()
         });
 
         return
             LibVaultWrapperMath.dilutionShares({
-                _feeAssets: feeAssets,
+                _feeAssets: perfFeeAssets,
                 _totalSupply: _supply,
                 _totalAssets: _assets,
                 _decimalsOffset: _decimalsOffset()
@@ -837,13 +1120,11 @@ contract LiFiVaultWrapper is
             mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
     }
 
-    /// @dev Reads the configured rate (bps) for a fee type; 0 when the type is disabled.
+    /// @dev Reads the configured rate (bps) for a fee type; 0 means disabled.
     /// @param _feeType The fee type to read.
     /// @return The effective rate in basis points.
     function _rate(FeeType _feeType) private view returns (uint16) {
-        uint8 idx = uint8(_feeType);
-        if (!_feeConfig.enabled[idx]) return 0;
-        return _feeConfig.rateBps[idx];
+        return _feeConfig.rateBps[uint8(_feeType)];
     }
 
     /// @dev Books freshly minted dilution fee-shares, split between LI.FI and the
@@ -869,7 +1150,7 @@ contract LiFiVaultWrapper is
     ///      No-op on a zero amount.
     /// @param _feeType The fee type charged (Deposit or Withdrawal).
     /// @param _feeAssets The amount, in assets, kept idle in this contract: the fee
-    ///        plus, on the withdrawal path, any adapter overage (see `_transferOut`).
+    ///        plus, on the withdrawal path, any adapter excess (see `_transferOut`).
     function _routeFee(FeeType _feeType, uint256 _feeAssets) private {
         if (_feeAssets == 0) return;
 
@@ -932,6 +1213,8 @@ contract LiFiVaultWrapper is
 
     /// @dev Adds `_delta` to a uint128 accumulator, clamping at the type max instead
     ///      of reverting (see `_splitFee` for why the accrual path must never revert).
+    ///      Compares before adding: `_delta` is only bounded by the `_mint` supply
+    ///      check, so a plain checked add could itself overflow uint256 and revert.
     /// @param _accrued The current accumulator value.
     /// @param _delta The amount to add.
     /// @return The clamped sum.
@@ -939,99 +1222,107 @@ contract LiFiVaultWrapper is
         uint128 _accrued,
         uint256 _delta
     ) private pure returns (uint128) {
-        uint256 sum = uint256(_accrued) + _delta;
+        uint256 accrued = uint256(_accrued);
+        if (_delta > type(uint128).max - accrued) return type(uint128).max;
 
-        return sum > type(uint128).max ? type(uint128).max : uint128(sum);
+        return uint128(accrued + _delta);
     }
 
-    /// @dev Validates and stores the integrator receiver set: 1..5 wallets, no zero address,
-    ///      equal-length bps summing to exactly 100%. Reverts the whole call (including a
-    ///      deploy, when reached from `initialize`) on any violation.
-    /// @param _receivers The payout wallets.
-    /// @param _receiverBps The per-receiver bps.
-    function _setIntegratorReceivers(
-        address[] calldata _receivers,
-        uint16[] calldata _receiverBps
+    /// @dev Validates and stores the integrator receiver set: 1..50 wallets, no zero address,
+    ///      bps summing to exactly 100%. Reverts the whole call (including a deploy, when
+    ///      reached from `initialize`) on any violation.
+    /// @param _receivers The payout wallets with their bps split.
+    function _setIntegratorFeeReceivers(
+        FeeReceiver[] calldata _receivers
     ) private {
         uint256 count = _receivers.length;
         if (count == 0 || count > MAX_FEE_RECEIVERS)
             revert InvalidReceiverCount();
-        if (_receiverBps.length != count) revert ReceiversLengthMismatch();
 
         uint256 sum;
         for (uint256 i; i < count; ++i) {
-            if (_receivers[i] == address(0)) revert ZeroReceiver();
-            sum += _receiverBps[i];
+            if (_receivers[i].wallet == address(0)) revert ZeroReceiver();
+            sum += _receivers[i].bps;
         }
         if (sum != LibVaultWrapperMath.BASIS_POINT_SCALE)
             revert ReceiverBpsSumNot100();
 
-        _integratorReceivers = _receivers;
-        _integratorReceiverBps = _receiverBps;
+        delete integratorFeeReceivers;
+        for (uint256 i; i < count; ++i) {
+            integratorFeeReceivers.push(_receivers[i]);
+        }
 
-        emit ReceiversSet(_receivers, _receiverBps);
+        emit ReceiversSet(_receivers);
     }
 
-    /// @dev Pays out one reservoir of `_token` from the per-recipient parts booked at
+    /// @dev Pays out one fee pool of `_token` from the per-recipient parts booked at
     ///      accrual — no split happens here (see `_splitFee`). The integrator's part is
-    ///      fanned across the receiver wallets; LI.FI is paid last — its booked part plus
-    ///      any integrator amount redirected by `_payIntegrators` — and is NOT caught, so
-    ///      a reverting LI.FI recipient (factory-governed) is its own concern. Caller must
-    ///      zero the counters first (CEI). No-op on an empty reservoir.
-    /// @param _token The reservoir token (the vault asset, or this wrapper's shares).
-    /// @param _lifiPart LI.FI's booked part of the reservoir.
-    /// @param _integratorPart The integrator's booked part of the reservoir.
-    /// @param _recipient The live LI.FI fee recipient.
-    function _distributeReservoir(
+    ///      fanned across the receiver wallets; LI.FI is paid its booked part and is NOT
+    ///      caught, so a reverting LI.FI recipient (factory-governed) is its own concern.
+    ///      Caller must zero the counters first (CEI). No-op on an empty fee pool.
+    /// @param _token The fee-pool token (the vault asset, or this wrapper's shares).
+    /// @param _lifiPart LI.FI's booked part of the fee pool.
+    /// @param _integratorPart The integrator's booked part of the fee pool.
+    /// @param _lifiRecipient The live LI.FI fee recipient.
+    /// @return retained The integrator amount whose transfer failed, left in the wrapper.
+    function _distributeFeePool(
         address _token,
         uint256 _lifiPart,
         uint256 _integratorPart,
-        address _recipient
-    ) private {
-        if (_lifiPart == 0 && _integratorPart == 0) return;
+        address _lifiRecipient
+    ) private returns (uint256 retained) {
+        if (_lifiPart == 0 && _integratorPart == 0) return 0;
 
-        uint256 redirected = _payIntegrators(_token, _integratorPart);
-        uint256 lifiPaid = _lifiPart + redirected;
+        // pay integrators; any wallet whose transfer fails leaves its share in the wrapper
+        retained = _payIntegrators(_token, _integratorPart);
 
-        if (lifiPaid > 0)
-            SafeERC20.safeTransfer(IERC20(_token), _recipient, lifiPaid);
+        if (_lifiPart > 0) {
+            SafeERC20.safeTransfer(IERC20(_token), _lifiRecipient, _lifiPart);
+        }
 
-        emit ReservoirSwept(_token, lifiPaid, _integratorPart - redirected);
+        emit FeePoolDistributed(_token, _lifiPart, _integratorPart - retained);
     }
 
     /// @dev Fans `_integratorTotal` of `_token` across the integrator wallets by their bps, the
     ///      last wallet absorbing the integer-division remainder so the portion zeroes exactly.
-    ///      Each transfer goes through `trustedTransfer`; a revert (e.g. a blacklisted wallet)
-    ///      is caught and the share returned as `redirected` for the caller to route to LI.FI,
-    ///      so one hostile wallet can never block the sweep.
-    /// @param _token The reservoir token to distribute.
-    /// @param _integratorTotal The integrator's portion of the reservoir.
-    /// @return redirected The sum of shares whose transfer reverted (to be paid to LI.FI).
+    ///      Each payout uses OZ's non-reverting `trySafeTransfer`; a failed transfer (e.g. a
+    ///      blacklisted wallet) has its share returned as `retained` and left in the wrapper,
+    ///      so one hostile wallet can never block the distribution.
+    /// @param _token The fee-pool token to distribute.
+    /// @param _integratorTotal The integrator's portion of the fee pool.
+    /// @return retained The sum of shares whose transfer failed (left in the wrapper).
     function _payIntegrators(
         address _token,
         uint256 _integratorTotal
-    ) private returns (uint256 redirected) {
-        address[] memory receivers = _integratorReceivers;
-        uint16[] memory bps = _integratorReceiverBps;
+    ) private returns (uint256 retained) {
+        FeeReceiver[] memory receivers = integratorFeeReceivers;
         uint256 count = receivers.length;
         uint256 distributed;
 
         for (uint256 i; i < count; ++i) {
-            uint256 share = i + 1 == count
-                ? _integratorTotal - distributed
-                : _integratorTotal.mulDiv(
-                    bps[i],
+            uint256 share;
+            if (i + 1 == count) {
+                // last receiver gets the whole remainder to avoid rounding dust
+                share = _integratorTotal - distributed;
+            } else {
+                // other receivers get their bps share, rounded down
+                share = _integratorTotal.mulDiv(
+                    receivers[i].bps,
                     LibVaultWrapperMath.BASIS_POINT_SCALE
                 );
+            }
             distributed += share;
             if (share == 0) continue;
 
-            try this.trustedTransfer(_token, receivers[i], share) {
-                // delivered
-            } catch {
-                redirected += share;
-                emit IntegratorPayoutRedirected(receivers[i], _token, share);
+            address wallet = receivers[i].wallet;
+            // we use trySafeTransfer here so a failed transfer doesn't block the distribution
+            if (SafeERC20.trySafeTransfer(IERC20(_token), wallet, share)) {
+                continue;
             }
+
+            // the failed transfer amount stays in the wrapper as still-owed integrator fees
+            retained += share;
+            emit IntegratorPayoutRetained(wallet, _token, share);
         }
     }
 }
