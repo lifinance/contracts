@@ -91,7 +91,7 @@ contract PolymerCCTPFacet is
         // 1000 = fast path, 2000 = standard path
         uint32 minFinalityThreshold;
         // CctpForwarder hook data. For HyperCore it must encode bridgeData.receiver at bytes
-        // [32:52]. For Stellar it carries the forwardRecipient strkey: magic (24) + version (4) +
+        // [32:52]. For Stellar it carries the forward recipient strkey: magic (24) + version (4) +
         // length L (4) + strkey (L). Required iff destinationChainId is LIFI_CHAIN_ID_HYPERCORE
         // or LIFI_CHAIN_ID_STELLAR; must be empty otherwise.
         bytes hookData;
