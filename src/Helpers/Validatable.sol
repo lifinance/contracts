@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
-/// @custom:version 1.0.0
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
 import { LibAsset } from "../Libraries/LibAsset.sol";
@@ -10,6 +9,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 // solhint-disable-next-line no-unused-import
 import { LibSwap } from "../Libraries/LibSwap.sol";
 
+/// @custom:version 1.0.0
 contract Validatable {
     modifier validateBridgeData(ILiFi.BridgeData memory _bridgeData) {
         if (LibUtil.isZeroAddress(_bridgeData.receiver)) {

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 // solhint-disable-next-line no-global-import
 import "./LibBytes.sol";
 
+/// @custom:version 1.0.0
 library LibUtil {
     using LibBytes for bytes;
 

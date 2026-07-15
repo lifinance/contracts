@@ -128,7 +128,7 @@ secrets rotation in parallel from day 1.
 
 - All on-chain owner/role/pauser changes → `multisig-rollout` (proposals + HW sign).
 - High-stakes-drafting gates on every generated proposal / config PR.
-- Pre-PR: `/pr-ready` before any PR (mechanically enforced).
+- Pre-PR: `self-review-pass` before any PR; cloud CodeRabbit in GitHub CI is the review backstop.
 - Per-session worktree for the build; never touch the primary clone.
 
 ## Decisions
