@@ -1,23 +1,25 @@
 #!/bin/bash
 #
 # with-safe-tunnel.sh — ensure the lifi-connect tunnel to the Safe proposal
-# MongoDB is up, then run the given command.
+# MongoDB is up (logging into AWS SSO and starting the tunnel if needed), then
+# optionally run a command.
 #
 # Since the legacy VPN was retired, the Safe proposal DB (SC_MONGODB_URI) is
-# reachable only through the lifi-connect port-forward tunnel, and Safe scripts
-# (confirm-safe-tx, propose-to-safe, list-pending-proposals, …) fail fast if it
-# isn't running. Wrap them with this to start the tunnel on demand:
+# reachable only through the lifi-connect port-forward tunnel. The Mongo-touching
+# Safe package scripts (confirm-safe-tx, propose-safe-tx, add-safe-owners-and-
+# threshold, unpause-all-diamonds, execute-timelock) run through this wrapper —
+# `with-safe-tunnel.sh && <original command>` — so they ensure the tunnel
+# automatically and *visibly* (it announces what it does and opens a Terminal
+# window). The underlying TS signing logic never opens a tunnel on its own; that
+# stays here, in one explicit place.
 #
-#   bash script/deploy/safe/with-safe-tunnel.sh bun confirm-safe-tx
-#
-# or via the package.json alias:
-#
-#   bun run safe:tunnel                       # just ensure the tunnel, then exit
-#   bun run safe:tunnel bun confirm-safe-tx   # ensure the tunnel, then run
+# Usage:
+#   bash script/deploy/safe/with-safe-tunnel.sh                 # ensure only, exit 0
+#   bash script/deploy/safe/with-safe-tunnel.sh bun confirm-safe-tx   # ensure, then run
+#   bun run safe:tunnel                                         # same, via alias
 #
 # The tunnel is left running afterwards (ports are static — start once, reuse
-# all day). This is a convenience wrapper only: the signing scripts never start
-# a production tunnel themselves.
+# all day).
 
 set -euo pipefail
 
@@ -137,7 +139,9 @@ main() {
     echo "✓ Tunnel is up (localhost:${port}) — leaving it running"
   fi
 
-  [ "$#" -gt 0 ] && exec "$@"
+  # With a command, run it (tunnel now up). With no args, ensuring the tunnel
+  # was the whole job — exit 0 so callers can chain `with-safe-tunnel.sh && <cmd>`.
+  if [ "$#" -gt 0 ]; then exec "$@"; fi
 }
 
 main "$@"

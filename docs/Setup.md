@@ -165,18 +165,23 @@ tunnel. Run `lifi-connect list` to see every cluster and endpoint.
 The tunnel dies when your AWS SSO session expires — re-run `awslogin` and restart
 `lifi-connect`.
 
-**Convenience wrapper.** To avoid starting the tunnel by hand each time, wrap any
-Safe/Mongo command — it ensures the tunnel is up (logging you into AWS SSO if the
-session expired, starting the tunnel if needed, then waiting for the port) before
-running:
+**Automatic tunnel handling.** The Mongo-touching Safe package scripts —
+`confirm-safe-tx`, `propose-safe-tx`, `add-safe-owners-and-threshold`,
+`unpause-all-diamonds`, `execute-timelock` — run through
+`script/deploy/safe/with-safe-tunnel.sh`, so they ensure the tunnel is up (logging
+you into AWS SSO if the session expired, starting the tunnel if needed, then
+waiting for the port) before running. So `bun confirm-safe-tx` just works — no
+manual tunnel step.
+
+The tunnel-starting lives only in that one wrapper, and it's **visible** (it
+announces what it's doing and opens a Terminal window running `lifi-connect`) —
+never a silent side effect, and never inside the TS signing logic itself. To
+ensure the tunnel without running anything (e.g. to start it once and reuse it):
 
 ```bash
-bun run safe:tunnel                       # just ensure the tunnel, then exit
-bun run safe:tunnel bun confirm-safe-tx   # ensure the tunnel, then run the script
+bun run safe:tunnel                       # ensure the tunnel, then exit
+bun run safe:tunnel bun confirm-safe-tx   # ensure, then run (any command)
 ```
-
-The wrapper never starts a production tunnel silently from inside a signing
-script — it's an explicit, opt-in convenience (see `script/deploy/safe/with-safe-tunnel.sh`).
 
 ### Agent access
 
