@@ -2,14 +2,14 @@
  * Enqueue a Parked Diamond-Cleanup Task (write)
  *
  * Parks a single facet-removal task in the deferred diamond-cleanup queue
- * (`sc_private.parkedTasks`, design: PR #2049) instead of proposing the removal
+ * (`deferred-cleanup.parkedTasks`, design: PR #2049) instead of proposing the removal
  * eagerly. Called by `/deprecate-contract` (once the deprecation PR URL is known)
  * per (facet, network); the removal rides along the next time the network is
  * touched. Refuses to enqueue without the originating PR URL — the reviewer must
  * be able to see which PR a deferred removal belongs to at signing time (spec §6).
  *
  * Exit codes: 0 enqueued (or a harmless duplicate no-op), 1 invalid input / real
- * error, 2 recoverable misconfig (missing SC_MONGODB_URI / VPN not connected).
+ * error, 2 recoverable misconfig (missing MONGODB_URI).
  */
 
 import { execSync } from 'node:child_process'
@@ -137,12 +137,11 @@ const main = defineCommand({
       ;({ client: mongoClient, parkedTasks } = await getParkedTasksCollection())
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.error(`Could not connect to Safe MongoDB: ${errorMsg}`)
-      if (
-        errorMsg.includes('SC_MONGODB_URI') ||
-        errorMsg.includes('VPN connection required')
+      consola.error(
+        `Could not connect to the parked-tasks MongoDB: ${errorMsg}`
       )
-        process.exit(2)
+      // missing env var is a recoverable misconfig, not a hard error
+      if (errorMsg.includes('MONGODB_URI')) process.exit(2)
       process.exit(1)
     }
 

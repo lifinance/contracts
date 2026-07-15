@@ -2,13 +2,13 @@
  * List Parked Diamond-Cleanup Tasks (read-only)
  *
  * Non-interactive view of the deferred diamond-cleanup queue
- * (`sc_private.parkedTasks`, design: PR #2049). Shows which facet removals are
+ * (`deferred-cleanup.parkedTasks`, design: PR #2049). Shows which facet removals are
  * parked per network, their status, age, and originating deprecation PR — so an
  * operator can see the backlog and audit the parked set without a live drain.
- * Mirrors list-pending-proposals.ts (citty/consola, `--json`, VPN-gated).
+ * Mirrors list-pending-proposals.ts (citty/consola, `--json`).
  *
  * Exit codes: 0 success (even with zero matches), 1 real error,
- * 2 recoverable misconfig (missing SC_MONGODB_URI / VPN not connected).
+ * 2 recoverable misconfig (missing MONGODB_URI).
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -108,13 +108,11 @@ const main = defineCommand({
       ;({ client: mongoClient, parkedTasks } = await getParkedTasksCollection())
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.error(`Could not connect to Safe MongoDB: ${errorMsg}`)
-      // missing env var or VPN are recoverable misconfigs, not hard errors
-      if (
-        errorMsg.includes('SC_MONGODB_URI') ||
-        errorMsg.includes('VPN connection required')
+      consola.error(
+        `Could not connect to the parked-tasks MongoDB: ${errorMsg}`
       )
-        process.exit(2)
+      // missing env var is a recoverable misconfig, not a hard error
+      if (errorMsg.includes('MONGODB_URI')) process.exit(2)
       process.exit(1)
     }
 

@@ -1,14 +1,14 @@
 /**
  * Tests for the deferred diamond-cleanup queue store layer (parked-tasks.ts).
  *
- * The store persists `IParkedTask` rows in `sc_private.parkedTasks` and enforces
- * a partial unique index on `taskKey` (status ∈ {queued, proposed}) so a facet
- * can only be parked once per network while still open. Every pure helper takes
- * an injected `Collection<IParkedTask>` so the logic is exercised against an
+ * The store persists `IParkedTask` rows in `deferred-cleanup.parkedTasks` and
+ * enforces a partial unique index on `taskKey` (status ∈ {queued, proposed}) so a
+ * facet can only be parked once per network while still open. Every pure helper
+ * takes an injected `Collection<IParkedTask>` so the logic is exercised against an
  * in-memory fake that mirrors the partial-unique-index and atomic-flip semantics
- * MongoDB provides — no live cluster / VPN required. Only the thin live adapter
- * `getParkedTasksCollection()` (a `MongoClient` connect + VPN gate) is unit-test
- * exempt, exactly as its sibling `getSafeMongoCollection()` is.
+ * MongoDB provides — no live cluster required. Only the thin live adapter
+ * `getParkedTasksCollection()` (a `MongoClient` connect) is unit-test exempt,
+ * exactly as its sibling `getTimelockQueueCollection()` is.
  */
 
 import {
@@ -86,7 +86,7 @@ class FakeDuplicateKeyError extends Error {
   public code = 11000
   public constructor() {
     super(
-      'E11000 duplicate key error collection: sc_private.parkedTasks index: unique_open_task_key'
+      'E11000 duplicate key error collection: deferred-cleanup.parkedTasks index: unique_open_task_key'
     )
   }
 }

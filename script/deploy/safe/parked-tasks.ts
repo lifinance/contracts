@@ -2,11 +2,15 @@
  * Deferred diamond-cleanup queue — store layer.
  *
  * Backs the "park a facet removal now, drain it opportunistically later" model
- * (design: docs/DeferredDiamondCleanupQueue.md, PR #2049) with a durable queue
- * in the same `sc_private` cluster the Safe proposals live in (`SC_MONGODB_URI`
- * + VPN gate), collection `parkedTasks`. It mirrors the second durable queue the
- * repo already runs on this plumbing (`timelock-operations/queue`,
- * timelock-queue.ts) rather than introducing a new store type.
+ * (design: docs/DeferredDiamondCleanupQueue.md, PR #2049) with a durable queue on
+ * the non-sensitive `MONGODB_URI` cluster (DB `deferred-cleanup`, collection
+ * `parkedTasks`) — the same plumbing the timelock execution queue already runs on
+ * (`timelock-operations/queue`, timelock-queue.ts), rather than introducing a new
+ * store type. Nothing parked is secret (public facet names, on-chain addresses,
+ * PR URLs) and the security boundary is on-chain (calldata verification, timelock
+ * delay, Safe quorum), so the queue is intentionally un-gated — which also lets
+ * non-interactive consumers (CI backlog reports, reconcile/TTL jobs, agent-driven
+ * `/deprecate-contract`) reach it without a tunnel.
  *
  * This module is the *persistence* layer only — it does not mint Safe proposals,
  * resolve selectors from the loupe, or hook the drain chokepoint (those depend on
@@ -39,10 +43,10 @@ import {
 import { type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
-import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+import { getEnvVar } from '../../utils/utils'
 
-/** DB shared with Safe proposals (`pendingTransactions`) — same VPN-gated cluster. */
-const PARKED_TASKS_DB_NAME = 'sc_private'
+/** Database for the deferred diamond-cleanup queue inside the non-sensitive `MONGODB_URI` cluster. */
+const PARKED_TASKS_DB_NAME = 'deferred-cleanup'
 
 /** New collection holding the deferred diamond-cleanup queue. */
 const PARKED_TASKS_COLLECTION_NAME = 'parkedTasks'
@@ -184,45 +188,19 @@ export async function ensureParkedTasksIndexes(
 }
 
 /**
- * Opens a short-lived MongoDB client and returns the `parkedTasks` collection.
- *
- * Mirrors `getSafeMongoCollection()`: same `SC_MONGODB_URI` + VPN gate, same
- * `sc_private` DB, and ensures the queue's index on connect. The caller owns the
- * returned client and must `close()` it.
+ * Opens a MongoDB client and returns the `parkedTasks` collection, ensuring the
+ * dedup index on connect. Mirrors `getTimelockQueueCollection()`: the same
+ * non-sensitive `MONGODB_URI` cluster the timelock queue runs on, so no VPN /
+ * tunnel gate. The caller owns the returned client and must `close()` it.
  *
  * @returns The connected client and the `parkedTasks` collection.
- * @throws Error if `SC_MONGODB_URI` is unset or the VPN check fails.
+ * @throws Error if `MONGODB_URI` is not set.
  */
 export async function getParkedTasksCollection(): Promise<{
   client: MongoClient
   parkedTasks: Collection<IParkedTask>
 }> {
-  if (!process.env.SC_MONGODB_URI)
-    throw new Error('SC_MONGODB_URI environment variable is required')
-
-  try {
-    const response = await fetchWithTimeout('https://api.ipify.org?format=json')
-    const data = (await response.json()) as { ip: string }
-    if (data.ip !== '18.195.61.255') {
-      consola.warn(`VPN connection required! Current IP: ${data.ip}`)
-      throw new Error(
-        'VPN connection required to access Safe MongoDB collection'
-      )
-    }
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('VPN connection required')
-    )
-      throw error
-    consola.warn('Could not verify VPN connection:', error)
-    consola.warn(
-      'Proceeding with caution - ensure you are connected to the VPN'
-    )
-  }
-
-  const client = new MongoClient(process.env.SC_MONGODB_URI)
-  await client.connect()
+  const client = new MongoClient(getEnvVar('MONGODB_URI'))
   const parkedTasks = client
     .db(PARKED_TASKS_DB_NAME)
     .collection<IParkedTask>(PARKED_TASKS_COLLECTION_NAME)
