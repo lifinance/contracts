@@ -286,6 +286,7 @@ contract PolymerCCTPFacet is
             TOKEN_MESSENGER.depositForBurn(
                 bridgeAmount,
                 _chainIdToDomainId(destinationChainId),
+                // TODO: migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
                 bytes32(uint256(uint160(_bridgeData.receiver))),
                 USDC,
                 UNRESTRICTED_DESTINATION_CALLER,

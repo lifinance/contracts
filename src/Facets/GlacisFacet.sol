@@ -131,6 +131,7 @@ contract GlacisFacet is
         } else {
             // destination chain is EVM
             // make sure that bridgeData and glacisData receiver addresses match
+            // TODO: migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
             if (
                 _bridgeData.receiver !=
                 address(uint160(uint256(_glacisData.receiverAddress)))
