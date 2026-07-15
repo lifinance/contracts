@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidCallData, InvalidConfig, InvalidSignature, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidSignature, InvalidNonEVMReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title LayerSwap Facet
 /// @author LI.FI (https://li.fi)
@@ -133,6 +133,19 @@ contract LayerSwapFacet is
         _validateLayerSwapData(_layerSwapData);
         // Signature verified against pre-swap minAmount
         _verifySignature(_bridgeData, _layerSwapData);
+
+        // The final swap output must be the asset that gets bridged: _depositAndSwap measures
+        // the received amount in the last swap's receivingAssetId, while _startBridge deposits
+        // bridgeData.sendingAssetId. A mismatch would let a cheap swap output set minAmount while
+        // draining a different asset the diamond holds. An empty array is left to _depositAndSwap,
+        // which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InformationMismatch();
+        }
 
         // NOTE: If a deposit is higher than the amount associated with the orderId due to positive slippage,
         //       then the overpaid amount will be bridged to destination chain as well.

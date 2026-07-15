@@ -4,9 +4,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { LayerSwapFacet } from "lifi/Facets/LayerSwapFacet.sol";
-import { ILayerSwapDepository } from "lifi/Interfaces/ILayerSwapDepository.sol";
-import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { InvalidCallData, InvalidConfig, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidSignature, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 // Admin surface of the real LayerswapDepository (Ownable2Step + Pausable),
@@ -575,6 +573,81 @@ contract LayerSwapFacetTest is TestBaseFacet {
             swapData,
             validLayerSwapData
         );
+        vm.stopPrank();
+    }
+
+    // --- Swap Output / Bridge Asset Mismatch Tests ---
+
+    function testRevert_WhenSwapOutputAssetMismatchesBridgeAsset_ERC20()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        // Bridged asset (DAI) differs from the last swap's output (USDC)
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapOutputMismatchERC20"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapOutputAssetMismatchesBridgeAsset_Native()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        // Bridged asset (USDC) differs from the last swap's output (native)
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        uint256 daiAmount = 300 * 10 ** dai.decimals();
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        uint256 amountOut = uniswap.getAmountsOut(daiAmount, path)[1];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForETH.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapOutputMismatchNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, daiAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
     }
 
