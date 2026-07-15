@@ -107,11 +107,23 @@ authorizeExecutorOnZkEvm() {
   OWNER_BALANCE=$(cast balance "$OWNER" --rpc-url "$RPC_URL")
   echo "[info] Owner ($OWNER) native balance: $OWNER_BALANCE wei"
 
-  if gum confirm "Fund owner with gas for the setAuthorizedCaller tx now?"; then
-    local DEFAULT_FUND_AMOUNT=1000000000000000 # 0.001 native; one cheap state-setting tx
-    echo "Enter wei to send to $OWNER (edit or press Enter to confirm default):"
+  local DEFAULT_FUND_AMOUNT=1000000000000000 # 0.001 native; one cheap state-setting tx
+  local DO_FUND_OWNER=false
+  if [[ "${NON_INTERACTIVE:-}" == "true" ]]; then
+    echo "[info] NON_INTERACTIVE: auto-funding owner with default $DEFAULT_FUND_AMOUNT wei for the setAuthorizedCaller tx"
+    DO_FUND_OWNER=true
+  elif gum confirm "Fund owner with gas for the setAuthorizedCaller tx now?"; then
+    DO_FUND_OWNER=true
+  fi
+
+  if [[ "$DO_FUND_OWNER" == "true" ]]; then
     local FUNDING_AMOUNT
-    FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+    if [[ "${NON_INTERACTIVE:-}" == "true" ]]; then
+      FUNDING_AMOUNT="$DEFAULT_FUND_AMOUNT"
+    else
+      echo "Enter wei to send to $OWNER (edit or press Enter to confirm default):"
+      FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+    fi
     FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
     if ! [[ "$FUNDING_AMOUNT" =~ ^[0-9]+$ ]]; then
       error "Invalid funding amount. Please provide a valid wei amount (numeric value)."
