@@ -465,7 +465,7 @@ contract LiFiVaultWrapper is
         uint256 _assets,
         address _receiver,
         uint256 _minShares
-    ) external returns (uint256 shares) {
+    ) external override returns (uint256 shares) {
         shares = deposit(_assets, _receiver);
         if (shares < _minShares) revert SlippageExceeded(shares, _minShares);
     }
@@ -480,7 +480,7 @@ contract LiFiVaultWrapper is
         uint256 _shares,
         address _receiver,
         uint256 _maxAssets
-    ) external returns (uint256 assets) {
+    ) external override returns (uint256 assets) {
         assets = mint(_shares, _receiver);
         if (assets > _maxAssets) revert SlippageExceeded(assets, _maxAssets);
     }
@@ -497,7 +497,7 @@ contract LiFiVaultWrapper is
         address _receiver,
         address _owner,
         uint256 _maxShares
-    ) external returns (uint256 shares) {
+    ) external override returns (uint256 shares) {
         shares = withdraw(_assets, _receiver, _owner);
         if (shares > _maxShares) revert SlippageExceeded(shares, _maxShares);
     }
@@ -514,7 +514,7 @@ contract LiFiVaultWrapper is
         address _receiver,
         address _owner,
         uint256 _minAssets
-    ) external returns (uint256 assets) {
+    ) external override returns (uint256 assets) {
         assets = redeem(_shares, _receiver, _owner);
         if (assets < _minAssets) revert SlippageExceeded(assets, _minAssets);
     }
