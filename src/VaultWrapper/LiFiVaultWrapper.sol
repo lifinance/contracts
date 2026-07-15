@@ -388,7 +388,9 @@ contract LiFiVaultWrapper is
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
     ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
-    ///      post-operation supply floor (see `_enforceSupplyFloor`).
+    ///      post-operation supply floor for a non-zero deposit; a `deposit(0)` call moves
+    ///      no assets and mints no shares, so it is a no-op that skips the floor (see
+    ///      `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
         address receiver
@@ -398,14 +400,16 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         shares = super.deposit(assets, receiver);
-        _enforceSupplyFloor();
+        if (assets != 0) _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
     ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). Enforces the
-    ///      post-operation supply floor (see `_enforceSupplyFloor`).
+    ///      post-operation supply floor for a non-zero mint; a `mint(0)` call moves no
+    ///      assets and mints no shares, so it is a no-op that skips the floor (see
+    ///      `_enforceSupplyFloor`).
     function mint(
         uint256 shares,
         address receiver
@@ -415,7 +419,7 @@ contract LiFiVaultWrapper is
         _accrueFees();
 
         assets = super.mint(shares, receiver);
-        _enforceSupplyFloor();
+        if (shares != 0) _enforceSupplyFloor();
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -625,22 +629,27 @@ contract LiFiVaultWrapper is
 
     /// Internal ///
 
-    /// @dev Deposit-side supply floor: after any deposit/mint the total supply must be
-    ///      at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
+    /// @dev Deposit-side supply floor: after a non-zero deposit/mint the total supply must
+    ///      be at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
     ///      dust-sized share denominator (the first-depositor inflation attack's
     ///      precondition) — the existing supply plus the deposit's own mint always sum
     ///      to the floor, capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
     ///      of the donation. A post-operation supply of exactly zero is rejected too:
-    ///      that is only reachable when a deposit mints zero shares (its assets rounded
-    ///      away against a donation-inflated, zero-supply vault), which would forward the
-    ///      caller's assets into the yield source for no shares — a 100% loss. Exits are
-    ///      deliberately exempt (they never call this): `_accrueFees` mints fee shares to
-    ///      this contract, so an exit-side check could revert the last holder's full exit
-    ///      against sub-floor fee-share residue — and exits must always work. An exit may
-    ///      therefore strand a sub-floor supply, but anyone depositing into that state is
-    ///      still protected by this check. Not reflected in the max* limit views (a
-    ///      documented EIP-4626 deviation): modeling a ~1e-12-token edge there is not
-    ///      worth the complexity.
+    ///      that is only reachable when a non-zero deposit mints zero shares (its assets
+    ///      rounded away against a donation-inflated, zero-supply vault), which would
+    ///      forward the caller's assets into the yield source for no shares — a 100% loss.
+    ///      A zero-amount `deposit(0)`/`mint(0)` moves nothing and mints nothing, so the
+    ///      caller skips this check entirely: the no-op stays a no-op even in a sub-floor
+    ///      state. Exits are also deliberately exempt (they never call this): `_accrueFees`
+    ///      mints fee shares to this contract, so an exit-side check could revert the last
+    ///      holder's full exit against sub-floor fee-share residue — and exits must always
+    ///      work. An exit may therefore strand a sub-floor supply, but any non-zero deposit
+    ///      into that state is still protected by this check. Not reflected in the max*
+    ///      limit views (a documented EIP-4626 deviation): with the offset floored at
+    ///      `MIN_DECIMALS_OFFSET`, an ordinary deposit into a clean vault always clears the
+    ///      floor, so the only amounts `<= maxDeposit` that still revert are non-zero
+    ///      deposits into a donation-inflated empty vault or an exit-stranded sub-floor
+    ///      vault — edge states not worth modeling in the limit views.
     function _enforceSupplyFloor() private view {
         uint256 supply = totalSupply();
         if (supply < MIN_SHARE_SUPPLY)

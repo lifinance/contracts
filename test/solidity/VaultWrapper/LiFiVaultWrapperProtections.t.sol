@@ -397,6 +397,38 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertGe(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
     }
 
+    function test_ZeroDepositAndMintAreNoopsRegardlessOfSupply() public {
+        // A zero-amount deposit/mint moves nothing and mints nothing, so it must never
+        // revert on the supply floor — not on a fresh empty vault, nor in a sub-floor
+        // state an exit can strand. The floor guards real deposits, not zero-amount
+        // accrual pokes.
+        vm.startPrank(bob);
+
+        assertEq(wrapper.deposit(0, bob), 0);
+        assertEq(wrapper.mint(0, bob), 0);
+        vm.stopPrank();
+
+        assertEq(wrapper.totalSupply(), 0);
+
+        _deposit(alice, 2 * MIN_SHARE_SUPPLY);
+        uint256 leftBehind = MIN_SHARE_SUPPLY / 2;
+        uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
+
+        vm.prank(alice);
+        wrapper.redeem(toRedeem, alice, alice);
+
+        assertEq(wrapper.totalSupply(), leftBehind);
+
+        vm.startPrank(bob);
+
+        assertEq(wrapper.deposit(0, bob), 0);
+        assertEq(wrapper.mint(0, bob), 0);
+        vm.stopPrank();
+
+        assertEq(wrapper.totalSupply(), leftBehind);
+        assertEq(wrapper.balanceOf(bob), 0);
+    }
+
     function test_FullExitSucceedsWithFeeShareResidue() public {
         // Regression: fee accrual mints shares to the wrapper itself, so the last
         // holder's full exit leaves those fee shares as the only supply. The exit must
