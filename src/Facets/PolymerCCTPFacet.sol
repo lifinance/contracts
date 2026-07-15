@@ -307,8 +307,8 @@ contract PolymerCCTPFacet is
         ILiFi.BridgeData memory _bridgeData,
         PolymerCCTPData calldata _polymerData
     ) internal {
-        // Corridor dispatch: HyperCore requires a forwarder hook; hooks toward any
-        // other destination are unsupported. Add new corridors (e.g. Stellar) as
+        // Corridor dispatch: HyperCore and Stellar require a forwarder hook; hooks
+        // toward any other destination are unsupported. Add new corridors as
         // additional arms.
         if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
             // Without a valid hook the USDC would mint on HyperEVM and never
