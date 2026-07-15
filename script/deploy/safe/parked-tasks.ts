@@ -39,6 +39,7 @@ import {
 import { type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 
 /** DB shared with Safe proposals (`pendingTransactions`) — same VPN-gated cluster. */
 const PARKED_TASKS_DB_NAME = 'sc_private'
@@ -200,7 +201,7 @@ export async function getParkedTasksCollection(): Promise<{
     throw new Error('SC_MONGODB_URI environment variable is required')
 
   try {
-    const response = await fetch('https://api.ipify.org?format=json')
+    const response = await fetchWithTimeout('https://api.ipify.org?format=json')
     const data = (await response.json()) as { ip: string }
     if (data.ip !== '18.195.61.255') {
       consola.warn(`VPN connection required! Current IP: ${data.ip}`)
@@ -240,10 +241,17 @@ export async function getParkedTasksCollection(): Promise<{
  * the partial unique index → E11000 → returns `null` (a repeat deprecation of the
  * same facet is a harmless no-op), mirroring `storeTransactionInMongoDB`.
  *
+ * Identity fields are normalised here (the single enqueue chokepoint) so every
+ * caller — CLI, `/deprecate-contract`, the future drain — dedups consistently:
+ * `network`/`facetName`/`prUrl` are trimmed and a blank `facetName` is rejected,
+ * because `taskKey` is built from `network`+`facetName` and a stray space would
+ * silently mint a distinct, undeduplicated task for the same facet.
+ *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
  * @returns The insert result, or `null` if a duplicate open task already exists.
- * @throws Error if `prUrl` is missing or blank (the PR-link requirement, spec §6).
+ * @throws Error if `prUrl` or `facetName` is missing or blank (prUrl is the
+ *   PR-link requirement, spec §6; facetName is the task identity).
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -253,17 +261,17 @@ export async function enqueueParkedTask(
     throw new Error(
       'prUrl is required to park a facet-removal task (reviewer must see the originating PR at signing)'
     )
+  if (!input.facetName || input.facetName.trim() === '')
+    throw new Error('facetName is required to park a facet-removal task')
 
-  const network = input.network.toLowerCase()
+  const network = input.network.trim().toLowerCase()
+  const facetName = input.facetName.trim()
   const doc: IParkedTask = {
     ...input,
     network,
-    taskKey: computeTaskKey(
-      input.kind,
-      network,
-      input.environment,
-      input.facetName
-    ),
+    facetName,
+    prUrl: input.prUrl.trim(),
+    taskKey: computeTaskKey(input.kind, network, input.environment, facetName),
     status: 'queued',
     createdAt: new Date(),
   }

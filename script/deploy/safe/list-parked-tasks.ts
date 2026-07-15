@@ -186,7 +186,8 @@ const main = defineCommand({
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error(`Failed to query parked tasks: ${errorMsg}`)
-      process.exit(1)
+      // Set exitCode (not process.exit) so the finally below still closes Mongo.
+      process.exitCode = 1
     } finally {
       // A cleanup-only failure must not flip an otherwise-successful run
       try {

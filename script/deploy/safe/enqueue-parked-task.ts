@@ -114,6 +114,11 @@ const main = defineCommand({
       process.exit(1)
     }
 
+    if (!args.facetName || args.facetName.trim() === '') {
+      consola.error('facetName is required and cannot be blank')
+      process.exit(1)
+    }
+
     const input: IParkedTaskInput = {
       kind: 'facet-removal',
       network: args.network.toLowerCase(),
@@ -155,7 +160,8 @@ const main = defineCommand({
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error(`Failed to enqueue parked task: ${errorMsg}`)
-      process.exit(1)
+      // Set exitCode (not process.exit) so the finally below still closes Mongo.
+      process.exitCode = 1
     } finally {
       try {
         await mongoClient.close(true)

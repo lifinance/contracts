@@ -271,6 +271,34 @@ describe('enqueueParkedTask', () => {
     )
     expect(coll.rows).toHaveLength(0)
   })
+
+  it('throws when facetName is blank', async () => {
+    const coll = createFakeCollection()
+    await expectRejects(
+      enqueueParkedTask(coll, buildInput({ facetName: '  ' })),
+      /facetName is required/
+    )
+    expect(coll.rows).toHaveLength(0)
+  })
+
+  it('trims network, facetName and prUrl before storing/keying', async () => {
+    const coll = createFakeCollection()
+    await enqueueParkedTask(
+      coll,
+      buildInput({
+        network: '  Arbitrum ',
+        facetName: '  GenericSwapFacet  ',
+        prUrl: `  ${PR_URL}  `,
+      })
+    )
+    const row = coll.rows[0]
+    expect(row?.network).toBe('arbitrum')
+    expect(row?.facetName).toBe('GenericSwapFacet')
+    expect(row?.prUrl).toBe(PR_URL)
+    expect(row?.taskKey).toBe(
+      'facet-removal|arbitrum|production|GenericSwapFacet'
+    )
+  })
 })
 
 describe('listParkedTasks', () => {
