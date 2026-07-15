@@ -46,6 +46,7 @@ graph LR;
 Some methods listed above take a variable labeled `_symbiosisData`. This data is specific to Symbiosis and is represented as the following struct type:
 
 ```solidity
+/// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 /// @param firstSwapCalldata payload for the first swap on the source chain (MetaRouter path).
 /// @param secondSwapCalldata payload for the second swap on the source chain (MetaRouter path).
 /// @param intermediateToken the intermediate token used for swapping (MetaRouter path).
@@ -55,7 +56,6 @@ Some methods listed above take a variable labeled `_symbiosisData`. This data is
 /// @param callTo the bridging entrypoint / relayRecipient (MetaRouter path).
 /// @param callData the bridging calldata / otherSideCalldata (MetaRouter path).
 /// @param viaOnchainSwapV3 when true, route via the OnchainSwapV3 router (syBTC -> Bitcoin) instead of the MetaRouter.
-/// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 /// @param dex the DEX router for the OnchainSwapV3 input-token -> syBTC swap.
 /// @param dexgateway the spender the DEX is approved through for that swap.
 /// @param onchainSwapData the Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn.
