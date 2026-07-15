@@ -107,11 +107,12 @@ contract LiFiVaultWrapper is
 
     /// @notice Deposit-side total-supply floor, in shares: after any deposit or mint
     ///         the supply must be at least this (exits are exempt — see
-    ///         `_enforceSupplyFloor`). Only load-bearing when the derived decimals
-    ///         offset is 0 (assets with 18+ decimals) — below 18 decimals the virtual
-    ///         offset alone already puts a larger constant in the share denominator.
-    ///         At 18 share decimals the floor is ~1e-12 of one token, so no real
-    ///         deposit ever notices it.
+    ///         `_enforceSupplyFloor`). With the offset floored at `MIN_DECIMALS_OFFSET`,
+    ///         any nonzero first deposit already mints at least this many shares, so the
+    ///         floor is a backstop rather than the primary inflation guard: it catches
+    ///         the donation-inflated zero-share deposit and the sub-floor dust an exit can
+    ///         strand. At >= 18 share decimals it is at most ~1e-12 of one token, so no
+    ///         real deposit ever notices it.
     uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
     /// Storage ///
