@@ -42,6 +42,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     bytes32 internal constant HYPERCORE_CCTP_FORWARDER =
         bytes32(uint256(uint160(0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757)));
     uint32 internal constant HYPEREVM_CCTP_DOMAIN = 19;
+    // Must match PolymerCCTPFacet.STELLAR_CCTP_FORWARDER (Stellar mainnet CctpForwarder)
+    bytes32 internal constant STELLAR_CCTP_FORWARDER =
+        0x72bd20ff2f8281801bb05b7c29179026933256fabafeb13e94efd8ddbcfcf291;
+    uint32 internal constant STELLAR_CCTP_DOMAIN = 27;
     address internal polymerFeeReceiver = address(0x123);
 
     PolymerCCTPFacet.PolymerCCTPData internal validPolymerData;
@@ -56,7 +60,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         pure
         returns (ChainMapping[] memory mappings)
     {
-        mappings = new ChainMapping[](21);
+        mappings = new ChainMapping[](22);
         mappings[0] = ChainMapping({ chainId: 1, domainId: 0 }); // Ethereum
         mappings[1] = ChainMapping({ chainId: 43114, domainId: 1 }); // Avalanche
         mappings[2] = ChainMapping({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -81,6 +85,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             chainId: LIFI_CHAIN_ID_HYPERCORE,
             domainId: 19
         }); // HyperCore (same CCTP domain as HyperEVM)
+        mappings[21] = ChainMapping({
+            chainId: LIFI_CHAIN_ID_STELLAR,
+            domainId: STELLAR_CCTP_DOMAIN
+        }); // Stellar
     }
 
     function _toChainIdConfigs(
@@ -669,6 +677,21 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             );
     }
 
+    /// @dev Stellar CctpForwarder hook data: magic (24) + version (4)
+    ///      + strkey length L (4) + strkey (L). The length field must equal the
+    ///      actual strkey length or the facet rejects the hook.
+    function _buildStellarHookData(
+        bytes memory strkey
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                bytes24("cctp-forward"),
+                uint32(0),
+                uint32(strkey.length),
+                strkey
+            );
+    }
+
     function _polymerDataWithHook(
         bytes memory hookData
     ) internal view returns (PolymerCCTPFacet.PolymerCCTPData memory) {
@@ -681,6 +704,206 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 minFinalityThreshold: validPolymerData.minFinalityThreshold,
                 hookData: hookData
             });
+    }
+
+    function test_CanBridgeToStellarWithHookData() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(
+                _buildStellarHookData(
+                    bytes(
+                        "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
+                    )
+                )
+            );
+        polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        uint256 bridgeAmount = bridgeData.minAmount -
+            polymerDataWithHook.polymerTokenFee;
+
+        // Stellar (CCTP domain 27) is not yet registered on the forked mainnet
+        // TokenMessengerV2, so mock the burn to isolate the facet's dispatch/calldata.
+        vm.mockCall(
+            TOKEN_MESSENGER_V2_MAINNET,
+            abi.encodeWithSelector(
+                ITokenMessenger.depositForBurnWithHook.selector
+            ),
+            abi.encode()
+        );
+
+        vm.expectCall(
+            TOKEN_MESSENGER_V2_MAINNET,
+            abi.encodeCall(
+                ITokenMessenger.depositForBurnWithHook,
+                (
+                    bridgeAmount,
+                    STELLAR_CCTP_DOMAIN,
+                    STELLAR_CCTP_FORWARDER,
+                    ADDRESS_USDC,
+                    STELLAR_CCTP_FORWARDER,
+                    polymerDataWithHook.maxCCTPFee,
+                    polymerDataWithHook.minFinalityThreshold,
+                    polymerDataWithHook.hookData
+                )
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit ILiFi.BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_STELLAR,
+            polymerDataWithHook.nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit PolymerCCTPFeeSent(
+            bridgeData.minAmount,
+            polymerDataWithHook.polymerTokenFee,
+            polymerDataWithHook.minFinalityThreshold
+        );
+
+        ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
+        adjustedBridgeData.minAmount = bridgeAmount;
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(adjustedBridgeData);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarWithEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // receiver left as the default EVM address instead of NON_EVM_ADDRESS
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(
+                _buildStellarHookData(
+                    bytes(
+                        "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
+                    )
+                )
+            );
+        polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarWithoutNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        // nonEVMReceiver left as zero
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(
+                _buildStellarHookData(
+                    bytes(
+                        "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
+                    )
+                )
+            );
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarWithoutHookData() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+        validPolymerData.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        // validPolymerData.hookData is empty -> length 0 < 32
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarHookDataTooShort() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        // 31 bytes: one below the 32-byte header holding the length field
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(new bytes(31));
+        polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarHookLengthMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        // Declared strkey length (56) disagrees with the 10 trailing bytes present
+        bytes memory badHook = abi.encodePacked(
+            bytes24("cctp-forward"),
+            uint32(0),
+            uint32(56),
+            new bytes(10)
+        );
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(badHook);
+        polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
     }
 
     function testRevert_NonEVMReceiverWithZeroBytes32() public {
