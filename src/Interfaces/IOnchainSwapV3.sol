@@ -2,9 +2,9 @@
 pragma solidity ^0.8.17;
 
 /// @title IOnchainSwapV3
-/// @author LI.FI (https://li.fi)
 /// @notice Interface for the Symbiosis OnchainSwapV3 router used for swaps from
 ///         syBTC-connector chains to Bitcoin (bypasses the Symbiosis MetaRouter).
+/// @author LI.FI (https://li.fi)
 /// @custom:version 1.0.0
 interface IOnchainSwapV3 {
     /// @notice Accepts the user's funds, optionally swaps them to syBTC via `dex`,
