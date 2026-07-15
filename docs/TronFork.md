@@ -308,11 +308,21 @@ the TypeScript conventions that apply to everything under
 
 - **Energy**: Tron's equivalent to Ethereum gas, consumed by smart contract
   execution.
-- **Cost**: 1 Energy = 420 SUN (0.00042 TRX) when paying with rTRX.
+- **Cost**: 1 Energy = **100 SUN** (0.0001 TRX) since TRON governance
+  Proposal #104 (Aug 2025); it was 210 SUN before that and 420 SUN
+  earlier. This is a live governance parameter — always confirm the
+  current value via the `getEnergyFee` key in
+  `wallet/getchainparameters` before quoting deployment costs.
 - **Free Energy**: Users can stake TRX to get free daily Energy allocation
   (avoids TRX fees).
-- **Contract deployment**: Typically requires 200k–1M Energy depending on
-  contract size, roughly 200–1000 TRX total once Bandwidth is included.
+- **Contract deployment**: roughly **200 Energy per byte** of deployed
+  bytecode — so ~175k Energy for the tiny Diamond proxy up to ~2.3M for
+  a large facet, averaging ~1M per contract (measured against the live
+  `tron` diamond, 2026-07). At 100 SUN that is ~18–230 TRX per contract.
+  A full ~24-contract diamond deploy ≈ ~26M Energy (~2,600 TRX) for
+  energy, plus ~230 TRX bandwidth and ~350 TRX for the
+  diamondCut/registration calls — roughly **3,000–3,200 TRX (~$1,000 at
+  $0.33/TRX)** all-in.
 
 **Bandwidth**
 
