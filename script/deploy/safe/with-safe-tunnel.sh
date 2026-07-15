@@ -68,10 +68,41 @@ EOF
   fi
 }
 
+# A CA-bundle env var pointing at a file that does not exist breaks every TLS
+# client that honours it (aws/pip/curl) with an opaque "[Errno 2] No such file"
+# error — e.g. after a security-agent upgrade regenerates its cert paths. When
+# one of ours points at a missing file it is misconfigured, so unset it for this
+# process (aws then falls back to its bundled roots) and warn.
+sanitize_ca_env() {
+  local var file
+  for var in REQUESTS_CA_BUNDLE CURL_CA_BUNDLE AWS_CA_BUNDLE SSL_CERT_FILE; do
+    file="${!var:-}"
+    if [ -n "$file" ] && [ ! -f "$file" ]; then
+      echo "⚠ ${var} points at a missing file — unsetting it for this run (${file})" >&2
+      unset "$var"
+    fi
+  done
+}
+
+# Ensure the AWS SSO session is valid; if not, run the login (opens a browser).
+# lifi-connect needs this — without it the tunnel start just prints "session
+# expired" and does nothing.
+ensure_sso() {
+  local probe
+  probe=$(aws configure list-profiles 2>/dev/null | head -n1)
+  if aws sts get-caller-identity ${probe:+--profile "$probe"} >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "AWS SSO session expired — logging in (a browser window will open)…"
+  aws sso login --sso-session LIFI
+}
+
 main() {
   local root env_file bin port i=0
   root=$(repo_root)
   env_file="${root}/.env"
+
+  sanitize_ca_env
 
   if ! bin=$(lifi_connect_bin); then
     echo "lifi-connect is not installed — see docs/Setup.md (Accessing LI.FI resources)." >&2
@@ -91,13 +122,14 @@ main() {
     echo "✓ Safe Mongo tunnel already up (localhost:${port})"
   else
     echo "Safe Mongo tunnel (localhost:${port}) is down — starting lifi-connect prod smart-contracts…"
+    ensure_sso
     start_tunnel "$bin"
     until port_up "$port"; do
       i=$((i + 1))
       if [ "$i" -ge "$WAIT_SECONDS" ]; then
         echo "✗ Tunnel did not come up within ${WAIT_SECONDS}s on localhost:${port}." >&2
-        echo "  Logged in? Run: aws sso login --sso-session LIFI" >&2
-        echo "  Or start it manually: lifi-connect prod smart-contracts" >&2
+        echo "  Check the lifi-connect output (Terminal window / ${TMPDIR:-/tmp}/lifi-connect-safe.log)" >&2
+        echo "  and that SC_MONGODB_URI's port matches what 'lifi-connect prod smart-contracts' prints." >&2
         exit 1
       fi
       sleep 1

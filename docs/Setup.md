@@ -166,8 +166,9 @@ The tunnel dies when your AWS SSO session expires — re-run `awslogin` and rest
 `lifi-connect`.
 
 **Convenience wrapper.** To avoid starting the tunnel by hand each time, wrap any
-Safe/Mongo command — it ensures the tunnel is up (starting it if needed, then
-waiting for the port) before running:
+Safe/Mongo command — it ensures the tunnel is up (logging you into AWS SSO if the
+session expired, starting the tunnel if needed, then waiting for the port) before
+running:
 
 ```bash
 bun run safe:tunnel                       # just ensure the tunnel, then exit
