@@ -27,12 +27,16 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfi
 ///      BridgeData.receiver is the NON_EVM_ADDRESS sentinel and the real recipient travels as a
 ///      Stellar strkey inside hookData, because a Stellar account can never be a CCTP mintRecipient
 ///      directly (see STELLAR_CCTP_FORWARDER). USDC is minted to the pinned Stellar forwarder,
-///      which forwards it to that strkey. Unlike HyperCore, the strkey is not a 20-byte EVM address,
-///      so it CANNOT be validated on-chain against BridgeData.receiver, nor against the
-///      nonEVMReceiver emitted in BridgeToNonEVMChainBytes32; the facet only enforces hookData's
-///      internal length consistency. Correctness of the Stellar recipient therefore relies on
-///      trusted (LI.FI API) calldata generation — integrators must treat it as not enforced on-chain.
-/// @custom:version 3.1.0
+///      which forwards it to that strkey.
+/// @dev SECURITY — UNVALIDATED RECEIVER (Stellar): unlike the HyperCore corridor, the Stellar
+///      strkey is not a 20-byte EVM address, so the facet CANNOT verify it on-chain against
+///      BridgeData.receiver, and it is NOT cross-checked against the nonEVMReceiver emitted in
+///      BridgeToNonEVMChainBytes32. The facet only enforces hookData's internal length consistency
+///      (see _startBridge). The strkey that actually receives the funds and the nonEVMReceiver used
+///      for off-chain tracking can therefore diverge. Correct routing relies entirely on trusted
+///      (LI.FI API) calldata generation — integrators MUST treat the Stellar receiver as NOT
+///      enforced on-chain.
+/// @custom:version 3.0.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -59,9 +63,7 @@ contract PolymerCCTPFacet is
     ///         is a contract and USDC minted to a bare account is unrecoverable. All Stellar
     ///         deposits therefore mint to this forwarder, which alone may execute the message and
     ///         forwards the USDC to the strkey recipient carried in the hook data (see _startBridge).
-    ///         Testnet forwarder is CA66Q2WFBND6V4UEB7RD4SAXSVIWMD6RA4X3U32ELVFGXV5PJK4T4VSZ
-    ///         (0x3de86ac50b47eaf2840fe23e48179551660fd1072fba6f445d4a6bd7af4ab93e) — swap the
-    ///         constant for staging deploys. Rotating the forwarder requires a facet upgrade.
+    ///         Rotating the forwarder requires a facet upgrade.
     ///         https://developers.circle.com/cctp/references/stellar-contracts
     bytes32 internal constant STELLAR_CCTP_FORWARDER =
         0x72bd20ff2f8281801bb05b7c29179026933256fabafeb13e94efd8ddbcfcf291;
