@@ -29,19 +29,30 @@ contract DeployScript is DeployScriptBase {
             path,
             string.concat(".", network, ".gateway")
         );
-        // OnchainSwapV3 is optional: address(0) on chains without the syBTC->Bitcoin path
-        address onchainSwapV3 = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".onchainSwapV3"),
-            true,
-            false
+        // OnchainSwapV3 is optional: chains without the syBTC->Bitcoin path may
+        // omit the keys entirely (defaults to address(0)) or set them to address(0).
+        string memory json = vm.readFile(path);
+        string memory onchainSwapV3Key = string.concat(
+            ".",
+            network,
+            ".onchainSwapV3"
         );
-        address onchainSwapV3Gateway = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".onchainSwapV3Gateway"),
-            true,
-            false
+        string memory onchainSwapV3GatewayKey = string.concat(
+            ".",
+            network,
+            ".onchainSwapV3Gateway"
         );
+        address onchainSwapV3 = json.keyExists(onchainSwapV3Key)
+            ? _getConfigContractAddress(path, onchainSwapV3Key, true, false)
+            : address(0);
+        address onchainSwapV3Gateway = json.keyExists(onchainSwapV3GatewayKey)
+            ? _getConfigContractAddress(
+                path,
+                onchainSwapV3GatewayKey,
+                true,
+                false
+            )
+            : address(0);
 
         // backend signer gates the OnchainSwapV3 (syBTC -> Bitcoin) path
         string memory globalJson = vm.readFile(
