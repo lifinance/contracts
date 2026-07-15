@@ -312,7 +312,9 @@ the TypeScript conventions that apply to everything under
   Proposal #104 (Aug 2025); it was 210 SUN before that and 420 SUN
   earlier. This is a live governance parameter — always confirm the
   current value via the `getEnergyFee` key in
-  `wallet/getchainparameters` before quoting deployment costs.
+  `wallet/getchainparameters` on a Tron **mainnet** node (the value is
+  network-specific — Shasta/Nile report different fees) before quoting
+  deployment costs.
 - **Free Energy**: Users can stake TRX to get free daily Energy allocation
   (avoids TRX fees).
 - **Contract deployment**: roughly **200 Energy per byte** of deployed
