@@ -14,6 +14,7 @@ import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHel
 import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 
 contract LiFiVaultWrapperFactoryTest is Test {
     LiFiVaultWrapperFactory internal factory;
@@ -29,7 +30,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal vaultAdmin = makeAddr("vaultAdmin");
     bytes32 internal constant NS = bytes32("Coinbase");
     MockERC4626Underlying internal underlying;
-    address internal assetToken = makeAddr("asset");
+    address internal assetToken = address(new MockERC20("Asset", "AST", 18));
 
     function setUp() public virtual {
         impl = new LiFiVaultWrapper();

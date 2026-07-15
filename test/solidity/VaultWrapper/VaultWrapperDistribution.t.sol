@@ -255,7 +255,9 @@ contract VaultWrapperDistributionTest is Test {
         bps[1] = 9999;
         wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
 
-        _deposit(alice, 200_000); // tiny deposit → integrator fee pool < 10_000 wei
+        // Small floor-clearing deposit (~1.09e6 shares minted) whose integrator fee
+        // pool still stays < 10_000 wei.
+        _deposit(alice, 1_100_000);
 
         uint256 integratorPart = wrapper.integratorFeeAssets();
         assertGt(integratorPart, 0);
@@ -619,7 +621,12 @@ contract VaultWrapperDistributionTest is Test {
             elapsed
         );
         return
-            LibVaultWrapperMath.dilutionShares(feeAssets, supply, assets, 0);
+            LibVaultWrapperMath.dilutionShares(
+                feeAssets,
+                supply,
+                assets,
+                wrapper.shareDecimalsOffset()
+            );
     }
 
     function _deposit(address _from, uint256 _amount) internal {

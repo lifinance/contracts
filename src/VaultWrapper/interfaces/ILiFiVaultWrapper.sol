@@ -121,6 +121,15 @@ interface ILiFiVaultWrapper {
     error TransferNotAllowed(address from, address to);
     /// @notice Thrown when the access gate flags an exit party as sanctioned.
     error AccountSanctioned(address account);
+    /// @notice Thrown by the EIP-5143 slippage-guarded entrypoints when the realized
+    ///         amount crosses the caller's bound (below a minimum, or above a maximum).
+    error SlippageExceeded(uint256 actual, uint256 bound);
+    /// @notice Thrown when a deposit or mint would leave the total share supply below the
+    ///         minimum supply floor (a post-operation supply of exactly zero included).
+    error SupplyBelowMinimum(uint256 supply, uint256 minSupply);
+    /// @notice Thrown at initialization when the asset's ERC-20 decimals() cannot be read
+    ///         as a well-formed uint8, so the virtual-share offset cannot be sized safely.
+    error AssetDecimalsUnavailable();
 
     /// Functions ///
 
@@ -146,4 +155,56 @@ interface ILiFiVaultWrapper {
         FeeReceiver[] calldata _receivers,
         address _accessGate
     ) external;
+
+    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
+    ///         `_minShares` shares are minted (EIP-5143 slippage-guarded deposit).
+    /// @param _assets The exact asset amount to deposit.
+    /// @param _receiver The share receiver.
+    /// @param _minShares The minimum acceptable amount of shares minted.
+    /// @return shares The shares actually minted.
+    function deposit(
+        uint256 _assets,
+        address _receiver,
+        uint256 _minShares
+    ) external returns (uint256 shares);
+
+    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
+    ///         `_maxAssets` assets are pulled (EIP-5143 slippage-guarded mint).
+    /// @param _shares The exact share amount to mint.
+    /// @param _receiver The share receiver.
+    /// @param _maxAssets The maximum acceptable amount of assets pulled.
+    /// @return assets The assets actually pulled.
+    function mint(
+        uint256 _shares,
+        address _receiver,
+        uint256 _maxAssets
+    ) external returns (uint256 assets);
+
+    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
+    ///         `_maxShares` shares are burned (EIP-5143 slippage-guarded withdraw).
+    /// @param _assets The exact asset amount to withdraw.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _maxShares The maximum acceptable amount of shares burned.
+    /// @return shares The shares actually burned.
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner,
+        uint256 _maxShares
+    ) external returns (uint256 shares);
+
+    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
+    ///         `_minAssets` assets are paid out (EIP-5143 slippage-guarded redeem).
+    /// @param _shares The exact share amount to redeem.
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _minAssets The minimum acceptable amount of assets paid out.
+    /// @return assets The assets actually paid out.
+    function redeem(
+        uint256 _shares,
+        address _receiver,
+        address _owner,
+        uint256 _minAssets
+    ) external returns (uint256 assets);
 }
