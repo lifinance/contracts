@@ -110,6 +110,13 @@ library LibVaultWrapperMath {
     ///      per share is at or below the watermark, so a net loss is never charged.
     ///      Clamped strictly below `_totalAssets` so the dilution-share denominator stays
     ///      positive even at extreme watermark/rate inputs.
+    ///      Precision: the price per share is a floored `PPS_SCALE`-scaled integer whose
+    ///      step is ~`10 ** -assetDecimals` of value (par PPS = `10 ** assetDecimals` for
+    ///      assets up to 12 decimals). A gain smaller than one step leaves the floored PPS
+    ///      unchanged and accrues nothing that round; the gain stays in AUM and is charged
+    ///      once cumulative gains cross a step. Negligible for mainstream assets (>= 6
+    ///      decimals, step <= 1e-6) but coarse for very-low-decimal assets (<= 3), which
+    ///      onboarding excludes rather than modeling here.
     /// @param _totalAssets Gross assets under management at accrual time.
     /// @param _totalSupply Current share supply.
     /// @param _hwmPps The high-water mark, a `PPS_SCALE`-scaled price per share.
