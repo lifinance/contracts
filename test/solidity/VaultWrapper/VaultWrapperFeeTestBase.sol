@@ -33,6 +33,9 @@ abstract contract VaultWrapperFeeTestBase is Test {
     uint16 internal constant MGMT_RATE = 200; // 2% / year
     uint16 internal constant SPLIT = 8000; // integrator share used for every fee type here
     uint256 internal constant YEAR = 365 days;
+    // Mirror of the wrapper's internal MIN_SHARE_SUPPLY (deposit-side supply floor); the
+    // production constant is internal, so the suites read this single shared copy.
+    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
     /// @dev Dust `_crystallize` deposits. 1 wei suffices while the underlying's own PPS
     ///      is 1:1; suites that inflate the underlying raise it (solmate's MockERC4626
@@ -79,23 +82,50 @@ abstract contract VaultWrapperFeeTestBase is Test {
     function _newWrapperWithSplits(
         FeeConfig memory _fees,
         uint16[4] memory _splits
+    ) internal returns (LiFiVaultWrapper) {
+        return _newWrapperFor(address(underlying), _fees, _splits);
+    }
+
+    /// @dev Deploys a wrapper beacon proxy over an arbitrary yield source. The single
+    ///      place the `initialize` signature is encoded, so a signature change lands here
+    ///      once for every suite (default 18-decimal source, 6-decimal source, malformed
+    ///      assets) instead of being re-typed per test.
+    function _newWrapperFor(
+        address _underlying,
+        FeeConfig memory _fees,
+        uint16[4] memory _splits
     ) internal returns (LiFiVaultWrapper w) {
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(underlying),
-                address(adapter),
-                vaultAdmin,
-                _splits,
-                _fees,
-                defaultReceivers(),
-                address(0)
+        w = LiFiVaultWrapper(
+            address(
+                new BeaconProxy(
+                    address(beacon),
+                    _initFor(_underlying, _fees, _splits)
+                )
             )
         );
+    }
 
-        w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
-        );
+    /// @dev ABI-encodes the wrapper's `initialize` call for `_underlying`; shared by the
+    ///      deploy helpers and by tests that need the raw init calldata (e.g. asserting an
+    ///      initializer revert on a malformed asset).
+    function _initFor(
+        address _underlying,
+        FeeConfig memory _fees,
+        uint16[4] memory _splits
+    ) internal view returns (bytes memory) {
+        return
+            abi.encodeCall(
+                LiFiVaultWrapper.initialize,
+                (
+                    _underlying,
+                    address(adapter),
+                    vaultAdmin,
+                    _splits,
+                    _fees,
+                    defaultReceivers(),
+                    address(0)
+                )
+            );
     }
 
     /// @dev Stands up the full factory stack and deploys an instance with one fee type

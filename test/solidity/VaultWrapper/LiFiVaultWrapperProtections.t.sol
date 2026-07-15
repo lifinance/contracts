@@ -7,15 +7,12 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { FeeConfig, FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { VaultWrapperFeeTestBase } from "test/solidity/VaultWrapper/VaultWrapperFeeTestBase.sol";
 
 /// @notice The wrapper's protection layer (EXSC-414): EIP-5143 slippage-guarded
 ///         entrypoints, the asset-derived virtual-share decimals offset, and the
 ///         minimum share-supply floor (first-depositor inflation mitigation).
 contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
-    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
-
     address internal attacker = makeAddr("attacker");
     address internal victim = makeAddr("victim");
 
@@ -289,6 +286,52 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertLt(attackerOut, seeded + donated);
     }
 
+    function test_InflationAttackIsUnprofitableAtMinimumOffset() public {
+        // Same attack against the weakest offset: the default 18-decimal asset derives
+        // offset 0, floored to MIN_DECIMALS_OFFSET (6), so only 1e6 virtual shares absorb
+        // the donation (vs 1e12 for the 6-decimal asset above). This is the security-
+        // critical worst case, so fairness must still hold here — the victim keeps
+        // essentially all of their deposit and the attacker cannot profit.
+        uint256 seeded = 1; // 1 wei of the 18-decimal asset
+        uint256 donated = 1_000_000e18;
+        asset.mint(attacker, seeded + donated);
+        vm.startPrank(attacker);
+        asset.approve(address(wrapper), seeded);
+        uint256 attackerShares = wrapper.deposit(seeded, attacker);
+        MockERC4626 source = MockERC4626(address(underlying));
+        asset.approve(address(source), donated);
+        uint256 donatedSourceShares = source.deposit(donated, attacker);
+        source.transfer(address(wrapper), donatedSourceShares);
+        vm.stopPrank();
+
+        // The victim's deposit is not zeroed out by the inflated share price...
+        uint256 victimDeposit = 1_000e18;
+        asset.mint(victim, victimDeposit);
+        vm.startPrank(victim);
+        asset.approve(address(wrapper), victimDeposit);
+        uint256 victimShares = wrapper.deposit(victimDeposit, victim);
+        vm.stopPrank();
+
+        assertGt(victimShares, 0);
+
+        // ...and exits keeping >= 99.9% of it. The weaker absorption at the minimum
+        // offset makes the flooring loss larger than at offset 12 but still sub-0.1%.
+        vm.prank(victim);
+        uint256 victimOut = wrapper.redeem(victimShares, victim, victim);
+
+        assertGe(victimOut, (victimDeposit * 999) / 1000);
+
+        // The attacker still recovers strictly less than the attack cost.
+        vm.prank(attacker);
+        uint256 attackerOut = wrapper.redeem(
+            attackerShares,
+            attacker,
+            attacker
+        );
+
+        assertLt(attackerOut, seeded + donated);
+    }
+
     /// Minimum share-supply floor ///
 
     function testRevert_ZeroShareDepositIntoDonatedEmptyVault() public {
@@ -473,26 +516,17 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
     /// Helpers ///
 
-    function _newWrapper6Decimals() internal returns (LiFiVaultWrapper w) {
+    function _newWrapper6Decimals() internal returns (LiFiVaultWrapper) {
         MockERC20 usdc = new MockERC20("USD Coin", "USDC", 6);
         MockERC4626 source = new MockERC4626(usdc, "Yield USDC", "yUSDC");
         FeeConfig memory fees;
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(source),
-                address(adapter),
-                vaultAdmin,
-                [SPLIT, SPLIT, SPLIT, SPLIT],
-                fees,
-                defaultReceivers(),
-                address(0)
-            )
-        );
 
-        w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
-        );
+        return
+            _newWrapperFor(
+                address(source),
+                fees,
+                [SPLIT, SPLIT, SPLIT, SPLIT]
+            );
     }
 
     function _initCallFor(
@@ -500,19 +534,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
     ) internal view returns (bytes memory) {
         FeeConfig memory fees;
 
-        return
-            abi.encodeCall(
-                LiFiVaultWrapper.initialize,
-                (
-                    _underlying,
-                    address(adapter),
-                    vaultAdmin,
-                    [SPLIT, SPLIT, SPLIT, SPLIT],
-                    fees,
-                    defaultReceivers(),
-                    address(0)
-                )
-            );
+        return _initFor(_underlying, fees, [SPLIT, SPLIT, SPLIT, SPLIT]);
     }
 }
 

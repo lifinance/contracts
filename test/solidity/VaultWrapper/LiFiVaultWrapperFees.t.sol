@@ -98,12 +98,11 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_ManagementFeeNoAccrualOnEmptyVault() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        // The crystallizing deposit is the vault's first, so it must clear the
-        // supply floor (its accrual still runs against the empty pre-deposit state).
-        crystallizeDust = 1e6;
 
         // No prior deposits: totalSupply()/totalAssets() are zero, so the accrual at the
-        // top of the first operation finds nothing to dilute.
+        // top of the first operation finds nothing to dilute. The 1-wei crystallizing
+        // deposit is the vault's first and mints 1e6 shares (18-dec asset, offset 6),
+        // so it clears the supply floor on its own.
         vm.warp(block.timestamp + YEAR);
         _crystallize();
 
