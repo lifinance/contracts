@@ -33,6 +33,53 @@ Examples:
 EOF
 }
 
+# deployToNetworkWorker: Deploy CONTRACT to a single NETWORK and record the outcome.
+# Runs as a backgrounded job, so it writes "OK"/"FAILED" to RESULT_FILE instead of a
+# parent-shell array - a background subshell cannot write those back (see
+# [CONV:PARALLEL-WORK]). Each worker runs in its own subshell, so the deploy
+# framework's non-local globals (NETWORK, CONTRACT, VERSION, ...) stay isolated per
+# network; WORKER_-prefixed locals are never touched by the framework.
+#
+# Usage: deployToNetworkWorker NETWORK ENVIRONMENT CONTRACT VERSION RESULT_DIR
+#   NETWORK      - target network name
+#   ENVIRONMENT  - "production" or "staging"
+#   CONTRACT     - contract name to deploy
+#   VERSION      - resolved contract version
+#   RESULT_DIR   - directory to write the per-network result file into
+#
+# Returns: 0 on success, 1 on failure (outcome is also written to RESULT_DIR/NETWORK)
+function deployToNetworkWorker() {
+  local WORKER_NETWORK="$1"
+  local WORKER_ENVIRONMENT="$2"
+  local WORKER_CONTRACT="$3"
+  local WORKER_VERSION="$4"
+  local WORKER_RESULT_FILE="$5/$1"
+
+  echo ""
+  echo "[info] [$WORKER_NETWORK] >>>> now deploying $WORKER_CONTRACT..."
+
+  if ! checkRequiredVariablesInDotEnv "$WORKER_NETWORK"; then
+    warning "[$WORKER_NETWORK] missing required .env variables - skipping this network"
+    echo "FAILED" >"$WORKER_RESULT_FILE"
+    return 1
+  fi
+
+  echo "[info] [$WORKER_NETWORK] deployer wallet balance: $(getDeployerBalance "$WORKER_NETWORK" "$WORKER_ENVIRONMENT")"
+
+  deployAndAddContractToDiamond "$WORKER_NETWORK" "$WORKER_ENVIRONMENT" "$WORKER_CONTRACT" "LiFiDiamond" "$WORKER_VERSION"
+  local WORKER_RC=$?
+
+  if [[ $WORKER_RC -eq 0 ]]; then
+    echo "OK" >"$WORKER_RESULT_FILE"
+    success "[$WORKER_NETWORK] <<<< done"
+    return 0
+  else
+    echo "FAILED" >"$WORKER_RESULT_FILE"
+    warning "[$WORKER_NETWORK] <<<< FAILED"
+    return 1
+  fi
+}
+
 function deployContractToNetworks() {
   trap 'cleanupBackgroundJobs' SIGINT
 
@@ -116,47 +163,61 @@ function deployContractToNetworks() {
     exit 1
   }
 
-  if [[ "$COMPILE_ON_STARTUP" == "true" ]]; then
-    echo "[info] compiling contracts"
-    if ! forge build; then
-      error "forge build failed - aborting before any deployment"
-      exit 1
-    fi
+  # Compile once up front, unconditionally: the parallel workers below each run
+  # `forge script`, which would otherwise trigger concurrent compilation on a cold
+  # cache and race. Building here guarantees every worker starts against a warm,
+  # consistent artifact cache (COMPILE_ON_STARTUP is not honored - the pre-build is
+  # mandatory for parallel safety, not opt-in).
+  echo "[info] compiling contracts before parallel deployment"
+  if ! forge build; then
+    error "forge build failed - aborting before any deployment"
+    exit 1
   fi
 
   echo ""
   echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment: ${TARGET_NETWORKS[*]}"
   echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"
 
+  if [[ -z "$MAX_CONCURRENT_JOBS" ]]; then
+    error "your .env file is missing the key MAX_CONCURRENT_JOBS - add it and re-run"
+    exit 1
+  fi
+
   local FAILED_NETWORKS=()
   local SUCCEEDED_NETWORKS=()
-  local BALANCE
+
+  # Backgrounded workers cannot append to parent-shell arrays, so each writes its
+  # outcome to "$RESULT_DIR/<network>"; the summary is derived after `wait`
+  # (see [CONV:PARALLEL-WORK]). Each network deploy is independent - per-chain
+  # nonce space, per-network deployment-log files, per-chain Safe - so they run
+  # concurrently, throttled to MAX_CONCURRENT_JOBS.
+  local RESULT_DIR
+  RESULT_DIR=$(mktemp -d)
+  trap 'rm -rf "$RESULT_DIR"; cleanupBackgroundJobs' SIGINT
+
+  echo "[info] deploying with up to $MAX_CONCURRENT_JOBS concurrent network(s)"
 
   for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
-    echo ""
-    echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> now deploying $TARGET_CONTRACT to $TARGET_NETWORK..."
+    # throttle: wait for a free slot before launching the next network
+    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+      sleep 1
+    done
+    deployToNetworkWorker "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_VERSION" "$RESULT_DIR" &
+  done
 
-    if ! checkRequiredVariablesInDotEnv "$TARGET_NETWORK"; then
-      warning "missing required .env variables for $TARGET_NETWORK - skipping this network"
-      FAILED_NETWORKS+=("$TARGET_NETWORK")
-      continue
-    fi
+  # wait for all in-flight network deployments to finish
+  wait
 
-    BALANCE=$(getDeployerBalance "$TARGET_NETWORK" "$TARGET_ENVIRONMENT")
-    echo "[info] deployer wallet balance on $TARGET_NETWORK: $BALANCE"
-
-    local DEPLOY_RC
-    deployAndAddContractToDiamond "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "LiFiDiamond" "$TARGET_VERSION"
-    DEPLOY_RC=$?
-
-    if [[ $DEPLOY_RC -eq 0 ]]; then
+  # derive per-network outcome from the result files the workers wrote
+  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
+    if [[ "$(cat "$RESULT_DIR/$TARGET_NETWORK" 2>/dev/null)" == "OK" ]]; then
       SUCCEEDED_NETWORKS+=("$TARGET_NETWORK")
-      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $TARGET_NETWORK done"
     else
       FAILED_NETWORKS+=("$TARGET_NETWORK")
-      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $TARGET_NETWORK FAILED"
     fi
   done
+
+  rm -rf "$RESULT_DIR"
 
   echo ""
   echo "[info] ==================== SUMMARY ===================="
