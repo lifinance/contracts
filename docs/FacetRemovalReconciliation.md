@@ -98,10 +98,13 @@ inferred). `[code]` = read directly this session.
 
 **Goals**
 
-- **Primary:** when a facet is deprecated via `/deprecate-contract`, remove it
-  from every production diamond that still registers it — driven by the
-  explicit facet name + the deployment logs (the authoritative facet→address map
-  per network), creating one peer-reviewed Safe proposal per network.
+- **Primary:** when a facet is deprecated via `/deprecate-contract`, **park** a
+  removal task per (facet, network) into the deferred diamond-cleanup queue —
+  keyed by the explicit facet name + the deployment logs (the authoritative
+  facet→address map per network). No proposal is created at deprecation time; the
+  parked task is drained into one peer-reviewed Safe proposal per network on a
+  later rollout. See
+  [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md).
 - **Backstop:** reconcile deployed `LiFiDiamond` facets against
   `_targetState.json` to catch orphans that nobody explicitly deprecated
   (historical, or deployed to the wrong chain).
@@ -128,19 +131,22 @@ remove are selected*:
 ### Named (primary) — driven by `/deprecate-contract`
 
 The deprecation **names** the facet. So the removal is explicit: for each named
-facet, find the PROD diamonds whose deployment log lists it, read its current
-selectors from the on-chain loupe, and propose the removal. No diff, no
-target-state dependency, no source/drift gate needed — the operator has stated
-intent. Guardrails still apply (never-remove allowlist, immutable diamond,
-on-chain verification). This is `computeNamedFacetRemovals` +
-`cleanUpProdDiamond.ts --facets '[...]' --all-networks`, invoked as step 6 of
-`/deprecate-contract`.
+facet, find the PROD diamonds whose deployment log lists it and **park** a
+removal task per (facet, network) into the deferred diamond-cleanup queue. No
+diff, no target-state dependency, no source/drift gate needed — the operator has
+stated intent. At **drain** time the engine reads the facet's current selectors
+from the on-chain loupe and proposes the removal, with the same guardrails
+(never-remove allowlist, immutable diamond, on-chain verification). The engine is
+`computeNamedFacetRemovals` + `cleanUpProdDiamond.ts --facets '[...]'`, consumed
+by the drain; `/deprecate-contract` step 6 **parks** via
+`script/deploy/safe/enqueue-parked-task.ts`
+(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
 
-> **Sequencing constraint:** the named path resolves each facet's address from
-> `deployments/<network>.json`, so the removal must run **while those entries
-> still exist** — before any deploy-log cleanup, and the entries must not be
-> deleted until the removal has executed on-chain. `/deprecate-contract` orders
-> its steps accordingly.
+> **Sequencing constraint:** the parked task snapshots each facet's address from
+> `deployments/<network>.json` at enqueue time, and the drain resolves it from
+> that snapshot, so those log entries must not be deleted until the parked task
+> **retires** (executed, cancelled, or superseded). `/deprecate-contract` warns
+> accordingly.
 
 ### Diff (backstop) — reconcile loupe vs target state
 
@@ -153,7 +159,8 @@ source-presence gate is essential to tell *deprecated* (source gone) from
 and the eager sweep (A) below consume.
 
 The delivery-timing choice (A vs B) applies to the **backstop**; the named path
-fires at deprecation time by construction.
+**parks** at deprecation time by construction and drains on the next rollout to
+each network.
 
 ### (A) Eager fleet sweep
 
@@ -193,10 +200,12 @@ same session as the upgrade proposals.
 
 ### (C) Hybrid — chosen
 
-The named path (primary, §4 above) fires **at deprecation time** — that's where
+The named path (primary, §4 above) **parks at deprecation time** — that's where
 "remove this specific facet" belongs, and it's what `/deprecate-contract`
-drives. The backstop diff engine is then consumed for orphans nobody named, at a
-delivery timing that avoids a mass signing event:
+drives — then drains into the same rollout-batched proposal later, so deprecation
+never triggers a standalone mass signing event. The backstop diff engine is then
+consumed for orphans nobody named, at a delivery timing that avoids a mass
+signing event:
 
 - **(B)** an opt-in step in `multisig-rollout` — orphans ride out on the next
   rollout's signing session.
@@ -206,7 +215,8 @@ delivery timing that avoids a mass signing event:
 Everything (`diamondRemovalDiff.ts` engine, named + diff selection, all three
 CLI modes) feeds the **same** `cleanUpProdDiamond.ts` build → timelock-wrap →
 propose plumbing (Fact 3). Recommendation: **ship all of it now** — the named
-path wired into `/deprecate-contract` (primary), the diff backstop as `--auto`
+path wired into `/deprecate-contract` as a **park** into the deferred cleanup
+queue (primary), the diff backstop as `--auto`
 
 + the opt-in rollout step. Rationale in §8.
 
@@ -310,8 +320,11 @@ dry-run so nothing is submitted unconfirmed).
   diamond via `computeNamedFacetRemovals` (loupe selectors — works after source
   deletion) and proposes their removal. With `--network` for one network, or
   `--all-networks` to hit every network whose PROD log lists them. This is what
-  `/deprecate-contract` step 6 invokes. (This replaces the old `out/`-based
-  `--facets` selector derivation, which threw for already-deprecated facets.)
+  the **drain** invokes (and what a manual on-demand removal uses);
+  `/deprecate-contract` step 6 no longer calls it directly — it **parks** the
+  (facet, network) tasks, which the drain later feeds through this same
+  `--facets` path. (This also replaces the old `out/`-based `--facets` selector
+  derivation, which threw for already-deprecated facets.)
 - `--auto` — **diff backstop**. Runs `computeFacetRemovalDiff` for
   `--network`, prints the conspicuous diff (§6), proposes the stale set. This is
   the unit `multisig-rollout` Phase 3.5 calls per network.
@@ -332,16 +345,31 @@ target network. Its proposals are captured by the existing
 (Fact 9). Off by default in v1 so no rollout silently starts removing facets;
 the operator turns it on when a deprecation is in flight.
 
+> **Named-park vs drift-`--auto` overlap.** This drift path is a *different*
+> selection signal from the named park (§4). A facet deprecated via
+> `/deprecate-contract` is parked into the deferred queue; if the same facet is
+> also drift-detected here (absent from target state **and** source-gone) this
+> path may propose its removal directly, ahead of the queue draining it. That is
+> safe on-chain (one idempotent removal either way), but the now-redundant parked
+> task must be reconciled to `superseded`. That reconciliation — and the
+> automatic drain of parked tasks during a rollout — is the **drain hook**, a
+> deliberate follow-up (see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)
+> §6/§10); v1 here only **parks**.
+
 ### 5.4 `/deprecate-contract` wiring (primary path)
 
-`.agents/commands/deprecate-contract.md` gains a step 6 "On-chain removal —
-create the multisig proposals (facets)": after the codebase removal, it dry-runs
-`cleanUpProdDiamond.ts --facets '[...deprecated names]' --all-networks
---environment production`, shows the per-network banner, and on confirmation
-re-runs with `--yes` to create the peer-reviewed Safe proposals. The command
-enforces the §4 sequencing constraint: this runs before any deploy-log cleanup,
-and the "Remaining Occurrences" step warns not to delete `deployments/*.json`
-facet entries until the removal has executed.
+`.agents/commands/deprecate-contract.md` gains a step 6 "On-chain removal — park
+it into the deferred diamond-cleanup queue (facets)": after the codebase removal
+**and** after the deprecation PR is opened (so the real PR URL exists), it
+enqueues one parked task per (facet, network) via
+`script/deploy/safe/enqueue-parked-task.ts --network <n> --facetName <F>
+--diamondAddress <d> --facetAddress <f> --prUrl <deprecation PR>`, for every
+PROD network whose deploy log lists the facet. No proposal is created at
+deprecation time — the parked task is drained into the removal proposal on a
+later rollout (see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
+The command enforces the §4 sequencing constraint: the "Remaining Occurrences"
+step warns not to delete `deployments/*.json` facet entries until the parked
+task retires.
 
 ## 6. Guardrails (non-negotiable)
 
@@ -350,7 +378,7 @@ facet entries until the removal has executed.
 | Never-remove allowlist (core + machinery) | Hardcoded `{DiamondCut, DiamondLoupe, Ownership, EmergencyPause}` ∪ `getCoreFacets()` ∪ `getCorePeriphery()`; protected even if dropped from target state (§5.1 step 5). |
 | Skip `LiFiDiamondImmutable` | Engine only queries the `LiFiDiamond` address; immutable diamond never referenced (Fact 10). |
 | Drift ≠ deprecation (source-presence gate) | **Backstop path only.** A facet on-chain and absent from target state is removed **only if its `src/` source is gone**. Source still present → `driftDetected`, never removed (§5.1 step 6; Fact 12). The named path doesn't need this gate — intent is explicit. |
-| Deploy-log sequencing (named path) | The named path resolves facet→address from `deployments/<network>.json`. The removal must run **while those entries exist**, and they must not be deleted until it executes on-chain. `/deprecate-contract` orders steps so removal proposals are created before any deploy-log cleanup. |
+| Deploy-log sequencing (named path) | The parked task snapshots facet→address from `deployments/<network>.json` at enqueue time, and the drain resolves it from that snapshot. Those entries must not be deleted until the parked task **retires** (executed/cancelled/superseded); `/deprecate-contract` warns accordingly. |
 | On-chain loupe is source of truth | Selectors come from `facets()`, never from `out/` for the facet being removed (§5.1 step 3/6; fixes Fact 4). |
 | Conspicuous removals | Diff printed as a banner per network: each facet name, address, selector count + list, and any held-back/unresolved items, before any propose; headless requires `--yes`. |
 | Shared / re-registered selectors | Held back if an active facet is expected to own them (§5.1 step 7). |
@@ -399,10 +427,11 @@ Attacks considered and their mitigations:
   deliberate opt-in, so no gratuitous mass event is manufactured.
 - **Deprecated facet has no `out/` artifact.** Loupe selectors, not `out/` —
   true for both the named and diff paths.
-- **Deploy log deleted before removal (named path).** The named path resolves
-  address→name from the log; if the entry is gone the facet won't be found (a
-  false *negative*, safe). `/deprecate-contract` sequences removal before any
-  log cleanup so this doesn't happen in practice.
+- **Deploy log deleted before removal (named path).** The enqueue snapshots the
+  facet→address at deprecation time, and the drain resolves it from that
+  snapshot; if the snapshot were missing the facet simply wouldn't be found (a
+  false *negative*, safe). `/deprecate-contract` warns not to delete the log
+  entries until the parked task retires, so this doesn't happen in practice.
 
 ## 8. Phasing
 
@@ -412,7 +441,7 @@ Effort in Fibonacci points; bucketed by who-blocks.
 |---|---|---|
 | Engine (named + diff) + unit tests | 3 | our build |
 | CLI `--facets`/`--auto`/`--all-networks`/`--yes` + banners | 2 | our build |
-| `/deprecate-contract` step 6 wiring (primary) | 1 | our build |
+| `/deprecate-contract` step 6 wiring — park into the deferred queue (primary) | 1 | our build |
 | `multisig-rollout` opt-in step (backstop) | 1 | our build |
 | Review + first real removal (Safe signing + timelock) | 5 | human decision / operational |
 
@@ -420,8 +449,9 @@ Our-build share (engine + CLI + both wirings): **7/12 ≈ 58%**. The remaining 5
 is review + the governance-gated first execution, human/operational by nature.
 
 Recommended first PR (this one): engine + tests + CLI + `/deprecate-contract`
-wiring + the opt-in rollout doc, as a **draft**. The first live removal is a
-separate, deliberate operational step.
+park wiring (enqueue into the deferred cleanup queue) + the opt-in rollout doc,
+as a **draft**. The drain hook and the first live removal are separate,
+deliberate steps.
 
 ## 9. Testing
 
