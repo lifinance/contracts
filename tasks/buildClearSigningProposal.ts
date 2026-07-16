@@ -294,6 +294,86 @@ function bridgeFacetName(fnName: string): string {
   )
 }
 
+// ---------- bridge-specific "true recipient" fields ----------
+//
+// For most bridges the on-chain recipient is `_bridgeData.receiver`, so
+// RECEIVER_FIELD is the whole story. A few bridges credit funds on the
+// destination chain to a *bridge-specific* field instead, and
+// `_bridgeData.receiver` is then either a sentinel or an intermediary contract:
+//
+//   AcrossV4 — `_startBridge` passes `_acrossData.receiverAddress` as the Across
+//   SpokePool `recipient` in every branch (see src/Facets/AcrossFacetV4.sol).
+//   `_bridgeData.receiver` only equals it for EVM transfers *without* a
+//   destination call (enforced on-chain). For non-EVM transfers it is the
+//   NON_EVM_ADDRESS sentinel; for destination calls it is our Receiver contract.
+//   In those two cases a signer who only saw `_bridgeData.receiver` would not see
+//   where the bridge actually sends the funds.
+//
+// We surface that field as an extra always-visible entry. It is `bytes32` (it may
+// hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName`
+// only accepts `address` — there is no bytes32→EVM-address formatter — so the
+// honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on
+// `_bridgeData.receiver`: for the dominant EVM / no-destination-call path it
+// resolves to a trusted name/ENS, and the raw field carries the ground truth for
+// the rest.
+//
+// Keyed by bridge identity from bridgeFacetName() — "AcrossV4" only, never the
+// "AcrossV4Swap" opaque / EIP-712-gated variant (its `_acrossV4SwapFacetData` has
+// no receiverAddress; its receiver is not on-chain-verifiable by design).
+interface IExtraReceiver {
+  paramName: string
+  component: string
+  typePrefix: string
+  label: string
+}
+
+const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
+  AcrossV4: {
+    paramName: '_acrossData',
+    component: 'receiverAddress',
+    typePrefix: 'bytes32',
+    label: 'Across Recipient',
+  },
+}
+
+function extraReceiverSpec(fn: IAbiFn): IExtraReceiver | null {
+  return BRIDGE_EXTRA_RECEIVERS[bridgeFacetName(fn.name)] ?? null
+}
+
+// Strict-by-default: if a bridge declares an extra-receiver field above, the
+// referenced tuple component must exist in the ABI with the expected type. A
+// struct rename must fail the generator (and CI) loudly rather than emit a dead
+// display path that silently resolves to nothing in wallets.
+function validateExtraReceiver(fn: IAbiFn): string | null {
+  const spec = extraReceiverSpec(fn)
+  if (!spec) return null
+  const param = fn.inputs.find((p) => p.name === spec.paramName)
+  if (!param || !param.type.startsWith('tuple'))
+    return `expected param "${spec.paramName}" of tuple type for bridge-specific recipient; got name="${param?.name}" type="${param?.type}"`
+  const comp = (
+    param.components as { name: string; type: string }[] | undefined
+  )?.find((c) => c.name === spec.component)
+  if (!comp)
+    return `${spec.paramName}: missing component "${spec.component}" (bridge-specific recipient)`
+  if (!comp.type.startsWith(spec.typePrefix))
+    return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected prefix "${spec.typePrefix}"`
+  return null
+}
+
+function extraReceiverFields(fn: IAbiFn): IField[] {
+  const spec = extraReceiverSpec(fn)
+  if (!spec) return []
+  return [
+    {
+      path: `${spec.paramName}.${spec.component}`,
+      label: spec.label,
+      // bytes32 recipient (may be non-EVM); addressName accepts `address` only.
+      format: 'raw',
+      visible: 'always',
+    },
+  ]
+}
+
 function variantTag(fnName: string): string | null {
   // Packed/Min disambiguator for the intent string.
   const native = /Native(Packed|Min)$/u.test(fnName)
@@ -334,6 +414,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
       },
       CHAIN_FIELD,
       RECEIVER_FIELD,
+      ...extraReceiverFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
     ],
   }
@@ -363,6 +444,7 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
       },
       CHAIN_FIELD,
       RECEIVER_FIELD,
+      ...extraReceiverFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
       {
         path: '_swapData.[].callData',
@@ -748,12 +830,26 @@ function main() {
         )
         continue
       }
+      const extraErr = validateExtraReceiver(fn)
+      if (extraErr) {
+        failures.push(
+          `${sig}\n      reason: bridge-specific recipient mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
+        )
+        continue
+      }
       out[sig] = buildSwapAndStartFormat(fn)
     } else if (fn.name.startsWith('startBridgeTokensVia')) {
       const err = validateStartFn(fn)
       if (err) {
         failures.push(
           `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData struct with LiFi.BridgeData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
+        )
+        continue
+      }
+      const extraErr = validateExtraReceiver(fn)
+      if (extraErr) {
+        failures.push(
+          `${sig}\n      reason: bridge-specific recipient mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
         )
         continue
       }

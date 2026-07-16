@@ -35,6 +35,20 @@ Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chai
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
+#### Bridge-specific recipient (`BRIDGE_EXTRA_RECEIVERS`)
+
+For most bridges the on-chain recipient is `_bridgeData.receiver`, so the standard `Recipient` field is the whole story. A few bridges credit funds on the destination chain to a **bridge-specific** field instead, and `_bridgeData.receiver` is then a sentinel or an intermediary contract:
+
+- **AcrossV4** — `_startBridge` passes `_acrossData.receiverAddress` as the Across SpokePool `recipient` in every branch (see [`src/Facets/AcrossFacetV4.sol`](../src/Facets/AcrossFacetV4.sol)). `_bridgeData.receiver` only equals it for EVM transfers **without** a destination call (enforced on-chain). For non-EVM transfers it is the `NON_EVM_ADDRESS` sentinel; for destination calls it is our Receiver contract. A signer who only saw `_bridgeData.receiver` would not, in those two cases, see where the bridge actually sends the funds.
+
+For those bridges the generator appends an extra always-visible field (`Across Recipient` for AcrossV4) sourced from the bridge-specific struct field:
+
+```json
+{ "path": "_acrossData.receiverAddress", "label": "Across Recipient", "format": "raw", "visible": "always" }
+```
+
+The field is `bytes32` (it may hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is no `bytes32`→EVM-address formatter — so the honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the dominant EVM / no-destination-call path it resolves to a trusted name/ENS, and the raw field carries the ground truth for the rest. Only the `AcrossV4` identity is mapped, never the `AcrossV4Swap` opaque / EIP-712-gated variant (its `_acrossV4SwapFacetData` has no `receiverAddress`; its receiver is not on-chain-verifiable by design). The mapping is strict-by-default: if the referenced struct component is renamed or retyped, the generator fails and blocks CI rather than emit a dead display path. Mayan and LayerSwap carry the same `bytes32 nonEVMReceiver` pattern and are candidates for the same treatment in a follow-up.
+
 ### Swap-and-bridge: `swapAndStartBridgeTokensVia<Bridge>`
 
 Adds the head of the swap chain (`_swapData.[0]`) as a separate field:

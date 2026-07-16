@@ -204,6 +204,12 @@
           "visible": "always"
         },
         {
+          "path": "_acrossData.receiverAddress",
+          "label": "Across Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -2945,6 +2951,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_acrossData.receiverAddress",
+          "label": "Across Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
