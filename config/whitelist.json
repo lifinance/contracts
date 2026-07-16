@@ -7684,6 +7684,20 @@
             "signature": "deposit()"
           }
         ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x1299f7F941745377a2091AF51557e8De04B96B10",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
       }
     ],
     "ink": [
