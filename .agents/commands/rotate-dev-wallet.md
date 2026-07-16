@@ -66,6 +66,8 @@ Sweep native gas from the old dev wallet to the new one across all active EVM ch
 
 `sweep-wallet-funds` previews balances first (read-only `cast balance` — the mover script has no dry-run flag), sweeps native **LAST** to avoid stranding gas, and reports per-network moved/skipped. It owns the human-confirmed pre-send report and secrets hygiene — do not reimplement `cast send` or `moveNativeFundsToNewWallet.ts` here.
 
+> **HyperEVM big blocks (manual, per-address).** The new dev EOA cannot deploy on `hyperevm` until big blocks are enabled for it — an L1 setting that does **not** carry over on rotation (register the address as a HyperCore Core user, then toggle big blocks ON). Follow the runbook: `docs/HyperEVMBigBlocks.md`.
+
 ### Phase 2 — Transfer staging diamond ownership (old → new)
 
 Staging diamonds are EOA-owned by the dev wallet, so this is a direct owner transfer per EVM network (the old dev key sets the new dev address as owner; the new wallet accepts if the diamond uses a two-step handover). Run the preview/dry-run first, confirm, then execute one network at a time.
