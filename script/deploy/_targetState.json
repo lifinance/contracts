@@ -1605,7 +1605,8 @@
         "Permit2Proxy": "1.0.4",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
