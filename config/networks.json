@@ -590,7 +590,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xf1469bEc8cDccEC511C0DdAaBa88B63f5841137a",
-    "devNotes": "To switch between smaller blocks (2M max gas limit, fast) and bigger blocks (30m gas limit, slow, for contract deployments, use this FE to toggle: https://hyperevm-block-toggle.vercel.app/"
+    "devNotes": "Dual-block architecture: contract deploys need big blocks (30M gas) instead of small blocks (~2-3M gas). Big blocks are opt-in PER ADDRESS via a gasless L1 action and do NOT carry over on wallet rotation - every new deployer/dev EOA must be enabled individually, and the address must first be a HyperCore Core user (receive USDC/HYPE on the Core/L1 side, NOT on HyperEVM). Full runbook: docs/HyperEVMBigBlocks.md. Toggle FE: https://hyperevm-block-toggle.vercel.app/"
   },
   "immutablezkevm": {
     "name": "immutablezkevm",
