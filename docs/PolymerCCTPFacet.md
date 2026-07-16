@@ -73,6 +73,10 @@ struct PolymerCCTPData {
   // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
   // 1000 = fast path, 2000 = standard path
   uint32 minFinalityThreshold;
+  // Recipient of swap leftovers and excess native on the swap entrypoint. msg.sender may be
+  // a relayer or the Permit2Proxy, so refunds route here rather than to the caller. Only
+  // consumed by swapAndStartBridgeTokensViaPolymerCCTP; must be non-zero on that entrypoint.
+  address refundRecipient;
   // CctpForwarder hook data for HyperCore deposits; must encode bridgeData.receiver at
   // bytes [32:52]. Required iff destinationChainId == LIFI_CHAIN_ID_HYPERCORE.
   bytes hookData;

@@ -90,6 +90,10 @@ contract PolymerCCTPFacet is
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
         uint32 minFinalityThreshold;
+        // Recipient of swap leftovers and excess native on the swap entrypoint. msg.sender
+        // may be a relayer or the Permit2Proxy, so refunds must route to an explicit address
+        // rather than the caller. Only consumed by swapAndStartBridgeTokensViaPolymerCCTP.
+        address refundRecipient;
         // CctpForwarder hook data. For HyperCore it must encode bridgeData.receiver at bytes
         // [32:52]. For Stellar it carries the forwardRecipient strkey: magic (24) + version (4) +
         // length L (4) + strkey (L). Required if destinationChainId is LIFI_CHAIN_ID_HYPERCORE
@@ -284,17 +288,24 @@ contract PolymerCCTPFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_polymerData.refundRecipient))
         validatePolymerData(_bridgeData, _polymerData)
         onlyAllowSourceToken(_bridgeData, USDC)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // msg.sender may be a relayer or the Permit2Proxy, so refunds must go to an explicit
+        // recipient. Check up front for a deterministic revert instead of a late failure in
+        // refundExcessNative that only surfaces when fee drift leaves an excess.
+        if (_polymerData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_polymerData.refundRecipient)
         );
 
         _startBridge(_bridgeData, _polymerData);

@@ -169,6 +169,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             nonEVMReceiver: bytes32(0),
             solanaReceiverATA: bytes32(0),
             minFinalityThreshold: 1000, // Fast route (1000)
+            refundRecipient: USER_REFUND,
             hookData: ""
         });
 
@@ -249,6 +250,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                refundRecipient: validPolymerData.refundRecipient,
                 hookData: validPolymerData.hookData
             });
 
@@ -287,6 +289,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                refundRecipient: validPolymerData.refundRecipient,
                 hookData: validPolymerData.hookData
             });
 
@@ -704,6 +707,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
                 solanaReceiverATA: validPolymerData.solanaReceiverATA,
                 minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                refundRecipient: validPolymerData.refundRecipient,
                 hookData: hookData
             });
     }
@@ -1290,6 +1294,71 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(adjustedBridgeData);
 
         initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeWithZeroRefundRecipient() public {
+        // Finding #2: the swap entrypoint refunds swap leftovers and excess native. A zero
+        // refundRecipient would strand them (e.g. in the Permit2Proxy), so the entrypoint
+        // rejects it up front instead of failing late inside refundExcessNative.
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        PolymerCCTPFacet.PolymerCCTPData
+            memory zeroRefundData = _polymerDataWithHook("");
+        zeroRefundData.refundRecipient = address(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            swapData,
+            zeroRefundData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_SwapAndBridge_ExcessNativeRefundedToRefundRecipient()
+        public
+    {
+        // Finding #2: excess native is refunded to refundRecipient, not msg.sender (which
+        // may be a relayer or the Permit2Proxy).
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 swapOutputAmount = defaultUSDCAmount;
+        PolymerCCTPFacet.PolymerCCTPData
+            memory swapPolymerData = PolymerCCTPFacet.PolymerCCTPData({
+                polymerTokenFee: swapOutputAmount / 100,
+                maxCCTPFee: swapOutputAmount / 10,
+                nonEVMReceiver: bytes32(0),
+                solanaReceiverATA: bytes32(0),
+                minFinalityThreshold: validPolymerData.minFinalityThreshold,
+                refundRecipient: USER_REFUND,
+                hookData: ""
+            });
+
+        uint256 excessNative = 1 ether;
+        vm.deal(USER_SENDER, excessNative);
+        uint256 refundBalanceBefore = USER_REFUND.balance;
+
+        polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP{
+            value: excessNative
+        }(bridgeData, swapData, swapPolymerData);
+
+        assertEq(USER_REFUND.balance, refundBalanceBefore + excessNative);
+
         vm.stopPrank();
     }
 }
