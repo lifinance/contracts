@@ -47,6 +47,7 @@ paths:
   - name: Check for authorized actor
     env:
       ACTOR_LOGIN: ${{ github.actor }}
+    shell: bash
     run: |
       if [[ "$ACTOR_LOGIN" == "lifi-action-bot" ]]; then echo "authorized"; fi
   ```
