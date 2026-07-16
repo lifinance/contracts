@@ -20,6 +20,14 @@ cache = true
 [profile.default.fuzz]
 runs = 256
 
+# Invariant campaign shared by the vault-wrapper suite (the repo's only invariant tests).
+# Set here rather than per-function so every invariant runs one identical campaign; the ci
+# profile inherits it, so CI enforces the same depth and fail-on-revert.
+[profile.default.invariant]
+runs = 64
+depth = 32
+fail_on_revert = true
+
 [profile.ci]
 # Inherits [profile.default]; only fuzz runs differ for faster CI.
 

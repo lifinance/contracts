@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { Test } from "forge-std/Test.sol";
-import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
-import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
-import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
 import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { VaultWrapperFactoryStackBase } from "test/solidity/VaultWrapper/VaultWrapperFactoryStackBase.sol";
 
 /// @notice Shared scaffolding for vault-wrapper fork scenarios: forks a live chain at a
 ///         pinned block, stands up the full factory stack against a REAL ERC-4626 yield
@@ -20,19 +16,14 @@ import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper
 ///         `_underlyingVault` hooks. Expectation helpers mirror the exact `LibVaultWrapperMath`
 ///         sequence `_accrueFees` crystallizes in, so per-operation fee accrual can be
 ///         checked against an independently recomputed value.
-abstract contract VaultWrapperForkTestBase is Test {
+abstract contract VaultWrapperForkTestBase is VaultWrapperFactoryStackBase {
     IERC20 internal asset;
     IERC4626 internal underlying;
-    ERC4626Adapter internal adapter;
-    UpgradeableBeacon internal beacon;
-    LiFiVaultWrapper internal wrapper;
-    LiFiVaultWrapperFactory internal factory;
 
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
     address internal carol = makeAddr("carol");
     address internal vaultAdmin = makeAddr("vaultAdmin");
-    address internal lifiRecipient = makeAddr("lifiRecipient");
     address internal integrator1 = makeAddr("integrator1");
     address internal integrator2 = makeAddr("integrator2");
 
@@ -57,33 +48,12 @@ abstract contract VaultWrapperForkTestBase is Test {
 
         underlying = IERC4626(_underlyingVault());
         asset = IERC20(underlying.asset());
-        adapter = new ERC4626Adapter();
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
-            makeAddr("beaconOwner")
+
+        _bringUpFactory(
+            address(underlying),
+            [PERF_RATE, MGMT_RATE, DEPOSIT_RATE, WITHDRAWAL_RATE]
         );
-
-        address owner = makeAddr("owner");
-        address onboarder = makeAddr("onboarder");
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
-            owner,
-            makeAddr("pauser"),
-            onboarder,
-            lifiRecipient
-        );
-
-        vm.startPrank(owner);
-        factory.setAdapterApproved(address(adapter), true);
-        factory.setUnderlyingAllowed(address(underlying), true);
-        factory.setFeeBounds(FeeType.Performance, 0, PERF_RATE);
-        factory.setFeeBounds(FeeType.Management, 0, MGMT_RATE);
-        factory.setFeeBounds(FeeType.Deposit, 0, DEPOSIT_RATE);
-        factory.setFeeBounds(FeeType.Withdrawal, 0, WITHDRAWAL_RATE);
-        vm.stopPrank();
-
-        vm.prank(onboarder);
-        wrapper = LiFiVaultWrapper(factory.deploy(_standardDeployParams()));
+        _deployWrapper(_standardDeployParams());
 
         _fund(alice, FUNDING);
         _fund(bob, FUNDING);
@@ -180,17 +150,6 @@ abstract contract VaultWrapperForkTestBase is Test {
             assetsBefore,
             "underlying did not accrue over warp"
         );
-    }
-
-    /// @dev The wrapper's price per share (PPS_SCALE-scaled), on the same convention the
-    ///      performance watermark is measured against.
-    function _pps() internal view returns (uint256) {
-        return
-            LibVaultWrapperMath.pricePerShare(
-                wrapper.totalSupply(),
-                wrapper.totalAssets(),
-                wrapper.shareDecimalsOffset()
-            );
     }
 
     /// @dev Total dilution shares booked to the fee counters (both split sides).
