@@ -146,7 +146,7 @@ refund is the normal case. The facet refunds excess native — and any source-si
 swap leftovers — to `SupersetData.refundAddress` (not `msg.sender`), so refunds
 reach the user even when the call is routed through `Permit2Proxy` (whose
 `msg.sender` would otherwise strand the funds in the proxy). `refundAddress` must
-be non-zero. This deviates from facets like `AcrossFacetV3` that refund to
+be non-zero. This deviates from facets like `AcrossFacetV4` that refund to
 `msg.sender`; it is intentional given the structural overpayment above.
 
 ## Positive Slippage Handling

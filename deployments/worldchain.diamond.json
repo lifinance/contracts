@@ -3,7 +3,7 @@
     "Facets": {
       "0x57FdfF2e36De6c8a8Cde297B150Ae291132Eae8d": {
         "Name": "DiamondCutFacet",
-        "Version": "2.0.0"
+        "Version": "1.0.0"
       },
       "0xA1a4d577709dC4A70CA38F1D41562fab3aD09D3f": {
         "Name": "DiamondLoupeFacet",
@@ -84,6 +84,10 @@
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -92,8 +96,8 @@
       "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

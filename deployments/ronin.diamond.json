@@ -56,6 +56,10 @@
       "0xC7fF0661C9fF1Da5472e71e5ee6dAdB6afa87d02": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -64,8 +68,8 @@
       "FeeCollector": "0xFEd2370437dF9c1302Fe4f0840A91fc0091DA1F2",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x312AA44DBc5dEB0a4bA2AD9BbA21094CD5E6362e",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x312AA44DBc5dEB0a4bA2AD9BbA21094CD5E6362e",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0xfeD71074954d4cb8f1D2A8ca317d72c75e3E0559",
