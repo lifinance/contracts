@@ -5,6 +5,7 @@ deployAllContracts() {
 
   # load required resources
   source script/helperFunctions.sh
+  source script/deploy/deploySingleContract.sh
   source script/deploy/deployAndStoreCREATE3Factory.sh
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
