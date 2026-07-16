@@ -648,6 +648,13 @@
       "auditCompletedOn": "15.07.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
       "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.15_LayerSwapFacet(v1.0.0).pdf",
+      "auditCommitHash": "0087bc33a548a4e459cc2dd7f58dd9f0732009bf"
+    },
+    "audit20260715b": {
+      "auditCompletedOn": "15.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.07.15_CalldataVerificationFacet(v2.0.0).pdf",
       "auditCommitHash": "20098f1b15536fa9ea1a851d19aa9ae9e7d82df1"
     }
@@ -698,7 +705,7 @@
       "1.2.0": ["audit20240902", "audit20250508"],
       "1.3.0": ["audit20250220"],
       "1.3.1": ["audit20250629"],
-      "2.0.0": ["audit20260715"]
+      "2.0.0": ["audit20260715b"]
     },
     "CBridgeFacet": {
       "1.0.0": ["audit20250508"]
@@ -813,6 +820,9 @@
     "IGlacisAirlift": {
       "1.1.0": ["audit20251113"]
     },
+    "ILayerSwapDepository": {
+      "1.0.0": ["audit20260715"]
+    },
     "IOpenIntentFramework": {
       "1.0.0": ["audit20251119"]
     },
@@ -821,6 +831,9 @@
     },
     "IPaxosTransit": {
       "1.0.0": ["audit20260708"]
+    },
+    "LayerSwapFacet": {
+      "1.0.0": ["audit20260715"]
     },
     "LibAccess": {
       "1.0.0": ["audit20250508"]

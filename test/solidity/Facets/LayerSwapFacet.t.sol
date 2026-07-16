@@ -1,0 +1,1233 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.17;
+
+import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LayerSwapFacet } from "lifi/Facets/LayerSwapFacet.sol";
+import { InvalidCallData, InvalidConfig, InvalidSignature, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+
+// Admin surface of the real LayerswapDepository (Ownable2Step + Pausable),
+// exposed only for test setup (reading the live whitelist + pausing).
+interface ILayerswapDepositoryAdmin {
+    function owner() external view returns (address);
+
+    function getWhitelistedAddresses()
+        external
+        view
+        returns (address[] memory);
+
+    function pause() external;
+}
+
+// Test LayerSwapFacet Contract
+contract TestLayerSwapFacet is LayerSwapFacet, TestWhitelistManagerBase {
+    constructor(
+        address _layerSwapDepository,
+        address _backendSigner
+    ) LayerSwapFacet(_layerSwapDepository, _backendSigner) {}
+}
+
+contract LayerSwapFacetTest is TestBaseFacet {
+    // Real LayerswapDepository on Ethereum mainnet (deployed 2026-03-26)
+    address internal constant LAYERSWAP_DEPOSITORY =
+        0xE226E4825CB215aBaFAd98fdd400583eAb6a594f;
+
+    LayerSwapFacet.LayerSwapData internal validLayerSwapData;
+    TestLayerSwapFacet internal layerSwapFacet;
+    ILayerswapDepositoryAdmin internal depository;
+    address internal depositoryOwner;
+    // Live whitelisted receiver, resolved from the depository in setUp()
+    address internal depositoryReceiver;
+
+    // OpenZeppelin Pausable revert (raised when the depository is paused)
+    error EnforcedPause();
+
+    // Backend signer for EIP-712
+    uint256 internal backendSignerPrivateKey =
+        0x1234567890123456789012345678901234567890123456789012345678901234;
+    address internal backendSignerAddress = vm.addr(backendSignerPrivateKey);
+
+    // EIP-712 typehash (must match the facet constant)
+    // keccak256("LayerSwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,bytes32 requestId,address depositoryReceiver,address refundRecipient,bytes32 nonEVMReceiver,uint256 destinationChainId,address sendingAssetId,uint256 deadline)")
+    bytes32 internal constant LAYERSWAP_PAYLOAD_TYPEHASH =
+        0x3368de299775fb99a682a6178a8d9bdc9a7c2b4f1344f296730f79168d578335;
+
+    struct LayerSwapPayload {
+        bytes32 transactionId;
+        uint256 minAmount;
+        address receiver;
+        bytes32 requestId;
+        address depositoryReceiver;
+        address refundRecipient;
+        bytes32 nonEVMReceiver;
+        uint256 destinationChainId;
+        address sendingAssetId;
+        uint256 deadline;
+    }
+
+    error InvalidNonEVMReceiver();
+    error SignatureExpired();
+    error RequestAlreadyProcessed();
+    error NotWhitelisted();
+
+    event Deposited(
+        bytes32 indexed id,
+        address indexed token,
+        address indexed receiver,
+        uint256 amount
+    );
+
+    function setUp() public {
+        // Fork mainnet after the LayerswapDepository deployment (block 24743659)
+        customBlockNumberForForking = 25060964;
+        initTestBase();
+
+        // Pick a receiver from the depository's live on-chain whitelist
+        // so deposits succeed without any owner mutation.
+        depository = ILayerswapDepositoryAdmin(LAYERSWAP_DEPOSITORY);
+        depositoryOwner = depository.owner();
+        depositoryReceiver = depository.getWhitelistedAddresses()[0];
+
+        // Deploy facet with backend signer
+        layerSwapFacet = new TestLayerSwapFacet(
+            LAYERSWAP_DEPOSITORY,
+            backendSignerAddress
+        );
+
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = layerSwapFacet
+            .startBridgeTokensViaLayerSwap
+            .selector;
+        functionSelectors[1] = layerSwapFacet
+            .swapAndStartBridgeTokensViaLayerSwap
+            .selector;
+        functionSelectors[2] = layerSwapFacet
+            .addAllowedContractSelector
+            .selector;
+
+        addFacet(diamond, address(layerSwapFacet), functionSelectors);
+        layerSwapFacet = TestLayerSwapFacet(address(diamond));
+
+        layerSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForTokens.selector
+        );
+        layerSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapTokensForExactETH.selector
+        );
+        layerSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+        layerSwapFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapExactTokensForETH.selector
+        );
+
+        setFacetAddressInTestBase(address(layerSwapFacet), "LayerSwapFacet");
+
+        bridgeData.bridge = "layerswap";
+        bridgeData.destinationChainId = 137;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+    }
+
+    function initiateBridgeTxWithFacet(bool isNative) internal override {
+        if (isNative) {
+            layerSwapFacet.startBridgeTokensViaLayerSwap{
+                value: bridgeData.minAmount
+            }(bridgeData, validLayerSwapData);
+        } else {
+            layerSwapFacet.startBridgeTokensViaLayerSwap(
+                bridgeData,
+                validLayerSwapData
+            );
+        }
+    }
+
+    function initiateSwapAndBridgeTxWithFacet(
+        bool isNative
+    ) internal override {
+        if (isNative) {
+            layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, validLayerSwapData);
+        } else {
+            layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap(
+                bridgeData,
+                swapData,
+                validLayerSwapData
+            );
+        }
+    }
+
+    // --- Constructor Tests ---
+
+    function test_CanDeployFacet() public {
+        new LayerSwapFacet(LAYERSWAP_DEPOSITORY, backendSignerAddress);
+    }
+
+    function testRevert_WhenUsingZeroDepository() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LayerSwapFacet(address(0), backendSignerAddress);
+    }
+
+    function testRevert_WhenBackendSignerIsZero() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new LayerSwapFacet(LAYERSWAP_DEPOSITORY, address(0));
+    }
+
+    function testRevert_WhenDepositoryReceiverIsZero() public {
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-zeroReceiver"),
+            address(0),
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    // --- Base Test Overrides (re-sign after bridgeData changes) ---
+
+    function testBase_CanBridgeNativeTokens()
+        public
+        virtual
+        override
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256((defaultNativeAmount + addToMessageValue))
+        )
+        assertBalanceChange(address(0), USER_RECEIVER, 0)
+        assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
+        assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-baseNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testBase_CanBridgeTokens_fuzzed(
+        uint256 amount
+    ) public virtual override {
+        vm.startPrank(USER_SENDER);
+
+        vm.assume(amount > 0 && amount < 100_000);
+        amount = amount * 10 ** usdc.decimals();
+
+        logFilePath = "./test/logs/";
+        vm.writeLine(logFilePath, vm.toString(amount));
+
+        usdc.approve(_facetTestContractAddress, amount);
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = amount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256(abi.encodePacked("testRequestId-fuzz-", amount)),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_CanSwapAndBridgeNativeTokens() public virtual override {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+
+        uint256 daiAmount = 300 * 10 ** dai.decimals();
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256[] memory amounts = uniswap.getAmountsOut(daiAmount, path);
+        uint256 amountOut = amounts[1];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForETH.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        dai.approve(_facetTestContractAddress, daiAmount);
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-baseSwapNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            address(0),
+            daiAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    // --- Deposit Tests ---
+
+    function test_DepositoryReceivesERC20()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(
+            ADDRESS_USDC,
+            depositoryReceiver,
+            int256(defaultUSDCAmount)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, LAYERSWAP_DEPOSITORY);
+        emit Deposited(
+            validLayerSwapData.requestId,
+            ADDRESS_USDC,
+            depositoryReceiver,
+            bridgeData.minAmount
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_DepositoryReceivesNative()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256(defaultNativeAmount + addToMessageValue)
+        )
+        assertBalanceChange(
+            address(0),
+            depositoryReceiver,
+            int256(defaultNativeAmount)
+        )
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-native"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.expectEmit(true, true, true, true, LAYERSWAP_DEPOSITORY);
+        emit Deposited(
+            validLayerSwapData.requestId,
+            address(0),
+            depositoryReceiver,
+            bridgeData.minAmount
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    // --- Non-EVM Receiver Tests ---
+
+    function testRevert_WhenUsingEmptyNonEVMReceiver() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-nonEVM-empty"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            bridgeData,
+            validLayerSwapData
+        );
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensToNonEVM()
+        public
+        assertBalanceChange(
+            ADDRESS_USDC,
+            USER_SENDER,
+            -int256(defaultUSDCAmount)
+        )
+        assertBalanceChange(
+            ADDRESS_USDC,
+            depositoryReceiver,
+            int256(defaultUSDCAmount)
+        )
+    {
+        bytes32 nonEVMReceiver = bytes32(
+            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        );
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-nonEVM"),
+            depositoryReceiver,
+            nonEVMReceiver,
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeNativeTokensToNonEVM()
+        public
+        assertBalanceChange(
+            address(0),
+            USER_SENDER,
+            -int256(defaultNativeAmount + addToMessageValue)
+        )
+        assertBalanceChange(
+            address(0),
+            depositoryReceiver,
+            int256(defaultNativeAmount)
+        )
+    {
+        bytes32 nonEVMReceiver = bytes32(
+            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        );
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-nativeNonEVM"),
+            depositoryReceiver,
+            nonEVMReceiver,
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function test_CanSwapAndBridgeTokensToNonEVM()
+        public
+        assertBalanceChange(
+            ADDRESS_DAI,
+            USER_SENDER,
+            -int256(swapData[0].fromAmount)
+        )
+        assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
+    {
+        bytes32 nonEVMReceiver = bytes32(
+            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        );
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.hasSourceSwaps = true;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapNonEVM"),
+            depositoryReceiver,
+            nonEVMReceiver,
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit AssetSwapped(
+            bridgeData.transactionId,
+            ADDRESS_UNISWAP,
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            swapData[0].fromAmount,
+            bridgeData.minAmount,
+            block.timestamp
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            nonEVMReceiver
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap(
+            bridgeData,
+            swapData,
+            validLayerSwapData
+        );
+        vm.stopPrank();
+    }
+
+    // --- Swap Output / Bridge Asset Mismatch Tests ---
+
+    function testRevert_WhenSwapOutputAssetMismatchesBridgeAsset_ERC20()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        // Bridged asset (DAI) differs from the last swap's output (USDC)
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapOutputMismatchERC20"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapOutputAssetMismatchesBridgeAsset_Native()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        // Bridged asset (USDC) differs from the last swap's output (native)
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        uint256 daiAmount = 300 * 10 ** dai.decimals();
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        uint256 amountOut = uniswap.getAmountsOut(daiAmount, path)[1];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: address(0),
+                fromAmount: daiAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForETH.selector,
+                    daiAmount,
+                    amountOut,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapOutputMismatchNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, daiAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    // --- Revert Propagation Tests ---
+
+    function testRevert_WhenERC20DepositFails() public {
+        // Pause the depository to force the deposit call to revert
+        vm.prank(depositoryOwner);
+        depository.pause();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(EnforcedPause.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenNativeDepositFails() public {
+        vm.prank(depositoryOwner);
+        depository.pause();
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-nativeRevert"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.expectRevert(EnforcedPause.selector);
+        initiateBridgeTxWithFacet(true);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenReceiverNotWhitelisted() public {
+        // Sign for a depository receiver that is deliberately not on the
+        // depository's on-chain whitelist
+        address nonWhitelistedReceiver = address(0xBEEF);
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-notWhitelisted"),
+            nonWhitelistedReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(NotWhitelisted.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    // --- EIP-712 Signature Tests ---
+
+    function testRevert_InvalidSignature() public {
+        vm.startPrank(USER_SENDER);
+
+        // Sign with wrong private key
+        uint256 wrongPrivateKey = 0x9876543210987654321098765432109876543210987654321098765432109876;
+
+        LayerSwapPayload memory payload = _createLayerSwapPayload(
+            bridgeData,
+            validLayerSwapData.requestId,
+            validLayerSwapData.depositoryReceiver,
+            validLayerSwapData.refundRecipient,
+            validLayerSwapData.nonEVMReceiver,
+            validLayerSwapData.deadline
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory wrongSignature = _signDigest(wrongPrivateKey, digest);
+
+        LayerSwapFacet.LayerSwapData memory invalidData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: validLayerSwapData.requestId,
+                depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: validLayerSwapData.refundRecipient,
+                nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
+                signature: wrongSignature,
+                deadline: validLayerSwapData.deadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, invalidData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureExpired() public {
+        vm.startPrank(USER_SENDER);
+
+        uint256 expiredDeadline = block.timestamp - 1 hours;
+
+        LayerSwapPayload memory payload = _createLayerSwapPayload(
+            bridgeData,
+            keccak256("testRequestId-expired"),
+            depositoryReceiver,
+            USER_REFUND,
+            bytes32(0),
+            expiredDeadline
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(block.chainid);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
+
+        LayerSwapFacet.LayerSwapData memory expiredData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: keccak256("testRequestId-expired"),
+                depositoryReceiver: depositoryReceiver,
+                refundRecipient: USER_REFUND,
+                nonEVMReceiver: bytes32(0),
+                signature: signature,
+                deadline: expiredDeadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(SignatureExpired.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, expiredData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_RequestAlreadyProcessed() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount * 2);
+
+        // First call should succeed
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            bridgeData,
+            validLayerSwapData
+        );
+
+        // Second call with same requestId should fail
+        vm.expectRevert(RequestAlreadyProcessed.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            bridgeData,
+            validLayerSwapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_DifferentRequestIds_ShouldSucceed() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount * 2);
+
+        // First call
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            bridgeData,
+            validLayerSwapData
+        );
+
+        // Second call with different requestId
+        LayerSwapFacet.LayerSwapData
+            memory secondData = _generateValidLayerSwapData(
+                keccak256("differentRequestId"),
+                depositoryReceiver,
+                bytes32(0),
+                bridgeData,
+                block.chainid
+            );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, secondData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ReplayAttackPrevention_CrossFunction() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // First use startBridgeTokensViaLayerSwap
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            bridgeData,
+            validLayerSwapData
+        );
+
+        // Try to reuse requestId via swapAndStartBridgeTokensViaLayerSwap
+        bridgeData.hasSourceSwaps = true;
+
+        LayerSwapFacet.LayerSwapData
+            memory replayData = _generateValidLayerSwapData(
+                validLayerSwapData.requestId,
+                depositoryReceiver,
+                bytes32(0),
+                bridgeData,
+                block.chainid
+            );
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(RequestAlreadyProcessed.selector);
+        layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap(
+            bridgeData,
+            swapData,
+            replayData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureMismatch_WrongReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // Sign for user_receiver but call with a different receiver
+        ILiFi.BridgeData memory modifiedBridgeData = bridgeData;
+        modifiedBridgeData.receiver = address(0xdead);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(
+            modifiedBridgeData,
+            validLayerSwapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureMismatch_WrongRequestId() public {
+        vm.startPrank(USER_SENDER);
+
+        // Use a different requestId than what was signed
+        LayerSwapFacet.LayerSwapData memory tamperedData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: keccak256("tamperedRequestId"),
+                depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: validLayerSwapData.refundRecipient,
+                nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
+                signature: validLayerSwapData.signature,
+                deadline: validLayerSwapData.deadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureMismatch_WrongNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+
+        bytes32 signedNonEVMReceiver = bytes32(
+            abi.encodePacked("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb")
+        );
+
+        // Sign with the correct nonEVMReceiver
+        LayerSwapFacet.LayerSwapData
+            memory signedData = _generateValidLayerSwapData(
+                keccak256("testRequestId-nonEVMTamper"),
+                depositoryReceiver,
+                signedNonEVMReceiver,
+                bridgeData,
+                block.chainid
+            );
+
+        // Tamper the nonEVMReceiver after signing
+        bytes32 tamperedNonEVMReceiver = bytes32(uint256(0xdeadbeef));
+        LayerSwapFacet.LayerSwapData memory tamperedData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: signedData.requestId,
+                depositoryReceiver: signedData.depositoryReceiver,
+                refundRecipient: signedData.refundRecipient,
+                nonEVMReceiver: tamperedNonEVMReceiver,
+                signature: signedData.signature,
+                deadline: signedData.deadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SignatureMismatch_WrongRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        // validLayerSwapData was signed with refundRecipient == USER_REFUND
+        LayerSwapFacet.LayerSwapData memory tamperedData = LayerSwapFacet
+            .LayerSwapData({
+                requestId: validLayerSwapData.requestId,
+                depositoryReceiver: validLayerSwapData.depositoryReceiver,
+                refundRecipient: address(0xdead),
+                nonEVMReceiver: validLayerSwapData.nonEVMReceiver,
+                signature: validLayerSwapData.signature,
+                deadline: validLayerSwapData.deadline
+            });
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+        layerSwapFacet.startBridgeTokensViaLayerSwap(bridgeData, tamperedData);
+
+        vm.stopPrank();
+    }
+
+    // --- Refund Recipient Tests ---
+
+    function testRevert_WhenBridgeWithZeroRefundRecipient() public {
+        // Without the explicit guard a zero refundRecipient would only revert
+        // late in refundExcessNative, and only if there was excess native.
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-zeroRefund"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+        validLayerSwapData.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeWithZeroRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-zeroRefundSwap"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+        validLayerSwapData.refundRecipient = address(0);
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_ExcessNativeIsRefundedToRefundRecipient() public {
+        // msg.sender (USER_SENDER) may be a relayer or Permit2Proxy; excess native
+        // must go to the signed refundRecipient (USER_REFUND), not msg.sender.
+        uint256 excess = 0.01 ether;
+
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-excessNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        uint256 refundBefore = USER_REFUND.balance;
+
+        vm.startPrank(USER_SENDER);
+        layerSwapFacet.startBridgeTokensViaLayerSwap{
+            value: bridgeData.minAmount + excess
+        }(bridgeData, validLayerSwapData);
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SwapAndBridgeExcessNativeIsRefundedToRefundRecipient()
+        public
+    {
+        uint256 excess = 0.01 ether;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-swapExcessNative"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 refundBefore = USER_REFUND.balance;
+
+        layerSwapFacet.swapAndStartBridgeTokensViaLayerSwap{ value: excess }(
+            bridgeData,
+            swapData,
+            validLayerSwapData
+        );
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SwapAndBridgeLeftoverERC20GoesToRefundRecipient() public {
+        // Exact-output DAI->ETH swap; over-fund the input so unspent DAI is left
+        // over and must be swept to the signed refundRecipient, not msg.sender.
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+
+        setDefaultSwapDataSingleDAItoETH();
+        uint256 leftover = 100 * 10 ** dai.decimals();
+        swapData[0].fromAmount += leftover;
+
+        validLayerSwapData = _generateValidLayerSwapData(
+            keccak256("testRequestId-leftoverERC20"),
+            depositoryReceiver,
+            bytes32(0),
+            bridgeData,
+            block.chainid
+        );
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        uint256 refundDaiBefore = dai.balanceOf(USER_REFUND);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(dai.balanceOf(USER_REFUND), refundDaiBefore + leftover);
+        assertEq(dai.balanceOf(address(diamond)), 0);
+    }
+
+    // ============ EIP-712 Helper Functions ============
+
+    function _buildDomainSeparator(
+        uint256 _chainId
+    ) internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("LI.FI LayerSwap Facet")),
+                    keccak256(bytes("1")),
+                    _chainId,
+                    address(layerSwapFacet)
+                )
+            );
+    }
+
+    function _createLayerSwapPayload(
+        ILiFi.BridgeData memory _bridgeData,
+        bytes32 _requestId,
+        address _depositoryReceiver,
+        address _refundRecipient,
+        bytes32 _nonEVMReceiver,
+        uint256 _deadline
+    ) internal pure returns (LayerSwapPayload memory) {
+        return
+            LayerSwapPayload({
+                transactionId: _bridgeData.transactionId,
+                minAmount: _bridgeData.minAmount,
+                receiver: _bridgeData.receiver,
+                requestId: _requestId,
+                depositoryReceiver: _depositoryReceiver,
+                refundRecipient: _refundRecipient,
+                nonEVMReceiver: _nonEVMReceiver,
+                destinationChainId: _bridgeData.destinationChainId,
+                sendingAssetId: _bridgeData.sendingAssetId,
+                deadline: _deadline
+            });
+    }
+
+    function _buildStructHash(
+        LayerSwapPayload memory _payload
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    LAYERSWAP_PAYLOAD_TYPEHASH,
+                    _payload.transactionId,
+                    _payload.minAmount,
+                    _payload.receiver,
+                    _payload.requestId,
+                    _payload.depositoryReceiver,
+                    _payload.refundRecipient,
+                    _payload.nonEVMReceiver,
+                    _payload.destinationChainId,
+                    _payload.sendingAssetId,
+                    _payload.deadline
+                )
+            );
+    }
+
+    function _buildDigest(
+        bytes32 _domainSeparator,
+        bytes32 _structHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked("\x19\x01", _domainSeparator, _structHash)
+            );
+    }
+
+    function _signDigest(
+        uint256 _privateKey,
+        bytes32 _digest
+    ) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, _digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _generateValidLayerSwapData(
+        bytes32 _requestId,
+        address _depositoryReceiver,
+        bytes32 _nonEVMReceiver,
+        ILiFi.BridgeData memory _currentBridgeData,
+        uint256 _chainId
+    ) internal view returns (LayerSwapFacet.LayerSwapData memory) {
+        uint256 deadline = block.timestamp + 0.1 hours;
+
+        LayerSwapPayload memory payload = _createLayerSwapPayload(
+            _currentBridgeData,
+            _requestId,
+            _depositoryReceiver,
+            USER_REFUND,
+            _nonEVMReceiver,
+            deadline
+        );
+
+        bytes32 domainSeparator = _buildDomainSeparator(_chainId);
+        bytes32 structHash = _buildStructHash(payload);
+        bytes32 digest = _buildDigest(domainSeparator, structHash);
+        bytes memory signature = _signDigest(backendSignerPrivateKey, digest);
+
+        return
+            LayerSwapFacet.LayerSwapData({
+                requestId: _requestId,
+                depositoryReceiver: _depositoryReceiver,
+                refundRecipient: USER_REFUND,
+                nonEVMReceiver: _nonEVMReceiver,
+                signature: signature,
+                deadline: deadline
+            });
+    }
+}
