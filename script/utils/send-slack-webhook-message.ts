@@ -56,7 +56,11 @@ async function main(): Promise<void> {
   }
 
   try {
-    await new SlackNotifier(webhookUrl).sendNotificationWithRetry({ text })
+    await new SlackNotifier(webhookUrl).sendNotificationWithRetry(
+      { text },
+      3,
+      true
+    )
     consola.success(`posted message to #${channel}`)
   } catch (err) {
     consola.error('Slack post failed:', err)
