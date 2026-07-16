@@ -37,17 +37,25 @@ Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generat
 
 #### Bridge-specific recipient (`BRIDGE_EXTRA_RECEIVERS`)
 
-For most bridges the on-chain recipient is `_bridgeData.receiver`, so the standard `Recipient` field is the whole story. A few bridges credit funds on the destination chain to a **bridge-specific** field instead, and `_bridgeData.receiver` is then a sentinel or an intermediary contract:
-
-- **AcrossV4** — `_startBridge` passes `_acrossData.receiverAddress` as the Across SpokePool `recipient` in every branch (see [`src/Facets/AcrossFacetV4.sol`](../src/Facets/AcrossFacetV4.sol)). `_bridgeData.receiver` only equals it for EVM transfers **without** a destination call (enforced on-chain). For non-EVM transfers it is the `NON_EVM_ADDRESS` sentinel; for destination calls it is our Receiver contract. A signer who only saw `_bridgeData.receiver` would not, in those two cases, see where the bridge actually sends the funds.
-
-For those bridges the generator appends an extra always-visible field (`Across Recipient` for AcrossV4) sourced from the bridge-specific struct field:
+For most bridges the on-chain recipient is `_bridgeData.receiver`, so the standard `Recipient` field is the whole story. A number of bridges credit funds on the destination chain to a **bridge-specific** struct field instead, and `_bridgeData.receiver` is then a sentinel (`NON_EVM_ADDRESS`) or an intermediary contract. For those, the generator appends an extra **always-visible** field sourced from the bridge-specific field, e.g. for AcrossV4:
 
 ```json
 { "path": "_acrossData.receiverAddress", "label": "Across Recipient", "format": "raw", "visible": "always" }
 ```
 
-The field is `bytes32` (it may hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is no `bytes32`→EVM-address formatter — so the honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the dominant EVM / no-destination-call path it resolves to a trusted name/ENS, and the raw field carries the ground truth for the rest. Only the `AcrossV4` identity is mapped, never the `AcrossV4Swap` opaque / EIP-712-gated variant (its `_acrossV4SwapFacetData` has no `receiverAddress`; its receiver is not on-chain-verifiable by design). The mapping is strict-by-default: if the referenced struct component is renamed or retyped, the generator fails and blocks CI rather than emit a dead display path. Mayan and LayerSwap carry the same `bytes32 nonEVMReceiver` pattern and are candidates for the same treatment in a follow-up.
+The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is no `bytes32`→EVM-address formatter — so the honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the dominant EVM path it resolves to a trusted name/ENS, and the raw field carries the ground truth for the rest. The mapping is **strict-by-default**: if a referenced struct component is renamed or retyped, the generator fails and blocks CI rather than emit a dead display path.
+
+Two shapes, keyed by `bridgeFacetName()`:
+
+- **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrow`(+`V2`), `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
+- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
+
+> **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
+
+Deliberately **excluded** (no clean static fix — tracked as follow-up):
+
+- **Opaque / EIP-712-gated flows** — `AcrossV4Swap`, `Garden`, `ThorSwap`, `Symbiosis`, `RelayDepository`: the receiver lives in opaque calldata or an off-chain order and is not on-chain-verifiable by design.
+- **`Squid`** — the recipient is route-type-dependent (`_squidData.destinationAddress` for `BridgeCall`/`CallBridgeCall`, `_bridgeData.receiver` for `CallBridge`), so no single field is always correct; needs its own design.
 
 ### Swap-and-bridge: `swapAndStartBridgeTokensVia<Bridge>`
 

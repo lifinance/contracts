@@ -297,29 +297,40 @@ function bridgeFacetName(fnName: string): string {
 // ---------- bridge-specific "true recipient" fields ----------
 //
 // For most bridges the on-chain recipient is `_bridgeData.receiver`, so
-// RECEIVER_FIELD is the whole story. A few bridges credit funds on the
-// destination chain to a *bridge-specific* field instead, and
-// `_bridgeData.receiver` is then either a sentinel or an intermediary contract:
+// RECEIVER_FIELD is the whole story. A number of bridges instead credit funds on
+// the destination chain to a *bridge-specific* struct field, and
+// `_bridgeData.receiver` is then a sentinel or an intermediary contract. We
+// surface that field as an extra always-visible entry so the clear-signing text
+// reflects where the bridge actually sends the funds.
 //
-//   AcrossV4 — `_startBridge` passes `_acrossData.receiverAddress` as the Across
-//   SpokePool `recipient` in every branch (see src/Facets/AcrossFacetV4.sol).
-//   `_bridgeData.receiver` only equals it for EVM transfers *without* a
-//   destination call (enforced on-chain). For non-EVM transfers it is the
-//   NON_EVM_ADDRESS sentinel; for destination calls it is our Receiver contract.
-//   In those two cases a signer who only saw `_bridgeData.receiver` would not see
-//   where the bridge actually sends the funds.
+// The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a
+// Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is
+// no bytes32→EVM-address formatter — so the honest rendering is `raw` (hex).
+// `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the
+// dominant EVM path it resolves to a trusted name/ENS, and the raw field carries
+// the ground truth for the rest.
 //
-// We surface that field as an extra always-visible entry. It is `bytes32` (it may
-// hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName`
-// only accepts `address` — there is no bytes32→EVM-address formatter — so the
-// honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on
-// `_bridgeData.receiver`: for the dominant EVM / no-destination-call path it
-// resolves to a trusted name/ENS, and the raw field carries the ground truth for
-// the rest.
+// Two shapes (both handled identically here; the difference is only in what the
+// field holds on an EVM transfer):
 //
-// Keyed by bridge identity from bridgeFacetName() — "AcrossV4" only, never the
-// "AcrossV4Swap" opaque / EIP-712-gated variant (its `_acrossV4SwapFacetData` has
-// no receiverAddress; its receiver is not on-chain-verifiable by design).
+//   TYPE-A — the field is the on-chain recipient in *every* branch, so it is
+//   always populated. AcrossV4/DeBridgeDln can even differ from
+//   `_bridgeData.receiver` on EVM (destination call → our Receiver contract;
+//   DeBridgeDln never cross-checks), so the field adds signal on EVM too. Glacis/
+//   AllBridge/LiFiIntentEscrow/GasZip enforce equality on plain EVM transfers, so
+//   there the field just re-shows the recipient and carries the real value on
+//   non-EVM.
+//
+//   TYPE-B — a `nonEVMReceiver`-style field that is only set on non-EVM transfers
+//   and is `0x0` on EVM (where `_bridgeData.receiver` is the faithful recipient).
+//   Labelled "Non-EVM Recipient" so the `0x0` on an EVM transfer reads as "N/A".
+//
+// Keyed by bridge identity from bridgeFacetName(). Deliberately excluded:
+//   - AcrossV4Swap / other opaque, EIP-712-gated flows — the receiver lives in
+//     opaque calldata and is not on-chain-verifiable by design.
+//   - Squid — the recipient is route-type-dependent (destinationAddress for some
+//     routes, _bridgeData.receiver for others); no single field is always right.
+// (See docs/ClearSigningProposal.md for the full audit + follow-up scope.)
 interface IExtraReceiver {
   paramName: string
   component: string
@@ -328,11 +339,87 @@ interface IExtraReceiver {
 }
 
 const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
+  // TYPE-A: field is the bridge's on-chain recipient in every branch.
   AcrossV4: {
     paramName: '_acrossData',
     component: 'receiverAddress',
     typePrefix: 'bytes32',
     label: 'Across Recipient',
+  },
+  DeBridgeDln: {
+    paramName: '_deBridgeData',
+    component: 'receiver',
+    typePrefix: 'bytes',
+    label: 'DeBridge Recipient',
+  },
+  Glacis: {
+    paramName: '_glacisData',
+    component: 'receiverAddress',
+    typePrefix: 'bytes32',
+    label: 'Glacis Recipient',
+  },
+  AllBridge: {
+    paramName: '_allBridgeData',
+    component: 'recipient',
+    typePrefix: 'bytes32',
+    label: 'AllBridge Recipient',
+  },
+  LiFiIntentEscrow: {
+    paramName: '_lifiIntentData',
+    component: 'recipient',
+    typePrefix: 'bytes32',
+    label: 'Intent Recipient',
+  },
+  LiFiIntentEscrowV2: {
+    paramName: '_lifiIntentData',
+    component: 'recipient',
+    typePrefix: 'bytes32',
+    label: 'Intent Recipient',
+  },
+  GasZip: {
+    // NOTE: this bytes32 is RIGHT-padded (bytes32(bytes20(addr))), unlike the
+    // left-padded convention elsewhere; `raw` shows the address in the high bytes.
+    paramName: '_gasZipData',
+    component: 'receiverAddress',
+    typePrefix: 'bytes32',
+    label: 'GasZip Recipient',
+  },
+  // TYPE-B: nonEVMReceiver-style field, only set on non-EVM transfers (0x0 on EVM).
+  Mayan: {
+    paramName: '_mayanData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
+  LayerSwap: {
+    paramName: '_layerSwapData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
+  Chainflip: {
+    paramName: '_chainflipData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes',
+    label: 'Non-EVM Recipient',
+  },
+  Eco: {
+    paramName: '_ecoData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes',
+    label: 'Non-EVM Recipient',
+  },
+  NEARIntents: {
+    paramName: '_nearData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
+  PolymerCCTP: {
+    paramName: '_polymerData',
+    component: 'nonEVMReceiver',
+    typePrefix: 'bytes32',
+    label: 'Non-EVM Recipient',
   },
 }
 
