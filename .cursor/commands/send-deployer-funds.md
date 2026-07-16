@@ -1,1 +1,0 @@
-../../.agents/commands/send-deployer-funds.md

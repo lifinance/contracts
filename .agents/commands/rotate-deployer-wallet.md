@@ -73,6 +73,8 @@ Sweep native gas from the old deployer to the new one across all active EVM chai
 
 > Leave enough in the OLD deployer to sign the Safe/timelock txs it still needs to send in Phase 2 if any are broadcast by the old key — `sweep-wallet-funds`'s balance preview (read-only; the mover script has no dry-run flag) lets you judge this per network before committing.
 
+> **HyperEVM big blocks (manual, per-address).** The new deployer cannot broadcast contract deploys on `hyperevm` until big blocks are enabled for it — an L1 setting that does **not** carry over on rotation (register the address as a HyperCore Core user, then toggle big blocks ON). Follow the runbook: `docs/HyperEVMBigBlocks.md`.
+
 ### Phase 2 — Swap the Safe owner + move CANCELLER_ROLE (`multisig-rollout`)
 
 The governed changes — replace `safeOwners[0]` (old → new) on every production Safe and move the Timelock `CANCELLER_ROLE` (old removed, new granted) — run as timelock-wrapped Safe proposals via the production rollout skill:

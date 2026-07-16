@@ -11,12 +11,32 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig, InvalidReceiver, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging USDC through Polymer CCTP
-/// @custom:version 2.1.0
+/// @dev HyperCore deposits (BridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) burn USDC
+///      toward the HyperEVM CCTP domain with hook data that Circle's CctpForwarder on HyperEVM
+///      uses to deposit into HyperCore. For these flows the facet mints to the pinned forwarder
+///      (mintRecipient == destinationCaller == HYPERCORE_CCTP_FORWARDER) and validates that the
+///      receiver encoded in hookData[32:52] equals BridgeData.receiver, so emitted events always
+///      carry the real end user. Hooks toward any other destination are rejected. Rotating the
+///      forwarder requires a facet upgrade.
+/// @dev Stellar deposits (BridgeData.destinationChainId == LIFI_CHAIN_ID_STELLAR) are non-EVM:
+///      BridgeData.receiver is the NON_EVM_ADDRESS sentinel and the real recipient travels as a
+///      Stellar strkey inside hookData, because a Stellar account can never be a CCTP mintRecipient
+///      directly (see STELLAR_CCTP_FORWARDER). USDC is minted to the pinned Stellar forwarder,
+///      which forwards it to that strkey.
+/// @dev SECURITY — UNVALIDATED RECEIVER (Stellar): unlike the HyperCore corridor, the Stellar
+///      strkey is not a 20-byte EVM address, so the facet CANNOT verify it on-chain against
+///      BridgeData.receiver, and it is NOT cross-checked against the nonEVMReceiver emitted in
+///      BridgeToNonEVMChainBytes32. The facet only enforces hookData's internal length consistency
+///      (see _startBridge). The strkey that actually receives the funds and the nonEVMReceiver used
+///      for off-chain tracking can therefore diverge. Correct routing relies entirely on trusted
+///      (LI.FI API) calldata generation — integrators MUST treat the Stellar receiver as NOT
+///      enforced on-chain.
+/// @custom:version 3.0.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -26,6 +46,27 @@ contract PolymerCCTPFacet is
 {
     /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
     bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
+
+    /// @notice Circle's CctpForwarder on HyperEVM (0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757),
+    ///         pre-encoded as the bytes32 mintRecipient/destinationCaller. HyperCore hook flows
+    ///         mint to this contract, which alone may execute the message and deposits the USDC
+    ///         into HyperCore for the receiver encoded in the hook data (see _startBridge).
+    ///         https://developers.circle.com/cctp/references/hypercore-contract-addresses
+    bytes32 internal constant HYPERCORE_CCTP_FORWARDER =
+        bytes32(uint256(uint160(0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757)));
+
+    /// @notice Circle's CctpForwarder on Stellar mainnet
+    ///         (CBZL2IH7F6BIDAA3WBNXYKIXSATJGMSW7K5P5MJ6STX5RXN47TZJDF5T), pre-encoded as the
+    ///         bytes32 mintRecipient/destinationCaller (the forwarder's raw 32-byte contract id).
+    ///         A Stellar account can never be a CCTP mintRecipient directly: CCTP stores only the
+    ///         raw 32 bytes without the strkey type prefix, so the protocol assumes the recipient
+    ///         is a contract and USDC minted to a bare account is unrecoverable. All Stellar
+    ///         deposits therefore mint to this forwarder, which alone may execute the message and
+    ///         forwards the USDC to the strkey recipient carried in the hook data (see _startBridge).
+    ///         Rotating the forwarder requires a facet upgrade.
+    ///         https://developers.circle.com/cctp/references/stellar-contracts
+    bytes32 internal constant STELLAR_CCTP_FORWARDER =
+        0x72bd20ff2f8281801bb05b7c29179026933256fabafeb13e94efd8ddbcfcf291;
 
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.polymercctp");
@@ -49,6 +90,15 @@ contract PolymerCCTPFacet is
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
         uint32 minFinalityThreshold;
+        // Recipient of swap leftovers and excess native on the swap entrypoint. msg.sender
+        // may be a relayer or the Permit2Proxy, so refunds must route to an explicit address
+        // rather than the caller. Only consumed by swapAndStartBridgeTokensViaPolymerCCTP.
+        address refundRecipient;
+        // CctpForwarder hook data. For HyperCore it must encode bridgeData.receiver at bytes
+        // [32:52]. For Stellar it carries the forwardRecipient strkey: magic (24) + version (4) +
+        // length L (4) + strkey (L). Required if destinationChainId is LIFI_CHAIN_ID_HYPERCORE
+        // or LIFI_CHAIN_ID_STELLAR; must be empty otherwise.
+        bytes hookData;
     }
 
     struct ChainIdConfig {
@@ -238,17 +288,35 @@ contract PolymerCCTPFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_polymerData.refundRecipient))
         validatePolymerData(_bridgeData, _polymerData)
         onlyAllowSourceToken(_bridgeData, USDC)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        // msg.sender may be a relayer or the Permit2Proxy, so refunds must go to an explicit
+        // recipient. Check up front for a deterministic revert instead of a late failure in
+        // refundExcessNative that only surfaces when fee drift leaves an excess.
+        if (_polymerData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
+        // onlyAllowSourceToken pins sendingAssetId to USDC, but the final swap output is
+        // otherwise unconstrained. Without this the bridge amount would be measured in the
+        // last swap's receivingAssetId while USDC is what actually gets burned, letting a
+        // swap that outputs a different token bridge any USDC the diamond already holds.
+        if (
+            _swapData.length > 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId != USDC
+        ) {
+            revert InvalidSendingToken();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_polymerData.refundRecipient)
         );
 
         _startBridge(_bridgeData, _polymerData);
@@ -261,6 +329,82 @@ contract PolymerCCTPFacet is
         ILiFi.BridgeData memory _bridgeData,
         PolymerCCTPData calldata _polymerData
     ) internal {
+        // Corridor dispatch: HyperCore and Stellar require a forwarder hook; hooks
+        // toward any other destination are unsupported. Add new corridors as
+        // additional arms.
+        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
+            // Without a valid hook the USDC would mint on HyperEVM and never
+            // reach HyperCore
+            if (
+                _bridgeData.receiver == NON_EVM_ADDRESS ||
+                _polymerData.hookData.length < 52
+            ) {
+                revert InvalidCallData();
+            }
+
+            // CctpForwarder hook layout: magic (24 bytes) + version (4) +
+            // payload length (4), then the recipient address at [32:52].
+            // The forwarder credits the account encoded there, so it must
+            // equal the declared receiver or events would misreport the
+            // beneficiary and calldata could redirect funds unnoticed.
+            if (
+                address(bytes20(_polymerData.hookData[32:52])) !=
+                _bridgeData.receiver
+            ) {
+                revert InvalidReceiver();
+            }
+        } else if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_STELLAR) {
+            // Stellar is non-EVM: the receiver is the NON_EVM_ADDRESS sentinel and the real
+            // recipient travels as a strkey in the hook data (a Stellar account can never be a
+            // CCTP mintRecipient; see STELLAR_CCTP_FORWARDER). The raw account is carried in
+            // nonEVMReceiver for off-chain relayer tracking. The strkey is not a 20-byte EVM
+            // address, so it cannot be validated against _bridgeData.receiver.
+            // Hook layout: magic (24) + version (4) + strkey length L (4) + strkey (L).
+            // hookData.length must exceed the 32-byte header: length == 32 encodes a
+            // zero-length strkey the forwarder cannot credit, which would leave the USDC
+            // burned but stuck. The version bytes [24:28] are intentionally NOT validated
+            // on-chain — as with the HyperCore corridor the facet trusts LI.FI calldata
+            // generation and relies on Circle's Stellar forwarder to reject a wrong-version
+            // hook (see docs/PolymerCCTPFacet.md).
+            if (
+                _bridgeData.receiver != NON_EVM_ADDRESS ||
+                _polymerData.nonEVMReceiver == bytes32(0) ||
+                _polymerData.hookData.length <= 32
+            ) {
+                revert InvalidCallData();
+            }
+
+            // Reject a hook whose declared payload length disagrees with its actual size,
+            // so a truncated or padded hook cannot reach the forwarder.
+            if (
+                uint32(bytes4(_polymerData.hookData[28:32])) !=
+                _polymerData.hookData.length - 32
+            ) {
+                revert InvalidCallData();
+            }
+        } else {
+            // Non-corridor destinations carry no forwarder hook, and the receiver kind
+            // must match the destination kind: the NON_EVM_ADDRESS sentinel is only valid
+            // for whitelisted non-EVM destinations (Solana here; Stellar and HyperCore are
+            // handled by the arms above), and a real EVM address must never target a
+            // non-EVM destination. Without these guards CCTP would either mint to the low
+            // 20 bytes of nonEVMReceiver on an EVM chain while events show the sentinel, or
+            // burn a zero-padded EVM address to a non-EVM domain where it is unclaimable.
+            if (_polymerData.hookData.length > 0) {
+                revert InvalidCallData();
+            }
+
+            bool isSolanaDestination = _bridgeData.destinationChainId ==
+                LIFI_CHAIN_ID_SOLANA;
+            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+                if (!isSolanaDestination) {
+                    revert InvalidReceiver();
+                }
+            } else if (isSolanaDestination) {
+                revert InvalidReceiver();
+            }
+        }
+
         LibAsset.transferERC20(
             USDC,
             POLYMER_FEE_RECEIVER,
@@ -276,6 +420,8 @@ contract PolymerCCTPFacet is
 
         uint256 destinationChainId = _bridgeData.destinationChainId;
 
+        uint32 domainId = _chainIdToDomainId(destinationChainId);
+
         // This case first for gas ops since it will likely be triggered more often
         if (_bridgeData.receiver != NON_EVM_ADDRESS) {
             // _bridgeData.receiver != NON_EVM_ADDRESS -> mint to _bridgeData.receiver
@@ -283,43 +429,74 @@ contract PolymerCCTPFacet is
                 revert InvalidReceiver();
             }
 
-            TOKEN_MESSENGER.depositForBurn(
-                bridgeAmount,
-                _chainIdToDomainId(destinationChainId),
-                bytes32(uint256(uint160(_bridgeData.receiver))),
-                USDC,
-                UNRESTRICTED_DESTINATION_CALLER,
-                _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
-                _polymerData.minFinalityThreshold // minFinalityThreshold - use default
-            );
-        } else {
-            // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
-            bool isSolanaDestination = destinationChainId ==
-                LIFI_CHAIN_ID_SOLANA;
-
-            bytes32 mintRecipient = isSolanaDestination
-                ? _polymerData.solanaReceiverATA
-                : _polymerData.nonEVMReceiver;
-
-            if (mintRecipient == bytes32(0)) {
-                if (isSolanaDestination) revert InvalidConfig();
-                revert InvalidReceiver();
+            if (destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
+                // Mint to the pinned forwarder (never to the receiver directly) and
+                // restrict execution to it; the forwarder then deposits into
+                // HyperCore for the receiver validated above
+                TOKEN_MESSENGER.depositForBurnWithHook(
+                    bridgeAmount,
+                    domainId,
+                    HYPERCORE_CCTP_FORWARDER,
+                    USDC,
+                    HYPERCORE_CCTP_FORWARDER,
+                    _polymerData.maxCCTPFee,
+                    _polymerData.minFinalityThreshold,
+                    _polymerData.hookData
+                );
+            } else {
+                TOKEN_MESSENGER.depositForBurn(
+                    bridgeAmount,
+                    domainId,
+                    bytes32(uint256(uint160(_bridgeData.receiver))),
+                    USDC,
+                    UNRESTRICTED_DESTINATION_CALLER,
+                    _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
+                    _polymerData.minFinalityThreshold
+                );
             }
-
-            TOKEN_MESSENGER.depositForBurn(
+        } else if (destinationChainId == LIFI_CHAIN_ID_STELLAR) {
+            // Mint to the pinned Stellar forwarder (never a Stellar account directly) and
+            // restrict execution to it; the forwarder credits the strkey recipient carried in
+            // the hook data validated above.
+            TOKEN_MESSENGER.depositForBurnWithHook(
                 bridgeAmount,
-                _chainIdToDomainId(destinationChainId),
-                mintRecipient,
+                domainId,
+                STELLAR_CCTP_FORWARDER,
                 USDC,
-                UNRESTRICTED_DESTINATION_CALLER,
+                STELLAR_CCTP_FORWARDER,
                 _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
-                _polymerData.minFinalityThreshold // minFinalityThreshold - use default
+                _polymerData.minFinalityThreshold,
+                _polymerData.hookData
             );
 
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 destinationChainId,
                 _polymerData.nonEVMReceiver
+            );
+        } else {
+            // Only Solana reaches this branch: Stellar and HyperCore are handled above, and
+            // the dispatch guard rejects the sentinel for any other destination. CCTP expects
+            // the receiver's USDC ATA as mintRecipient, and that same ATA is emitted so the
+            // event can never diverge from the actual mint target.
+            if (_polymerData.solanaReceiverATA == bytes32(0)) {
+                revert InvalidConfig();
+            }
+
+            TOKEN_MESSENGER.depositForBurn(
+                bridgeAmount,
+                domainId,
+                _polymerData.solanaReceiverATA,
+                USDC,
+                UNRESTRICTED_DESTINATION_CALLER,
+                _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
+                _polymerData.minFinalityThreshold
+            );
+
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                destinationChainId,
+                _polymerData.solanaReceiverATA
             );
         }
 
