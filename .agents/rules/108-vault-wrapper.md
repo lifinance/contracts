@@ -19,15 +19,31 @@ and counter-intuitive against the repo's Diamond-era conventions.
 
 - Vault-wrapper Foundry deploy scripts live in their own `script/deploy/vaultWrapper/`,
   NOT in `script/deploy/facets/`. They are standalone `forge-std/Script`s — they do
-  not extend `DeployScriptBase` or read the Diamond config files
-  (`networks.json`/`global.json`/`deployRequirements.json`); plain env vars only.
+  not extend `DeployScriptBase` and do not read the Diamond config files
+  (`networks.json`/`global.json`/`deployRequirements.json`).
+- Per-network parameters come from the subsystem's own scoped config file,
+  `config/vaultWrapper.json` (network-first per `[CONV:CONFIG-STRUCTURE]`), read by
+  `NETWORK` key; the only env vars are `PRIVATE_KEY`, `NETWORK`, and `DEPLOYSALT`
+  (plus optional per-script inputs like `FACTORY`/`TIMELOCK`/`ADAPTER`). Duplicating
+  the CREATE3 factory address into `vaultWrapper.json` (rather than reading
+  `networks.json`) is the intended cost of keeping the subsystem self-contained.
+- Deploy deterministically through the shared CREATE3 factory so mainnets sharing a
+  factory get matching system addresses (aligns with the namespace/address-parity
+  identity design). Deploying via the CREATE3 proxy is safe only because every
+  ownership/role is set from a constructor argument, never `msg.sender`.
+- Factory config is timelock-owned: the seeding/reconcile script does not broadcast;
+  it emits `scheduleBatch`/`executeBatch` calldata for the multisig, and is
+  idempotent (diffs desired config against live state). No wrapper can deploy until
+  the first batch (adapter approval + one allowed underlying) is executed after 48h.
 - They are run by explicit path (`forge script script/deploy/vaultWrapper/<Name>.s.sol`),
   and the contract is named after the file so it resolves without a `:Contract` suffix.
 - Consequence (intended): the Diamond's interactive deploy tooling
   (`deploySingleContract.sh`, `scriptMaster.sh`) only `ls`-es `script/deploy/facets/`,
   so it will not list these — deploy the subsystem by explicit path. Do not move
   these scripts into `facets/` to gain that auto-discovery; the subsystem's deploy
-  flow is deliberately separate (full integration tracked in S14).
+  flow is deliberately separate. MongoDB deployment-log sync
+  (`update-deployment-logs.ts`) stays part of an actual production rollout, not these
+  scripts.
 
 ## Beacon and clones ([CONV:VW-BEACON])
 
