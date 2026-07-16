@@ -11,7 +11,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
@@ -299,6 +299,17 @@ contract PolymerCCTPFacet is
         // refundExcessNative that only surfaces when fee drift leaves an excess.
         if (_polymerData.refundRecipient == address(0)) {
             revert InvalidCallData();
+        }
+
+        // onlyAllowSourceToken pins sendingAssetId to USDC, but the final swap output is
+        // otherwise unconstrained. Without this the bridge amount would be measured in the
+        // last swap's receivingAssetId while USDC is what actually gets burned, letting a
+        // swap that outputs a different token bridge any USDC the diamond already holds.
+        if (
+            _swapData.length > 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId != USDC
+        ) {
+            revert InvalidSendingToken();
         }
 
         _bridgeData.minAmount = _depositAndSwap(

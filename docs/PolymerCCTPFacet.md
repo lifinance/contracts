@@ -49,7 +49,7 @@ Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM: `BridgeData.rece
 - `function startBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, PolymerCCTPData calldata _polymerData)`
   - Simply bridges USDC using Polymer CCTP
 - `function swapAndStartBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, SwapData[] calldata _swapData, PolymerCCTPData calldata _polymerData)`
-  - Performs swap(s) before bridging USDC using Polymer CCTP
+  - Performs swap(s) before bridging USDC using Polymer CCTP. Both the source token (`sendingAssetId`) and the final swap output (`receivingAssetId`) must be USDC — the facet only ever bridges USDC, so a swap ending in any other token reverts with `InvalidSendingToken`.
 - `function getChainIdToDomainId(uint256 _chainId)`
   - Returns the configured CCTP domain ID for a LI.FI chain ID
 

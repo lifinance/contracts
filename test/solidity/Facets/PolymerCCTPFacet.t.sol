@@ -1392,4 +1392,28 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         vm.stopPrank();
     }
+
+    function testRevert_SwapOutputNotUSDC() public {
+        // Finding #5: the swap entrypoint pins sendingAssetId to USDC but not the final swap
+        // output. A swap ending in a non-USDC token would let the diamond's pre-existing USDC
+        // be bridged while the swap output stays behind, so it is rejected up front.
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultUSDCAmount;
+
+        setDefaultSwapDataSingleDAItoUSDC();
+        swapData[swapData.length - 1].receivingAssetId = ADDRESS_DAI;
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidSendingToken.selector);
+
+        polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            swapData,
+            _polymerDataWithHook("")
+        );
+
+        vm.stopPrank();
+    }
 }
