@@ -263,8 +263,23 @@ deploySingleContract() {
   # execute script
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
+  # Reset before the loop so a value leaked from a previous contract can never wrongly trigger the
+  # short-circuit below (deploySingleContract is called in a loop by deployFacetAndAddToDiamond).
+  ADDRESS=""
 
-  while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
+  # Short-circuit already-deployed contracts (opt out with SKIP_IF_ALREADY_DEPLOYED=false).
+  # DEPLOYSALT includes the compiled bytecode, so the predicted CREATE3 address is version-specific:
+  # if it already has code (NEW_DEPLOYMENT=="true"), this exact contract+version is already deployed
+  # and running the forge script would only fork the RPC (~dozens of calls) to no-op. Reuse the
+  # deployed address and skip the loop; the log-matching further below supplies the constructor args.
+  # A version bump changes the bytecode -> a different salt/address with no code -> deploys normally.
+  # (Only the non-zkEVM CREATE3 path sets NEW_DEPLOYMENT, so this naturally never fires on zkEVM.)
+  if [[ "${SKIP_IF_ALREADY_DEPLOYED:-true}" == "true" && "$NEW_DEPLOYMENT" == "true" ]]; then
+    echo "[info] $CONTRACT already deployed at $CONTRACT_ADDRESS (version-specific CREATE3 salt) - skipping forge deployment"
+    ADDRESS="$CONTRACT_ADDRESS"
+  fi
+
+  while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ] && [[ -z "$ADDRESS" ]]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
 
     # ensure that gas price is below maximum threshold (for mainnet only)
