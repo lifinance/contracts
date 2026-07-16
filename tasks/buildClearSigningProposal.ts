@@ -334,7 +334,7 @@ function bridgeFacetName(fnName: string): string {
 interface IExtraReceiver {
   paramName: string
   component: string
-  typePrefix: string
+  type: string
   label: string
 }
 
@@ -343,37 +343,37 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
   AcrossV4: {
     paramName: '_acrossData',
     component: 'receiverAddress',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Across Recipient',
   },
   DeBridgeDln: {
     paramName: '_deBridgeData',
     component: 'receiver',
-    typePrefix: 'bytes',
+    type: 'bytes',
     label: 'DeBridge Recipient',
   },
   Glacis: {
     paramName: '_glacisData',
     component: 'receiverAddress',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Glacis Recipient',
   },
   AllBridge: {
     paramName: '_allBridgeData',
     component: 'recipient',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'AllBridge Recipient',
   },
   LiFiIntentEscrow: {
     paramName: '_lifiIntentData',
     component: 'recipient',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Intent Recipient',
   },
   LiFiIntentEscrowV2: {
     paramName: '_lifiIntentData',
     component: 'recipient',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Intent Recipient',
   },
   GasZip: {
@@ -381,44 +381,44 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     // left-padded convention elsewhere; `raw` shows the address in the high bytes.
     paramName: '_gasZipData',
     component: 'receiverAddress',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'GasZip Recipient',
   },
   // TYPE-B: nonEVMReceiver-style field, only set on non-EVM transfers (0x0 on EVM).
   Mayan: {
     paramName: '_mayanData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
   LayerSwap: {
     paramName: '_layerSwapData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
   Chainflip: {
     paramName: '_chainflipData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes',
+    type: 'bytes',
     label: 'Non-EVM Recipient',
   },
   Eco: {
     paramName: '_ecoData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes',
+    type: 'bytes',
     label: 'Non-EVM Recipient',
   },
   NEARIntents: {
     paramName: '_nearData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
   PolymerCCTP: {
     paramName: '_polymerData',
     component: 'nonEVMReceiver',
-    typePrefix: 'bytes32',
+    type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
 }
@@ -435,15 +435,20 @@ function validateExtraReceiver(fn: IAbiFn): string | null {
   const spec = extraReceiverSpec(fn)
   if (!spec) return null
   const param = fn.inputs.find((p) => p.name === spec.paramName)
-  if (!param || !param.type.startsWith('tuple'))
+  // Exact `tuple`, not `startsWith('tuple')`: a `tuple[]` param would need an
+  // index in the path and must not silently satisfy a single-struct lookup.
+  if (!param || param.type !== 'tuple')
     return `expected param "${spec.paramName}" of tuple type for bridge-specific recipient; got name="${param?.name}" type="${param?.type}"`
   const comp = (
     param.components as { name: string; type: string }[] | undefined
   )?.find((c) => c.name === spec.component)
   if (!comp)
     return `${spec.paramName}: missing component "${spec.component}" (bridge-specific recipient)`
-  if (!comp.type.startsWith(spec.typePrefix))
-    return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected prefix "${spec.typePrefix}"`
+  // Exact type match, not a prefix: `startsWith('bytes')` would wrongly accept
+  // `bytes32[]`/`bytes16`, and `startsWith('bytes32')` would accept `bytes32[]`
+  // — incompatible shapes that would pass CI but render the wrong value.
+  if (comp.type !== spec.type)
+    return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected exactly "${spec.type}"`
   return null
 }
 
