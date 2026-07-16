@@ -50,9 +50,11 @@ import {
 } from '../utils/viemScriptHelpers'
 import {
   accountFromPrivateKey,
+  assertKeyMatchesRole,
   assertSameWallet,
   assertSlippage,
   assertWithinSlippage,
+  chainUsesErc20Gas,
   fetchLifiChains,
   fetchLifiQuote,
   fetchLifiStatus,
@@ -108,7 +110,11 @@ function resolveWallet(walletArg: string): IResolvedWallet {
         `Role "${walletArg}" maps to ${envVar}, which is not set in .env.`
       )
     const address = accountFromPrivateKey(key).address
-    assertKeyMatchesRole(walletArg, address)
+    assertKeyMatchesRole(
+      walletArg,
+      address,
+      globalConfig as Record<string, unknown>
+    )
     return { address, privateKey: key, label: walletArg, envVar }
   }
 
@@ -131,50 +137,7 @@ function resolveWallet(walletArg: string): IResolvedWallet {
   )
 }
 
-const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
-
-/**
- * Resolve the address `global.json` records for a (possibly nested) role, so a role
- * like `backendSignerProduction` maps to `backendSigner.production`. Returns undefined
- * for roles with no recorded address (scratch keys), which simply can't be checked.
- */
-function recordedAddressForRole(role: string): Address | undefined {
-  const cfg = globalConfig as Record<string, unknown>
-  const direct = cfg[role]
-  if (typeof direct === 'string' && ADDRESS_RE.test(direct))
-    return getAddress(direct)
-  for (const [key, value] of Object.entries(cfg)) {
-    if (
-      value &&
-      typeof value === 'object' &&
-      role.startsWith(key) &&
-      role.length > key.length
-    ) {
-      const sub = role.slice(key.length)
-      const subKey = sub.charAt(0).toLowerCase() + sub.slice(1)
-      const nested = (value as Record<string, unknown>)[subKey]
-      if (typeof nested === 'string' && ADDRESS_RE.test(nested))
-        return getAddress(nested)
-    }
-  }
-  return undefined
-}
-
-/**
- * Refuse to operate a role whose `.env` key derives to a different address than
- * `global.json` records. A mistyped or stale key would otherwise let an autonomous
- * bridge/swap move a wallet the operator never intended; blocking is the safe default.
- * If a rotation is legitimate, `global.json` must be updated first.
- */
-function assertKeyMatchesRole(role: string, derived: Address): void {
-  const recorded = recordedAddressForRole(role)
-  if (recorded && recorded !== getAddress(derived))
-    throw new Error(
-      `Refusing to proceed: the .env key for "${role}" derives to ${derived}, but global.json ` +
-        `records ${recorded}. If the wallet was rotated, update config/global.json first.`
-    )
-}
-
+/** Look up a network by name, failing clearly if it is not in `config/networks.json`. */
 function requireNetwork(name: string) {
   const net = networks[name]
   if (!net)
@@ -191,6 +154,11 @@ interface IResolvedToken {
   isNative: boolean
 }
 
+/**
+ * Turn a `--from-token`/`--to-token` argument into a concrete token: `native` maps to
+ * the LI.FI sentinel, a 0x address is read on-chain for decimals/symbol, and a bare
+ * symbol is resolved via the LI.FI token list (refusing on an ambiguous match).
+ */
 async function resolveToken(
   arg: string,
   chainId: number,
@@ -255,6 +223,7 @@ async function nativeAmountFromPercent(
   return wanted < spendable ? wanted : spendable > 0n ? spendable : 0n
 }
 
+/** Broadcast the raw `transactionRequest` a LI.FI quote returns, coercing its numeric fields. */
 async function broadcastQuoteTx(
   walletClient: WalletClient,
   tx: {
@@ -275,6 +244,7 @@ async function broadcastQuoteTx(
   } as Parameters<typeof walletClient.sendTransaction>[0])
 }
 
+/** Approve `spender` for `amount` of `token` if the current allowance is insufficient. */
 async function ensureAllowance(
   publicClient: PublicClient,
   walletClient: WalletClient,
@@ -483,12 +453,16 @@ const main = defineCommand({
     })
 
     // Same-wallet boundary: the quote is requested with toAddress == fromAddress == our
-    // wallet; verify the returned route echoes that, so any recipient drift is caught
-    // before signing.
-    if (quote.action.fromAddress)
-      assertSameWallet(wallet.address, quote.action.fromAddress)
-    if (quote.action.toAddress)
-      assertSameWallet(wallet.address, quote.action.toAddress)
+    // wallet. Fail closed — require the route to echo both and match, so recipient drift
+    // (or a quote that omits the fields) aborts before signing rather than silently
+    // skipping the gate.
+    if (!quote.action.fromAddress || !quote.action.toAddress)
+      throw new Error(
+        'LI.FI quote did not echo fromAddress/toAddress — cannot verify the same-wallet ' +
+          'gate, so refusing to broadcast.'
+      )
+    assertSameWallet(wallet.address, quote.action.fromAddress)
+    assertSameWallet(wallet.address, quote.action.toAddress)
 
     const { lossPct } = assertWithinSlippage(
       quote.estimate.fromAmountUSD,
@@ -594,17 +568,12 @@ async function runSend(
   const net = requireNetwork(networkName)
 
   // send is a plain native value transfer. On chains whose gas asset is an ERC-20
-  // predeploy (e.g. arc), a value transfer would move the wrong thing, so refuse.
-  const nativeAddr = (net.nativeAddress ?? '').toLowerCase()
-  const nativeSentinels = new Set([
-    '',
-    '0x0000000000000000000000000000000000000000',
-    NATIVE_SENTINEL.toLowerCase(),
-  ])
-  if (nativeAddr && !nativeSentinels.has(nativeAddr))
+  // (arc's predeploy, or tempo's "no native currency" model), a value transfer would
+  // move the wrong thing — or nothing — so refuse.
+  if (chainUsesErc20Gas(net))
     throw new Error(
-      `send does not yet support ERC-20-predeploy gas on "${networkName}" (native asset at ${net.nativeAddress}). ` +
-        'Use bridge/swap for that chain, or move it manually.'
+      `send does not support ERC-20-gas chains like "${networkName}" (gas is paid in an ` +
+        'ERC-20, not a spendable native asset). Use bridge/swap for that chain, or move it manually.'
     )
 
   const chain = getViemChainForNetworkName(networkName)

@@ -103,10 +103,11 @@ it, or if the route has no USD pricing to check against.
 Tokens are `native`, a `0x…` address, or a symbol (resolved via the LI.FI token list;
 an ambiguous symbol aborts — pass the address).
 
-`send` moves the true native asset (a plain value transfer). On chains where the gas asset
-is an ERC-20 predeploy (e.g. arc, where gas is USDC), `send` does not yet move that
-predeploy — bridge/swap route those through LI.FI normally, but a direct `send` there is a
-follow-up. It will tell you rather than send the wrong thing.
+`send` moves the true native asset (a plain value transfer). On chains where gas is paid in
+an ERC-20 rather than a spendable native coin — a gas-token predeploy (arc, where gas is
+USDC) or the "no native currency" model (tempo, gas via a `feeTokenAddress`) — `send` refuses
+rather than broadcasting the wrong thing (or nothing). `bridge`/`swap` still route those
+through LI.FI normally; a direct `send` there is a follow-up.
 
 ## Chain support
 

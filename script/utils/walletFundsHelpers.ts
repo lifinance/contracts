@@ -91,8 +91,11 @@ export function accountFromPrivateKey(privateKey: string) {
 
 /**
  * The core safety boundary: bridge/swap must never change custody. Throws unless the
- * transaction's recipient is the exact same address that is sending. Any drift (a
- * typo'd override, an unexpected `toAddress` in the quote) aborts before broadcast.
+ * two addresses match. Callers pass the `fromAddress`/`toAddress` the LI.FI quote
+ * echoes back, so this catches recipient drift in the quote's *declared* addresses.
+ * It does not decode the per-tool `transactionRequest.data`, so it trusts that a quote
+ * requested with `toAddress == our wallet` produced matching calldata; callers fail
+ * closed when the quote omits these fields (see manageWalletFunds).
  */
 export function assertSameWallet(from: Address, to: Address): void {
   if (getAddress(from) !== getAddress(to))
@@ -192,6 +195,86 @@ export function normalizeTokenArg(token: string): Address | 'SYMBOL' {
   if (token.toLowerCase() === 'native') return NATIVE_SENTINEL
   if (/^0x[0-9a-fA-F]{40}$/.test(token)) return getAddress(token)
   return 'SYMBOL'
+}
+
+const ROLE_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/
+
+/** Minimal shape of a `networks.json` entry needed to decide the gas model. */
+export interface IGasAssetChain {
+  nativeCurrency?: string
+  nativeAddress?: string | null
+  feeTokenAddress?: string | null
+}
+
+/**
+ * True when a chain has no spendable native gas asset because gas is paid in an ERC-20:
+ * either an explicit gas-token predeploy (arc — `nativeAddress` is a real contract) or
+ * the tempo-style model (`nativeCurrency: "N/A"`, gas paid via `feeTokenAddress`, and a
+ * `0x0` native sentinel that would otherwise slip past an address-only check). A plain
+ * native value transfer (`send`) and the native leg of a bridge/swap are meaningless on
+ * such chains, so callers refuse them locally instead of relying on a remote API error.
+ */
+export function chainUsesErc20Gas(net: IGasAssetChain): boolean {
+  if (net.feeTokenAddress) return true
+  if ((net.nativeCurrency ?? '').trim().toUpperCase() === 'N/A') return true
+  const nativeAddr = (net.nativeAddress ?? '').toLowerCase()
+  const sentinels = new Set([
+    '',
+    '0x0000000000000000000000000000000000000000',
+    NATIVE_SENTINEL.toLowerCase(),
+  ])
+  return !sentinels.has(nativeAddr)
+}
+
+/**
+ * Resolve the address `global.json` records for a (possibly nested) role, so a role like
+ * `backendSignerProduction` maps to `backendSigner.production`. Returns undefined for
+ * roles with no recorded address (scratch keys), which cannot be cross-checked. `config`
+ * is injected (rather than importing global.json) to keep this unit-testable.
+ */
+export function recordedAddressForRole(
+  role: string,
+  config: Record<string, unknown>
+): Address | undefined {
+  const direct = config[role]
+  if (typeof direct === 'string' && ROLE_ADDRESS_RE.test(direct))
+    return getAddress(direct)
+  for (const [key, value] of Object.entries(config)) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      role.startsWith(key) &&
+      role.length > key.length
+    ) {
+      const sub = role.slice(key.length)
+      const subKey = sub.charAt(0).toLowerCase() + sub.slice(1)
+      const nested = (value as Record<string, unknown>)[subKey]
+      if (typeof nested === 'string' && ROLE_ADDRESS_RE.test(nested))
+        return getAddress(nested)
+    }
+  }
+  return undefined
+}
+
+/**
+ * Refuse to operate a role whose `.env` key derives to a different address than
+ * `global.json` records. A mistyped or stale key would otherwise let an autonomous
+ * bridge/swap move a wallet the operator never intended; blocking is the safe default.
+ * Roles with no recorded address (scratch keys) are not checked. If a rotation is
+ * legitimate, `global.json` must be updated first.
+ */
+export function assertKeyMatchesRole(
+  role: string,
+  derived: Address,
+  config: Record<string, unknown>
+): void {
+  const recorded = recordedAddressForRole(role, config)
+  if (recorded && recorded !== getAddress(derived))
+    throw new Error(
+      `Refusing to proceed: the .env key for "${role}" derives to ${getAddress(
+        derived
+      )}, but global.json records ${recorded}. If the wallet was rotated, update config/global.json first.`
+    )
 }
 
 // ---------------------------------------------------------------------------

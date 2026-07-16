@@ -8,14 +8,17 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  assertKeyMatchesRole,
   assertSameWallet,
   assertSlippage,
   assertWithinSlippage,
+  chainUsesErc20Gas,
   computeValueLossPct,
   flattenWalletKeys,
   isChainSupported,
   normalizeTokenArg,
   parseAmount,
+  recordedAddressForRole,
   resolveAmountSelection,
   resolveEnvKeyForRole,
   scanEnvForPrivateKeyVars,
@@ -184,5 +187,102 @@ describe('resolveAmountSelection', () => {
     expect(() => resolveAmountSelection(undefined, '0')).toThrow()
     expect(() => resolveAmountSelection(undefined, '150')).toThrow()
     expect(() => resolveAmountSelection(undefined, 'abc')).toThrow()
+  })
+})
+
+describe('chainUsesErc20Gas', () => {
+  it('false for a normal native-gas chain', () => {
+    expect(
+      chainUsesErc20Gas({ nativeCurrency: 'BNB', nativeAddress: '' })
+    ).toBe(false)
+    expect(chainUsesErc20Gas({ nativeCurrency: 'ETH' })).toBe(false)
+    expect(
+      chainUsesErc20Gas({
+        nativeCurrency: 'ETH',
+        nativeAddress: '0x0000000000000000000000000000000000000000',
+      })
+    ).toBe(false)
+    expect(chainUsesErc20Gas({ nativeAddress: NATIVE_SENTINEL })).toBe(false)
+  })
+  it('true for an ERC-20 gas-token predeploy (arc-style)', () => {
+    expect(
+      chainUsesErc20Gas({
+        nativeCurrency: 'USDC',
+        nativeAddress: '0x3600000000000000000000000000000000000000',
+        feeTokenAddress: null,
+      })
+    ).toBe(true)
+  })
+  it('true for the tempo "no native currency" model (0x0 native + feeTokenAddress)', () => {
+    expect(
+      chainUsesErc20Gas({
+        nativeCurrency: 'N/A',
+        nativeAddress: '0x0000000000000000000000000000000000000000',
+        feeTokenAddress: '0x20c0000000000000000000000000000000000000',
+      })
+    ).toBe(true)
+  })
+  it('true when only nativeCurrency signals no native asset', () => {
+    expect(chainUsesErc20Gas({ nativeCurrency: 'n/a' })).toBe(true)
+  })
+})
+
+const GLOBAL_CONFIG_FIXTURE: Record<string, unknown> = {
+  refundWallet: A,
+  devWallet: B,
+  backendSigner: {
+    staging: '0x981CCF8c09633F6F2AF3fe661C285ca1DB09caE1',
+    production: '0xAF4B7A83591a6c4c8B9d1341C3F08BBc3b800fc5',
+  },
+  walletKeys: { devWallet: 'PRIVATE_KEY' }, // non-address string, must be ignored
+}
+
+describe('recordedAddressForRole', () => {
+  it('resolves a direct top-level role', () => {
+    expect(recordedAddressForRole('refundWallet', GLOBAL_CONFIG_FIXTURE)).toBe(
+      A
+    )
+  })
+  it('resolves a flattened nested role (backendSignerProduction → backendSigner.production)', () => {
+    expect(
+      recordedAddressForRole('backendSignerProduction', GLOBAL_CONFIG_FIXTURE)
+    ).toBe('0xAF4B7A83591a6c4c8B9d1341C3F08BBc3b800fc5')
+  })
+  it('returns undefined for an unknown role', () => {
+    expect(
+      recordedAddressForRole('mysteryWallet', GLOBAL_CONFIG_FIXTURE)
+    ).toBeUndefined()
+  })
+  it('ignores non-address values (e.g. a nested env-var name)', () => {
+    expect(
+      recordedAddressForRole('walletKeysDevWallet', GLOBAL_CONFIG_FIXTURE)
+    ).toBeUndefined()
+  })
+})
+
+describe('assertKeyMatchesRole', () => {
+  it('passes when the derived address matches the recorded one (any casing)', () => {
+    expect(() =>
+      assertKeyMatchesRole(
+        'refundWallet',
+        A.toLowerCase() as `0x${string}`,
+        GLOBAL_CONFIG_FIXTURE
+      )
+    ).not.toThrow()
+  })
+  it('throws when the derived address differs from the recorded one', () => {
+    expect(() =>
+      assertKeyMatchesRole('refundWallet', B, GLOBAL_CONFIG_FIXTURE)
+    ).toThrow(/Refusing to proceed/i)
+  })
+  it('passes for a role with no recorded address (scratch key — nothing to check)', () => {
+    expect(() =>
+      assertKeyMatchesRole('mysteryWallet', A, GLOBAL_CONFIG_FIXTURE)
+    ).not.toThrow()
+  })
+  it('validates the nested-role path', () => {
+    expect(() =>
+      assertKeyMatchesRole('backendSignerProduction', A, GLOBAL_CONFIG_FIXTURE)
+    ).toThrow(/Refusing to proceed/i)
   })
 })
