@@ -11,12 +11,22 @@ Builds directly on **PR #2047** / [docs/FacetRemovalReconciliation.md](https://g
 `/deprecate-contract` from **"propose now"** to **"enqueue"**, and adds an
 opportunistic **drain**.
 
-Status: **proposed** (draft PR, for review — no production code). Author: Daniel B. (SC).
+Status: **proposed** (draft PR, for review). The **store layer is now built and
+merged** — [PR #2051](https://github.com/lifinance/contracts/pull/2051),
+`script/deploy/safe/parked-tasks.ts` + the `enqueue-parked-task.ts` /
+`list-parked-tasks.ts` CLIs. The remaining layers (drain chokepoint, PR-link
+surfacing, `/deprecate-contract` rewrite, reconcile/TTL) are still design-only.
+Author: Daniel B. (SC).
 
-> **Provenance note.** All `[code]` facts below were verified against the **PR #2047
-> branch** (`claude/upbeat-gagarin-1a715a`), which is **open, not yet merged** — so
-> the removal mechanism this builds on isn't on `main` yet. Line numbers are against
-> that branch. Anything not confirmed is marked `[unverified]` rather than asserted.
+> **Provenance note.** `[code]` facts about the **store layer** and the **drain
+> chokepoint** are verified against `origin/main` this session — the store shipped in
+> #2051 (`parked-tasks.ts`), and the `runPropose` funnel this hooks
+> (`script/deploy/safe/propose-to-safe.ts`, `script/deploy/shared/propose-diamond-cut.ts`)
+> is on `main`; line numbers are against `origin/main`. `[code]` facts about the
+> **removal mechanism** are against the **PR #2047 branch**
+> (`claude/upbeat-gagarin-1a715a`), which is **open, not yet merged** — those line
+> numbers are against that branch and are flagged inline. Anything not confirmed is
+> marked `[unverified]` rather than asserted.
 
 ---
 
@@ -44,8 +54,8 @@ That "propose immediately" is the problem this spec fixes:
   **durable and complete**:
   1. a **persistent queue** so a deprecation's intent survives across sessions and
      isn't re-derived by a live diff each time;
-  2. a drain triggered by **any** routine multisig action on the network, not only a
-     `multisig-rollout` run;
+  2. a drain triggered by **any facet cut** on the network (via the `runPropose`
+     funnel — §6), not only a `multisig-rollout` run;
   3. a first-class **link from each parked task to its originating deprecation PR**,
      surfaced to the multisig reviewer at signing time.
 
@@ -82,20 +92,34 @@ the source prompt or inferred, **not** confirmed.
    the single point where a proposal is *persisted*, but it is called from ~9 sites,
    not via one wrapper; it receives a **pre-signed** `safeTx` and has **no Safe SDK
    client** in scope.
-4. `[code]` The two shared *entry points* that own a network + a live Safe client are
+4. `[code]` **`runPropose(options)` — `script/deploy/safe/propose-to-safe.ts:58` — is
+   the true funnel for programmatic Safe proposals**, and it owns `{network,
+   environment, safe client, Mongo collection}`. It does `normalizeProposeCalls →
+   initializeSafeClient → getSafeMongoCollection → getNextNonce → safe.createTransaction
+   → sign → storeTransactionInMongoDB` (`:59-249`). Everything else routes *into* it:
+   the manual CLI `main` (`:257`) only parses argv and calls `runPropose` (`:356`,
+   `runMain(main)` `:375`); the **facet-cut path** `proposeDiamondCut`
+   (`script/deploy/shared/propose-diamond-cut.ts:53`) calls `runPropose` for EVM
+   (`../safe/propose-to-safe`, `:75`) and the Tron `runPropose` for TVM
+   (`../tron/propose-to-safe-tron`, `:66`) — **never touching `main`**. This is the
+   agentic case a deprecation-driven drain must ride (a deploy-and-register facet cut
+   is `proposeDiamondCut → runPropose`, no CLI). A *separate* helper
    `sendOrPropose({calldata, network, environment, diamondAddress})` —
-   `script/safe/safeScriptHelpers.ts:29` — and `runPropose(options)` —
-   `script/deploy/safe/propose-to-safe.ts:58`. Both do `getSafeMongoCollection →
-   getNextNonce → safe.createTransaction → sign → storeTransactionInMongoDB`.
-   `cleanUpProdDiamond`'s removal path funnels through `sendOrPropose`
-   (`script/tasks/cleanUpProdDiamond.ts:515` `proposeRemovals` → `:35` import).
-5. `[code]` Proposals are stored in **one** MongoDB collection: DB `sc_private`,
-   collection `pendingTransactions` — `safe-utils.ts:1395-1398`. Access is gated on
-   `SC_MONGODB_URI` (throws if missing — `:1362`) **and** a VPN IP check (throws
-   `VPN connection required…` if the public IP ≠ the office egress — `:1364-1376`).
-   A **second** durable queue already reuses the same `MongoClient`/`SC_MONGODB_URI`
-   plumbing: DB `timelock-operations`, collection `queue`, doc `ITimelockQueueDoc`
-   (`script/deploy/safe/timelock-queue.ts:37,40`).
+   `script/safe/safeScriptHelpers.ts:29` — does its own `getSafeMongoCollection →
+   getNextNonce → createTransaction → sign → storeTransactionInMongoDB` and **does not
+   call `runPropose`**; it backs whitelist-sync and `cleanUpProdDiamond` removals
+   (`script/tasks/cleanUpProdDiamond.ts:515` `proposeRemovals`). So a `runPropose` hook
+   covers the facet-cut funnel but **not** the `sendOrPropose` funnel (§6 gap).
+5. `[code]` **Two distinct clusters are in play, and the queue follows the
+   non-sensitive one.** The **signing** store — DB `sc_private`, collection
+   `pendingTransactions` (`safe-utils.ts:1395-1398`) — is gated on `SC_MONGODB_URI`
+   (throws if missing — `:1362`) **and** reachable only through the internal tunnel
+   (legacy VPN, now `lifi-connect`); missing access throws. But the repo already runs a
+   durable **queue** on the **non-sensitive `MONGODB_URI` cluster, un-gated**: DB
+   `timelock-operations`, collection `queue`, opened via `getEnvVar('MONGODB_URI')` in
+   `getTimelockQueueCollection()` (`script/deploy/safe/timelock-queue.ts:37,40,115-122`).
+   The parked-tasks store mirrors **this queue sibling** — not the signing store — so it
+   needs no tunnel (§5).
 6. `[code]` `ISafeTxDocument` (`safe-utils.ts:112-124`) is **purely structural**:
    `safeAddress, network, chainId, safeTx, safeTxHash, proposer, timestamp, status,
    executionHash?, submittedAt?, intentHash?`. **No** description / label / note /
@@ -144,6 +168,22 @@ the source prompt or inferred, **not** confirmed.
     (`:120`); CLI via `citty`/`consola`/`getEnvVar()` (`:116`). Dry-run-default and
     injectable-I/O are **#2047 conventions**, not rules (confirmed: not present in
     002/105/200).
+15. `[code]` **The store layer is built and merged (#2051, on `main`).**
+    `script/deploy/safe/parked-tasks.ts` opens the queue via
+    `getParkedTasksCollection()` (`:199`) against `getEnvVar('MONGODB_URI')` — DB
+    `deferred-cleanup` (`:49`), collection `parkedTasks` (`:52`) — the **non-sensitive,
+    un-gated** cluster (Fact 5), exactly mirroring `getTimelockQueueCollection()`. It
+    ships the `IParkedTask` schema (§4), `computeTaskKey` (`:139`), a partial unique
+    index `unique_open_task_key` on `taskKey` filtered to the open statuses
+    `{queued, proposed}` (`ensureParkedTasksIndexes` `:162`, `:171`), `enqueueParkedTask`
+    (`:234`, throws on a blank `prUrl`/`facetName`, E11000 → `null` dedup),
+    `listParkedTasks` (`:281`), the atomic `queued → proposed` flip `claimForProposal`
+    (`:324`), and the `markExecuted`/`markSuperseded`/`markCancelled`/`revertToQueued`
+    transitions (`:342-410`; `markCancelled` restricted to `queued`). All I/O is an
+    injected `Collection<IParkedTask>` (100% unit-covered except the live adapter). The
+    two CLIs — `enqueue-parked-task.ts` (production-only, viem-validated, `enqueuer`
+    from `git user.email`) and `list-parked-tasks.ts` (grouped by network, `--json`) —
+    also shipped, both **un-gated** on `MONGODB_URI`.
 
 ---
 
@@ -156,9 +196,10 @@ the source prompt or inferred, **not** confirmed.
   signing effort and never manufacture a mass signing event.
 - A **durable** queue: a deprecation's intent survives sessions, machine restarts,
   and long idle periods until the network is next touched.
-- **Any** routine multisig action on a network drains that network's parked tasks —
-  not only a `multisig-rollout` run — via **one** hook, without editing every call
-  site.
+- **Any facet cut** on a network drains that network's parked tasks — not only a
+  `multisig-rollout` run — via **one** hook at the `runPropose` funnel (§6), without
+  editing every call site. (The `sendOrPropose` funnel — whitelist sync, cleanup — is
+  out of scope for the opportunistic drain; the cold-network backstop §8 covers it.)
 - Each parked task **carries its originating deprecation-PR URL**, surfaced to the
   multisig reviewer **at signing time**.
 - Reuse the **existing** MongoDB + Safe + timelock plumbing and #2047's engine. No
@@ -180,12 +221,13 @@ the source prompt or inferred, **not** confirmed.
 
 ---
 
-## 4. What is a parked task? (record schema — Q1)
+## 4. What is a parked task? (record schema — shipped #2051)
 
 A parked task is the **durable intent** "remove facet *F* from network *N*'s
 production diamond, eventually, on behalf of PR *P*." One record **per facet per
 network** (finest grain); the drain batches all of a network's queued records into
-one removal proposal (§6).
+one removal proposal (§6). The schema below **shipped verbatim** as `IParkedTask` in
+`script/deploy/safe/parked-tasks.ts` (#2051, Fact 15).
 
 ```ts
 /** A deferred diamond-maintenance task, parked until the network is next touched. */
@@ -227,95 +269,121 @@ verifies that address is still in the loupe (see §8 deploy-log hazard), but the
 
 ---
 
-## 5. Where does it live? (store choice — Q2)
+## 5. Where does it live? (store choice — Q1, RESOLVED)
 
-Three options compared. Requirement weighting follows the constraints: *reuse
-existing Mongo/Safe plumbing; no parallel governance system;* and the *first-class*
-requirement is **PR-link-to-reviewer at signing** (met identically by all three —
-see §6 — because it lives on the *minted proposal*, not the queue).
+**Decision (Goran + Daniel): a new Mongo collection on the _non-sensitive_
+`MONGODB_URI` cluster — DB `deferred-cleanup`, collection `parkedTasks` — mirroring
+the `timelock-operations/queue` sibling (Fact 5), _not_ the `sc_private` signing
+store.** Shipped in #2051 (Fact 15). Three options were compared:
 
-| Criterion | (a) New Mongo collection **[recommended]** | (b) Extend `pendingTransactions` with a `parked` status | (c) Git-tracked queue file |
+| Criterion | (a) New Mongo collection **[DECIDED — #2051]** | (b) Extend `pendingTransactions` with a `parked` status | (c) Git-tracked queue file |
 |---|---|---|---|
-| Durability | ✅ Mongo, same as proposals | ✅ | ✅ (repo) |
-| Concurrency / atomic dedup | ✅ partial unique index + atomic `findOneAndUpdate` for the queued→proposed flip | ✅ (same collection) | ⚠️ parallel sessions → JSON merge conflicts (same failure model as `_targetState.json`) |
-| Dedup vs re-propose (Fact 9) | ✅ solved by an atomic status flip, independent of the salt-nondeterministic `intentHash` | ✅ | ⚠️ needs a **commit** to record `proposed`, else next drain re-proposes |
-| Lifecycle vs on-chain truth | ✅ reconcilable like `pendingTransactions` (loupe + linked proposal status) | ✅ | ❌ a git file can't observe execution; needs an out-of-band reconcile anyway |
-| Blast radius on audited signing code | ✅ none (separate collection) | ❌ **high** — a `parked` row has no real `safeTx`/nonce/signatures; every consumer (`confirm-safe-tx`, `reconcile`, `getNextNonce`, `list-pending`) must learn to skip it | ✅ none |
-| Reviewer/git-auditability of the *parked set* | ⚠️ not in git; mitigated by (i) the deprecation PR that created it, (ii) a `list-parked-tasks` CLI (§9), (iii) the drain's proposals landing in a rollout PR | ⚠️ same as (a) | ✅ **best** — the parked entry is a diff in the deprecation PR, peer-reviewed at merge |
-| VPN / `SC_MONGODB_URI` dependency | ❌ enqueue needs VPN | ❌ | ✅ enqueue works offline |
+| Durability | ✅ Mongo, cross-session | ✅ | ✅ (repo) |
+| Mutable cross-session state (`queued → claimed → done`) | ✅ a live-updatable record, the natural fit | ✅ | ❌ every status flip is a commit; a git file models a snapshot, not a mutating queue |
+| Concurrency / atomic dedup | ✅ partial unique index + atomic `claimForProposal` flip (Fact 15) | ✅ (same collection) | ⚠️ parallel sessions → JSON merge conflicts (same failure model as `_targetState.json`) |
+| Dedup vs re-propose (Fact 9) | ✅ solved by the atomic status flip, independent of the salt-nondeterministic `intentHash` | ✅ | ⚠️ needs a **commit** to record `proposed`, else next drain re-proposes |
+| Lifecycle vs on-chain truth | ✅ reconcilable (loupe + linked proposal status) | ✅ | ❌ a git file can't observe execution; needs an out-of-band reconcile anyway |
+| Blast radius on audited signing code | ✅ none (separate collection, separate cluster) | ❌ **high** — a `parked` row has no real `safeTx`/nonce/signatures; every consumer (`confirm-safe-tx`, `reconcile`, `getNextNonce`, `list-pending`) must learn to skip it | ✅ none |
+| Cluster / tunnel dependency | ✅ **non-sensitive `MONGODB_URI`, no tunnel** — CI, reconcile/TTL jobs, and agent-driven `/deprecate-contract` all reach it without `lifi-connect` | ❌ inherits `sc_private` + tunnel gate | ✅ none (in-repo) |
 | "No parallel governance system" | ✅ **literally the existing pattern** — mirrors `timelock-operations/queue` (Fact 5) | ✅ | ⚠️ a new ad-hoc store type |
 
-**Recommendation: (a) a new collection `sc_private.parkedTasks`**, modelled on the
-existing `timelock-operations/queue` (Fact 5). It reuses the exact durable-store
-pattern the repo already runs a second queue on — so it is provably *not* a parallel
-governance system — and it wins the two places the git file is weakest: **atomic
-dedup** (which the salt-nondeterministic `intentHash`, Fact 9, cannot provide) and
-**on-chain-truth reconciliation**. The git file's one real virtue — the parked set
-being a peer-reviewed diff — is preserved operationally: every entry is *created by*
-the reviewed deprecation PR, and is listable via a `list-parked-tasks` command
-mirroring `list-pending-proposals.ts`.
+**Why the non-sensitive cluster (not `sc_private`).** Nothing a parked task holds is
+secret — public facet names, on-chain addresses, and PR URLs. The security boundary
+that matters is **on-chain**: calldata verification, the timelock delay, and Safe
+quorum, none of which the queue touches. Putting the queue behind the `sc_private`
+tunnel gate would only block the automated consumers this design depends on (CI backlog
+reports, the reconcile/TTL jobs, and non-interactive agent runs of
+`/deprecate-contract`) for zero security gain. So it lives on the same un-gated
+`MONGODB_URI` cluster the timelock queue already runs on.
 
-**(b) is rejected:** overloading the audited signing collection with rows that aren't
+**Why Mongo, not a git file.** A parked task is **mutable cross-session state** — it
+transitions `queued → proposed (claimed) → executed` over what may be weeks, driven by
+whichever session next touches the network. A git file models a *snapshot* reviewed at
+merge, not a record that flips status out-of-band; recording each `proposed`/`executed`
+flip as a commit is friction, and concurrent drains would collide on JSON merges. Mongo
+also wins the two places the git file is weakest: **atomic dedup** (the
+salt-nondeterministic `intentHash`, Fact 9, cannot provide it — `claimForProposal` does,
+§7) and **on-chain-truth reconciliation**.
+
+The git file's one real virtue — the parked set being a peer-reviewed diff — is
+preserved operationally: every entry is *created by* the reviewed deprecation PR, and is
+listable via `list-parked-tasks` (§9), mirroring `list-pending-proposals.ts`.
+
+**(b) was rejected:** overloading the audited signing collection with rows that aren't
 real signed transactions forces changes into `confirm-safe-tx` / `reconcile` /
-`getNextNonce` — exactly the code the constraints say to leave untouched.
-
-**(c) is the runner-up** and worth a second look **if** parallel deprecations are
-rare *and* the team values the parked set being a git artifact over atomic dedup.
-Flip conditions in the open questions (§11).
+`getNextNonce` — exactly the code the constraints say to leave untouched — and it drags
+the queue back behind the `sc_private` tunnel gate.
 
 ---
 
-## 6. Drain: how a parked task becomes a proposal, and how the PR link reaches the reviewer (Q3, Q4)
+## 6. Drain: how a parked task becomes a proposal, and how the PR link reaches the reviewer (chokepoint Q2 → RESOLVED)
 
-### The drain chokepoint (Q3)
+### The drain chokepoint (Q2 → RESOLVED)
 
-There is **no single function** through which *every* "multisig action on network X"
-passes with both the network **and** a live Safe client in scope. `storeTransaction­
-InMongoDB` (Fact 3) is the universal *persistence* funnel but is the wrong hook: it
-fires **after** signing, per single proposal, with only a pre-signed `safeTx` and no
-signer — it cannot mint the additional removal proposals a drain needs.
+**Decision (Goran + Daniel): hook the drain into `runPropose`
+(`script/deploy/safe/propose-to-safe.ts:58`) — _not_ `sendOrPropose`, _not_ `main()`,
+and _not_ the `multisig-rollout` skill.**
 
-The two shared library entry points that **do** own `{network, environment, safe
-client, Mongo collection}` are `sendOrPropose` and `runPropose` (Fact 4). Every
-routine production multisig action routes through one of them:
+`runPropose` is the true funnel for programmatic Safe proposals (Fact 4). Everything
+that mints a production facet-cut routes *into* it:
 
-- `multisig-rollout` deploy mode → `deploy-contract` → `sendOrPropose`/`runPropose`;
-- whitelist sync → the same;
-- `cleanUpProdDiamond` removals → `sendOrPropose`.
+- the manual CLI `main` (`propose-to-safe.ts:257`) only parses argv, then calls
+  `runPropose` (`:356`);
+- the **facet-cut path** — a `deploy-and-register` script → `proposeDiamondCut`
+  (`script/deploy/shared/propose-diamond-cut.ts:53`) → `runPropose` (EVM `:75`, Tron
+  `:66`) — **never touches `main`**.
 
-**Recommended hook (least-invasive): a single new helper**
+That second point is decisive: hooking `main()` would drain only on *manual CLI* runs
+and would **miss the agentic facet-cut case this whole design exists for** (a deprecation
+rides along with the next automated cut). Hooking the `multisig-rollout` skill would
+miss any cut done outside a rollout. `runPropose` is the one point both reach.
+
+**Implementation shape (least-invasive, keeps signing pure).** Extract the current
+`runPropose` body into a pure `_runPropose(options)`; the public `runPropose` becomes a
+thin wrapper that runs the primary proposal first and then drains, guarded so the drain
+can never affect the primary proposal or the process exit code:
 
 ```ts
-// script/deploy/safe/drainParkedTasks.ts  (new)
-export async function maybeDrainParkedTasks(ctx: {
-  network: string
-  environment: EnvironmentEnum
-  safe: SafeClient            // already in scope in both entry points
-  chain: Chain
-  safeAddress: Address
-  pendingTransactions: Collection<ISafeTxDocument>
-}): Promise<void>
+// script/deploy/safe/propose-to-safe.ts
+export async function _runPropose(options: IProposeToSafeOptions) {
+  /* … the existing body verbatim: normalizeProposeCalls → initializeSafeClient →
+     getSafeMongoCollection → getNextNonce → createTransaction → sign →
+     storeTransactionInMongoDB … (propose-to-safe.ts:59-252 today) */
+}
+
+export async function runPropose(options: IProposeToSafeOptions) {
+  await _runPropose(options) // the primary ("main") proposal — unchanged behaviour
+  // opt-in, best-effort: a drain failure must never fail the primary proposal
+  await drainParkedTasks(options).catch((e) =>
+    consola.warn('parked-task drain failed (primary proposal unaffected):', e)
+  )
+}
 ```
 
-called **once at the tail of `sendOrPropose` and `runPropose`**, after the primary
-proposal is stored. That is **two edits, no leaf-script changes** — it satisfies "any
-multisig action drains, without touching every call site." It is:
+- **New helper** `script/deploy/safe/drain-parked-tasks.ts` (mirrors the `parked-tasks.ts`
+  kebab convention). It opens its own `getParkedTasksCollection()` (Fact 15) — the drain
+  reads the queue on the non-sensitive cluster, independent of the signing store — and
+  mints the removal proposal through the low-level store, **not** by recursing through
+  `runPropose`.
+- **Flag-gated — `DRAIN_PARKED_TASKS` (Q6, semantics decided): ON for rollouts, OFF for
+  emergencies.** Default **off** in v1. The point of the flag is scoping, not just a
+  kill-switch: an urgent pause / break-glass proposal must **never** drag unrelated facet
+  removals into its signing set, so emergency flows run with `DRAIN_PARKED_TASKS` unset
+  and stay a single clean proposal; deliberate rollouts set it on to let removals ride.
+- **Reentrancy-guarded** so the drain's *own* removal proposal (minted through the
+  low-level store) can't re-trigger a drain.
+- **Production/Safe-only**: on a direct-send environment (Fact 13) it no-ops (§12).
 
-- **Flag-gated** (`DRAIN_PARKED_TASKS=true`, default **off** in v1) so no rollout
-  silently starts removing facets — mirrors #2047's opt-in Phase 3.5 (Fact 11).
-- **Reentrancy-guarded** so the drain's *own* removal proposals (also minted through
-  the low-level store) don't re-trigger a drain.
-- **Production/Safe-only**: on a direct-send environment (Fact 13) it no-ops (§9).
-
-**Known gap (stated, not hidden):** the four bespoke task scripts that call
-`storeTransactionInMongoDB` directly (`proposePolymerCCTPChainIdMappings`,
-`proposeMegaETHBridgeRegistrations`, `unpauseAllDiamonds`,
-`proposeDeBridgeDlnChainIdMappings`) bypass both entry points and will **not** trigger
-a drain. These are rare admin one-offs, and the cold-network backstop (§8) covers
-anything the opportunistic path misses. Alternative considered — a command-level step
-in `multisig-rollout` only (like Phase 3.5) — is even less invasive but drains *only*
-on rollouts, failing the "any action" goal; rejected as the primary, kept as the
-fallback if the two-entry-point hook is judged too broad.
+**Known gap (stated, not hidden).** `sendOrPropose` (`safeScriptHelpers.ts:29`) is a
+*separate* funnel that does **not** call `runPropose` (Fact 4), so actions that go only
+through it — **whitelist syncs** and `cleanUpProdDiamond` removals — will **not** drain
+opportunistically, nor will the four bespoke scripts that call `storeTransactionInMongoDB`
+directly (`proposePolymerCCTPChainIdMappings`, `proposeMegaETHBridgeRegistrations`,
+`unpauseAllDiamonds`, `proposeDeBridgeDlnChainIdMappings`). This is an accepted
+consequence of hooking the facet-cut funnel only: deprecation removals naturally ride
+facet cuts (`proposeDiamondCut → runPropose`), and the **cold-network backstop (§8)**
+catches anything the opportunistic path misses. Extending the hook to `sendOrPropose` is
+a deliberate future option, not part of v1.
 
 ### Drain algorithm
 
@@ -329,27 +397,41 @@ fallback if the two-entry-point hook is judged too broad.
    - `protectedSkipped` → mark **`cancelled`** + alert loudly (a protected facet
      should never have been queued — a bug in enqueue).
    - `removals` → proceed.
-3. **Atomically** flip each removal's record `queued → proposed`
-   (`findOneAndUpdate({taskKey, status:'queued'}, {$set:{status:'proposed', …}})`).
-   This is the dedup gate (§7): a concurrent drain finds no `queued` record and skips.
-4. Build **one consolidated** `buildDiamondCutRemoveCalldata(removals)` →
+3. **Atomically** flip each removal's record `queued → proposed` via
+   `claimForProposal(parkedTasks, taskKey)` (Fact 15) — the merged
+   `findOneAndUpdate({taskKey, status:'queued'}, …)`. This is the dedup gate (§7): a
+   concurrent drain finds no `queued` record, gets `null`, and skips it — so two parallel
+   sessions draining the same network **cannot double-propose the same removal**,
+   independent of the salt-nondeterministic `intentHash` (Fact 9).
+4. Build the removal cut → `buildDiamondCutRemoveCalldata(removals)` →
    `prepareTimelockCalldata` (→ `scheduleBatch`, Fact 9) → mint the proposal via the
-   low-level store (**not** recursing through `sendOrPropose`), carrying the PR links
+   low-level store (**not** recursing through `runPropose`), carrying the PR links
    (below). Set `safeTxHash` on the flipped records.
-5. On mint failure, revert the flipped records to `queued`.
+5. On mint failure, revert the flipped records with `revertToQueued` (Fact 15), which
+   clears the stale `proposedAt`/`safeTxHash` so the next drain re-proposes cleanly.
 
-One consolidated removal proposal per network — **not** merged into the upgrade's Safe
-transaction (FacetRemovalReconciliation §4 already argues why: the upgrade cut is
-Solidity-built, the removal cut is TS-built; one extra proposal in the same signing
-session delivers the batching without threading removal logic across the language
-boundary). It is captured by the same `list-pending-proposals.ts` sweep, lands in the
-same rollout PR, and is signed in the same session.
+**Batching — one consolidated removal proposal per network (recommended; Q4 still open,
+§14).** The recommendation is a single per-network `scheduleBatch` Remove carrying every
+queued facet's origin PR — **not** merged into the upgrade's Safe transaction
+(FacetRemovalReconciliation §4 argues why: the upgrade cut is Solidity-built, the removal
+cut is TS-built; one extra proposal in the same signing session delivers the batching
+without threading removal logic across the language boundary). It is captured by the same
+`list-pending-proposals.ts` sweep, lands in the same rollout PR, and is signed in the same
+session. The one-proposal-per-origin-PR alternative (cleaner 1:1 PR↔proposal mapping, more
+proposals) was **not** settled in the thread — see §14 Q4.
 
-### How the PR link reaches the reviewer (Q4) — the acceptance criterion
+### How the PR link reaches the reviewer — the acceptance criterion (visibility decided)
+
+**Decision (Goran + Daniel): the drained removal must be logged _loudly_ AND carry its
+originating deprecation-PR link into what the signer reviews** — otherwise the "surprise
+removal" problem just moves up one level (the signer now sees a mystery `diamondCut`
+instead of a mystery deprecation). So the drain both `consola`-logs each removal it adds
+(facet + origin PR) at mint time, and threads the PR link onto the minted proposal.
 
 `ISafeTxDocument` has no free-text field (Fact 6), so the drain-minted proposal is
-extended with **one optional field** and surfaced at the three places the reviewer
-looks — none of which touch the rule-201 decode formatter:
+extended with **one optional field** and surfaced at the three places the reviewer looks
+— none of which touch the rule-201 decode formatter (the field-vs-side-car choice itself
+is §14 Q3):
 
 ```ts
 // extend ISafeTxDocument (safe-utils.ts:112) — optional, backward-compatible
@@ -363,7 +445,7 @@ parkedTaskRefs?: { facet: string; prUrl: string }[]
    ```text
    Parked cleanup — origin PRs:
        GenericSwapFacet   → https://github.com/lifinance/contracts/pull/2046
-       AcrossFacetV3      → https://github.com/lifinance/contracts/pull/2046
+       AcrossFacetV3      → https://github.com/lifinance/contracts/pull/2048
    ```
 
 2. **`list-pending-proposals.ts`.** Add `parkedTaskRefs` to `IProposalSummary`
@@ -371,14 +453,15 @@ parkedTaskRefs?: { facet: string; prUrl: string }[]
 3. **Slack** (`multisig-rollout` Phase 8, Fact 11 / the webhook helper Fact 12).
    Include the origin-PR URLs in the removal proposal's line of the thread.
 
-**Multiple parked tasks from different PRs on one network → one batched removal
-proposal carrying multiple PR links.** `parkedTaskRefs` is an array precisely so a
-network with facet *A* (PR #2046) and facet *B* (PR #2051) queued produces a single
-`scheduleBatch` Remove with **two** origin-PR lines shown to the signer.
+**Multiple parked tasks from different PRs on one network → one batched removal proposal
+carrying multiple PR links** (under the recommended per-network batching, Q4).
+`parkedTaskRefs` is an array precisely so a network with facet *A* (PR #2046) and facet
+*B* (PR #2048) queued produces a single `scheduleBatch` Remove with **two** origin-PR
+lines shown to the signer.
 
 ---
 
-## 7. Lifecycle / state machine (Q5) & idempotency (Q6)
+## 7. Lifecycle / state machine & idempotency
 
 ```text
                  /deprecate-contract enqueue (§10)
@@ -386,7 +469,7 @@ network with facet *A* (PR #2046) and facet *B* (PR #2051) queued produces a sin
                               ▼
         ┌───────────────► queued ──────────────────────────┐
         │                    │                              │
-        │        drain: atomic flip (§6.3)      facet already gone on-chain
+        │     drain: claimForProposal (§6 step 3)  facet already gone on-chain
         │                    │                     (loupe check) → superseded
         │                    ▼                              │
         │                proposed ──── proposal reverted ───┘ (→ back to queued)
@@ -398,34 +481,43 @@ network with facet *A* (PR #2046) and facet *B* (PR #2051) queued produces a sin
         └── operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
 ```
 
-- **queued → proposed**: the drain, via an **atomic** `findOneAndUpdate` filtered on
-  `status:'queued'` (§6.3). This is the dedup gate that replaces the unusable
-  `intentHash` dedup (Fact 9): only one drain can win the flip, so **no double
-  proposal**; a re-run finds nothing `queued`.
-- **proposed → executed**: reconciled against **on-chain truth**, not the queue's
-  say-so — the linked `pendingTransactions` proposal reaches `executed` (Fact 7)
-  **and** the loupe confirms the facet's selectors are gone. Reuse the existing
-  `reconcile.ts` sweep pattern (extend it, or a small standalone job — §11 Q7).
-- **proposed → queued**: if the linked proposal `reverted` (Fact 7), the removal
-  didn't happen — re-open for the next drain.
-- **queued/proposed → superseded**: the facet is already absent on-chain (removed via
-  another route) — self-healing reconcile.
-- **→ cancelled**: an operator explicitly cancels (deprecation reverted, facet
-  re-added). Manual CLI transition only.
+All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 
-**Idempotency / dedup (Q6)**
+- **queued → proposed**: the drain, via the atomic `claimForProposal(parkedTasks,
+  taskKey)` (`:324`) filtered on `status:'queued'` (§6 step 3). This is the dedup gate
+  that replaces the unusable `intentHash` dedup (Fact 9): only one drain can win the
+  flip, so **no double proposal**; a concurrent drain gets `null` and a re-run finds
+  nothing `queued`.
+- **proposed → executed**: `markExecuted` (`:342`), driven by **on-chain truth**, not
+  the queue's say-so — the linked `pendingTransactions` proposal reaches `executed`
+  (Fact 7) **and** the loupe confirms the facet's selectors are gone. Reuse the existing
+  `reconcile.ts` sweep pattern (extend it, or a small standalone job — §14 Q7).
+- **proposed → queued**: `revertToQueued` (`:402`) — if the linked proposal `reverted`
+  (Fact 7) the removal didn't happen; it clears `proposedAt`/`safeTxHash` so the next
+  drain re-proposes cleanly.
+- **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
+  — the facet is already absent on-chain (removed via another route); self-healing
+  reconcile.
+- **→ cancelled**: `markCancelled` (`:383`) — an operator explicitly abandons the intent
+  (deprecation reverted, facet re-added, or a protected facet queued in error). **Merged
+  behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
+  already-minted Safe removal proposal from the origin-PR linkage (§6), so a claimed task
+  must be `revertToQueued` first, then cancelled.
 
-- **Don't enqueue twice.** Partial unique index on `taskKey`
+**Idempotency / dedup**
+
+- **Don't enqueue twice.** Partial unique index `unique_open_task_key` on `taskKey`
   (`${kind}|${network}|${environment}|${facetName}`) filtered to
-  `status ∈ {queued, proposed}` — mirrors `unique_pending_intent_hash` (Fact 8). A
-  repeat `/deprecate-contract` of the same facet is a no-op upsert.
-- **Don't re-propose if pending.** The atomic queued→proposed flip (above) is the
+  `status ∈ {queued, proposed}` (Fact 15) — mirrors `unique_pending_intent_hash`
+  (Fact 8). A repeat `/deprecate-contract` of the same facet hits E11000 and
+  `enqueueParkedTask` returns `null` — a harmless no-op.
+- **Don't re-propose if pending.** The atomic `claimForProposal` flip (above) is the
   guarantee; a `proposed` record whose proposal is still `pending` is skipped.
 - **Safe re-runs.** The whole drain is idempotent: nothing `queued` ⇒ no-op.
 
 ---
 
-## 8. Cold-network fallback (Q7) — nothing orphaned forever
+## 8. Cold-network fallback — nothing orphaned forever
 
 A network that never gets another multisig action never drains opportunistically.
 Three composed backstops, none silent:
@@ -453,17 +545,19 @@ until executed" window (Fact 10). Two mitigations, both in this spec:
   routed, the facet is **not** treated as superseded — it stays queued and alerts.
   *(This needs a small engine affordance: resolve a named removal by stored address
   when the log no longer maps it — a minor extension to `computeNamedFacetRemovals`/
-  `diffNamedFacets`. Flagged in §11 Q5.)*
+  `diffNamedFacets`. Flagged in §14 Q5.)*
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
   executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
 
 ---
 
-## 9. Observability (Q8)
+## 9. Observability
 
-`script/deploy/safe/list-parked-tasks.ts` (new), mirroring `list-pending-proposals.ts`
-(`citty`/`consola`, `--json`, VPN/`SC_MONGODB_URI`-gated, exit codes per rule
-`200-typescript.md:116`):
+`script/deploy/safe/list-parked-tasks.ts` — **shipped in #2051** (Fact 15), mirroring
+`list-pending-proposals.ts` (`citty`/`consola`, `--json`, exit codes per rule
+`200-typescript.md:116`). It reads the queue from the **non-sensitive `MONGODB_URI`
+cluster and is _un-gated_** — no `lifi-connect` tunnel — so CI and the reconcile/TTL
+jobs can run it non-interactively:
 
 - `--network <csv>` / `--pr <url>` / `--status <state>` filters.
 - Console: grouped by network, one line per task: `facet | status | age | origin PR |
@@ -474,34 +568,38 @@ until executed" window (Fact 10). Two mitigations, both in this spec:
 
 ## 10. Wiring the commands
 
-### `/deprecate-contract` step 6 — "propose now" → "enqueue" (Q, primary change)
+### `/deprecate-contract` step 6 — "propose now" → "enqueue" (primary change)
 
-Step 6 (`deprecate-contract.md:97-128`, Fact 10) is rewritten from *create the
-proposals* to *park them*:
+The enqueue primitive is already built: `enqueueParkedTask` and the
+`enqueue-parked-task.ts` CLI shipped in #2051 (Fact 15). The remaining change is to
+**call** it from `/deprecate-contract` step 6 (`deprecate-contract.md:97-128`, Fact 10),
+rewriting it from *create the proposals* to *park them*:
 
 - Resolve the affected production networks (those whose deploy log lists the facet),
   and for each, **enqueue** one `parkedTask` per (facet, network) carrying
   `prUrl = <this deprecation PR>`, `diamondAddress`/`facetAddress` snapshots, and
   `enqueuer`. No Safe proposal is created at deprecation time.
-- The `prUrl` is **required** — enqueue refuses a task without it (the acceptance
-  criterion is enforced at the source).
+- The `prUrl` is **required** — `enqueueParkedTask` throws on a missing/blank `prUrl`
+  (Fact 15), so the acceptance criterion is enforced at the source.
 - The existing "don't prune `deployments/*.json` until executed" warning becomes
   "until the parked task **retires**" (§8 hazard).
 - Because the enqueue is part of the deprecation PR, the parked set is peer-reviewed
   at merge (§5 auditability mitigation).
 
-> Chicken-and-egg: the PR URL isn't known until the PR is opened. Enqueue therefore
-> happens (or is finalised) **after** the deprecation PR exists — either the command
-> writes records with a placeholder and a follow-up sets the URL, or (cleaner)
-> enqueue runs as the last step once `gh pr create` has returned the URL. `[unverified]`
-> — team to pick; noted in §11 Q8.
+> **Enqueue timing (Q8 — open recommendation).** The `prUrl` isn't known until the PR is
+> opened, so enqueue must happen **after** the deprecation PR exists. **Recommended: run
+> enqueue as the last step, once `gh pr create` has returned the URL** — cleaner than
+> writing placeholder records and backfilling the URL in a follow-up. This was **not**
+> explicitly nailed in the thread; both options remain on the table — see §14 Q8.
 
-### `multisig-rollout` — the drain rides along
+### `multisig-rollout` — the drain rides along (no skill edit)
 
 Phase 3.5 (Fact 11) is **superseded** by the automatic drain hook (§6): when
-`DRAIN_PARKED_TASKS` is on, any rollout's `sendOrPropose`/`runPropose` calls drain the
-target network. The rollout's Phase 4 capture, Phase 5 PR, and Phase 8 Slack post
-already carry the extra removal proposal — the doc gains only the PR-link surfacing
+`DRAIN_PARKED_TASKS` is on, any rollout's `runPropose` calls drain the target network.
+Crucially, the drain is **not** a new `multisig-rollout` skill step and needs **no edit
+to the skill** — it fires from the `runPropose` chokepoint (§6), so it rides *any* facet
+cut, rollout or not. The rollout's Phase 4 capture, Phase 5 PR, and Phase 8 Slack post
+already carry the extra removal proposal — the skill doc gains only the PR-link surfacing
 (§6) and drops the manual `--auto` invocation.
 
 ---
@@ -510,14 +608,14 @@ already carry the extra removal proposal — the doc gains only the PR-link surf
 
 | Guardrail | How |
 |---|---|
-| No new governance path / no bypass | New collection **mirrors** the existing `timelock-operations/queue` (Fact 5). Removals still go loupe → `buildDiamondCutRemoveCalldata` → `wrapWithTimelockSchedule` → Safe → timelock → quorum, **unchanged** (Facts 2, 4, 9). Timelock/Safe never weakened (`002:29`, `105:15`). |
-| PR link mandatory + reviewer-visible | Enqueue rejects a task with no `prUrl`; drain copies it to `parkedTaskRefs` on the proposal; shown in `confirm-safe-tx` detailLines, `list-pending-proposals`, and Slack (§6). |
-| No double-enqueue / no double-propose | Partial unique index on `taskKey`; atomic `queued→proposed` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9; §7). |
+| No new governance path / no bypass | Queue lives on the **non-sensitive `MONGODB_URI` cluster** (off the signing store), **mirroring** the existing `timelock-operations/queue` (Fact 5, 15). Removals still go loupe → `buildDiamondCutRemoveCalldata` → `wrapWithTimelockSchedule` → Safe → timelock → quorum, **unchanged** (Facts 2, 4, 9). Timelock/Safe never weakened (`002:29`, `105:15`). |
+| PR link mandatory + reviewer-visible | `enqueueParkedTask` throws on a blank `prUrl` (Fact 15); drain **logs each removal loudly** and copies the link to `parkedTaskRefs` on the proposal; shown in `confirm-safe-tx` detailLines, `list-pending-proposals`, and Slack (§6). |
+| No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9, 15; §7). |
 | Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts:119`); a queued protected facet is `cancelled` + alerted (§6). Inherits every #2047 guardrail (drift gate is N/A — named path). |
 | Deferred ≠ orphaned | Cold-network backstops: `--auto --all-networks` sweep + TTL Slack alert + observability CLI (§8). No silent truncation — the TTL alert names what's still queued. |
 | Deploy-log longevity | Address snapshot + loupe-by-address check so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). |
-| Opt-in in v1 | `DRAIN_PARKED_TASKS` default off; reentrancy-guarded (§6). |
-| Direct-send safety | Drain no-ops on staging/testnet/`SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Fact 13; §9 below). |
+| Opt-in in v1 | `DRAIN_PARKED_TASKS` **default off; ON for rollouts, OFF for emergencies** (§6) — an urgent pause/break-glass proposal never drags unrelated removals into its signing set; reentrancy-guarded (§6). |
+| Direct-send safety | Drain no-ops on staging/testnet/`SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Fact 13; §12). |
 | Rule compliance | TS/Bash, no Python (`000:15`); viem (`200:14`); reuse helpers (`:24`); new helpers 100%-covered colocated tests (`:120`); `citty`/`consola`/`getEnvVar` CLI (`:116`); `I`-prefixed interfaces; injectable I/O + dry-run-default per #2047 convention (Fact 14). |
 
 ### Governance flow (unchanged from #2047)
@@ -530,7 +628,7 @@ is authorized.
 
 ---
 
-## 12. Staging / testnet / `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Q9)
+## 12. Staging / testnet / `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND`
 
 The queue is a **production-mainnet** construct — the fatigue problem it solves is
 prod Safe signing (Fact 13). Therefore:
@@ -549,51 +647,61 @@ prod Safe signing (Fact 13). Therefore:
 
 ## 13. Effort estimate (Fibonacci; bucketed by who-blocks)
 
-| Phase | Points | Blocks on |
-|---|---|---|
-| `parkedTasks` collection + `IParkedTask` schema + store helpers (get/enqueue/atomic-flip/list) + unit tests (100%) | 3 | our build |
-| Drain helper + hook into `sendOrPropose` + `runPropose` (flag-gated, reentrancy-safe) + tests | 3 | our build |
-| PR-link surfacing: extend `ISafeTxDocument` + `confirm-safe-tx` detailLines + `IProposalSummary`/list-pending + Slack | 2 | our build |
-| `/deprecate-contract` step 6 rewrite (propose → enqueue) + `multisig-rollout` doc update | 1 | our build |
-| Reconcile (proposed→executed/superseded via loupe) + TTL Slack alert (cron) | 2 | our build |
-| `list-parked-tasks` observability CLI + tests | 1 | our build |
-| Loupe-by-address engine affordance (deploy-log-pruned robustness, §8) | 1 | our build |
-| Review + first real park → drain → execute cycle (Safe signing + timelock) | 5 | human decision / operational |
+| Phase | Points | Blocks on | Status |
+|---|---|---|---|
+| `parkedTasks` collection + `IParkedTask` schema + store helpers (get/enqueue/atomic-flip/list) + unit tests (100%) | 3 | our build | ✅ **DONE — #2051** |
+| `list-parked-tasks` observability CLI + `enqueue-parked-task` CLI + tests | 1 | our build | ✅ **DONE — #2051** |
+| Drain helper (`drain-parked-tasks.ts`) + hook into `runPropose` (extract pure `_runPropose`; drain in try/catch; flag-gated, reentrancy-safe) + tests | 3 | our build | todo |
+| PR-link surfacing: extend `ISafeTxDocument` + `confirm-safe-tx` detailLines + `IProposalSummary`/list-pending + Slack | 2 | our build | todo |
+| `/deprecate-contract` step 6 rewrite (propose → call `enqueueParkedTask`) + `multisig-rollout` doc update | 1 | our build | todo |
+| Reconcile (proposed→executed/superseded via loupe) + TTL Slack alert (cron) | 2 | our build | todo |
+| Loupe-by-address engine affordance (deploy-log-pruned robustness, §8) | 1 | our build | todo |
+| Review + first real park → drain → execute cycle (Safe signing + timelock) | 5 | human decision / operational | todo |
 
-Total ≈ **18**; **our-build share 13/18 ≈ 72%**. The remaining 5 is review + the
-governance-gated first live cycle — human/operational by nature.
+Total ≈ **18**; **our-build share 13/18 ≈ 72%**, of which **4 points (store layer +
+observability/enqueue CLIs) are already merged in #2051**. The remaining 5 is review +
+the governance-gated first live cycle — human/operational by nature.
 
-Recommended first PR: schema + store + drain hook (default **off**) + PR-link
-surfacing + `/deprecate-contract` rewrite + observability, as a **draft**. The first
-live drain is a separate, deliberate operational step (flip the flag on one network).
+With the store landed, the **recommended next PR** is: the drain helper + `runPropose`
+hook (default **off**) + PR-link surfacing + the `/deprecate-contract` wiring, as a
+**draft**. The first live drain stays a separate, deliberate operational step (flip
+`DRAIN_PARKED_TASKS` on for one network).
 
 ---
 
 ## 14. Open questions for the teammate discussion
 
-1. **Store (§5).** Mongo collection (recommended) vs git-tracked file. Do we value
-   the parked set being a peer-reviewed *git diff* enough to accept the git file's
-   dedup-needs-a-commit and on-chain-lifecycle friction? (Flip to git file if
-   parallel deprecations are rare and auditability-in-repo is prized.)
-2. **Chokepoint (§6).** Hook **both** library entry points (`sendOrPropose` +
-   `runPropose`) — broad, drains on any action — vs a single command-level step in
-   `multisig-rollout` — narrower, drains only on rollouts. Accept that the 4 bespoke
-   direct-`storeTransactionInMongoDB` task scripts won't trigger a drain?
+1. ~~**Store (§5).**~~ **RESOLVED (Goran + Daniel):** a new Mongo collection on the
+   non-sensitive `MONGODB_URI` cluster (`deferred-cleanup.parkedTasks`), mirroring
+   `timelock-operations/queue` — chosen over a git file because the state is mutable
+   cross-session (`queued → claimed → done`) and the queue needs atomic dedup + on-chain
+   reconciliation the git file can't give. **Shipped in #2051.**
+2. ~~**Chokepoint (§6).**~~ **RESOLVED (Goran + Daniel):** hook `runPropose` only — the
+   funnel every facet cut reaches (`main` and `proposeDiamondCut` both route through it;
+   the agentic cut never touches `main`). Accepted consequence: the `sendOrPropose`
+   funnel (whitelist sync, `cleanUpProdDiamond`) and the 4 bespoke direct-store scripts
+   won't drain opportunistically — the cold-network backstop (§8) covers them.
 3. **PR-link field (§6).** Extend the shared `ISafeTxDocument` (touches the signing
    schema, but backward-compatible/optional) vs a side-car lookup keyed by
-   `safeTxHash`. Blast radius vs cleanliness.
-4. **Batching (§6).** One consolidated removal proposal per network carrying multiple
-   origin PRs — confirmed? Or one proposal per originating PR (more proposals, cleaner
-   1:1 PR↔proposal mapping for the reviewer)?
+   `safeTxHash`. Blast radius vs cleanliness. *(Working assumption: the optional field,
+   §6. Not explicitly settled.)*
+4. **Batching (§6) — OPEN, recommendation stands.** **Recommend one consolidated
+   per-network removal proposal carrying every queued facet's origin PR** (fewer
+   proposals, one extra signature in the session). The alternative — one proposal per
+   originating PR (more proposals, cleaner 1:1 PR↔proposal mapping for the reviewer) —
+   was **not** ruled out in the thread. Team to confirm.
 5. **Deploy-log hazard (§8).** Harden the drain to resolve by stored `facetAddress`
    when the log entry was pruned (small engine extension), **and/or** just enforce
    "don't prune the log until the parked task retires"? (Recommend both.)
-6. **Opt-in default (§6/§11).** `DRAIN_PARKED_TASKS` off in v1 — when do we flip it
-   on by default, and per-network or global?
+6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
+   **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
+   default, and whether that's per-network or global.
 7. **Reconcile ownership (§7).** Extend the existing `reconcile.ts` sweep vs a
    standalone `reconcile-parked-tasks` job + cron.
-8. **Enqueue timing (§10).** The `prUrl` isn't known until the deprecation PR exists.
-   Enqueue after `gh pr create` returns the URL, vs placeholder-then-backfill?
+8. **Enqueue timing (§10) — OPEN, recommendation stands.** The `prUrl` isn't known until
+   the deprecation PR exists. **Recommend enqueue as the last step, once `gh pr create`
+   returns the URL** (over writing placeholder records and backfilling). **Not**
+   explicitly nailed in the thread — team to confirm.
 9. **Scope of `kind` (§3/§4).** Facet-removal-only v1 with an extensible `kind`, vs
    design the other "non-urgent diamond changes" now (which? periphery de-register?
    selector re-points?).
@@ -604,17 +712,17 @@ live drain is a separate, deliberate operational step (flip the flag on one netw
 ## 15. Enqueue → park → drain → propose → execute (at a glance)
 
 ```text
- DEPRECATION TIME                         SOME LATER MULTISIG ACTION ON NETWORK X
+ DEPRECATION TIME                         SOME LATER FACET CUT ON NETWORK X
  ────────────────                         ──────────────────────────────────────
- /deprecate-contract F                    rollout / whitelist sync / any sendOrPropose|runPropose
+ /deprecate-contract F                    rollout / any proposeDiamondCut → runPropose
    │ (removes F from codebase)              │
-   │ opens deprecation PR #P                │ primary proposal stored (unchanged)
+   │ opens deprecation PR #P                │ primary proposal stored (_runPropose, unchanged)
    ▼                                        ▼
- enqueue parkedTask{                      maybeDrainParkedTasks(X, prod)   ◄── the ONE hook (§6)
-   kind: facet-removal,                     │
+ enqueue parkedTask{                      drainParkedTasks(X)  ◄── runPropose tail, the ONE hook (§6)
+   kind: facet-removal,                     │  (DRAIN_PARKED_TASKS on; try/catch)
    network: X, facetName: F,                │ 1. read status:queued for X
    prUrl: #P, status: queued }              │ 2. computeNamedFacetRemovals (live loupe)
-   │                                        │ 3. atomic flip queued→proposed  (dedup gate)
+   │                                        │ 3. claimForProposal flip queued→proposed  (dedup gate)
    │  … survives across sessions …          │ 4. ONE scheduleBatch Remove, carrying #P link
    └───────────────────────────────────────┤
                                             ▼
