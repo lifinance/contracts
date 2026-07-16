@@ -336,11 +336,23 @@ const command = defineCommand({
         process.exit(0)
       }
 
-      // get function selectors for each facet
-      const facetDefs = selectedFacets.map((name) => ({
-        name,
-        selectors: getFunctionSelectors(name),
-      }))
+      // Interactive selection only lists facets whose source exists under
+      // src/Facets/, so their artifact should be present. If the build is
+      // stale/incomplete the read throws — surface a clear message pointing at
+      // the loupe-driven --facets path (which works for already-deprecated
+      // facets) instead of a raw "artifact not found".
+      const facetDefs = selectedFacets.map((name) => {
+        try {
+          return { name, selectors: getFunctionSelectors(name) }
+        } catch {
+          consola.error(
+            `Could not read selectors for "${name}" from out/. Run "forge build", ` +
+              `or use the headless --facets '["${name}"]' path (loupe-driven, works ` +
+              `for already-deprecated facets whose artifact is gone).`
+          )
+          return process.exit(1)
+        }
+      })
 
       // -------------
       // make sure that all function selectors are indeed registered in the diamond
@@ -506,6 +518,32 @@ function parseFacetNames(facets: string): string[] {
 }
 
 /**
+ * Hard governance gate for automated facet removals: on a production mainnet a
+ * removal is IRREVERSIBLE and must go through Safe + timelock, so a leftover
+ * `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true` (which `prepareTimelockCalldata`
+ * would honour by broadcasting straight to the diamond) is refused here rather
+ * than silently bypassing quorum and the timelock delay. Staging/testnet keep
+ * their sanctioned direct-send.
+ */
+function assertGovernedProductionRemoval(
+  network: string,
+  environment: EnvironmentEnum
+): void {
+  if (
+    environment === EnvironmentEnum.production &&
+    !isTestnetNetwork(network) &&
+    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+  ) {
+    consola.error(
+      `🛑 SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true on a production removal (${network}). ` +
+        'Facet removals are IRREVERSIBLE and must go through Safe + timelock. ' +
+        'Unset the variable (or target staging/testnet) and re-run.'
+    )
+    process.exit(1)
+  }
+}
+
+/**
  * Builds the removal cut, wraps it for the timelock and proposes/sends it,
  * reusing the existing plumbing. Shared by the auto (diff) and named
  * (deprecation-driven) paths. `confirmMode`: `'yes'` proposes without asking,
@@ -520,6 +558,8 @@ async function proposeRemovals(
   confirmMode: 'yes' | 'prompt' | 'dry-run'
 ): Promise<void> {
   if (removals.length === 0) return
+
+  assertGovernedProductionRemoval(network, environment)
 
   displayEnvironmentConfiguration(environment, network)
 
@@ -594,10 +634,26 @@ async function runAutoRemoval(
 }
 
 /**
+ * Exits the process non-zero when a fleet sweep left any network unprocessed, so
+ * a partial sweep surfaces as a failed CI check / non-zero shell status instead
+ * of a green "done". No-op when every network succeeded.
+ */
+function exitOnFleetFailures(failed: string[]): void {
+  if (failed.length === 0) return
+  consola.error(
+    `Fleet sweep completed with ${failed.length} failure(s): ${failed.join(
+      ', '
+    )}. Re-run the failed network(s) individually.`
+  )
+  process.exit(1)
+}
+
+/**
  * Runs {@link runAutoRemoval} across every active network sequentially (per-network
  * Safe proposals must not race on nonces). Without `yes` the whole sweep is a
- * dry-run that only prints per-network diffs. Per-network failures are logged and
- * do not abort the sweep.
+ * dry-run that only prints per-network diffs. Per-network failures are collected
+ * so survivors still run; the sweep then exits non-zero so a partial failure
+ * (networks that got no proposal) is never reported as success.
  */
 async function runFleetRemoval(
   environment: EnvironmentEnum,
@@ -610,16 +666,20 @@ async function runFleetRemoval(
     } networks (${environment})${yes ? '' : ' [DRY RUN]'}`
   )
 
+  const failed: string[] = []
   for (const network of networkIds)
     try {
       await runAutoRemoval(network, environment, yes ? 'yes' : 'dry-run')
     } catch (err) {
+      failed.push(network)
       consola.error(
         `[${network}] failed: ${
           err instanceof Error ? err.message : String(err)
         }`
       )
     }
+
+  exitOnFleetFailures(failed)
 }
 
 /** Prints the conspicuous banner for an explicit named-facet removal on one network. */
@@ -694,7 +754,9 @@ async function runNamedRemoval(
 /**
  * Removes an explicit set of named facets across every active network (the
  * fleet form of the deprecation-driven path). Sequential to avoid per-network
- * Safe nonce races; dry-run unless `yes`; per-network failures don't abort.
+ * Safe nonce races; dry-run unless `yes`. Per-network failures are collected so
+ * survivors still run, then the sweep exits non-zero so a partial failure is
+ * never reported as success.
  */
 async function runNamedFleetRemoval(
   environment: EnvironmentEnum,
@@ -708,6 +770,7 @@ async function runNamedFleetRemoval(
     } networks (${environment})${yes ? '' : ' [DRY RUN]'}`
   )
 
+  const failed: string[] = []
   for (const network of networkIds)
     try {
       await runNamedRemoval(
@@ -717,12 +780,15 @@ async function runNamedFleetRemoval(
         yes ? 'yes' : 'dry-run'
       )
     } catch (err) {
+      failed.push(network)
       consola.error(
         `[${network}] failed: ${
           err instanceof Error ? err.message : String(err)
         }`
       )
     }
+
+  exitOnFleetFailures(failed)
 }
 
 async function verifySelectorsExistInDiamond({

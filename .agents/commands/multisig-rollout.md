@@ -127,7 +127,7 @@ network, captured by Phase 4 and signed/PR'd/Slack'd by the existing tail. See
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when a diamond-called periphery's allowlist synced (registration + whitelist), or when Phase 3.5's stale-facet removal ran (deploy/register + removal). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) and **one more** when Phase 3.5's stale-facet removal ran (deploy/register + removal). These are additive, not mutually exclusive: a network that did a periphery allowlist sync **and** a Phase 3.5 removal shows **three** proposals — so expect **two or three** per network when either or both apply. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 

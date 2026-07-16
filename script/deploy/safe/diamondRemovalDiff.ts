@@ -173,9 +173,13 @@ export function getExpectedFacetNames(
 }
 
 /**
- * Union of function selectors declared by the given facet names, read from
- * compiled artifacts. Names without an `out/` artifact (e.g. already-deprecated
- * facets) are skipped silently — only active facets need be covered here.
+ * Union of function selectors declared by the given active facet names, read from
+ * compiled artifacts. These selectors are exactly what a removal must NEVER sweep
+ * out from under a facet that should keep them, so the gate fails **closed**:
+ * every name passed here is an active facet expected by target state, so a
+ * missing/unreadable artifact means a stale build — not a deprecation — and we
+ * throw rather than silently return an incomplete protected set. Run
+ * `forge build` before a removal.
  *
  * @param selectorsOf - Selector lookup; defaults to reading `out/` artifacts. Injectable for tests.
  */
@@ -187,8 +191,15 @@ export function collectActiveSelectors(
   for (const name of names)
     try {
       for (const sel of selectorsOf(name)) selectors.add(lower(sel))
-    } catch {
-      // No artifact for this name (deprecated/never-built) — nothing to protect.
+    } catch (error) {
+      throw new Error(
+        `Cannot read selectors for active facet "${name}" — its artifact is ` +
+          `missing or unreadable. Run "forge build" and retry; refusing to ` +
+          `compute a facet removal from an incomplete protected-selector set. ` +
+          `Underlying: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+      )
     }
   return selectors
 }
@@ -402,15 +413,13 @@ export async function computeFacetRemovalDiff(
   const expectedNames = resolved.getExpectedNames(network, environment)
   const protectedNames = getProtectedNames()
 
-  // Active facets whose selectors must not be swept out from under them: names
-  // that are both registered on-chain and still expected in target state.
-  const activeNames = onChainFacets
-    .map((f) => addressToName[lower(f.address)])
-    .filter(
-      (name): name is string =>
-        typeof name === 'string' && expectedNames.has(name)
-    )
-  const activeSelectors = resolved.getActiveSelectors(activeNames)
+  // Selectors that must never be swept out from under an active facet: the union
+  // owned by EVERY facet target state expects to keep — not only those already
+  // routed on-chain. A replacement facet listed in target state but not yet
+  // registered still owns its selectors, so a deprecated facet currently holding
+  // them must have them held back, not removed. Fails closed on a missing
+  // artifact (see collectActiveSelectors).
+  const activeSelectors = resolved.getActiveSelectors([...expectedNames])
   const sourceNames = resolved.getSourceNames()
 
   return diffFacets({

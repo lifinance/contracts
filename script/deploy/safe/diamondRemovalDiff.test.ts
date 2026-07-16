@@ -69,16 +69,26 @@ describe('getExpectedFacetNames', () => {
 })
 
 describe('collectActiveSelectors', () => {
-  it('unions selectors, lowercases, and skips names whose lookup throws', () => {
+  it('unions selectors and lowercases them across facets', () => {
     const selectorsOf = (name: string): `0x${string}`[] => {
       if (name === 'A') return [sel(0xaa), sel(0xbb)]
       if (name === 'B') return [sel(0xbb)] // duplicate across facets
-      throw new Error('no artifact')
+      return []
     }
-    const set = collectActiveSelectors(['A', 'B', 'Missing'], selectorsOf)
+    const set = collectActiveSelectors(['A', 'B'], selectorsOf)
     expect(set.has(sel(0xaa))).toBe(true)
     expect(set.has(sel(0xbb))).toBe(true)
     expect(set.size).toBe(2)
+  })
+
+  it('fails closed: throws when an active facet has no readable artifact', () => {
+    const selectorsOf = (name: string): `0x${string}`[] => {
+      if (name === 'Present') return [sel(0xaa)]
+      throw new Error('Contract JSON not found')
+    }
+    expect(() =>
+      collectActiveSelectors(['Present', 'MissingArtifact'], selectorsOf)
+    ).toThrow(/MissingArtifact/)
   })
 
   it('returns empty for no names', () => {
@@ -230,7 +240,7 @@ describe('computeFacetRemovalDiff', () => {
     expect(diff.removals).toHaveLength(0)
   })
 
-  it('orchestrates the diff and passes only active names to getActiveSelectors', async () => {
+  it('protects every target-state facet — including a not-yet-routed replacement — via getActiveSelectors', async () => {
     let activeNamesSeen: string[] = []
     const io: Partial<IRemovalDiffIO> = {
       getDiamondAddress: async () => addr(0xd),
@@ -243,7 +253,9 @@ describe('computeFacetRemovalDiff', () => {
         [addr(1)]: 'ActiveFacet',
         [addr(2)]: 'StaleFacet',
       }),
-      getExpectedNames: () => new Set(['ActiveFacet']),
+      // ReplacementFacet is expected by target state but not yet routed on-chain;
+      // its selectors must still be protected from a concurrent removal.
+      getExpectedNames: () => new Set(['ActiveFacet', 'ReplacementFacet']),
       getActiveSelectors: (names) => {
         activeNamesSeen = names
         return new Set()
@@ -251,7 +263,10 @@ describe('computeFacetRemovalDiff', () => {
       getSourceNames: () => new Set(), // StaleFacet source deleted → removable
     }
     const diff = await computeFacetRemovalDiff('mainnet', PROD, io)
-    expect(activeNamesSeen).toEqual(['ActiveFacet'])
+    expect([...activeNamesSeen].sort()).toEqual([
+      'ActiveFacet',
+      'ReplacementFacet',
+    ])
     expect(diff.removals).toEqual([
       { name: 'StaleFacet', address: addr(2), selectors: [sel(2)] },
     ])
