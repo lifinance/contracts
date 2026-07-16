@@ -132,6 +132,10 @@
       "0x0B1dcD1e7BA87E3ab9315f33b7661648b6669C7f": {
         "Name": "MayanFacet",
         "Version": "1.3.0"
+      },
+      "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -140,8 +144,8 @@
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "FeeForwarder": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
-      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",

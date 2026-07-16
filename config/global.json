@@ -9,6 +9,17 @@
     "staging": "0x981CCF8c09633F6F2AF3fe661C285ca1DB09caE1",
     "production": "0xAF4B7A83591a6c4c8B9d1341C3F08BBc3b800fc5"
   },
+  "walletKeys": {
+    "refundWallet": "PRIVATE_KEY_REFUND_WALLET",
+    "withdrawWallet": "PRIVATE_KEY_WITHDRAW_WALLET",
+    "pauserWallet": "PRIVATE_KEY_PAUSER_WALLET",
+    "deployerWallet": "PRIVATE_KEY_PRODUCTION",
+    "devWallet": "PRIVATE_KEY",
+    "backendSigner": {
+      "staging": "PRIVATE_KEY_BACKEND_SIGNER_STAGING",
+      "production": "PRIVATE_KEY_BACKEND_SIGNER_PRODUCTION"
+    }
+  },
   "tronWallets": {
     "refundWallet": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
     "feeCollectorOwner": "TTWhPqF38FneGGN1smz3m5LsNJQYx4mgQy",
@@ -42,7 +53,6 @@
     "DiamondLoupeFacet",
     "EmergencyPauseFacet",
     "GasZipFacet",
-    "GenericSwapFacet",
     "GenericSwapFacetV3",
     "LiFiIntentEscrowFacet",
     "OwnershipFacet",

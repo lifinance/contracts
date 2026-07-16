@@ -60,6 +60,10 @@
       "0x10b8b5f45126f6e718A9eD5c6A8d6A5D66181450": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.1.0"
+      },
+      "0x455B71D20a8b51E9757FeD649833f71355cFCe44": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
