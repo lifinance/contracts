@@ -272,6 +272,117 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
+// Bridge-specific destination recipient.
+//
+// `RECEIVER_FIELD` (`_bridgeData.receiver`) is the canonical recipient for EVM
+// destinations, but it does NOT carry the real recipient in every case: for a
+// non-EVM destination the facet passes the `NON_EVM_ADDRESS` sentinel in
+// `_bridgeData.receiver` and puts the actual recipient (a `bytes32`/`bytes`
+// value — a Solana/Bitcoin/NEAR address) in its own bridge-specific struct.
+// Surfacing only `_bridgeData.receiver` would therefore show a magic sentinel
+// instead of the recipient the signer is actually authorizing.
+//
+// ERC-7730 fields are static per selector — a descriptor cannot say "show A
+// unless it's the sentinel, then show B" — so we surface the bridge-specific
+// field ALONGSIDE `RECEIVER_FIELD` for every non-EVM-capable facet. `format`
+// is `raw` (not `addressName`): the value may be a non-EVM address that no EVM
+// address-book can resolve, so it must be shown as its literal bytes.
+//
+// Two label groups:
+//   - "Destination Recipient": the field is the authoritative recipient in ALL
+//     cases (it equals `_bridgeData.receiver` for EVM, and is the real
+//     recipient for non-EVM).
+//   - "Non-EVM Recipient": the field is populated only for non-EVM
+//     destinations (zero/empty for EVM, where `RECEIVER_FIELD` is authoritative).
+//
+// Each path is verified against the facet's `_startBridge` receiver handling.
+const BRIDGE_RECEIVER_FIELDS: Record<string, IField> = {
+  AcrossV4: {
+    path: '_acrossData.receiverAddress',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  AllBridge: {
+    path: '_allBridgeData.recipient',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  DeBridgeDln: {
+    path: '_deBridgeData.receiver',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  GasZip: {
+    path: '_gasZipData.receiverAddress',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  Glacis: {
+    path: '_glacisData.receiverAddress',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  LiFiIntentEscrow: {
+    path: '_lifiIntentData.recipient',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  LiFiIntentEscrowV2: {
+    path: '_lifiIntentData.recipient',
+    label: 'Destination Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  Chainflip: {
+    path: '_chainflipData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  Eco: {
+    path: '_ecoData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  Garden: {
+    path: '_gardenData.nonEvmReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  LayerSwap: {
+    path: '_layerSwapData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  Mayan: {
+    path: '_mayanData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  NEARIntents: {
+    path: '_nearData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+  PolymerCCTP: {
+    path: '_polymerData.nonEVMReceiver',
+    label: 'Non-EVM Recipient',
+    format: 'raw',
+    visible: 'always',
+  },
+}
+
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
@@ -314,6 +425,13 @@ function variantTag(fnName: string): string | null {
   return bits.length ? bits.join(', ') : null
 }
 
+// The generic recipient plus, for non-EVM-capable facets, the bridge-specific
+// destination recipient (see BRIDGE_RECEIVER_FIELDS).
+function receiverFields(facet: string): IField[] {
+  const extra = BRIDGE_RECEIVER_FIELDS[facet]
+  return extra ? [RECEIVER_FIELD, extra] : [RECEIVER_FIELD]
+}
+
 function buildStartFormat(fn: IAbiFn): IFormatEntry {
   const facet = bridgeFacetName(fn.name)
   return {
@@ -333,7 +451,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
         visible: 'always',
       },
       CHAIN_FIELD,
-      RECEIVER_FIELD,
+      ...receiverFields(facet),
       ...HIDDEN_BRIDGE_FIELDS,
     ],
   }
@@ -362,7 +480,7 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
         visible: 'always',
       },
       CHAIN_FIELD,
-      RECEIVER_FIELD,
+      ...receiverFields(facet),
       ...HIDDEN_BRIDGE_FIELDS,
       {
         path: '_swapData.[].callData',

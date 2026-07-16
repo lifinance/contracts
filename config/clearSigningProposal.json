@@ -204,6 +204,12 @@
           "visible": "always"
         },
         {
+          "path": "_acrossData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -351,6 +357,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_allBridgeData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -638,6 +650,12 @@
           "visible": "always"
         },
         {
+          "path": "_chainflipData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -702,6 +720,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_deBridgeData.receiver",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -772,6 +796,12 @@
           "visible": "always"
         },
         {
+          "path": "_ecoData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -836,6 +866,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_gardenData.nonEvmReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -906,6 +942,12 @@
           "visible": "always"
         },
         {
+          "path": "_gasZipData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -970,6 +1012,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_glacisData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -1474,6 +1522,12 @@
           "visible": "always"
         },
         {
+          "path": "_layerSwapData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -1538,6 +1592,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_lifiIntentData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -1608,6 +1668,12 @@
           "visible": "always"
         },
         {
+          "path": "_lifiIntentData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -1672,6 +1738,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -1806,6 +1878,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_nearData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -2208,6 +2286,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_polymerData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -2948,6 +3032,12 @@
           "visible": "always"
         },
         {
+          "path": "_acrossData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -3137,6 +3227,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_allBridgeData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3524,6 +3620,12 @@
           "visible": "always"
         },
         {
+          "path": "_chainflipData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -3617,6 +3719,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_deBridgeData.receiver",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3716,6 +3824,12 @@
           "visible": "always"
         },
         {
+          "path": "_ecoData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -3809,6 +3923,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_gardenData.nonEvmReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3908,6 +4028,12 @@
           "visible": "always"
         },
         {
+          "path": "_gasZipData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -4001,6 +4127,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_glacisData.receiverAddress",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4676,6 +4808,12 @@
           "visible": "always"
         },
         {
+          "path": "_layerSwapData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -4769,6 +4907,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_lifiIntentData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4868,6 +5012,12 @@
           "visible": "always"
         },
         {
+          "path": "_lifiIntentData.recipient",
+          "label": "Destination Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -4961,6 +5111,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5153,6 +5309,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_nearData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5729,6 +5891,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_polymerData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
