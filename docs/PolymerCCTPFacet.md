@@ -12,12 +12,44 @@ graph LR;
     PolymerCCTPFacet -- CALL --> TM(TokenMessenger)
 ```
 
+## HyperCore deposits
+
+HyperCore (Hyperliquid, LI.FI chain ID `1337`) has no CCTP domain of its own: the USDC burn targets HyperEVM's domain (`19`) and the deposit into HyperCore is performed by [Circle's `CctpForwarder` contract on HyperEVM](https://developers.circle.com/cctp/concepts/forwarding-service). Circle requires that both `mintRecipient` and `destinationCaller` are set to the forwarder; the actual HyperCore recipient is encoded in the `hookData` appended to the burn message (bytes `[32:52]`), together with a destination flag (`0` = perp margin balance, `0xFFFFFFFF` = spot balance).
+
+The facet enforces this flow on-chain via `depositForBurnWithHook`:
+
+- `hookData` is accepted **iff** `destinationChainId == 1337` (hooks toward any other destination revert with `InvalidCallData`, and a hookless transfer to `1337` reverts as well since the USDC would mint on HyperEVM and never reach HyperCore).
+- `mintRecipient` and `destinationCaller` are always set to the hardcoded `HYPERCORE_CCTP_FORWARDER` constant — never to caller-supplied values. Rotating the forwarder requires a facet upgrade.
+- The recipient encoded in `hookData[32:52]` must equal `BridgeData.receiver` (revert `InvalidReceiver` otherwise), so the emitted `LiFiTransferStarted.receiver` is always the real end user and calldata cannot redirect funds to a recipient other than the declared one.
+
+### Trust assumptions
+
+Verified against the forwarder's published source ([`circlefin/hyperevm-circle-contracts`](https://github.com/circlefin/hyperevm-circle-contracts), `src/CctpForwarder.sol` + `src/messages/CctpForwarderHookData.sol`):
+
+- The forwarder requires `mintRecipient == address(this)` and decodes the deposit recipient from `hookData[32:52]` — exactly the field the facet validates against `BridgeData.receiver`, so the on-chain receiver guarantee binds to the bytes the forwarder actually uses. Its relay entrypoint (`mintAndForward`) is permissionless, but `destinationCaller` pinning means the mint can only ever happen through it, atomically with the forward.
+- The magic header (`hookData[0:24]`) and length field are ignored by the forwarder on-chain (they signal Circle's off-chain auto-relay service), which is why the facet does not validate them. The forwarder does require hook version `0` and length ≥ 52; a hook violating either makes `mintAndForward` revert, leaving the transfer burned-but-unmintable (hook bytes are part of the attested message and cannot be replayed with different content). The facet's length guard covers the ≥ 52 bound; version correctness is on the calldata source (LI.FI API).
+- `hookData[52:56]` (`destinationId`) selects the HyperCore balance: `0` = perp margin, `0xFFFFFFFF` = spot. It defaults to `0` (perp) if truncated. The facet intentionally does not validate it.
+- The forwarder at `0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757` **is** an EIP-1967 upgradeable proxy administered by Circle, and its owner can unset the per-token forwarding address (which would make relays revert until restored). The receiver guarantee therefore ultimately rests on Circle not changing the decode semantics under the same address.
+- `hasDestinationCall` remains `false` for HyperCore transfers: the hook is Circle/Polymer forwarding infrastructure with a validated recipient, not a user-defined destination call.
+
+## Stellar deposits
+
+Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM: `BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the real recipient travels as a Stellar strkey inside `hookData`. A Stellar account can never be a CCTP `mintRecipient` directly (CCTP stores the raw 32 bytes with no strkey type prefix and assumes the recipient is a contract), so every Stellar deposit mints to the pinned `STELLAR_CCTP_FORWARDER`, which forwards the USDC to the strkey.
+
+- `mintRecipient` and `destinationCaller` are always the hardcoded `STELLAR_CCTP_FORWARDER` — never caller-supplied. Rotating the forwarder requires a facet upgrade.
+- Hook layout: magic (24) + version (4) + strkey length `L` (4) + strkey (`L`). The facet requires `hookData.length > 32` (a 32-byte header with `L == 0` encodes a zero-length strkey the forwarder cannot credit, so it is rejected) and that the declared `L` equals the actual trailing length.
+
+### Trust assumptions
+
+- **Unvalidated receiver.** Unlike HyperCore, the strkey is not a 20-byte EVM address, so the facet cannot validate it against `BridgeData.receiver`, and it is not cross-checked against the `nonEVMReceiver` emitted in `BridgeToNonEVMChainBytes32`. Correct routing relies entirely on trusted (LI.FI API) calldata generation; integrators MUST treat the Stellar receiver as not enforced on-chain.
+- **Version byte.** The hook version bytes `[24:28]` are intentionally not validated on-chain, matching the HyperCore corridor: the facet trusts the calldata source and relies on Circle's Stellar forwarder to reject a wrong-version hook (which would otherwise leave the transfer burned-but-unmintable). An on-chain version check is a possible future hardening, not a current guarantee.
+
 ## Public Methods
 
 - `function startBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, PolymerCCTPData calldata _polymerData)`
   - Simply bridges USDC using Polymer CCTP
 - `function swapAndStartBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, SwapData[] calldata _swapData, PolymerCCTPData calldata _polymerData)`
-  - Performs swap(s) before bridging USDC using Polymer CCTP
+  - Performs swap(s) before bridging USDC using Polymer CCTP. Both the source token (`sendingAssetId`) and the final swap output (`receivingAssetId`) must be USDC — the facet only ever bridges USDC, so a swap ending in any other token reverts with `InvalidSendingToken`.
 - `function getChainIdToDomainId(uint256 _chainId)`
   - Returns the configured CCTP domain ID for a LI.FI chain ID
 
@@ -48,9 +80,18 @@ struct PolymerCCTPData {
   uint256 maxCCTPFee;
   // Should only be nonzero if submitting to a nonEVM chain
   bytes32 nonEVMReceiver;
+  // For Solana: the receiver's Associated Token Account (ATA) for USDC
+  bytes32 solanaReceiverATA;
   // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
   // 1000 = fast path, 2000 = standard path
   uint32 minFinalityThreshold;
+  // Recipient of swap leftovers and excess native on the swap entrypoint. msg.sender may be
+  // a relayer or the Permit2Proxy, so refunds route here rather than to the caller. Only
+  // consumed by swapAndStartBridgeTokensViaPolymerCCTP; must be non-zero on that entrypoint.
+  address refundRecipient;
+  // CctpForwarder hook data for HyperCore deposits; must encode bridgeData.receiver at
+  // bytes [32:52]. Required iff destinationChainId == LIFI_CHAIN_ID_HYPERCORE.
+  bytes hookData;
 }
 ```
 
