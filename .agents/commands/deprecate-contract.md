@@ -18,7 +18,7 @@ This command completely removes one or more contracts (facets or periphery) from
 - Removing source files, deployment scripts, docs, and config entries
 - Updating whitelist for periphery contracts
 - Running test suite to verify remaining tests pass
-- **Parking the on-chain removal** (facets) into the deferred diamond-cleanup queue so the facet is actually removed from the production diamonds that still register it — not just the codebase — when the parked task is later drained into a proposal
+- **Parking the on-chain removal** (facets) into the deferred diamond-cleanup queue so the facet can eventually be removed from the production diamonds that still register it — not just the codebase — once the parked task is later drained into a proposal and that proposal executes
 - Searching for remaining occurrences for manual review
 
 ## Quick Start
@@ -113,8 +113,10 @@ The command performs these steps in order:
    - **Park last, after the deprecation PR exists.** Each parked task **requires**
      the originating PR URL (`--prUrl`) so the reviewer sees it at signing, and
      that URL only exists once `gh pr create` has returned it. So the enqueue is
-     the **final action** of this workflow — run it after the deprecation PR is
-     open, passing the real PR URL. One invocation per (facet, network):
+     the **last removal-related action** — run it once the deprecation PR is
+     open, passing the real PR URL, and only then continue with steps 7–8
+     (remaining-occurrences review and final reminders). One invocation per
+     (facet, network):
 
      ```bash
      bunx tsx script/deploy/safe/enqueue-parked-task.ts \
@@ -274,7 +276,7 @@ Please review the above list and indicate which files/occurrences should be remo
 - Type the file paths you want to clean up
 - Or say "none" if all occurrences should remain
 - Or say "all" to remove all occurrences (use with caution)
-- Or say "deployments only" to remove only from deployment log files
+- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` facet→address entry of any facet whose parked removal task (step 6) is still pending; those stay until the task retires (executed/cancelled/superseded)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  FINAL MANUAL STEPS REQUIRED

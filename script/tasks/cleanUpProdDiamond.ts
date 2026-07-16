@@ -196,6 +196,14 @@ const command = defineCommand({
     const diamondName = 'LiFiDiamond'
     let calldata: `0x${string}`
 
+    // --auto (target-state diff) and --facets (explicit names) drive different
+    // removal engines; refuse the ambiguous combination instead of silently
+    // letting one win.
+    if (auto && facets) {
+      consola.error('--auto and --facets are mutually exclusive')
+      process.exit(1)
+    }
+
     // ---------------- FLEET removals across all networks ----------------
     if (allNetworks) {
       if (!environment)
@@ -207,13 +215,9 @@ const command = defineCommand({
       if (facets)
         // Named-facet fleet removal (the deprecation-driven path).
         await runNamedFleetRemoval(env, parseFacetNames(facets), Boolean(yes))
-      else if (auto)
-        // Target-state-diff sweep (backstop for orphans nobody named).
-        await runFleetRemoval(env, Boolean(yes))
-      else {
-        consola.error('--all-networks requires --facets or --auto')
-        process.exit(1)
-      }
+      // No names → target-state-diff sweep (--all-networks implies --auto):
+      // the backstop for orphans nobody named.
+      else await runFleetRemoval(env, Boolean(yes))
       return
     }
 
@@ -236,8 +240,10 @@ const command = defineCommand({
     const typedEnv = castEnv(environment)
 
     // ---------------- AUTO: auto-detected removals for a single network ----------------
+    // Dry-run unless --yes, matching the fleet sweep and the --yes help text
+    // (auto modes never submit without an explicit --yes).
     if (auto) {
-      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'prompt')
+      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'dry-run')
       return
     }
 
