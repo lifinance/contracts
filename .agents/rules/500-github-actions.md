@@ -36,6 +36,30 @@ paths:
   - uses: some-action@main
   ```
 
+### No template injection in `run:` scripts ([CONV:ACTIONS-NO-INJECTION])
+
+- **Never interpolate `${{ github.* }}` (or any other `${{ ... }}` expression carrying attacker-influenced data) directly into a `run:` shell script.** The expression is substituted into the script body **before** the shell runs, so a crafted value (e.g. a branch name, PR title, commit message, or actor login containing shell metacharacters) executes as code on the runner.
+- **Highest-risk contexts** (attacker-controllable on `pull_request`/`issue`/`issue_comment` triggers): `github.actor`, `github.event.*` (`.pull_request.title`, `.pull_request.body`, `.pull_request.head.ref`, `.issue.title`, `.comment.body`, `.label.name`, `.action`), `github.head_ref`. Treat every `github.event.*` field as untrusted.
+- **Fix**: bind the expression to an `env:` entry on the step, then reference the shell variable (quoted) inside `run:`. Values passed via `env:` reach the script as data, never as code.
+- **Example (correct)**:
+
+  ```yaml
+  - name: Check for authorized actor
+    env:
+      GITHUB_ACTOR: ${{ github.actor }}
+    run: |
+      if [[ "$GITHUB_ACTOR" == "lifi-action-bot" ]]; then echo "authorized"; fi
+  ```
+
+- **Anti-pattern (forbidden)**:
+
+  ```yaml
+  - run: |
+      if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then echo "authorized"; fi
+  ```
+
+- `${{ secrets.* }}` and `${{ github.* }}` inside `if:`/`with:`/`env:` values are fine — only direct interpolation into the `run:` script body is the injection sink.
+
 ### Foundry installation ([CONV:FOUNDRY-SETUP])
 
 - **Always install foundry via the project's `./.github/actions/setup-foundry` composite action.** Do not call `foundry-rs/foundry-toolchain` directly from a workflow.
