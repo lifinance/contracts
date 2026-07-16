@@ -32,6 +32,18 @@ Verified against the forwarder's published source ([`circlefin/hyperevm-circle-c
 - The forwarder at `0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757` **is** an EIP-1967 upgradeable proxy administered by Circle, and its owner can unset the per-token forwarding address (which would make relays revert until restored). The receiver guarantee therefore ultimately rests on Circle not changing the decode semantics under the same address.
 - `hasDestinationCall` remains `false` for HyperCore transfers: the hook is Circle/Polymer forwarding infrastructure with a validated recipient, not a user-defined destination call.
 
+## Stellar deposits
+
+Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM: `BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the real recipient travels as a Stellar strkey inside `hookData`. A Stellar account can never be a CCTP `mintRecipient` directly (CCTP stores the raw 32 bytes with no strkey type prefix and assumes the recipient is a contract), so every Stellar deposit mints to the pinned `STELLAR_CCTP_FORWARDER`, which forwards the USDC to the strkey.
+
+- `mintRecipient` and `destinationCaller` are always the hardcoded `STELLAR_CCTP_FORWARDER` — never caller-supplied. Rotating the forwarder requires a facet upgrade.
+- Hook layout: magic (24) + version (4) + strkey length `L` (4) + strkey (`L`). The facet requires `hookData.length > 32` (a 32-byte header with `L == 0` encodes a zero-length strkey the forwarder cannot credit, so it is rejected) and that the declared `L` equals the actual trailing length.
+
+### Trust assumptions
+
+- **Unvalidated receiver.** Unlike HyperCore, the strkey is not a 20-byte EVM address, so the facet cannot validate it against `BridgeData.receiver`, and it is not cross-checked against the `nonEVMReceiver` emitted in `BridgeToNonEVMChainBytes32`. Correct routing relies entirely on trusted (LI.FI API) calldata generation; integrators MUST treat the Stellar receiver as not enforced on-chain.
+- **Version byte.** The hook version bytes `[24:28]` are intentionally not validated on-chain, matching the HyperCore corridor: the facet trusts the calldata source and relies on Circle's Stellar forwarder to reject a wrong-version hook (which would otherwise leave the transfer burned-but-unmintable). An on-chain version check is a possible future hardening, not a current guarantee.
+
 ## Public Methods
 
 - `function startBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, PolymerCCTPData calldata _polymerData)`

@@ -349,10 +349,16 @@ contract PolymerCCTPFacet is
             // nonEVMReceiver for off-chain relayer tracking. The strkey is not a 20-byte EVM
             // address, so it cannot be validated against _bridgeData.receiver.
             // Hook layout: magic (24) + version (4) + strkey length L (4) + strkey (L).
+            // hookData.length must exceed the 32-byte header: length == 32 encodes a
+            // zero-length strkey the forwarder cannot credit, which would leave the USDC
+            // burned but stuck. The version bytes [24:28] are intentionally NOT validated
+            // on-chain — as with the HyperCore corridor the facet trusts LI.FI calldata
+            // generation and relies on Circle's Stellar forwarder to reject a wrong-version
+            // hook (see docs/PolymerCCTPFacet.md).
             if (
                 _bridgeData.receiver != NON_EVM_ADDRESS ||
                 _polymerData.nonEVMReceiver == bytes32(0) ||
-                _polymerData.hookData.length < 32
+                _polymerData.hookData.length <= 32
             ) {
                 revert InvalidCallData();
             }

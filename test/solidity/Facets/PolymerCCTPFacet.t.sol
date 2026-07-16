@@ -952,6 +952,37 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_StellarZeroLengthStrkey() public {
+        // Finding #3: a 32-byte header-only hook declares a zero-length strkey (L == 0). It
+        // passes the length-consistency check, but the forwarder cannot credit any recipient,
+        // so the USDC would be burned but stuck. Reject it before burning.
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+
+        // 32 bytes: magic (24) + version (4) + length (4, = 0), no strkey
+        bytes memory zeroLenHook = abi.encodePacked(
+            bytes24("cctp-forward"),
+            uint32(0),
+            uint32(0)
+        );
+        PolymerCCTPFacet.PolymerCCTPData
+            memory polymerDataWithHook = _polymerDataWithHook(zeroLenHook);
+        polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
+            bridgeData,
+            polymerDataWithHook
+        );
+
+        vm.stopPrank();
+    }
+
     function testRevert_SolanaDestinationWithZeroSolanaReceiverATA() public {
         vm.startPrank(USER_SENDER);
 
