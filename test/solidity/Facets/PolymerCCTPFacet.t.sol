@@ -405,11 +405,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
         validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
+        // For Solana the event carries the actual mint target (the ATA), not nonEVMReceiver,
+        // so the emitted receiver can never diverge from where the USDC is minted.
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit ILiFi.BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
-            validPolymerData.nonEVMReceiver
+            validPolymerData.solanaReceiverATA
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -906,14 +908,38 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_NonEVMReceiverWithZeroBytes32() public {
+    function testRevert_SentinelReceiverToEVMDestination() public {
+        // Finding #1: the NON_EVM_ADDRESS sentinel toward an EVM chain must revert. Otherwise
+        // CCTP would mint to the low 20 bytes of nonEVMReceiver while events still show the
+        // sentinel, hiding the real recipient from any clear-signing display.
         vm.startPrank(USER_SENDER);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         bridgeData.receiver = NON_EVM_ADDRESS;
-        bridgeData.destinationChainId = 10;
-        validPolymerData.nonEVMReceiver = bytes32(0);
+        bridgeData.destinationChainId = 8453; // Base (EVM)
+        validPolymerData.nonEVMReceiver = bytes32(
+            uint256(uint160(address(0xBEEF)))
+        );
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_EVMReceiverToSolanaDestination() public {
+        // Finding #4: a real EVM receiver toward a genuinely non-EVM chain (Solana) must
+        // revert instead of burning a zero-padded EVM address to Solana's domain, where it
+        // is not a valid account and the USDC becomes unclaimable.
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        // receiver left as the default EVM address; destination is Solana
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
         vm.expectRevert(InvalidReceiver.selector);
 

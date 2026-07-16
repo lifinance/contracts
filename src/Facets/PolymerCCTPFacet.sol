@@ -354,8 +354,27 @@ contract PolymerCCTPFacet is
             ) {
                 revert InvalidCallData();
             }
-        } else if (_polymerData.hookData.length > 0) {
-            revert InvalidCallData();
+        } else {
+            // Non-corridor destinations carry no forwarder hook, and the receiver kind
+            // must match the destination kind: the NON_EVM_ADDRESS sentinel is only valid
+            // for whitelisted non-EVM destinations (Solana here; Stellar and HyperCore are
+            // handled by the arms above), and a real EVM address must never target a
+            // non-EVM destination. Without these guards CCTP would either mint to the low
+            // 20 bytes of nonEVMReceiver on an EVM chain while events show the sentinel, or
+            // burn a zero-padded EVM address to a non-EVM domain where it is unclaimable.
+            if (_polymerData.hookData.length > 0) {
+                revert InvalidCallData();
+            }
+
+            bool isSolanaDestination = _bridgeData.destinationChainId ==
+                LIFI_CHAIN_ID_SOLANA;
+            if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+                if (!isSolanaDestination) {
+                    revert InvalidReceiver();
+                }
+            } else if (isSolanaDestination) {
+                revert InvalidReceiver();
+            }
         }
 
         LibAsset.transferERC20(
@@ -428,23 +447,18 @@ contract PolymerCCTPFacet is
                 _polymerData.nonEVMReceiver
             );
         } else {
-            // For Solana, CCTP expects the ATA as mintRecipient; for other non-EVM, use nonEVMReceiver.
-            bool isSolanaDestination = destinationChainId ==
-                LIFI_CHAIN_ID_SOLANA;
-
-            bytes32 mintRecipient = isSolanaDestination
-                ? _polymerData.solanaReceiverATA
-                : _polymerData.nonEVMReceiver;
-
-            if (mintRecipient == bytes32(0)) {
-                if (isSolanaDestination) revert InvalidConfig();
-                revert InvalidReceiver();
+            // Only Solana reaches this branch: Stellar and HyperCore are handled above, and
+            // the dispatch guard rejects the sentinel for any other destination. CCTP expects
+            // the receiver's USDC ATA as mintRecipient, and that same ATA is emitted so the
+            // event can never diverge from the actual mint target.
+            if (_polymerData.solanaReceiverATA == bytes32(0)) {
+                revert InvalidConfig();
             }
 
             TOKEN_MESSENGER.depositForBurn(
                 bridgeAmount,
                 domainId,
-                mintRecipient,
+                _polymerData.solanaReceiverATA,
                 USDC,
                 UNRESTRICTED_DESTINATION_CALLER,
                 _polymerData.maxCCTPFee, // maxFee - 0 means no fee limit
@@ -454,7 +468,7 @@ contract PolymerCCTPFacet is
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 destinationChainId,
-                _polymerData.nonEVMReceiver
+                _polymerData.solanaReceiverATA
             );
         }
 
