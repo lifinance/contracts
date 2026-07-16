@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "./TransferrableOwnership.sol";
@@ -13,6 +12,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 //                 redeploys of all inheritors or drift the repo from deployed
 //                 bytecode. Re-enable once EXSC-330 (commit hash stored in
 //                 deploy log) makes that drift recoverable via re-verification.
+/// @custom:version 1.0.0
 abstract contract WithdrawablePeriphery is TransferrableOwnership {
     using SafeTransferLib for address;
 

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.0.0
 pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
@@ -7,6 +6,7 @@ import { WithdrawablePeriphery } from "lifi/Helpers/WithdrawablePeriphery.sol";
 import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
 
+/// @custom:version 1.0.0
 contract TestContract is WithdrawablePeriphery {
     constructor(address _owner) WithdrawablePeriphery(_owner) {}
 }
