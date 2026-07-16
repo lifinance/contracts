@@ -265,7 +265,7 @@ contract AcrossFacetV4 is
     function _convertAddressToBytes32(
         address _address
     ) internal pure returns (bytes32) {
-        // TODO: migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
+        // TODO(EXSC-626): migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
         return bytes32(uint256(uint160(_address)));
     }
 }

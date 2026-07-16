@@ -275,7 +275,7 @@ contract NEARIntentsFacet is
         ILiFi.BridgeData memory _bridgeData,
         NEARIntentsData calldata _nearData
     ) internal view {
-        // TODO: migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
+        // TODO(EXSC-626): migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
         bytes32 receiverBytes32 = _bridgeData.receiver == NON_EVM_ADDRESS
             ? _nearData.nonEVMReceiver
             : bytes32(uint256(uint160(_bridgeData.receiver)));

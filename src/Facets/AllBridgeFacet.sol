@@ -155,7 +155,7 @@ contract AllBridgeFacet is
         } else {
             // destination chain is EVM
             // make sure that bridgeData and allBridgeData receiver addresses match
-            // TODO: migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
+            // TODO(EXSC-626): migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
             if (
                 _bridgeData.receiver !=
                 address(uint160(uint256(_allBridgeData.recipient)))
@@ -173,7 +173,7 @@ contract AllBridgeFacet is
         if (_allBridgeData.payFeeWithSendingAsset) {
             // pay fee with sending asset
             ALLBRIDGE.swapAndBridge(
-                // TODO: migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
+                // TODO(EXSC-626): migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,
@@ -186,7 +186,7 @@ contract AllBridgeFacet is
         } else {
             // pay fee with native asset
             ALLBRIDGE.swapAndBridge{ value: _allBridgeData.fees }(
-                // TODO: migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
+                // TODO(EXSC-626): migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
                 bytes32(uint256(uint160(_bridgeData.sendingAssetId))),
                 _bridgeData.minAmount,
                 _allBridgeData.recipient,

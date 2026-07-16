@@ -111,7 +111,7 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ) revert InformationMismatch();
 
         // ensure that receiver addresses match in case of no destination call
-        // TODO: migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
+        // TODO(EXSC-626): migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
         if (
             !_bridgeData.hasDestinationCall &&
             (_bridgeData.receiver !=

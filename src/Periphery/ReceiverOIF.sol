@@ -90,7 +90,7 @@ contract ReceiverOIF is ILiFi, WithdrawablePeriphery, IOutputCallback {
         _swapAndCompleteBridgeTokens(
             transactionId,
             swapData,
-            // TODO: migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
+            // TODO(EXSC-626): migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
             address(uint160(uint256(token))),
             payable(receiver),
             amount
