@@ -101,13 +101,33 @@ deploy mode already executed via `deploy-contract` in Phase 2. For whitelist mod
 
 Ends with a per-network summary and exits `1` if any network failed. Failures don't block survivors: continue with the succeeded networks, report the failed ones, and offer to retry them individually. Each proposal is created already carrying one signature (`signatureCount: 1`). A production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
 
+## Phase 3.5 — Reconcile stale-facet removals (opt-in, deploy mode)
+
+**Off by default.** Only when the user opts in (e.g. a deprecation is in flight —
+"also remove the deprecated facets") run, per target network, so the removal
+proposal rides this rollout's signing session instead of needing its own:
+
+```bash
+bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --network <network> --environment production --yes
+```
+
+This diffs the on-chain loupe against `_targetState.json` and proposes removing
+only facets that are **both** absent from target state **and** have no `src/`
+source (i.e. deprecated — not target-state drift). It prints a conspicuous
+`⚠️ IRREVERSIBLE FACET REMOVAL` banner per network; **removals are irreversible
+timelock+Safe actions** — review the banner before `--yes`. Without `--yes` (or
+in a non-TTY) it dry-runs. Drift / unresolved / held-back selectors are surfaced
+and never removed. Its proposal is one extra timelock `scheduleBatch` per
+network, captured by Phase 4 and signed/PR'd/Slack'd by the existing tail. See
+[docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
+
 ## Phase 4 — Capture proposals
 
 ```bash
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when a diamond-called periphery's allowlist synced (registration + whitelist). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) and **one more** when Phase 3.5's stale-facet removal ran (deploy/register + removal). These are additive, not mutually exclusive: a network that did a periphery allowlist sync **and** a Phase 3.5 removal shows **three** proposals — so expect **two or three** per network when either or both apply. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
