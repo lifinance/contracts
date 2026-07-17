@@ -68,6 +68,10 @@
       "0xb28Dd740D27853A91639795223AB409088A73E23": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
+      },
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -76,8 +80,8 @@
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

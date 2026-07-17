@@ -126,3 +126,41 @@ describe('SlackNotifier payload safety', () => {
     expect(errorBlock).toBeDefined()
   })
 })
+
+describe('SlackNotifier retry failure signaling', () => {
+  /** Stub fetch so every attempt returns a non-2xx response. */
+  function mockFetchFailing(): void {
+    global.fetch = mock(
+      async () => new Response('boom', { status: 500 })
+    ) as unknown as typeof fetch
+  }
+
+  it('swallows a terminal failure by default so alerting paths never crash', async () => {
+    mockFetchFailing()
+    let threw = false
+    try {
+      await new SlackNotifier(WEBHOOK).sendNotificationWithRetry(
+        { text: 'hi' },
+        1
+      )
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(false)
+  })
+
+  it('rethrows the terminal failure when throwOnFailure is set', async () => {
+    mockFetchFailing()
+    let caught: unknown
+    try {
+      await new SlackNotifier(WEBHOOK).sendNotificationWithRetry(
+        { text: 'hi' },
+        1,
+        true
+      )
+    } catch (err) {
+      caught = err
+    }
+    expect(String(caught)).toContain('Slack API error: 500')
+  })
+})

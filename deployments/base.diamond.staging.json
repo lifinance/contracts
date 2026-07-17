@@ -80,6 +80,18 @@
       "0x54AEC552Acc3218b0B3991FD61cA12b3A4fD222D": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
+      },
+      "0x747AcfB82E9D59E6f196Ffb473f3521c3B057362": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
+      },
+      "0xf3a8610d57edA7Dca0670e9d7a1AcAF4CbE2C579": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
+      },
+      "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {

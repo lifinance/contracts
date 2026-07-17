@@ -30,6 +30,16 @@ are embedded in rule files.
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
 
+## Environment & resource access
+
+Internal resources — the Safe proposal MongoDB (`SC_MONGODB_URI`) and deploy
+infrastructure — are reached through the `lifi-connect` tunnel since the legacy
+VPN was retired. Agents **cannot** perform the interactive/secret steps (browser
+Okta SSO, 1Password credentials, opening a production tunnel). Before doing
+Safe/deploy work that touches these, read `docs/Setup-agents.md` — what an agent
+must not do and how commands differ in a non-interactive shell. Full setup
+(human path) is in `docs/Setup.md`.
+
 ## Ticket linkage
 
 The PR template's "Which Linear task belongs to this PR?" field is the source of

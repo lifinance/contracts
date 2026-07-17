@@ -36,6 +36,31 @@ paths:
   - uses: some-action@main
   ```
 
+### No template injection in `run:` scripts ([CONV:ACTIONS-NO-INJECTION])
+
+- **Never interpolate `${{ github.* }}` (or any other `${{ ... }}` expression carrying attacker-influenced data) directly into a `run:` shell script.** The expression is substituted into the script body **before** the shell runs, so a crafted value (e.g. a branch name, PR title, commit message, or actor login containing shell metacharacters) executes as code on the runner.
+- **Highest-risk contexts** (attacker-controllable on `pull_request`/`issue`/`issue_comment` triggers): `github.actor`, `github.event.*` (`.pull_request.title`, `.pull_request.body`, `.pull_request.head.ref`, `.issue.title`, `.comment.body`, `.label.name`, `.action`), `github.head_ref`. Treat every `github.event.*` field as untrusted.
+- **Fix**: bind the expression to an `env:` entry on the step, then reference the shell variable (quoted) inside `run:`. Values passed via `env:` reach the script as data, never as code. Use a **custom** env-var name — GitHub silently ignores assignments to names it reserves (`GITHUB_*`, `RUNNER_*`), so `env: GITHUB_ACTOR: ...` is dropped and `$GITHUB_ACTOR` falls back to the runner default (works only by coincidence when the values match).
+- **Example (correct)**:
+
+  ```yaml
+  - name: Check for authorized actor
+    env:
+      ACTOR_LOGIN: ${{ github.actor }}
+    shell: bash
+    run: |
+      if [[ "$ACTOR_LOGIN" == "lifi-action-bot" ]]; then echo "authorized"; fi
+  ```
+
+- **Anti-pattern (forbidden)**:
+
+  ```yaml
+  - run: |
+      if [[ "${{ github.actor }}" == "lifi-action-bot" ]]; then echo "authorized"; fi
+  ```
+
+- The `run:` script body is the direct injection sink. `${{ ... }}` in `if:`/`with:`/`env:` is not that sink, but it is not automatically safe: `if:` cannot reference `secrets.*` at all (map to `env:` first), and a value handed to `with:` is only as safe as what the receiving action does with it. Always bind untrusted expressions through `env:` and reference the quoted shell variable in `run:`.
+
 ### Foundry installation ([CONV:FOUNDRY-SETUP])
 
 - **Always install foundry via the project's `./.github/actions/setup-foundry` composite action.** Do not call `foundry-rs/foundry-toolchain` directly from a workflow.
