@@ -9,14 +9,19 @@
  * This is the runner behind the scheduled `healthCheckAllNetworks` workflow; the invariants
  * it enforces live in `healthCheckInvariants.ts`.
  */
+import { spawn } from 'child_process'
 import { appendFileSync } from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { INetwork } from '../common/types'
-import { spawnAndCapture } from '../utils/spawnAndCapture'
 import { getAllActiveNetworks } from '../utils/viemScriptHelpers'
+
+/** Per-network health-check deadline. One diamond's multicall reads finish well within this;
+ * a stalled RPC connection past it is killed so it cannot starve the whole sweep. */
+const PER_NETWORK_TIMEOUT_MS = 5 * 60_000 // 5 minutes
+const KILL_GRACE_MS = 5_000 // 5 seconds between SIGTERM and SIGKILL
 
 /** Outcome of a single network's health check. */
 export interface IHealthCheckResult {
@@ -86,30 +91,62 @@ async function mapWithConcurrency<T, R>(
   return results
 }
 
-/** Run the single-network health check as a child process; never throws. */
-async function runOneNetwork(
+/**
+ * Run the single-network health check as a child process with a hard deadline; never
+ * throws. On timeout the child is SIGTERM'd (then SIGKILL'd after a grace period) so one
+ * stalled RPC cannot leave the sweep pending and block the consolidated report.
+ */
+function runOneNetwork(
   network: string,
-  environment: string
+  environment: string,
+  timeoutMs: number = PER_NETWORK_TIMEOUT_MS
 ): Promise<IHealthCheckResult> {
-  try {
-    await spawnAndCapture('bunx', [
-      'tsx',
-      'script/deploy/healthCheck.ts',
-      '--network',
-      network,
-      '--environment',
-      environment,
-    ])
-    return { network, passed: true, detail: '' }
-  } catch (error: unknown) {
-    const detail = error instanceof Error ? error.message : String(error)
-    // Keep only the tail so a single network cannot flood the consolidated report.
-    return {
-      network,
-      passed: false,
-      detail: detail.split('\n').slice(-5).join('\n'),
+  return new Promise((resolve) => {
+    const child = spawn(
+      'bunx',
+      [
+        'tsx',
+        'script/deploy/healthCheck.ts',
+        '--network',
+        network,
+        '--environment',
+        environment,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    )
+
+    let output = ''
+    let timedOut = false
+    const capture = (data: Buffer) => {
+      output += data.toString()
     }
-  }
+    child.stdout?.on('data', capture)
+    child.stderr?.on('data', capture)
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS)
+    }, timeoutMs)
+
+    const finalize = (passed: boolean, note: string) => {
+      clearTimeout(timer)
+      // Keep only the tail so a single network cannot flood the consolidated report.
+      const detail = passed
+        ? ''
+        : [note, output.trim().split('\n').slice(-5).join('\n')]
+            .filter(Boolean)
+            .join('\n')
+      resolve({ network, passed, detail })
+    }
+
+    child.on('close', (code) => {
+      if (timedOut)
+        finalize(false, `TIMEOUT after ${Math.round(timeoutMs / 1000)}s`)
+      else finalize(code === 0, code === 0 ? '' : `exit code ${code}`)
+    })
+    child.on('error', (error) => finalize(false, String(error)))
+  })
 }
 
 const main = defineCommand({

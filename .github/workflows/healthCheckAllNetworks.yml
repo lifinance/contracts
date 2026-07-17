@@ -124,8 +124,12 @@ jobs:
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
           # the run overview if the jobs API can't be read.
           RUN_OVERVIEW="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null)
+          # `set -e` is on by default, so guard the gh api call: a non-zero exit (network /
+          # permission) must fall back to the run overview, not abort this step and skip Slack.
+          if ! RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null); then
+            RUN_URL=""
+          fi
           RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
 
           if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then

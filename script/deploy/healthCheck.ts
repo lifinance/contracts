@@ -56,6 +56,18 @@ const main = defineCommand({
     const networkStr = Array.isArray(network) ? network[0] : network
     const networkLower = (networkStr as string).toLowerCase()
 
+    // Reject typos early: an unsupported value would load production deploy logs
+    // (anything but 'staging') while skipping production-only checks (anything but
+    // 'production'), silently running reduced coverage against production data.
+    if (environment !== 'production' && environment !== 'staging') {
+      consola.error(
+        `Unsupported environment '${String(
+          environment
+        )}'; expected 'production' or 'staging'`
+      )
+      process.exit(1)
+    }
+
     // Skip tronshasta testnet but allow tron mainnet
     if (networkLower === 'tronshasta') {
       consola.info('Health checks are not implemented for Tron Shasta testnet.')
@@ -105,12 +117,14 @@ const main = defineCommand({
 
     // For staging, skip targetState checks as targetState is only for production
     let nonCoreFacets: string[] = []
+    let missingProductionTargetState = false
     if (environment === 'production') {
       const networkTarget = targetState[networkLower]?.production
       if (!networkTarget?.LiFiDiamond)
-        consola.warn(
-          `Network '${networkLower}' not in target state; skipping non-core facet comparison`
-        )
+        // Surface (not silence): a production network with no target state means the
+        // non-core facet comparison is skipped, i.e. reduced coverage. Recorded as a
+        // warning below so it shows in the report rather than passing silently.
+        missingProductionTargetState = true
       else
         nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter(
           (k) =>
@@ -221,6 +235,11 @@ const main = defineCommand({
         warnings.push(msg)
       },
     }
+
+    if (missingProductionTargetState)
+      ctx.logWarn(
+        `Network '${networkLower}' has no production target state; non-core facet coverage is reduced`
+      )
 
     consola.info('Running post deployment checks...\n')
 
