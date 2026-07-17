@@ -123,6 +123,47 @@ function abortInFlightDeployments() {
   exit 1
 }
 
+# launchDeployWave: Deploy CONTRACT to a set of networks concurrently and block
+# until the whole wave finishes. All networks in a wave share one EVM-version
+# profile (foundry.toml already pointed at it by the caller), so their `forge
+# script` runs hit a warm, consistent artifact cache. Sequencing is by wave, not
+# within it: the caller must not mutate foundry.toml again until this returns.
+#
+# Usage: launchDeployWave CONCURRENCY ENVIRONMENT CONTRACT VERSION RESULT_DIR NETWORK...
+#   CONCURRENCY  - max networks to deploy at once (1 = sequential, e.g. zkEVM)
+#   ENVIRONMENT  - "production" or "staging"
+#   CONTRACT     - contract name to deploy
+#   VERSION      - resolved contract version
+#   RESULT_DIR   - directory each worker writes its per-network result file into
+#   NETWORK...   - the networks that make up this wave
+#
+# Returns: 0 (per-network outcomes are read from RESULT_DIR by the caller)
+function launchDeployWave() {
+  local WAVE_CONCURRENCY="$1"
+  local WAVE_ENVIRONMENT="$2"
+  local WAVE_CONTRACT="$3"
+  local WAVE_VERSION="$4"
+  local WAVE_RESULT_DIR="$5"
+  shift 5
+  local WAVE_NETWORKS=("$@")
+  local WAVE_NETWORK
+
+  for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
+    # throttle: wait for a free slot before launching the next network
+    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+      sleep 1
+    done
+    # </dev/null makes the no-stdin guarantee explicit - the sourced framework must
+    # never block on an interactive prompt inside a background worker; sed attributes
+    # every line of framework output to its network, since concurrent workers'
+    # otherwise-unprefixed logs interleave on the shared terminal
+    deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$WAVE_NETWORK] /" &
+  done
+
+  # wait for every network in this wave before the caller repoints foundry.toml
+  wait
+}
+
 function deployContractToNetworks() {
   # SIGTERM covers CI cancellation; SIGINT covers a local Ctrl-C. Both kill the
   # backgrounded workers including their forge/bun child processes rather than
@@ -243,78 +284,113 @@ function deployContractToNetworks() {
     error "MAX_CONCURRENT_JOBS must be a positive integer (check your .env) - got '$MAX_CONCURRENT_JOBS'"
     exit 1
   fi
-
-  # Compile once up front, unconditionally: the parallel workers below each run
-  # `forge script`, which would otherwise trigger concurrent compilation on a cold
-  # cache and race. Building here guarantees every worker starts against a warm,
-  # consistent artifact cache.
+  # The per-group builds below are mandatory for parallel-deploy safety (each wave
+  # deploys against a warm, group-specific artifact cache), so COMPILE_ON_STARTUP
+  # is not honored here as an opt-out.
   if [[ -n "$COMPILE_ON_STARTUP" && "$COMPILE_ON_STARTUP" != "true" ]]; then
-    warning "COMPILE_ON_STARTUP=$COMPILE_ON_STARTUP is not honored by this script - the pre-build is mandatory for parallel deploy safety, not opt-in"
+    warning "COMPILE_ON_STARTUP=$COMPILE_ON_STARTUP is not honored by this script - the per-group pre-build is mandatory, not opt-in"
   fi
-  echo "[info] compiling contracts before parallel deployment"
-  if ! forge build; then
-    error "forge build failed - aborting before any deployment"
+
+  # Split the target networks by the toolchain they must be built with: cancun
+  # bytecode embeds opcodes (PUSH0/MCOPY/TLOAD) a london chain rejects, and zkEVM
+  # needs a different compiler, so each group is built once and shipped its own
+  # artifact (grouping + foundry.toml swap live in deployGroupingHelpers.sh).
+  local GROUPS_JSON
+  GROUPS_JSON=$(groupNetworksByExecutionGroup "${TARGET_NETWORKS[@]}") || {
+    error "failed to group networks by EVM version"
+    exit 1
+  }
+
+  local LONDON_NETWORKS=()
+  local CANCUN_NETWORKS=()
+  local ZKEVM_NETWORKS=()
+  local INVALID_NETWORKS=()
+  local GROUP_NETWORK
+  while IFS= read -r GROUP_NETWORK; do
+    [[ -n "$GROUP_NETWORK" ]] && LONDON_NETWORKS+=("$GROUP_NETWORK")
+  done < <(echo "$GROUPS_JSON" | jq -r '.london[]')
+  while IFS= read -r GROUP_NETWORK; do
+    [[ -n "$GROUP_NETWORK" ]] && CANCUN_NETWORKS+=("$GROUP_NETWORK")
+  done < <(echo "$GROUPS_JSON" | jq -r '.cancun[]')
+  while IFS= read -r GROUP_NETWORK; do
+    [[ -n "$GROUP_NETWORK" ]] && ZKEVM_NETWORKS+=("$GROUP_NETWORK")
+  done < <(echo "$GROUPS_JSON" | jq -r '.zkevm[]')
+  while IFS= read -r GROUP_NETWORK; do
+    [[ -n "$GROUP_NETWORK" ]] && INVALID_NETWORKS+=("$GROUP_NETWORK")
+  done < <(echo "$GROUPS_JSON" | jq -r '.invalid[]')
+
+  if [[ ${#INVALID_NETWORKS[@]} -gt 0 ]]; then
+    error "cannot resolve an EVM-version group for: ${INVALID_NETWORKS[*]} - check 'deployedWithEvmVersion'/'isZkEVM' in networks.json"
     exit 1
   fi
 
-  # The vanilla pre-build does not cover zkEVM targets: their workers compile via
-  # `FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync` after installing
-  # the pinned foundry-zksync toolchain (deploySingleContract.sh). Pre-warm both here
-  # so concurrent zk workers do not race on the shared ./foundry-zksync install and a
-  # cold zksync artifact cache.
-  local HAS_ZKEVM_TARGET=false
-  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
-    if isZkEvmNetwork "$TARGET_NETWORK"; then
-      HAS_ZKEVM_TARGET=true
-      break
-    fi
-  done
-  if [[ "$HAS_ZKEVM_TARGET" == "true" ]]; then
-    echo "[info] zkEVM target detected - installing foundry-zksync and building zksync artifacts before parallel deployment"
-    if ! install_foundry_zksync; then
-      error "failed to install foundry-zksync - aborting before any deployment"
-      exit 1
-    fi
-    if ! FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test; then
-      error "zksync build failed - aborting before any deployment"
-      exit 1
-    fi
-  fi
-
   echo ""
-  echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment: ${TARGET_NETWORKS[*]}"
+  echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment"
   echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"
+  echo "[info] london (${#LONDON_NETWORKS[@]}): ${LONDON_NETWORKS[*]:-none}"
+  echo "[info] cancun (${#CANCUN_NETWORKS[@]}): ${CANCUN_NETWORKS[*]:-none}"
+  echo "[info] zkevm  (${#ZKEVM_NETWORKS[@]}): ${ZKEVM_NETWORKS[*]:-none}"
+  echo "[info] up to $MAX_CONCURRENT_JOBS concurrent network(s) per EVM group; zkEVM runs sequentially"
 
   local FAILED_NETWORKS=()
   local SUCCEEDED_NETWORKS=()
 
   # Backgrounded workers cannot append to parent-shell arrays, so each writes its
-  # outcome to "$RESULT_DIR/<network>"; the summary is derived after `wait`
+  # outcome to "$RESULT_DIR/<network>"; the summary is derived after all waves
   # (see [CONV:PARALLEL-WORK]). Each network deploy is independent - per-chain
-  # nonce space, per-network deployment-log files, per-chain Safe - so they run
-  # concurrently, throttled to MAX_CONCURRENT_JOBS.
+  # nonce space, per-network deployment-log files, per-chain Safe.
   local RESULT_DIR
   RESULT_DIR=$(mktemp -d)
-  # clean the temp dir on any exit (normal, error, or signal) without altering the
-  # exit code; the SIGINT/SIGTERM trap above still handles killing the workers
-  trap 'rm -rf "$RESULT_DIR"' EXIT
 
-  echo "[info] deploying with up to $MAX_CONCURRENT_JOBS concurrent network(s)"
+  # Each EVM group temporarily rewrites foundry.toml (solc + evm_version) for its
+  # build, so back it up now and restore on any exit - normal, error, or the
+  # SIGINT/SIGTERM handler's `exit 1`, which also triggers this EXIT trap.
+  backupFoundryToml || {
+    error "failed to back up foundry.toml - aborting before any deployment"
+    rm -rf "$RESULT_DIR"
+    exit 1
+  }
+  trap 'restoreFoundryToml 2>/dev/null; rm -rf "$RESULT_DIR"' EXIT
 
-  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
-    # throttle: wait for a free slot before launching the next network
-    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
-      sleep 1
-    done
-    # </dev/null makes the no-stdin guarantee explicit - the sourced framework must
-    # never block on an interactive prompt inside a background worker; sed attributes
-    # every line of framework output to its network, since concurrent workers'
-    # otherwise-unprefixed logs interleave on the shared terminal
-    deployToNetworkWorker "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_VERSION" "$RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$TARGET_NETWORK] /" &
-  done
+  # London wave: solc 0.8.17 / evm_version london, deployed in parallel.
+  if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
+    echo ""
+    echo "[info] === london group: building, then deploying ${#LONDON_NETWORKS[@]} network(s) in parallel ==="
+    if ! updateFoundryTomlForGroup "$GROUP_LONDON" true; then
+      error "london group build failed - aborting before deploying any london network"
+      exit 1
+    fi
+    launchDeployWave "$MAX_CONCURRENT_JOBS" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_VERSION" "$RESULT_DIR" "${LONDON_NETWORKS[@]}"
+  fi
 
-  # wait for all in-flight network deployments to finish
-  wait
+  # Cancun wave: solc 0.8.29 / evm_version cancun, deployed in parallel.
+  if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
+    echo ""
+    echo "[info] === cancun group: building, then deploying ${#CANCUN_NETWORKS[@]} network(s) in parallel ==="
+    if ! updateFoundryTomlForGroup "$GROUP_CANCUN" true; then
+      error "cancun group build failed - aborting before deploying any cancun network"
+      exit 1
+    fi
+    launchDeployWave "$MAX_CONCURRENT_JOBS" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_VERSION" "$RESULT_DIR" "${CANCUN_NETWORKS[@]}"
+  fi
+
+  # zkEVM wave: separate compiler plus a shared ./foundry-zksync install and zkout/
+  # cache that cannot survive concurrent builds, so install+build once here and
+  # deploy strictly sequentially (concurrency 1). The default-profile foundry.toml
+  # state left by the EVM waves is irrelevant - zk uses [profile.zksync].
+  if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
+    echo ""
+    echo "[info] === zkevm group: installing foundry-zksync + building, then deploying ${#ZKEVM_NETWORKS[@]} network(s) sequentially ==="
+    if ! install_foundry_zksync; then
+      error "failed to install foundry-zksync - aborting before deploying any zkEVM network"
+      exit 1
+    fi
+    if ! FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test; then
+      error "zksync build failed - aborting before deploying any zkEVM network"
+      exit 1
+    fi
+    launchDeployWave 1 "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT" "$TARGET_VERSION" "$RESULT_DIR" "${ZKEVM_NETWORKS[@]}"
+  fi
 
   # derive per-network outcome from the result files the workers wrote
   for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
@@ -366,6 +442,10 @@ fi
 source .env
 # shellcheck disable=SC1091
 source script/helperFunctions.sh
+# EVM-version grouping + foundry.toml management (groupNetworksByExecutionGroup,
+# backup/restore/updateFoundryTomlForGroup, group constants)
+# shellcheck disable=SC1091
+source script/deploy/resources/deployGroupingHelpers.sh
 # shellcheck disable=SC1091
 source script/deploy/deploySingleContract.sh
 # shellcheck disable=SC1091
