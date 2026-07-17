@@ -93,7 +93,7 @@ contract VaultWrapperDeployScriptsTest is Test {
         assertEq(address(adapter2), address(adapter));
     }
 
-    function test_DeploySystem_RevertsOnZeroMultisig() public {
+    function testRevert_DeploySystemOnZeroMultisig() public {
         vm.expectRevert(DeployLiFiVaultWrapperFactory.ZeroMultisig.selector);
 
         deployScript.deploySystem(_config(address(0)), deployerPk, "other");
@@ -175,6 +175,33 @@ contract VaultWrapperDeployScriptsTest is Test {
         );
 
         assertEq(rerun.targets.length, 0);
+    }
+
+    function test_CheckBpsAcceptsInRange() public view {
+        assertEq(configScript.checkBps(7000, 9999), 7000);
+        assertEq(configScript.checkBps(10000, 10000), 10000);
+    }
+
+    function testRevert_CheckBpsOnTruncatingValue() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UpdateVaultWrapperConfig.BpsOutOfRange.selector,
+                uint256(65536)
+            )
+        );
+
+        configScript.checkBps(65536, 10000);
+    }
+
+    function testRevert_CheckBpsAboveMax() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UpdateVaultWrapperConfig.BpsOutOfRange.selector,
+                uint256(10000)
+            )
+        );
+
+        configScript.checkBps(10000, 9999);
     }
 
     function _config(

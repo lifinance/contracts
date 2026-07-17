@@ -25,19 +25,25 @@ import { FeeType, FEE_TYPE_COUNT } from "lifi/VaultWrapper/LiFiVaultWrapperTypes
 ///      differs from the current on-chain value, so a re-run after a partial apply
 ///      produces a smaller batch (or an empty one).
 ///
-///      Env: NETWORK, FACTORY (deployed factory), TIMELOCK (its owner), ADAPTER
-///      (the ERC-4626 adapter to approve). Optional CONFIG_SALT (timelock op salt;
+///      Env: NETWORK, FACTORY (deployed factory), ADAPTER (the ERC-4626 adapter to
+///      approve). The timelock is derived from `factory.owner()` — never supplied
+///      independently — so the batch cannot target a timelock unrelated to the
+///      factory. Optional CONFIG_SALT (timelock op salt;
 ///      default keccak256("LiFiVaultWrapperConfig")).
 ///
 ///      Note: setApprovedIntegratorDeployer is onboarding-manager-gated (not the
 ///      timelock) and is handled separately, not by this batch.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract UpdateVaultWrapperConfig is Script, DSTest {
     using stdJson for string;
+
+    uint256 internal constant BPS_DENOMINATOR = 10000;
 
     error ZeroFactory();
     error ZeroTimelock();
     error ZeroAdapter();
+    error BpsOutOfRange(uint256 value);
+    error FeeBoundsOrder(uint256 minBps, uint256 maxBps);
 
     struct Desired {
         uint16 defaultIntegratorShareBps;
@@ -63,13 +69,13 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
     /// @return batch The scheduled operations and timelock parameters.
     function run() public returns (Batch memory batch) {
         address factoryAddress = vm.envAddress("FACTORY");
-        address timelock = vm.envAddress("TIMELOCK");
         address adapter = vm.envAddress("ADAPTER");
         if (factoryAddress == address(0)) revert ZeroFactory();
-        if (timelock == address(0)) revert ZeroTimelock();
         if (adapter == address(0)) revert ZeroAdapter();
 
         factory = LiFiVaultWrapperFactory(factoryAddress);
+        address timelock = factory.owner();
+        if (timelock == address(0)) revert ZeroTimelock();
         network = vm.envString("NETWORK");
         json = vm.readFile(
             string.concat(vm.projectRoot(), "/config/vaultWrapper.json")
@@ -151,10 +157,12 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
     /// @notice Reads the desired config for `NETWORK` from config/vaultWrapper.json.
     /// @return d The desired split, per-fee-type bounds, and allowlist.
     function _readDesired() internal view returns (Desired memory d) {
-        d.defaultIntegratorShareBps = uint16(
+        // Split must leave LI.FI a non-zero share (factory enforces < 100%).
+        d.defaultIntegratorShareBps = checkBps(
             json.readUint(
                 string.concat(".", network, ".defaultIntegratorShareBps")
-            )
+            ),
+            BPS_DENOMINATOR - 1
         );
         d.allowedUnderlyings = json.readAddressArray(
             string.concat(".", network, ".allowedUnderlyings")
@@ -173,13 +181,27 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
                 ".feeBounds.",
                 names[i]
             );
-            d.feeMinBps[i] = uint16(
-                json.readUint(string.concat(base, ".minBps"))
-            );
-            d.feeMaxBps[i] = uint16(
-                json.readUint(string.concat(base, ".maxBps"))
-            );
+            uint256 minBps = json.readUint(string.concat(base, ".minBps"));
+            uint256 maxBps = json.readUint(string.concat(base, ".maxBps"));
+            if (minBps > maxBps) revert FeeBoundsOrder(minBps, maxBps);
+            d.feeMinBps[i] = checkBps(minBps, BPS_DENOMINATOR);
+            d.feeMaxBps[i] = checkBps(maxBps, BPS_DENOMINATOR);
         }
+    }
+
+    /// @notice Reverts if `_value` exceeds `_max`, else narrows it to uint16.
+    /// @dev Guards against silent truncation of an out-of-range JSON value (e.g.
+    ///      65536 wrapping to 0), which would otherwise produce valid-looking
+    ///      governance calldata with an unintended bps value.
+    /// @param _value The raw bps value read from config.
+    /// @param _max The inclusive upper bound allowed for this field.
+    /// @return The validated value narrowed to uint16.
+    function checkBps(
+        uint256 _value,
+        uint256 _max
+    ) public pure returns (uint16) {
+        if (_value > _max) revert BpsOutOfRange(_value);
+        return uint16(_value);
     }
 
     /// @notice Logs the batch and the timelock scheduleBatch/executeBatch calldata.
