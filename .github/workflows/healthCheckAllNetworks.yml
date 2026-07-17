@@ -1,0 +1,155 @@
+# Diamond Health Check (all production networks)
+# - Read-only companion to the per-network health check: runs script/deploy/healthCheck.ts across
+#   EVERY production network (mainnet + active) via script/deploy/healthCheckAllNetworks.ts and posts
+#   ONE consolidated Slack status per run. It asserts the live on-chain invariants encoded in
+#   script/deploy/healthCheckInvariants.ts — including the Executor↔ERC20Proxy binding whose drift
+#   caused bug bounty #292 (Executor pointed at a retired proxy on Optimism + opBNB).
+# - Why this exists: healthCheckForNewNetworkDeployment.yml only runs on new-network onboarding, so
+#   existing networks were never re-checked; deploymentAddressConsistency.yml is a static PR-time
+#   check that never touches chain state. This workflow is the recurring LIVE tier.
+# - Triggers:
+#     * daily cron (06:23 UTC) — backstops drift introduced OUTSIDE a deploy PR (manual on-chain
+#       change, governance action)
+#     * push to main touching deployments/** — post-deploy check, when chain state is final (the drift
+#       is introduced by the deploy, not by the PR diff, so this is a push trigger, NOT pull_request)
+#     * workflow_dispatch — manual run / drill
+#   Deliberately NOT run on pull_request: live on-chain checks must not gate PRs (see
+#   deploymentAddressConsistency.yml for the static PR tier).
+# - Slack: ONE consolidated status (pass = green, fail = red + the failing network list, plus a link to
+#   the run) on every trigger, so a green day is confirmed and a silently-broken cron shows up as a
+#   MISSING message.
+# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are retried inside
+#   healthCheck.ts (execWithRateLimitRetry / viem transport retries) before a network is marked failed.
+
+name: Diamond Health Check (all networks)
+
+on:
+  schedule:
+    - cron: '23 6 * * *' # 06:23 UTC daily (≈08:23 CEST summer / 07:23 CET winter — cron is UTC, no DST)
+  workflow_dispatch: # manual trigger (drill / after a deploy)
+  push:
+    branches:
+      - main
+    paths:
+      - deployments/** # post-deploy chain state is final here; re-check every production diamond
+
+# Default-deny at the workflow level; grant only what the job needs.
+permissions: {}
+
+concurrency:
+  group: health-check-all-networks-${{ github.ref }}
+  cancel-in-progress: false # let an in-flight sweep finish rather than dropping its Slack report
+
+jobs:
+  health-check-all-networks:
+    # Upstream-only: this check needs lifinance/contracts' secrets, RPCs and production diamonds.
+    # On forks (e.g. contracts-tron) the guard is false, so the job is skipped (neutral, not failed).
+    if: ${{ github.repository == 'lifinance/contracts' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # bounded sweep across all production networks
+    permissions:
+      contents: read # required to checkout the repository and read config/deploy logs
+      actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # read-only check; no git push/tag/submodule operations
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Foundry (provides cast)
+        uses: ./.github/actions/setup-foundry
+
+      - name: Generate Typechain Types
+        run: bun run typechain
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Fetch prioritized RPCs (with auth where required) so the health check uses the same URLs as local.
+          bun run fetch-rpcs
+          # Inject only RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid).
+          # Mask the URL (which may carry an API key) before forwarding so it is redacted from all subsequent logs.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              key="${line%%=*}"
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              echo "${key}=${value}" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      # continue-on-error so the Slack step below always reports; the "Fail if any network failed"
+      # step restores the red check. The runner writes total / passed_count / failed_count /
+      # failed_networks to $GITHUB_OUTPUT for the Slack composer.
+      - name: Run health check across all production networks
+        id: healthcheck
+        continue-on-error: true
+        run: bunx tsx script/deploy/healthCheckAllNetworks.ts --environment production --concurrency 8
+        env:
+          MAX_CONCURRENT_JOBS: '8'
+
+      - name: Fail if any network failed
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.healthcheck.outcome }}" == "failure" ]]; then
+            echo "Health check FAILED on one or more production networks."
+            exit 1
+          fi
+
+      # Build ONE consolidated Slack message and post it below. Runs on every trigger (schedule,
+      # push-to-main, manual) unless the job was cancelled, so a healthy run is confirmed and a
+      # silently-broken cron shows up as a MISSING message.
+      - name: Compose health-check status message
+        id: status_msg
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.healthcheck.outcome }}
+          TOTAL: ${{ steps.healthcheck.outputs.total }}
+          PASSED_COUNT: ${{ steps.healthcheck.outputs.passed_count }}
+          FAILED_COUNT: ${{ steps.healthcheck.outputs.failed_count }}
+          FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
+        run: |
+          # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
+          # the run overview if the jobs API can't be read.
+          RUN_OVERVIEW="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null)
+          RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
+
+          if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then
+            HEADER=":white_check_mark: *Diamond health check — all ${TOTAL:-?} production networks passed*"
+            BODY="<${RUN_URL}|View workflow run>"
+          else
+            HEADER=":rotating_light: *Diamond health check — ACTION NEEDED*"
+            BODY=$(printf '%s of %s network(s) failed: %s\n<%s|View workflow run>' \
+              "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}" "$RUN_URL")
+          fi
+          TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
+          {
+            echo "text<<SLACK_EOF"
+            echo "$TEXT"
+            echo "SLACK_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack with health-check status
+        if: ${{ !cancelled() }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+            }
