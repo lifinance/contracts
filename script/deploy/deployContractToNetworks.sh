@@ -340,7 +340,13 @@ function deployContractToNetworks() {
   # (see [CONV:PARALLEL-WORK]). Each network deploy is independent - per-chain
   # nonce space, per-network deployment-log files, per-chain Safe.
   local RESULT_DIR
-  RESULT_DIR=$(mktemp -d)
+  # Guard mktemp: strict mode is off, so a failed mktemp would leave RESULT_DIR
+  # empty, workers would deploy but fail to record an outcome, and every network
+  # would be reported FAILED (and possibly retried) despite a real deployment.
+  if ! RESULT_DIR=$(mktemp -d); then
+    error "failed to create worker result directory - aborting before any deployment"
+    exit 1
+  fi
 
   # Each EVM group temporarily rewrites foundry.toml (solc + evm_version) for its
   # build, so back it up now and restore on any exit - normal, error, or the

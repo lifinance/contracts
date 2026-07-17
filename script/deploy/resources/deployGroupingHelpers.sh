@@ -114,13 +114,15 @@ function groupNetworksByExecutionGroup() {
     local CANCUN_NETWORKS=()
     local INVALID_NETWORKS=()
 
-    # Group networks
+    # Group networks. NETWORK is local so grouping never clobbers a caller's
+    # NETWORK in this sourced script. Branch on getNetworkGroup's real exit status
+    # (not a captured value): error() prints to stdout, so on failure the substitution
+    # holds diagnostic text, not a group - the `*)` arm plus the failure branch both
+    # route such networks to INVALID_NETWORKS instead of silently dropping them.
+    local NETWORK
+    local GROUP
     for NETWORK in "${NETWORKS[@]}"; do
-        local GROUP
-        GROUP=$(getNetworkGroup "$NETWORK" 2>/dev/null || echo "")
-        local GROUP_RESULT=$?
-
-        if [[ $GROUP_RESULT -eq 0 && -n "${GROUP:-}" ]]; then
+        if GROUP=$(getNetworkGroup "$NETWORK" 2>/dev/null); then
             case "$GROUP" in
                 "london")
                     LONDON_NETWORKS+=("$NETWORK")
@@ -130,6 +132,9 @@ function groupNetworksByExecutionGroup() {
                     ;;
                 "cancun")
                     CANCUN_NETWORKS+=("$NETWORK")
+                    ;;
+                *)
+                    INVALID_NETWORKS+=("$NETWORK")
                     ;;
             esac
         else
@@ -174,7 +179,12 @@ function groupNetworksByExecutionGroup() {
 
 function backupFoundryToml() {
     if [[ -f "foundry.toml" ]]; then
-        cp "foundry.toml" "$FOUNDRY_TOML_BACKUP"
+        # Check the copy: without strict mode a failed cp would otherwise report
+        # success, then a group build mutates foundry.toml with no backup to restore.
+        if ! cp "foundry.toml" "$FOUNDRY_TOML_BACKUP"; then
+            error "Failed to back up foundry.toml to $FOUNDRY_TOML_BACKUP"
+            return 1
+        fi
         logWithTimestamp "Backed up foundry.toml to $FOUNDRY_TOML_BACKUP"
     else
         error "foundry.toml not found"
@@ -184,7 +194,12 @@ function backupFoundryToml() {
 
 function restoreFoundryToml() {
     if [[ -f "$FOUNDRY_TOML_BACKUP" ]]; then
-        cp "$FOUNDRY_TOML_BACKUP" "foundry.toml"
+        # Only remove the backup once the restore copy has actually succeeded;
+        # deleting it after a failed cp would lose the sole copy of the original.
+        if ! cp "$FOUNDRY_TOML_BACKUP" "foundry.toml"; then
+            error "Failed to restore foundry.toml from $FOUNDRY_TOML_BACKUP - backup kept"
+            return 1
+        fi
         logWithTimestamp "Restored foundry.toml from $FOUNDRY_TOML_BACKUP"
         rm "$FOUNDRY_TOML_BACKUP"
     else
