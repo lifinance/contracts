@@ -52,6 +52,10 @@
       "0x2bE73b7851482428F28c8D0206667dFC74312400": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0xc9F61AD990f4Ede27fB5573ACb5a28bb2A49B8C8": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {
