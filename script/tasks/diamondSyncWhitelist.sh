@@ -91,17 +91,33 @@ function diamondSyncWhitelist {
   fi
 
   # Function to check if an address is a token contract
-  # tries to call decimals() function and returns true if a number value is returned
+  # tries to call decimals() and returns true if a uint8 value is returned.
+  # A returned 0 is ambiguous: genuine 0-decimal tokens return it, but so do
+  # contracts whose catch-all fallback answers every selector with 32 zero bytes.
+  # Disambiguate via symbol(): a real token returns a non-empty string, while a
+  # zero-returning fallback decodes to an empty one.
   function isTokenContract {
     local ADDRESS=$1
     local RPC_URL=$2
     local NETWORK=$3  # Add network parameter
     local RESULT
-    
+    local SYMBOL
+
     if RESULT=$(universalCast "call" "$NETWORK" "$ADDRESS" "decimals() returns (uint8)" 2>/dev/null); then
-      # Validate 0-255 strictly
-      if [[ "$RESULT" =~ ^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
+      # Validate 1-255 strictly
+      if [[ "$RESULT" =~ ^([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]]; then
         return 0
+      fi
+      if [[ "$RESULT" == "0" ]]; then
+        if SYMBOL=$(universalCast "call" "$NETWORK" "$ADDRESS" "symbol() returns (string)" 2>/dev/null); then
+          # cast wraps decoded strings in literal quotes ("USDT"; "" when empty),
+          # troncast strips them entirely - remove surrounding quotes before testing
+          SYMBOL="${SYMBOL%\"}"
+          SYMBOL="${SYMBOL#\"}"
+          if [[ -n "${SYMBOL// /}" ]]; then
+            return 0
+          fi
+        fi
       fi
     fi
     return 1

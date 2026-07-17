@@ -124,23 +124,31 @@ export class SlackNotifier {
   }
 
   /**
-   * Send notification with retry logic
+   * Send notification with retry logic.
+   *
+   * @param throwOnFailure - By default a terminal failure (all retries
+   *   exhausted) is logged and swallowed, so a transient Slack outage never
+   *   crashes a deploy/CI alerting path. Set true when the caller must act on
+   *   the outcome (e.g. a CLI wrapper that has to exit non-zero) — the final
+   *   error is then rethrown after logging.
    */
   public async sendNotificationWithRetry(
     message: ISlackMessage,
-    maxRetries = 3
+    maxRetries = 3,
+    throwOnFailure = false
   ): Promise<void> {
     for (let i = 0; i < maxRetries; i++)
       try {
         await this.sendNotification(message)
         return
       } catch (error) {
-        if (i === maxRetries - 1)
+        if (i === maxRetries - 1) {
           consola.warn(
             'Failed to send Slack notification after retries:',
             error
           )
-        else await sleep(1000 * (i + 1))
+          if (throwOnFailure) throw error
+        } else await sleep(1000 * (i + 1))
       }
   }
 

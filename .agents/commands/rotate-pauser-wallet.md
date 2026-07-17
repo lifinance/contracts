@@ -79,7 +79,7 @@ Confirm the new pauser is funded on the chains CI expects (the emergency-pause f
 /check-rotation-status --old-address <OLD_PAUSER> --new-address <NEW_PAUSER> --role pauser --production
 ```
 
-Read-only. If a chain shows the new pauser underfunded, top it up (`/send-deployer-funds` for a single chain, or `/request-dev-funds` for a PR-based top-up) before treating the rotation as complete.
+Read-only. If a chain shows the new pauser underfunded, top it up (`/manage-wallet-funds send` for a single chain, or `/request-dev-funds` for a PR-based top-up) before treating the rotation as complete.
 
 ### Phase 4 — Rotate the CI pauser secret + re-verify the pause flow
 
@@ -120,7 +120,7 @@ Gate the rotation complete only when all hold:
 | Repoint (staging / testnets) | `/deploy-contract EmergencyPauseFacet <network...>` |
 | Repoint (production Safe proposals, incl. Tron) | `/multisig-rollout EmergencyPauseFacet` |
 | Fund the new pauser from the old | `/sweep-wallet-funds --new-address <NEW> --old-key-env PRIVATE_KEY_PRODUCTION --production` |
-| Single-chain top-up / PR top-up | `/send-deployer-funds` / `/request-dev-funds` |
+| Single-chain top-up / PR top-up | `/manage-wallet-funds send` / `/request-dev-funds` |
 | Funding + role verification gate | `/check-rotation-status --old-address <OLD> --new-address <NEW> --role pauser --production` |
 | Land the config change | `/update-wallet-config --role pauser --new-address <NEW> --production` |
 | Facet version marker | `grep -m1 "@custom:version" src/Facets/EmergencyPauseFacet.sol` |

@@ -108,6 +108,10 @@
       "0xC19B1ea2c3238b8a06E4ea11aB9574a9B12FF1B2": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
+      },
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -116,8 +120,8 @@
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",
+      "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",

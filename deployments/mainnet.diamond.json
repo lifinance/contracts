@@ -188,6 +188,10 @@
       "0x5C47966EAAa5dbf30E20C1a01ED0acFCBCcF1349": {
         "Name": "PaxosTransitFacet",
         "Version": "1.0.0"
+      },
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-/// @custom:version 1.1.0
 pragma solidity ^0.8.17;
 
 struct QuoteSendInfo {
@@ -20,6 +19,7 @@ struct Fee {
     uint256 tokenFee;
 }
 
+/// @custom:version 1.1.0
 interface IGlacisAirlift {
     /// Use to send a token from chain A to chain B with a specific output token.
     /// This allows routing through a specific bridge when multiple bridges are available.

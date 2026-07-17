@@ -113,9 +113,12 @@ Expect one `pending` proposal per succeeded network with `signatureCount: 1` (th
 
 The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If a diamond-called periphery's allowlist synced, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
 
-1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 1's allowlist sync, push. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
-2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 1 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
-3. Run `/pr-ready` before `gh pr create --draft` (the pre-PR gate enforces it).
+Delegate the branch / commit / template / Linear ticket / push / create mechanic to `/create-pr` (as **draft**), passing:
+
+- **files to stage**: the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 2's allowlist sync. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
+- **body** (the "Why"): staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 2 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
+
+Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the EXSC Linear-ticket requirement).
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
 
@@ -172,7 +175,7 @@ Safe proposals live on:
 
 ## Phase 9 — Report
 
-Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay).
+Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay — once they have, finish with `/finish-rollout <thread link>`).
 
 ## Failure modes
 
