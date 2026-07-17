@@ -88,6 +88,10 @@
       "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x4Bbe85750F2625F058285bf6ff857cd90746E1ac": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -96,8 +100,8 @@
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
       "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
       "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
-      "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
       "OutputValidator": "0x905F229f14Ec9e7Dd7428417CfBe7DBf1e1FD386",
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
