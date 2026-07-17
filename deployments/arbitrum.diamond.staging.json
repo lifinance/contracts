@@ -189,7 +189,7 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0x6ed89349aC140De341574831A91469bC029209e0": {
+      "0x53cfc2B72Af09ea122cd479f81B9878D76271bE9": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
@@ -233,9 +233,17 @@
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
+      "0x2B370Af1bf1762f4994C3E9931826346945840aE": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
+      },
       "0x021c4C90A41cbcEb43bBcd9c042EABE678728dE9": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {

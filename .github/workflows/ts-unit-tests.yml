@@ -1,0 +1,115 @@
+# Run TypeScript Unit Tests
+# - Runs the TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts`).
+# - Path-gated: the test job runs only when files that can affect the outcome change
+#   (`script/**`, `package.json`, `bun.lock`, `tsconfig*.json`, this workflow).
+# - A `ts-tests-required` aggregator job always reports a final status so this workflow
+#   can remain a required check on `main` branch protection even when the test job is
+#   skipped (same pattern as `forge-unit-tests.yml`, see `.agents/rules/500-github-actions.md`).
+# - Lightweight: the suite is fully self-contained (no Foundry, submodules, MongoDB, RPC,
+#   or generated typechain bindings), so the job only installs Bun deps and runs the tests.
+
+name: Run TypeScript Unit Tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main # makes sure that it runs on main branch after a PR has been merged
+
+  # Allows to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Default-deny at the workflow level; grant only what each job needs at the job level.
+permissions: {}
+
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits) so stale
+# runs stop burning runner minutes. Keyed per workflow, per event type, and per PR (falling
+# back to ref). cancel-in-progress is scoped to pull_request events so post-merge runs on
+# main and manual workflow_dispatch runs always complete and keep their signal.
+concurrency:
+  group: ts-unit-tests-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  detect-changes:
+    # Determines whether files that can influence `bun test:ts` outcomes were touched.
+    # Always runs (cheap) so the downstream ts-tests-required can report status.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required to fetch repository contents
+      pull-requests: read # required by dorny/paths-filter to read changed files on PRs
+    outputs:
+      ts: ${{ steps.filter.outputs.ts }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            ts:
+              - 'script/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'tsconfig*.json'
+              - '.github/workflows/ts-unit-tests.yml'
+
+  run-ts-tests:
+    # Runs on PRs (once out of draft) and on push/workflow_dispatch.
+    # For non-PR events `github.event.pull_request` is null, so the draft check is gated
+    # behind an event-name guard to avoid `null == false` evaluating to false and silently
+    # skipping the job after a merge to main.
+    needs: detect-changes
+    if: >-
+      ${{
+        needs.detect-changes.outputs.ts == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required to fetch repository contents
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run TypeScript tests
+        run: bun test:ts
+
+  ts-tests-required:
+    # Aggregator job for branch protection. Reports green when the test job either
+    # succeeded or was skipped because no relevant files changed.
+    # Register THIS job (not `run-ts-tests`) as the required status check on `main`.
+    needs: [detect-changes, run-ts-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate upstream result
+        # Validate `detect-changes` succeeded first. If it failed, `run-ts-tests` would be
+        # `skipped` due to the dependency failure — and treating that `skipped` as success
+        # would mask the infra failure from branch protection.
+        run: |
+          set -euo pipefail
+          detect_result="${{ needs.detect-changes.result }}"
+          test_result="${{ needs.run-ts-tests.result }}"
+          if [[ "$detect_result" != "success" ]]; then
+            echo -e "\033[31mts-tests-required FAILED (detect-changes=$detect_result)\033[0m" >&2
+            exit 1
+          fi
+          if [[ "$test_result" == "success" || "$test_result" == "skipped" ]]; then
+            echo -e "\033[32mts-tests-required OK (run-ts-tests=$test_result)\033[0m"
+            exit 0
+          fi
+          echo -e "\033[31mts-tests-required FAILED (run-ts-tests=$test_result)\033[0m" >&2
+          exit 1
