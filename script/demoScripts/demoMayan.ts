@@ -111,7 +111,13 @@ const findNativeSwapAndForwardEthQuote = async (
         null,
         { apiKey: MAYAN_API_KEY }
       )
-    } catch {
+    } catch (err) {
+      // Surface auth/network/payload failures instead of silently folding them
+      // into the generic "no quote" path, then move to the next candidate.
+      console.warn(
+        `[${route.toChain}] getSwapFromEvmTxPayload failed for a SWIFT quote:`,
+        err instanceof Error ? err.message : err
+      )
       continue
     }
 
@@ -247,6 +253,11 @@ const runErc20ForwardErc20 = async (
   )
 
   const parsed = iface.parseTransaction({ data: payload.data as string })
+  if (parsed.name !== 'forwardERC20') {
+    throw new Error(
+      `Expected forwardERC20 for the WETH path but Mayan returned ${parsed.name}`
+    )
+  }
   // Derive the exact amount Mayan expects instead of hard-coding it.
   const amountIn = BigNumber.from(parsed.args.amountIn)
 
@@ -306,8 +317,14 @@ const main = async () => {
   if (!PRIVATE_KEY) throw new Error('PRIVATE_KEY is not set')
 
   // MAYAN_DEMO_MODE=native (default) exercises the new swapAndForwardEth branch;
-  // MAYAN_DEMO_MODE=erc20 exercises the legacy forwardERC20 branch.
+  // MAYAN_DEMO_MODE=erc20 exercises the legacy forwardERC20 branch. Reject anything
+  // else rather than silently defaulting to native — this script broadcasts a real tx.
   const mode = (process.env.MAYAN_DEMO_MODE ?? 'native').toLowerCase()
+  if (mode !== 'native' && mode !== 'erc20') {
+    throw new Error(
+      `Unsupported MAYAN_DEMO_MODE="${mode}" (expected "native" or "erc20")`
+    )
+  }
 
   const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
   const signer = new ethers.Wallet(PRIVATE_KEY, provider)
