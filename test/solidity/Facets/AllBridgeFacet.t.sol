@@ -602,6 +602,36 @@ contract AllBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_SetChainIdToAllBridgeChainIdWithZeroChainId() public {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        AllBridgeFacet.ChainIdConfig[]
+            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(0, 16);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        allBridgeFacet.setChainIdToAllBridgeChainId(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SetChainIdToAllBridgeChainIdWithZeroAllBridgeChainId()
+        public
+    {
+        vm.startPrank(USER_DIAMOND_OWNER);
+
+        AllBridgeFacet.ChainIdConfig[]
+            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        allBridgeFacet.setChainIdToAllBridgeChainId(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
     function test_CanUnsetChainIdToAllBridgeChainId() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
@@ -703,6 +733,42 @@ contract AllBridgeFacetTest is TestBaseFacet {
             ),
             ALLBRIDGE_ID_STELLAR
         );
+        vm.stopPrank();
+    }
+
+    function testRevert_InitAllBridgeWithZeroChainId() public {
+        vm.startPrank(address(0));
+
+        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
+            ALLBRIDGE_ROUTER
+        );
+
+        AllBridgeFacet.ChainIdConfig[]
+            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(0, 16);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        uninitializedFacet.initAllBridge(chainIdConfigs);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_InitAllBridgeWithZeroAllBridgeChainId() public {
+        vm.startPrank(address(0));
+
+        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
+            ALLBRIDGE_ROUTER
+        );
+
+        AllBridgeFacet.ChainIdConfig[]
+            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 0);
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        uninitializedFacet.initAllBridge(chainIdConfigs);
+
         vm.stopPrank();
     }
 }

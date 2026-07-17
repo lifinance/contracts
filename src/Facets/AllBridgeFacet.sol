@@ -92,6 +92,8 @@ contract AllBridgeFacet is
     /// @notice Initializes the LI.FI chain ID to AllBridge chain ID mappings
     /// @param chainIdConfigs Chain ID configuration data
     /// @dev Re-initialization overwrites the provided mappings and leaves the rest untouched.
+    /// @dev A zero chainId or allBridgeChainId is rejected: 0 is the reserved
+    ///      "unmapped" sentinel (see Storage), so it must never be stored.
     /// https://docs-core.allbridge.io/product/how-does-allbridge-core-work/allbridge-core-contracts
     function initAllBridge(ChainIdConfig[] calldata chainIdConfigs) external {
         if (chainIdConfigs.length == 0) revert InvalidConfig();
@@ -100,8 +102,12 @@ contract AllBridgeFacet is
         Storage storage sm = getStorage();
 
         for (uint256 i = 0; i < chainIdConfigs.length; ) {
-            sm.allBridgeChainIds[chainIdConfigs[i].chainId] = chainIdConfigs[i]
-                .allBridgeChainId;
+            uint256 chainId = chainIdConfigs[i].chainId;
+            uint256 allBridgeChainId = chainIdConfigs[i].allBridgeChainId;
+
+            if (chainId == 0 || allBridgeChainId == 0) revert InvalidConfig();
+
+            sm.allBridgeChainIds[chainId] = allBridgeChainId;
 
             unchecked {
                 ++i;
@@ -114,6 +120,8 @@ contract AllBridgeFacet is
 
     /// @notice Sets the AllBridge chain ID for one or more LI.FI chain IDs
     /// @param chainIdConfigs Chain ID configuration data
+    /// @dev A zero chainId or allBridgeChainId is rejected; use
+    ///      unsetChainIdToAllBridgeChainId to remove a mapping.
     function setChainIdToAllBridgeChainId(
         ChainIdConfig[] calldata chainIdConfigs
     ) external {
@@ -128,6 +136,8 @@ contract AllBridgeFacet is
         for (uint256 i = 0; i < chainIdConfigs.length; ) {
             uint256 chainId = chainIdConfigs[i].chainId;
             uint256 allBridgeChainId = chainIdConfigs[i].allBridgeChainId;
+
+            if (chainId == 0 || allBridgeChainId == 0) revert InvalidConfig();
 
             sm.allBridgeChainIds[chainId] = allBridgeChainId;
             emit ChainIdToAllBridgeChainIdSet(chainId, allBridgeChainId);
