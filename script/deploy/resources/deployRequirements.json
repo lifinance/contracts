@@ -683,11 +683,6 @@
         "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
-    },
-    "contractAddresses": {
-      "LiFiDEXAggregator": {
-        "allowToDeployWithZeroAddress": "false"
-      }
     }
   },
   "ChainflipFacet": {
