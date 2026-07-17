@@ -11,13 +11,17 @@ import {
   diffFacets,
   diffNamedFacets,
   fetchOnChainFacets,
+  filterRePointedRemovals,
   getExpectedFacetNames,
+  getFacetSourceNames,
   getProtectedNames,
   getSourceContractNames,
   HARDCODED_PROTECTED_FACETS,
   mapLoupeResult,
   resolveAddressToName,
   resolveDiamondAddress,
+  revalidateRemovalsOnChain,
+  type IFacetRemoval,
   type IOnChainFacet,
   type IRemovalDiffIO,
 } from './diamondRemovalDiff'
@@ -26,6 +30,26 @@ const addr = (n: number): `0x${string}` =>
   `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
 const sel = (n: number): `0x${string}` =>
   `0x${n.toString(16).padStart(8, '0')}` as `0x${string}`
+
+/**
+ * Asserts `promise` rejects with an error whose message matches `match`. Kept as
+ * a helper (rather than `expect().rejects`) so the awaited value is a real
+ * Promise — `@typescript-eslint/await-thenable` rejects awaiting bun's matcher.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
 
 const PROD = EnvironmentEnum.production
 
@@ -59,12 +83,24 @@ describe('buildAddressToName', () => {
 describe('getExpectedFacetNames', () => {
   it('returns the LiFiDiamond key set for a known network/env', () => {
     const names = getExpectedFacetNames('mainnet', PROD)
-    expect(names.has('DiamondCutFacet')).toBe(true)
-    expect(names.size).toBeGreaterThan(0)
+    expect(names).toBeDefined()
+    expect(names?.has('DiamondCutFacet')).toBe(true)
+    expect(names?.size).toBeGreaterThan(0)
   })
 
-  it('returns an empty set for an unknown network', () => {
-    expect(getExpectedFacetNames('not-a-network', PROD).size).toBe(0)
+  it('returns undefined for an unknown network (distinct from an empty block)', () => {
+    expect(getExpectedFacetNames('not-a-network', PROD)).toBeUndefined()
+  })
+})
+
+describe('getFacetSourceNames', () => {
+  it('collects facet basenames from the real src/Facets tree', () => {
+    const names = getFacetSourceNames()
+    expect(names.has('DiamondCutFacet')).toBe(true)
+    expect(names.has('GasZipFacet')).toBe(true)
+    // periphery/util lives under src/Periphery, not src/Facets → excluded
+    expect(names.has('GasZipPeriphery')).toBe(false)
+    expect(names.has('Executor')).toBe(false)
   })
 })
 
@@ -261,6 +297,7 @@ describe('computeFacetRemovalDiff', () => {
         return new Set()
       },
       getSourceNames: () => new Set(), // StaleFacet source deleted → removable
+      getFacetNames: () => new Set(['ActiveFacet', 'ReplacementFacet']),
     }
     const diff = await computeFacetRemovalDiff('mainnet', PROD, io)
     expect([...activeNamesSeen].sort()).toEqual([
@@ -272,6 +309,41 @@ describe('computeFacetRemovalDiff', () => {
     ])
     expect(diff.unresolved).toEqual([addr(3)])
     expect(diff.diamondAddress).toBe(addr(0xd))
+  })
+
+  it('throws when the network has a diamond but no target-state entry', async () => {
+    const io: Partial<IRemovalDiffIO> = {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(1), selectors: [sel(1)] }],
+      getAddressToName: async () => ({ [addr(1)]: 'SomeFacet' }),
+      getExpectedNames: () => undefined, // network absent from target state
+    }
+    await expectRejects(
+      computeFacetRemovalDiff('mainnet', PROD, io),
+      /no LiFiDiamond target-state entry/
+    )
+  })
+
+  it('scopes active-selectors to real facets — periphery names never hold back selectors', async () => {
+    let activeNamesSeen: string[] = []
+    const io: Partial<IRemovalDiffIO> = {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [
+        { address: addr(2), selectors: [sel(2)] }, // stale facet, removable
+      ],
+      getAddressToName: async () => ({ [addr(2)]: 'StaleFacet' }),
+      // target state lists a facet AND a periphery contract
+      getExpectedNames: () => new Set(['GasZipFacet', 'GasZipPeriphery']),
+      getActiveSelectors: (names) => {
+        activeNamesSeen = names
+        return new Set()
+      },
+      getSourceNames: () => new Set(),
+      getFacetNames: () => new Set(['GasZipFacet']), // only the facet is a real facet
+    }
+    await computeFacetRemovalDiff('mainnet', PROD, io)
+    // periphery name filtered out before reaching getActiveSelectors
+    expect(activeNamesSeen).toEqual(['GasZipFacet'])
   })
 })
 
@@ -317,6 +389,23 @@ describe('diffNamedFacets', () => {
       protectedNames: new Set(),
     })
     expect(r.notFoundOnChain).toEqual(['Absent'])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('surfaces on-chain-but-unmapped addresses as unresolved (not silently dropped)', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] }, // in log → mapped
+        { address: addr(9), selectors: [sel(9)] }, // NOT in deploy log
+      ],
+      addressToName: { [addr(1)]: 'SomethingElse' },
+      protectedNames: new Set(),
+    })
+    expect(r.unresolved).toEqual([addr(9)])
+    // OldFacet may be the unlogged address — must not be flatly "not on chain"
+    expect(r.notFoundOnChain).toEqual(['OldFacet'])
     expect(r.removals).toHaveLength(0)
   })
 })
@@ -382,5 +471,82 @@ describe('deploy-log resolvers (injected loader)', () => {
     expect(a).toMatch(/^0x[0-9a-fA-F]{40}$/)
     const map = await resolveAddressToName('mainnet', PROD)
     expect(Object.keys(map).length).toBeGreaterThan(0)
+  })
+})
+
+describe('filterRePointedRemovals', () => {
+  const snapshot: IFacetRemoval[] = [
+    { name: 'OldFacet', address: addr(2), selectors: [sel(1), sel(2), sel(3)] },
+  ]
+
+  it('keeps selectors that still route to the doomed facet', () => {
+    const r = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1), sel(2), sel(3)] },
+    ])
+    expect(r.stale).toHaveLength(0)
+    expect(r.stillRemovable).toEqual(snapshot)
+  })
+
+  it('drops a selector re-pointed to a different (live) facet', () => {
+    const r = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1), sel(3)] },
+      { address: addr(7), selectors: [sel(2)] }, // sel(2) re-pointed to a live facet
+    ])
+    expect(r.stillRemovable).toEqual([
+      { name: 'OldFacet', address: addr(2), selectors: [sel(1), sel(3)] },
+    ])
+    expect(r.stale).toEqual([
+      {
+        facet: 'OldFacet',
+        selector: sel(2),
+        reason: 're-pointed',
+        currentAddress: addr(7),
+      },
+    ])
+  })
+
+  it('drops a selector already removed on-chain (would revert)', () => {
+    const r = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1), sel(2)] }, // sel(3) gone
+    ])
+    expect(r.stillRemovable).toEqual([
+      { name: 'OldFacet', address: addr(2), selectors: [sel(1), sel(2)] },
+    ])
+    expect(r.stale).toEqual([
+      { facet: 'OldFacet', selector: sel(3), reason: 'already-gone' },
+    ])
+  })
+
+  it('emits no removal when every snapshot selector is stale', () => {
+    const r = filterRePointedRemovals(snapshot, [
+      { address: addr(7), selectors: [sel(1), sel(2), sel(3)] },
+    ])
+    expect(r.stillRemovable).toHaveLength(0)
+    expect(r.stale).toHaveLength(3)
+  })
+})
+
+describe('revalidateRemovalsOnChain', () => {
+  it('re-reads the loupe via injected reader and filters re-pointed selectors', async () => {
+    const snapshot: IFacetRemoval[] = [
+      { name: 'OldFacet', address: addr(2), selectors: [sel(1), sel(2)] },
+    ]
+    const r = await revalidateRemovalsOnChain('mainnet', addr(0xd), snapshot, {
+      getOnChainFacets: async (): Promise<IOnChainFacet[]> => [
+        { address: addr(2), selectors: [sel(1)] }, // sel(2) no longer here
+        { address: addr(7), selectors: [sel(2)] }, // re-pointed
+      ],
+    })
+    expect(r.stillRemovable).toEqual([
+      { name: 'OldFacet', address: addr(2), selectors: [sel(1)] },
+    ])
+    expect(r.stale).toEqual([
+      {
+        facet: 'OldFacet',
+        selector: sel(2),
+        reason: 're-pointed',
+        currentAddress: addr(7),
+      },
+    ])
   })
 })
