@@ -81,7 +81,9 @@ function deployToNetworkWorker() {
 }
 
 function deployContractToNetworks() {
-  trap 'cleanupBackgroundJobs' SIGINT
+  # SIGTERM covers CI cancellation; SIGINT covers a local Ctrl-C. Both kill the
+  # backgrounded workers via cleanupBackgroundJobs rather than orphaning them.
+  trap 'cleanupBackgroundJobs' SIGINT SIGTERM
 
   # TARGET_-prefixed names are deliberate: the sourced framework assigns generic
   # names (CONTRACT, NETWORK, VERSION, ...) without 'local', which would clobber ours mid-run
@@ -156,6 +158,21 @@ function deployContractToNetworks() {
     fi
   done
 
+  # De-duplicate the target list. Sequential runs tolerated repeats (deploy twice,
+  # idempotently); parallel workers cannot - two workers on the same chain race on
+  # its nonce and clobber the same deployment-log and result file.
+  local -A SEEN_NETWORKS=()
+  local DEDUPED_NETWORKS=()
+  for TARGET_NETWORK in "${TARGET_NETWORKS[@]}"; do
+    if [[ -n "${SEEN_NETWORKS[$TARGET_NETWORK]:-}" ]]; then
+      warning "duplicate network '$TARGET_NETWORK' in arguments - ignoring the repeat"
+      continue
+    fi
+    SEEN_NETWORKS[$TARGET_NETWORK]=1
+    DEDUPED_NETWORKS+=("$TARGET_NETWORK")
+  done
+  TARGET_NETWORKS=("${DEDUPED_NETWORKS[@]}")
+
   # validate contract name + resolve current version
   local TARGET_VERSION
   TARGET_VERSION=$(getCurrentContractVersion "$TARGET_CONTRACT") || {
@@ -178,8 +195,10 @@ function deployContractToNetworks() {
   echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment: ${TARGET_NETWORKS[*]}"
   echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"
 
-  if [[ -z "$MAX_CONCURRENT_JOBS" ]]; then
-    error "your .env file is missing the key MAX_CONCURRENT_JOBS - add it and re-run"
+  # Must be a positive integer: unset/empty or a non-numeric value breaks the `-ge`
+  # arithmetic in the throttle gate, and 0 makes it spin forever (job count is always >= 0).
+  if [[ ! "${MAX_CONCURRENT_JOBS:-}" =~ ^[1-9][0-9]*$ ]]; then
+    error "MAX_CONCURRENT_JOBS must be a positive integer (check your .env) - got '${MAX_CONCURRENT_JOBS:-}'"
     exit 1
   fi
 
@@ -193,7 +212,9 @@ function deployContractToNetworks() {
   # concurrently, throttled to MAX_CONCURRENT_JOBS.
   local RESULT_DIR
   RESULT_DIR=$(mktemp -d)
-  trap 'rm -rf "$RESULT_DIR"; cleanupBackgroundJobs' SIGINT
+  # clean the temp dir on any exit (normal, error, or signal) without altering the
+  # exit code; the SIGINT/SIGTERM trap above still handles killing the workers
+  trap 'rm -rf "$RESULT_DIR"' EXIT
 
   echo "[info] deploying with up to $MAX_CONCURRENT_JOBS concurrent network(s)"
 
@@ -216,8 +237,6 @@ function deployContractToNetworks() {
       FAILED_NETWORKS+=("$TARGET_NETWORK")
     fi
   done
-
-  rm -rf "$RESULT_DIR"
 
   echo ""
   echo "[info] ==================== SUMMARY ===================="
