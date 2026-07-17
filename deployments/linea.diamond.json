@@ -125,9 +125,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x9B73f333787892e241f2dc3f8A7A8C2411dC6432": {
+      "0xC590d9684736F4Ac81c5D506F9704f13Ee16AffB": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x0B1dcD1e7BA87E3ab9315f33b7661648b6669C7f": {
         "Name": "MayanFacet",

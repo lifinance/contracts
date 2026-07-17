@@ -57,9 +57,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x7F6CB14f127B02714d0241587F292b56940F2AC6": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       }
     },
     "Periphery": {
