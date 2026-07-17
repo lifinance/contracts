@@ -50,8 +50,8 @@ const NATIVE_AMOUNT_ETH = 0.001
 const WETH_AMOUNT = 0.0014012345678
 
 // Candidate native-ETH destination routes. We pick the first quote whose forwarder
-// method is `swapAndForwardEth` — i.e. Mayan routes native ETH through an implicit
-// source swap (ETH -> WETH) before creating the Swift order, which is exactly the
+// method is `swapAndForwardEth` — i.e. Mayan routes native ETH through a source
+// swap (ETH -> middleToken) before creating the Swift order, which is exactly the
 // branch EXSC-364 adds to the facet. Only SWIFT quotes take this path.
 const NATIVE_ROUTES: {
   toChain: ChainName
@@ -98,8 +98,8 @@ const findNativeSwapAndForwardEthQuote = async (
 
     let payload
     try {
-      // Since SDK v9+ this is async: it fetches the source-swap (ETH->WETH) router
-      // calldata from Mayan, which becomes the facet's swapData/swapProtocol.
+      // In the current SDK this is async: it fetches the source-swap (ETH->middleToken)
+      // router calldata from Mayan, which becomes the facet's swapData/swapProtocol.
       payload = await getSwapFromEvmTxPayload(
         quote,
         address,
