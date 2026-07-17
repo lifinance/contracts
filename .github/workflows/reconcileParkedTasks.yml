@@ -69,7 +69,9 @@ jobs:
         run: bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --yes
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }} # un-gated deferred-cleanup queue + RPC fallback
-          WEBHOOK_DEV_SC_MULTISIG_PROPOSALS: ${{ secrets.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS }} # TTL alert (optional)
+          # Script reads WEBHOOK_DEV_SC_MULTISIG_PROPOSALS (local .env convention); the GH
+          # secret follows the repo's SLACK_WEBHOOK_* naming — bridge one to the other.
+          WEBHOOK_DEV_SC_MULTISIG_PROPOSALS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_MULTISIG_PROPOSALS }} # TTL alert (optional)
 
       # A silently-broken cron defeats the cold-network backstop — surface run failures to Slack.
       - name: Notify Slack on failure
