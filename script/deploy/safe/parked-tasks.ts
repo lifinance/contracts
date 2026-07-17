@@ -391,6 +391,26 @@ export async function markCancelled(
 }
 
 /**
+ * Links a claimed (`proposed`) task to the `pendingTransactions` proposal the
+ * drain just minted, by stamping its `safeTxHash` (spec §6.3 step 4). Restricted
+ * to `proposed`: the task must have been claimed via {@link claimForProposal}
+ * before a proposal exists to link. A later reconcile reads this hash to resolve
+ * the task once the proposal executes.
+ *
+ * @param parkedTasks - The queue collection.
+ * @param taskKey - The claimed task to link.
+ * @param safeTxHash - The minted proposal's Safe transaction hash.
+ * @returns The updated task, or `null` if it was not `proposed`.
+ */
+export async function setSafeTxHash(
+  parkedTasks: Collection<IParkedTask>,
+  taskKey: string,
+  safeTxHash: string
+): Promise<WithId<IParkedTask> | null> {
+  return transition(parkedTasks, taskKey, ['proposed'], { safeTxHash })
+}
+
+/**
  * Reverts a claimed (`proposed`) task back to `queued` when its minted proposal
  * failed or was reverted, clearing the stale `proposedAt`/`safeTxHash` so the next
  * drain re-proposes cleanly.

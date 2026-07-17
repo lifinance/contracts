@@ -1,0 +1,84 @@
+# Reconcile Deferred Diamond-Cleanup Queue
+# - Reconciles open parked facet-removal tasks (deferred diamond-cleanup queue) against on-chain
+#   truth: a facet no longer routed by the loupe is terminal (executed if its own proposal executed,
+#   else superseded); a proposed task whose proposal reverted while the facet is still present is
+#   re-queued. See script/deploy/safe/reconcile-parked-tasks.ts + docs/DeferredDiamondCleanupQueue.md §7/§8.
+# - TTL backstop: any open task older than the TTL (default 60d) is posted to the multisig-proposals
+#   Slack channel so a cold network that never gets another cut is never silently orphaned (§8).
+# - Runs with --yes so transitions are applied and the alert is sent. Transitions touch only the
+#   un-gated MONGODB_URI queue (status flips), never on-chain state or the signing store.
+# - Loupe-primary: SC_MONGODB_URI (the signing store) is NOT reachable from GitHub Actions (no tunnel),
+#   so the job runs in loupe-only mode — a gone facet is marked superseded (executed vs superseded is
+#   an audit label only) and revert-detection is skipped; run locally with tunnel access for the full
+#   state machine. RPCs are fetched from MongoDB (fallback: public RPCs from networks.json).
+# - Triggers: weekly cron (Mon 08:00 UTC) + workflow_dispatch (manual). Upstream-only (skips on forks).
+# - Known limitations: needs MONGODB_URI (queue + RPCs); WEBHOOK_DEV_SC_MULTISIG_PROPOSALS optional
+#   (the TTL alert is skipped gracefully if the webhook secret is unset).
+
+name: Reconcile Deferred Diamond-Cleanup Queue
+
+on:
+  schedule:
+    - cron: '17 8 * * 1' # 08:17 UTC every Monday (off-minute to avoid the fleet-wide :00 spike)
+  workflow_dispatch: # manual trigger (e.g. after a large deprecation or backstop sweep)
+
+# Default-deny at the workflow level; grant only what the job needs.
+permissions: {}
+
+jobs:
+  reconcile-parked-tasks:
+    # Upstream-only: needs lifinance/contracts' secrets, RPCs and production diamonds. On forks the
+    # guard is false, so the job is skipped (neutral, not failed).
+    if: ${{ github.repository == 'lifinance/contracts' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required to checkout the repo and read config/deploy logs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # read-only reconcile; no git push/tag/submodule operations
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Populate .env with prioritized RPCs (falls back to public RPCs from networks.json).
+          bun fetch-rpcs
+          # Forward only ETH_NODE_URI_* into the job env, masking each URL (may carry an API key)
+          # so it is redacted from all subsequent log output.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Reconcile parked tasks + TTL alert
+        run: bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --yes
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }} # un-gated deferred-cleanup queue + RPC fallback
+          WEBHOOK_DEV_SC_MULTISIG_PROPOSALS: ${{ secrets.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS }} # TTL alert (optional)
+
+      # A silently-broken cron defeats the cold-network backstop — surface run failures to Slack.
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":warning: reconcile-parked-tasks run failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"
+            }

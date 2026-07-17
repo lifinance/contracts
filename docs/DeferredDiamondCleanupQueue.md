@@ -11,11 +11,15 @@ Builds directly on **PR #2047** / [docs/FacetRemovalReconciliation.md](https://g
 `/deprecate-contract` from **"propose now"** to **"enqueue"**, and adds an
 opportunistic **drain**.
 
-Status: **proposed** (draft PR, for review). The **store layer is now built and
-merged** — [PR #2051](https://github.com/lifinance/contracts/pull/2051),
+Status: **being built.** The **store layer** is built and merged
+([PR #2051](https://github.com/lifinance/contracts/pull/2051),
 `script/deploy/safe/parked-tasks.ts` + the `enqueue-parked-task.ts` /
-`list-parked-tasks.ts` CLIs. The remaining layers (drain chokepoint, PR-link
-surfacing, `/deprecate-contract` rewrite, reconcile/TTL) are still design-only.
+`list-parked-tasks.ts` CLIs) and the **removal engine + `/deprecate-contract`
+park wiring** in [PR #2047](https://github.com/lifinance/contracts/pull/2047). The
+**drain chokepoint, PR-link surfacing, reconcile/TTL job, and the loupe-by-address
+engine affordance** are built in the follow-up draft PR (see §13). The only
+remaining piece is the governance-gated **first live park → drain → execute
+cycle** (a deliberate operational step, flag flipped on for one network).
 Author: Daniel B. (SC).
 
 > **Provenance note.** `[code]` facts about the **store layer** and the **drain
@@ -651,19 +655,21 @@ prod Safe signing (Fact 13). Therefore:
 |---|---|---|---|
 | `parkedTasks` collection + `IParkedTask` schema + store helpers (get/enqueue/atomic-flip/list) + unit tests (100%) | 3 | our build | ✅ **DONE — #2051** |
 | `list-parked-tasks` observability CLI + `enqueue-parked-task` CLI + tests | 1 | our build | ✅ **DONE — #2051** |
-| Drain helper (`drain-parked-tasks.ts`) + hook into `runPropose` (extract pure `_runPropose`; drain in try/catch; flag-gated, reentrancy-safe) + tests | 3 | our build | todo |
-| PR-link surfacing: extend `ISafeTxDocument` + `confirm-safe-tx` detailLines + `IProposalSummary`/list-pending + Slack | 2 | our build | todo |
-| `/deprecate-contract` step 6 rewrite (propose → call `enqueueParkedTask`) + `multisig-rollout` doc update | 1 | our build | todo |
-| Reconcile (proposed→executed/superseded via loupe) + TTL Slack alert (cron) | 2 | our build | todo |
-| Loupe-by-address engine affordance (deploy-log-pruned robustness, §8) | 1 | our build | todo |
+| Drain helper (`drain-parked-tasks.ts`) + hook into `runPropose` (extract pure `_runPropose`; drain in try/catch; flag-gated, reentrancy-safe) + tests | 3 | our build | ✅ **DONE — this PR** |
+| PR-link surfacing: extend `ISafeTxDocument` + `confirm-safe-tx` detailLines + `IProposalSummary`/list-pending + Slack | 2 | our build | ✅ **DONE — this PR** |
+| `/deprecate-contract` step 6 rewrite (propose → call `enqueueParkedTask`) + `multisig-rollout` doc update | 1 | our build | ✅ **DONE** — step 6 in #2047, `multisig-rollout` doc this PR |
+| Reconcile (proposed→executed/superseded via loupe) + TTL Slack alert (cron) | 2 | our build | ✅ **DONE — this PR** (`reconcile-parked-tasks.ts` + `reconcileParkedTasks.yml`) |
+| Loupe-by-address engine affordance (deploy-log-pruned robustness, §8) | 1 | our build | ✅ **DONE — this PR** (`prunedButRouted`) |
 | Review + first real park → drain → execute cycle (Safe signing + timelock) | 5 | human decision / operational | todo |
 
-Total ≈ **18**; **our-build share 13/18 ≈ 72%**, of which **4 points (store layer +
-observability/enqueue CLIs) are already merged in #2051**. The remaining 5 is review +
+Total ≈ **18**; **our-build share 13/18 ≈ 72%**, all now built — **4 points (store +
+observability/enqueue CLIs) merged in #2051**, the engine + park wiring in #2047, and
+the remaining **9 our-build points (drain + PR-link surfacing + reconcile/TTL +
+loupe-by-address affordance) in the follow-up draft PR**. The remaining 5 is review +
 the governance-gated first live cycle — human/operational by nature.
 
-With the store landed, the **recommended next PR** is: the drain helper + `runPropose`
-hook (default **off**) + PR-link surfacing + the `/deprecate-contract` wiring, as a
+The follow-up PR ships the drain helper + `runPropose` hook (default **off**) +
+PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
 **draft**. The first live drain stays a separate, deliberate operational step (flip
 `DRAIN_PARKED_TASKS` on for one network).
 
@@ -681,23 +687,25 @@ hook (default **off**) + PR-link surfacing + the `/deprecate-contract` wiring, a
    the agentic cut never touches `main`). Accepted consequence: the `sendOrPropose`
    funnel (whitelist sync, `cleanUpProdDiamond`) and the 4 bespoke direct-store scripts
    won't drain opportunistically — the cold-network backstop (§8) covers them.
-3. **PR-link field (§6).** Extend the shared `ISafeTxDocument` (touches the signing
-   schema, but backward-compatible/optional) vs a side-car lookup keyed by
-   `safeTxHash`. Blast radius vs cleanliness. *(Working assumption: the optional field,
-   §6. Not explicitly settled.)*
-4. **Batching (§6) — OPEN, recommendation stands.** **Recommend one consolidated
-   per-network removal proposal carrying every queued facet's origin PR** (fewer
-   proposals, one extra signature in the session). The alternative — one proposal per
-   originating PR (more proposals, cleaner 1:1 PR↔proposal mapping for the reviewer) —
-   was **not** ruled out in the thread. Team to confirm.
+3. ~~**PR-link field (§6).**~~ **RESOLVED (Daniel):** extend the shared
+   `ISafeTxDocument` with the optional, backward-compatible `parkedTaskRefs?:
+   { facet, prUrl }[]` field (over a side-car lookup) — simplest read path at all
+   three surfaces; purely additive to the schema. **Built in the follow-up PR.**
+4. ~~**Batching (§6).**~~ **RESOLVED (Daniel):** one consolidated per-network
+   removal proposal — a single `scheduleBatch` Remove carrying every queued facet's
+   origin PR via the `parkedTaskRefs` array (fewer proposals, one extra signature in
+   the session). **Built in the follow-up PR** (`drainNetwork`).
 5. **Deploy-log hazard (§8).** Harden the drain to resolve by stored `facetAddress`
    when the log entry was pruned (small engine extension), **and/or** just enforce
    "don't prune the log until the parked task retires"? (Recommend both.)
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
    **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
    default, and whether that's per-network or global.
-7. **Reconcile ownership (§7).** Extend the existing `reconcile.ts` sweep vs a
-   standalone `reconcile-parked-tasks` job + cron.
+7. ~~**Reconcile ownership (§7).**~~ **RESOLVED (Daniel):** a standalone
+   `reconcile-parked-tasks.ts` job + cron (`.github/workflows/reconcileParkedTasks.yml`),
+   not folded into the audited `reconcile.ts` sweep — keeps the parked-task lifecycle
+   self-contained and independently runnable (loupe-primary; `pendingTransactions`
+   status optional via tunnel). **Built in the follow-up PR.**
 8. **Enqueue timing (§10) — OPEN, recommendation stands.** The `prUrl` isn't known until
    the deprecation PR exists. **Recommend enqueue as the last step, once `gh pr create`
    returns the URL** (over writing placeholder records and backfilling). **Not**
@@ -705,7 +713,10 @@ hook (default **off**) + PR-link surfacing + the `/deprecate-contract` wiring, a
 9. **Scope of `kind` (§3/§4).** Facet-removal-only v1 with an extensible `kind`, vs
    design the other "non-urgent diamond changes" now (which? periphery de-register?
    selector re-points?).
-10. **TTL (§8).** What age triggers the cold-network alert (default 30d proposed)?
+10. ~~**TTL (§8).**~~ **RESOLVED (Daniel): 60 days.** The cold-network alert fires
+    for any open task older than 60d. The follow-up PR extends the alert to both open
+    states (`queued` **and** stuck `proposed`) so nothing is orphaned. **Built in the
+    follow-up PR** (`computeTtlAlerts`).
 
 ---
 

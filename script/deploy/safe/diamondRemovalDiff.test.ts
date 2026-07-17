@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import { getAddress } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 
@@ -318,6 +319,52 @@ describe('diffNamedFacets', () => {
     })
     expect(r.notFoundOnChain).toEqual(['Absent'])
     expect(r.removals).toHaveLength(0)
+    expect(r.prunedButRouted).toHaveLength(0)
+  })
+
+  it('reclassifies a log-pruned but still-routed name into prunedButRouted (address hint)', () => {
+    // Deploy log no longer maps the address to the name (pruned), but the stored
+    // facetAddress is still routed on-chain — must NOT be treated as gone (§8).
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      nameToAddress: { OldFacet: addr(1) },
+    })
+    expect(r.prunedButRouted).toEqual([{ name: 'OldFacet', address: addr(1) }])
+    expect(r.notFoundOnChain).toHaveLength(0)
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('keeps a name in notFoundOnChain when its hinted address is not routed', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      nameToAddress: { OldFacet: addr(2) },
+    })
+    expect(r.notFoundOnChain).toEqual(['OldFacet'])
+    expect(r.prunedButRouted).toHaveLength(0)
+  })
+
+  it('matches the hinted address case-insensitively and returns it checksummed', () => {
+    const upper = addr(0xabc).toUpperCase() as `0x${string}`
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(0xabc), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      nameToAddress: { OldFacet: upper },
+    })
+    expect(r.prunedButRouted).toEqual([
+      { name: 'OldFacet', address: getAddress(addr(0xabc)) },
+    ])
+    expect(r.notFoundOnChain).toHaveLength(0)
   })
 })
 
@@ -342,6 +389,31 @@ describe('computeNamedFacetRemovals', () => {
     expect(r.removals).toEqual([
       { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
     ])
+  })
+
+  it('returns prunedButRouted:[] when the diamond is absent', async () => {
+    const r = await computeNamedFacetRemovals('net', PROD, ['A'], {
+      getDiamondAddress: async () => undefined,
+    })
+    expect(r.prunedButRouted).toEqual([])
+  })
+
+  it('threads the address hint through to prunedButRouted', async () => {
+    const r = await computeNamedFacetRemovals(
+      'net',
+      PROD,
+      ['OldFacet'],
+      {
+        getDiamondAddress: async () => addr(0xd),
+        getOnChainFacets: async () => [
+          { address: addr(1), selectors: [sel(1)] },
+        ],
+        getAddressToName: async () => ({}),
+      },
+      { OldFacet: addr(1) }
+    )
+    expect(r.prunedButRouted).toEqual([{ name: 'OldFacet', address: addr(1) }])
+    expect(r.notFoundOnChain).toHaveLength(0)
   })
 })
 
