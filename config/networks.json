@@ -1375,7 +1375,6 @@
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000",
-    "noLegacy": true,
     "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path. Gas is paid in TIP-20 stablecoins (no native asset; eth_getBalance returns a sentinel): the default fee token is pathUSD (feeTokenAddress), and an account can override it via the FeeManager predeploy (feeManagerAddress) userTokens(account). eth_gasPrice is quoted in attodollars (1e18) per gas.",
     "skipHealthcheck": true
   },
