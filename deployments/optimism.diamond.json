@@ -73,9 +73,9 @@
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",
