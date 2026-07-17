@@ -81,9 +81,15 @@ updateFacetConfig() {
       # forge >=1.6 validates the simulation sender's balance; override to the funded deployer.
       DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
+      # EIP-1559-capable chains must not get --legacy; pre-1559 chains require it.
+      LEGACY_FLAG="--legacy"
+      if networkSupportsEip1559 "$NETWORK"; then
+        LEGACY_FLAG=""
+      fi
+
       # Execute, parse, and check return code
       if ! executeAndParse \
-        "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --legacy $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
+        "NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\") forge script \"$SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast $LEGACY_FLAG $SKIP_SIMULATION_FLAG --gas-estimate-multiplier \"$GAS_ESTIMATE_MULTIPLIER\"" \
         "true" \
         "forge script failed for $SCRIPT on network $NETWORK" \
         "continue"; then

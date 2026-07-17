@@ -3688,6 +3688,39 @@ function getCurrentGasPrice() {
 
   echo "$GAS_PRICE"
 }
+# networkSupportsEip1559: Returns 0 (true) if NETWORK's latest block exposes a
+# baseFeePerGas field — the on-chain marker of EIP-1559 support — meaning forge
+# should send type-2 transactions and MUST NOT be passed --legacy. Returns 1 for
+# pre-EIP-1559 chains that require --legacy, and also on RPC failure, where the
+# type can't be determined and legacy is the safe fallback (a type-2 tx on a
+# pre-1559 chain is rejected outright, whereas legacy is the historical default).
+#
+# A --legacy tx pins one gasPrice quoted at build time; on low-base-fee L2s
+# (e.g. Arbitrum, ~0.02 gwei) the next block's base fee can rise above it and the
+# node rejects the tx ("max fee per gas less than block base fee"). A type-2 tx
+# sets maxFeePerGas with headroom and pays the actual base fee, surviving the race.
+#
+# Usage: if networkSupportsEip1559 "$NETWORK"; then LEGACY_FLAG=""; fi
+function networkSupportsEip1559() {
+  local NETWORK="$1"
+
+  local RPC_URL
+  if ! RPC_URL=$(getRPCUrl "$NETWORK"); then
+    warning "could not resolve RPC URL for '$NETWORK'; assuming legacy (pre-EIP-1559) transactions"
+    return 1
+  fi
+
+  local BLOCK_JSON
+  BLOCK_JSON=$(cast block latest --json --rpc-url "$RPC_URL" 2>/dev/null)
+  if [[ $? -ne 0 || -z "$BLOCK_JSON" ]]; then
+    warning "could not query latest block for '$NETWORK' to detect EIP-1559 support; assuming legacy transactions"
+    return 1
+  fi
+
+  local BASE_FEE
+  BASE_FEE=$(echo "$BLOCK_JSON" | jq -r '.baseFeePerGas // empty')
+  [[ -n "$BASE_FEE" && "$BASE_FEE" != "null" ]]
+}
 function getContractOwner() {
   # read function arguments into variables
   local network=$1

@@ -276,15 +276,14 @@ deploySingleContract() {
     # Add network-specific deploy flags from networks.json (customDeployFlags)
     ADDITIONAL_FLAGS=""
     local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
-    local LEGACY_FLAG="--legacy"
     if [[ -f "$NETWORKS_JSON" ]]; then
       ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
-      # noLegacy:true means the chain requires EIP-1559 txs (e.g. AA chains) — omit --legacy
-      local NO_LEGACY
-      NO_LEGACY=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].noLegacy // false' "$NETWORKS_JSON" 2>/dev/null || echo "false")
-      if [[ "$NO_LEGACY" == "true" ]]; then
-        LEGACY_FLAG=""
-      fi
+    fi
+    # EIP-1559-capable chains must not get --legacy (a pinned legacy gasPrice loses
+    # the base-fee race on low-fee L2s); pre-1559 chains still require it.
+    local LEGACY_FLAG="--legacy"
+    if networkSupportsEip1559 "$NETWORK"; then
+      LEGACY_FLAG=""
     fi
     # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
     if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
