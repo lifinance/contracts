@@ -3711,8 +3711,7 @@ function networkSupportsEip1559() {
   fi
 
   local BLOCK_JSON
-  BLOCK_JSON=$(cast block latest --json --rpc-url "$RPC_URL" 2>/dev/null)
-  if [[ $? -ne 0 || -z "$BLOCK_JSON" ]]; then
+  if ! BLOCK_JSON=$(cast block latest --json --rpc-url "$RPC_URL" 2>/dev/null) || [[ -z "$BLOCK_JSON" ]]; then
     warning "could not query latest block for '$NETWORK' to detect EIP-1559 support; assuming legacy transactions"
     return 1
   fi

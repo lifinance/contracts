@@ -82,7 +82,7 @@ updateFacetConfig() {
       DEPLOYER_ADDRESS=$(getDeployerAddress "$NETWORK" "$ENVIRONMENT")
 
       # EIP-1559-capable chains must not get --legacy; pre-1559 chains require it.
-      LEGACY_FLAG="--legacy"
+      local LEGACY_FLAG="--legacy"
       if networkSupportsEip1559 "$NETWORK"; then
         LEGACY_FLAG=""
       fi
