@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
 import { IAccessGate } from "lifi/VaultWrapper/interfaces/IAccessGate.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title ReferenceAccessGate
 /// @author LI.FI (https://li.fi)
@@ -15,10 +16,12 @@ import { IAccessGate } from "lifi/VaultWrapper/interfaces/IAccessGate.sol";
 ///           endpoints to satisfy `isAllowed`; it does not soulbind shares.
 ///         - `isSanctioned` (exit freeze) exposes the sanction flags directly.
 /// @dev This is a template, not a LI.FI-operated contract: each integrator deploys or forks
-///      its own instance. It custodies no funds. Sanction flags are owner-managed here to
-///      keep the example self-contained; an integrator wanting a live feed can instead back
-///      `isSanctioned` with a call to an external Chainalysis `SanctionsList`, whose
-///      `isSanctioned(address)` signature is identical.
+///      its own instance. It custodies no funds. LI.FI does not guarantee the safety or
+///      correctness of this reference implementation; integrators are strongly advised to have
+///      their deployment audited by a reputable security firm before any mainnet use. Sanction
+///      flags are owner-managed here to keep the example self-contained; an integrator wanting a
+///      live feed can instead back `isSanctioned` with a call to an external Chainalysis
+///      `SanctionsList`, whose `isSanctioned(address)` signature is identical.
 /// @custom:version 1.0.0
 contract ReferenceAccessGate is TransferrableOwnership, IAccessGate {
     /// Storage ///
@@ -50,6 +53,8 @@ contract ReferenceAccessGate is TransferrableOwnership, IAccessGate {
         address _owner,
         bool _allowlistEnabled
     ) TransferrableOwnership(_owner) {
+        if (_owner == address(0)) revert InvalidConfig();
+
         allowlistEnabled = _allowlistEnabled;
     }
 

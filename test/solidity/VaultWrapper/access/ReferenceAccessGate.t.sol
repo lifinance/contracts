@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { ReferenceAccessGate } from "lifi/VaultWrapper/access/ReferenceAccessGate.sol";
 import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
+import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract ReferenceAccessGateTest is Test {
     ReferenceAccessGate internal gate;
@@ -19,6 +20,13 @@ contract ReferenceAccessGateTest is Test {
 
     function setUp() public {
         gate = new ReferenceAccessGate(owner, false);
+    }
+
+    /// Construction ///
+
+    function testRevert_ConstructedWithZeroOwner() public {
+        vm.expectRevert(InvalidConfig.selector);
+        new ReferenceAccessGate(address(0), false);
     }
 
     /// Permissionless default ///
@@ -55,6 +63,17 @@ contract ReferenceAccessGateTest is Test {
         assertTrue(gate.isAllowed(bob));
     }
 
+    function test_DisablingAllowlistRestoresPermissionless() public {
+        vm.startPrank(owner);
+        gate.setAllowlistEnabled(true);
+        assertFalse(gate.isAllowed(alice));
+
+        gate.setAllowlistEnabled(false);
+        vm.stopPrank();
+
+        assertTrue(gate.isAllowed(alice));
+    }
+
     /// Denylist ///
 
     function test_DenylistBlocksEvenWhenPermissionless() public {
@@ -73,6 +92,18 @@ contract ReferenceAccessGateTest is Test {
         vm.stopPrank();
 
         assertFalse(gate.isAllowed(alice));
+    }
+
+    function test_DenylistBatchSetsMany() public {
+        address[] memory accounts = new address[](2);
+        accounts[0] = alice;
+        accounts[1] = bob;
+
+        vm.prank(owner);
+        gate.setDenylistedBatch(accounts, true);
+
+        assertFalse(gate.isAllowed(alice));
+        assertFalse(gate.isAllowed(bob));
     }
 
     /// Sanctions (exit freeze) ///
