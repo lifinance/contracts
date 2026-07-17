@@ -60,7 +60,7 @@
       "LidoWrapper": "",
       "OutputValidator": "0x1299f7F941745377a2091AF51557e8De04B96B10",
       "Patcher": "",
-      "Permit2Proxy": "",
+      "Permit2Proxy": "0x263c63c1D8901c14520474110CE88CfADae0CfE9",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
