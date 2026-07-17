@@ -89,10 +89,12 @@ selects the Mayan entrypoint based on `swapProtocol`:
   be left empty/zero.
 - **`swapProtocol != address(0)`** — the native amount is routed through
   `MAYAN.swapAndForwardEth{value}(minAmount, swapProtocol, swapData, middleToken, minMiddleAmount, mayanProtocol, protocolData)`.
-  This covers the case where Mayan's underlying v2 contracts require WETH rather than
-  raw ETH: Mayan performs an implicit conversion (e.g. a 1:1 ETH→WETH wrap, with
-  `middleToken` set to the chain's WETH) before executing `mayanProtocol`.
-  `minMiddleAmount` is the minimum `middleToken` the swap must yield.
+  This covers the case where the Mayan Swift v2 order takes an input token other than
+  native ETH: Mayan performs a source-side swap (via `swapProtocol`/`swapData`) that
+  converts the native input into `middleToken` before executing `mayanProtocol`. The
+  `middleToken` is chosen by Mayan per route/quote — it may be WETH or another token
+  such as a stablecoin — and the conversion is a real DEX swap, not necessarily a 1:1
+  wrap. `minMiddleAmount` is the minimum `middleToken` the swap must yield.
 
 ERC20 inputs are unaffected and always use `MAYAN.forwardERC20(...)`.
 
@@ -101,7 +103,7 @@ The native amount (`BridgeData.minAmount`, normalized to 8 decimals) is passed t
 the swap entrypoint (`swapAndStartBridgeTokensViaMayan`) the amount is only ever passed
 as a call argument on the native path, so — unlike the ERC20 path — `_replaceInputAmount`
 is **not** applied to `protocolData` for native swaps; the double-swap (LI.FI source
-swap → native ETH → Mayan ETH→WETH) still forwards the original `protocolData` unchanged.
+swap → native ETH → Mayan source swap ETH→middleToken) still forwards the original `protocolData` unchanged.
 The receiver is always validated from `protocolData` regardless of which native
 entrypoint is selected.
 
