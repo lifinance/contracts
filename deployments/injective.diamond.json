@@ -48,6 +48,10 @@
       "0x17C19CbDe88235E9056469A21110AAb731a63538": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x2bE73b7851482428F28c8D0206667dFC74312400": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
       }
     },
     "Periphery": {
@@ -65,7 +69,7 @@
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
-      "ReceiverStargateV2": "",
+      "ReceiverStargateV2": "0x360cAEBad9699A334DFE5465eaDB8D0730a9a3c6",
       "TokenWrapper": "0x1c9633Cf7E22C36e6b9EAE03CdA5F4042d746683"
     }
   }
