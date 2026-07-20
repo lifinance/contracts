@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
-import { AcrossFacetV3 } from "lifi/Facets/AcrossFacetV3.sol";
+import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
 import { GenericSwapFacetV3 } from "lifi/Facets/GenericSwapFacetV3.sol";
@@ -62,7 +62,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_IgnoresExtraBytes() public view {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -76,7 +76,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeData() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -88,7 +88,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractSwapData() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -102,7 +102,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function test_CanExtractBridgeAndSwapData() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -118,7 +118,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -184,9 +184,82 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         assertEq(returnedNonEVMAddress, bytes32("Just some address"));
     }
 
+    function testRevert_ExtractNonEVMAddressWithCorruptedOffset() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        // BridgeData decodes fine on its own (it sits entirely within the first
+        // 548 bytes), but truncating away the tail means the bridge-specific
+        // data offset now points past the end of the buffer.
+        callData = _safeSlice(callData, 0, 547);
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
+    function testRevert_ExtractNonEVMAddressWithSwapsAndCorruptedOffset()
+        public
+    {
+        bridgeData.hasSourceSwaps = true;
+
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.swapAndStartBridgeTokensViaMayan.selector,
+            bridgeData,
+            swapData,
+            mayanData
+        );
+
+        callData = _safeSlice(callData, 0, 931);
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
+    function testRevert_ExtractNonEVMAddressWithHugeOffset() public {
+        // produce valid MayanData
+        MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
+            bytes32("Just some address"),
+            0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
+            hex"00"
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            MayanFacet.startBridgeTokensViaMayan.selector,
+            bridgeData,
+            mayanData
+        );
+
+        // overwrite the bridge-specific data offset (second param head slot,
+        // bytes 36..68 of the buffer) with type(uint256).max so the bounds
+        // check must catch it via InvalidCallData, not an overflow panic
+        for (uint256 i = 36; i < 68; i++) {
+            callData[i] = 0xff;
+        }
+
+        vm.expectRevert(InvalidCallData.selector);
+        calldataVerificationFacet.extractNonEVMAddress(callData);
+    }
+
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -370,7 +443,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function test_CanExtractMainParametersWithSwap() public {
         bridgeData.hasSourceSwaps = true;
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector,
             bridgeData,
             swapData
         );
@@ -396,7 +469,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanValidateCalldata() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
             bridgeData
         );
 
@@ -512,57 +585,6 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
             invalidCallTo,
             bytes("foobarbytes")
         );
-    }
-
-    function test_CanValidateAcrossV3DestinationCalldata() public {
-        AcrossFacetV3.AcrossV3Data memory acrossData = AcrossFacetV3
-            .AcrossV3Data({
-                receiverAddress: USER_RECEIVER,
-                refundAddress: USER_REFUND,
-                receivingAssetId: ADDRESS_USDC,
-                outputAmount: (defaultUSDCAmount * 9) / 10,
-                outputAmountPercent: uint64(1000000000000000000), // 10000 = 100.00%
-                exclusiveRelayer: address(0),
-                quoteTimestamp: uint32(block.timestamp),
-                fillDeadline: uint32(uint32(block.timestamp) + 1000),
-                exclusivityDeadline: 0,
-                message: bytes("foobarbytes")
-            });
-
-        bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV3.startBridgeTokensViaAcrossV3.selector,
-            bridgeData,
-            acrossData
-        );
-
-        bytes memory callDataWithSwap = abi.encodeWithSelector(
-            AcrossFacetV3.swapAndStartBridgeTokensViaAcrossV3.selector,
-            bridgeData,
-            swapData,
-            acrossData
-        );
-
-        bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
-        );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
-                callDataWithSwap,
-                abi.encode(USER_RECEIVER),
-                bytes("foobarbytes")
-            );
-
-        bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
-        );
-
-        assertTrue(validCall);
-        assertTrue(validCallWithSwap);
-        assertFalse(badCall);
     }
 
     function checkBridgeData(ILiFi.BridgeData memory data) internal {

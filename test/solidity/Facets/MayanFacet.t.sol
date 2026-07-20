@@ -1,6 +1,7 @@
-// solhint-disable max-line-length
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
+
+// solhint-disable max-line-length
 
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
