@@ -55,6 +55,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false # read-only check; no git push/tag/submodule operations
+          fetch-depth: 0 # full history so a push run can diff which deployments/ changed
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
@@ -92,12 +93,29 @@ jobs:
       # continue-on-error so the Slack step below always reports; the "Fail if any network failed"
       # step restores the red check. The runner writes total / passed_count / failed_count /
       # failed_networks to $GITHUB_OUTPUT for the Slack composer.
-      - name: Run health check across all production networks
+      # On push it scopes to only the networks whose deploy logs changed (post-deploy drift is on
+      # those); on schedule/dispatch it sweeps the full production fleet.
+      - name: Run health check
         id: healthcheck
         continue-on-error: true
-        run: bunx tsx script/deploy/healthCheckAllNetworks.ts --environment production --concurrency 8
         env:
           MAX_CONCURRENT_JOBS: '8'
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          ARGS=(--environment production --concurrency 8)
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            # Only re-check networks whose deploy log changed in this push; fall back to the full
+            # fleet if the base commit is unavailable (e.g. first push / shallow history).
+            if git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+              CHANGED=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- 'deployments/*.json' | paste -sd, -)
+              if [[ -n "$CHANGED" ]]; then
+                ARGS+=(--changed-paths="$CHANGED")
+              fi
+            fi
+          fi
+          bunx tsx script/deploy/healthCheckAllNetworks.ts "${ARGS[@]}"
 
       - name: Fail if any network failed
         if: ${{ always() }}
@@ -119,6 +137,7 @@ jobs:
           TOTAL: ${{ steps.healthcheck.outputs.total }}
           PASSED_COUNT: ${{ steps.healthcheck.outputs.passed_count }}
           FAILED_COUNT: ${{ steps.healthcheck.outputs.failed_count }}
+          SKIPPED_COUNT: ${{ steps.healthcheck.outputs.skipped_count }}
           FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
         run: |
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
@@ -133,7 +152,7 @@ jobs:
           RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
 
           if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then
-            HEADER=":white_check_mark: *Diamond health check — all ${TOTAL:-?} production networks passed*"
+            HEADER=":white_check_mark: *Diamond health check — ${PASSED_COUNT:-?}/${TOTAL:-?} networks passed (${SKIPPED_COUNT:-0} skipped)*"
             BODY="<${RUN_URL}|View workflow run>"
           else
             HEADER=":rotating_light: *Diamond health check — ACTION NEEDED*"

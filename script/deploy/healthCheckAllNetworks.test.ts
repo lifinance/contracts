@@ -8,6 +8,7 @@ import {
 import type { INetwork } from '../common/types'
 
 import {
+  deploymentPathsToNetworks,
   getProductionNetworkNames,
   summarizeHealthChecks,
 } from './healthCheckAllNetworks'
@@ -35,21 +36,49 @@ describe('getProductionNetworkNames', () => {
   })
 })
 
-describe('summarizeHealthChecks', () => {
-  it('splits passed and failed and counts the total', () => {
-    const summary = summarizeHealthChecks([
-      { network: 'polygon', passed: true, detail: '' },
-      { network: 'optimism', passed: false, detail: 'boom' },
-      { network: 'arbitrum', passed: true, detail: '' },
+describe('deploymentPathsToNetworks', () => {
+  it('extracts production network keys, ignoring staging/diamond/non-network files', () => {
+    const result = deploymentPathsToNetworks([
+      'deployments/optimism.json',
+      'deployments/opbnb.json',
+      'deployments/base.staging.json',
+      'deployments/polygon.diamond.json',
+      'deployments/_deployments_log_file.json',
+      'src/Periphery/Executor.sol',
     ])
-    expect(summary.total).toBe(3)
+    expect(result).toEqual(['opbnb', 'optimism'])
+  })
+
+  it('dedupes and returns empty when no network file changed', () => {
+    expect(
+      deploymentPathsToNetworks([
+        'deployments/arbitrum.json',
+        'deployments/arbitrum.json',
+      ])
+    ).toEqual(['arbitrum'])
+    expect(deploymentPathsToNetworks(['deployments/x.diamond.json'])).toEqual(
+      []
+    )
+  })
+})
+
+describe('summarizeHealthChecks', () => {
+  it('splits passed / failed / skipped and counts the total', () => {
+    const summary = summarizeHealthChecks([
+      { network: 'polygon', status: 'passed', detail: '' },
+      { network: 'optimism', status: 'failed', detail: 'boom' },
+      { network: 'arbitrum', status: 'passed', detail: '' },
+      { network: 'tron', status: 'skipped', detail: 'skipHealthcheck' },
+    ])
+    expect(summary.total).toBe(4)
     expect(summary.passed).toEqual(['arbitrum', 'polygon'])
     expect(summary.failed).toEqual(['optimism'])
+    expect(summary.skipped).toEqual(['tron'])
   })
 
   it('handles the all-passed case', () => {
     const summary = summarizeHealthChecks([
-      { network: 'polygon', passed: true, detail: '' },
+      { network: 'polygon', status: 'passed', detail: '' },
     ])
     expect(summary.failed).toEqual([])
     expect(summary.passed).toEqual(['polygon'])
@@ -57,6 +86,11 @@ describe('summarizeHealthChecks', () => {
 
   it('handles the empty case', () => {
     const summary = summarizeHealthChecks([])
-    expect(summary).toEqual({ total: 0, passed: [], failed: [] })
+    expect(summary).toEqual({
+      total: 0,
+      passed: [],
+      failed: [],
+      skipped: [],
+    })
   })
 })

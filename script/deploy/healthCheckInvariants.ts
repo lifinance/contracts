@@ -18,11 +18,9 @@ import path from 'path'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
-  formatEther,
   getAddress,
   getContract,
   parseAbi,
-  type Abi,
   type Address,
   type Hex,
   type PublicClient,
@@ -118,7 +116,48 @@ export interface IHealthCheckInvariant {
   scope: IHealthCheckScope
   /** When this invariant fails, skip all remaining invariants (e.g. diamond not deployed). */
   haltIfFailed?: boolean
+  /**
+   * Reads `ctx.onChainFacets` (populated by `facets-registered`). The runner defers these to
+   * a second phase so the first phase's concurrent reads finish (and populate it) first.
+   */
+  readsOnChainFacets?: boolean
+  /** Actionable fix shown after this invariant fails (e.g. the command to re-sync). */
+  remediation?: string
   run: (ctx: IHealthCheckContext) => Promise<void>
+}
+
+/**
+ * Adapt an external check script into an invariant `run()`: the script is spawned with the
+ * network + environment, and the invariant passes iff it exits 0. Non-zero exit records a
+ * failure (error/warning per `severity`) with the script's output tail as the detail. Use
+ * sparingly — a subprocess per (eval × network) loses the shared viem client/batching, so
+ * it is for reusing authoritative external checks, not for checks that belong in-process.
+ *
+ * @param scriptPath - Repo-relative path to an executable check (exit 0 = pass).
+ * @param severity - How a non-zero exit is reported.
+ * @param argsFromCtx - Builds the script args from the network context.
+ */
+export function scriptEval(
+  scriptPath: string,
+  severity: HealthCheckSeverity = 'error',
+  argsFromCtx: (ctx: IHealthCheckContext) => string[] = (ctx) => [
+    '--network',
+    ctx.networkLower,
+    '--environment',
+    ctx.environment,
+  ]
+): (ctx: IHealthCheckContext) => Promise<void> {
+  return async (ctx) => {
+    try {
+      await spawnAndCapture(scriptPath, argsFromCtx(ctx))
+      consola.success(`${scriptPath} passed`)
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error)
+      const tail = detail.split('\n').slice(-5).join('\n')
+      const report = severity === 'warning' ? ctx.logWarn : ctx.logError
+      report(`${scriptPath} failed: ${tail}`)
+    }
+  }
 }
 
 /**
@@ -565,62 +604,71 @@ async function checkWhitelistIntegrity(
         }
       }
     } else if (hasEvmContext) {
-      const whitelistManager = getContract({
-        address: diamondAddress as Address,
-        abi: parseAbi([
-          'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
-        ]),
-        client: publicClient,
-      })
+      const abi = parseAbi([
+        'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+      ])
       const hasMulticall3 =
         publicClient.chain?.contracts?.multicall3 !== undefined
 
-      for (const expectedPair of expectedPairs) {
-        try {
-          let isWhitelisted: boolean
-          if (hasMulticall3) {
-            const result = await publicClient.multicall({
-              contracts: [
-                {
-                  address: whitelistManager.address,
-                  abi: whitelistManager.abi as Abi,
-                  functionName: 'isContractSelectorWhitelisted',
-                  args: [
-                    expectedPair.contract as Address,
-                    expectedPair.selector,
-                  ],
-                },
-              ],
-              allowFailure: false,
-            })
-            isWhitelisted = result[0] as boolean
-          } else {
-            const manager = whitelistManager as unknown as {
-              read: {
-                isContractSelectorWhitelisted: (
-                  args: [Address, Hex]
-                ) => Promise<boolean>
-              }
-            }
-            isWhitelisted = await manager.read.isContractSelectorWhitelisted([
-              expectedPair.contract as Address,
-              expectedPair.selector,
-            ])
-          }
-          if (!isWhitelisted) {
+      if (hasMulticall3) {
+        // One multicall over ALL pairs (viem auto-chunks) instead of a round-trip per pair.
+        const results = await publicClient.multicall({
+          contracts: expectedPairs.map((pair) => ({
+            address: diamondAddress as Address,
+            abi,
+            functionName: 'isContractSelectorWhitelisted' as const,
+            args: [pair.contract as Address, pair.selector] as const,
+          })),
+          allowFailure: true,
+        })
+        expectedPairs.forEach((pair, i) => {
+          const result = results[i]
+          if (!result || result.status !== 'success') {
             logError(
-              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
+              `Failed to check ${pair.contract}/${pair.selector}: ${
+                result?.error?.message ?? 'call failed'
+              }`
+            )
+            granularFails++
+          } else if (!result.result) {
+            logError(
+              `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
             )
             granularFails++
           }
-        } catch (error: unknown) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          logError(
-            `Failed to check ${expectedPair.contract}/${expectedPair.selector}: ${errorMessage}`
-          )
-          granularFails++
-        }
+        })
+      } else {
+        // No multicall3 on this chain: fire the reads concurrently (still one round-trip each,
+        // but parallel) rather than sequentially.
+        const manager = getContract({
+          address: diamondAddress as Address,
+          abi,
+          client: publicClient,
+        })
+        await Promise.all(
+          expectedPairs.map(async (pair) => {
+            try {
+              const isWhitelisted =
+                await manager.read.isContractSelectorWhitelisted([
+                  pair.contract as Address,
+                  pair.selector,
+                ])
+              if (!isWhitelisted) {
+                logError(
+                  `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
+                )
+                granularFails++
+              }
+            } catch (error: unknown) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error)
+              logError(
+                `Failed to check ${pair.contract}/${pair.selector}: ${errorMessage}`
+              )
+              granularFails++
+            }
+          })
+        )
       }
     }
 
@@ -746,9 +794,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description: 'All expected facets are registered in the diamond',
     severity: 'error',
     scope: {},
+    remediation:
+      'Add/verify the facet via diamondCut (see script/deploy/facets) and confirm it is verified on the explorer.',
     run: async (ctx) => {
       let registeredFacets: string[] = []
       let facetCheckSkipped = false
+      // Populated in place so the shared ctx.onChainFacets reference (see runner) is visible
+      // to the phase-2 selector/facet-set invariants.
+      const setOnChainFacets = (facets: IOnChainFacet[]) => {
+        ctx.onChainFacets.length = 0
+        ctx.onChainFacets.push(...facets)
+      }
+      const configFacetsByAddress = Object.fromEntries(
+        Object.entries(ctx.deployedContracts).map(
+          ([name, address]: [string, unknown]) => [
+            String(address).toLowerCase(),
+            name,
+          ]
+        )
+      )
       try {
         if (ctx.isTron && ctx.tronRpcUrl) {
           const rawString = await callTronContract(
@@ -761,86 +825,37 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           const onChainFacets = parseTroncastFacetsOutput(rawString)
 
           if (Array.isArray(onChainFacets)) {
-            ctx.onChainFacets = onChainFacets.map(
-              ([address, selectors]: [string, unknown]) => ({
+            setOnChainFacets(
+              onChainFacets.map(([address, selectors]: [string, unknown]) => ({
                 address: String(address),
                 selectors: (Array.isArray(selectors) ? selectors : []).map(
                   (s) => String(s)
                 ),
-              })
+              }))
             )
-
-            const configFacetsByAddress = Object.fromEntries(
-              Object.entries(ctx.deployedContracts).map(
-                ([name, address]: [string, unknown]) => [
-                  String(address).toLowerCase(),
-                  name,
-                ]
-              )
-            )
-
-            registeredFacets = onChainFacets
-              .map(
-                ([tronAddress]: [string, unknown]) =>
-                  configFacetsByAddress[String(tronAddress).toLowerCase()]
-              )
+            registeredFacets = ctx.onChainFacets
+              .map((f) => configFacetsByAddress[f.address.toLowerCase()])
               .filter((name): name is string => typeof name === 'string')
           }
-        } else if (
-          ctx.networkConfig.rpcUrl &&
-          ctx.publicClient &&
-          ctx.publicClient.chain
-        ) {
-          const rpcUrl: string =
-            ctx.publicClient.chain.rpcUrls.default.http[0] ||
-            ctx.networkConfig.rpcUrl
-          const rawString = await execWithRateLimitRetry(
-            [
-              'cast',
-              'call',
-              ctx.diamondAddress,
-              'facets() returns ((address,bytes4[])[])',
-              '--rpc-url',
-              rpcUrl,
-            ],
-            0,
-            3,
-            RETRY_DELAY
+        } else if (ctx.publicClient) {
+          // viem read (not `cast`): folds into the batched multicall client and drops a subprocess.
+          const diamond = getContract({
+            address: ctx.diamondAddress as Address,
+            abi: parseAbi([
+              'function facets() view returns ((address facetAddress, bytes4[] functionSelectors)[])',
+            ]),
+            client: ctx.publicClient,
+          })
+          const facets = await diamond.read.facets()
+          setOnChainFacets(
+            facets.map((f) => ({
+              address: f.facetAddress,
+              selectors: [...f.functionSelectors],
+            }))
           )
-
-          const jsonCompatibleString = rawString
-            .replace(/\(/g, '[')
-            .replace(/\)/g, ']')
-            .replace(/0x[0-9a-fA-F]+/g, '"$&"')
-
-          const onChainFacets = JSON.parse(jsonCompatibleString)
-
-          if (Array.isArray(onChainFacets)) {
-            ctx.onChainFacets = onChainFacets.map(
-              ([address, selectors]: [string, unknown]) => ({
-                address: String(address),
-                selectors: (Array.isArray(selectors) ? selectors : []).map(
-                  (s) => String(s)
-                ),
-              })
-            )
-
-            const configFacetsByAddress = Object.fromEntries(
-              Object.entries(ctx.deployedContracts).map(
-                ([name, address]: [string, unknown]) => [
-                  String(address).toLowerCase(),
-                  name,
-                ]
-              )
-            )
-
-            registeredFacets = onChainFacets
-              .map(
-                ([address]: [string, unknown]) =>
-                  configFacetsByAddress[String(address).toLowerCase()]
-              )
-              .filter((name): name is string => typeof name === 'string')
-          }
+          registeredFacets = ctx.onChainFacets
+            .map((f) => configFacetsByAddress[f.address.toLowerCase()])
+            .filter((name): name is string => typeof name === 'string')
         }
       } catch (error: unknown) {
         facetCheckSkipped = true
@@ -855,7 +870,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           const errorMessage =
             error instanceof Error ? error.message : String(error)
           consola.warn(
-            'Unable to parse output - skipping facet registration check'
+            'Unable to read facets() - skipping facet registration check'
           )
           consola.warn('Error:', errorMessage)
         }
@@ -899,6 +914,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       'Executor is bound to the deployed ERC20Proxy and that proxy authorizes it (bug bounty #292)',
     severity: 'error',
     scope: { environments: ['production'] },
+    remediation:
+      'Executor bound to a stale proxy: redeploy the Executor against the deployed ERC20Proxy, re-register it, and authorize it on the proxy.',
     run: async (ctx) => {
       const erc20ProxyAddress = ctx.deployedContracts['ERC20Proxy']
       const executorAddress = ctx.deployedContracts['Executor']
@@ -1231,6 +1248,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description: 'ERC20Proxy owner is the refund wallet',
     severity: 'error',
     scope: { environments: ['production'] },
+    remediation:
+      'Transfer ERC20Proxy ownership to refundWallet: current owner calls transferOwnership(refundWallet), then refundWallet calls confirmOwnershipTransfer().',
     run: async (ctx) => {
       if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
         await checkOwnershipTron(
@@ -1357,42 +1376,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
     },
   },
-  {
-    name: 'pauser-wallet-funded',
-    description: 'Pauser wallet holds a non-zero native balance',
-    severity: 'error',
-    scope: {},
-    run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb) {
-        try {
-          const pauserTronAddress = ensureTronAddress(
-            ctx.pauserWalletAddress,
-            ctx.tronWeb
-          )
-          const balanceSun = await ctx.tronWeb.trx.getBalance(pauserTronAddress)
-          const balanceTrx = ctx.tronWeb.fromSun(balanceSun)
-          const balanceStr = String(balanceTrx)
-
-          if (!balanceTrx || balanceStr === '0')
-            ctx.logError('PauserWallet does not have any native balance')
-          else consola.success(`PauserWallet is funded: ${balanceTrx} TRX`)
-        } catch (error: unknown) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          ctx.logError(`Failed to check pauser wallet balance: ${errorMessage}`)
-        }
-      } else if (ctx.publicClient) {
-        const pauserBalance = formatEther(
-          await ctx.publicClient.getBalance({
-            address: ctx.pauserWalletAddress as Address,
-          })
-        )
-        if (!pauserBalance || pauserBalance === '0')
-          ctx.logError('PauserWallet does not have any native balance')
-        else consola.success(`PauserWallet is funded: ${pauserBalance}`)
-      }
-    },
-  },
+  // NOTE: pauser-wallet-funded was intentionally removed. Pauser funding is owned by
+  // verifyEmergencyPauseReadiness.yml (checkPauserFunds.sh), which checks the stronger
+  // "can afford a pauseDiamond()" rather than mere non-zero balance. Keeping a weaker
+  // daily duplicate here wasted RPC and split ownership of that check.
   {
     name: 'refund-wallet-access',
     description:
@@ -1469,6 +1456,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description: 'No function selector is registered by more than one facet',
     severity: 'error',
     scope: {},
+    readsOnChainFacets: true,
+    remediation:
+      'A selector maps to two facets — a broken diamondCut; remove the duplicate registration.',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -1493,6 +1483,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description: 'Every on-chain facet address is a known deployed contract',
     severity: 'warning',
     scope: {},
+    readsOnChainFacets: true,
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -1630,48 +1621,125 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 ]
 
 /**
- * Run the given invariants against one network's context, in registry order.
- * Applicability is decided by {@link isInvariantApplicable}; a thrown invariant is
- * recorded as an error (never aborts the run) unless it is marked `haltIfFailed`, in
- * which case a prerequisite failure (e.g. diamond not deployed) stops the remaining
- * checks. Results accumulate in `ctx.errors` / `ctx.warnings`.
+ * Execute one invariant against an isolated view of the context, then merge its result.
+ *
+ * Each invariant logs into its own `errors`/`warnings` arrays (not the shared ones) so that
+ * (a) invariants can run concurrently without clobbering each other's error accounting, and
+ * (b) a fatal failure can be cleanly re-verified once: read-only checks are idempotent, so a
+ * failure that does not reproduce on a second run was a transient RPC blip, not real drift.
+ * `onChainFacets` stays shared (same array reference) — `facets-registered` mutates it in
+ * place so the phase-2 consumers see it.
+ *
+ * @returns true if the invariant failed (an error persisted after re-verification).
+ */
+async function executeInvariant(
+  baseCtx: IHealthCheckContext,
+  invariant: IHealthCheckInvariant
+): Promise<boolean> {
+  consola.box(
+    `[${invariant.severity}] ${invariant.name} — ${invariant.description}`
+  )
+  const errors: string[] = []
+  const warnings: string[] = []
+  const localCtx: IHealthCheckContext = {
+    ...baseCtx,
+    errors,
+    warnings,
+    logError: (msg: string) => {
+      consola.error(msg)
+      errors.push(msg)
+    },
+    logWarn: (msg: string) => {
+      consola.warn(msg)
+      warnings.push(msg)
+    },
+  }
+
+  const runOnce = async () => {
+    try {
+      await invariant.run(localCtx)
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      localCtx.logError(`[${invariant.name}] threw: ${errorMessage}`)
+    }
+  }
+
+  await runOnce()
+
+  // Re-verify a fatal failure once before recording it — guards against transient RPC errors
+  // paging on a green fleet. Only error-severity failures are re-checked (warnings are non-fatal).
+  if (invariant.severity === 'error' && errors.length > 0) {
+    errors.length = 0
+    warnings.length = 0
+    await runOnce()
+    if (errors.length === 0)
+      consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)
+  }
+
+  const failed = errors.length > 0
+  if (failed && invariant.remediation)
+    consola.info(`💡 ${invariant.name}: ${invariant.remediation}`)
+
+  baseCtx.errors.push(...errors)
+  baseCtx.warnings.push(...warnings)
+  return failed
+}
+
+/**
+ * Run the given invariants against one network's context. Applicability is decided by
+ * {@link isInvariantApplicable} and per-network carve-outs by {@link getInvariantExclusion}.
+ *
+ * Execution is phased for both correctness and efficiency:
+ * - Phase 0: `haltIfFailed` prerequisites (e.g. diamond deployed) run first, sequentially;
+ *   if one fails the run stops (nothing else is meaningful).
+ * - Phase 1: every other invariant that does NOT read `onChainFacets` runs concurrently —
+ *   their on-chain reads overlap so the viem client (batch: multicall) aggregates them into
+ *   a few multicall round-trips instead of dozens of sequential calls.
+ * - Phase 2: invariants that read `onChainFacets` run concurrently after phase 1's barrier,
+ *   by which point `facets-registered` has populated it.
+ *
+ * Results accumulate in `ctx.errors` / `ctx.warnings`.
  */
 export async function runHealthCheckInvariants(
   ctx: IHealthCheckContext,
   invariants: IHealthCheckInvariant[] = HEALTH_CHECK_INVARIANTS
 ): Promise<void> {
-  for (const invariant of invariants) {
+  const active = invariants.filter((invariant) => {
     if (!isInvariantApplicable(invariant, ctx)) {
       consola.info(`⏭  Skipping [${invariant.name}] (out of scope)`)
-      continue
+      return false
     }
-
     const exclusion = getInvariantExclusion(invariant.name, ctx.networkLower)
     if (exclusion) {
       // Surface the carve-out (never a silent skip) so it is visible in the run output.
       consola.info(
         `⏭  Skipping [${invariant.name}] on ${ctx.networkLower} — excluded: ${exclusion.reason}`
       )
-      continue
+      return false
     }
+    return true
+  })
 
-    consola.box(
-      `[${invariant.severity}] ${invariant.name} — ${invariant.description}`
-    )
-    const errorsBefore = ctx.errors.length
-    try {
-      await invariant.run(ctx)
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
-      ctx.logError(`[${invariant.name}] threw: ${errorMessage}`)
-    }
-
-    if (invariant.haltIfFailed && ctx.errors.length > errorsBefore) {
+  for (const invariant of active.filter((i) => i.haltIfFailed)) {
+    const failed = await executeInvariant(ctx, invariant)
+    if (failed) {
       consola.warn(
         `Halting further checks: prerequisite invariant '${invariant.name}' failed.`
       )
       return
     }
   }
+
+  const rest = active.filter((i) => !i.haltIfFailed)
+  await Promise.all(
+    rest
+      .filter((i) => !i.readsOnChainFacets)
+      .map((i) => executeInvariant(ctx, i))
+  )
+  await Promise.all(
+    rest
+      .filter((i) => i.readsOnChainFacets)
+      .map((i) => executeInvariant(ctx, i))
+  )
 }
