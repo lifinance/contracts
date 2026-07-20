@@ -96,6 +96,15 @@ deploySingleContract() {
     echo -e "\n\n"
   fi
 
+  # Non-fatal reminder: warn if this facet still refunds source-side value to msg.sender
+  # instead of a caller-supplied refundRecipient (EXSC-622, [CONV:FACET-REFUNDS]). Detection
+  # reads the live facet source, so the reminder disappears automatically once a facet migrates.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  REFUND_REMINDER=$(bunx tsx script/deploy/resources/facetRefundReminder.ts "$CONTRACT" 2>/dev/null || true)
+  if [[ -n "$REFUND_REMINDER" ]]; then
+    warning "$REFUND_REMINDER"
+  fi
+
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
