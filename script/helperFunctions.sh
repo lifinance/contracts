@@ -3240,14 +3240,6 @@ function echoDebug() {
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
-# Timestamped logger required by deployGroupingHelpers.sh (its header contracts
-# helperFunctions.sh to provide it); previously only defined in playgroundHelpers.sh,
-# which the deployContractToNetworks.sh path does not source.
-function logWithTimestamp() {
-  local MESSAGE="$1"
-  local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$TIMESTAMP] $MESSAGE"
-}
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1"
 }
