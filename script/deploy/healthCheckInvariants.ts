@@ -122,6 +122,53 @@ export interface IHealthCheckInvariant {
 }
 
 /**
+ * A deliberate, documented carve-out: skip one invariant on one network. Use ONLY when an
+ * invariant genuinely does not apply to a chain (e.g. an integration is deprecated there) —
+ * NOT to silence a real failure you should fix. Every entry MUST carry a `reason`, which is
+ * printed when the invariant is skipped so the carve-out is never invisible, and every entry
+ * is validated in tests to reference a real invariant name and a real network.
+ */
+export interface IInvariantExclusion {
+  /** `name` of the invariant to skip (must exist in HEALTH_CHECK_INVARIANTS). */
+  invariant: string
+  /** Network key to skip it on (as in config/networks.json; compared case-insensitively). */
+  network: string
+  /** Why this invariant does not apply on this network. Shown in the run output. */
+  reason: string
+}
+
+/**
+ * Per-network invariant carve-outs. Empty by default — the correct response to a failing
+ * invariant is almost always to fix the on-chain/config drift, not to exclude the check.
+ * Add an entry only for a genuine, permanent non-applicability, and link the ticket that
+ * documents the decision in `reason`.
+ *
+ * Example (do not uncomment without a real case):
+ *   {
+ *     invariant: 'executor-erc20proxy-binding',
+ *     network: 'somechain',
+ *     reason: 'ERC20Proxy path deprecated on somechain; token pulls route via Permit2 (EXSC-000)',
+ *   },
+ */
+export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] = []
+
+/**
+ * Return the carve-out for a given invariant on a given network, or undefined if the
+ * invariant is not excluded there. Pure; network match is case-insensitive.
+ */
+export function getInvariantExclusion(
+  invariantName: string,
+  network: string,
+  exclusions: IInvariantExclusion[] = HEALTH_CHECK_EXCLUSIONS
+): IInvariantExclusion | undefined {
+  const networkLower = network.toLowerCase()
+  return exclusions.find(
+    (e) =>
+      e.invariant === invariantName && e.network.toLowerCase() === networkLower
+  )
+}
+
+/**
  * Execute a command with retry logic for rate limit errors (429).
  * Uses spawn to avoid shell interpretation issues with special characters.
  *
@@ -1596,6 +1643,15 @@ export async function runHealthCheckInvariants(
   for (const invariant of invariants) {
     if (!isInvariantApplicable(invariant, ctx)) {
       consola.info(`⏭  Skipping [${invariant.name}] (out of scope)`)
+      continue
+    }
+
+    const exclusion = getInvariantExclusion(invariant.name, ctx.networkLower)
+    if (exclusion) {
+      // Surface the carve-out (never a silent skip) so it is visible in the run output.
+      consola.info(
+        `⏭  Skipping [${invariant.name}] on ${ctx.networkLower} — excluded: ${exclusion.reason}`
+      )
       continue
     }
 

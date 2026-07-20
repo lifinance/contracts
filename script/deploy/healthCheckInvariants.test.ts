@@ -5,11 +5,16 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import networksConfig from '../../config/networks.json'
+
 import {
+  HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   findDuplicateSelectors,
+  getInvariantExclusion,
   isInvariantApplicable,
   type IHealthCheckInvariant,
+  type IInvariantExclusion,
 } from './healthCheckInvariants'
 
 /** Minimal invariant descriptor for exercising the pure applicability logic. */
@@ -176,5 +181,59 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     const names = HEALTH_CHECK_INVARIANTS.map((i) => i.name)
     expect(names).toContain('executor-erc20proxy-binding')
     expect(names).toContain('receiver-executor-binding')
+  })
+})
+
+describe('getInvariantExclusion', () => {
+  const sample: IInvariantExclusion[] = [
+    {
+      invariant: 'safe-config',
+      network: 'somechain',
+      reason: 'no Safe on somechain',
+    },
+  ]
+
+  it('returns the matching exclusion', () => {
+    const result = getInvariantExclusion('safe-config', 'somechain', sample)
+    expect(result?.reason).toBe('no Safe on somechain')
+  })
+
+  it('matches the network case-insensitively', () => {
+    const result = getInvariantExclusion('safe-config', 'SomeChain', sample)
+    expect(result?.reason).toBe('no Safe on somechain')
+  })
+
+  it('returns undefined for a non-excluded invariant/network', () => {
+    expect(
+      getInvariantExclusion('safe-config', 'otherchain', sample)
+    ).toBeUndefined()
+    expect(
+      getInvariantExclusion('whitelist-integrity', 'somechain', sample)
+    ).toBeUndefined()
+  })
+
+  it('defaults to the real exclusion table', () => {
+    // Smoke: the default arg is HEALTH_CHECK_EXCLUSIONS (empty today → always undefined).
+    expect(getInvariantExclusion('safe-config', 'somechain')).toBeUndefined()
+  })
+})
+
+describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
+  const invariantNames = new Set(HEALTH_CHECK_INVARIANTS.map((i) => i.name))
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exclusion targets a real invariant name (guards stale carve-outs)', () => {
+    for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
+      expect(invariantNames).toContain(exclusion.invariant)
+  })
+
+  it('every exclusion targets a known network', () => {
+    for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
+      expect(knownNetworks).toContain(exclusion.network.toLowerCase())
+  })
+
+  it('every exclusion carries a non-empty reason', () => {
+    for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
+      expect(exclusion.reason.trim().length).toBeGreaterThan(0)
   })
 })
