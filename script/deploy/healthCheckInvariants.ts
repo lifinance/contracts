@@ -27,11 +27,10 @@ import {
 } from 'viem'
 
 import type { IWhitelistConfig, TargetState } from '../common/types'
-import { sleep } from '../utils/delay'
 import { spawnAndCapture } from '../utils/spawnAndCapture'
 import { normalizeSelector } from '../utils/utils'
 
-import { RETRY_DELAY, SAFE_THRESHOLD } from './shared/constants'
+import { SAFE_THRESHOLD } from './shared/constants'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -99,7 +98,6 @@ export interface IHealthCheckContext {
   deployerWallet: string
   refundWallet: string
   feeCollectorOwner: string
-  pauserWalletAddress: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
   errors: string[]
@@ -205,54 +203,6 @@ export function getInvariantExclusion(
     (e) =>
       e.invariant === invariantName && e.network.toLowerCase() === networkLower
   )
-}
-
-/**
- * Execute a command with retry logic for rate limit errors (429).
- * Uses spawn to avoid shell interpretation issues with special characters.
- *
- * NOTE: For Tron contract calls, prefer using callTronContract() from tron/tronUtils.ts
- * which is specialized for troncast and includes proper delay handling.
- *
- * @param commandParts - Array of command parts (e.g., ['cast', 'call', ...])
- * @param initialDelay - Initial delay before first attempt (ms)
- * @param maxRetries - Maximum number of retries
- * @param retryDelay - Delay in ms for all retry attempts (default: RETRY_DELAY)
- * @returns The command output string
- * @throws The last error if all retries fail
- */
-export async function execWithRateLimitRetry(
-  commandParts: string[],
-  initialDelay = 0,
-  maxRetries = 3,
-  retryDelay = RETRY_DELAY
-): Promise<string> {
-  if (initialDelay > 0) {
-    await sleep(initialDelay)
-  }
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) {
-      consola.warn(
-        `Rate limit (429). Retrying in ${
-          retryDelay / 1000
-        }s... (attempt ${attempt}/${maxRetries})`
-      )
-      await sleep(retryDelay)
-    }
-    try {
-      const [command, ...args] = commandParts
-      if (!command) {
-        throw new Error('No command provided')
-      }
-      return await spawnAndCapture(command, args)
-    } catch (error: unknown) {
-      const shouldRetry = isRateLimitError(error) && attempt < maxRetries
-      if (!shouldRetry) throw error
-    }
-  }
-
-  throw new Error('Max retries exceeded')
 }
 
 /**

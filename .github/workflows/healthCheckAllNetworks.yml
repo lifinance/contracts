@@ -18,8 +18,8 @@
 # - Slack: ONE consolidated status (pass = green, fail = red + the failing network list, plus a link to
 #   the run) on every trigger, so a green day is confirmed and a silently-broken cron shows up as a
 #   MISSING message.
-# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are retried inside
-#   healthCheck.ts (execWithRateLimitRetry / viem transport retries) before a network is marked failed.
+# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by viem
+#   transport retries and a one-shot re-verify of each fatal invariant before a network is marked failed.
 
 name: Diamond Health Check (all networks)
 
