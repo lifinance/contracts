@@ -186,7 +186,7 @@ const command = defineCommand({
     yes: {
       type: 'boolean',
       description:
-        'Skip confirmation and actually propose/send (auto/sweep modes are dry-run without it)',
+        'Skip confirmation and actually propose/send. Without it: auto/sweep modes dry-run; headless --facets in a non-TTY exits non-zero (cannot confirm)',
     },
   },
 
@@ -554,7 +554,8 @@ function assertGovernedProductionRemoval(
  * reusing the existing plumbing. Shared by the auto (diff) and named
  * (deprecation-driven) paths. `confirmMode`: `'yes'` proposes without asking,
  * `'prompt'` asks interactively, `'dry-run'` only prints. A non-TTY `'prompt'`
- * degrades to `'dry-run'` so a removal is never submitted without confirmation.
+ * (headless `--facets` without `--yes`) cannot be confirmed, so it exits non-zero
+ * rather than silently no-op'ing — the missed removal stays visible to a runbook.
  */
 async function proposeRemovals(
   network: string,
@@ -581,17 +582,27 @@ async function proposeRemovals(
   consola.log('\n📦 Final Calldata:')
   consola.log(finalCalldata)
 
-  const effectiveMode =
-    confirmMode === 'prompt' && !process.stdin.isTTY ? 'dry-run' : confirmMode
+  // A headless `--facets` run without `--yes` arrives here as `'prompt'`. In a
+  // non-TTY there's no one to confirm, so we cannot submit — but silently
+  // dry-running (exit 0) would hide a missed removal from a cron/runbook that
+  // expected the old auto-submitting `--facets` path. Fail loudly instead.
+  if (confirmMode === 'prompt' && !process.stdin.isTTY) {
+    consola.error(
+      `[${network}] non-interactive shell and no --yes: refusing to silently ` +
+        `dry-run a headless facet removal. Re-run with --yes to submit, or in an ` +
+        `interactive terminal to confirm.`
+    )
+    process.exit(1)
+  }
 
-  if (effectiveMode === 'dry-run') {
+  if (confirmMode === 'dry-run') {
     consola.warn(
       `[${network}] dry-run — not proposing. Re-run with --yes to submit (or confirm interactively).`
     )
     return
   }
 
-  if (effectiveMode === 'prompt') {
+  if (confirmMode === 'prompt') {
     const confirm = await consola.prompt(
       `Propose removal of ${removals.length} facet(s) on ${network}?`,
       { type: 'confirm', initial: false }
@@ -725,6 +736,14 @@ function printNamedRemoval(result: INamedRemovalResult): void {
       `ℹ️  not registered on ${result.network}: ${result.notFoundOnChain.join(
         ', '
       )}`
+    )
+
+  if (result.unresolved.length > 0)
+    consola.warn(
+      `⚠️  ${result.unresolved.length} on-chain facet(s) not in the deploy log on ` +
+        `${result.network} — a requested facet may be registered at an unlogged ` +
+        `address; investigate before assuming removal succeeded:\n` +
+        result.unresolved.map((a) => `   ${a}`).join('\n')
     )
 }
 

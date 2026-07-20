@@ -9,8 +9,8 @@ usage: /request-audit <PR_NUMBER_OR_URL> [--urgent]
 > **Usage**: `/request-audit <PR_NUMBER_OR_URL> [--urgent]`
 
 Fetch a PR, extract scope + context, draft an audit request (parent post + thread reply),
-let the user pick the channel(s) and optionally edit, then post to Slack only after explicit
-confirmation.
+let the user pick the channel(s) and optionally edit, post to Slack only after explicit
+confirmation, then move the linked Linear ticket to **In Audit**.
 
 ---
 
@@ -192,6 +192,7 @@ Show the full preview using markdown code blocks so the user sees exactly what w
 **PR:** #{pr_number} — {pr_title_truncated_to_80_chars}
 **Commit:** `{latest_commit_oid}`
 **Urgent:** {Yes / No}
+**Linear:** {EXSC-1234 → In Audit on send, or "none linked"}
 
 ---
 
@@ -313,6 +314,30 @@ substituting `{webhook_var}` with the exact missing env var (`WEBHOOK_DEV_SC_AUD
    /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password -> Developers
    Smart Contract -> Webhooks SC Channels) to post automatically next time.
 ```
+
+## Step 7 — Move the Linear ticket to "In Audit"
+
+Only if Step 1a found a linked `EXSC-\d+` ticket — otherwise skip silently. The **EXSC** team
+has a dedicated `In Audit` workflow state so the team can see at a glance which PRs are with the
+auditors; advance the ticket into it once the request is actually delivered.
+
+- **At least one channel posted successfully** (Step 6 exit `0`) — move it now:
+
+  ```
+  mcp__claude_ai_Linear__save_issue  id = EXSC-1234  state = "In Audit"
+  ```
+
+  Linear resolves the state by name. Report `✅ Moved EXSC-1234 to In Audit`.
+
+- **Ticket is already in `In Audit` or a later state** (`In Review`, `Done`, or any
+  completed/canceled state) — leave it; never move a ticket backward. Say so and skip.
+
+- **Every channel fell back to manual (no exit `0`) or the send errored** — don't move it
+  automatically; the request isn't delivered yet. Add a reminder to the output instead:
+  `↪️ Move EXSC-1234 to In Audit once you've posted the message manually.`
+
+If the `save_issue` call itself fails, report the error and tell the user to move the ticket
+by hand — the Slack post already succeeded, so never retry in a loop or treat it as fatal.
 
 ---
 

@@ -87,9 +87,11 @@ the source prompt or inferred, **not** confirmed.
    the on-chain loupe** at call time, keyed by facet **name**:
    `computeNamedFacetRemovals(network, environment, names, io?)` →
    `INamedRemovalResult { removals: {name, address, selectors}[], notFoundOnChain[],
-   protectedSkipped[] }` — `script/deploy/safe/diamondRemovalDiff.ts:510`,
-   `:429`. Selectors come from `facets()`, not `out/`, so it works after the source
-   was deleted (`:441`).
+   protectedSkipped[], unresolved[] }` — `script/deploy/safe/diamondRemovalDiff.ts`.
+   Selectors come from `facets()`, not `out/`, so it works after the source
+   was deleted. `unresolved[]` carries on-chain facet addresses absent from the
+   deploy log — a named facet registered at an unlogged address lands here (not
+   silently in `notFoundOnChain`) so the drain surfaces it for investigation.
 3. `[code]` Both proposal-creation entry points funnel through
    `storeTransactionInMongoDB(pendingTransactions, safeAddress, network, chainId,
    safeTx, safeTxHash, proposer)` — `script/deploy/safe/safe-utils.ts:1263`. It is
@@ -270,6 +272,25 @@ philosophy that *the loupe is the source of truth for which selectors a facet ow
 The `facetAddress` snapshot is stored **only** as a robustness aid: the drain
 verifies that address is still in the loupe (see §8 deploy-log hazard), but the
 **selectors it proposes always come from the live loupe**.
+
+### Mandatory pre-execute re-validation (propose→execute race)
+
+Resolving selectors from the loupe at **drain/propose** time is necessary but not
+sufficient. A facet removal is proposed as a timelock `scheduleBatch` and executed
+**≥ the timelock delay later** (48h prod). In that window an intervening rollout can
+re-point one of the snapshotted selectors onto a new, live facet; the already-queued
+`Remove` (`facetAddress = address(0)`) would then delete a live selector →
+`FunctionDoesNotExist` on every call until a corrective cut ships (it can also revert
+outright if a selector was removed in the meantime).
+
+The engine ships the guard for this in #2047:
+`revalidateRemovalsOnChain(network, diamondAddress, snapshot, io?)` (pure core
+`filterRePointedRemovals`) re-reads the loupe and returns `{ stillRemovable, stale }`,
+dropping any selector that no longer routes to the doomed facet address (`re-pointed`
+or `already-gone`). **The drain/execute consumer MUST call it immediately before
+executing a queued removal op** and abort (or re-propose from `stillRemovable`) if
+`stale` is non-empty. This is a first-class acceptance criterion for the drain-hook
+follow-up, not an optional hardening step.
 
 ---
 
@@ -714,9 +735,8 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    design the other "non-urgent diamond changes" now (which? periphery de-register?
    selector re-points?).
 10. ~~**TTL (§8).**~~ **RESOLVED (Daniel): 60 days.** The cold-network alert fires
-    for any open task older than 60d. The follow-up PR extends the alert to both open
-    states (`queued` **and** stuck `proposed`) so nothing is orphaned. **Built in the
-    follow-up PR** (`computeTtlAlerts`).
+    for any open task older than 60d (`DEFAULT_TTL_DAYS`, overridable via `--ttlDays`).
+    **Built in the follow-up PR** (`reconcile-parked-tasks.ts` + weekly cron).
 
 ---
 

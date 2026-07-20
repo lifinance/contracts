@@ -226,7 +226,12 @@ queue (primary), the diff backstop as `--auto`
 
 Pure, side-effect-free, unit-tested. Exposes both selection functions
 (`computeFacetRemovalDiff` for the backstop, `computeNamedFacetRemovals` for the
-primary named path) plus the pure cores (`diffFacets`, `diffNamedFacets`).
+primary named path), the pure cores (`diffFacets`, `diffNamedFacets`), and the
+pre-execute re-validation guard `revalidateRemovalsOnChain` / pure core
+`filterRePointedRemovals` — which the deferred-cleanup drain/execute consumer
+calls right before executing a queued removal to drop any selector re-pointed to a
+live facet (or already gone) during the timelock delay window
+(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
 Signature (illustrative):
 
 ```ts
@@ -270,10 +275,13 @@ export async function computeNamedFacetRemovals(
 
 1. Resolve the mutable diamond address from the deploy log (`LiFiDiamond`). If
    absent for this network/environment, return an empty diff (nothing to do).
-2. `expected` = the full set of keys under
+2. `expected` = the set of keys under
    `_targetState[network][environment]["LiFiDiamond"]` (facets **and** periphery
-   — using the full key set is deliberately conservative: anything listed is
-   protected). (Fact 5.)
+   — anything listed is treated as "keep"). **If the network has no `LiFiDiamond`
+   target-state block at all, `computeFacetRemovalDiff` THROWS** rather than
+   treating it as "expects zero facets": an absent network would classify every
+   on-chain facet as a removal candidate. The fleet loop records the throwing
+   network as failed and continues. (Fact 5.)
 3. On-chain truth: call `facets() → ((address,bytes4[])[])` on the diamond. Each
    entry gives an address and the selectors the diamond **currently** routes to
    it. (This is the source of truth for _which_ selectors a facet owns.)
@@ -295,26 +303,46 @@ export async function computeNamedFacetRemovals(
    - `name` still has a `.sol` under `src/` → **drift**, not deprecation (Fact
      12): recorded in `driftDetected`, **never removed**. This is the gate that
      stops the mechanism from removing a live facet whose target-state entry
-     merely lags. Only a facet whose source was deleted proceeds.
+     merely lags. Only a facet whose source was deleted proceeds. The `src/` root
+     is resolved **absolutely from the module location** (not `process.cwd()`),
+     so the gate can't silently disable itself when run from another directory.
    - else → **removal candidate**, selectors = `sels` (from the loupe, Fact 4 —
      this is why deprecated facets with no `out/` artifact work).
 7. **Shared / re-registered selector guard.** The diamond maps each selector to
    exactly one facet, so no two on-chain facets can share a live selector. The
    real hazard is a selector still pointing at the stale facet that _target
    state expects an active facet to own_ (a missed re-point). Compute
-   `expectedActiveSelectors` = ∪ `getFunctionSelectors(name)` over active facets
-   whose source is present (`out/` exists — active facets are, by definition,
-   still in the repo). Any candidate selector in that set is **held back**
-   (excluded from the removal cut) and reported in `heldBackSelectors` — removing
-   it would leave the diamond without that function until a corrective replace
-   cut runs. (Guardrail: "handle selectors shared/re-registered across facets.")
+   `expectedActiveSelectors` = ∪ `getFunctionSelectors(name)` over the expected
+   names **scoped to real facets only** — names whose source lives under
+   `src/Facets/`. This scoping is essential: a target-state `LiFiDiamond` block
+   also lists periphery/util contracts (`Executor`, `GasZipPeriphery`,
+   `LiFiDEXAggregator`, `Receiver*`, …), whose ABIs are **not** diamond-routed;
+   feeding them in would wrongly hold back a deprecated facet's selectors that
+   merely share a signature with a periphery ABI (e.g. `GasZipFacet` /
+   `GasZipPeriphery` share `GAS_ZIP_ROUTER()`), leaving them dangling after the
+   cut. Any candidate selector in the facet-scoped set is **held back** (excluded
+   from the removal cut) and reported in `heldBackSelectors`. Scoping to real
+   facets also stops one stale periphery/util entry in target state from
+   fail-closing (`getFunctionSelectors` throws on a missing artifact) the whole
+   fleet sweep. (Guardrail: "handle selectors shared/re-registered across facets.")
 8. Return the diff. Empty `removals` ⇒ nothing to propose for this network.
+
+The **named** path (`computeNamedFacetRemovals` / `diffNamedFacets`) additionally
+returns `unresolved: 0x…[]` — on-chain facet addresses absent from the deploy log.
+A requested facet registered at an unlogged address (redeploy drift, pruned/stale
+log entry, name mismatch) lands there rather than being silently reported as
+`notFoundOnChain`, so the operator investigates instead of believing cleanup
+succeeded.
 
 ### 5.2 CLI — extend `script/tasks/cleanUpProdDiamond.ts`
 
 All modes share `proposeRemovals` (build → timelock-wrap → `sendOrPropose`); no
-new proposal code. Dry-run unless `--yes` (a non-TTY `prompt` also degrades to
-dry-run so nothing is submitted unconfirmed).
+new proposal code. `--auto`/`--all-networks` sweeps dry-run unless `--yes`. The
+**headless `--facets` path requires `--yes` in a non-TTY**: rather than silently
+degrading an unconfirmed `prompt` to a no-op dry-run (which would hide a missed
+removal from a cron/runbook that expected the old auto-submitting `--facets`
+path), it now **exits non-zero** with a message telling the operator to re-run
+with `--yes` or in an interactive terminal.
 
 - `--facets '[...]'` — **named (primary)**. Resolves the named facets on the
   diamond via `computeNamedFacetRemovals` (loupe selectors — works after source
