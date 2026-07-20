@@ -107,8 +107,9 @@ const FRAX_HOP_SPOKE: Address = getAddress(
   '0x0000006D38568b00B457580b734e0076C62de659'
 )
 
-// 100 frxUSD (18 decimals) — small demo amount.
-const DEMO_AMOUNT = parseUnits('100', 18)
+// 5 frxUSD (18 decimals) — small demo amount; keep it well under the staging dev
+// wallet's frxUSD balance (a clean 1e12-dust-rate multiple, so no dust remainder).
+const DEMO_AMOUNT = parseUnits('5', 18)
 
 interface IFraxRoute {
   /** Network key for setupEnvironment / deployments lookup (source chain). */
