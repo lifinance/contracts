@@ -65,9 +65,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+      "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",
@@ -88,6 +88,10 @@
       "0xA338ac518a0aE28d75e0610BD78329241984d49A": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -96,8 +100,8 @@
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",

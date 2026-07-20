@@ -109,6 +109,16 @@ export interface ISafeSignature {
  */
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
+/**
+ * Link from a drained facet-removal proposal back to the deprecation PR that
+ * parked it (deferred diamond-cleanup queue, DeferredDiamondCleanupQueue.md §6).
+ * An array so one batched per-network removal carries every origin PR.
+ */
+export interface IParkedTaskRef {
+  facet: string
+  prUrl: string
+}
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -121,6 +131,12 @@ export interface ISafeTxDocument {
   executionHash?: string
   submittedAt?: Date
   intentHash?: string // Optional for backwards compatibility with existing documents
+  /**
+   * Origin-PR links for a drain-minted facet-removal proposal, surfaced to the
+   * signer at signing time. Optional and backward-compatible: only present on
+   * proposals the deferred-cleanup drain created.
+   */
+  parkedTaskRefs?: IParkedTaskRef[]
 }
 
 /** MongoDB row shape — includes the document `_id` returned by `find()`. */
@@ -150,6 +166,8 @@ export interface IProposalSummary {
   safeTxHash: string
   timestamp: string
   executionHash?: string
+  /** Origin-PR links when this is a drain-minted facet-removal proposal (§6). */
+  parkedTaskRefs?: IParkedTaskRef[]
 }
 
 /**
@@ -1067,6 +1085,7 @@ export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
     timestamp,
   }
   if (doc.executionHash) summary.executionHash = doc.executionHash
+  if (doc.parkedTaskRefs) summary.parkedTaskRefs = doc.parkedTaskRefs
   return summary
 }
 
@@ -1267,7 +1286,8 @@ export async function storeTransactionInMongoDB(
   chainId: number,
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
-  proposer: Address
+  proposer: Address,
+  parkedTaskRefs?: IParkedTaskRef[]
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   // Compute intent hash for duplicate detection
   const intentHash = computeProposalIntentHash(
@@ -1290,6 +1310,7 @@ export async function storeTransactionInMongoDB(
     timestamp: new Date(),
     status: 'pending' as const,
     intentHash,
+    ...(parkedTaskRefs && parkedTaskRefs.length > 0 ? { parkedTaskRefs } : {}),
   } satisfies ISafeTxDocument
 
   return retry(async () => {
@@ -1349,10 +1370,14 @@ async function ensurePendingProposalIndex(
 }
 
 /**
- * Gets a MongoDB client and collection for Safe transactions
- * Connects to the new MongoDB cluster using SC_MONGODB_URI
+ * Gets a MongoDB client and collection for Safe transactions.
+ *
+ * Connects to the Safe proposal database using SC_MONGODB_URI. Since the legacy
+ * VPN was retired, this database is reachable only through the lifi-connect
+ * tunnel (`lifi-connect prod smart-contracts`); SC_MONGODB_URI must point at the
+ * forwarded localhost port.
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if SC_MONGODB_URI is not set or if not connected to VPN
+ * @throws Error if SC_MONGODB_URI is unset or the database cannot be reached
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
@@ -1361,37 +1386,25 @@ export async function getSafeMongoCollection(): Promise<{
   if (!process.env.SC_MONGODB_URI)
     throw new Error('SC_MONGODB_URI environment variable is required')
 
-  // Check VPN connection by verifying IP address
+  // The Safe proposal database sits behind the lifi-connect tunnel; fail fast
+  // with an actionable message when the tunnel isn't up instead of hanging on
+  // the driver's default 30s server-selection timeout.
+  const client = new MongoClient(process.env.SC_MONGODB_URI, {
+    serverSelectionTimeoutMS: 10_000, // 10 seconds
+  })
   try {
-    const response = await fetch('https://api.ipify.org?format=json')
-    const data = (await response.json()) as { ip: string }
-
-    if (data.ip !== '18.195.61.255') {
-      consola.warn(`VPN connection required! Current IP: ${data.ip}`)
-      consola.warn(
-        'Please connect to the VPN before accessing the Safe MongoDB collection.'
-      )
-      throw new Error(
-        'VPN connection required to access Safe MongoDB collection'
-      )
-    }
+    await client.connect()
   } catch (error) {
-    // If the error is our VPN error, re-throw it
-    if (
-      error instanceof Error &&
-      error.message.includes('VPN connection required')
-    ) {
-      throw error
-    }
-    // For other errors (network issues, etc.), log and continue with a warning
-    consola.warn('Could not verify VPN connection:', error)
-    consola.warn(
-      'Proceeding with caution - ensure you are connected to the VPN'
+    await client.close().catch(() => undefined)
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      'Could not reach the Safe MongoDB via lifi-connect. Start the tunnel with ' +
+        '`lifi-connect prod smart-contracts` and ensure SC_MONGODB_URI points at ' +
+        'the forwarded localhost port. Setup guide: ' +
+        'https://app.notion.com/p/lifi/Accessing-Resources-with-Port-Forwarding-396f0ff14ac78098bf13f06d4a428845 ' +
+        `- Underlying error: ${detail}`
     )
   }
-
-  const client = new MongoClient(process.env.SC_MONGODB_URI)
-  await client.connect()
   const db = client.db('sc_private')
   const pendingTransactions = db.collection<ISafeTxDocument>(
     'pendingTransactions'

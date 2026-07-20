@@ -37,7 +37,7 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
-import type { LibSwap } from '../../../typechain/AcrossFacetV3'
+import type { LibSwap } from '../../../typechain/AcrossFacetV4'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
