@@ -9,6 +9,9 @@
 
 # Load required dependencies
 source script/helperFunctions.sh
+# EVM-version grouping + foundry.toml management (getNetworkEvmVersion,
+# getNetworkGroup, groupNetworksByExecutionGroup, updateFoundryTomlForGroup, ...)
+source script/deploy/resources/deployGroupingHelpers.sh
 source script/tasks/diamondUpdateFacet.sh
 source script/tasks/diamondUpdatePeriphery.sh
 source script/deploy/deploySingleContract.sh
@@ -240,30 +243,8 @@ function getNetworksByEvmVersionAndContractDeployment() {
 # NETWORK UTILITY FUNCTIONS
 # =============================================================================
 
-function getNetworkEvmVersion() {
-    local NETWORK="$1"
-
-    if [[ -z "$NETWORK" ]]; then
-        error "Network name is required"
-        return 1
-    fi
-
-    # Check if network exists in networks.json
-    if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
-        error "Network '$NETWORK' not found in networks.json"
-        return 1
-    fi
-
-    # Get EVM version
-    local EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].deployedWithEvmVersion // empty' "$NETWORKS_JSON_FILE_PATH")
-
-    if [[ -z "$EVM_VERSION" || "$EVM_VERSION" == "null" ]]; then
-        error "EVM version not defined for network '$NETWORK' in networks.json"
-        return 1
-    fi
-
-    echo "$EVM_VERSION"
-}
+# getNetworkEvmVersion / getNetworkGroup live in
+# script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 function getNetworkSolcVersion() {
     local NETWORK="$1"
@@ -312,40 +293,6 @@ function isZkEvmNetwork() {
     else
         return 1  # Failure (false)
     fi
-}
-
-function getNetworkGroup() {
-    local NETWORK="$1"
-
-    if [[ -z "$NETWORK" ]]; then
-        error "Network name is required"
-        return 1
-    fi
-
-    # Check if it's a zkEVM network first
-    if isZkEvmNetwork "$NETWORK"; then
-        echo "zkevm"
-        return 0
-    fi
-
-    # Get EVM version
-    local EVM_VERSION=$(getNetworkEvmVersion "$NETWORK")
-    if [[ $? -ne 0 ]]; then
-        return 1
-    fi
-
-    case "$EVM_VERSION" in
-        "london")
-            echo "london"
-            ;;
-        "cancun")
-            echo "cancun"
-            ;;
-        *)
-            error "Unsupported EVM version '$EVM_VERSION' for network '$NETWORK'"
-            return 1
-            ;;
-    esac
 }
 
 function isContractAlreadyDeployed() {

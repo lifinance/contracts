@@ -101,21 +101,44 @@ deploy mode already executed via `deploy-contract` in Phase 2. For whitelist mod
 
 Ends with a per-network summary and exits `1` if any network failed. Failures don't block survivors: continue with the succeeded networks, report the failed ones, and offer to retry them individually. Each proposal is created already carrying one signature (`signatureCount: 1`). A production sync automatically re-syncs staging on the same networks afterwards (staging sends directly, no proposals) — expected, not an error.
 
+## Phase 3.5 — Reconcile stale-facet removals (opt-in, deploy mode)
+
+**Off by default.** Only when the user opts in (e.g. a deprecation is in flight —
+"also remove the deprecated facets") run, per target network, so the removal
+proposal rides this rollout's signing session instead of needing its own:
+
+```bash
+bunx tsx script/tasks/cleanUpProdDiamond.ts --auto --network <network> --environment production --yes
+```
+
+This diffs the on-chain loupe against `_targetState.json` and proposes removing
+only facets that are **both** absent from target state **and** have no `src/`
+source (i.e. deprecated — not target-state drift). It prints a conspicuous
+`⚠️ IRREVERSIBLE FACET REMOVAL` banner per network; **removals are irreversible
+timelock+Safe actions** — review the banner before `--yes`. Without `--yes` (or
+in a non-TTY) it dry-runs. Drift / unresolved / held-back selectors are surfaced
+and never removed. Its proposal is one extra timelock `scheduleBatch` per
+network, captured by Phase 4 and signed/PR'd/Slack'd by the existing tail. See
+[docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
+
 ## Phase 4 — Capture proposals
 
 ```bash
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation) — **two** per network when a diamond-called periphery's allowlist synced (registration + whitelist). Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) and **one more** when Phase 3.5's stale-facet removal ran (deploy/register + removal). These are additive, not mutually exclusive: a network that did a periphery allowlist sync **and** a Phase 3.5 removal shows **three** proposals — so expect **two or three** per network when either or both apply. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
 The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If a diamond-called periphery's allowlist synced, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
 
-1. Branch (never commit to main), commit the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 1's allowlist sync, push. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
-2. Body from `.github/pull_request_template.md` (see project instructions for the `gh api` PATCH pattern). "Why" section: staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 1 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
-3. Run `/pr-ready` before `gh pr create --draft` (the pre-PR gate enforces it).
+Delegate the branch / commit / template / Linear ticket / push / create mechanic to `/create-pr` (as **draft**), passing:
+
+- **files to stage**: the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 2's allowlist sync. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
+- **body** (the "Why"): staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 2 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
+
+Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the EXSC Linear-ticket requirement).
 
 Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
 
@@ -172,7 +195,7 @@ Safe proposals live on:
 
 ## Phase 9 — Report
 
-Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay).
+Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay — once they have, finish with `/finish-rollout <thread link>`).
 
 ## Failure modes
 

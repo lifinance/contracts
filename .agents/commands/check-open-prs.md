@@ -125,7 +125,7 @@ One sub-agent per PR, in parallel, self-contained prompt: PR URL + pasted Slack 
 
 ## Phase 4 — implementation (per-PR approval required)
 
-`gh pr checkout <n>` → apply → lint/test → push → reply in the Slack thread linking the commit. Do **not** invoke `/pr-ready` here (that's the pre-create gate).
+`gh pr checkout <n>` → apply → lint/test → push → reply in the Slack thread linking the commit.
 
 ## What this skill never does
 

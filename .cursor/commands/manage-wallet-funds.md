@@ -1,0 +1,1 @@
+../../.agents/commands/manage-wallet-funds.md

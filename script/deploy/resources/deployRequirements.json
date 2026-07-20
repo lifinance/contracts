@@ -27,20 +27,6 @@
       }
     }
   },
-  "AcrossFacetV3": {
-    "configData": {
-      "_spokePool": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_wrappedNativeAddress": {
-        "configFileName": "networks.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "AcrossFacetV4": {
     "configData": {
       "_spokePool": {
@@ -49,34 +35,6 @@
         "allowToDeployWithZeroAddress": "false"
       },
       "_wrappedNative": {
-        "configFileName": "networks.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "AcrossFacetPacked": {
-    "configData": {
-      "_spokePool": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_wrappedNativeAddress": {
-        "configFileName": "networks.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "AcrossFacetPackedV3": {
-    "configData": {
-      "_spokePool": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_wrappedNativeAddress": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
         "allowToDeployWithZeroAddress": "false"
@@ -818,6 +776,20 @@
   },
   "NEARIntentsFacet": {
     "configData": {
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "LayerSwapFacet": {
+    "configData": {
+      "_layerSwapDepository": {
+        "configFileName": "layerswap.json",
+        "keyInConfigFile": ".layerSwapDepository.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
       "_backendSigner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
