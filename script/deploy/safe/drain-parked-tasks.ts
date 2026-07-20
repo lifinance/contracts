@@ -277,13 +277,16 @@ export async function runDrain(
   if (isDirectSendEnv(options.network)) return
 
   draining = true
-  const { close, deps } = await open()
   try {
-    const outcome = await drainNetwork(options.network, environment, deps)
-    logDrainSummary(outcome)
+    const { close, deps } = await open()
+    try {
+      const outcome = await drainNetwork(options.network, environment, deps)
+      logDrainSummary(outcome)
+    } finally {
+      await close()
+    }
   } finally {
     draining = false
-    await close()
   }
 }
 

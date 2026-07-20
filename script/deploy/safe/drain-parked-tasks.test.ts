@@ -78,6 +78,7 @@ function namedResult(
     removals: [],
     notFoundOnChain: [],
     protectedSkipped: [],
+    unresolved: [],
     prunedButRouted: [],
     ...over,
   }

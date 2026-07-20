@@ -31,7 +31,6 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress } from 'viem'
 
-import { EnvironmentEnum } from '../../common/types'
 import { SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 
@@ -163,21 +162,23 @@ export function formatTtlAlertMessage(
 
 // ───────────────────────── live adapter (unit-test exempt) ─────────────────────
 
-/** Looks up a proposal's status by `safeTxHash`; `undefined` if no tunnel/hit. */
+type PendingTransactions = Awaited<
+  ReturnType<typeof getSafeMongoCollection>
+>['pendingTransactions']
+
+/** Looks up a proposal's status by `safeTxHash` on the shared collection; `undefined` if no collection/hit. */
 async function resolveProposalStatus(
+  pendingTransactions: PendingTransactions | undefined,
   safeTxHash: string | undefined
 ): Promise<SafeTxStatus | undefined> {
-  if (!safeTxHash || !process.env.SC_MONGODB_URI) return undefined
-  const { client, pendingTransactions } = await getSafeMongoCollection()
-  try {
-    const doc = await pendingTransactions.findOne({ safeTxHash })
-    return doc?.status
-  } finally {
-    await client.close()
-  }
+  if (!safeTxHash || !pendingTransactions) return undefined
+  const doc = await pendingTransactions.findOne({
+    safeTxHash: { $eq: safeTxHash },
+  })
+  return doc?.status
 }
 
-/** Reconciles every open task, grouped by network so the loupe is fetched once each. */
+/** Reconciles every open task, grouped by (network, environment) so the loupe is fetched once each. */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
@@ -198,43 +199,66 @@ async function reconcileAll(
     return
   }
 
-  const byNetwork = new Map<string, typeof open>()
+  const byNetworkEnv = new Map<string, typeof open>()
   for (const t of open) {
-    const list = byNetwork.get(t.network) ?? []
+    const key = `${t.network}:${t.environment}`
+    const list = byNetworkEnv.get(key) ?? []
     list.push(t)
-    byNetwork.set(t.network, list)
+    byNetworkEnv.set(key, list)
   }
 
-  for (const [network, tasks] of byNetwork) {
-    const diamondAddress = await resolveDiamondAddress(
-      network,
-      EnvironmentEnum.production
-    )
-    if (!diamondAddress) {
-      consola.warn(`[${network}] no LiFiDiamond in deploy log — skipping`)
-      continue
-    }
-    const onChain = await fetchOnChainFacets(diamondAddress, network)
-    const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+  // Open the (tunnel-gated) proposal store once for the whole run rather than
+  // per task — a connection per task risks exhausting the pool.
+  let safeMongoClient:
+    | Awaited<ReturnType<typeof getSafeMongoCollection>>['client']
+    | undefined
+  let pendingTransactions: PendingTransactions | undefined
+  if (process.env.SC_MONGODB_URI) {
+    const col = await getSafeMongoCollection()
+    safeMongoClient = col.client
+    pendingTransactions = col.pendingTransactions
+  }
 
-    for (const task of tasks) {
-      const proposalStatus = await resolveProposalStatus(task.safeTxHash)
-      const decision = reconcileDecision(task, {
-        facetPresentOnChain: routed.has(
-          getAddress(task.facetAddress).toLowerCase()
-        ),
-        proposalStatus,
-      })
-      consola.info(
-        `[${network}] ${task.facetName} (${task.status}) → ${decision}`
-      )
-      if (!apply || decision === 'keep') continue
-      if (decision === 'executed') await markExecuted(parkedTasks, task.taskKey)
-      else if (decision === 'superseded')
-        await markSuperseded(parkedTasks, task.taskKey)
-      else if (decision === 'revert')
-        await revertToQueued(parkedTasks, task.taskKey)
+  try {
+    for (const tasks of byNetworkEnv.values()) {
+      const first = tasks[0]
+      if (!first) continue
+      const { network, environment } = first
+      const diamondAddress = await resolveDiamondAddress(network, environment)
+      if (!diamondAddress) {
+        consola.warn(
+          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+        )
+        continue
+      }
+      const onChain = await fetchOnChainFacets(diamondAddress, network)
+      const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+
+      for (const task of tasks) {
+        const proposalStatus = await resolveProposalStatus(
+          pendingTransactions,
+          task.safeTxHash
+        )
+        const decision = reconcileDecision(task, {
+          facetPresentOnChain: routed.has(
+            getAddress(task.facetAddress).toLowerCase()
+          ),
+          proposalStatus,
+        })
+        consola.info(
+          `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
+        )
+        if (!apply || decision === 'keep') continue
+        if (decision === 'executed')
+          await markExecuted(parkedTasks, task.taskKey)
+        else if (decision === 'superseded')
+          await markSuperseded(parkedTasks, task.taskKey)
+        else if (decision === 'revert')
+          await revertToQueued(parkedTasks, task.taskKey)
+      }
     }
+  } finally {
+    await safeMongoClient?.close()
   }
 }
 
