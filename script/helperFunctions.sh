@@ -3249,6 +3249,18 @@ function warning() {
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
+function logWithTimestamp() {
+  local MESSAGE="$1"
+  local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "[$TIMESTAMP] $MESSAGE"
+}
+function logNetworkResult() {
+  local NETWORK="$1"
+  local STATUS="$2"
+  local MESSAGE="$3"
+  local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "[$TIMESTAMP] [$NETWORK] $STATUS: $MESSAGE"
+}
 # <<<<< output to console
 
 # >>>>> Reading and manipulation of target state JSON file
