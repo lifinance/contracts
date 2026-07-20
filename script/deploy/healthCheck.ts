@@ -178,7 +178,6 @@ export async function runHealthCheckForNetwork(
     let deployerWallet: string
     let refundWallet: string
     let feeCollectorOwner: string
-    let pauserWalletAddress: string
 
     if (isTron) {
       if (!tronWeb) throw new Error('TronWeb not initialized')
@@ -186,7 +185,6 @@ export async function runHealthCheckForNetwork(
       deployerWallet = getTronWallet('deployerWallet', { tronWeb })
       refundWallet = getTronWallet('refundWallet', { tronWeb })
       feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
-      pauserWalletAddress = getTronWallet('pauserWallet', { tronWeb })
     } else {
       // Testnets are owned by deployerWallet regardless of environment.
       deployerWallet = getAddress(
@@ -196,7 +194,6 @@ export async function runHealthCheckForNetwork(
       )
       refundWallet = getAddress(globalConfig.refundWallet)
       feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
-      pauserWalletAddress = globalConfig.pauserWallet
     }
 
     const ctx: IHealthCheckContext = {
@@ -219,7 +216,6 @@ export async function runHealthCheckForNetwork(
       deployerWallet,
       refundWallet,
       feeCollectorOwner,
-      pauserWalletAddress,
       onChainFacets: [],
       errors,
       warnings,

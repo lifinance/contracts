@@ -13,9 +13,50 @@ import {
   findDuplicateSelectors,
   getInvariantExclusion,
   isInvariantApplicable,
+  runHealthCheckInvariants,
+  scriptEval,
+  type IHealthCheckContext,
   type IHealthCheckInvariant,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+
+/** Minimal in-scope context for driving the runner without any RPC. */
+function makeCtx(): IHealthCheckContext {
+  const errors: string[] = []
+  const warnings: string[] = []
+  return {
+    networkLower: 'testnet1',
+    environment: 'production',
+    isTron: false,
+    isTestnet: false,
+    supportsGasZip: true,
+    onChainFacets: [],
+    errors,
+    warnings,
+    logError: (msg: string) => {
+      errors.push(msg)
+    },
+    logWarn: (msg: string) => {
+      warnings.push(msg)
+    },
+  } as unknown as IHealthCheckContext
+}
+
+/** Build a synthetic invariant with a given run body. */
+function inv(
+  name: string,
+  run: IHealthCheckInvariant['run'],
+  extra: Partial<IHealthCheckInvariant> = {}
+): IHealthCheckInvariant {
+  return {
+    name,
+    description: name,
+    severity: 'error',
+    scope: {},
+    run,
+    ...extra,
+  }
+}
 
 /** Minimal invariant descriptor for exercising the pure applicability logic. */
 function makeInvariant(
@@ -235,5 +276,123 @@ describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
   it('every exclusion carries a non-empty reason', () => {
     for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
       expect(exclusion.reason.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('runHealthCheckInvariants (runner)', () => {
+  it('merges concurrent invariants without clobbering each other errors', async () => {
+    const ctx = makeCtx()
+    await runHealthCheckInvariants(ctx, [
+      inv('a', async (c) => c.logError('err-a')),
+      inv('b', async (c) => c.logError('err-b')),
+    ])
+    expect(ctx.errors.sort()).toEqual(['err-a', 'err-b'])
+  })
+
+  it('clears a transient error that does not reproduce on re-verify', async () => {
+    const ctx = makeCtx()
+    let calls = 0
+    await runHealthCheckInvariants(ctx, [
+      inv('flaky', async (c) => {
+        calls++
+        if (calls === 1) c.logError('transient blip')
+      }),
+    ])
+    expect(calls).toBe(2) // ran once, then re-verified
+    expect(ctx.errors).toEqual([]) // transient failure not recorded
+  })
+
+  it('records a persistent error that reproduces on re-verify', async () => {
+    const ctx = makeCtx()
+    await runHealthCheckInvariants(ctx, [
+      inv('broken', async (c) => c.logError('real drift')),
+    ])
+    expect(ctx.errors).toEqual(['real drift'])
+  })
+
+  it('does not re-verify a warning (only fatal errors)', async () => {
+    const ctx = makeCtx()
+    let calls = 0
+    await runHealthCheckInvariants(ctx, [
+      inv(
+        'warner',
+        async (c) => {
+          calls++
+          c.logWarn('heads up')
+        },
+        { severity: 'warning' }
+      ),
+    ])
+    expect(calls).toBe(1)
+    expect(ctx.warnings).toEqual(['heads up'])
+  })
+
+  it('propagates onChainFacets from a phase-1 writer to a phase-2 reader', async () => {
+    const ctx = makeCtx()
+    await runHealthCheckInvariants(ctx, [
+      inv('writer', async (c) => {
+        c.onChainFacets.push({ address: '0xA', selectors: ['0x11111111'] })
+      }),
+      inv(
+        'reader',
+        async (c) => {
+          if (c.onChainFacets.length === 0) c.logError('reader saw no facets')
+        },
+        { readsOnChainFacets: true }
+      ),
+    ])
+    expect(ctx.errors).toEqual([])
+    expect(ctx.onChainFacets).toHaveLength(1)
+  })
+
+  it('halts remaining invariants when a haltIfFailed prerequisite fails', async () => {
+    const ctx = makeCtx()
+    let laterRan = false
+    await runHealthCheckInvariants(ctx, [
+      inv('prereq', async (c) => c.logError('diamond missing'), {
+        haltIfFailed: true,
+      }),
+      inv('later', async () => {
+        laterRan = true
+      }),
+    ])
+    expect(laterRan).toBe(false)
+    expect(ctx.errors).toEqual(['diamond missing'])
+  })
+
+  it('skips an out-of-scope invariant', async () => {
+    const ctx = makeCtx() // environment: production
+    let ran = false
+    await runHealthCheckInvariants(ctx, [
+      inv(
+        'staging-only',
+        async () => {
+          ran = true
+        },
+        { scope: { environments: ['staging'] } }
+      ),
+    ])
+    expect(ran).toBe(false)
+  })
+})
+
+describe('scriptEval', () => {
+  it('passes when the script exits 0', async () => {
+    const ctx = makeCtx()
+    await scriptEval('true')(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('records an error when the script exits non-zero', async () => {
+    const ctx = makeCtx()
+    await scriptEval('false')(ctx)
+    expect(ctx.errors.length).toBe(1)
+  })
+
+  it('reports as a warning when severity is warning', async () => {
+    const ctx = makeCtx()
+    await scriptEval('false', 'warning')(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.length).toBe(1)
   })
 })
