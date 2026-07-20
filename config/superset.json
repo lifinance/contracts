@@ -1,5 +1,5 @@
 {
-  "IMPORTANT DEV NOTICE": "after adding a new mapping, call initSuperset (first deploy) or setChainIdToEid (incremental update) on every diamond where SupersetFacet is deployed",
+  "IMPORTANT DEV NOTICE": "\"mappings\" is GENERATED from config/layerzero.json by tasks/syncLayerZeroEids.ts (do not hand-edit; add EIDs in layerzero.json). After adding a mapping, call initSuperset (first deploy) or setChainIdToEid (incremental update) on every diamond where SupersetFacet is deployed.",
   "Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts": {},
   "Source for Superset PoolManager addresses: https://github.com/superset-finance/deployments/blob/main/manifests/mainnet.json": {},
   "poolManager": {
@@ -8,8 +8,17 @@
     "unichain": "0x326D0B0357b394EC5bbeFE87554243E5dc76e56E"
   },
   "mappings": [
-    { "chainId": 42161, "lzEid": 30110 },
-    { "chainId": 8453, "lzEid": 30184 },
-    { "chainId": 130, "lzEid": 30320 }
+    {
+      "chainId": 130,
+      "lzEid": 30320
+    },
+    {
+      "chainId": 8453,
+      "lzEid": 30184
+    },
+    {
+      "chainId": 42161,
+      "lzEid": 30110
+    }
   ]
 }

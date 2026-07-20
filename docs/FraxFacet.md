@@ -115,12 +115,19 @@ above). This follows the `SupersetFacet` pattern.
   `UnsupportedChainId` when unset. `chainId == 0` and `lzEid == 0` are rejected on
   write (EID `0` is the "unset" sentinel).
 
-**Operational requirement:** every destination chain a route targets **must** be
-present in `config/frax.json` `mappings` and seeded on each diamond (via `initFrax`
-on first deploy, or `setChainIdToEid` for later additions) before that route is
-usable — an unseeded destination reverts `UnsupportedChainId`. LayerZero EIDs are
-sourced from
+**EID source of truth.** LayerZero EIDs live once in
+[`config/layerzero.json`](../config/layerzero.json) (shared across LZ facets). The
+`mappings` array in `config/frax.json` is **generated** from it by
+`tasks/syncLayerZeroEids.ts` (subset = the networks in `frax.json` `hop`) and
+verified in CI (`script/tasks/layerZeroEids.test.ts`) — do not hand-edit it; add or
+correct an EID in `config/layerzero.json`. New EIDs are checked against
 [the LayerZero deployments list](https://docs.layerzero.network/v2/deployments/deployed-contracts).
+
+**Operational requirement:** every destination chain a route targets **must** be
+present in `config/layerzero.json` (hence in the generated `frax.json` `mappings`)
+and seeded on each diamond (via `initFrax` on first deploy, or `setChainIdToEid` for
+later additions) before that route is usable — an unseeded destination reverts
+`UnsupportedChainId`.
 
 ## Tempo (EndpointV2Alt) special case
 

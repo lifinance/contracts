@@ -1,5 +1,5 @@
 {
-  "DEV NOTICE": "after adding a new mapping, call initFrax (first deploy) or setChainIdToEid (incremental update) on every diamond where FraxFacet is deployed. Every destination chain a route targets MUST be seeded here first (unseeded destinations revert UnsupportedChainId). Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts",
+  "DEV NOTICE": "\"mappings\" is GENERATED from config/layerzero.json by tasks/syncLayerZeroEids.ts — do not edit it by hand; add/verify EIDs in config/layerzero.json instead. After deploy, seed the mapping on-chain via initFrax (first deploy, wired into UpdateFraxFacet) or setChainIdToEid (later additions).",
   "hop": {
     "mainnet": "0x0000006D38568b00B457580b734e0076C62de659",
     "abstract": "0x0000006D38568b00B457580b734e0076C62de659",
@@ -101,12 +101,24 @@
       "lzEid": 30102
     },
     {
+      "chainId": 130,
+      "lzEid": 30320
+    },
+    {
       "chainId": 137,
       "lzEid": 30109
     },
     {
+      "chainId": 143,
+      "lzEid": 30390
+    },
+    {
+      "chainId": 146,
+      "lzEid": 30332
+    },
+    {
       "chainId": 196,
-      "lzEid": 30196
+      "lzEid": 30274
     },
     {
       "chainId": 252,
@@ -117,12 +129,16 @@
       "lzEid": 30165
     },
     {
-      "chainId": 1329,
-      "lzEid": 30300
+      "chainId": 480,
+      "lzEid": 30319
     },
     {
-      "chainId": 2741,
-      "lzEid": 30324
+      "chainId": 999,
+      "lzEid": 30367
+    },
+    {
+      "chainId": 1329,
+      "lzEid": 30280
     },
     {
       "chainId": 8453,
@@ -141,8 +157,16 @@
       "lzEid": 30106
     },
     {
+      "chainId": 57073,
+      "lzEid": 30339
+    },
+    {
       "chainId": 59144,
       "lzEid": 30183
+    },
+    {
+      "chainId": 98866,
+      "lzEid": 30370
     },
     {
       "chainId": 534352,
