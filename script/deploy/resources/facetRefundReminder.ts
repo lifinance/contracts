@@ -83,13 +83,24 @@ export function buildMsgSenderRefundReminder(
 }
 
 /**
+ * Solidity contract identifiers are alphanumeric/underscore only. Reject anything else so a
+ * caller-supplied name can never traverse outside src/Facets/ (e.g. `../../.env`) when composed
+ * into a file path.
+ */
+export function isValidContractName(name: string): boolean {
+  return /^[A-Za-z0-9_]+$/.test(name)
+}
+
+/**
  * Resolve a facet's source path from its contract name. Source-side refunds only live in facets,
- * so anything outside src/Facets/ (periphery, helpers) is intentionally not inspected.
+ * so anything outside src/Facets/ (periphery, helpers) is intentionally not inspected. Names that
+ * are not plain Solidity identifiers are rejected before touching the filesystem.
  */
 function resolveFacetSourcePath(
   contractName: string,
   repoRoot: string
 ): string | null {
+  if (!isValidContractName(contractName)) return null
   const path = join(repoRoot, 'src', 'Facets', `${contractName}.sol`)
   return existsSync(path) ? path : null
 }

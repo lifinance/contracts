@@ -17,6 +17,7 @@ import {
 import {
   detectMsgSenderRefundSites,
   buildMsgSenderRefundReminder,
+  isValidContractName,
 } from './facetRefundReminder'
 
 describe('detectMsgSenderRefundSites', () => {
@@ -142,5 +143,21 @@ describe('buildMsgSenderRefundReminder', () => {
     )
     expect(message).toContain('_depositAndSwap leftovers')
     expect(message).not.toContain('refundExcessNative(payable(msg.sender))')
+  })
+})
+
+describe('isValidContractName', () => {
+  it('accepts plain Solidity contract identifiers', () => {
+    expect(isValidContractName('AcrossFacet')).toBe(true)
+    expect(isValidContractName('LiFiIntentEscrowFacetV2')).toBe(true)
+    expect(isValidContractName('Facet_1')).toBe(true)
+  })
+
+  it('rejects path-traversal and separator characters', () => {
+    expect(isValidContractName('../../.env')).toBe(false)
+    expect(isValidContractName('src/Facets/AcrossFacet')).toBe(false)
+    expect(isValidContractName('AcrossFacet.sol')).toBe(false)
+    expect(isValidContractName('Across Facet')).toBe(false)
+    expect(isValidContractName('')).toBe(false)
   })
 })
