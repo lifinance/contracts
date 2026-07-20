@@ -81,17 +81,46 @@ otherwise).
 - **No positive slippage / intent semantics.** `minAmountLD == amountLD`: HopV2
   delivers destination funds directly to the recipient. No funds ever sit in a
   LI.FI contract on the destination chain.
-- **Destination-chain trust assumption.** The facet **cannot validate on-chain**
-  whether the destination chain is a supported/registered Frax spoke. If an
-  unsupported `dstEid` is used, funds route through Fraxtal and can be **stranded
-  there** pending Frax-admin recovery. Only backend-generated calldata should be
-  used. `dstEid` is trusted from calldata; the analytics-only
-  `bridgeData.destinationChainId` is **not** cross-checked against it — the same
-  trust model as `AcrossFacetV4` and `PaxosTransitFacet`.
+- **Destination validation (`destinationChainId` ↔ `dstEid`).** The facet holds an
+  owner-governed `chainId → LayerZero EID` mapping (see below) and requires
+  `getChainIdToEid(bridgeData.destinationChainId) == fraxData.dstEid`, reverting
+  `UnsupportedChainId` if the destination chain is not configured and
+  `InformationMismatch` if the supplied `dstEid` does not match. This binds the
+  actual LayerZero routing target (`dstEid`) to the chain that analytics/accounting
+  index on (`destinationChainId`), so a caller cannot route funds to one chain while
+  the transfer is recorded as another. The mapping must be seeded (see below) for
+  every destination a route targets before that route can be used. This is stricter
+  than the pure analytics-only model of `AcrossFacetV4` / `PaxosTransitFacet`, and
+  mirrors `SupersetFacet`.
 - **HopV2 trust surface.** The HopV2 contract is an **upgradeable proxy** with an
   admin `recover()` function. The facet grants it an ERC20 allowance via the
   standard LI.FI `maxApproveERC20` pattern (scoped to the bridged amount). This is
   a trust surface worth noting.
+
+## ChainId → LayerZero EID mapping
+
+`bridgeData.destinationChainId` is an EVM chain ID while `fraxData.dstEid` is a
+LayerZero endpoint ID; the two numbering systems are unrelated, so the facet keeps
+an on-chain `chainId → EID` mapping in diamond storage (namespace
+`com.lifi.facets.frax`) to cross-check them (see the destination-validation note
+above). This follows the `SupersetFacet` pattern.
+
+- `initFrax(ChainIdConfig[])` — **owner-only**, one-shot seeding. During a facet
+  deployment/upgrade it is executed as the `diamondCut` init call (the
+  `UpdateFraxFacet` script reads the `mappings` array from `config/frax.json`), so
+  it is **not** registered as a diamond method.
+- `setChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
+  initial seeding (requires a prior `initFrax`, else reverts `NotInitialized`).
+- `getChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
+  `UnsupportedChainId` when unset. `chainId == 0` and `lzEid == 0` are rejected on
+  write (EID `0` is the "unset" sentinel).
+
+**Operational requirement:** every destination chain a route targets **must** be
+present in `config/frax.json` `mappings` and seeded on each diamond (via `initFrax`
+on first deploy, or `setChainIdToEid` for later additions) before that route is
+usable — an unseeded destination reverts `UnsupportedChainId`. LayerZero EIDs are
+sourced from
+[the LayerZero deployments list](https://docs.layerzero.network/v2/deployments/deployed-contracts).
 
 ## Tempo (EndpointV2Alt) special case
 
@@ -107,7 +136,10 @@ native gas.
   to `PATH_USD` when the Diamond has not opted into a specific token. Its amount is
   quoted in-token via `HOP.quoteStatic`. The facet pulls the fee token from the
   caller, approves it to HopV2, and sends with `msg.value == 0` (both entrypoints
-  revert `InvalidCallData` if any native is sent on Tempo).
+  revert `InvalidCallData` if any native is sent on Tempo). The unused-fee refund is
+  computed from a fee-token balance delta, so the fee token must differ from the
+  bridged asset; the facet reverts `InformationMismatch` on that collision (a Frax
+  gas token is never itself a bridged Frax OFT).
 - **BE-integration requirement (EXP-514 — to be confirmed).** On Tempo the Diamond
   must be **funded with the fee token**: the caller must approve/transfer the TIP20
   fee token to the Diamond so HopV2's `transferFrom` pull succeeds. This differs

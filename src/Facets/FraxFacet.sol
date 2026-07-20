@@ -4,11 +4,12 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IFraxHopV2, IFraxOFT, ITipFeeManager } from "../Interfaces/IFraxHopV2.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title FraxFacet
 /// @author LI.FI (https://li.fi)
@@ -20,6 +21,11 @@ import { InformationMismatch, InvalidCallData, InvalidConfig } from "../Errors/G
 ///      the same transaction; no balance is meant to persist between calls.
 /// @custom:version 1.0.0
 contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// Constants ///
+
+    /// @dev Diamond storage namespace for the chainId -> LayerZero EID mapping.
+    bytes32 internal constant NAMESPACE = keccak256("com.lifi.facets.frax");
+
     /// Storage ///
 
     /// @notice The Frax HopV2 contract on this chain (hub on Fraxtal, spoke elsewhere).
@@ -39,9 +45,25 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Types ///
 
+    /// @dev Entry used to seed or update the chainId -> LayerZero EID mapping.
+    /// @param chainId LI.FI chain ID (e.g. 252 for Fraxtal).
+    /// @param lzEid LayerZero endpoint ID for the same chain (e.g. 30255 for Fraxtal).
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint32 lzEid;
+    }
+
+    /// @dev Diamond storage layout. `lzEids[chainId] == 0` means "unset" — safe because
+    ///      LayerZero does not assign EID 0 (v1 starts at 101, v2 at 30000).
+    struct Storage {
+        mapping(uint256 => uint32) lzEids;
+        bool chainMappingsInitialized;
+    }
+
     /// @param oft The OFT messenger for the token on the source chain (its token() is the
     ///        ERC20 that HopV2 pulls and that must equal bridgeData.sendingAssetId)
-    /// @param dstEid The LayerZero endpoint ID of the destination chain
+    /// @param dstEid The LayerZero endpoint ID of the destination chain. Cross-checked
+    ///        against the EID configured for bridgeData.destinationChainId.
     /// @param nativeFee The native LayerZero fee forwarded to HopV2 as msg.value on standard
     ///        chains; ignored on Tempo (fee is paid in the TIP20 gas token)
     /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
@@ -53,6 +75,14 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 nativeFee;
         address refundRecipient;
     }
+
+    /// Events ///
+
+    /// @notice Emitted when the chainId -> LayerZero EID mapping is initialized.
+    event FraxChainMappingsInitialized(ChainIdConfig[] chainIdConfigs);
+
+    /// @notice Emitted when a chainId -> LayerZero EID entry is set or updated.
+    event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
     /// Constructor ///
 
@@ -75,6 +105,67 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         PATH_USD = _pathUsd;
     }
 
+    /// Admin Methods ///
+
+    /// @notice Seeds the chainId -> LayerZero EID mapping (owner-only).
+    /// @param _chainIdConfigs Batch of `{chainId, lzEid}` entries.
+    /// @dev Overwrites any existing entries for the supplied chain IDs.
+    function initFrax(ChainIdConfig[] calldata _chainIdConfigs) external {
+        if (_chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+
+        for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
+            uint256 chainId = _chainIdConfigs[i].chainId;
+            uint32 lzEid = _chainIdConfigs[i].lzEid;
+
+            // `lzEid == 0` collides with the "unset" sentinel, so it would emit a
+            // successful event yet leave the chain unusable; `chainId == 0` can never
+            // match a real destination.
+            if (chainId == 0 || lzEid == 0) revert InvalidConfig();
+
+            s.lzEids[chainId] = lzEid;
+            emit ChainIdToEidSet(chainId, lzEid);
+        }
+
+        s.chainMappingsInitialized = true;
+
+        emit FraxChainMappingsInitialized(_chainIdConfigs);
+    }
+
+    /// @notice Adds or updates chainId -> LayerZero EID entries (owner-only).
+    /// @param _chainIdConfigs Batch of `{chainId, lzEid}` entries.
+    function setChainIdToEid(
+        ChainIdConfig[] calldata _chainIdConfigs
+    ) external {
+        if (_chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+        if (!s.chainMappingsInitialized) revert NotInitialized();
+
+        for (uint256 i = 0; i < _chainIdConfigs.length; ++i) {
+            uint256 chainId = _chainIdConfigs[i].chainId;
+            uint32 lzEid = _chainIdConfigs[i].lzEid;
+
+            if (chainId == 0 || lzEid == 0) revert InvalidConfig();
+
+            s.lzEids[chainId] = lzEid;
+            emit ChainIdToEidSet(chainId, lzEid);
+        }
+    }
+
+    /// @notice Returns the LayerZero EID configured for `_chainId`.
+    /// @param _chainId LI.FI chain ID to look up.
+    /// @return lzEid LayerZero endpoint ID.
+    function getChainIdToEid(
+        uint256 _chainId
+    ) public view returns (uint32 lzEid) {
+        lzEid = _getStorage().lzEids[_chainId];
+        if (lzEid == 0) revert UnsupportedChainId(_chainId);
+    }
+
     /// External Methods ///
 
     /// @notice Bridges tokens via Frax HopV2
@@ -93,7 +184,7 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateFraxData(_fraxData);
+        _validateFraxData(_bridgeData.destinationChainId, _fraxData);
 
         // On standard chains the LayerZero fee is the only native outflow and must come from
         // msg.value, never from stray diamond balance. On Tempo the fee is an ERC20, so no
@@ -126,12 +217,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(_fraxData.refundRecipient))
+        validateBridgeData(_bridgeData)
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateFraxData(_fraxData);
+        _validateFraxData(_bridgeData.destinationChainId, _fraxData);
 
         // On Tempo the fee is an ERC20 and no native is ever consumed; reject stray msg.value
         // here too (symmetric with the non-swap path) so it fails fast instead of being
@@ -170,8 +261,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Internal Methods ///
 
     /// @dev Validates FraxData fields shared by both entry points
+    /// @param _destinationChainId The LI.FI destination chain ID from bridgeData
     /// @param _fraxData Data specific to Frax HopV2
-    function _validateFraxData(FraxData calldata _fraxData) internal pure {
+    function _validateFraxData(
+        uint256 _destinationChainId,
+        FraxData calldata _fraxData
+    ) internal view {
         // refundExcessNative forwards excess native to refundRecipient; a zero address would
         // only revert late, when fee drift happens to leave an excess. Fail fast instead.
         // dstEid == 0 is never a valid LayerZero endpoint and would strand the transfer.
@@ -181,6 +276,14 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _fraxData.dstEid == 0
         ) {
             revert InvalidCallData();
+        }
+
+        // dstEid is the actual LayerZero routing target and is trusted from backend calldata;
+        // bridgeData.destinationChainId is what analytics/accounting index on. Bind them so a
+        // caller cannot route funds to one chain while the transfer is recorded as another.
+        // getChainIdToEid reverts UnsupportedChainId when the destination is not configured.
+        if (getChainIdToEid(_destinationChainId) != _fraxData.dstEid) {
+            revert InformationMismatch();
         }
     }
 
@@ -226,7 +329,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 ""
             );
         } else {
-            _sendViaTempo(_fraxData, recipient, flooredAmount);
+            _sendViaTempo(
+                _fraxData,
+                _bridgeData.sendingAssetId,
+                recipient,
+                flooredAmount
+            );
         }
 
         // Return the dust that HopV2 did not bridge to the user (never leave it in the diamond)
@@ -254,10 +362,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @dev BE-integration note (EXP-514): the fee token must be made available to the diamond
     ///      by the caller for the transferFrom pull to succeed - see docs/FraxFacet.md.
     /// @param _fraxData Data specific to Frax HopV2
+    /// @param _sendingAssetId The bridged ERC20 (bridgeData.sendingAssetId)
     /// @param _recipient bytes32-encoded destination recipient
     /// @param _amount The dust-floored amount to bridge
     function _sendViaTempo(
         FraxData calldata _fraxData,
+        address _sendingAssetId,
         bytes32 _recipient,
         uint256 _amount
     ) internal {
@@ -266,6 +376,15 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         );
         if (feeToken == address(0)) {
             feeToken = PATH_USD;
+        }
+
+        // The unused-fee sweep below tracks the fee token by a balance delta taken after the
+        // bridged token has already been deposited. If the fee token were the same ERC20 we
+        // are bridging, that delta would conflate the two flows and could strand the bridged
+        // amount in the diamond. A Frax gas token is never the bridged OFT, so reject the
+        // collision rather than mis-account for it.
+        if (feeToken == _sendingAssetId) {
+            revert InformationMismatch();
         }
 
         uint256 feeAmount = HOP.quoteStatic(
@@ -312,6 +431,15 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 payable(_fraxData.refundRecipient),
                 unusedFee
             );
+        }
+    }
+
+    /// @dev Fetches diamond storage.
+    function _getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
         }
     }
 }
