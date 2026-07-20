@@ -36,7 +36,7 @@ export const TRON_DIAMOND_FACET_GROUPS: string[][] = [
   ['DiamondLoupeFacet'],
   ['OwnershipFacet', 'WithdrawFacet', 'AccessManagerFacet'],
   ['WhitelistManagerFacet', 'PeripheryRegistryFacet'],
-  ['GenericSwapFacet', 'GenericSwapFacetV3'],
+  ['GenericSwapFacetV3'],
   ['CalldataVerificationFacet', 'EmergencyPauseFacet'],
 ]
 

@@ -189,7 +189,7 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0x6ed89349aC140De341574831A91469bC029209e0": {
+      "0x53cfc2B72Af09ea122cd479f81B9878D76271bE9": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
@@ -205,7 +205,7 @@
         "Name": "WhitelistRecoveryFacet",
         "Version": "1.0.2"
       },
-      "0x7f36bbFDC188569169Bf917a20a2cdD5b060837D": {
+      "0x6FB56233842489D772b9Bb004390abF317Efa390": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
@@ -220,6 +220,30 @@
       "0xEB6803A40B8350286e1E8684068E28c5c57a94AE": {
         "Name": "MayanFacet",
         "Version": "1.3.0"
+      },
+      "0x2F9254d98ad8d5D8E4Aa41D22A04233959Ff1022": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "1.3.1"
+      },
+      "0x6b380169D4C02446703b97E6c3a5dA514039A897": {
+        "Name": "MayanFacet",
+        "Version": "2.0.0"
+      },
+      "0x1FA21E68aE236739fC7b0A1FA98093746828e2B6": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
+      },
+      "0x2B370Af1bf1762f4994C3E9931826346945840aE": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
+      },
+      "0x021c4C90A41cbcEb43bBcd9c042EABE678728dE9": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
+      },
+      "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {

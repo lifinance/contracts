@@ -400,6 +400,8 @@ async function main() {
       : toHex(0, { size: 32 }),
     solanaReceiverATA: solanaReceiverATABytes32,
     minFinalityThreshold,
+    refundRecipient: walletAddress,
+    hookData: '0x',
   }
   consola.info('\n📋 POLYMER CCTP DATA PREPARED:')
   consola.info(`  polymerTokenFee: ${polymerData.polymerTokenFee} (from API)`)
