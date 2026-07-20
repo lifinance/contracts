@@ -6,7 +6,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -761,6 +761,36 @@ contract MayanFacetTest is TestBaseFacet {
                 USER_RECEIVER
             )
         );
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndForwardEthWithZeroMinMiddleAmount() public {
+        // minMiddleAmount is the only slippage guard on the native ETH -> middleToken source swap.
+        // At zero the swap is fully sandwichable (order created for dust), so the facet must reject
+        // it before forwarding. Receiver validation passes first (parses to USER_RECEIVER), so this
+        // isolates the minMiddleAmount guard on the swapAndForwardEth branch.
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"c1c0e9c9",
+            ARBITRUM_WETH,
+            0,
+            USER_RECEIVER
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidAmount.selector);
         mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
             bridgeData,
             data

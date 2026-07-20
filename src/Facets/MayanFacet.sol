@@ -10,7 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -225,6 +225,12 @@ contract MayanFacet is
                 _mayanData.protocolData
             );
         } else if (_mayanData.swapProtocol != address(0)) {
+            // minMiddleAmount is the only slippage guard on the native input -> middleToken
+            // source swap; at zero the swap can be fully sandwiched, so reject it explicitly.
+            if (_mayanData.minMiddleAmount == 0) {
+                revert InvalidAmount();
+            }
+
             MAYAN.swapAndForwardEth{ value: _bridgeData.minAmount }(
                 _bridgeData.minAmount,
                 _mayanData.swapProtocol,
