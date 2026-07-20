@@ -38,6 +38,7 @@ import {
   markExecuted,
   markSuperseded,
   revertToQueued,
+  setSafeTxHash,
   type IParkedTask,
   type IParkedTaskInput,
 } from './parked-tasks'
@@ -507,6 +508,47 @@ describe('status transitions', () => {
   it('revertToQueued is a no-op (null) on a queued task', async () => {
     const coll = seedOne('queued')
     expect(await revertToQueued(coll, KEY)).toBeNull()
+  })
+})
+
+describe('setSafeTxHash', () => {
+  const KEY = 'facet-removal|arbitrum|production|A'
+  function seedOne(status: IParkedTask['status']): IFakeCollection {
+    return createFakeCollection([
+      {
+        taskKey: KEY,
+        kind: 'facet-removal',
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facetName: 'A',
+        diamondAddress: DIAMOND,
+        facetAddress: FACET,
+        prUrl: PR_URL,
+        status,
+        enqueuer: 'dev@li.finance',
+        createdAt: new Date(),
+        proposedAt: new Date(),
+      },
+    ])
+  }
+
+  it('links a proposed task to its minted proposal', async () => {
+    const coll = seedOne('proposed')
+    const updated = await setSafeTxHash(coll, KEY, '0xdeadbeef')
+    expect(updated?.safeTxHash).toBe('0xdeadbeef')
+    expect(coll.rows[0]?.safeTxHash).toBe('0xdeadbeef')
+    expect(coll.rows[0]?.status).toBe('proposed')
+  })
+
+  it('returns null when the task is not proposed (e.g. still queued)', async () => {
+    const coll = seedOne('queued')
+    expect(await setSafeTxHash(coll, KEY, '0xdeadbeef')).toBeNull()
+    expect(coll.rows[0]?.safeTxHash).toBeUndefined()
+  })
+
+  it('returns null for an unknown taskKey', async () => {
+    const coll = seedOne('proposed')
+    expect(await setSafeTxHash(coll, 'nope', '0xabc')).toBeNull()
   })
 })
 
