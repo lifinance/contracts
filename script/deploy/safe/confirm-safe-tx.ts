@@ -509,6 +509,16 @@ const processTxs = async (
       `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
     ]
 
+    // Deferred diamond-cleanup: if this removal was drained from the parked-tasks
+    // queue, show the originating deprecation PR(s) so the signer sees WHY the
+    // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
+    // outside the shared decode formatter (rule 201 untouched).
+    if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {
+      detailLines.push('    Parked cleanup — origin PRs:')
+      for (const ref of tx.parkedTaskRefs)
+        detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
+    }
+
     consola.info(detailLines.join('\n'))
 
     // Ledger Flex signing filmstrip: reproduce the on-device screens the

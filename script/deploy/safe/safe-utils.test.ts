@@ -427,6 +427,22 @@ describe('summarizeProposalDoc', () => {
     expect(summary.executionHash).toBe('0xexec')
   })
 
+  it('carries parkedTaskRefs through to the summary when present', () => {
+    const refs = [
+      { facet: 'GenericSwapFacet', prUrl: 'https://gh/pull/2046' },
+      { facet: 'AcrossFacetV3', prUrl: 'https://gh/pull/2048' },
+    ]
+    const summary = summarizeProposalDoc(
+      buildSummaryDoc({ parkedTaskRefs: refs })
+    )
+    expect(summary.parkedTaskRefs).toEqual(refs)
+  })
+
+  it('omits parkedTaskRefs when the document has none', () => {
+    const summary = summarizeProposalDoc(buildSummaryDoc())
+    expect(summary.parkedTaskRefs).toBeUndefined()
+  })
+
   it('handles string timestamps and numeric nonces from raw documents', () => {
     const doc = buildSummaryDoc({
       timestamp: '2026-06-12T11:00:00.000Z' as unknown as Date,

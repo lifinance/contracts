@@ -9422,6 +9422,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x48eCDAA6aDA921f61357c1104829E9b1f4D1F75E",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "plasma": [
