@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TransferrableOwnership } from "../Helpers/TransferrableOwnership.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidContract } from "../Errors/GenericErrors.sol";
-import { FeeType, FeeBounds, FeeConfig, DeployParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
-import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
-import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
-import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { FeeType, FeeBounds, FeeConfig, DeployParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
+import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
+import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 
 /// @title LiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
@@ -19,10 +18,7 @@ import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 ///         This contract does not custody user funds; it only deploys and
 ///         configures wrapper instances.
 /// @custom:version 1.0.0
-contract LiFiVaultWrapperFactory is
-    TransferrableOwnership,
-    ILiFiVaultWrapperFactory
-{
+contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
     /// Constants ///
 
     /// @notice Immutable upper cap for the performance fee (bps); 50%.
@@ -107,15 +103,14 @@ contract LiFiVaultWrapperFactory is
         address _emergencyPauser,
         address _onboardingManager,
         address _lifiFeeRecipient
-    ) TransferrableOwnership(_owner) {
+    ) Ownable(_owner) {
         if (
             _beacon == address(0) ||
-            _owner == address(0) ||
             _emergencyPauser == address(0) ||
             _onboardingManager == address(0) ||
             _lifiFeeRecipient == address(0)
         ) revert ZeroAddress();
-        if (!LibAsset.isContract(_beacon)) revert InvalidContract();
+        if (_beacon.code.length == 0) revert InvalidContract();
 
         BEACON = _beacon;
         emergencyPauser = _emergencyPauser;
@@ -146,8 +141,7 @@ contract LiFiVaultWrapperFactory is
         bool _approved
     ) external onlyOwner {
         if (_adapter == address(0)) revert ZeroAddress();
-        if (_approved && !LibAsset.isContract(_adapter))
-            revert InvalidContract();
+        if (_approved && _adapter.code.length == 0) revert InvalidContract();
         approvedAdapter[_adapter] = _approved;
         emit AdapterApprovedSet(_adapter, _approved);
     }
@@ -261,11 +255,6 @@ contract LiFiVaultWrapperFactory is
         if (!allowedUnderlying[_params.underlying])
             revert UnderlyingNotAllowed();
 
-        address asset = _resolveAssetViaAdapter(
-            _params.adapter,
-            _params.underlying
-        );
-
         _validateFees(_params.fees);
 
         uint16[FEE_TYPE_COUNT] memory integratorShareBps = _resolveSplits(
@@ -283,18 +272,6 @@ contract LiFiVaultWrapperFactory is
 
         isInstance[instance] = true;
 
-        emit WrapperDeployed(
-            instance,
-            _params.namespace,
-            _params.underlying,
-            _params.adapter,
-            asset,
-            _params.vaultWrapperAdmin,
-            integratorShareBps,
-            _params.nonce,
-            salt
-        );
-
         ILiFiVaultWrapper(instance).initialize(
             _params.underlying,
             _params.adapter,
@@ -303,6 +280,21 @@ contract LiFiVaultWrapperFactory is
             _params.fees,
             _params.receivers,
             _params.accessGate
+        );
+
+        // Read the asset the wrapper resolved during initialize instead of resolving it
+        // again here: the adapter's resolveAsset — and its zero/no-code guards — already
+        // ran inside initialize, so a second factory-side resolution would be redundant.
+        emit WrapperDeployed(
+            instance,
+            _params.namespace,
+            _params.underlying,
+            _params.adapter,
+            IERC4626(instance).asset(),
+            _params.vaultWrapperAdmin,
+            integratorShareBps,
+            _params.nonce,
+            salt
         );
     }
 
@@ -404,21 +396,6 @@ contract LiFiVaultWrapperFactory is
             CAP_WITHDRAWAL_BPS
         ];
         return caps[uint256(_feeType)];
-    }
-
-    /// @notice Resolves the underlying's ERC20 asset via the approved adapter.
-    /// @dev The adapter is trusted to revert on an unusable underlying (it is
-    ///      governance-approved and code-checked at approval); this guards only
-    ///      against an adapter that returns the zero address without reverting.
-    /// @param _adapter The approved yield adapter.
-    /// @param _underlying The yield source to resolve.
-    /// @return asset The ERC20 token the underlying is denominated in.
-    function _resolveAssetViaAdapter(
-        address _adapter,
-        address _underlying
-    ) internal view returns (address asset) {
-        asset = IYieldAdapter(_adapter).resolveAsset(_underlying);
-        if (asset == address(0)) revert IYieldAdapter.AssetResolutionFailed();
     }
 
     /// @notice Validates a fee config against the per-type bounds and caps.

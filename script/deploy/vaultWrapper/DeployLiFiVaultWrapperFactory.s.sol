@@ -41,7 +41,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///        NETWORK=mainnet DEPLOYSALT=... PRIVATE_KEY=... \
 ///        forge script script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol
 ///      Broadcast + verify: append `--broadcast --verify`.
-/// @custom:version 2.0.0
+/// @custom:version 1.0.0
 contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     using stdJson for string;
 
@@ -54,6 +54,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     error ZeroEmergencyPauser();
     error ZeroOnboardingManager();
     error ZeroLifiFeeRecipient();
+    error WiringMismatch(string field);
 
     struct DeployConfig {
         ICREATE3Factory create3Factory;
@@ -141,6 +142,8 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
         vm.stopBroadcast();
 
+        _verifyWiring(_cfg, factory, timelock, beacon, impl);
+
         emit log_named_address("Timelock", address(timelock));
         emit log_named_address("Implementation", address(impl));
         emit log_named_address("Beacon", address(beacon));
@@ -185,6 +188,50 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         if (_cfg.onboardingManager == address(0))
             revert ZeroOnboardingManager();
         if (_cfg.lifiFeeRecipient == address(0)) revert ZeroLifiFeeRecipient();
+    }
+
+    /// @notice Asserts every deployed contract carries the intended governance wiring.
+    /// @dev CREATE3 salts exclude constructor args, so re-running with the same
+    ///      DEPLOYSALT after correcting a role/config value resolves the STALE
+    ///      contract (via `_deploy`'s idempotency skip) instead of applying the new
+    ///      value. This post-deploy check compares the live wiring against `_cfg`
+    ///      and reverts `WiringMismatch` if a stale deployment carries the old roles,
+    ///      turning a silent governance error into a loud failure that tells the
+    ///      operator to deploy under a fresh DEPLOYSALT.
+    /// @param _cfg The intended deploy config.
+    /// @param _factory The resolved factory.
+    /// @param _timelock The resolved timelock.
+    /// @param _beacon The resolved beacon.
+    /// @param _impl The resolved implementation.
+    function _verifyWiring(
+        DeployConfig memory _cfg,
+        LiFiVaultWrapperFactory _factory,
+        TimelockController _timelock,
+        UpgradeableBeacon _beacon,
+        LiFiVaultWrapper _impl
+    ) internal view {
+        if (_timelock.getMinDelay() != MIN_DELAY)
+            revert WiringMismatch("timelock.minDelay");
+        if (!_timelock.hasRole(_timelock.PROPOSER_ROLE(), _cfg.multisig))
+            revert WiringMismatch("timelock.proposer");
+        if (!_timelock.hasRole(_timelock.CANCELLER_ROLE(), _cfg.multisig))
+            revert WiringMismatch("timelock.canceller");
+
+        if (_beacon.owner() != address(_timelock))
+            revert WiringMismatch("beacon.owner");
+        if (_beacon.implementation() != address(_impl))
+            revert WiringMismatch("beacon.implementation");
+
+        if (_factory.owner() != address(_timelock))
+            revert WiringMismatch("factory.owner");
+        if (_factory.BEACON() != address(_beacon))
+            revert WiringMismatch("factory.beacon");
+        if (_factory.emergencyPauser() != _cfg.emergencyPauser)
+            revert WiringMismatch("factory.emergencyPauser");
+        if (_factory.onboardingManager() != _cfg.onboardingManager)
+            revert WiringMismatch("factory.onboardingManager");
+        if (_factory.lifiFeeRecipient() != _cfg.lifiFeeRecipient)
+            revert WiringMismatch("factory.lifiFeeRecipient");
     }
 
     /// @notice Deploys the dedicated 48h timelock (proposer/canceller = multisig,

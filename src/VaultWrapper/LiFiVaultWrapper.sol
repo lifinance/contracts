@@ -370,7 +370,7 @@ contract LiFiVaultWrapper is
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return The fee rate in basis points.
     function feeRate(uint8 _feeType) external view returns (uint16) {
-        if (_feeType > 3) revert InvalidFeeType(_feeType);
+        if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
         return _feeConfig.rateBps[_feeType];
     }
 
@@ -378,7 +378,7 @@ contract LiFiVaultWrapper is
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
-        if (_feeType > 3) revert InvalidFeeType(_feeType);
+        if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
         return _feeConfig.rateBps[_feeType] != 0;
     }
 

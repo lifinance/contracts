@@ -42,6 +42,8 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
     error ZeroFactory();
     error ZeroTimelock();
     error ZeroAdapter();
+    error NotATimelock(address owner);
+    error NoAllowedUnderlyings();
     error BpsOutOfRange(uint256 value);
     error FeeBoundsOrder(uint256 minBps, uint256 maxBps);
 
@@ -76,6 +78,7 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
         factory = LiFiVaultWrapperFactory(factoryAddress);
         address timelock = factory.owner();
         if (timelock == address(0)) revert ZeroTimelock();
+        _requireTimelock(timelock);
         network = vm.envString("NETWORK");
         json = vm.readFile(
             string.concat(vm.projectRoot(), "/config/vaultWrapper.json")
@@ -84,6 +87,21 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
         batch = buildBatch(factory, adapter, _readDesired());
 
         _logBatch(timelock, batch);
+    }
+
+    /// @notice Reverts unless `_owner` is a TimelockController.
+    /// @dev The factory owner must be the 48h timelock for the emitted
+    ///      scheduleBatch/executeBatch calldata to be valid. Run mid-migration
+    ///      against a factory still owned by an EOA or bare Safe, buildBatch's
+    ///      getMinDelay() cast reverts with an opaque low-level error; this surfaces
+    ///      a clear NotATimelock diagnostic pointing at the real problem (ownership
+    ///      not yet handed to the timelock) before any calldata is built.
+    /// @param _owner The factory owner to validate.
+    function _requireTimelock(address _owner) internal view {
+        (bool ok, bytes memory data) = _owner.staticcall(
+            abi.encodeCall(TimelockController.getMinDelay, ())
+        );
+        if (!ok || data.length < 32) revert NotATimelock(_owner);
     }
 
     /// @notice Builds the timelock batch by diffing desired config against live state.
@@ -167,6 +185,11 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
         d.allowedUnderlyings = json.readAddressArray(
             string.concat(".", network, ".allowedUnderlyings")
         );
+        // The first batch is a hard prerequisite: no wrapper can deploy until at
+        // least one underlying is allowed. An empty list would emit adapter/fee
+        // ops but zero setUnderlyingAllowed, seeding a factory that still reverts
+        // UnderlyingNotAllowed on every deploy — fail here rather than after 48h.
+        if (d.allowedUnderlyings.length == 0) revert NoAllowedUnderlyings();
 
         string[FEE_TYPE_COUNT] memory names = [
             "performance",
@@ -174,6 +197,12 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
             "deposit",
             "withdrawal"
         ];
+        // Per-fee-type bps caps mirrored from LiFiVaultWrapperFactory's immutables
+        // (performance 50% / management 10% / deposit 20% / withdrawal 20%). The
+        // factory exposes no getter for them, so validate here: a value within the
+        // generic 100% denominator but above its type cap would pass this pre-flight
+        // yet revert InvalidFeeBounds on-chain only after the 48h delay.
+        uint16[FEE_TYPE_COUNT] memory caps = [uint16(5000), 1000, 2000, 2000];
         for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
             string memory base = string.concat(
                 ".",
@@ -184,8 +213,8 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
             uint256 minBps = json.readUint(string.concat(base, ".minBps"));
             uint256 maxBps = json.readUint(string.concat(base, ".maxBps"));
             if (minBps > maxBps) revert FeeBoundsOrder(minBps, maxBps);
-            d.feeMinBps[i] = checkBps(minBps, BPS_DENOMINATOR);
-            d.feeMaxBps[i] = checkBps(maxBps, BPS_DENOMINATOR);
+            d.feeMinBps[i] = checkBps(minBps, caps[i]);
+            d.feeMaxBps[i] = checkBps(maxBps, caps[i]);
         }
     }
 
