@@ -28,19 +28,15 @@ contract DeployScript is DeployScriptBase {
             string.concat(".hop.", network)
         );
 
-        // tipFeeManager and pathUsd are zero on every chain except Tempo, where they are
-        // precompile addresses (no bytecode); allow both zero and non-contract values.
-        address tipFeeManager = _getConfigContractAddress(
+        // tipFeeManager and pathUsd are non-zero only on Tempo (precompile addresses, no bytecode);
+        // frax.json lists only those networks, so every other chain reads address(0) here.
+        address tipFeeManager = _getOptionalConfigContractAddress(
             path,
-            string.concat(".tipFeeManager.", network),
-            true,
-            true
+            string.concat(".tipFeeManager.", network)
         );
-        address pathUsd = _getConfigContractAddress(
+        address pathUsd = _getOptionalConfigContractAddress(
             path,
-            string.concat(".pathUsd.", network),
-            true,
-            true
+            string.concat(".pathUsd.", network)
         );
 
         return abi.encode(IFraxHopV2(hop), tipFeeManager, pathUsd);

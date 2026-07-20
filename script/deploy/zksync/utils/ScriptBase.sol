@@ -124,4 +124,24 @@ contract ScriptBase is Script, DSTest {
             );
         }
     }
+
+    /// @notice Reads an OPTIONAL config address, defaulting to address(0) when the key is absent.
+    /// @dev Use for parameters whose value is address(0) on almost every chain and non-zero on only
+    ///      a few (e.g. Tempo's tipFeeManager/pathUsd): the config lists only the non-zero networks,
+    ///      and chains omitted from the map deploy with the zero default instead of reverting. A present
+    ///      value is returned as-is with no zero or contract-code check (it may be a precompile address
+    ///      without bytecode). For required addresses use the strict overloads above instead.
+    /// @param path JSON config file path (e.g. root + "/config/frax.json")
+    /// @param key JSON key for the address (e.g. ".tipFeeManager.tempo")
+    /// @return contractAddress The configured address, or address(0) if the key is absent
+    function _getOptionalConfigContractAddress(
+        string memory path,
+        string memory key
+    ) internal returns (address contractAddress) {
+        string memory json = vm.readFile(path);
+
+        if (!json.keyExists(key)) return address(0);
+
+        return json.readAddress(key);
+    }
 }

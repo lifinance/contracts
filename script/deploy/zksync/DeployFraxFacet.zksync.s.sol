@@ -28,17 +28,15 @@ contract DeployScript is DeployScriptBase {
             string.concat(".hop.", network)
         );
 
-        // Tempo (the only chain with non-zero values) is not a zkSync-stack chain, so on every
-        // network deployed through this script tipFeeManager and pathUsd are zero.
-        address tipFeeManager = _getConfigContractAddress(
+        // Tempo (the only chain with non-zero values) is not a zkSync-stack chain, and frax.json
+        // lists only Tempo, so on every network deployed through this script both read address(0).
+        address tipFeeManager = _getOptionalConfigContractAddress(
             path,
-            string.concat(".tipFeeManager.", network),
-            true
+            string.concat(".tipFeeManager.", network)
         );
-        address pathUsd = _getConfigContractAddress(
+        address pathUsd = _getOptionalConfigContractAddress(
             path,
-            string.concat(".pathUsd.", network),
-            true
+            string.concat(".pathUsd.", network)
         );
 
         return abi.encode(IFraxHopV2(hop), tipFeeManager, pathUsd);
