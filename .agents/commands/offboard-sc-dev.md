@@ -58,6 +58,8 @@ Run from the repo root. Confirm and report (don't fix silently):
 
 Nothing on-chain can proceed until the replacement keys exist. The human securely generates the new **deployer, dev, and pauser** keys and their replacement personal signer, and provides the addresses (never the keys, never via `global.json`). Fund the new deployer/dev/pauser enough to broadcast where each rotation needs gas — the individual rotate-* skills sweep the bulk from the old wallets, but the new deployer needs bootstrap gas *before* it can broadcast. Wait for the addresses before continuing.
 
+> **HyperEVM big blocks.** The new **deployer** and **dev** EOAs each need big blocks enabled on `hyperevm` before they can deploy there — an L1, per-address setting that does not carry over on rotation. `rotate-deployer-wallet` and `rotate-dev-wallet` each flag this in their funding phase; follow the runbook: `docs/HyperEVMBigBlocks.md`. (The **pauser** does not deploy, so it is exempt.)
+
 ### Phase 2 — Swap the multisig signer (remove departing, add replacement)
 
 Change the Safe ownership set on every production chain: remove the departing person's personal signer, add the replacement. This is a Safe owner change, so it runs through the production rollout lifecycle:

@@ -1,6 +1,6 @@
 ---
 name: sweep-wallet-funds
-description: Sweeps all native gas from a rotated-OUT SC wallet to the new wallet across every active EVM chain, via `script/tasks/moveNativeFundsToNewWallet.ts` — this is how every wallet rotation funds its replacement. Previews per-network balances first (read-only via `cast balance` — the script itself has no dry-run flag), derives the sender from the private key (never `config/global.json`), shows a human-confirmed pre-sweep report, and reports per-network moved/skipped/failed. Use when the user says "sweep the old wallet", "move the native funds to the new wallet", "drain the rotated-out deployer/dev/pauser to its replacement", or when a `rotate-*` skill needs to fund a new wallet. NOT for funding a brand-new wallet from scratch (out of scope) and NOT for sending gas to an arbitrary recipient — that is `send-deployer-funds` (single-chain, arbitrary address). Only rotates SC-owned wallets (deployer / dev / pauser); never refund / feeCollector / withdraw. Requires Foundry (`cast`), `bun`, and `jq`. EVM sweep only — Tron native is a documented manual step.
+description: Sweeps all native gas from a rotated-OUT SC wallet to the new wallet across every active EVM chain, via `script/tasks/moveNativeFundsToNewWallet.ts` — this is how every wallet rotation funds its replacement. Previews per-network balances first (read-only via `cast balance` — the script itself has no dry-run flag), derives the sender from the private key (never `config/global.json`), shows a human-confirmed pre-sweep report, and reports per-network moved/skipped/failed. Use when the user says "sweep the old wallet", "move the native funds to the new wallet", "drain the rotated-out deployer/dev/pauser to its replacement", or when a `rotate-*` skill needs to fund a new wallet. NOT for funding a brand-new wallet from scratch (out of scope) and NOT for sending gas to an arbitrary recipient — that is `manage-wallet-funds` in `send` mode (single-chain, arbitrary recipient). Only rotates SC-owned wallets (deployer / dev / pauser); never refund / feeCollector / withdraw. Requires Foundry (`cast`), `bun`, and `jq`. EVM sweep only — Tron native is a documented manual step.
 usage: /sweep-wallet-funds --new-address 0xNEW [--old-key-env PRIVATE_KEY_PRODUCTION] [--production] [--check]
 ---
 
@@ -18,8 +18,8 @@ Use when:
 
 Do NOT use when:
 
-- The user wants to **fund a brand-new wallet from scratch** (no old wallet to drain) → out of scope; use `request-dev-funds` (PR to the automate-wallet) or a single `send-deployer-funds`.
-- The user wants gas sent to an **arbitrary recipient** on a **single chain** → that is `send-deployer-funds` (explicit-request-gated, one network/recipient).
+- The user wants to **fund a brand-new wallet from scratch** (no old wallet to drain) → out of scope; use `request-dev-funds` (PR to the automate-wallet) or a single `manage-wallet-funds send`.
+- The user wants gas sent to an **arbitrary recipient** on a **single chain** → that is `manage-wallet-funds` in `send` mode (explicit-confirm-gated, one network/recipient).
 - The target role is **refund / feeCollector / withdraw** → CTO-owned, never rotated by SC tooling (see Guardrails). Stop and say so.
 - The only balance to move is **Tron native** → there is no multi-chain Tron script; handle as the documented manual step below, do not fake an EVM sweep of it.
 
@@ -41,7 +41,7 @@ The **old** (source) wallet is never taken as input — it is derived from the k
 
 - **Custody guard.** Only the SC-owned wallets may be swept as part of a rotation: **deployer, dev, pauser**. NEVER sweep or rotate refund / feeCollector / withdraw (CTO-owned). If the invoking context names one of those, stop and tell the user.
 - **Derive the source, never look it up.** The rotated-out (sender) address is derived from the private key via `cast wallet address`, inside a subshell, never echoed — and never read from `config/global.json` (the key and config can diverge mid-rotation; a wrong source makes a funded wallet look empty). Confirm the derived source matches the role's current on-chain address before sweeping.
-- **Human-confirmed pre-sweep report.** Inherit the `send-deployer-funds` rails: render the per-network report and require explicit human confirmation before any broadcast. An agent must never self-approve. `--check` needs no confirmation (it moves nothing).
+- **Human-confirmed pre-sweep report.** Use the same human-confirm rails as `manage-wallet-funds send`: render the per-network report and require explicit human confirmation before any broadcast. An agent must never self-approve. `--check` needs no confirmation (it moves nothing).
 - **Secrets hygiene.** Never print the private key or a full RPC URL; read keys in a subshell; redact URLs to host or env-var name in any output.
 - **Native swept LAST.** In a full rotation, native gas is the source wallet's ability to broadcast — so the sweep runs only AFTER all other moves that need the old key to sign (ownership transfers, proposal signatures) are done. Sweeping native first strands the old key with no gas to complete those txs. (`moveNativeFundsToNewWallet.ts` sweeps native last within itself; the ordering rule here is about where this skill sits in a rotation.)
 - **Never bypass Safe/timelock.** This skill moves only EOA-held gas; it makes no owner/role/pauser change. Any such on-chain change belongs to `multisig-rollout`.
@@ -111,7 +111,7 @@ bunx tsx script/tasks/moveNativeFundsToNewWallet.ts \
 ## Reuse map
 
 - `script/tasks/moveNativeFundsToNewWallet.ts` — the multi-chain EVM native mover this skill wraps (citty camelCase flags: `--newWalletAddress`, `--privateKeyEnvKey`/`--privateKey`; no dry-run flag).
-- `send-deployer-funds` — the single-chain / arbitrary-recipient sibling whose secrets-hygiene, derive-sender, and human-confirm rails this skill inherits. Use it, not this skill, for a one-off top-up.
+- `manage-wallet-funds` — the single-chain / arbitrary-recipient sibling (`send` mode) with the same secrets-hygiene, derive-sender, and human-confirm rails. Use it, not this skill, for a one-off top-up.
 - `troncast address to-base58` / `troncast send` — Tron address derivation + the manual single-transfer for Tron native (Phase 5).
 - `update-wallet-config` — records the new wallet in `config/global.json` after the rotation (separate PR step).
 - `check-rotation-status` — read-only completeness gate for the overall rotation.

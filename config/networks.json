@@ -590,7 +590,7 @@
     "deployedWithEvmVersion": "cancun",
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xf1469bEc8cDccEC511C0DdAaBa88B63f5841137a",
-    "devNotes": "To switch between smaller blocks (2M max gas limit, fast) and bigger blocks (30m gas limit, slow, for contract deployments, use this FE to toggle: https://hyperevm-block-toggle.vercel.app/"
+    "devNotes": "Dual-block architecture: contract deploys need big blocks (30M gas) instead of small blocks (~2-3M gas). Big blocks are opt-in PER ADDRESS via a gasless L1 action and do NOT carry over on wallet rotation - every new deployer/dev EOA must be enabled individually, and the address must first be a HyperCore Core user (receive USDC/HYPE on the Core/L1 side, NOT on HyperEVM). Full runbook: docs/HyperEVMBigBlocks.md. Toggle FE: https://hyperevm-block-toggle.vercel.app/"
   },
   "immutablezkevm": {
     "name": "immutablezkevm",
@@ -1375,7 +1375,6 @@
     "deployedWithSolcVersion": "0.8.29",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000",
-    "noLegacy": true,
     "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path. Gas is paid in TIP-20 stablecoins (no native asset; eth_getBalance returns a sentinel): the default fee token is pathUSD (feeTokenAddress), and an account can override it via the FeeManager predeploy (feeManagerAddress) userTokens(account). eth_gasPrice is quoted in attodollars (1e18) per gas.",
     "skipHealthcheck": true
   },

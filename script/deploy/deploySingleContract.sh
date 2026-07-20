@@ -96,6 +96,16 @@ deploySingleContract() {
     echo -e "\n\n"
   fi
 
+  # Non-fatal reminder: warn if this facet still refunds source-side value to msg.sender
+  # instead of a caller-supplied refundRecipient (EXSC-622, [CONV:FACET-REFUNDS]). Detection
+  # reads the live facet source, so the reminder disappears automatically once a facet migrates.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local REFUND_REMINDER
+  REFUND_REMINDER=$(bunx tsx script/deploy/resources/facetRefundReminder.ts "$CONTRACT" 2>/dev/null || true)
+  if [[ -n "$REFUND_REMINDER" ]]; then
+    warning "$REFUND_REMINDER"
+  fi
+
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
@@ -249,7 +259,15 @@ deploySingleContract() {
             --foreground 220 --border-foreground 220 --border double \
             --align center --width 50 --margin "1 2" --padding "2 4" \
             'WARNING' "$CONTRACT v$VERSION is already deployed to $NETWORK with the same salt" 'CREATE2 collision will occur'
-          gum confirm "Deploy anyway?" || exit 0
+          if [[ -t 0 ]]; then
+            gum confirm "Deploy anyway?" || exit 0
+          else
+            # a background/CI run cannot answer the prompt; default to the safe
+            # choice (keep the existing deployment) instead of hanging on stdin or
+            # killing the caller's subshell via exit
+            warning "non-interactive run - keeping the existing deployment of $CONTRACT v$VERSION on $NETWORK (same salt, redeploy would collide)"
+            return 0
+          fi
         elif [[ -n "$SAVED_DEPLOYSALT" ]]; then
           echo "[info] ⚠️  $CONTRACT v$VERSION is already deployed to $NETWORK"
           echo "[info] ✅ Using different derived salt ($DEPLOYSALT vs $SAVED_DEPLOYSALT) - safe to deploy to a different address"
@@ -276,15 +294,14 @@ deploySingleContract() {
     # Add network-specific deploy flags from networks.json (customDeployFlags)
     ADDITIONAL_FLAGS=""
     local NETWORKS_JSON="${NETWORKS_JSON_FILE_PATH:-./config/networks.json}"
-    local LEGACY_FLAG="--legacy"
     if [[ -f "$NETWORKS_JSON" ]]; then
       ADDITIONAL_FLAGS=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].customDeployFlags // ""' "$NETWORKS_JSON" 2>/dev/null || true)
-      # noLegacy:true means the chain requires EIP-1559 txs (e.g. AA chains) — omit --legacy
-      local NO_LEGACY
-      NO_LEGACY=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].noLegacy // false' "$NETWORKS_JSON" 2>/dev/null || echo "false")
-      if [[ "$NO_LEGACY" == "true" ]]; then
-        LEGACY_FLAG=""
-      fi
+    fi
+    # EIP-1559-capable chains must not get --legacy (a pinned legacy gasPrice loses
+    # the base-fee race on low-fee L2s); pre-1559 chains still require it.
+    local LEGACY_FLAG="--legacy"
+    if networkSupportsEip1559 "$NETWORK"; then
+      LEGACY_FLAG=""
     fi
     # If customDeployFlags contain --skip-simulation, force skip simulation (override env-based flag)
     if [[ -n "$ADDITIONAL_FLAGS" && "$ADDITIONAL_FLAGS" == *"--skip-simulation"* ]]; then
