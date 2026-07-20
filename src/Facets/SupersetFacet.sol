@@ -100,6 +100,11 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct SupersetData {
         bytes path;
         uint256 amountOutMin;
+        // TODO(EXSC-623): rename to the canonical `refundRecipient` per
+        // [CONV:FACET-REFUNDS]. Deferred so the name-only change rides the next
+        // audited change to this facet rather than forcing a standalone
+        // re-audit (selectors and runtime bytecode are unaffected). Reference
+        // implementation (rename + clear-signing regen + docs/tests): PR #2084.
         address refundAddress;
         address fallbackEoA;
         uint256 deadline;
