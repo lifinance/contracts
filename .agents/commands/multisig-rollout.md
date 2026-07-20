@@ -184,10 +184,10 @@ Top-level:
 
 (whitelist mode: `<N>x whitelist sync — <short PR title>`)
 
-Thread reply (capture `ts` from the top-level; `@smartcontract_core` MUST be the subteam syntax — plain text does not notify):
+Thread reply (capture `ts` from the top-level; `@diamond_multisig_signers` MUST be the subteam syntax — plain text does not notify). Signing pings the multisig-signer group, not the PR-review group `@smartcontract_core` — the signer set includes a non-core member:
 
 ```text
-<!subteam^S096X6MCB0C> please sign/execute :pray:
+<!subteam^S0BKA0JRY0G> please sign/execute :pray:
 
 PR with deployed addresses: <PR URL>
 
