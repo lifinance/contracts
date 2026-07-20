@@ -60,6 +60,18 @@ export async function runHealthCheckForNetwork(
 ): Promise<IHealthCheckNetworkResult> {
   const networkLower = networkStr.toLowerCase()
 
+  // Defensive guard (the CLI validates too): an unsupported value would load the production
+  // deploy log while skipping production-only checks, silently reducing coverage. Fail loud.
+  if (environment !== 'production' && environment !== 'staging')
+    return {
+      network: networkStr,
+      status: 'failed',
+      errors: [
+        `Unsupported environment '${environment}'; expected 'production' or 'staging'`,
+      ],
+      warnings: [],
+    }
+
   // Skip tronshasta testnet but allow tron mainnet.
   if (networkLower === 'tronshasta')
     return {

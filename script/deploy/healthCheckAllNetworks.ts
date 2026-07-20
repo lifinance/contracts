@@ -26,6 +26,8 @@ const PER_NETWORK_TIMEOUT_MS = 5 * 60_000 // 5 minutes
 export interface IHealthCheckResult {
   network: string
   status: 'passed' | 'failed' | 'skipped'
+  /** Count of non-fatal warnings (e.g. reduced coverage); surfaced in the consolidated report. */
+  warnings: number
   /** Trimmed detail when failed/skipped (empty on pass). */
   detail: string
 }
@@ -65,6 +67,8 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
   passed: string[]
   failed: string[]
   skipped: string[]
+  /** Networks that passed/skipped but emitted a non-fatal warning (e.g. reduced coverage). */
+  warned: string[]
 } {
   const byStatus = (status: IHealthCheckResult['status']) =>
     results
@@ -76,6 +80,10 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
     passed: byStatus('passed'),
     failed: byStatus('failed'),
     skipped: byStatus('skipped'),
+    warned: results
+      .filter((r) => r.warnings > 0)
+      .map((r) => r.network)
+      .sort(),
   }
 }
 
@@ -121,28 +129,43 @@ async function runOneNetwork(
         resolve({
           network,
           status: 'failed',
+          warnings: 0,
           detail: `TIMEOUT after ${Math.round(timeoutMs / 1000)}s`,
         }),
       timeoutMs
     )
   })
 
-  const check = runHealthCheckForNetwork(network, environment).then(
-    (result): IHealthCheckResult => ({
-      network,
-      status: result.status,
+  const check = async (): Promise<IHealthCheckResult> => {
+    try {
+      const result = await runHealthCheckForNetwork(network, environment)
+      let detail = ''
       // Keep only the tail so a single network cannot flood the consolidated report.
-      detail:
-        result.status === 'failed'
-          ? result.errors.slice(-5).join('\n')
-          : result.status === 'skipped'
-          ? result.skipReason ?? 'skipped'
-          : '',
-    })
-  )
+      if (result.status === 'failed')
+        detail = result.errors.slice(-5).join('\n')
+      else if (result.status === 'skipped')
+        detail = result.skipReason ?? 'skipped'
+      return {
+        network,
+        status: result.status,
+        warnings: result.warnings.length,
+        detail,
+      }
+    } catch (error: unknown) {
+      // runHealthCheckForNetwork is designed never to throw; guard defensively so a
+      // rejection becomes a failed result rather than rejecting the concurrent job queue.
+      const message = error instanceof Error ? error.message : String(error)
+      return {
+        network,
+        status: 'failed',
+        warnings: 0,
+        detail: `unexpected error: ${message}`,
+      }
+    }
+  }
 
   try {
-    return await Promise.race([check, timeout])
+    return await Promise.race([check(), timeout])
   } finally {
     if (timer) clearTimeout(timer)
   }
@@ -154,6 +177,7 @@ function writeConsolidatedOutput(summary: {
   passed: string[]
   failed: string[]
   skipped: string[]
+  warned: string[]
 }): void {
   if (!process.env.GITHUB_OUTPUT) return
   appendFileSync(
@@ -163,7 +187,9 @@ function writeConsolidatedOutput(summary: {
       `passed_count=${summary.passed.length}`,
       `failed_count=${summary.failed.length}`,
       `skipped_count=${summary.skipped.length}`,
+      `warned_count=${summary.warned.length}`,
       `failed_networks=${summary.failed.join(', ')}`,
+      `warned_networks=${summary.warned.join(', ')}`,
       '',
     ].join('\n')
   )
@@ -226,6 +252,7 @@ const main = defineCommand({
           passed: [],
           failed: [],
           skipped: [],
+          warned: [],
         })
         process.exit(0)
       }
@@ -244,20 +271,30 @@ const main = defineCommand({
       runOneNetwork(network, environment)
     )
 
-    const { total, passed, failed, skipped } = summarizeHealthChecks(results)
+    const { total, passed, failed, skipped, warned } =
+      summarizeHealthChecks(results)
 
     consola.box(
-      `Health check summary: ${passed.length}/${total} passed, ${failed.length} failed, ${skipped.length} skipped`
+      `Health check summary: ${passed.length}/${total} passed, ${failed.length} failed, ${skipped.length} skipped, ${warned.length} warned`
     )
     for (const result of results)
       if (result.status === 'failed')
         consola.error(`${result.network}\n${result.detail}`)
       else if (result.status === 'skipped')
         consola.info(`${result.network} (skipped: ${result.detail})`)
+      else if (result.warnings > 0)
+        consola.warn(
+          `${result.network} (passed with ${result.warnings} warning(s))`
+        )
       else consola.success(result.network)
 
+    if (warned.length > 0)
+      consola.warn(
+        `Networks with warnings (reduced coverage): ${warned.join(', ')}`
+      )
+
     // Publish a consolidated result for the workflow's Slack step.
-    writeConsolidatedOutput({ total, passed, failed, skipped })
+    writeConsolidatedOutput({ total, passed, failed, skipped, warned })
 
     if (failed.length > 0) {
       consola.error(`Health check failed on: ${failed.join(', ')}`)

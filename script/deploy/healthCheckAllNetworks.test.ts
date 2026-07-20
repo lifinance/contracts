@@ -63,25 +63,28 @@ describe('deploymentPathsToNetworks', () => {
 })
 
 describe('summarizeHealthChecks', () => {
-  it('splits passed / failed / skipped and counts the total', () => {
+  it('splits passed / failed / skipped / warned and counts the total', () => {
     const summary = summarizeHealthChecks([
-      { network: 'polygon', status: 'passed', detail: '' },
-      { network: 'optimism', status: 'failed', detail: 'boom' },
-      { network: 'arbitrum', status: 'passed', detail: '' },
-      { network: 'tron', status: 'skipped', detail: 'skipHealthcheck' },
+      { network: 'polygon', status: 'passed', warnings: 0, detail: '' },
+      { network: 'optimism', status: 'failed', warnings: 0, detail: 'boom' },
+      { network: 'arbitrum', status: 'passed', warnings: 2, detail: '' },
+      { network: 'tron', status: 'skipped', warnings: 0, detail: 'skipHc' },
     ])
     expect(summary.total).toBe(4)
     expect(summary.passed).toEqual(['arbitrum', 'polygon'])
     expect(summary.failed).toEqual(['optimism'])
     expect(summary.skipped).toEqual(['tron'])
+    // A passed-but-warned network is surfaced so reduced coverage isn't invisible.
+    expect(summary.warned).toEqual(['arbitrum'])
   })
 
   it('handles the all-passed case', () => {
     const summary = summarizeHealthChecks([
-      { network: 'polygon', status: 'passed', detail: '' },
+      { network: 'polygon', status: 'passed', warnings: 0, detail: '' },
     ])
     expect(summary.failed).toEqual([])
     expect(summary.passed).toEqual(['polygon'])
+    expect(summary.warned).toEqual([])
   })
 
   it('handles the empty case', () => {
@@ -91,6 +94,7 @@ describe('summarizeHealthChecks', () => {
       passed: [],
       failed: [],
       skipped: [],
+      warned: [],
     })
   })
 })

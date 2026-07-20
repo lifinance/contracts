@@ -138,7 +138,9 @@ jobs:
           PASSED_COUNT: ${{ steps.healthcheck.outputs.passed_count }}
           FAILED_COUNT: ${{ steps.healthcheck.outputs.failed_count }}
           SKIPPED_COUNT: ${{ steps.healthcheck.outputs.skipped_count }}
+          WARNED_COUNT: ${{ steps.healthcheck.outputs.warned_count }}
           FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
+          WARNED_NETWORKS: ${{ steps.healthcheck.outputs.warned_networks }}
         run: |
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
           # the run overview if the jobs API can't be read.
@@ -151,13 +153,20 @@ jobs:
           fi
           RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
 
+          # A warning line (reduced coverage etc.) is appended on a passing run so it is visible
+          # in the consolidated report rather than buried in a single network's logs.
+          WARN_LINE=""
+          if [[ "${WARNED_COUNT:-0}" != "0" ]]; then
+            WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings: %s' \
+              "${WARNED_COUNT}" "${WARNED_NETWORKS:-?}")
+          fi
           if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then
             HEADER=":white_check_mark: *Diamond health check — ${PASSED_COUNT:-?}/${TOTAL:-?} networks passed (${SKIPPED_COUNT:-0} skipped)*"
-            BODY="<${RUN_URL}|View workflow run>"
+            BODY="<${RUN_URL}|View workflow run>${WARN_LINE}"
           else
             HEADER=":rotating_light: *Diamond health check — ACTION NEEDED*"
-            BODY=$(printf '%s of %s network(s) failed: %s\n<%s|View workflow run>' \
-              "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}" "$RUN_URL")
+            BODY=$(printf '%s of %s network(s) failed: %s\n<%s|View workflow run>%s' \
+              "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}" "$RUN_URL" "$WARN_LINE")
           fi
           TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
           {
