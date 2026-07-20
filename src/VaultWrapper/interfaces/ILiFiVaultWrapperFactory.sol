@@ -127,4 +127,6 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
     error FeeRateAboveCap();
+    /// @notice Thrown when ownership renunciation is attempted (disabled).
+    error RenounceDisabled();
 }

@@ -99,6 +99,25 @@ contract VaultWrapperDeployScriptsTest is Test {
         deployScript.deploySystem(_config(address(0)), deployerPk, "other");
     }
 
+    function testRevert_DeploySystemWiringMismatchOnStaleRedeploy() public {
+        // Re-running under the same salt after changing a role resolves the STALE
+        // factory (CREATE3 salt excludes constructor args), so _verifyWiring must
+        // catch that the live wiring no longer matches the corrected config.
+        DeployLiFiVaultWrapperFactory.DeployConfig memory changed = _config(
+            multisig
+        );
+        changed.emergencyPauser = makeAddr("newPauser");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployLiFiVaultWrapperFactory.WiringMismatch.selector,
+                "factory.emergencyPauser"
+            )
+        );
+
+        deployScript.deploySystem(changed, deployerPk, "vw-test");
+    }
+
     function test_ConfigBatch_SchedulesAndApplies() public {
         UpdateVaultWrapperConfig.Batch memory batch = configScript.buildBatch(
             factory,

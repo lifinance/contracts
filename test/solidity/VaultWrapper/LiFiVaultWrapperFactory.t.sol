@@ -166,6 +166,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setOnboardingManager(address(0));
     }
 
+    function testRevert_RenounceOwnershipDisabled() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.RenounceDisabled.selector);
+        factory.renounceOwnership();
+
+        assertEq(factory.owner(), owner);
+    }
+
     function test_OwnerSetsFeeBounds() public {
         vm.prank(owner);
         factory.setFeeBounds(FeeType.Performance, 100, 4000);

@@ -197,6 +197,15 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
         emit RoleRotated(ROLE_ONBOARDING_MANAGER, prev, _newManager);
     }
 
+    /// @notice Disabled: factory ownership cannot be renounced.
+    /// @dev Leaving the factory ownerless would freeze every onlyOwner setter (adapter
+    ///      approval, allowlist, fee bounds, split, role rotation). Ownership moves via
+    ///      Ownable2Step `transferOwnership`/`acceptOwnership`; `renounceOwnership` is the
+    ///      only inherited path to `owner == address(0)` and is overridden to always revert.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
+    }
+
     /// Integrator onboarding (onboarding manager) ///
 
     /// @notice Assign or revoke the deployer authorized to deploy under a namespace.
