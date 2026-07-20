@@ -189,7 +189,12 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
             bytes32("Just some address"),
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
-            hex"00"
+            hex"00",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER
         );
 
         bytes memory callData = abi.encodeWithSelector(
@@ -216,7 +221,12 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
             bytes32("Just some address"),
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
-            hex"00"
+            hex"00",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER
         );
 
         bytes memory callData = abi.encodeWithSelector(
@@ -237,7 +247,12 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         MayanFacet.MayanData memory mayanData = MayanFacet.MayanData(
             bytes32("Just some address"),
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
-            hex"00"
+            hex"00",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER
         );
 
         bytes memory callData = abi.encodeWithSelector(
