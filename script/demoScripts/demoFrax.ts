@@ -28,6 +28,13 @@
  *
  * Run:  bunx tsx script/demoScripts/demoFrax.ts --route arbitrum-fraxtal
  *       bunx tsx script/demoScripts/demoFrax.ts --route both
+ *
+ * Verified on arbitrum staging (2026-07-20): bridged 5 frxUSD arbitrum -> fraxtal
+ * via FraxFacet 0x3B76d15Eb68a7a0E09b86D9aee3c49fD006cdFB2 on the staging diamond
+ * 0xD3b2b0aC0AFdd0d166a495f5E9fca4eCc715a782. tx (status success, diamond retained
+ * 0 frxUSD / 0 ETH):
+ *   0x5ae967084601bb16779fb3232affbd5d2569517beb26f894436136bac440b2ef
+ *   LayerZero delivery: https://layerzeroscan.com/tx/0x5ae967084601bb16779fb3232affbd5d2569517beb26f894436136bac440b2ef
  */
 import { randomBytes } from 'crypto'
 import fs from 'fs'
