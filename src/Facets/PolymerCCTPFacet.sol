@@ -86,6 +86,9 @@ contract PolymerCCTPFacet is
         // Should only be nonzero if submitting to a nonEVM chain
         bytes32 nonEVMReceiver;
         // For Solana: the receiver's Associated Token Account (ATA) for USDC
+        // TODO: temporary param — the backend currently passes the receiver address here as a
+        // fixture. Update the facet to derive/handle the ATA on-chain so this field can be removed.
+        // https://linear.app/lifi-linear/issue/EXSC-662/sc-polymer-update-cctp-facet-to-remove-solanareceiverata-param
         bytes32 solanaReceiverATA;
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
