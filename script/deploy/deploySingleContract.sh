@@ -100,6 +100,7 @@ deploySingleContract() {
   # instead of a caller-supplied refundRecipient (EXSC-622, [CONV:FACET-REFUNDS]). Detection
   # reads the live facet source, so the reminder disappears automatically once a facet migrates.
   # Best-effort only - any failure here must never interrupt the deployment.
+  local REFUND_REMINDER
   REFUND_REMINDER=$(bunx tsx script/deploy/resources/facetRefundReminder.ts "$CONTRACT" 2>/dev/null || true)
   if [[ -n "$REFUND_REMINDER" ]]; then
     warning "$REFUND_REMINDER"
