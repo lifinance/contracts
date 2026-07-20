@@ -139,7 +139,7 @@ contract SupersetFacetTest is TestBaseFacet {
     // Destination LayerZero EID for Unichain (used end-to-end by demoSuperset).
     uint32 internal constant TO_EID = 30320;
     // Generous native budget; spoke quotes a smaller amount from EndpointV2.quote()
-    // and refunds the excess via `refundAddress`.
+    // and refunds the excess via `refundRecipient`.
     uint256 internal constant LZ_FEE = 0.005 ether;
 
     TestSupersetFacet internal supersetFacet;
@@ -221,7 +221,7 @@ contract SupersetFacetTest is TestBaseFacet {
                 bytes32(uint256(3))
             ),
             amountOutMin: 1,
-            refundAddress: USER_SENDER,
+            refundRecipient: USER_SENDER,
             // Pure EOA (no code on Base); spoke's SwapDelivery enforces this.
             fallbackEoA: 0x34E7db45783b50F4e7764258d0Dc0400c3539A57,
             deadline: block.timestamp + 1 hours,
@@ -502,11 +502,11 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
-    function testRevert_RefundAddressIsZero() public {
+    function testRevert_RefundRecipientIsZero() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
         bridgeData.minAmount = defaultUSDCAmount;
-        validSupersetData.refundAddress = address(0);
+        validSupersetData.refundRecipient = address(0);
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -528,11 +528,11 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
-    function test_RefundsExcessNativeToRefundAddress() public {
+    function test_RefundsExcessNativeToRefundRecipient() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
         bridgeData.minAmount = defaultUSDCAmount;
-        validSupersetData.refundAddress = USER_REFUND;
+        validSupersetData.refundRecipient = USER_REFUND;
 
         uint256 refundBalanceBefore = USER_REFUND.balance;
         uint256 excess = 0.01 ether;
@@ -686,7 +686,7 @@ contract SupersetFacetTest is TestBaseFacet {
                 swapOutputDAI,
                 expectedAmountOutMin,
                 bridgeData.receiver,
-                spokeData.refundAddress,
+                spokeData.refundRecipient,
                 spokeData.fallbackEoA,
                 spokeData.deadline,
                 spokeData.toEid,

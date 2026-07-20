@@ -24,7 +24,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 ///         is selected by `IS_HUB`, derived once at construction time from
 ///         `block.chainid`.
 ///         Native source asset is not supported because Superset does not support it.
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Constants ///
 
@@ -80,14 +80,14 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ///        `99 * 110 / 100 = 108.9 USDC` instead of the static 99 from the quote.
     ///        Must be non-zero: a zero floor disables the pool manager's slippage
     ///        check and is never a legitimate quote.
-    /// @param refundAddress Source-chain address that receives source-side excess native
+    /// @param refundRecipient Source-chain address that receives source-side excess native
     ///        and any swap leftovers from `swapAndStartBridgeTokensViaSuperset`. On a
     ///        spoke origin Superset also forwards `amountIn` here if the hub rejects the
     ///        swap (async failure). On a hub origin there is no async failure path, so
     ///        Superset itself ignores this field — but the facet still requires it to be
     ///        non-zero because the local refund sink is the same on both branches.
     /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
-    ///        `refundAddress` fails. Superset validates this is a pure EOA on the source;
+    ///        `refundRecipient` fails. Superset validates this is a pure EOA on the source;
     ///        we double-check on the facet for a cheaper revert. EIP-7702 delegated EOAs
     ///        are rejected (the 23-byte delegation designator counts as `code`).
     /// @param deadline Unix timestamp after which the hub will reject the request.
@@ -100,7 +100,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     struct SupersetData {
         bytes path;
         uint256 amountOutMin;
-        address refundAddress;
+        address refundRecipient;
         address fallbackEoA;
         uint256 deadline;
         uint32 toEid;
@@ -208,7 +208,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(_supersetData.refundAddress))
+        refundExcessNative(payable(_supersetData.refundRecipient))
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
@@ -240,7 +240,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(_supersetData.refundAddress))
+        refundExcessNative(payable(_supersetData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
@@ -267,7 +267,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(_supersetData.refundAddress),
+            payable(_supersetData.refundRecipient),
             _supersetData.lzFee
         );
 
@@ -328,9 +328,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidConfig();
         }
 
-        // refundAddress also receives source-side excess native and swap leftovers,
+        // refundRecipient also receives source-side excess native and swap leftovers,
         // so it must be set even on the hub branch where Superset itself ignores it.
-        if (_supersetData.refundAddress == address(0)) {
+        if (_supersetData.refundRecipient == address(0)) {
             revert InvalidConfig();
         }
 
@@ -393,7 +393,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _amountIn: _bridgeData.minAmount,
                 _amountOutMin: _supersetData.amountOutMin,
                 _recipient: _bridgeData.receiver,
-                _refundAddress: _supersetData.refundAddress,
+                _refundAddress: _supersetData.refundRecipient,
                 _fallbackEoA: _supersetData.fallbackEoA,
                 _deadline: _supersetData.deadline,
                 _toEid: _supersetData.toEid,

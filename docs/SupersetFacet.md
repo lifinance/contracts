@@ -64,10 +64,10 @@ specific to Superset and is represented as the following struct type:
 ///        `swapAndStartBridgeTokensViaSuperset` the facet scales it post-swap to
 ///        preserve the backend's percentage slippage budget — see "Positive
 ///        Slippage Handling" below.
-/// @param refundAddress Address that receives `amountIn` on the source spoke if the
+/// @param refundRecipient Address that receives `amountIn` on the source spoke if the
 ///        swap fails.
 /// @param fallbackEoA Pure EOA fall-through if delivery to `bridgeData.receiver` or
-///        `refundAddress` fails on either chain. Must satisfy `code.length == 0`.
+///        `refundRecipient` fails on either chain. Must satisfy `code.length == 0`.
 /// @param deadline Unix timestamp after which the hub will reject the request.
 /// @param toEid LayerZero endpoint ID of the destination spoke chain.
 /// @param options LayerZero executor options for the source → hub request.
@@ -76,7 +76,7 @@ specific to Superset and is represented as the following struct type:
 struct SupersetData {
     bytes path;
     uint256 amountOutMin;
-    address refundAddress;
+    address refundRecipient;
     address fallbackEoA;
     uint256 deadline;
     uint32 toEid;
@@ -91,10 +91,10 @@ On Arbitrum it points to `HubPoolManager`; on Base/Unichain it points to
 `SpokePoolManager`. The facet picks the right ABI via its `IS_HUB` immutable.
 
 On the hub branch, Superset itself ignores `SupersetData.options` (no source →
-hub LZ leg) and does not consume `SupersetData.refundAddress` (no async failure
-refund). The facet, however, still uses `refundAddress` as the local sink for
+hub LZ leg) and does not consume `SupersetData.refundRecipient` (no async failure
+refund). The facet, however, still uses `refundRecipient` as the local sink for
 excess native and source-side swap leftovers, so it is validated to be non-zero
-on every path. Backends must supply a non-zero `refundAddress` for both hub and
+on every path. Backends must supply a non-zero `refundRecipient` for both hub and
 spoke origins; `options` may be left as `""` for hub-origin quotes.
 
 ## Input Token Binding
@@ -143,9 +143,9 @@ Superset's `PoolManagerMessagingQuoter` and surfaced by the LI.FI backend.
 Because `lzFee` is a LayerZero quote that drifts with gas price between quote
 and execution, the backend overpays `msg.value` on essentially every call, so a
 refund is the normal case. The facet refunds excess native — and any source-side
-swap leftovers — to `SupersetData.refundAddress` (not `msg.sender`), so refunds
+swap leftovers — to `SupersetData.refundRecipient` (not `msg.sender`), so refunds
 reach the user even when the call is routed through `Permit2Proxy` (whose
-`msg.sender` would otherwise strand the funds in the proxy). `refundAddress` must
+`msg.sender` would otherwise strand the funds in the proxy). `refundRecipient` must
 be non-zero. This deviates from facets like `AcrossFacetV4` that refund to
 `msg.sender`; it is intentional given the structural overpayment above.
 
@@ -185,11 +185,11 @@ Both fields are absolute token amounts in their native decimals — there is no 
 If the hub rejects the swap (slippage, deadline, insufficient destination pot,
 out-of-gas at hub, etc.), the failure response travels back to the source
 spoke, which transfers `amountIn` of the input token to
-`SupersetData.refundAddress`. This is asynchronous — typical end-to-end
+`SupersetData.refundRecipient`. This is asynchronous — typical end-to-end
 latency for both success and failure is 2–6 minutes.
 
 The success path delivers output tokens to `bridgeData.receiver` on the
-destination spoke. Both `refundAddress` and `receiver` must be addresses the
+destination spoke. Both `refundRecipient` and `receiver` must be addresses the
 end user can recover funds from; smart-wallet users should consider their
 recovery path before bridging.
 

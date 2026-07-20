@@ -83,7 +83,7 @@ interface IScenarioConfig {
 
 const SHARED = {
   receiver: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
-  refundAddress: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
+  refundRecipient: '0x85A8F3cf6d255BD497Bd1Dd83a338Cce0B14C3B3' as Address,
   fallbackEoA: '0x34E7db45783b50F4e7764258d0Dc0400c3539A57' as Address,
   deadlineSeconds: 1800, // 30 minutes
 }
@@ -229,7 +229,7 @@ const cli = defineCommand({
     const supersetData: SupersetFacet.SupersetDataStruct = {
       path: scenario.superset.omniPath,
       amountOutMin: scenario.superset.amountOutMin,
-      refundAddress: getAddress(SHARED.refundAddress),
+      refundRecipient: getAddress(SHARED.refundRecipient),
       fallbackEoA: getAddress(SHARED.fallbackEoA),
       deadline: BigInt(Math.floor(Date.now() / 1000) + SHARED.deadlineSeconds),
       toEid: scenario.superset.toEid,
