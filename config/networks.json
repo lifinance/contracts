@@ -15,7 +15,7 @@
     "safeAddress": "0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357",
     "gasZipChainId": 255,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "0g": {
@@ -71,7 +71,7 @@
     "safeAddress": "0x18FA92415EA566828b4A5191B4cC7B73e4230059",
     "gasZipChainId": 296,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "arbitrum": {
@@ -90,7 +90,7 @@
     "safeAddress": "0x743b11478D69C18693F41f25051a10DD4D1a6F39",
     "gasZipChainId": 57,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "arbitrumnova": {
@@ -128,7 +128,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B"
   },
   "arctestnet": {
@@ -189,7 +189,7 @@
     "safeAddress": "0x5CC4321e1fd413Db3Ac7EBB3097c1DF7878e0D17",
     "gasZipChainId": 15,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "base": {
@@ -208,7 +208,7 @@
     "safeAddress": "0x01Cf79E397376F8143C2c0b0592dA62B5e294FcB",
     "gasZipChainId": 54,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "basesepolia": {
@@ -227,7 +227,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B"
   },
   "berachain": {
@@ -265,7 +265,7 @@
     "safeAddress": "0x79D2DcfBf45120F06C42c34ee191f31A541bdF64",
     "gasZipChainId": 96,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "bob": {
@@ -305,7 +305,7 @@
     "safeAddress": "0x9276717Fd35b958922058B9B8A6DCe8679158950",
     "gasZipChainId": 140,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "botanix": {
@@ -324,7 +324,7 @@
     "safeAddress": "0x68feA7dc931B1de6F251Cb5F5A9798192E533e53",
     "gasZipChainId": 496,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "customVerificationFlags": {
       "-e": "verifyContract"
@@ -346,7 +346,7 @@
     "safeAddress": "0x2C4C366da2bE1977C2CDBbA647BC1885689C7BAa",
     "gasZipChainId": 14,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "celo": {
@@ -365,7 +365,7 @@
     "safeAddress": "0xE08c67C51D42024D1AF30a62289e429194fb3963",
     "gasZipChainId": 21,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "cronos": {
@@ -384,7 +384,7 @@
     "safeAddress": "0x10E01f4c7810384BD3170E2756320cF8B229a8C4",
     "gasZipChainId": 36,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "etherlink": {
@@ -403,7 +403,7 @@
     "safeAddress": "0x51ACbaCaf52488328f6c5B277238143645CA4f71",
     "gasZipChainId": 346,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148"
   },
   "flare": {
@@ -422,7 +422,7 @@
     "safeAddress": "0x2d77baaE0E6182aE22c677ea27E37F67A9881696",
     "gasZipChainId": 38,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "flow": {
@@ -460,7 +460,7 @@
     "safeAddress": "0x5eA89Fd36DA26B6514de42AC7BFE0E650942e048",
     "gasZipChainId": 10,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "fuse": {
@@ -479,7 +479,7 @@
     "safeAddress": "0x1289d28f5aACe12c5121f8f8597F16b25E29FEE4",
     "gasZipChainId": 31,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gnosis": {
@@ -498,7 +498,7 @@
     "safeAddress": "0x2deA87C92aAB9257409987A019be44ea9e774226",
     "gasZipChainId": 16,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gravity": {
@@ -517,7 +517,7 @@
     "safeAddress": "0x7F9fc7c740F499E4c79cc4dD1883b3D69025CB42",
     "gasZipChainId": 240,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "hemi": {
@@ -579,7 +579,7 @@
     "safeAddress": "0x96D3525fa4674ACEBB7B7472D3e6602b4359EfF6",
     "gasZipChainId": 95,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "ink": {
@@ -637,7 +637,7 @@
     "safeAddress": "0x769Afd93e5aB48dF5f6b7f298c246a9d58f1cc68",
     "gasZipChainId": 33,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9",
     "devNotes": "Verification seems to fail but contracts are sometimes still verified. For deployments, it sometimes help to set GAS_ESTIMATE_MULTIPLIER in .env to 200 or higher"
   },
@@ -696,7 +696,7 @@
     "safeAddress": "0xe131756d0036EE1c19D42548779C28A1E39633cF",
     "gasZipChainId": 59,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "lisk": {
@@ -715,7 +715,7 @@
     "safeAddress": "0x5092977581B9b2a816f30eaaAe927A5EF066Cf78",
     "gasZipChainId": 238,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "mantle": {
@@ -734,7 +734,7 @@
     "safeAddress": "0x3Fe04EA66e010613943e507723dbC7A205CEC23C",
     "gasZipChainId": 13,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
     "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london"
   },
@@ -775,7 +775,7 @@
     "safeAddress": "0x1f1b30aD821634FEdCFFf90450faE05663Fd2E07",
     "gasZipChainId": 30,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785",
     "customVerificationFlags": {
       "-e": "verifyContract"
@@ -797,7 +797,7 @@
     "safeAddress": "0x031f25F640E0530a51F5617757B281A8Df5614ee",
     "gasZipChainId": 73,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "monad": {
@@ -836,7 +836,7 @@
     "safeAddress": "0x0DD1D3A856Ee83657c5540881cb4394A635443Da",
     "gasZipChainId": 28,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "morph": {
@@ -894,7 +894,7 @@
     "safeAddress": "0xDd6e4Eb5399dDdE78881EfA00D3554D12Cb3402b",
     "gasZipChainId": 55,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "opbnb": {
@@ -913,7 +913,7 @@
     "safeAddress": "0x1F397f54C92923C339c4Ea486084Ec6C9d6877f7",
     "gasZipChainId": 58,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "optimismsepolia": {
@@ -932,7 +932,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x0646828A29Cc814454eD97b7b89c9B72D03Ac167"
   },
   "pharos": {
@@ -951,7 +951,7 @@
     "safeAddress": "0x6E95989d7203434950Cc3DDa006dc24dDC927Cf7",
     "gasZipChainId": 522,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
   },
   "plasma": {
@@ -1011,7 +1011,7 @@
     "safeAddress": "0x5beFc110D47851531FBDbF23B029Cc691A8091e0",
     "gasZipChainId": 17,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "robinhood": {
@@ -1072,7 +1072,7 @@
     "safeAddress": "0xeb911914097339AC513af1Cc19E7CdB875832E75",
     "gasZipChainId": 254,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "scroll": {
@@ -1091,7 +1091,7 @@
     "safeAddress": "0x6A9E30fA905d601FAb813FF85af8C1FAbF21B240",
     "gasZipChainId": 41,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "sei": {
@@ -1110,7 +1110,7 @@
     "safeAddress": "0xcB9D5a9C740d856A13221A882B3A3e975ADD2606",
     "gasZipChainId": 246,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "somnia": {
@@ -1169,7 +1169,7 @@
     "safeAddress": "0x3A000532658eEA550679DbF97Db333A9763BCa19",
     "gasZipChainId": 389,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "sophon": {
@@ -1346,7 +1346,7 @@
     "safeAddress": "0x56161929c47dc6112Ad77FB39d88Fd55FC4fb25c",
     "gasZipChainId": 488,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "viction": {
@@ -1385,7 +1385,7 @@
     "safeAddress": "0x7a80F608552a100f80559919e6f1a5c491c2bB9a",
     "gasZipChainId": 269,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "xdc": {
@@ -1404,7 +1404,7 @@
     "safeAddress": "0x57A9316866f1256c7008295aCa7C79D96DFC209c",
     "gasZipChainId": 420,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
   "xlayer": {
@@ -1423,7 +1423,7 @@
     "safeAddress": "0x6dCD96462FA2aEBf8Ddc6c65713c094217aCBb05",
     "gasZipChainId": 146,
     "isZkEVM": false,
-    "targetEvmVersion": "london",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "tron": {
