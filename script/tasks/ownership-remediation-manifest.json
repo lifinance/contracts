@@ -1,0 +1,455 @@
+{
+  "refundWallet": "0x156CeBba59DEB2cB23742F70dCb0a11cC775591F",
+  "transferOwnershipCalldata": "0xf2fde38b000000000000000000000000156cebba59deb2cb23742f70dcb0a11cc775591f",
+  "confirmOwnershipTransferCalldata": "0x7200b829",
+  "evmTwoStep": [
+    {
+      "network": "mainnet",
+      "erc20Proxy": "0x68E1Acfa805dcA813116Ed6507E01c38D44318f0",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "0g",
+      "erc20Proxy": "0x5DAf14730DdD0F102D6A826c11677efba090D7d7",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "abstract",
+      "erc20Proxy": "0x3C2b4f5916AFe9b9e7cA8F5944e776a713035e01",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "apechain",
+      "erc20Proxy": "0xDF28E193B15A366308fEdA4dA0D52855dC1fB5dF",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "arbitrumnova",
+      "erc20Proxy": "0x27139fC566d78e743Fb8B0E845069676DaA94aEd",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "berachain",
+      "erc20Proxy": "0x988764Fd9F705163c530388b42dD7181edA3F502",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "bob",
+      "erc20Proxy": "0xb1E9A462Bc38f62855662962c92Bf5C8aB67D699",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "botanix",
+      "erc20Proxy": "0xe5b95953a5769cB88595F66dfa3BA49b74cD2a79",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "etherlink",
+      "erc20Proxy": "0xDD103B009341a6eAE5fBb4667722Bf08B5b2afd1",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "flare",
+      "erc20Proxy": "0x82a00cB7D1FB1e1ad4ec2F344Bd1Ad2eAB338B73",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "flow",
+      "erc20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "hemi",
+      "erc20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "hyperevm",
+      "erc20Proxy": "0x3E8EDF9CC2591a7dB1A36DBB73A10d8746368D61",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "ink",
+      "erc20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "jovay",
+      "erc20Proxy": "0x6779c514999667B371d70844BAe96Cf782A3c54f",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "katana",
+      "erc20Proxy": "0xd45f6CaE2838A06D99C0Aceec201E7bd2003d567",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "lens",
+      "erc20Proxy": "0x6C251afA2ca69b53BF4588B63f2820a91672A6D3",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "megaeth",
+      "erc20Proxy": "0x6779c514999667B371d70844BAe96Cf782A3c54f",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "monad",
+      "erc20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "morph",
+      "erc20Proxy": "0x1763A91609e4cad6c67148cC855B0aDa9b787b5F",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "nibiru",
+      "erc20Proxy": "0x7C25598d46593854904ec28c22A74a5C1d7f0c2A",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "optimism",
+      "erc20Proxy": "0x314bE5fcf0A204837896e6028C47A9e1FC2919c7",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "pharos",
+      "erc20Proxy": "0x27139fC566d78e743Fb8B0E845069676DaA94aEd",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "plasma",
+      "erc20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "plume",
+      "erc20Proxy": "0xEb68ad34Af6150f840Bbc8d32E1cC09719Df9327",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "ronin",
+      "erc20Proxy": "0x38a7A06fEC3cA47105741605b3f52bbfeF5c9243",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "somnia",
+      "erc20Proxy": "0xE58c2CC78bA787bB8a549435bE6D31Ef92c150EF",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "soneium",
+      "erc20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "sophon",
+      "erc20Proxy": "0xEA6b5CDE78470740cdA435466EE38897225Bf7E8",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "stable",
+      "erc20Proxy": "0x6779c514999667B371d70844BAe96Cf782A3c54f",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "superposition",
+      "erc20Proxy": "0xC844DD1a2e26daD6FCb7AAb1Fe657ca14d139393",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "swellchain",
+      "erc20Proxy": "0xe670b3E309b8C867Df2559237884b4548cF69a41",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "telos",
+      "erc20Proxy": "0x7fa91e1F381Bc9000fD6D182c834137c9558E035",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "tempo",
+      "erc20Proxy": "0xB73D8c580b7fa3B583B2ADa5e106aD42220183C0",
+      "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3"
+    },
+    {
+      "network": "unichain",
+      "erc20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "vana",
+      "erc20Proxy": "0xF230cE59a3e7E026990c052b9c9416e8B707965C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "viction",
+      "erc20Proxy": "0x82a00cB7D1FB1e1ad4ec2F344Bd1Ad2eAB338B73",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    },
+    {
+      "network": "xdc",
+      "erc20Proxy": "0x7C25598d46593854904ec28c22A74a5C1d7f0c2A",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2"
+    }
+  ],
+  "evmSingleStep": [
+    {
+      "network": "base",
+      "erc20Proxy": "0x74a55CaDb12501A3707E9F3C5dfd8b563C6A5940",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "blast",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "celo",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "cronos",
+      "erc20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "fraxtal",
+      "erc20Proxy": "0xEd170C587Ccb4DaD6986798c8E7cC66fBb564AC5",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "gravity",
+      "erc20Proxy": "0x4307ca7Eca98daF86D4f65b4367B273C628A39B7",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "kaia",
+      "erc20Proxy": "0x6bb99Db9a03fa178F4F74F3A76204a4E9F9fD843",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "linea",
+      "erc20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "lisk",
+      "erc20Proxy": "0x98750e70Cf1313D9702f0f57D399DD0bA05d16E0",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "mantle",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "metis",
+      "erc20Proxy": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "mode",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "opbnb",
+      "erc20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "rootstock",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "scroll",
+      "erc20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "sei",
+      "erc20Proxy": "0xEd170C587Ccb4DaD6986798c8E7cC66fBb564AC5",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "sonic",
+      "erc20Proxy": "0x55A5cE71307Ec425F0E533400A0bcEb136e6E800",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "taiko",
+      "erc20Proxy": "0x6bC43F95C5234aA749D18403753d60B91f972d3c",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "worldchain",
+      "erc20Proxy": "0x98750e70Cf1313D9702f0f57D399DD0bA05d16E0",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "xlayer",
+      "erc20Proxy": "0x32f9EBAEA88bfE6b965108A2315AC2bE6253cC82",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "zksync",
+      "erc20Proxy": "0x8E1cf39Df64D9DCAdA7831d90CC852e02663410a",
+      "currentOwner": "0x11F1022cA6AdEF6400e5677528a80d49a069C00c",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V2",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "avalanche",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "boba",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "bsc",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "fuse",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "gnosis",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "immutablezkevm",
+      "erc20Proxy": "0xB59Cb9E4087c841577ACE23B0168CCDdf9450290",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "polygon",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "arbitrum",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    },
+    {
+      "network": "moonbeam",
+      "erc20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
+      "currentOwner": "0x11F11121DF7256C40339393b0FB045321022ce44",
+      "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V1",
+      "note": "OZ Ownable single-step: transferOwnership finalises IMMEDIATELY, no step-2, IRREVERSIBLE"
+    }
+  ],
+  "tron": {
+    "network": "tron",
+    "erc20Proxy": "TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9",
+    "currentOwner": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+    "signerKey": "PRIVATE_KEY_PRODUCTION_OLD_V3",
+    "refundWalletTron": "TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD",
+    "note": "two-step via troncast/TronWeb, separate stream"
+  }
+}
