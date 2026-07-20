@@ -1,0 +1,94 @@
+# Health-Check Invariants Reminder
+# - Non-blocking nudge: reminds authors to consider a health-check invariant update when a
+#   PR changes facets/periphery but leaves script/deploy/healthCheckInvariants.ts untouched.
+# - Uses dorny/paths-filter to detect the two path groups from the PR diff (via the API; no
+#   checkout of PR code).
+# - Sticky comment keyed by a hidden marker: created once, never re-posted on later pushes,
+#   and auto-deleted once the registry file is edited in the same PR.
+# - This is ONLY ever a comment — it never fails the job and is never a merge gate.
+# - Skips draft PRs.
+
+name: Health-Check Invariants Reminder
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Default-deny at the workflow level; grant only what the job needs at the job level.
+permissions: {}
+
+# Cancel any in-progress run for the same PR when a new commit is pushed.
+concurrency:
+  group: healthcheck-invariants-reminder-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  remind-invariants:
+    permissions:
+      contents: read # required to read PR metadata via the REST API
+      pull-requests: write # required to create/delete the reminder comment on the PR
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect facet/periphery vs. invariant-registry changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            contracts:
+              - 'src/Facets/**'
+              - 'src/Periphery/**'
+            invariants:
+              - 'script/deploy/healthCheckInvariants.ts'
+
+      - name: Post or clear reminder comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          # true when the PR touches a facet/periphery contract but NOT the invariant registry
+          SHOULD_NUDGE: ${{ steps.filter.outputs.contracts == 'true' && steps.filter.outputs.invariants != 'true' }}
+        with:
+          script: |
+            const marker = '<!-- healthcheck-invariants-nudge -->'
+            const shouldNudge = process.env.SHOULD_NUDGE === 'true'
+            const prNumber = context.payload.pull_request.number
+            const { owner, repo } = context.repo
+
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number: prNumber, per_page: 100 }
+            )
+            const existing = comments.find((c) => c.body?.includes(marker))
+
+            if (shouldNudge) {
+              if (existing) {
+                core.info('Reminder already posted; leaving it as-is.')
+                return
+              }
+              const body = [
+                marker,
+                '🩺 **Health-check invariants reminder**',
+                '',
+                'This PR changes a facet or periphery contract but does not touch',
+                '`script/deploy/healthCheckInvariants.ts`. Please confirm whether the daily',
+                'health-check registry needs an invariant **added, adjusted, or removed**',
+                '(new binding/authorization/owner relationship, a removed contract, or changed',
+                'struct/owner semantics). See rule `601-healthcheck-invariants` for the checklist.',
+                '',
+                '_If no invariant change is needed, you can ignore this — it is a reminder, not a gate._',
+              ].join('\n')
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body,
+              })
+              core.info('Posted health-check invariants reminder.')
+            } else if (existing) {
+              // The registry was edited (or contracts are no longer touched) — clear the nudge.
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+              })
+              core.info('Cleared stale health-check invariants reminder.')
+            }
