@@ -3259,8 +3259,8 @@ function success() {
 function logWithTimestamp() {
   local MESSAGE="$1"
   local TIMESTAMP
-  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$TIMESTAMP] $MESSAGE"
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] %s\n' "$TIMESTAMP" "$MESSAGE"
 }
 # logNetworkResult: Print a per-network status line prefixed with a timestamp.
 #
@@ -3276,8 +3276,8 @@ function logNetworkResult() {
   local STATUS="$2"
   local MESSAGE="$3"
   local TIMESTAMP
-  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$TIMESTAMP] [$NETWORK] $STATUS: $MESSAGE"
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
 }
 # <<<<< output to console
 
