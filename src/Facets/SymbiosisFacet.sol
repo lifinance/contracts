@@ -191,6 +191,7 @@ contract SymbiosisFacet is
         nonReentrant
         refundExcessNative(payable(msg.sender))
         containsSourceSwaps(_bridgeData)
+        doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
         _bridgeData.minAmount = _depositAndSwap(

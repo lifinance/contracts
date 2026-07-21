@@ -7,7 +7,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
 import { IOnchainSwapV3 } from "lifi/Interfaces/IOnchainSwapV3.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Stub SymbiosisFacet Contract
@@ -400,6 +400,31 @@ contract SymbiosisFacetTest is TestBaseFacet {
         unsupportedFacet.startBridgeTokensViaSymbiosis{
             value: bridgeData.minAmount
         }(bridgeData, symbiosisData);
+        vm.stopPrank();
+    }
+
+    /// @dev Audit finding #6: the swap entrypoint must reject destination calls
+    ///      exactly like the non-swap entrypoint. Replays the audit's attack shape
+    ///      (source swaps + destination call + non-EVM BTC receiver + OnchainSwapV3)
+    ///      and asserts the guard reverts in the modifier, before _depositAndSwap
+    ///      moves any tokens.
+    function testRevert_SwapAndBridgeWithDestinationCall() public {
+        _prepareOnchainSwapV3Data();
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.hasDestinationCall = true;
+        symbiosisData.signature = _signOnchainSwapV3(BACKEND_SIGNER_PK);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
+            bridgeData,
+            swapData,
+            symbiosisData
+        );
         vm.stopPrank();
     }
 
