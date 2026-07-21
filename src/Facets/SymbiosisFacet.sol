@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
 
 /// @title Symbiosis Facet
 /// @author Symbiosis (https://symbiosis.finance)
@@ -194,6 +194,19 @@ contract SymbiosisFacet is
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        // The final swap output must be the asset that gets bridged: _depositAndSwap measures
+        // the received amount in the last swap's receivingAssetId, while _startBridge forwards
+        // bridgeData.sendingAssetId. A mismatch would let a cheap swap output set minAmount while
+        // draining a different asset the diamond holds. An empty array is left to _depositAndSwap,
+        // which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InformationMismatch();
+        }
+
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,

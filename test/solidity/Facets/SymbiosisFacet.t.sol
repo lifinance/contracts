@@ -7,7 +7,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
 import { IOnchainSwapV3 } from "lifi/Interfaces/IOnchainSwapV3.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch, NoSwapDataProvided } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Stub SymbiosisFacet Contract
@@ -573,6 +573,48 @@ contract SymbiosisFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// @notice The source-swap output asset must equal bridgeData.sendingAssetId:
+    ///         _depositAndSwap measures minAmount in the last swap's receivingAssetId
+    ///         while _startBridge forwards bridgeData.sendingAssetId.
+    function testRevert_SwapOutputAssetMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        // last swap outputs DAI while bridgeData.sendingAssetId stays USDC
+        swapData[swapData.length - 1].receivingAssetId = ADDRESS_DAI;
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
+            bridgeData,
+            swapData,
+            symbiosisData
+        );
+
+        vm.stopPrank();
+    }
+
+    /// @notice The empty-swap case is left to _depositAndSwap so its
+    ///         NoSwapDataProvided error is preserved (not shadowed by the mismatch guard).
+    function testRevert_SwapAndBridgeWithEmptySwapData() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        delete swapData;
+
+        vm.expectRevert(NoSwapDataProvided.selector);
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
+            bridgeData,
+            swapData,
+            symbiosisData
+        );
+
         vm.stopPrank();
     }
 
