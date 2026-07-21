@@ -101,9 +101,10 @@ contract VaultWrapperInvariantHandler is Test {
 
     function withdraw(uint256 _actorSeed, uint256 _assets) external {
         address actor = _actor(_actorSeed);
-        // maxWithdraw ignores the withdrawal fee (it inflates the shares burned), so cap at
-        // half the fee-free ceiling to stay clear of it regardless of the live rate.
-        uint256 ceiling = WRAPPER.maxWithdraw(actor) / 2;
+        // maxWithdraw is fee-aware (previewRedeem(maxRedeem(owner)) with the wrapper's
+        // fee-deducting previewRedeem), so withdraw(maxWithdraw(actor)) is exactly
+        // exitable — drive the full allowed range so near-max/full exits are exercised.
+        uint256 ceiling = WRAPPER.maxWithdraw(actor);
         if (ceiling == 0) return;
 
         uint256 assets = bound(_assets, 1, ceiling);
