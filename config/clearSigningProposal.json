@@ -2489,7 +2489,7 @@
         }
       ]
     },
-    "startBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address intermediateToken, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 deadline, bytes signature) _symbiosisData)": {
+    "startBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 deadline, bytes signature) _symbiosisData)": {
       "intent": "Bridge via Symbiosis",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -6128,7 +6128,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address intermediateToken, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 deadline, bytes signature) _symbiosisData)": {
+    "swapAndStartBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 deadline, bytes signature) _symbiosisData)": {
       "intent": "Swap & Bridge via Symbiosis",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
