@@ -597,7 +597,32 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Performance, 0, 500); // tighten max to 5%
         DeployParams memory p = _params(0); // rate 1000 = 10%
         vm.prank(onboarder);
-        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(1000),
+                uint16(0),
+                uint16(500)
+            )
+        );
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnFeeBelowBound() public {
+        _enableUnderlyingAndBounds(); // perf bounds 0..5000
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 800, 5000); // require at least 8%
+        DeployParams memory p = _params(0); // rate 1000 = 10% is fine; drop it below min
+        p.fees = FeeConfig({ rateBps: [uint16(500), 0, 0, 0] }); // 5% < 8% min
+        vm.prank(onboarder);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(500),
+                uint16(800),
+                uint16(5000)
+            )
+        );
         factory.deploy(p);
     }
 
@@ -621,7 +646,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setUnderlyingAllowed(address(underlying), true);
         DeployParams memory p = _params(0); // Performance rate 1000, enabled
         vm.prank(onboarder);
-        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(1000),
+                uint16(0),
+                uint16(0)
+            )
+        );
         factory.deploy(p);
     }
 

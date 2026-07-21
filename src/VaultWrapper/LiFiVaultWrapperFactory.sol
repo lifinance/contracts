@@ -419,7 +419,8 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
             if (rate == 0) continue;
             if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();
             FeeBounds memory b = feeBounds[FeeType(i)];
-            if (rate < b.minBps || rate > b.maxBps) revert FeeRateAboveBound();
+            if (rate < b.minBps || rate > b.maxBps)
+                revert FeeRateOutOfBounds(rate, b.minBps, b.maxBps);
         }
     }
 }
