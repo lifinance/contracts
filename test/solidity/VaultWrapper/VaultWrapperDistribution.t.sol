@@ -74,6 +74,11 @@ contract VaultWrapperDistributionTest is Test {
         address indexed token,
         uint256 amount
     );
+    event LifiPayoutRetained(
+        address indexed recipient,
+        address indexed token,
+        uint256 amount
+    );
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
@@ -378,6 +383,46 @@ contract VaultWrapperDistributionTest is Test {
         wrapper.distributeFees();
 
         assertEq(asset.balanceOf(fresh), integratorPart);
+        assertEq(_accruedFeeAssets(), 0);
+    }
+
+    function test_DistributeFeesRetainsFailedLifiTransferInWrapper() public {
+        // A blocked LI.FI recipient must not revert the whole distribution and freeze the
+        // independent integrator payouts behind the factory's 48h timelock.
+        _useBlacklistAsset();
+        address integratorWallet = makeAddr("integrator");
+        wrapper = _deploy(
+            _assetFees(),
+            SPLIT,
+            _single(integratorWallet),
+            _full()
+        );
+        _deposit(alice, DEPOSIT);
+
+        uint256 lifiPart = wrapper.lifiFeeAssets();
+        uint256 integratorPart = wrapper.integratorFeeAssets();
+        BlacklistERC20(address(asset)).setBlocked(lifiRecipient, true);
+
+        vm.expectEmit(true, true, false, true, address(wrapper));
+        emit LifiPayoutRetained(lifiRecipient, address(asset), lifiPart);
+
+        wrapper.distributeFees(); // must not revert
+
+        // LI.FI got nothing; the integrator was paid in full; LI.FI's share is left in the
+        // wrapper, re-booked as still-owed LI.FI fees (not redirected to the integrator).
+        assertEq(asset.balanceOf(lifiRecipient), 0);
+        assertEq(asset.balanceOf(integratorWallet), integratorPart);
+        assertEq(wrapper.lifiFeeAssets(), lifiPart);
+        assertEq(wrapper.integratorFeeAssets(), 0);
+
+        // Governance repoints the LI.FI recipient and re-sweeps — the retained fees are claimed.
+        address freshLifi = makeAddr("freshLifi");
+        vm.prank(owner);
+        factory.setLifiFeeRecipient(freshLifi);
+
+        wrapper.distributeFees();
+
+        assertEq(asset.balanceOf(freshLifi), lifiPart);
         assertEq(_accruedFeeAssets(), 0);
     }
 

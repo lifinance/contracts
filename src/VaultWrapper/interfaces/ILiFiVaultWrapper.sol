@@ -91,6 +91,20 @@ interface ILiFiVaultWrapper {
         uint256 amount
     );
 
+    /// @notice Emitted when the LI.FI payout fails (e.g. a blacklisted recipient). The amount
+    ///         is left in the wrapper — still tracked as owed LI.FI fees — instead of
+    ///         reverting the whole distribution and blocking the independent integrator
+    ///         payouts. Governance can repoint the recipient via the factory's
+    ///         `setLifiFeeRecipient` and call `distributeFees` again to claim it.
+    /// @param recipient The LI.FI fee recipient whose transfer reverted.
+    /// @param token The fee-pool token retained (the asset, or this wrapper's shares).
+    /// @param amount The amount retained in the wrapper.
+    event LifiPayoutRetained(
+        address indexed recipient,
+        address indexed token,
+        uint256 amount
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a deposit is attempted while any pause source is engaged.
