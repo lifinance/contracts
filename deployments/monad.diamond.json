@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+      "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
@@ -84,6 +84,10 @@
       "0xb86FaE3FB05841d84377c2eD0f1606784300445e": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -92,8 +96,8 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",

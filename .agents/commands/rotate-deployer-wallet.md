@@ -73,6 +73,10 @@ Sweep native gas from the old deployer to the new one across all active EVM chai
 
 > Leave enough in the OLD deployer to sign the Safe/timelock txs it still needs to send in Phase 2 if any are broadcast by the old key — `sweep-wallet-funds`'s balance preview (read-only; the mover script has no dry-run flag) lets you judge this per network before committing.
 
+> **HyperEVM big blocks (manual, per-address).** The new deployer cannot broadcast contract deploys on `hyperevm` until big blocks are enabled for it — an L1 setting that does **not** carry over on rotation (register the address as a HyperCore Core user, then toggle big blocks ON). Follow the runbook: `docs/HyperEVMBigBlocks.md`.
+
+> **Sophon deployer allow-list (manual, per-address).** `sophon` gates contract deployment behind a per-EOA allow-list, so the new deployer is **rejected on every Sophon deploy** (`contract deployer address … is not in the allow list`) until the Sophon team adds it — funding the wallet is not enough, and the allow-listing does **not** carry over on rotation. It's an off-repo, async request, so start it **now** during bootstrap rather than discovering it at the next Sophon rollout: ask in the Sophon partner channel to allow-list the new deployer EOA. It doesn't block the other phases. (Other zkEVM chains like `abstract` and `zksync` have no such restriction.)
+
 ### Phase 2 — Swap the Safe owner + move CANCELLER_ROLE (`multisig-rollout`)
 
 The governed changes — replace `safeOwners[0]` (old → new) on every production Safe and move the Timelock `CANCELLER_ROLE` (old removed, new granted) — run as timelock-wrapped Safe proposals via the production rollout skill:

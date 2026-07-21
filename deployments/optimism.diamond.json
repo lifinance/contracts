@@ -73,9 +73,9 @@
         "Name": "HopFacetPacked",
         "Version": "1.0.6"
       },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",
@@ -148,11 +148,15 @@
       "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x314bE5fcf0A204837896e6028C47A9e1FC2919c7",
-      "Executor": "0xBfA69CdE0191C59758E483A76A07939C53C177Ab",
+      "Executor": "0xC9E66aa9b08EB667e450e072E96F7086AD9f2c91",
       "FeeCollector": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
@@ -162,10 +166,10 @@
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
-      "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
+      "ReceiverAcrossV4": "0xe417AD5eb9e919567620A48B3757cc182cCdf9e4",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
-      "ReceiverStargateV2": "0x16Fab807095Ecd8DB8aEC7ff84f0e659043dF9f1",
+      "ReceiverStargateV2": "0x556701899905f2f83AcA2977D3202Ee3a80f37b7",
       "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
     }
   }

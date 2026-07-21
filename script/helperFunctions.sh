@@ -3249,6 +3249,36 @@ function warning() {
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
+# logWithTimestamp: Print a message prefixed with the current timestamp.
+#
+# Usage: logWithTimestamp MESSAGE
+#   MESSAGE - Text to log
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] MESSAGE" to stdout.
+# Example: logWithTimestamp "Backed up foundry.toml"
+function logWithTimestamp() {
+  local MESSAGE="$1"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] %s\n' "$TIMESTAMP" "$MESSAGE"
+}
+# logNetworkResult: Print a per-network status line prefixed with a timestamp.
+#
+# Usage: logNetworkResult NETWORK STATUS MESSAGE
+#   NETWORK - Network name the result belongs to
+#   STATUS  - Short status token (e.g. SUCCESS, FAILED)
+#   MESSAGE - Result detail text
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] [NETWORK] STATUS: MESSAGE" to stdout.
+# Example: logNetworkResult "arbitrum" "SUCCESS" "deployed FraxFacet"
+function logNetworkResult() {
+  local NETWORK="$1"
+  local STATUS="$2"
+  local MESSAGE="$3"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
+}
 # <<<<< output to console
 
 # >>>>> Reading and manipulation of target state JSON file
@@ -3687,6 +3717,38 @@ function getCurrentGasPrice() {
   GAS_PRICE=$(cast gas-price --rpc-url "$RPC_URL")
 
   echo "$GAS_PRICE"
+}
+# networkSupportsEip1559: Returns 0 (true) if NETWORK's latest block exposes a
+# baseFeePerGas field — the on-chain marker of EIP-1559 support — meaning forge
+# should send type-2 transactions and MUST NOT be passed --legacy. Returns 1 for
+# pre-EIP-1559 chains that require --legacy, and also on RPC failure, where the
+# type can't be determined and legacy is the safe fallback (a type-2 tx on a
+# pre-1559 chain is rejected outright, whereas legacy is the historical default).
+#
+# A --legacy tx pins one gasPrice quoted at build time; on low-base-fee L2s
+# (e.g. Arbitrum, ~0.02 gwei) the next block's base fee can rise above it and the
+# node rejects the tx ("max fee per gas less than block base fee"). A type-2 tx
+# sets maxFeePerGas with headroom and pays the actual base fee, surviving the race.
+#
+# Usage: if networkSupportsEip1559 "$NETWORK"; then LEGACY_FLAG=""; fi
+function networkSupportsEip1559() {
+  local NETWORK="$1"
+
+  local RPC_URL
+  if ! RPC_URL=$(getRPCUrl "$NETWORK"); then
+    warning "could not resolve RPC URL for '$NETWORK'; assuming legacy (pre-EIP-1559) transactions"
+    return 1
+  fi
+
+  local BLOCK_JSON
+  if ! BLOCK_JSON=$(cast block latest --json --rpc-url "$RPC_URL" 2>/dev/null) || [[ -z "$BLOCK_JSON" ]]; then
+    warning "could not query latest block for '$NETWORK' to detect EIP-1559 support; assuming legacy transactions"
+    return 1
+  fi
+
+  local BASE_FEE
+  BASE_FEE=$(echo "$BLOCK_JSON" | jq -r '.baseFeePerGas // empty')
+  [[ -n "$BASE_FEE" && "$BASE_FEE" != "null" ]]
 }
 function getContractOwner() {
   # read function arguments into variables

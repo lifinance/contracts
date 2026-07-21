@@ -644,6 +644,27 @@
       "auditReportPath": "./audit/reports/2026.07.08_PaxosTransitFacet(v1.0.0).pdf",
       "auditCommitHash": "149e073de80f2b6a9728faffd94923221de2bf8a"
     },
+    "audit20260715_1": {
+      "auditCompletedOn": "15.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.15_LayerSwapFacet(v1.0.0).pdf",
+      "auditCommitHash": "0087bc33a548a4e459cc2dd7f58dd9f0732009bf"
+    },
+    "audit20260715_2": {
+      "auditCompletedOn": "15.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.15_CalldataVerificationFacet(v2.0.0).pdf",
+      "auditCommitHash": "20098f1b15536fa9ea1a851d19aa9ae9e7d82df1"
+    },
+    "audit20260716": {
+      "auditCompletedOn": "16.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.16_PolymerCCTPFacet(v3.0.0).pdf",
+      "auditCommitHash": "45e319a2657264df6051acd095ee1d83a5487504"
+    },
     "audit20260720": {
       "auditCompletedOn": "20.07.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -697,7 +718,8 @@
     "CalldataVerificationFacet": {
       "1.2.0": ["audit20240902", "audit20250508"],
       "1.3.0": ["audit20250220"],
-      "1.3.1": ["audit20250629"]
+      "1.3.1": ["audit20250629"],
+      "2.0.0": ["audit20260715_2"]
     },
     "CBridgeFacet": {
       "1.0.0": ["audit20250508"]
@@ -812,6 +834,9 @@
     "IGlacisAirlift": {
       "1.1.0": ["audit20251113"]
     },
+    "ILayerSwapDepository": {
+      "1.0.0": ["audit20260715_1"]
+    },
     "IOpenIntentFramework": {
       "1.0.0": ["audit20251119"]
     },
@@ -820,6 +845,9 @@
     },
     "IPaxosTransit": {
       "1.0.0": ["audit20260708"]
+    },
+    "LayerSwapFacet": {
+      "1.0.0": ["audit20260715_1"]
     },
     "LibAccess": {
       "1.0.0": ["audit20250508"]
@@ -856,7 +884,8 @@
     },
     "LiFiData": {
       "1.0.0": ["audit20250718"],
-      "1.0.1": ["audit20251007"]
+      "1.0.1": ["audit20251007"],
+      "1.0.2": ["audit20260716"]
     },
     "LiFiDiamond": {
       "1.0.0": ["audit20250508"]
@@ -957,7 +986,8 @@
       "1.0.0": ["audit20251201"],
       "2.0.0": ["audit20260216"],
       "2.0.1": ["audit20260423"],
-      "2.1.0": ["audit20260528"]
+      "2.1.0": ["audit20260528"],
+      "3.0.0": ["audit20260716"]
     },
     "Receiver": {
       "2.0.3": ["audit20250109_3"],

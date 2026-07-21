@@ -25,7 +25,7 @@ import {
 
 import nearIntentsFacetArtifact from '../../out/NEARIntentsFacet.sol/NEARIntentsFacet.json'
 import type { ILiFi } from '../../typechain'
-import type { LibSwap } from '../../typechain/AcrossFacetV3'
+import type { LibSwap } from '../../typechain/AcrossFacetV4'
 import type { SupportedChain } from '../common/types'
 import { networks } from '../utils/viemScriptHelpers'
 

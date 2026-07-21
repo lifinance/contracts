@@ -68,6 +68,10 @@
       "0x12A395526Dc6b257ddb6953b1a0e8Ae91Ac5Fd9b": {
         "Name": "PaxosTransitFacet",
         "Version": "1.0.0"
+      },
+      "0x35970eA7235E8AC9Dc3D6cb78557E4e3a6e783ff": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -76,8 +80,8 @@
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
       "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
+      "LidoWrapper": "",
       "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",
