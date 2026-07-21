@@ -181,7 +181,6 @@ contract SymbiosisFacetTest is TestBaseFacet {
         symbiosisData = SymbiosisFacet.SymbiosisData({
             firstSwapCalldata: "",
             secondSwapCalldata: "",
-            intermediateToken: address(0),
             firstDexRouter: address(0),
             secondDexRouter: address(0),
             approvedTokens: _approvedTokens,

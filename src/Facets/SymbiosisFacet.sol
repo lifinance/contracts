@@ -84,7 +84,6 @@ contract SymbiosisFacet is
     /// @param nonEvmReceiver The Bitcoin receiver, emitted for non-EVM destinations
     /// @param firstSwapCalldata The calldata for the first swap
     /// @param secondSwapCalldata The calldata for the second swap
-    /// @param intermediateToken The intermediate token used for swapping
     /// @param firstDexRouter The router for the first swap
     /// @param secondDexRouter The router for the second swap
     /// @param approvedTokens The tokens approved for swapping
@@ -100,7 +99,6 @@ contract SymbiosisFacet is
         bytes32 nonEvmReceiver;
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
-        address intermediateToken;
         address firstDexRouter;
         address secondDexRouter;
         address[] approvedTokens;
