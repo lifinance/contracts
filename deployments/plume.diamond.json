@@ -45,9 +45,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0992c3b898752E5870c5735327316fbA74835FAb": {
+      "0x806F111f6Ce0ACA234B431229c31EeBcb62b0998": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0xD535675089ECD285815595476A33bFcb608f8476": {
         "Name": "StargateFacetV2",
@@ -72,8 +72,8 @@
       "FeeCollector": "0x3e46137a80BB3c14906505d0f78ADbb2deDb9E3f",
       "FeeForwarder": "0x32ca3c43c2807EbB7d82212BeeC31c1b7BaaD146",
       "GasZipPeriphery": "0xF6eE6152be29123e4E766f383257a49AC0678634",
-      "LiFiDEXAggregator": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
       "OutputValidator": "0x95443EF1F6ABace3809037a13f007aEEa5029e66",
       "Patcher": "",
       "Permit2Proxy": "0x9C1D1db1CD3EbE4727c2a4208Ca5D65624cC9b4D",

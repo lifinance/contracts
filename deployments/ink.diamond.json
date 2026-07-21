@@ -65,9 +65,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+      "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",

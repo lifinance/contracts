@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0xF72c17d1e3b047Ff8f7e9617c6b7E4c9c335eD08": {
         "Name": "AccessManagerFacet",

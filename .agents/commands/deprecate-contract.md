@@ -18,6 +18,7 @@ This command completely removes one or more contracts (facets or periphery) from
 - Removing source files, deployment scripts, docs, and config entries
 - Updating whitelist for periphery contracts
 - Running test suite to verify remaining tests pass
+- **Parking the on-chain removal** (facets) into the deferred diamond-cleanup queue so the facet can eventually be removed from the production diamonds that still register it — not just the codebase — once the parked task is later drained into a proposal and that proposal executes
 - Searching for remaining occurrences for manual review
 
 ## Quick Start
@@ -93,18 +94,62 @@ The command performs these steps in order:
    - **Run full test suite**: Run `forge test` to verify ALL tests pass (required per `.agents/rules/099-finish.md` - tests must pass after any Solidity changes)
    - Display summary of all changes including coverage comparison (if applicable)
 
-6. **Remaining Occurrences Review**
+6. **On-chain removal — park it into the deferred diamond-cleanup queue (facets)**
+
+   Deprecation removes the facet from the codebase only; it stays **registered
+   and callable on every production diamond** until a governance proposal removes
+   it. That removal is **not proposed now** — it is **parked** into the deferred
+   diamond-cleanup queue and drained into a timelock-wrapped Safe proposal later
+   (riding the next rollout to that network), so signers aren't asked to sign a
+   standalone per-chain removal at deprecation time. See
+   [docs/DeferredDiamondCleanupQueue.md](../../docs/DeferredDiamondCleanupQueue.md)
+   and [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
+
+   - **What to park**: for each deprecated facet, one parked task per PRODUCTION
+     network whose **deploy log** (`deployments/<network>.json`) lists it — that
+     log is the authoritative facet → address map. Read the diamond address and
+     the facet address from that log; do **not** delete those entries yet
+     (see step 7).
+   - **Park last, after the deprecation PR exists.** Each parked task **requires**
+     the originating PR URL (`--prUrl`) so the reviewer sees it at signing, and
+     that URL only exists once `gh pr create` has returned it. So the enqueue is
+     the **last removal-related action** — run it once the deprecation PR is
+     open, passing the real PR URL, and only then continue with steps 7–8
+     (remaining-occurrences review and final reminders). One invocation per
+     (facet, network):
+
+     ```bash
+     bunx tsx script/deploy/safe/enqueue-parked-task.ts \
+       --network <network> \
+       --facetName <FacetName> \
+       --diamondAddress <diamond address from deployments/<network>.json> \
+       --facetAddress <facet address from deployments/<network>.json> \
+       --prUrl <deprecation PR URL>
+     ```
+
+     `--environment` defaults to `production` and v1 parks production removals
+     only (the CLI rejects any other environment). Re-running for an
+     already-parked (facet, network) is a safe no-op.
+   - **No Safe proposal is created at deprecation time.** The parked task is later
+     drained into the removal proposal; the governance flow (on-chain loupe →
+     `buildDiamondCutRemoveCalldata` → timelock `scheduleBatch` → Safe → quorum)
+     is unchanged, and core/machinery facets are refused by the queue's
+     protected-name guard. Periphery is out of scope here (de-register via the
+     periphery flow).
+
+7. **Remaining Occurrences Review**
 
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
+   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network — they are the address snapshot the drain relies on and the record of on-chain state.
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 
-7. **Final Reminders**
+8. **Final Reminders**
 
    - **⚠️ CRITICAL: Update Product Target State Spreadsheet**: Display prominent reminder with link to [Product Target State Spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0) - user must manually move contract column(s) to deprecated section
-   - **⚠️ Review codebase search results**: Remind user to carefully review all occurrences found in step 6 and clean up as needed
+   - **⚠️ Review codebase search results**: Remind user to carefully review all occurrences found in step 7 and clean up as needed
 
 ## Key Behaviors
 
@@ -231,7 +276,7 @@ Please review the above list and indicate which files/occurrences should be remo
 - Type the file paths you want to clean up
 - Or say "none" if all occurrences should remain
 - Or say "all" to remove all occurrences (use with caution)
-- Or say "deployments only" to remove only from deployment log files
+- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` facet→address entry of any facet whose parked removal task (step 6) is still pending; those stay until the task retires (executed/cancelled/superseded)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  FINAL MANUAL STEPS REQUIRED
@@ -242,6 +287,11 @@ Please review the above list and indicate which files/occurrences should be remo
 
 2. ⚠️  Review codebase search results above:
    Action: Clean up any remaining occurrences as needed (deployments, typechain will regenerate, etc.)
+
+3. ⚠️  On-chain removal (step 6): parked into the deferred diamond-cleanup queue
+   for RelayFacet across the PROD diamonds that still register it — drained into a
+   Safe proposal on a later rollout. Do NOT clean deployments/*.json RelayFacet
+   entries until those parked tasks retire (executed/cancelled/superseded).
 
 Successfully deprecated RelayFacet.
 ```
