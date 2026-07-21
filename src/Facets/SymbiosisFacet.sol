@@ -20,8 +20,19 @@ import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMR
 ///         the final Bitcoin receiver and that calldata cannot be validated
 ///         on-chain, this path additionally requires an EIP-712 backend
 ///         signature (see `_verifyOnchainSwapV3Signature`) binding those fields;
-///         only backend-blessed quotes can execute. The MetaRouter path is
-///         unchanged and requires no signature.
+///         only backend-blessed quotes can execute.
+/// @notice On the MetaRouter path the caller-supplied routing fields
+///         (`callTo`/`callData` and the swap parameters) are forwarded verbatim
+///         to `symbiosisMetaRouter.metaRoute`; the facet never decodes them or
+///         compares them against `_bridgeData`, and `validateBridgeData` only
+///         checks that `receiver`/`minAmount` are nonzero and that
+///         `destinationChainId` is not the current chain. The emitted
+///         `LiFiTransferStarted` `BridgeData` (receiver, destination chain) is
+///         therefore descriptive, not an on-chain guarantee of where the
+///         principal is delivered: integrators and wallet clear-signing surfaces
+///         must not treat the displayed receiver/destination as enforced on this
+///         path. This path requires no signature and matches the v1.0.0
+///         MetaRouter behavior.
 /// @notice This contract is not intended to custody user funds / hold balances;
 ///         any funds held are incidental (transient during a bridge tx) and
 ///         should not persist.

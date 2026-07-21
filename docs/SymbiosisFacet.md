@@ -25,7 +25,25 @@ and `deadline`, and the facet verifies it against the configured `backendSigner`
 (`config/global.json .backendSigner`). Each `transactionId` is single-use (replay-proof),
 and expired signatures revert. Integrators must therefore obtain the `signature` and
 `deadline` from the LI.FI backend for this path — a self-constructed OnchainSwapV3 call
-cannot pass verification. The MetaRouter path carries no signature and is unchanged.
+cannot pass verification.
+
+### Trust assumption on the MetaRouter path
+
+On the MetaRouter path the caller-supplied routing fields (`callTo`, `callData`, and the
+swap parameters) are forwarded **verbatim** into `symbiosisMetaRouter.metaRoute`. The facet
+never decodes `callData` and never compares it against `bridgeData`; `validateBridgeData`
+only checks that `receiver` and `minAmount` are nonzero and that `destinationChainId` is not
+the current chain. The deployed MetaRouter does not authenticate the recipient either, so the
+effective destination of the principal is fixed entirely by the caller-supplied payload.
+
+As a result, the `BridgeData` reported by the emitted `LiFiTransferStarted` event (receiver,
+destination chain) is **descriptive rather than enforced on-chain** for this path — it is used
+for analytics/indexing and is not an on-chain guarantee of where the funds are delivered.
+Integrators and wallet clear-signing surfaces **must not** treat the displayed receiver or
+destination as an on-chain guarantee on the MetaRouter path; the authoritative destination is
+whatever the routing calldata encodes. This path carries no signature and mirrors the original
+v1.0.0 MetaRouter behavior. Contrast the OnchainSwapV3 path above, whose opaque routing fields
+are gated by a backend EIP-712 signature.
 
 ```mermaid
 graph LR;
