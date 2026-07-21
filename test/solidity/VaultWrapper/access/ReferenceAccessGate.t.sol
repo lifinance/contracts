@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ReferenceAccessGate } from "lifi/VaultWrapper/access/ReferenceAccessGate.sol";

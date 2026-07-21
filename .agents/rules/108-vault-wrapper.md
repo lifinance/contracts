@@ -71,6 +71,13 @@ and counter-intuitive against the repo's Diamond-era conventions.
   silently picks up v4 — keep VaultWrapper code under the scoped paths.
 - The repo does not enable `via_ir`; v5's namespaced-storage accessors raise stack
   pressure, so keep `initialize`/large functions shallow rather than enabling it.
+- **Pragma floor is `^0.8.24`, not the repo-wide `^0.8.17`** (a deliberate override of
+  `[CONV:LICENSE]`'s pragma rule for this subsystem only): OZ v5.6.1's
+  `ERC4626Upgradeable` itself requires `^0.8.24` and the toolchain emits `mcopy`, so
+  declaring `^0.8.17` would be a provably false floor. Every file under `src/VaultWrapper/`,
+  `test/solidity/VaultWrapper/`, and `script/deploy/vaultWrapper/` pins `^0.8.24`. The
+  honesty of this floor is enforced by the `solc_floor_vaultwrapper` Foundry profile
+  (solc 0.8.24 + evm cancun), a second build step in `solc-floor-build.yml`.
 
 ## Identity and onboarding ([CONV:VW-IDENTITY])
 
