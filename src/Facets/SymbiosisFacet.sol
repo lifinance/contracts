@@ -189,6 +189,11 @@ contract SymbiosisFacet is
         if (_symbiosisData.refundRecipient == address(0))
             revert InvalidCallData();
 
+        // OnchainSwapV3: verify the backend quote before pulling funds, so the
+        // signature is checked once, before any external call (audit finding #3).
+        if (_symbiosisData.viaOnchainSwapV3)
+            _validateAndVerifyOnchainSwapV3(_bridgeData, _symbiosisData);
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -230,18 +235,41 @@ contract SymbiosisFacet is
             revert InformationMismatch();
         }
 
+        // OnchainSwapV3: verify the backend quote against the signed (pre-swap)
+        // minAmount BEFORE the swap runs, so the signature is checked once against
+        // the exact amount the backend signed rather than the realized swap output
+        // (which almost always exceeds the slippage floor) (audit finding #3).
+        if (_symbiosisData.viaOnchainSwapV3)
+            _validateAndVerifyOnchainSwapV3(_bridgeData, _symbiosisData);
+
         // On the OnchainSwapV3 path the router charges a native fee on top of the
         // bridged amount (see _startBridgeViaOnchainSwapV3). Reserve it from the
         // source-swap output so it is not swept back to the caller before the
         // onswap call - the fee may thus be funded by an ERC20->native pre-swap
         // and is intentionally NOT tied to msg.value on this entrypoint ([CONV:FACET-REQS]).
-        _bridgeData.minAmount = _depositAndSwap(
+        uint256 receivedAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(_symbiosisData.refundRecipient),
             _symbiosisData.viaOnchainSwapV3 ? _symbiosisData.fee : 0
         );
+
+        if (_symbiosisData.viaOnchainSwapV3) {
+            // Forward exactly the signed amount to the router (minAmount is left
+            // at its signed value) and refund the realized surplus to the signed
+            // refundRecipient, so a favorable swap cannot silently inflate the
+            // amount handed to the router (audit finding #3).
+            if (receivedAmount > _bridgeData.minAmount) {
+                LibAsset.transferAsset(
+                    _bridgeData.sendingAssetId,
+                    payable(_symbiosisData.refundRecipient),
+                    receivedAmount - _bridgeData.minAmount
+                );
+            }
+        } else {
+            _bridgeData.minAmount = receivedAmount;
+        }
 
         _startBridge(_bridgeData, _symbiosisData);
     }
@@ -322,15 +350,11 @@ contract SymbiosisFacet is
         ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) private {
-        if (address(onchainSwapV3) == address(0))
-            revert OnchainSwapV3NotSupported();
-        if (_bridgeData.receiver != NON_EVM_ADDRESS) revert InvalidReceiver();
-        if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_BTC)
-            revert InvalidDestinationChain();
-        if (_symbiosisData.nonEvmReceiver == bytes32(0))
-            revert InvalidNonEVMReceiver();
-
-        _verifyOnchainSwapV3Signature(_bridgeData, _symbiosisData);
+        // Preconditions and the backend signature are verified in the entrypoint
+        // (before any deposit or swap) via _validateAndVerifyOnchainSwapV3, so the
+        // quote is checked exactly once, against the amount the backend signed
+        // (audit finding #3). Here we enforce replay protection, re-read the live
+        // router fee, and forward the signed amount to the router.
 
         // Replay protection (CEI): mark this transaction ID used before the
         // external onswap call so a backend-signed quote executes at most once.
@@ -387,6 +411,27 @@ contract SymbiosisFacet is
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Validates the OnchainSwapV3 preconditions and the backend signature.
+    ///      Called at the top of both entrypoints, before any deposit or swap, so
+    ///      the signature is verified against the amount the backend signed (the
+    ///      pre-swap minAmount) exactly once and before external calls.
+    /// @param _bridgeData the core information needed for bridging
+    /// @param _symbiosisData data specific to Symbiosis
+    function _validateAndVerifyOnchainSwapV3(
+        ILiFi.BridgeData memory _bridgeData,
+        SymbiosisData calldata _symbiosisData
+    ) private view {
+        if (address(onchainSwapV3) == address(0))
+            revert OnchainSwapV3NotSupported();
+        if (_bridgeData.receiver != NON_EVM_ADDRESS) revert InvalidReceiver();
+        if (_bridgeData.destinationChainId != LIFI_CHAIN_ID_BTC)
+            revert InvalidDestinationChain();
+        if (_symbiosisData.nonEvmReceiver == bytes32(0))
+            revert InvalidNonEVMReceiver();
+
+        _verifyOnchainSwapV3Signature(_bridgeData, _symbiosisData);
     }
 
     /// @dev Verifies the EIP-712 backend signature for the OnchainSwapV3 path.

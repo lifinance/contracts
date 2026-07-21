@@ -900,10 +900,20 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
             vm.addr(BACKEND_SIGNER_PK)
         );
 
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = symbiosisFacet.startBridgeTokensViaSymbiosis.selector;
+        selectors[1] = symbiosisFacet
+            .swapAndStartBridgeTokensViaSymbiosis
+            .selector;
+        selectors[2] = symbiosisFacet.addAllowedContractSelector.selector;
         addFacet(diamond, address(symbiosisFacet), selectors);
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
+
+        // whitelist the source-swap DEX call used by the swap-entrypoint fork test
+        symbiosisFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactTokens.selector
+        );
     }
 
     /// @dev Builds a backend-signed BridgeData/SymbiosisData pair for the
@@ -1214,6 +1224,134 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
 
         symbiosisFacet.startBridgeTokensViaSymbiosis(bd, sd);
         vm.stopPrank();
+    }
+
+    /// @notice Audit finding #3: on the swap entrypoint the backend quote must be
+    ///         verified against the SIGNED (pre-swap) amount, exactly that amount is
+    ///         handed to onswap, and the realized surplus is refunded. Proves the
+    ///         common case - a swap that returns more than the signed floor -
+    ///         succeeds end-to-end; before the fix it reverted InvalidSignature
+    ///         because the post-swap (inflated) amount was hashed. Uses fee == 0
+    ///         (router default) to stay orthogonal to finding #8's fee handling.
+    function test_SwapAndBridgeViaOnchainSwapV3VerifiesSignedAmountAndRefundsSurplus()
+        public
+    {
+        address refundRecipient = makeAddr("onchainSwapV3SwapRefund");
+        uint256 surplus = 500 * 1e6; // realized swap output exceeds the signed floor
+
+        (
+            LibSwap.SwapData[] memory swaps,
+            uint256 amountInMax
+        ) = _wethToUsdcExactOut(ONSWAP_AMOUNT + surplus);
+        // minAmount is the signed floor (ONSWAP_AMOUNT), NOT the realized output
+        ILiFi.BridgeData memory bd = _btcSwapBridgeData(ONSWAP_AMOUNT);
+        SymbiosisFacet.SymbiosisData memory sd = _signedSwapData(
+            refundRecipient,
+            bd
+        );
+
+        deal(ADDRESS_WRAPPED_NATIVE, USER_SENDER, amountInMax);
+        vm.startPrank(USER_SENDER);
+        IERC20(ADDRESS_WRAPPED_NATIVE).approve(
+            address(symbiosisFacet),
+            amountInMax
+        );
+
+        // onswap executes with exactly the signed amount (BTC bridge event fires),
+        // rather than reverting InvalidSignature on the inflated post-swap amount.
+        vm.expectEmit(true, true, true, true, address(symbiosisFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bd.transactionId,
+            bd.destinationChainId,
+            BTC_RECEIVER
+        );
+        vm.expectEmit(true, true, true, true, address(symbiosisFacet));
+        emit LiFiTransferStarted(bd);
+
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(bd, swaps, sd);
+        vm.stopPrank();
+
+        // the realized surplus over the signed amount is refunded to refundRecipient
+        assertEq(IERC20(ADDRESS_USDC).balanceOf(refundRecipient), surplus);
+        // onswap pulled exactly the signed amount: no USDC dust left in the diamond
+        assertEq(IERC20(ADDRESS_USDC).balanceOf(address(symbiosisFacet)), 0);
+    }
+
+    /// @dev WETH -> USDC exact-output source swap into the diamond (leftover WETH
+    ///      is refunded by the facet). Kept out of the test body to bound stack depth.
+    function _wethToUsdcExactOut(
+        uint256 targetOut
+    )
+        internal
+        view
+        returns (LibSwap.SwapData[] memory swaps, uint256 amountInMax)
+    {
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256[] memory amountsIn = uniswap.getAmountsIn(targetOut, path);
+        amountInMax = amountsIn[0] * 2;
+
+        swaps = new LibSwap.SwapData[](1);
+        swaps[0] = LibSwap.SwapData({
+            callTo: address(uniswap),
+            approveTo: address(uniswap),
+            sendingAssetId: ADDRESS_WRAPPED_NATIVE,
+            receivingAssetId: ADDRESS_USDC,
+            fromAmount: amountInMax,
+            callData: abi.encodeWithSelector(
+                uniswap.swapTokensForExactTokens.selector,
+                targetOut,
+                amountInMax,
+                path,
+                address(symbiosisFacet),
+                block.timestamp + 20 minutes
+            ),
+            requiresDeposit: true
+        });
+    }
+
+    /// @dev BTC-destination bridgeData for the OnchainSwapV3 swap entrypoint, with
+    ///      minAmount pinned to the backend-signed floor.
+    function _btcSwapBridgeData(
+        uint256 signedAmount
+    ) internal view returns (ILiFi.BridgeData memory bd) {
+        bd = ILiFi.BridgeData({
+            transactionId: keccak256("exsc-267-swap-surplus"),
+            bridge: "symbiosis",
+            integrator: "lifi",
+            referrer: address(0),
+            sendingAssetId: ADDRESS_USDC,
+            receiver: NON_EVM_ADDRESS,
+            minAmount: signedAmount,
+            destinationChainId: LIFI_CHAIN_ID_BTC,
+            hasSourceSwaps: true,
+            hasDestinationCall: false
+        });
+    }
+
+    /// @dev Backend-signed SymbiosisData for the OnchainSwapV3 swap entrypoint
+    ///      (fee == 0, matching the router's default live fee).
+    function _signedSwapData(
+        address refundRecipient,
+        ILiFi.BridgeData memory bd
+    ) internal view returns (SymbiosisFacet.SymbiosisData memory sd) {
+        sd.refundRecipient = refundRecipient;
+        sd.viaOnchainSwapV3 = true;
+        sd.dex = ONSWAP_DEX;
+        sd.dexgateway = ONSWAP_DEX;
+        sd.onchainSwapData = _onswapCalldata();
+        sd.nonEvmReceiver = BTC_RECEIVER;
+        sd.deadline = block.timestamp + 1 hours;
+
+        bytes32 digest = OnchainSwapV3Signing.digest(
+            bd,
+            sd,
+            address(symbiosisFacet),
+            block.chainid
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(BACKEND_SIGNER_PK, digest);
+        sd.signature = abi.encodePacked(r, s, v);
     }
 
     function _onswapCalldata() internal pure returns (bytes memory) {
