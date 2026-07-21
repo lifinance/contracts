@@ -5,13 +5,14 @@ import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ILiFiVaultWrapperFactory } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapperFactory.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
 import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
-import { UnAuthorized, InvalidContract } from "lifi/Errors/GenericErrors.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockZeroAdapter } from "./mocks/MockZeroAdapter.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
@@ -69,7 +70,12 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_ConstructorRevertsOnZeroOwner() public {
-        vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableInvalidOwner.selector,
+                address(0)
+            )
+        );
         new LiFiVaultWrapperFactory(
             address(beacon),
             address(0),
@@ -113,7 +119,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_ConstructorRevertsOnNonContractBeacon() public {
-        vm.expectRevert(InvalidContract.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidContract.selector);
         new LiFiVaultWrapperFactory(
             makeAddr("notBeacon"),
             owner,
@@ -133,7 +139,12 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_NonOwnerCannotSetUnderlyingAllowed() public {
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                address(this)
+            )
+        );
         factory.setUnderlyingAllowed(makeAddr("underlying"), true);
     }
 
@@ -153,6 +164,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.ZeroAddress.selector);
         factory.setOnboardingManager(address(0));
+    }
+
+    function testRevert_RenounceOwnershipDisabled() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.RenounceDisabled.selector);
+        factory.renounceOwnership();
+
+        assertEq(factory.owner(), owner);
     }
 
     function test_OwnerSetsFeeBounds() public {
@@ -233,7 +252,12 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_NonOwnerCannotSetLifiFeeRecipient() public {
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                address(this)
+            )
+        );
         factory.setLifiFeeRecipient(makeAddr("x"));
     }
 
@@ -546,7 +570,9 @@ contract LiFiVaultWrapperFactoryTest is Test {
         p.adapter = address(zeroAdapter);
         p.underlying = assetToken;
         vm.prank(onboarder);
-        vm.expectRevert(IYieldAdapter.AssetResolutionFailed.selector);
+        // The factory no longer resolves the asset itself; the wrapper's initialize
+        // resolves it (via the adapter) and reverts ZeroAddress on a zero result.
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
         factory.deploy(p);
     }
 
@@ -635,7 +661,12 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_NonOwnerCannotSetAdapterApproved() public {
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                address(this)
+            )
+        );
         factory.setAdapterApproved(makeAddr("adapter2"), true);
     }
 
@@ -647,7 +678,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
 
     function test_SetAdapterApprovedRevertsOnNonContract() public {
         vm.prank(owner);
-        vm.expectRevert(InvalidContract.selector);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidContract.selector);
         factory.setAdapterApproved(makeAddr("eoa"), true);
     }
 }

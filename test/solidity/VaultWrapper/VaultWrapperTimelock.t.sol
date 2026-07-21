@@ -8,7 +8,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { UnAuthorized } from "lifi/Errors/GenericErrors.sol";
 
 /// @title VaultWrapperTimelockTest
 /// @notice Integration tests for the dedicated 48h timelock that governs the vault
@@ -125,7 +124,12 @@ contract VaultWrapperTimelockTest is Test {
 
     function testRevert_DirectSlowPathCallByMultisig() public {
         vm.prank(multisig);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                multisig
+            )
+        );
 
         factory.setAdapterApproved(address(adapter), true);
     }
@@ -244,7 +248,12 @@ contract VaultWrapperTimelockTest is Test {
 
     function testRevert_PauserRotationDirectByMultisig() public {
         vm.prank(multisig);
-        vm.expectRevert(UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                multisig
+            )
+        );
 
         factory.setEmergencyPauser(makeAddr("newPauser"));
     }

@@ -1,0 +1,32 @@
+{
+  "mainnet": {
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "multisig": "0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357",
+    "emergencyPauser": "0x0000000000000000000000000000000000000000",
+    "onboardingManager": "0x0000000000000000000000000000000000000000",
+    "lifiFeeRecipient": "0x0000000000000000000000000000000000000000",
+    "defaultIntegratorShareBps": 8000,
+    "feeBounds": {
+      "performance": { "minBps": 0, "maxBps": 5000 },
+      "management": { "minBps": 0, "maxBps": 1000 },
+      "deposit": { "minBps": 0, "maxBps": 2000 },
+      "withdrawal": { "minBps": 0, "maxBps": 2000 }
+    },
+    "allowedUnderlyings": []
+  },
+  "basesepolia": {
+    "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B",
+    "multisig": "0x0000000000000000000000000000000000000000",
+    "emergencyPauser": "0x0000000000000000000000000000000000000000",
+    "onboardingManager": "0x0000000000000000000000000000000000000000",
+    "lifiFeeRecipient": "0x0000000000000000000000000000000000000000",
+    "defaultIntegratorShareBps": 8000,
+    "feeBounds": {
+      "performance": { "minBps": 0, "maxBps": 5000 },
+      "management": { "minBps": 0, "maxBps": 1000 },
+      "deposit": { "minBps": 0, "maxBps": 2000 },
+      "withdrawal": { "minBps": 0, "maxBps": 2000 }
+    },
+    "allowedUnderlyings": []
+  }
+}

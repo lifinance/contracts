@@ -108,6 +108,8 @@ interface ILiFiVaultWrapperFactory {
     error NotApprovedDeployer();
     /// @notice Thrown when a required address argument is the zero address.
     error ZeroAddress();
+    /// @notice Thrown when an address expected to hold code (beacon / adapter) has none.
+    error InvalidContract();
     /// @notice Thrown when the namespace is the zero value.
     error ZeroNamespace();
     /// @notice Thrown when fee bounds are invalid (min > max, or max above the cap).
@@ -125,4 +127,6 @@ interface ILiFiVaultWrapperFactory {
     error FeeRateAboveBound();
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
     error FeeRateAboveCap();
+    /// @notice Thrown when ownership renunciation is attempted (disabled).
+    error RenounceDisabled();
 }
