@@ -134,7 +134,7 @@ contract LiFiVaultWrapperTest is Test {
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(address(this))),
             address(this)
         );
         wrapper = _newWrapper(address(underlying));
@@ -199,6 +199,28 @@ contract LiFiVaultWrapperTest is Test {
             defaultReceivers(),
             address(0)
         );
+    }
+
+    function testRevert_InitializeByNonFactory() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert(ILiFiVaultWrapper.NotFactory.selector);
+
+        new BeaconProxy(address(beacon), initCall);
     }
 
     function testRevert_InitializeRejectsZeroAddress() public {

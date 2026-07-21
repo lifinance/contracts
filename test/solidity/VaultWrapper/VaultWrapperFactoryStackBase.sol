@@ -29,8 +29,15 @@ abstract contract VaultWrapperFactoryStackBase is Test {
         uint16[4] memory _bounds
     ) internal {
         adapter = new ERC4626Adapter();
+        // The implementation binds the factory allowed to call initialize at
+        // construction; the factory is the second CREATE after the implementation
+        // (beacon in between), so its address is predictable here.
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(predictedFactory)),
             makeAddr("beaconOwner")
         );
         factory = new LiFiVaultWrapperFactory(

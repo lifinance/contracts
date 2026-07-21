@@ -88,7 +88,7 @@ contract LiFiVaultWrapperAccessTest is Test {
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(address(this))),
             address(this)
         );
         gate = new MockAccessGate();

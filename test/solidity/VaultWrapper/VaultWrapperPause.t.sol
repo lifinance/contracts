@@ -52,11 +52,13 @@ contract VaultWrapperPauseTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
+        // The mock factory deploys and initializes the proxy, so the implementation
+        // must be bound to it — construct it before the implementation.
+        factory = new MockPauseFactory();
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(address(factory))),
             address(this)
         );
-        factory = new MockPauseFactory();
 
         FeeConfig memory fees;
         bytes memory initCall = abi.encodeCall(
@@ -330,8 +332,14 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
+        // The implementation binds the factory allowed to call initialize; the factory
+        // is the second CREATE after the implementation (beacon in between).
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(predictedFactory)),
             address(this)
         );
         factory = new LiFiVaultWrapperFactory(

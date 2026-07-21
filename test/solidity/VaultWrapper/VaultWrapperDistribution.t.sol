@@ -79,8 +79,14 @@ contract VaultWrapperDistributionTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
+        // The implementation binds the factory allowed to call initialize; the factory
+        // is the second CREATE after the implementation (beacon in between).
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(predictedFactory)),
             address(this)
         );
         factory = new LiFiVaultWrapperFactory(

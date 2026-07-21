@@ -115,6 +115,15 @@ contract LiFiVaultWrapper is
     ///         real deposit ever notices it.
     uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
+    /// Immutables ///
+
+    /// @notice The only address allowed to initialize instances of this implementation,
+    ///         bound at construction. Every proxy that reaches `initialize` has therefore
+    ///         passed the factory's deploy-time validation (adapter approval, underlying
+    ///         allowlist, fee bounds), so a counterfeit proxy pointed at the official
+    ///         beacon can never be initialized with unvetted parameters.
+    address public immutable EXPECTED_FACTORY;
+
     /// Storage ///
 
     /// @notice The yield source this wrapper deposits into (e.g. an ERC-4626 vault).
@@ -184,13 +193,19 @@ contract LiFiVaultWrapper is
     /// Initialization ///
 
     /// @dev Locks the implementation contract so only beacon proxies (which have their own
-    ///      storage) can be initialized — never the implementation itself.
-    constructor() {
+    ///      storage) can be initialized — never the implementation itself. Binds the
+    ///      implementation to the single factory allowed to initialize proxies; with a
+    ///      CREATE3-deployed factory its address is predictable before it exists, so the
+    ///      implementation can be deployed first and the beacon/factory wired after.
+    /// @param _expectedFactory The factory whose deploys may initialize instances.
+    constructor(address _expectedFactory) {
+        if (_expectedFactory == address(0)) revert ZeroAddress();
+        EXPECTED_FACTORY = _expectedFactory;
         _disableInitializers();
     }
 
     /// @inheritdoc ILiFiVaultWrapper
-    /// @dev Permissionless but single-shot: the factory deploys and initializes in one
+    /// @dev Factory-only and single-shot: the bound factory deploys and initializes in one
     ///      transaction, and OpenZeppelin's `initializer` guard blocks any later call. All
     ///      arguments are validated by the factory before this is reached. Share name/symbol
     ///      derive from the asset symbol (e.g. "LI.FI Earn USDC" / "lfUSDC"), falling back to
@@ -204,6 +219,7 @@ contract LiFiVaultWrapper is
         FeeReceiver[] calldata _receivers,
         address _accessGate
     ) external initializer {
+        if (msg.sender != EXPECTED_FACTORY) revert NotFactory();
         if (
             _underlying == address(0) ||
             _adapter == address(0) ||

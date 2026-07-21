@@ -22,14 +22,16 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 ///      DeployScriptBase. Per-network parameters are read from the scoped
 ///      config/vaultWrapper.json under the `NETWORK` key; the only env vars are
 ///      PRIVATE_KEY, NETWORK, and DEPLOYSALT (the salt prefix). Deploy order:
-///      TimelockController -> LiFiVaultWrapper -> UpgradeableBeacon(impl, timelock) ->
-///      LiFiVaultWrapperFactory(beacon, owner=timelock, ...) -> ERC4626Adapter. Each
-///      contract is deployed through the CREATE3 factory under its own salt, so the
-///      address depends only on (deployer, salt) and is independent of constructor
-///      args and deploy order — mainnets sharing the same CREATE3 factory therefore
-///      get matching system addresses. Deploying via the CREATE3 proxy is safe here
-///      because every ownership/role is set from a constructor argument, never
-///      msg.sender. Timelock roles: the LI.FI multisig is proposer AND canceller (OZ
+///      TimelockController -> LiFiVaultWrapper(predicted factory) ->
+///      UpgradeableBeacon(impl, timelock) -> LiFiVaultWrapperFactory(beacon,
+///      owner=timelock, ...) -> ERC4626Adapter. Each contract is deployed through the
+///      CREATE3 factory under its own salt, so the address depends only on
+///      (deployer, salt) and is independent of constructor args and deploy order —
+///      mainnets sharing the same CREATE3 factory therefore get matching system
+///      addresses, and the factory's address can be predicted and bound into the
+///      implementation before the factory exists. Deploying via the CREATE3 proxy is
+///      safe here because every ownership/role is set from a constructor argument,
+///      never msg.sender. Timelock roles: the LI.FI multisig is proposer AND canceller (OZ
 ///      grants both to each proposer); the executor role is open (address(0)); the
 ///      optional admin is renounced (address(0)), so the timelock is self-administered.
 ///      Because the factory owner is the 48h timelock, post-deploy configuration —
@@ -127,8 +129,17 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         vm.startBroadcast(_deployerPrivateKey);
 
         timelock = TimelockController(payable(_deployTimelock(_cfg.multisig)));
+        // The implementation only accepts initialize calls from the factory it is bound
+        // to at construction; CREATE3 addresses depend on (deployer, salt) only, so the
+        // factory's address is known before it exists.
         impl = LiFiVaultWrapper(
-            _deploy("LiFiVaultWrapper", type(LiFiVaultWrapper).creationCode)
+            _deploy(
+                "LiFiVaultWrapper",
+                abi.encodePacked(
+                    type(LiFiVaultWrapper).creationCode,
+                    abi.encode(_predict("LiFiVaultWrapperFactory"))
+                )
+            )
         );
         beacon = UpgradeableBeacon(
             _deployBeacon(address(impl), address(timelock))
@@ -221,6 +232,8 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
             revert WiringMismatch("beacon.owner");
         if (_beacon.implementation() != address(_impl))
             revert WiringMismatch("beacon.implementation");
+        if (_impl.EXPECTED_FACTORY() != address(_factory))
+            revert WiringMismatch("impl.expectedFactory");
 
         if (_factory.owner() != address(_timelock))
             revert WiringMismatch("factory.owner");
@@ -298,6 +311,18 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
             );
     }
 
+    /// @notice The deterministic CREATE3 address `_name` will deploy to under the
+    ///         current salt prefix and deployer.
+    /// @param _name The contract name, appended to DEPLOYSALT to form the salt.
+    /// @return The predicted contract address.
+    function _predict(string memory _name) internal view returns (address) {
+        return
+            create3.getDeployed(
+                deployer,
+                keccak256(abi.encodePacked(saltPrefix, _name))
+            );
+    }
+
     /// @notice Deploys `creationCode` through the CREATE3 factory under a per-contract
     ///         salt, skipping deployment if the deterministic address already has code.
     /// @param _name The contract name, appended to DEPLOYSALT to form the salt.
@@ -307,8 +332,8 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         string memory _name,
         bytes memory _creationCode
     ) internal returns (address deployed) {
+        address predicted = _predict(_name);
         bytes32 salt = keccak256(abi.encodePacked(saltPrefix, _name));
-        address predicted = create3.getDeployed(deployer, salt);
 
         if (predicted.code.length != 0) {
             emit log_named_address(

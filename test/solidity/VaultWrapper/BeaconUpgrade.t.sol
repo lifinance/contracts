@@ -16,6 +16,8 @@ import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHel
 ///         inherits LiFiVaultWrapper (identical storage + interface) and adds a
 ///         version() selector absent from V1.
 contract MockVaultWrapperV2 is LiFiVaultWrapper {
+    constructor(address _expectedFactory) LiFiVaultWrapper(_expectedFactory) {}
+
     function version() external pure returns (uint256) {
         return 2;
     }
@@ -38,8 +40,14 @@ contract BeaconUpgradeTest is Test {
     bytes32 internal constant NS = bytes32("Coinbase");
 
     function setUp() public virtual {
-        implV1 = new LiFiVaultWrapper();
-        implV2 = new MockVaultWrapperV2();
+        // The factory is the fourth CREATE in this setUp (implV1, implV2, beacon,
+        // factory); both implementations bind that factory at construction.
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 3
+        );
+        implV1 = new LiFiVaultWrapper(predictedFactory);
+        implV2 = new MockVaultWrapperV2(predictedFactory);
         beacon = new UpgradeableBeacon(address(implV1), address(this));
         beacon.transferOwnership(owner);
         factory = new LiFiVaultWrapperFactory(

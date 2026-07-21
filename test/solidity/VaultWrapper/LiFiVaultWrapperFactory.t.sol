@@ -34,7 +34,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal assetToken = address(new MockERC20("Asset", "AST", 18));
 
     function setUp() public virtual {
-        impl = new LiFiVaultWrapper();
+        // The implementation binds the factory allowed to call initialize; the factory
+        // is the second CREATE after the implementation (beacon in between).
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
+        impl = new LiFiVaultWrapper(predictedFactory);
         beacon = new UpgradeableBeacon(address(impl), address(this));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
@@ -56,6 +62,15 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.lifiFeeRecipient(), lifiRecipient);
         assertEq(factory.defaultIntegratorShareBps(), 8000);
         assertFalse(factory.globalPaused());
+    }
+
+    function test_ImplementationBoundToFactory() public view {
+        assertEq(impl.EXPECTED_FACTORY(), address(factory));
+    }
+
+    function testRevert_ImplementationConstructorRejectsZeroFactory() public {
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
+        new LiFiVaultWrapper(address(0));
     }
 
     function test_ConstructorRevertsOnZeroBeacon() public {

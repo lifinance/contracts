@@ -99,6 +99,9 @@ interface ILiFiVaultWrapper {
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
     error ZeroAddress();
+    /// @notice Thrown when initialize is called by anyone other than the factory the
+    ///         implementation was bound to at construction.
+    error NotFactory();
     /// @notice Thrown when a fee type's integrator share is 100% (10000 bps) or more.
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
     /// @notice Thrown when ownership renouncement is attempted; the admin role is non-renounceable.
@@ -134,7 +137,9 @@ interface ILiFiVaultWrapper {
     /// Functions ///
 
     /// @notice One-time setup of a vault wrapper immediately after deployment.
-    /// @dev The asset is resolved from `_underlying` via `_adapter` rather than passed in,
+    /// @dev Callable only by the factory the implementation was bound to at construction,
+    ///      so every initialized instance has passed the factory's deploy-time validation.
+    ///      The asset is resolved from `_underlying` via `_adapter` rather than passed in,
     ///      so it cannot disagree with what the adapter actually reports.
     /// @param _underlying The protocol-specific yield source (e.g. an ERC-4626 vault).
     /// @param _adapter The approved yield adapter the vault wrapper routes through at runtime.
