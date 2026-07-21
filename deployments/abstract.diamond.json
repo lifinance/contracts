@@ -29,7 +29,7 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xDD5ae29dfA6634b186C8f842064A12a09bE9d2F8": {
+      "0xb50E1Db9b9b724a898901375B54D6A3B5e44e553": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -64,6 +64,10 @@
       "0xe4db6A19c9F53fB946D31772a48002e1f9cB8763": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0xb59C89A4c9a8B8ff643f7b4e20c7df09CF25E042": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -72,8 +76,8 @@
       "FeeCollector": "0xde6A2171959d7b82aAD8e8B14cc84684C3a186AC",
       "FeeForwarder": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
       "GasZipPeriphery": "0x998d0712444FF9f63761DE3C77f541305B78E24F",
-      "LiFiDEXAggregator": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
       "OutputValidator": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
       "Patcher": "",
       "Permit2Proxy": "0xbb7c30Dc5AcE1A51940b202182c07D45e3e2Cba4",

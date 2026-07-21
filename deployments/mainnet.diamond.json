@@ -13,9 +13,9 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
         "Name": "AcrossV4SwapFacet",
@@ -45,9 +45,9 @@
         "Name": "ArbitrumBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x6F2baA7cd5F156CA1B132F7FF11E0fa2aD775F61": {
+      "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0x3De506059AE0B239e125e6B1365cfa92100540C0": {
         "Name": "AcrossFacetPackedV3",
@@ -157,7 +157,7 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0xAFE2648AcC4a5720E0C3930dF5Bf247d446BFFde": {
+      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
@@ -180,6 +180,18 @@
       "0xE46E9a5Ae71f1Fb3Ac59D09469830d6Ecc1D21f2": {
         "Name": "MegaETHBridgeFacet",
         "Version": "1.0.0"
+      },
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
+      },
+      "0x5C47966EAAa5dbf30E20C1a01ED0acFCBCcF1349": {
+        "Name": "PaxosTransitFacet",
+        "Version": "1.0.0"
+      },
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -188,8 +200,8 @@
       "FeeCollector": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
       "FeeForwarder": "0x685527c551Cc40ce1f1C9818cD8683307076E4eD",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
@@ -198,8 +210,7 @@
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
       "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
-      "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6",
-      "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80"
+      "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }
   }
 }

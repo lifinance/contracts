@@ -3,7 +3,7 @@
   "CalldataVerificationFacet": "0xa60541D42ce7dC6dec29Bc296D382e5e0ecC2e85",
   "DiamondCutFacet": "0x49c21CDB21fD8056a19f2BD28081C4D0D2B55507",
   "DiamondLoupeFacet": "0xFE8BC485d9DBaa93c1982Ab105cd55Dc6F7816eA",
-  "EmergencyPauseFacet": "0x9c367d9F13945b6bA507b697fD5203E971FEB9E0",
+  "EmergencyPauseFacet": "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd",
   "GenericSwapFacet": "0x40aFCf2ee6d025f19b3516531fFf8D313E37a7ce",
   "GenericSwapFacetV3": "0x6A782f93D8DAeC9A56b50A08F3ca12CC7bD4DcD6",
   "OwnershipFacet": "0x15e9dc50561E106824dc345d31E9E601A1B2eABc",
@@ -24,5 +24,6 @@
   "RelayDepositoryFacet": "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647",
   "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
   "WhitelistManagerFacet": "0x746E5c2ea5b3C005368645544D4B532255177e5c",
-  "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06"
+  "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
+  "LayerSwapFacet": "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd"
 }

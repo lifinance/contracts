@@ -17,6 +17,9 @@ IFS=$'\n\t'
 # Load required dependencies
 source script/helperFunctions.sh
 source script/playgroundHelpers.sh
+# EVM-version grouping + foundry.toml management (group constants,
+# groupNetworksByExecutionGroup, backup/restore/updateFoundryTomlForGroup)
+source script/deploy/resources/deployGroupingHelpers.sh
 
 # =============================================================================
 # MANUAL CONFIGURATION SECTIONS
@@ -65,11 +68,8 @@ NETWORKS=($(getIncludedNetworksArray))
 # Option 6: Use blacklist filtering (applied after network selection)
 # Networks in the blacklist will be excluded from the final network list
 # This is useful for excluding networks that need to be skipped (e.g. already done manually)
-# NETWORKS_BLACKLIST=("xlayer" "corn" "superposition" "tron" "tronshasta")
+# NETWORKS_BLACKLIST=("xlayer" "superposition" "tron" "tronshasta")
 NETWORKS_BLACKLIST=("tron" "tronshasta")
-
-# Foundry.toml backup file
-FOUNDRY_TOML_BACKUP="foundry.toml.backup"
 
 # =============================================================================
 # NETWORK ACTION EXECUTION
@@ -211,18 +211,8 @@ validateEnv
 # Progress tracking file - will be set based on action type
 PROGRESS_TRACKING_FILE=""
 
-# Group definitions
-GROUP_LONDON="london"
-GROUP_ZKEVM="zkevm"
-GROUP_CANCUN="cancun"
-
-# Solidity version constants
-SOLC_LONDON="0.8.17"
-SOLC_CANCUN="0.8.29"
-
-# EVM version constants
-EVM_LONDON="london"
-EVM_CANCUN="cancun"
+# Group / solc / evm_version constants live in
+# script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 # =============================================================================
 # EXECUTION CONFIGURATION
@@ -368,143 +358,11 @@ function logGroupInfo() {
 }
 
 # =============================================================================
-# NETWORK GROUPING FUNCTIONS
+# NETWORK GROUPING + FOUNDRY.TOML MANAGEMENT
 # =============================================================================
-
-
-
-
-
-function groupNetworksByExecutionGroup() {
-    local NETWORKS=("$@")
-
-    if [[ ${#NETWORKS[@]} -eq 0 ]]; then
-        error "No networks provided for grouping"
-        return 1
-    fi
-
-    # Initialize group arrays
-    local LONDON_NETWORKS=()
-    local ZKEVM_NETWORKS=()
-    local CANCUN_NETWORKS=()
-    local INVALID_NETWORKS=()
-
-    # Group networks
-    for NETWORK in "${NETWORKS[@]}"; do
-        local GROUP=$(getNetworkGroup "$NETWORK" 2>/dev/null || echo "")
-        local GROUP_RESULT=$?
-
-        if [[ $GROUP_RESULT -eq 0 && -n "${GROUP:-}" ]]; then
-            case "$GROUP" in
-                "london")
-                    LONDON_NETWORKS+=("$NETWORK")
-                    ;;
-                "zkevm")
-                    ZKEVM_NETWORKS+=("$NETWORK")
-                    ;;
-                "cancun")
-                    CANCUN_NETWORKS+=("$NETWORK")
-                    ;;
-            esac
-        else
-            INVALID_NETWORKS+=("$NETWORK")
-        fi
-    done
-
-    # Output results as JSON
-    # Handle empty arrays safely by using conditional expansion
-    local london_json="[]"
-    local zkevm_json="[]"
-    local cancun_json="[]"
-    local invalid_json="[]"
-
-    if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
-        london_json=$(printf '%s\n' "${LONDON_NETWORKS[@]}" | jq -R . | jq -s .)
-    fi
-
-    if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
-        zkevm_json=$(printf '%s\n' "${ZKEVM_NETWORKS[@]}" | jq -R . | jq -s .)
-    fi
-
-    if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
-        cancun_json=$(printf '%s\n' "${CANCUN_NETWORKS[@]}" | jq -R . | jq -s .)
-    fi
-
-    if [[ ${#INVALID_NETWORKS[@]} -gt 0 ]]; then
-        invalid_json=$(printf '%s\n' "${INVALID_NETWORKS[@]}" | jq -R . | jq -s .)
-    fi
-
-    jq -n \
-        --argjson london "$london_json" \
-        --argjson zkevm "$zkevm_json" \
-        --argjson cancun "$cancun_json" \
-        --argjson invalid "$invalid_json" \
-        '{london: $london, zkevm: $zkevm, cancun: $cancun, invalid: $invalid}'
-}
-
-# =============================================================================
-# FOUNDRY.TOML MANAGEMENT
-# =============================================================================
-
-function backupFoundryToml() {
-    if [[ -f "foundry.toml" ]]; then
-        cp "foundry.toml" "$FOUNDRY_TOML_BACKUP"
-        logWithTimestamp "Backed up foundry.toml to $FOUNDRY_TOML_BACKUP"
-    else
-        error "foundry.toml not found"
-        return 1
-    fi
-}
-
-function restoreFoundryToml() {
-    if [[ -f "$FOUNDRY_TOML_BACKUP" ]]; then
-        cp "$FOUNDRY_TOML_BACKUP" "foundry.toml"
-        logWithTimestamp "Restored foundry.toml from $FOUNDRY_TOML_BACKUP"
-        rm "$FOUNDRY_TOML_BACKUP"
-    else
-        # Silently return if backup doesn't exist (expected after restore)
-        return 0
-    fi
-}
-
-function updateFoundryTomlForGroup() {
-    local group="${1:-}"
-
-    if [[ -z "$group" ]]; then
-        error "Group is required"
-        return 1
-    fi
-
-    case "$group" in
-        "$GROUP_LONDON")
-            # Update solc version and EVM version in profile.default section only
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_LONDON'/" foundry.toml 2>/dev/null || true
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_LONDON'/" foundry.toml 2>/dev/null || true
-            rm -f foundry.toml.bak
-            # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build for London EVM group..."
-            forge build || true
-            ;;
-        "$GROUP_ZKEVM")
-            # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
-            # No need to update the main solc_version or evm_version settings
-            # No standard forge build needed for zkEVM - compilation handled by deploy scripts
-            ;;
-        "$GROUP_CANCUN")
-            # Update solc version and EVM version in profile.default section only
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_CANCUN'/" foundry.toml 2>/dev/null || true
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_CANCUN'/" foundry.toml 2>/dev/null || true
-            rm -f foundry.toml.bak
-            # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build for Cancun EVM group..."
-            forge build || true
-            ;;
-        *)
-            error "Unknown group: $group"
-            return 1
-            ;;
-    esac
-}
+# groupNetworksByExecutionGroup, backupFoundryToml, restoreFoundryToml, and
+# updateFoundryTomlForGroup live in
+# script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 
 # =============================================================================
@@ -2644,7 +2502,7 @@ function iterateAllNetworksOriginal() {
     # local NETWORKS=("arbitrum" "aurora" "base" "blast" "bob" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
     # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "mainnet" "optimism" "polygon") # <<<<< AllBridgeFacet
     # local NETWORKS=("abstract" "fraxtal" "lens" "lisk" "sei" "sophon" "swellchain" "unichain")
-    # local NETWORKS=("base" "arbitrum" "bsc" "corn" "katana" "bob" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "blast" "apechain" "opbnb" "lens" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "boba" "swellchain")
+    # local NETWORKS=("base" "arbitrum" "bsc" "katana" "bob" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "blast" "apechain" "opbnb" "lens" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "boba" "swellchain")
     # local NETWORKS=("plume" "taiko" "xlayer" "zksync")
     # local NETWORKS=("vana" "fraxtal" "bob" "sophon")
 

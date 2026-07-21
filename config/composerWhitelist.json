@@ -463,6 +463,17 @@
       ]
     }
   ],
+  "pharos": [
+    {
+      "address": "0x48eCDAA6aDA921f61357c1104829E9b1f4D1F75E",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "plume": [
     {
       "address": "0x125d9e76cDAF61B352548e39567382a2AAa1d378",

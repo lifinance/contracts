@@ -17,7 +17,7 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x6Aee096fd3c6a087F1571305D8037Bd996f88DD3": {
+      "0x9d9785F4C40a1FF1497fBE141219E94ccd89c008": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -68,6 +68,10 @@
       "0x7E2dF86452b63f263f55ada32befBe8f58e69BD7": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
+      },
+      "0xBdD660fa7e8D31f0199E333B85a46aa43Bb3D69C": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -76,8 +80,8 @@
       "FeeCollector": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
       "FeeForwarder": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
       "OutputValidator": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
       "Patcher": "",
       "Permit2Proxy": "0xa69d78858B27235575D7EfE240be91744a68E005",

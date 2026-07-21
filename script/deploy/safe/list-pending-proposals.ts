@@ -105,10 +105,11 @@ const main = defineCommand({
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       consola.error(`Could not connect to Safe MongoDB: ${errorMsg}`)
-      // missing env var or VPN are recoverable misconfigs, not hard errors
+      // missing env var or a down lifi-connect tunnel are recoverable
+      // misconfigs, not hard errors
       if (
         errorMsg.includes('SC_MONGODB_URI') ||
-        errorMsg.includes('VPN connection required')
+        errorMsg.includes('lifi-connect')
       )
         process.exit(2)
       process.exit(1)
@@ -183,6 +184,14 @@ const main = defineCommand({
             p.timestamp
           } | safeTxHash ${p.safeTxHash}`
         )
+        // Deferred diamond-cleanup: surface the origin deprecation PR(s) for a
+        // drain-minted removal proposal (DeferredDiamondCleanupQueue.md §6).
+        if (p.parkedTaskRefs?.length)
+          consola.info(
+            `  parked cleanup: ${p.parkedTaskRefs
+              .map((r) => `${r.facet} (${r.prUrl})`)
+              .join(', ')}`
+          )
       })
       consola.info('')
       consola.success(`${proposals.length} proposal(s) listed`)

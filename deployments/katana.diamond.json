@@ -41,7 +41,7 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.0"
       },
-      "0xc089A7b1D0B7e5fcBE962f9Be07e2465Fb878966": {
+      "0x14AC4a87EE6F675106ED03324E29c7C9FcA2C000": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
@@ -64,6 +64,14 @@
       "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x1aCec6E64f3A337ab0BDd7629E1170dD5081A0e9": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
+      },
+      "0x828Cc8Dc04e22B63DFB7764cFb58Ddbc4C2A07c7": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -72,8 +80,8 @@
       "FeeCollector": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
       "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
       "GasZipPeriphery": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
-      "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
       "OutputValidator": "0x70DF6cF7943416c76A7a10d47bf0901cFA28B418",
       "Patcher": "",
       "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",

@@ -23,6 +23,10 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import type { ILedgerAccountResult } from './ledger'
 import {
+  LEDGER_FLEX_WRAP_NOTE,
+  renderLedgerFlexFlow,
+} from './ledger-flex-preview'
+import {
   reconcileAllSubmittedSafeTxs,
   reconcileCoverageKey,
   reconcileSubmittedSafeTxs,
@@ -490,22 +494,60 @@ const processTxs = async (
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
-    consola.info(`Safe Transaction Details:
-    Nonce:           \u001b[${nonceColor}m${
-      tx.safeTx.data.nonce
-    }\u001b[0m${nonceWarning}
-    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m
-    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m
-    Operation:       \u001b[32m${
-      tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-    }\u001b[0m
-    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m
-    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m
-    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m
-    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${
-      tx.threshold
-    }\u001b[0m required
-    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`)
+    const detailLines = [
+      'Safe Transaction Details:',
+      `    Nonce:           \u001b[${nonceColor}m${tx.safeTx.data.nonce}\u001b[0m${nonceWarning}`,
+      `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
+      `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
+      `    Operation:       \u001b[32m${
+        tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+      }\u001b[0m`,
+      `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
+      `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
+      `    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m`,
+      `    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${tx.threshold}\u001b[0m required`,
+      `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
+    ]
+
+    // Deferred diamond-cleanup: if this removal was drained from the parked-tasks
+    // queue, show the originating deprecation PR(s) so the signer sees WHY the
+    // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
+    // outside the shared decode formatter (rule 201 untouched).
+    if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {
+      detailLines.push('    Parked cleanup — origin PRs:')
+      for (const ref of tx.parkedTaskRefs)
+        detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
+    }
+
+    consola.info(detailLines.join('\n'))
+
+    // Ledger Flex signing filmstrip: reproduce the on-device screens the
+    // signer steps through so values can be compared screen-by-screen. EVM
+    // only — the Flex EIP-712 blind-signing flow does not apply to Tron.
+    // A display error must never block signing.
+    if (
+      !isTronNetworkKey(network) &&
+      tx.safeTx.data.data &&
+      tx.safeTx.data.data !== '0x'
+    )
+      try {
+        const filmstrip = renderLedgerFlexFlow({
+          chainId: chain.id,
+          verifyingContract: safeAddress,
+          to: tx.safeTx.data.to,
+          value: String(tx.safeTx.data.value),
+          data: tx.safeTx.data.data as Hex,
+        })
+        consola.info(
+          [
+            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
+            ...filmstrip,
+            LEDGER_FLEX_WRAP_NOTE,
+          ].join('\n')
+        )
+      } catch (error) {
+        consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
+      }
 
     const storedResponse = tx.safeTx.data.data
       ? storedResponses[tx.safeTx.data.data]
@@ -853,7 +895,7 @@ const main = defineCommand({
 
     // Create ledger connection once if using ledger
     let ledgerResult: ILedgerAccountResult | undefined
-    if (useLedger)
+    if (useLedger) {
       try {
         const { getLedgerAccount } = await import('./ledger')
         ledgerResult = await getLedgerAccount(ledgerOptions)
@@ -863,6 +905,20 @@ const main = defineCommand({
         consola.error(`Failed to connect to Ledger: ${errorMsg}`)
         throw error
       }
+
+      // Signing a Safe EIP-712 payload on a Ledger Flex needs blind signing on.
+      // Fail fast with enable instructions rather than dying mid-sign.
+      const { checkBlindSigningEnabled, closeLedgerConnection } = await import(
+        './ledger'
+      )
+      if (
+        ledgerResult &&
+        !(await checkBlindSigningEnabled(ledgerResult.transport))
+      ) {
+        await closeLedgerConnection(ledgerResult.transport)
+        process.exit(1)
+      }
+    }
 
     try {
       // Connect to MongoDB early to use it for network detection

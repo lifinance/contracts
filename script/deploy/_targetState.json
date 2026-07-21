@@ -8,7 +8,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -24,8 +23,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "Patcher": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -54,7 +51,9 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -67,7 +66,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -99,7 +97,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -114,8 +111,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -138,7 +133,10 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "SupersetFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -152,7 +150,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -180,7 +177,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -193,7 +191,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -222,7 +219,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -238,8 +234,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "Patcher": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -258,7 +252,10 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "SupersetFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -272,7 +269,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -292,7 +288,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -305,7 +302,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -320,8 +316,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -332,7 +326,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -345,7 +340,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -362,7 +356,8 @@
         "Permit2Proxy": "1.0.4",
         "DeBridgeDlnFacet": "1.0.1",
         "RelayDepositoryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -375,7 +370,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -408,7 +402,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -423,8 +416,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -441,7 +432,9 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "ThorSwapFacet": "1.2.1",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -454,7 +447,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -472,35 +464,8 @@
         "AllBridgeFacet": "2.1.0",
         "GlacisFacet": "1.1.0",
         "SquidFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
-      }
-    }
-  },
-  "corn": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
-        "GenericSwapFacetV3": "1.0.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.1.0",
-        "Executor": "2.1.0",
-        "FeeCollector": "1.0.1",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.1",
-        "LiFiDEXAggregator": "1.12.0",
-        "TokenWrapper": "1.1.0",
-        "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -513,7 +478,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -528,7 +492,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "PolymerCCTPFacet": "2.1.0"
       }
     }
   },
@@ -541,7 +506,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -569,7 +533,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -586,7 +549,8 @@
         "Permit2Proxy": "1.0.4",
         "SquidFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -599,7 +563,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -629,7 +592,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -655,7 +617,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -668,7 +631,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -689,7 +651,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -702,7 +665,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -732,7 +694,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -767,7 +728,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -782,7 +742,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -795,7 +756,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -810,8 +770,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -820,7 +778,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -833,7 +792,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -852,7 +810,8 @@
         "CBridgeFacetPacked": "1.0.3",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -865,7 +824,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -893,7 +851,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -906,7 +865,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -921,8 +879,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
@@ -939,7 +895,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -954,14 +909,13 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -974,7 +928,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -993,7 +946,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1006,7 +960,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1038,7 +991,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1053,8 +1005,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1062,7 +1012,8 @@
         "GlacisFacet": "1.1.0",
         "RelayDepositoryFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1075,7 +1026,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1106,7 +1056,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1122,8 +1071,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "LidoWrapper": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1141,7 +1088,9 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1154,7 +1103,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1169,7 +1117,8 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1182,7 +1131,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1198,8 +1146,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "Patcher": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1219,7 +1165,9 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1232,7 +1180,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1264,7 +1211,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1279,8 +1225,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1292,7 +1236,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1305,7 +1250,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1324,7 +1268,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1337,7 +1282,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1353,8 +1297,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "LidoWrapper": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1364,7 +1306,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1377,7 +1320,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1396,7 +1338,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1409,7 +1352,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1439,7 +1381,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1457,7 +1398,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1470,7 +1412,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1488,7 +1429,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1501,7 +1443,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1517,8 +1458,6 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "LidoWrapper": "1.0.0",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1528,7 +1467,9 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "SupersetFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1541,7 +1482,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1556,14 +1496,13 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1576,7 +1515,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1593,7 +1531,8 @@
         "Permit2Proxy": "1.0.4",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1606,7 +1545,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1636,7 +1574,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1651,8 +1588,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1674,7 +1609,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1703,7 +1637,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1733,7 +1666,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1764,7 +1696,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1779,8 +1710,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1799,7 +1728,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1814,7 +1742,9 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1827,7 +1757,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1842,8 +1771,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
-        "AcrossFacetPackedV3": "1.2.0",
         "ReceiverAcrossV3": "1.1.0",
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
@@ -1865,7 +1792,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1881,7 +1807,8 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1894,7 +1821,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1924,7 +1850,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1939,14 +1864,14 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
-        "AcrossFacetV3": "1.1.0",
         "ReceiverAcrossV3": "1.0.0",
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -1959,7 +1884,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -1989,7 +1913,6 @@
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
@@ -2017,7 +1940,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2049,7 +1971,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2067,7 +1988,8 @@
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.1.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -2080,7 +2002,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2110,7 +2031,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2129,7 +2049,9 @@
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.2.0",
         "LiFiIntentEscrowFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -2142,7 +2064,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2173,7 +2094,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2204,7 +2124,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2221,7 +2140,8 @@
         "Permit2Proxy": "1.0.4",
         "GlacisFacet": "1.2.0",
         "LiFiIntentEscrowFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.0.0"
+        "WhitelistManagerFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2233,7 +2153,6 @@
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2259,7 +2178,6 @@
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2279,7 +2197,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "WhitelistManagerFacet": "1.1.0",
-        "GlacisFacet": "1.2.0"
+        "GlacisFacet": "1.2.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -2292,7 +2211,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2308,7 +2226,9 @@
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "PolymerCCTPFacet": "2.1.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -2321,7 +2241,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2339,7 +2258,8 @@
         "LiFiIntentEscrowFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
         "PolymerCCTPFacet": "2.0.1",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     },
     "staging": {
@@ -2350,7 +2270,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2380,7 +2299,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2410,7 +2328,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2427,7 +2344,8 @@
         "Permit2Proxy": "1.0.4",
         "RelayDepositoryFacet": "1.0.0",
         "SymbiosisFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0"
+        "WhitelistManagerFacet": "1.1.0",
+        "LayerSwapFacet": "1.0.0"
       }
     }
   },
@@ -2442,16 +2360,16 @@
       }
     }
   },
-  "outlaw": {
+  "robinhood": {
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "1.0.0",
+        "AcrossFacetV4": "1.0.0",
         "CalldataVerificationFacet": "1.3.1",
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "2.0.0",
         "LiFiIntentEscrowFacet": "1.1.1",
         "LiFiTimelockController": "1.0.1",
@@ -2466,7 +2384,8 @@
         "GasZipPeriphery": "1.0.2",
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   },
@@ -2479,7 +2398,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "1.0.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
@@ -2510,7 +2428,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "2.0.0",
         "LiFiIntentEscrowFacet": "1.1.1",
         "LiFiTimelockController": "1.0.1",
@@ -2524,7 +2441,8 @@
         "FeeForwarder": "1.0.0",
         "GasZipPeriphery": "1.0.2",
         "Permit2Proxy": "1.0.4",
-        "PolymerCCTPFacet": "2.1.0"
+        "PolymerCCTPFacet": "2.1.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0"
       }
     }
   }

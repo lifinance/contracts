@@ -25,6 +25,13 @@ import { consola } from 'consola'
 import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import {
+  computeFacetRemovalDiff,
+  computeNamedFacetRemovals,
+  type IFacetRemoval,
+  type INamedRemovalResult,
+  type IRemovalDiff,
+} from '../deploy/safe/diamondRemovalDiff'
 import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
@@ -166,13 +173,53 @@ const command = defineCommand({
       description:
         'JSON array of periphery contract names (e.g. ["Executor","Receiver"])',
     },
+    auto: {
+      type: 'boolean',
+      description:
+        'Auto-detect stale facets (on-chain loupe ∖ _targetState.json) for the given --network and propose their removal',
+    },
+    allNetworks: {
+      type: 'boolean',
+      description:
+        'Fleet sweep: run auto-detection across every active network (implies --auto)',
+    },
+    yes: {
+      type: 'boolean',
+      description:
+        'Skip confirmation and actually propose/send. Without it: auto/sweep modes dry-run; headless --facets in a non-TTY exits non-zero (cannot confirm)',
+    },
   },
 
   async run({ args }) {
-    const { facets, periphery } = args
+    const { facets, periphery, auto, allNetworks, yes } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
     let calldata: `0x${string}`
+
+    // --auto (target-state diff) and --facets (explicit names) drive different
+    // removal engines; refuse the ambiguous combination instead of silently
+    // letting one win.
+    if (auto && facets) {
+      consola.error('--auto and --facets are mutually exclusive')
+      process.exit(1)
+    }
+
+    // ---------------- FLEET removals across all networks ----------------
+    if (allNetworks) {
+      if (!environment)
+        environment = await selectWithSearch('Select environment', [
+          'production',
+          'staging',
+        ])
+      const env = castEnv(environment)
+      if (facets)
+        // Named-facet fleet removal (the deprecation-driven path).
+        await runNamedFleetRemoval(env, parseFacetNames(facets), Boolean(yes))
+      // No names → target-state-diff sweep (--all-networks implies --auto):
+      // the backstop for orphans nobody named.
+      else await runFleetRemoval(env, Boolean(yes))
+      return
+    }
 
     // select network (if not provided via parameter)
     if (!network) {
@@ -192,6 +239,14 @@ const command = defineCommand({
 
     const typedEnv = castEnv(environment)
 
+    // ---------------- AUTO: auto-detected removals for a single network ----------------
+    // Dry-run unless --yes, matching the fleet sweep and the --yes help text
+    // (auto modes never submit without an explicit --yes).
+    if (auto) {
+      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'dry-run')
+      return
+    }
+
     // get diamond address from deploy log
     const diamondAddress = await getContractAddressForNetwork(
       diamondName,
@@ -204,56 +259,17 @@ const command = defineCommand({
       process.exit(1)
     }
 
-    // ---------------- HEADLESS: Facet removal ----------------
+    // ---------------- HEADLESS: named-facet removal (single network) ----------------
+    // Loupe-driven (not out/-based), so it works after `/deprecate-contract`
+    // deletes the facet's source. Dry-run unless --yes (or interactive confirm).
     if (facets) {
       consola.box('Running headless facet removal')
-      // parse facetNames into string array
-      let facetNames: string[]
-      try {
-        facetNames = JSON.parse(facets)
-        if (
-          !Array.isArray(facetNames) ||
-          facetNames.some((n) => typeof n !== 'string')
-        )
-          throw new Error()
-      } catch {
-        consola.error(
-          '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
-        )
-        process.exit(1)
-      }
-
-      // get function selectors for all facets
-      const facetDefs = facetNames.map((name) => ({
-        name,
-        selectors: getFunctionSelectors(name),
-      }))
-
-      calldata = buildDiamondCutRemoveCalldata(facetDefs)
-
-      consola.info(`📦 Built calldata to remove ${facetNames.length} facets`)
-
-      // Show environment variables and decision logic
-      displayEnvironmentConfiguration(environment, network)
-
-      // Prepare calldata for timelock if needed
-      const { targetAddress, calldata: finalCalldata } =
-        await prepareTimelockCalldata(
-          calldata,
-          diamondAddress,
-          network,
-          typedEnv
-        )
-
-      consola.log('\n📦 Final Calldata:')
-      consola.log(finalCalldata)
-
-      await sendOrPropose({
-        calldata: finalCalldata,
+      await runNamedRemoval(
         network,
-        environment: typedEnv,
-        diamondAddress: targetAddress,
-      })
+        typedEnv,
+        parseFacetNames(facets),
+        yes ? 'yes' : 'prompt'
+      )
       return
     }
 
@@ -326,11 +342,23 @@ const command = defineCommand({
         process.exit(0)
       }
 
-      // get function selectors for each facet
-      const facetDefs = selectedFacets.map((name) => ({
-        name,
-        selectors: getFunctionSelectors(name),
-      }))
+      // Interactive selection only lists facets whose source exists under
+      // src/Facets/, so their artifact should be present. If the build is
+      // stale/incomplete the read throws — surface a clear message pointing at
+      // the loupe-driven --facets path (which works for already-deprecated
+      // facets) instead of a raw "artifact not found".
+      const facetDefs = selectedFacets.map((name) => {
+        try {
+          return { name, selectors: getFunctionSelectors(name) }
+        } catch {
+          consola.error(
+            `Could not read selectors for "${name}" from out/. Run "forge build", ` +
+              `or use the headless --facets '["${name}"]' path (loupe-driven, works ` +
+              `for already-deprecated facets whose artifact is gone).`
+          )
+          return process.exit(1)
+        }
+      })
 
       // -------------
       // make sure that all function selectors are indeed registered in the diamond
@@ -428,6 +456,365 @@ const command = defineCommand({
     }
   },
 })
+
+/**
+ * Prints the removal diff as a conspicuous banner. Facet removals are
+ * irreversible timelock+Safe governance actions, so they are surfaced loudly,
+ * alongside held-back selectors, unresolved addresses and any target-state bug.
+ */
+function printRemovalDiff(diff: IRemovalDiff): void {
+  consola.box(
+    `⚠️  IRREVERSIBLE FACET REMOVAL — ${diff.network} (${diff.environment})`
+  )
+
+  if (diff.removals.length === 0)
+    consola.success(`[${diff.network}] no stale facets to remove`)
+  else
+    for (const r of diff.removals) {
+      consola.warn(
+        `✗ REMOVE  ${r.name}  @ ${r.address}  (${r.selectors.length} selectors)`
+      )
+      consola.log(`   selectors: ${r.selectors.join(', ')}`)
+    }
+
+  for (const held of diff.heldBackSelectors)
+    consola.warn(
+      `⏸  HELD BACK ${held.selectors.length} selector(s) of ${
+        held.facet
+      }: an active facet is expected to own them (re-point, don't remove). ${held.selectors.join(
+        ', '
+      )}`
+    )
+
+  if (diff.driftDetected.length > 0)
+    consola.warn(
+      `↔️  DRIFT: on-chain & absent from target state but source still exists — NOT removed (target state lags, or deprecate properly first): ${diff.driftDetected.join(
+        ', '
+      )}`
+    )
+
+  if (diff.unresolved.length > 0)
+    consola.warn(
+      `❓ UNRESOLVED on-chain facet address(es) not in the deploy log — NOT removed, review manually:\n   ${diff.unresolved.join(
+        '\n   '
+      )}`
+    )
+
+  if (diff.targetStateMissingProtected.length > 0)
+    consola.error(
+      `🛑 TARGET-STATE BUG: protected facet(s) missing from _targetState.json (kept, but fix target state): ${diff.targetStateMissingProtected.join(
+        ', '
+      )}`
+    )
+}
+
+/** Parses and validates the `--facets` JSON array argument; exits on malformed input. */
+function parseFacetNames(facets: string): string[] {
+  try {
+    const names = JSON.parse(facets)
+    if (!Array.isArray(names) || names.some((n) => typeof n !== 'string'))
+      throw new Error()
+    return names
+  } catch {
+    consola.error(
+      '❌  --facets must be a JSON array of strings, e.g. \'["FacetA","FacetB"]\''
+    )
+    process.exit(1)
+  }
+}
+
+/**
+ * Hard governance gate for automated facet removals: on a production mainnet a
+ * removal is IRREVERSIBLE and must go through Safe + timelock, so a leftover
+ * `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true` (which `prepareTimelockCalldata`
+ * would honour by broadcasting straight to the diamond) is refused here rather
+ * than silently bypassing quorum and the timelock delay. Staging/testnet keep
+ * their sanctioned direct-send.
+ */
+function assertGovernedProductionRemoval(
+  network: string,
+  environment: EnvironmentEnum
+): void {
+  if (
+    environment === EnvironmentEnum.production &&
+    !isTestnetNetwork(network) &&
+    process.env.SEND_PROPOSALS_DIRECTLY_TO_DIAMOND === 'true'
+  ) {
+    consola.error(
+      `🛑 SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true on a production removal (${network}). ` +
+        'Facet removals are IRREVERSIBLE and must go through Safe + timelock. ' +
+        'Unset the variable (or target staging/testnet) and re-run.'
+    )
+    process.exit(1)
+  }
+}
+
+/**
+ * Builds the removal cut, wraps it for the timelock and proposes/sends it,
+ * reusing the existing plumbing. Shared by the auto (diff) and named
+ * (deprecation-driven) paths. `confirmMode`: `'yes'` proposes without asking,
+ * `'prompt'` asks interactively, `'dry-run'` only prints. A non-TTY `'prompt'`
+ * (headless `--facets` without `--yes`) cannot be confirmed, so it exits non-zero
+ * rather than silently no-op'ing — the missed removal stays visible to a runbook.
+ */
+async function proposeRemovals(
+  network: string,
+  environment: EnvironmentEnum,
+  diamondAddress: string,
+  removals: IFacetRemoval[],
+  confirmMode: 'yes' | 'prompt' | 'dry-run'
+): Promise<void> {
+  if (removals.length === 0) return
+
+  assertGovernedProductionRemoval(network, environment)
+
+  displayEnvironmentConfiguration(environment, network)
+
+  const removalCalldata = buildDiamondCutRemoveCalldata(removals)
+  const { targetAddress, calldata: finalCalldata } =
+    await prepareTimelockCalldata(
+      removalCalldata,
+      diamondAddress,
+      network,
+      environment
+    )
+
+  consola.log('\n📦 Final Calldata:')
+  consola.log(finalCalldata)
+
+  // A headless `--facets` run without `--yes` arrives here as `'prompt'`. In a
+  // non-TTY there's no one to confirm, so we cannot submit — but silently
+  // dry-running (exit 0) would hide a missed removal from a cron/runbook that
+  // expected the old auto-submitting `--facets` path. Fail loudly instead.
+  if (confirmMode === 'prompt' && !process.stdin.isTTY) {
+    consola.error(
+      `[${network}] non-interactive shell and no --yes: refusing to silently ` +
+        `dry-run a headless facet removal. Re-run with --yes to submit, or in an ` +
+        `interactive terminal to confirm.`
+    )
+    process.exit(1)
+  }
+
+  if (confirmMode === 'dry-run') {
+    consola.warn(
+      `[${network}] dry-run — not proposing. Re-run with --yes to submit (or confirm interactively).`
+    )
+    return
+  }
+
+  if (confirmMode === 'prompt') {
+    const confirm = await consola.prompt(
+      `Propose removal of ${removals.length} facet(s) on ${network}?`,
+      { type: 'confirm', initial: false }
+    )
+    if (!confirm) {
+      consola.info('Aborted.')
+      return
+    }
+  }
+
+  await sendOrPropose({
+    calldata: finalCalldata,
+    network,
+    environment,
+    diamondAddress: targetAddress,
+  })
+  consola.success(`[${network}] removal proposal submitted`)
+}
+
+/**
+ * Auto-detects stale facets for one network via the target-state diff engine and
+ * proposes their removal. `confirmMode` is forwarded to {@link proposeRemovals}.
+ */
+async function runAutoRemoval(
+  network: string,
+  environment: EnvironmentEnum,
+  confirmMode: 'yes' | 'prompt' | 'dry-run'
+): Promise<void> {
+  const diff = await computeFacetRemovalDiff(network, environment)
+
+  if (!diff.diamondAddress) {
+    consola.info(
+      `[${network}] no LiFiDiamond in ${environment} deploy log — skipping`
+    )
+    return
+  }
+
+  printRemovalDiff(diff)
+  await proposeRemovals(
+    network,
+    environment,
+    diff.diamondAddress,
+    diff.removals,
+    confirmMode
+  )
+}
+
+/**
+ * Exits the process non-zero when a fleet sweep left any network unprocessed, so
+ * a partial sweep surfaces as a failed CI check / non-zero shell status instead
+ * of a green "done". No-op when every network succeeded.
+ */
+function exitOnFleetFailures(failed: string[]): void {
+  if (failed.length === 0) return
+  consola.error(
+    `Fleet sweep completed with ${failed.length} failure(s): ${failed.join(
+      ', '
+    )}. Re-run the failed network(s) individually.`
+  )
+  process.exit(1)
+}
+
+/**
+ * Runs {@link runAutoRemoval} across every active network sequentially (per-network
+ * Safe proposals must not race on nonces). Without `yes` the whole sweep is a
+ * dry-run that only prints per-network diffs. Per-network failures are collected
+ * so survivors still run; the sweep then exits non-zero so a partial failure
+ * (networks that got no proposal) is never reported as success.
+ */
+async function runFleetRemoval(
+  environment: EnvironmentEnum,
+  yes: boolean
+): Promise<void> {
+  const networkIds = getAllActiveNetworks().map((n) => n.id)
+  consola.box(
+    `Fleet facet-removal sweep — ${
+      networkIds.length
+    } networks (${environment})${yes ? '' : ' [DRY RUN]'}`
+  )
+
+  const failed: string[] = []
+  for (const network of networkIds)
+    try {
+      await runAutoRemoval(network, environment, yes ? 'yes' : 'dry-run')
+    } catch (err) {
+      failed.push(network)
+      consola.error(
+        `[${network}] failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    }
+
+  exitOnFleetFailures(failed)
+}
+
+/** Prints the conspicuous banner for an explicit named-facet removal on one network. */
+function printNamedRemoval(result: INamedRemovalResult): void {
+  consola.box(
+    `⚠️  IRREVERSIBLE FACET REMOVAL — ${result.network} (${result.environment})`
+  )
+
+  if (!result.diamondAddress) {
+    consola.info(
+      `[${result.network}] no LiFiDiamond in ${result.environment} deploy log — skipping`
+    )
+    return
+  }
+
+  if (result.removals.length === 0)
+    consola.success(
+      `[${result.network}] none of the named facets are registered here`
+    )
+  else
+    for (const r of result.removals) {
+      consola.warn(
+        `✗ REMOVE  ${r.name}  @ ${r.address}  (${r.selectors.length} selectors)`
+      )
+      consola.log(`   selectors: ${r.selectors.join(', ')}`)
+    }
+
+  if (result.protectedSkipped.length > 0)
+    consola.error(
+      `🛑 REFUSED (never-remove allowlist — should never be deprecated): ${result.protectedSkipped.join(
+        ', '
+      )}`
+    )
+
+  if (result.notFoundOnChain.length > 0)
+    consola.info(
+      `ℹ️  not registered on ${result.network}: ${result.notFoundOnChain.join(
+        ', '
+      )}`
+    )
+
+  if (result.unresolved.length > 0)
+    consola.warn(
+      `⚠️  ${result.unresolved.length} on-chain facet(s) not in the deploy log on ` +
+        `${result.network} — a requested facet may be registered at an unlogged ` +
+        `address; investigate before assuming removal succeeded:\n` +
+        result.unresolved.map((a) => `   ${a}`).join('\n')
+    )
+}
+
+/**
+ * Removes an explicit set of named facets from one network's diamond
+ * (deprecation-driven path). Selectors come from the on-chain loupe, so it works
+ * after `/deprecate-contract` deleted the facet's source.
+ */
+async function runNamedRemoval(
+  network: string,
+  environment: EnvironmentEnum,
+  facetNames: string[],
+  confirmMode: 'yes' | 'prompt' | 'dry-run'
+): Promise<void> {
+  const result = await computeNamedFacetRemovals(
+    network,
+    environment,
+    facetNames
+  )
+
+  printNamedRemoval(result)
+
+  if (!result.diamondAddress) return
+  await proposeRemovals(
+    network,
+    environment,
+    result.diamondAddress,
+    result.removals,
+    confirmMode
+  )
+}
+
+/**
+ * Removes an explicit set of named facets across every active network (the
+ * fleet form of the deprecation-driven path). Sequential to avoid per-network
+ * Safe nonce races; dry-run unless `yes`. Per-network failures are collected so
+ * survivors still run, then the sweep exits non-zero so a partial failure is
+ * never reported as success.
+ */
+async function runNamedFleetRemoval(
+  environment: EnvironmentEnum,
+  facetNames: string[],
+  yes: boolean
+): Promise<void> {
+  const networkIds = getAllActiveNetworks().map((n) => n.id)
+  consola.box(
+    `Fleet named-facet removal — [${facetNames.join(', ')}] across ${
+      networkIds.length
+    } networks (${environment})${yes ? '' : ' [DRY RUN]'}`
+  )
+
+  const failed: string[] = []
+  for (const network of networkIds)
+    try {
+      await runNamedRemoval(
+        network,
+        environment,
+        facetNames,
+        yes ? 'yes' : 'dry-run'
+      )
+    } catch (err) {
+      failed.push(network)
+      consola.error(
+        `[${network}] failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      )
+    }
+
+  exitOnFleetFailures(failed)
+}
 
 async function verifySelectorsExistInDiamond({
   diamondAddress,

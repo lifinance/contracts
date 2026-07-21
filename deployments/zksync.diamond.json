@@ -35,7 +35,7 @@
       },
       "0xa95309dF9256D52f9B61379963701fF1BA5939E4": {
         "Name": "AcrossFacet",
-        "Version": ""
+        "Version": "2.0.0"
       },
       "0x009d1fEf749Be881AC7F683Ae79E9deb4162b207": {
         "Name": "AcrossFacetPackedV4",
@@ -43,7 +43,7 @@
       },
       "0x79e05dDE041E64cc13C3280B7d083F3AE976fe70": {
         "Name": "CBridgeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x8CE13ddE8bF1a872d0FEF6A34fCc1E38b6EaD94c": {
         "Name": "GlacisFacet",
@@ -51,11 +51,11 @@
       },
       "0x2044596daE662582178C37977826032513B32327": {
         "Name": "WithdrawFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xC10CF1C23e20e3FE6f0b224Bc2E16C9ACabfEBB9": {
         "Name": "AcrossFacetPacked",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x9209f20CEab76c53F41348393BC0E8adFC6C6241": {
         "Name": "SymbiosisFacet",
@@ -69,9 +69,9 @@
         "Name": "AcrossFacetPackedV3",
         "Version": "1.2.0"
       },
-      "0xcF8c70683D7c0E2a094348896A46407646b94859": {
+      "0xb50E1Db9b9b724a898901375B54D6A3B5e44e553": {
         "Name": "EmergencyPauseFacet",
-        "Version": "1.0.0"
+        "Version": "1.0.1"
       },
       "0xE1f26d5876F854609a067E5B767ACa44a0271F9d": {
         "Name": "GasZipFacet",
@@ -92,6 +92,10 @@
       "0x8BC61cBb17BBFadB332b6599220D9702bdB78c0d": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
+      },
+      "0xb59C89A4c9a8B8ff643f7b4e20c7df09CF25E042": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -100,8 +104,8 @@
       "FeeCollector": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
       "FeeForwarder": "0x92870bEd7554532ddE5213aC0f304573D79AaB24",
       "GasZipPeriphery": "0x4c0d29DD100aa9A94449B88abb958272791f011A",
-      "LiFiDEXAggregator": "0xa396390CE55bA9bA3A706c4924aef9679D36fbd9",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xa396390CE55bA9bA3A706c4924aef9679D36fbd9",
       "OutputValidator": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
       "Patcher": "",
       "Permit2Proxy": "0x2ec2c4C3dc212C990d1bc2b48b0392A3951D926E",
