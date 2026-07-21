@@ -21,4 +21,11 @@ interface IOnchainSwapV3 {
         address dexgateway,
         bytes calldata calldata_
     ) external payable;
+
+    /// @notice The owner-controlled native fee the router requires on every `onswap`.
+    /// @dev Enforced as `require(msg.value >= fee)` and skimmed from the forwarded
+    ///      value (`msg.value - fee` reaches the inner swap). Mutable by the router
+    ///      owner via `changeFee`, so callers must read it at execution time.
+    /// @return The current native fee, in wei.
+    function fee() external view returns (uint256);
 }

@@ -20,8 +20,8 @@ On the OnchainSwapV3 path the final Bitcoin receiver lives in `nonEvmReceiver`, 
 trusted OnchainSwapV3 router. These cannot be validated purely on-chain against
 `bridgeData.receiver`, so the path is gated by an **EIP-712 backend signature**: the LI.FI
 backend signs a payload binding `transactionId`, `minAmount`, `sendingAssetId`,
-`destinationChainId`, `nonEvmReceiver`, `dex`, `dexgateway`, `keccak256(onchainSwapData)`
-and `deadline`, and the facet verifies it against the configured `backendSigner`
+`destinationChainId`, `nonEvmReceiver`, `dex`, `dexgateway`, `keccak256(onchainSwapData)`,
+`fee` and `deadline`, and the facet verifies it against the configured `backendSigner`
 (`config/global.json .backendSigner`). Each `transactionId` is single-use (replay-proof),
 and expired signatures revert. Integrators must therefore obtain the `signature` and
 `deadline` from the LI.FI backend for this path — a self-constructed OnchainSwapV3 call
@@ -45,6 +45,28 @@ whatever the routing calldata encodes. This path carries no signature and mirror
 v1.0.0 MetaRouter behavior. Contrast the OnchainSwapV3 path above, whose opaque routing fields
 are gated by a backend EIP-712 signature.
 
+### Router fee handling on the OnchainSwapV3 path
+
+The OnchainSwapV3 router charges an owner-controlled native `fee` (currently `0` on every
+configured chain) that it skims from the value it is sent — `require(msg.value >= fee)`,
+and only `msg.value - fee` reaches the inner swap. The facet **reads this fee live** from
+the router and requires it to equal the backend-signed `fee`; a quote signed against a fee
+the router owner has since changed is rejected (`OnchainSwapV3FeeMismatch`). The fee is
+then forwarded **on top of** the bridged amount rather than being deducted from it, so the
+full `minAmount` always reaches the swap:
+
+- **ERC-20 input**: the token is pulled through `onchainSwapV3Gateway` and the router is
+  called with `value == fee`.
+- **Native input**: the router is called with `value == minAmount + fee`.
+
+The fee is always funded by the caller's `msg.value`, never from stray diamond balance. On
+`startBridgeTokensViaSymbiosis` (no source swap) `msg.value` must cover the whole forwarded
+amount (bridged native input + fee). On `swapAndStartBridgeTokensViaSymbiosis` the bridged
+native may come from an ERC20→native source swap held in the diamond (the fee is reserved
+from the swap output), so only the fee itself need be covered by `msg.value`. Because the
+`fee` is bound into the signed payload, the LI.FI backend accounts for it in the quote and
+returns the value the caller must send.
+
 ```mermaid
 graph LR;
     D{LiFiDiamond}-- DELEGATECALL -->SymbiosisFacet;
@@ -67,7 +89,6 @@ Some methods listed above take a variable labeled `_symbiosisData`. This data is
 /// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 /// @param firstSwapCalldata payload for the first swap on the source chain (MetaRouter path).
 /// @param secondSwapCalldata payload for the second swap on the source chain (MetaRouter path).
-/// @param intermediateToken the intermediate token used for swapping (MetaRouter path).
 /// @param firstDexRouter address of the first (uni-)dex on the source chain (MetaRouter path).
 /// @param secondDexRouter address of the second (stable-)dex on the source chain (MetaRouter path).
 /// @param approvedTokens the tokens approved for swapping (MetaRouter path).
@@ -77,6 +98,7 @@ Some methods listed above take a variable labeled `_symbiosisData`. This data is
 /// @param dex the DEX router for the OnchainSwapV3 input-token -> syBTC swap.
 /// @param dexgateway the spender the DEX is approved through for that swap.
 /// @param onchainSwapData the Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn.
+/// @param fee OnchainSwapV3 only: the router's native fee the backend quoted against; must equal the router's live fee() at execution.
 /// @param deadline OnchainSwapV3 only: expiry of the backend signature.
 /// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload.
 
@@ -84,7 +106,6 @@ struct SymbiosisData {
   bytes32 nonEvmReceiver;
   bytes firstSwapCalldata;
   bytes secondSwapCalldata;
-  address intermediateToken;
   address firstDexRouter;
   address secondDexRouter;
   address[] approvedTokens;
@@ -94,6 +115,7 @@ struct SymbiosisData {
   address dex;
   address dexgateway;
   bytes onchainSwapData;
+  uint256 fee;
   uint256 deadline;
   bytes signature;
 }

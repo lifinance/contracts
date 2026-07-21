@@ -50,9 +50,9 @@ contract SymbiosisFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.symbiosis");
 
-    // EIP-712 typehash for SymbiosisPayload: keccak256("SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline,address refundRecipient)");
+    // EIP-712 typehash for SymbiosisPayload: keccak256("SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 fee,uint256 deadline,address refundRecipient)");
     bytes32 private constant SYMBIOSIS_PAYLOAD_TYPEHASH =
-        0x7257da9d246759cfaab69996bef9f154218c58b1fac9dde135529906870ea848;
+        0x24a0b336eff6ad63feed247a28c8cdf8008918cb43f9401ea16b8889ce6e8e66;
 
     /// Storage ///
 
@@ -88,6 +88,8 @@ contract SymbiosisFacet is
     error SignatureExpired();
     /// @notice Thrown when a transaction ID has already been processed on the OnchainSwapV3 path
     error TransactionAlreadyProcessed();
+    /// @notice Thrown when the router's live fee differs from the backend-signed fee (stale quote)
+    error OnchainSwapV3FeeMismatch();
 
     /// Types ///
 
@@ -105,6 +107,7 @@ contract SymbiosisFacet is
     /// @param dex The DEX router for the OnchainSwapV3 input-token -> syBTC swap
     /// @param dexgateway The spender the DEX is approved through for that swap
     /// @param onchainSwapData The Symbiosis-provided calldata for the OnchainSwapV3 inner swap/burn
+    /// @param fee OnchainSwapV3 only: the router's native fee the backend quoted against; must equal the router's live `fee()` at execution
     /// @param deadline OnchainSwapV3 only: expiry of the backend signature
     /// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload
     struct SymbiosisData {
@@ -121,6 +124,7 @@ contract SymbiosisFacet is
         address dex;
         address dexgateway;
         bytes onchainSwapData;
+        uint256 fee;
         uint256 deadline;
         bytes signature;
     }
@@ -226,11 +230,17 @@ contract SymbiosisFacet is
             revert InformationMismatch();
         }
 
+        // On the OnchainSwapV3 path the router charges a native fee on top of the
+        // bridged amount (see _startBridgeViaOnchainSwapV3). Reserve it from the
+        // source-swap output so it is not swept back to the caller before the
+        // onswap call - the fee may thus be funded by an ERC20->native pre-swap
+        // and is intentionally NOT tied to msg.value on this entrypoint ([CONV:FACET-REQS]).
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(_symbiosisData.refundRecipient)
+            payable(_symbiosisData.refundRecipient),
+            _symbiosisData.viaOnchainSwapV3 ? _symbiosisData.fee : 0
         );
 
         _startBridge(_bridgeData, _symbiosisData);
@@ -329,10 +339,20 @@ contract SymbiosisFacet is
             revert TransactionAlreadyProcessed();
         s.usedTransactionIds[_bridgeData.transactionId] = true;
 
-        uint256 nativeAssetAmount;
+        // The router skims an owner-controlled native fee from the value it is
+        // sent (require(msg.value >= fee); only `msg.value - fee` reaches the
+        // inner swap). Read it live and require it to equal the backend-signed
+        // fee: this rejects quotes signed against a fee the router owner has
+        // since changed, and lets us forward the fee ON TOP of the bridged
+        // amount so the full minAmount always reaches the swap (rather than the
+        // fee silently eating into it).
+        uint256 fee = onchainSwapV3.fee();
+        if (fee != _symbiosisData.fee) revert OnchainSwapV3FeeMismatch();
+
+        uint256 nativeAssetAmount = fee;
 
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            nativeAssetAmount = _bridgeData.minAmount;
+            nativeAssetAmount += _bridgeData.minAmount;
         } else {
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
@@ -340,6 +360,17 @@ contract SymbiosisFacet is
                 _bridgeData.minAmount
             );
         }
+
+        // The native fee must be funded by the caller, never skimmed from stray
+        // diamond balance. On the non-swap entrypoint msg.value is the only
+        // native source, so it must cover the whole forwarded amount (bridged
+        // native input + fee). On the swap entrypoint the bridged native may come
+        // from a source swap held in the diamond (reserved above), so only the
+        // fee itself must be covered by msg.value ([CONV:FACET-REQS]).
+        uint256 requiredMsgValue = _bridgeData.hasSourceSwaps
+            ? fee
+            : nativeAssetAmount;
+        if (requiredMsgValue > msg.value) revert InvalidCallData();
 
         onchainSwapV3.onswap{ value: nativeAssetAmount }(
             _bridgeData.sendingAssetId,
@@ -360,9 +391,10 @@ contract SymbiosisFacet is
 
     /// @dev Verifies the EIP-712 backend signature for the OnchainSwapV3 path.
     ///      Binds the caller-supplied router calldata (`dex`/`dexgateway`/
-    ///      hash of `onchainSwapData`), the Bitcoin receiver/amount, and the
-    ///      `refundRecipient` so a malicious or phished quote cannot misroute
-    ///      the user's in-flight funds or their refund.
+    ///      hash of `onchainSwapData`), the Bitcoin receiver/amount, the router
+    ///      `fee` the backend quoted against, and the `refundRecipient`, so a
+    ///      malicious or phished quote cannot misroute the user's in-flight funds
+    ///      or their refund, and the quote's native cost is committed to on-chain.
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function _verifyOnchainSwapV3Signature(
@@ -383,6 +415,7 @@ contract SymbiosisFacet is
                 _symbiosisData.dex,
                 _symbiosisData.dexgateway,
                 keccak256(_symbiosisData.onchainSwapData),
+                _symbiosisData.fee,
                 _symbiosisData.deadline,
                 _symbiosisData.refundRecipient
             )

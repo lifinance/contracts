@@ -35,7 +35,7 @@ library OnchainSwapV3Signing {
     // Must match SymbiosisFacet.SYMBIOSIS_PAYLOAD_TYPEHASH
     bytes32 internal constant SYMBIOSIS_PAYLOAD_TYPEHASH =
         keccak256(
-            "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline,address refundRecipient)"
+            "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 fee,uint256 deadline,address refundRecipient)"
         );
 
     function digest(
@@ -55,6 +55,7 @@ library OnchainSwapV3Signing {
                 _symbiosisData.dex,
                 _symbiosisData.dexgateway,
                 keccak256(_symbiosisData.onchainSwapData),
+                _symbiosisData.fee,
                 _symbiosisData.deadline,
                 _symbiosisData.refundRecipient
             )
@@ -225,6 +226,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
             dexgateway: address(0),
             onchainSwapData: "",
             nonEvmReceiver: bytes32(0),
+            fee: 0,
             deadline: 0,
             signature: ""
         });
@@ -868,10 +870,21 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
             )
         );
     uint256 internal constant BACKEND_SIGNER_PK = 0xB4C;
+    // OnchainSwapV3.fee is the 2nd storage slot (slot 0 == Ownable._owner).
+    // Verified on-chain: owner @slot0, fee @slot1, onchainGateway @slot2.
+    bytes32 internal constant ONCHAIN_SWAP_V3_FEE_SLOT = bytes32(uint256(1));
 
     error TransactionAlreadyProcessed();
+    error OnchainSwapV3FeeMismatch();
 
     TestSymbiosisFacet internal symbiosisFacet;
+
+    /// @dev Overrides the router's live `fee()` (default 0 on-chain) so the
+    ///      nonzero-fee finding-#8 paths can be exercised deterministically.
+    function _setRouterFee(uint256 feeValue) internal {
+        vm.store(ONCHAIN_SWAP_V3, ONCHAIN_SWAP_V3_FEE_SLOT, bytes32(feeValue));
+        assertEq(IOnchainSwapV3(ONCHAIN_SWAP_V3).fee(), feeValue);
+    }
 
     function _forkBlock() internal pure virtual returns (uint256);
 
@@ -907,6 +920,24 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
             SymbiosisFacet.SymbiosisData memory sd
         )
     {
+        return _buildOnchainSwapV3(sendingAssetId, amount, onchainSwapData, 0);
+    }
+
+    /// @dev Same as above but binds a specific router `fee` into the signed
+    ///      payload (finding #8: the backend commits to the fee it quoted against).
+    function _buildOnchainSwapV3(
+        address sendingAssetId,
+        uint256 amount,
+        bytes memory onchainSwapData,
+        uint256 feeValue
+    )
+        internal
+        view
+        returns (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        )
+    {
         bd = ILiFi.BridgeData({
             transactionId: keccak256("exsc-267"),
             bridge: "symbiosis",
@@ -926,6 +957,7 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
         sd.dexgateway = ONSWAP_DEX;
         sd.onchainSwapData = onchainSwapData;
         sd.nonEvmReceiver = BTC_RECEIVER;
+        sd.fee = feeValue;
         sd.deadline = block.timestamp + 1 hours;
 
         bytes32 digest = OnchainSwapV3Signing.digest(
@@ -999,6 +1031,162 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
             ONSWAP_AMOUNT,
             _onswapCalldata()
         );
+    }
+
+    /// Finding #8: nonzero OnchainSwapV3 router fee ///
+
+    uint256 internal constant NONZERO_FEE = 0.01 ether;
+
+    /// @dev With a nonzero router fee, an ERC-20 route still succeeds: the facet
+    ///      forwards the fee as native on top (msg.value == fee), so the router's
+    ///      `require(msg.value >= fee)` passes and `msg.value - fee == 0` reaches
+    ///      the inner ERC-20 swap exactly as in the fee==0 case.
+    function test_ERC20ViaOnchainSwapV3_withNonZeroFee_succeeds() public {
+        _setRouterFee(NONZERO_FEE);
+
+        (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        ) = _buildOnchainSwapV3(
+                ADDRESS_USDC,
+                ONSWAP_AMOUNT,
+                _onswapCalldata(),
+                NONZERO_FEE
+            );
+
+        vm.deal(USER_SENDER, NONZERO_FEE);
+        vm.startPrank(USER_SENDER);
+        deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT);
+        IERC20(ADDRESS_USDC).approve(address(symbiosisFacet), ONSWAP_AMOUNT);
+
+        vm.expectEmit(true, true, true, true, address(symbiosisFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bd.transactionId,
+            bd.destinationChainId,
+            BTC_RECEIVER
+        );
+
+        vm.expectEmit(true, true, true, true, address(symbiosisFacet));
+        emit LiFiTransferStarted(bd);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis{ value: NONZERO_FEE }(
+            bd,
+            sd
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev For a native input the fee is added ON TOP of the bridged amount:
+    ///      the router is called with value == minAmount + fee, so the full
+    ///      minAmount still reaches the inner swap (the fee no longer silently
+    ///      eats into the signed amount). onswap is mocked because on-chain
+    ///      native routes do not replay deterministically (see NOTE above).
+    function test_NativeViaOnchainSwapV3_forwardsFeeOnTop() public {
+        _setRouterFee(NONZERO_FEE);
+
+        uint256 amount = 1 ether;
+        (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        ) = _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
+
+        vm.mockCall(
+            ONCHAIN_SWAP_V3,
+            abi.encodeWithSelector(IOnchainSwapV3.onswap.selector),
+            ""
+        );
+
+        vm.expectCall(
+            ONCHAIN_SWAP_V3,
+            amount + NONZERO_FEE,
+            abi.encodeCall(
+                IOnchainSwapV3.onswap,
+                (address(0), amount, sd.dex, sd.dexgateway, sd.onchainSwapData)
+            )
+        );
+
+        vm.deal(USER_SENDER, amount + NONZERO_FEE);
+        vm.startPrank(USER_SENDER);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis{
+            value: amount + NONZERO_FEE
+        }(bd, sd);
+        vm.stopPrank();
+    }
+
+    /// @dev A quote signed against one fee is rejected once the router owner has
+    ///      changed the live fee (stale quote): live fee != signed fee.
+    function testRevert_OnchainSwapV3FeeMismatch() public {
+        _setRouterFee(NONZERO_FEE);
+
+        // signed against fee == 0 while the router now charges NONZERO_FEE
+        (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        ) = _buildOnchainSwapV3(
+                ADDRESS_USDC,
+                ONSWAP_AMOUNT,
+                _onswapCalldata()
+            );
+
+        vm.startPrank(USER_SENDER);
+        deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT);
+        IERC20(ADDRESS_USDC).approve(address(symbiosisFacet), ONSWAP_AMOUNT);
+
+        vm.expectRevert(OnchainSwapV3FeeMismatch.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bd, sd);
+        vm.stopPrank();
+    }
+
+    /// @dev ERC-20 input: the fee must be funded by msg.value, never skimmed
+    ///      from stray diamond balance. Too little msg.value reverts.
+    function testRevert_ERC20ViaOnchainSwapV3_insufficientMsgValueForFee()
+        public
+    {
+        _setRouterFee(NONZERO_FEE);
+
+        (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        ) = _buildOnchainSwapV3(
+                ADDRESS_USDC,
+                ONSWAP_AMOUNT,
+                _onswapCalldata(),
+                NONZERO_FEE
+            );
+
+        vm.startPrank(USER_SENDER);
+        deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT);
+        IERC20(ADDRESS_USDC).approve(address(symbiosisFacet), ONSWAP_AMOUNT);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        // no native sent for the fee
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bd, sd);
+        vm.stopPrank();
+    }
+
+    /// @dev Native input: msg.value must cover minAmount + fee. Sending only
+    ///      minAmount (enough for depositAsset) still reverts on the fee guard.
+    function testRevert_NativeViaOnchainSwapV3_insufficientMsgValueForFee()
+        public
+    {
+        _setRouterFee(NONZERO_FEE);
+
+        uint256 amount = 1 ether;
+        (
+            ILiFi.BridgeData memory bd,
+            SymbiosisFacet.SymbiosisData memory sd
+        ) = _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
+
+        vm.deal(USER_SENDER, amount);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis{ value: amount }(bd, sd);
+        vm.stopPrank();
     }
 
     function testRevert_OnchainSwapV3ReplayProtection() public {
