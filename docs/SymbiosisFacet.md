@@ -86,6 +86,7 @@ graph LR;
 Some methods listed above take a variable labeled `_symbiosisData`. This data is specific to Symbiosis and is represented as the following struct type:
 
 ```solidity
+/// @param refundRecipient the address that receives swap leftovers and any excess native asset; the caller (e.g. a proxy) is not assumed to be the fund owner.
 /// @param nonEvmReceiver the Bitcoin receiver, emitted for non-EVM destinations.
 /// @param firstSwapCalldata payload for the first swap on the source chain (MetaRouter path).
 /// @param secondSwapCalldata payload for the second swap on the source chain (MetaRouter path).
@@ -103,6 +104,7 @@ Some methods listed above take a variable labeled `_symbiosisData`. This data is
 /// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload.
 
 struct SymbiosisData {
+  address refundRecipient;
   bytes32 nonEvmReceiver;
   bytes firstSwapCalldata;
   bytes secondSwapCalldata;
