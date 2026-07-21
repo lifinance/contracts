@@ -46,6 +46,21 @@ export interface IVerifyResult {
 }
 
 /**
+ * Reject a value that is interpolated into a filesystem path unless it is a
+ * bare, separator-free segment. Network keys and contract names are the only
+ * caller-supplied values that reach `deployments/<network>.json` or the
+ * flattened/source paths, so validating them here closes the path-traversal
+ * surface (`..`, `/`, absolute paths) at the point of use.
+ * @throws if `value` contains anything outside `[A-Za-z0-9_-]`.
+ */
+export function assertSafePathSegment(value: string, label: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(value))
+    throw new Error(
+      `unsafe ${label} "${value}": expected characters in [A-Za-z0-9_-]`
+    )
+}
+
+/**
  * Locate the flattened `<Contract>.sol` under the flattened-sources root.
  * The tree mirrors `src/`, so we search the known subdirectories plus the root
  * for an exact filename match.

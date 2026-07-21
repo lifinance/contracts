@@ -28,6 +28,7 @@ import { consola } from 'consola'
 import { sleep } from '../../utils/delay'
 
 import {
+  assertSafePathSegment,
   flattenContractSource,
   resolveFlattenedPath,
   verifyContractOnTronscan,
@@ -120,6 +121,7 @@ const main = defineCommand({
     const viaIR = args['via-ir']
     const dryRun = args['dry-run']
 
+    assertSafePathSegment(network, 'network')
     const networks = JSON.parse(
       readFileSync('config/networks.json', 'utf8')
     ) as Record<string, INetworkConfig>
@@ -150,6 +152,8 @@ const main = defineCommand({
         consola.info(`skip ${contractName} (already verified / excluded)`)
         continue
       }
+
+      assertSafePathSegment(contractName, 'contract name')
 
       // Source either comes pre-flattened from --flattened-dir, or we flatten
       // it on the fly from --repo-root (the default, deleting the temp file).

@@ -6,11 +6,28 @@ import { join } from 'path'
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 
 import {
+  assertSafePathSegment,
   interpretResponse,
   normalizeConstructorParams,
   resolveFlattenedPath,
   resolveSourcePath,
 } from './tronscanVerify'
+
+describe('assertSafePathSegment', () => {
+  it('accepts bare network keys and contract names', () => {
+    expect(() => assertSafePathSegment('tron', 'network')).not.toThrow()
+    expect(() =>
+      assertSafePathSegment('GenericSwapFacetV3', 'contract name')
+    ).not.toThrow()
+    expect(() => assertSafePathSegment('tronshasta', 'network')).not.toThrow()
+  })
+
+  it('rejects path traversal and separators', () => {
+    for (const bad of ['..', '../etc', 'a/b', '/abs', 'a.sol', '', 'a b']) {
+      expect(() => assertSafePathSegment(bad, 'network')).toThrow()
+    }
+  })
+})
 
 describe('interpretResponse', () => {
   it('treats status 2001 "validated" as success', () => {
