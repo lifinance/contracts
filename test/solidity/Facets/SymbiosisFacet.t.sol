@@ -7,7 +7,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
 import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
 import { IOnchainSwapV3 } from "lifi/Interfaces/IOnchainSwapV3.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch, NoSwapDataProvided } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch, NoSwapDataProvided, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Stub SymbiosisFacet Contract
@@ -35,7 +35,7 @@ library OnchainSwapV3Signing {
     // Must match SymbiosisFacet.SYMBIOSIS_PAYLOAD_TYPEHASH
     bytes32 internal constant SYMBIOSIS_PAYLOAD_TYPEHASH =
         keccak256(
-            "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline)"
+            "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline,address refundRecipient)"
         );
 
     function digest(
@@ -55,7 +55,8 @@ library OnchainSwapV3Signing {
                 _symbiosisData.dex,
                 _symbiosisData.dexgateway,
                 keccak256(_symbiosisData.onchainSwapData),
-                _symbiosisData.deadline
+                _symbiosisData.deadline,
+                _symbiosisData.refundRecipient
             )
         );
 
@@ -76,6 +77,38 @@ library OnchainSwapV3Signing {
                 abi.encodePacked("\x19\x01", domainSeparator, structHash)
             );
     }
+}
+
+/// @dev Minimal stand-in for a contract that calls the diamond on a user's
+///      behalf (e.g. LI.FI's Permit2Proxy, which invokes the diamond via
+///      `LIFI_DIAMOND.call{value: msg.value}(...)`). Used to prove refunds go
+///      to `refundRecipient` and are never stranded at the calling contract
+///      (`msg.sender`).
+contract RelayerProxy {
+    function approveToken(
+        address token,
+        address spender,
+        uint256 amount
+    ) external {
+        IERC20(token).approve(spender, amount);
+    }
+
+    function callDiamond(
+        address diamond,
+        uint256 value,
+        bytes calldata data
+    ) external payable {
+        (bool success, bytes memory ret) = diamond.call{ value: value }(data);
+        if (!success) {
+            // bubble up the original revert reason
+            // solhint-disable-next-line no-inline-assembly
+            assembly {
+                revert(add(ret, 0x20), mload(ret))
+            }
+        }
+    }
+
+    receive() external payable {}
 }
 
 contract SymbiosisFacetTest is TestBaseFacet {
@@ -179,6 +212,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         _approvedTokens[0] = ADDRESS_USDC;
 
         symbiosisData = SymbiosisFacet.SymbiosisData({
+            refundRecipient: USER_SENDER,
             firstSwapCalldata: "",
             secondSwapCalldata: "",
             firstDexRouter: address(0),
@@ -528,6 +562,125 @@ contract SymbiosisFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    /// refundRecipient (audit finding #1) ///
+
+    /// @dev Excess native sent through a proxy caller must be refunded to
+    ///      `refundRecipient`, not stranded at the proxy (`msg.sender`).
+    function test_ExcessNativeRefundedToRefundRecipientNotProxyCaller()
+        public
+    {
+        RelayerProxy proxy = new RelayerProxy();
+        address refundRecipient = makeAddr("symbiosisRefundRecipient");
+
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = defaultUSDCAmount;
+        symbiosisData.refundRecipient = refundRecipient;
+
+        uint256 excessNative = 1 ether;
+
+        deal(ADDRESS_USDC, address(proxy), bridgeData.minAmount);
+        vm.deal(address(this), excessNative);
+        proxy.approveToken(
+            ADDRESS_USDC,
+            _facetTestContractAddress,
+            bridgeData.minAmount
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            symbiosisFacet.startBridgeTokensViaSymbiosis.selector,
+            bridgeData,
+            symbiosisData
+        );
+
+        proxy.callDiamond{ value: excessNative }(
+            _facetTestContractAddress,
+            excessNative,
+            callData
+        );
+
+        // the ERC20 MetaRouter path forwards no native, so the whole attached
+        // value is excess and must land at refundRecipient, not the proxy
+        assertEq(refundRecipient.balance, excessNative);
+        assertEq(address(proxy).balance, 0);
+    }
+
+    /// @dev Same property for the swap-and-bridge entrypoint: refunds follow
+    ///      `refundRecipient`, never the calling proxy.
+    function test_SwapAndBridge_RefundGoesToRefundRecipientNotProxyCaller()
+        public
+    {
+        RelayerProxy proxy = new RelayerProxy();
+        address refundRecipient = makeAddr("symbiosisSwapRefundRecipient");
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        symbiosisData.refundRecipient = refundRecipient;
+
+        // DAI -> USDC (exact-input, no DAI leftover), then bridge USDC
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        uint256 excessNative = 1 ether;
+
+        deal(ADDRESS_DAI, address(proxy), swapData[0].fromAmount);
+        vm.deal(address(this), excessNative);
+        proxy.approveToken(
+            ADDRESS_DAI,
+            _facetTestContractAddress,
+            swapData[0].fromAmount
+        );
+
+        bytes memory callData = abi.encodeWithSelector(
+            symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis.selector,
+            bridgeData,
+            swapData,
+            symbiosisData
+        );
+
+        proxy.callDiamond{ value: excessNative }(
+            _facetTestContractAddress,
+            excessNative,
+            callData
+        );
+
+        assertEq(refundRecipient.balance, excessNative);
+        assertEq(address(proxy).balance, 0);
+    }
+
+    function testRevert_StartBridgeWithZeroRefundRecipient() public {
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        symbiosisData.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndStartBridgeWithZeroRefundRecipient() public {
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        symbiosisData.refundRecipient = address(0);
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
+            bridgeData,
+            swapData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
     /// MetaRouter path (unchanged) ///
 
     function testBase_CanSwapAndBridgeNativeTokens()
@@ -767,6 +920,7 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
             hasDestinationCall: false
         });
 
+        sd.refundRecipient = USER_SENDER;
         sd.viaOnchainSwapV3 = true;
         sd.dex = ONSWAP_DEX;
         sd.dexgateway = ONSWAP_DEX;

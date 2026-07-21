@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2, LibSwap } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
 
 /// @title Symbiosis Facet
 /// @author Symbiosis (https://symbiosis.finance)
@@ -50,9 +50,9 @@ contract SymbiosisFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.symbiosis");
 
-    // EIP-712 typehash for SymbiosisPayload: keccak256("SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline)");
+    // EIP-712 typehash for SymbiosisPayload: keccak256("SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 deadline,address refundRecipient)");
     bytes32 private constant SYMBIOSIS_PAYLOAD_TYPEHASH =
-        0xcbef770661caade0f9a99582437a7cf8b10673b081ad0a3d8c9c61e5600c0e0d;
+        0x7257da9d246759cfaab69996bef9f154218c58b1fac9dde135529906870ea848;
 
     /// Storage ///
 
@@ -92,6 +92,7 @@ contract SymbiosisFacet is
     /// Types ///
 
     /// @notice The data specific to Symbiosis
+    /// @param refundRecipient The address that receives swap leftovers and any excess native asset; the caller (e.g. a proxy) is not assumed to be the fund owner
     /// @param nonEvmReceiver The Bitcoin receiver, emitted for non-EVM destinations
     /// @param firstSwapCalldata The calldata for the first swap
     /// @param secondSwapCalldata The calldata for the second swap
@@ -107,6 +108,7 @@ contract SymbiosisFacet is
     /// @param deadline OnchainSwapV3 only: expiry of the backend signature
     /// @param signature OnchainSwapV3 only: backend EIP-712 signature over the payload
     struct SymbiosisData {
+        address refundRecipient;
         bytes32 nonEvmReceiver;
         bytes firstSwapCalldata;
         bytes secondSwapCalldata;
@@ -175,11 +177,14 @@ contract SymbiosisFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_symbiosisData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
     {
+        if (_symbiosisData.refundRecipient == address(0))
+            revert InvalidCallData();
+
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
@@ -200,11 +205,14 @@ contract SymbiosisFacet is
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_symbiosisData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
     {
+        if (_symbiosisData.refundRecipient == address(0))
+            revert InvalidCallData();
+
         // The final swap output must be the asset that gets bridged: _depositAndSwap measures
         // the received amount in the last swap's receivingAssetId, while _startBridge forwards
         // bridgeData.sendingAssetId. A mismatch would let a cheap swap output set minAmount while
@@ -222,7 +230,7 @@ contract SymbiosisFacet is
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_symbiosisData.refundRecipient)
         );
 
         _startBridge(_bridgeData, _symbiosisData);
@@ -352,8 +360,9 @@ contract SymbiosisFacet is
 
     /// @dev Verifies the EIP-712 backend signature for the OnchainSwapV3 path.
     ///      Binds the caller-supplied router calldata (`dex`/`dexgateway`/
-    ///      hash of `onchainSwapData`) and the Bitcoin receiver/amount so a
-    ///      malicious or phished quote cannot misroute the user's in-flight funds.
+    ///      hash of `onchainSwapData`), the Bitcoin receiver/amount, and the
+    ///      `refundRecipient` so a malicious or phished quote cannot misroute
+    ///      the user's in-flight funds or their refund.
     /// @param _bridgeData the core information needed for bridging
     /// @param _symbiosisData data specific to Symbiosis
     function _verifyOnchainSwapV3Signature(
@@ -374,7 +383,8 @@ contract SymbiosisFacet is
                 _symbiosisData.dex,
                 _symbiosisData.dexgateway,
                 keccak256(_symbiosisData.onchainSwapData),
-                _symbiosisData.deadline
+                _symbiosisData.deadline,
+                _symbiosisData.refundRecipient
             )
         );
 
