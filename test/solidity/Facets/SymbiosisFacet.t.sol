@@ -464,6 +464,70 @@ contract SymbiosisFacetTest is TestBaseFacet {
         );
     }
 
+    /// MetaRouter approvedTokens validation (finding #7) ///
+
+    /// @dev finding #7: the MetaRouter pulls approvedTokens[0] from the diamond
+    ///      via the standing gateway allowance, so it must equal the deposited
+    ///      sendingAssetId; a mismatch would let a caller drain a residual balance
+    ///      of another token.
+    function testRevert_MetaRouterApprovedTokenMismatch() public {
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        // approvedTokens[0] points at a different token than sendingAssetId
+        symbiosisData.approvedTokens = new address[](1);
+        symbiosisData.approvedTokens[0] = ADDRESS_DAI;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev finding #7: an empty approvedTokens array must revert cleanly rather
+    ///      than panic on the out-of-bounds approvedTokens[0] read.
+    function testRevert_MetaRouterEmptyApprovedTokens() public {
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        symbiosisData.approvedTokens = new address[](0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev finding #7 happy path: approvedTokens[0] == sendingAssetId bridges
+    ///      normally and emits LiFiTransferStarted.
+    function test_MetaRouterMatchingApprovedTokenSucceeds() public {
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+
+        symbiosisData.approvedTokens = new address[](1);
+        symbiosisData.approvedTokens[0] = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        symbiosisFacet.startBridgeTokensViaSymbiosis(
+            bridgeData,
+            symbiosisData
+        );
+        vm.stopPrank();
+    }
+
     /// MetaRouter path (unchanged) ///
 
     function testBase_CanSwapAndBridgeNativeTokens()

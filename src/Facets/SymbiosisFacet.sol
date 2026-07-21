@@ -240,6 +240,15 @@ contract SymbiosisFacet is
         ILiFi.BridgeData memory _bridgeData,
         SymbiosisData calldata _symbiosisData
     ) private {
+        // The MetaRouter pulls approvedTokens[0] from the diamond via the
+        // standing gateway allowance. Pin it to the deposited sendingAssetId so a
+        // caller cannot redirect the pull to another token the diamond holds a
+        // residual balance of / a standing allowance for.
+        if (
+            _symbiosisData.approvedTokens.length == 0 ||
+            _symbiosisData.approvedTokens[0] != _bridgeData.sendingAssetId
+        ) revert InformationMismatch();
+
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
         uint256 nativeAssetAmount;
 
