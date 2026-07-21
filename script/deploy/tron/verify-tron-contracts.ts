@@ -121,6 +121,13 @@ const main = defineCommand({
     const viaIR = args['via-ir']
     const dryRun = args['dry-run']
 
+    if (Number.isNaN(optimizerRuns))
+      throw new Error(
+        `--optimizer-runs must be a number (got "${args['optimizer-runs']}")`
+      )
+    if (Number.isNaN(license))
+      throw new Error(`--license must be a number (got "${args.license}")`)
+
     assertSafePathSegment(network, 'network')
     const networks = JSON.parse(
       readFileSync('config/networks.json', 'utf8')
