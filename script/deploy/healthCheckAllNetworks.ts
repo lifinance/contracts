@@ -122,23 +122,31 @@ async function runOneNetwork(
   environment: string,
   timeoutMs: number = PER_NETWORK_TIMEOUT_MS
 ): Promise<IHealthCheckResult> {
+  // Cancel a timed-out network's in-flight RPC reads instead of only abandoning the promise:
+  // Promise.race resolves via the deadline while the check keeps issuing reads, so without
+  // this the fleet would exceed --concurrency on slow-RPC days. The signal is threaded into
+  // the viem transport by runHealthCheckForNetwork.
+  const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<IHealthCheckResult>((resolve) => {
-    timer = setTimeout(
-      () =>
-        resolve({
-          network,
-          status: 'failed',
-          warnings: 0,
-          detail: `TIMEOUT after ${Math.round(timeoutMs / 1000)}s`,
-        }),
-      timeoutMs
-    )
+    timer = setTimeout(() => {
+      controller.abort()
+      resolve({
+        network,
+        status: 'failed',
+        warnings: 0,
+        detail: `TIMEOUT after ${Math.round(timeoutMs / 1000)}s`,
+      })
+    }, timeoutMs)
   })
 
   const check = async (): Promise<IHealthCheckResult> => {
     try {
-      const result = await runHealthCheckForNetwork(network, environment)
+      const result = await runHealthCheckForNetwork(
+        network,
+        environment,
+        controller.signal
+      )
       let detail = ''
       // Keep only the tail so a single network cannot flood the consolidated report.
       if (result.status === 'failed')
@@ -240,9 +248,16 @@ const main = defineCommand({
         .map((n) => n.trim().toLowerCase())
         .filter(Boolean)
     else if (args['changed-paths'] !== undefined) {
+      // Intersect with the production fleet: the push trigger fires on any deployments/*.json
+      // change, but production-scoped invariants must only run against mainnet+active networks.
+      // Without this, a change to deployments/basesepolia.json would run production checks
+      // against a testnet and post a false 🚨 ACTION NEEDED alert (see cron path below).
+      const productionNetworks = new Set(
+        getProductionNetworkNames(getAllActiveNetworks())
+      )
       networks = deploymentPathsToNetworks(
         String(args['changed-paths']).split(',')
-      )
+      ).filter((n) => productionNetworks.has(n))
       if (networks.length === 0) {
         consola.success(
           'No production network deployment files changed; nothing to check.'

@@ -53,10 +53,14 @@ export interface IHealthCheckNetworkResult {
  *
  * @param networkStr - Network key (as in config/networks.json).
  * @param environment - 'production' or 'staging' (validated by the caller).
+ * @param signal - Optional AbortSignal wired into the (EVM) viem transport so a caller that
+ *   abandons this run on a deadline (see the multi-network runner) actually cancels its
+ *   in-flight RPC reads instead of leaving them running above the concurrency budget.
  */
 export async function runHealthCheckForNetwork(
   networkStr: string,
-  environment: string
+  environment: string,
+  signal?: AbortSignal
 ): Promise<IHealthCheckNetworkResult> {
   const networkLower = networkStr.toLowerCase()
 
@@ -175,11 +179,17 @@ export async function runHealthCheckForNetwork(
         retryCount,
         retryDelay,
       } = getTransportConfigFromRpcUrl(rpcUrl)
+      const mergedFetchOptions = {
+        ...(fetchOptions ?? {}),
+        ...(signal ? { signal } : {}),
+      }
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
         transport: http(transportUrl, {
-          ...(fetchOptions ? { fetchOptions } : {}),
+          ...(Object.keys(mergedFetchOptions).length
+            ? { fetchOptions: mergedFetchOptions }
+            : {}),
           ...(retryCount !== undefined ? { retryCount } : {}),
           ...(retryDelay !== undefined ? { retryDelay } : {}),
         }),
@@ -190,6 +200,7 @@ export async function runHealthCheckForNetwork(
     let deployerWallet: string
     let refundWallet: string
     let feeCollectorOwner: string
+    let pauserWallet: string
 
     if (isTron) {
       if (!tronWeb) throw new Error('TronWeb not initialized')
@@ -197,6 +208,7 @@ export async function runHealthCheckForNetwork(
       deployerWallet = getTronWallet('deployerWallet', { tronWeb })
       refundWallet = getTronWallet('refundWallet', { tronWeb })
       feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
+      pauserWallet = getTronWallet('pauserWallet', { tronWeb })
     } else {
       // Testnets are owned by deployerWallet regardless of environment.
       deployerWallet = getAddress(
@@ -206,6 +218,7 @@ export async function runHealthCheckForNetwork(
       )
       refundWallet = getAddress(globalConfig.refundWallet)
       feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
+      pauserWallet = getAddress(globalConfig.pauserWallet)
     }
 
     const ctx: IHealthCheckContext = {
@@ -228,6 +241,7 @@ export async function runHealthCheckForNetwork(
       deployerWallet,
       refundWallet,
       feeCollectorOwner,
+      pauserWallet,
       onChainFacets: [],
       errors,
       warnings,

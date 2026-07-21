@@ -14,7 +14,6 @@ import {
   getInvariantExclusion,
   isInvariantApplicable,
   runHealthCheckInvariants,
-  scriptEval,
   type IHealthCheckContext,
   type IHealthCheckInvariant,
   type IInvariantExclusion,
@@ -373,26 +372,5 @@ describe('runHealthCheckInvariants (runner)', () => {
       ),
     ])
     expect(ran).toBe(false)
-  })
-})
-
-describe('scriptEval', () => {
-  it('passes when the script exits 0', async () => {
-    const ctx = makeCtx()
-    await scriptEval('true')(ctx)
-    expect(ctx.errors).toEqual([])
-  })
-
-  it('records an error when the script exits non-zero', async () => {
-    const ctx = makeCtx()
-    await scriptEval('false')(ctx)
-    expect(ctx.errors.length).toBe(1)
-  })
-
-  it('reports as a warning when severity is warning', async () => {
-    const ctx = makeCtx()
-    await scriptEval('false', 'warning')(ctx)
-    expect(ctx.errors).toEqual([])
-    expect(ctx.warnings.length).toBe(1)
   })
 })

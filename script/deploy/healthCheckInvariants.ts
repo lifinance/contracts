@@ -18,6 +18,7 @@ import path from 'path'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
+  formatEther,
   getAddress,
   getContract,
   parseAbi,
@@ -27,7 +28,6 @@ import {
 } from 'viem'
 
 import type { IWhitelistConfig, TargetState } from '../common/types'
-import { spawnAndCapture } from '../utils/spawnAndCapture'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD } from './shared/constants'
@@ -98,6 +98,7 @@ export interface IHealthCheckContext {
   deployerWallet: string
   refundWallet: string
   feeCollectorOwner: string
+  pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
   errors: string[]
@@ -122,40 +123,6 @@ export interface IHealthCheckInvariant {
   /** Actionable fix shown after this invariant fails (e.g. the command to re-sync). */
   remediation?: string
   run: (ctx: IHealthCheckContext) => Promise<void>
-}
-
-/**
- * Adapt an external check script into an invariant `run()`: the script is spawned with the
- * network + environment, and the invariant passes iff it exits 0. Non-zero exit records a
- * failure (error/warning per `severity`) with the script's output tail as the detail. Use
- * sparingly — a subprocess per (eval × network) loses the shared viem client/batching, so
- * it is for reusing authoritative external checks, not for checks that belong in-process.
- *
- * @param scriptPath - Repo-relative path to an executable check (exit 0 = pass).
- * @param severity - How a non-zero exit is reported.
- * @param argsFromCtx - Builds the script args from the network context.
- */
-export function scriptEval(
-  scriptPath: string,
-  severity: HealthCheckSeverity = 'error',
-  argsFromCtx: (ctx: IHealthCheckContext) => string[] = (ctx) => [
-    '--network',
-    ctx.networkLower,
-    '--environment',
-    ctx.environment,
-  ]
-): (ctx: IHealthCheckContext) => Promise<void> {
-  return async (ctx) => {
-    try {
-      await spawnAndCapture(scriptPath, argsFromCtx(ctx))
-      consola.success(`${scriptPath} passed`)
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error)
-      const tail = detail.split('\n').slice(-5).join('\n')
-      const report = severity === 'warning' ? ctx.logWarn : ctx.logError
-      report(`${scriptPath} failed: ${tail}`)
-    }
-  }
 }
 
 /**
@@ -308,6 +275,36 @@ const checkIsDeployed = async (
   if (code === '0x') return false
 
   return true
+}
+
+/**
+ * Binary-search the earliest block at which `address` has code — its deployment block —
+ * in ~log2(latest) `getCode` calls. Used to bound event queries: a full-history
+ * `fromBlock: 'earliest'` scan is range-capped (throws) or silently truncated (false pass)
+ * by some RPC providers on long-lived mainnet proxies. Assumes code presence is monotonic
+ * (contract not self-destructed), which holds for LI.FI periphery.
+ */
+async function findDeploymentBlock(
+  publicClient: PublicClient,
+  address: Address
+): Promise<bigint> {
+  const hasCode = async (blockNumber: bigint): Promise<boolean> => {
+    const code = await publicClient.getCode({ address, blockNumber })
+    return code !== undefined && code !== '0x'
+  }
+
+  // Defensive: if code exists at genesis (never for our contracts), earliest is 0.
+  if (await hasCode(0n)) return 0n
+
+  // Invariant: no code at `low`, code at `high`; converge to the first block with code.
+  let low = 0n
+  let high = await publicClient.getBlockNumber()
+  while (high - low > 1n) {
+    const mid = (low + high) / 2n
+    if (await hasCode(mid)) high = mid
+    else low = mid
+  }
+  return high
 }
 
 /**
@@ -809,20 +806,21 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       } catch (error: unknown) {
         facetCheckSkipped = true
-        if (isRateLimitError(error)) {
-          consola.warn(
-            'RPC rate limit reached (429) - skipping facet registration check'
+        // Record a warning (not a silent consola.warn): a failed facets() read leaves
+        // ctx.onChainFacets empty, so the phase-2 selector/facet-set invariants
+        // (no-duplicate-selectors, no-unexpected-facets) skip. Surfacing it here lands the
+        // network in the `warned` list so the reduced coverage is visible in the sweep report
+        // instead of posting a green status while the drift checks silently didn't run.
+        if (isRateLimitError(error))
+          ctx.logWarn(
+            'RPC rate limit reached (429) - facet registration + phase-2 selector/facet-set checks skipped'
           )
-          consola.warn(
-            'This is a temporary limitation from the RPC provider. The check will be skipped.'
-          )
-        } else {
+        else {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          consola.warn(
-            'Unable to read facets() - skipping facet registration check'
+          ctx.logWarn(
+            `Unable to read facets() - facet registration + phase-2 selector/facet-set checks skipped: ${errorMessage}`
           )
-          consola.warn('Error:', errorMessage)
         }
       }
 
@@ -1238,7 +1236,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               ctx.logError
             )
           else
-            consola.error(
+            ctx.logError(
               'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
             )
         } else
@@ -1271,7 +1269,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.publicClient
           )
         else
-          consola.error(
+          ctx.logError(
             'LiFiTimelockController not deployed, so diamond ownership cannot be verified'
           )
       } else
@@ -1326,10 +1324,53 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
     },
   },
-  // NOTE: pauser-wallet-funded was intentionally removed. Pauser funding is owned by
-  // verifyEmergencyPauseReadiness.yml (checkPauserFunds.sh), which checks the stronger
-  // "can afford a pauseDiamond()" rather than mere non-zero balance. Keeping a weaker
-  // daily duplicate here wasted RPC and split ownership of that check.
+  {
+    // A non-zero-balance floor for the pauser. verifyEmergencyPauseReadiness.yml
+    // (checkPauserFunds.sh) owns the stronger "can afford a pauseDiamond()" check, but it is
+    // EVM-only and runs only on the scheduled/manual readiness workflow — so on its own it
+    // leaves two gaps: (1) the Tron pauser's TRX balance is asserted nowhere, and (2) a
+    // freshly deployed EVM network's unfunded pauser is not caught until the next readiness
+    // run. This lightweight floor closes both: it runs on Tron and at deploy time (the sweep's
+    // push trigger), while the readiness workflow remains the authoritative affordability gate.
+    name: 'pauser-funded',
+    description: 'Pauser wallet has a non-zero native balance',
+    severity: 'error',
+    // skipTestnet: the two coverage gaps this closes are both mainnet (Tron mainnet pauser +
+    // freshly deployed EVM mainnet pausers); testnet pausers (incl. the localanvil smoke-test
+    // sandbox, whose pauser is unfunded) are not a production readiness invariant.
+    scope: { environments: ['production'], skipTestnet: true },
+    remediation:
+      'Fund the pauser wallet with native gas so it can broadcast pauseDiamond() in an incident.',
+    run: async (ctx) => {
+      if (ctx.isTron && ctx.tronWeb) {
+        const pauserTronAddress = ensureTronAddress(
+          ctx.pauserWallet,
+          ctx.tronWeb
+        )
+        const balanceSun = await ctx.tronWeb.trx.getBalance(pauserTronAddress)
+        if (!balanceSun)
+          ctx.logError(`Pauser wallet ${pauserTronAddress} has no TRX balance`)
+        else
+          consola.success(
+            `Pauser wallet ${pauserTronAddress} is funded: ${
+              balanceSun / 1e6
+            } TRX`
+          )
+        return
+      }
+
+      if (!ctx.publicClient) return
+      const balance = await ctx.publicClient.getBalance({
+        address: ctx.pauserWallet as Address,
+      })
+      if (!balance)
+        ctx.logError(`Pauser wallet ${ctx.pauserWallet} has no native balance`)
+      else
+        consola.success(
+          `Pauser wallet ${ctx.pauserWallet} is funded: ${formatEther(balance)}`
+        )
+    },
+  },
   {
     name: 'refund-wallet-access',
     description:
@@ -1471,17 +1512,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         getAddress(executorAddress as Address).toLowerCase(),
       ])
 
-      // ERC20Proxy exposes no enumerator for authorizedCallers, so reconstruct the
-      // current set from AuthorizationChanged events. Full-range getLogs is rejected by
-      // some RPC providers — treat any failure as "cannot verify" (warning, non-fatal).
+      // ERC20Proxy exposes no enumerator for authorizedCallers, so reconstruct the current
+      // set from AuthorizationChanged events. Bound the scan to the proxy's deployment block:
+      // a `fromBlock: 'earliest'` full-history query is range-capped (throws) or silently
+      // truncated (false pass) by some providers on long-lived mainnet proxies. The events are
+      // sparse, so one bounded query returns the full set. Any failure surfaces as a visible
+      // warning (never a silent pass).
       try {
+        const erc20Proxy = getAddress(erc20ProxyAddress as Address)
+        const fromBlock = await findDeploymentBlock(
+          ctx.publicClient,
+          erc20Proxy
+        )
         const logs = await ctx.publicClient.getContractEvents({
-          address: getAddress(erc20ProxyAddress as Address),
+          address: erc20Proxy,
           abi: parseAbi([
             'event AuthorizationChanged(address indexed caller, bool authorized)',
           ]),
           eventName: 'AuthorizationChanged',
-          fromBlock: 'earliest',
+          fromBlock,
           toBlock: 'latest',
         })
 
@@ -1510,7 +1559,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error)
-        consola.warn(
+        ctx.logWarn(
           `Could not enumerate ERC20Proxy authorized callers (RPC log range limit?); skipping: ${errorMessage}`
         )
       }
