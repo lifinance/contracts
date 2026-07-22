@@ -4,6 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { type Collection } from 'mongodb'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
@@ -12,10 +13,70 @@ import {
   computeOperationIdBatch,
   decodeScheduleBatch,
   deserializeScheduleParams,
+  ensureTimelockQueueIndexes,
   isScheduleBatchCalldata,
   serializeScheduleParams,
   type IScheduleBatchParams,
+  type ITimelockQueueDoc,
 } from './timelock-queue'
+
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
+
+interface IFakeIndexOptions {
+  /** When set, every `createIndex` call rejects with this error. */
+  createIndexError?: Error
+  /** Index descriptors `listIndexes().toArray()` returns (default: none). */
+  existingIndexes?: { name: string }[]
+  /** When set, `listIndexes().toArray()` rejects with this error. */
+  listIndexesError?: Error
+}
+
+type IFakeIndexCollection = Collection<ITimelockQueueDoc> & {
+  createIndexCalls: { spec: unknown; options: unknown }[]
+}
+
+/**
+ * In-memory stand-in for the queue collection exercising the index path only:
+ * records every `createIndex` call and lets a test inject a `createIndex`
+ * failure, the `listIndexes` result, or a `listIndexes` failure — the three
+ * inputs `safeCreateIndex`'s authorization-degradation branch reads.
+ */
+function createFakeIndexCollection(
+  options: IFakeIndexOptions = {}
+): IFakeIndexCollection {
+  const createIndexCalls: { spec: unknown; options: unknown }[] = []
+  const api = {
+    collectionName: 'queue',
+    createIndexCalls,
+    async createIndex(spec: unknown, opts: unknown): Promise<string> {
+      createIndexCalls.push({ spec, options: opts })
+      if (options.createIndexError) throw options.createIndexError
+      return (opts as { name: string }).name
+    },
+    listIndexes() {
+      return {
+        async toArray(): Promise<{ name: string }[]> {
+          if (options.listIndexesError) throw options.listIndexesError
+          return options.existingIndexes ?? []
+        },
+      }
+    },
+  }
+  return api as unknown as IFakeIndexCollection
+}
 
 const ZERO_BYTES32 =
   // pre-commit-checker: not a secret — zero bytes32 sentinel used as test fixture
@@ -240,5 +301,100 @@ describe('serialize/deserialize round-trip', () => {
     expect(restored.predecessor).toBe(params.predecessor)
     expect(restored.salt).toBe(params.salt)
     expect(restored.delay).toBe(params.delay)
+  })
+})
+
+describe('ensureTimelockQueueIndexes', () => {
+  it('creates the unique and query indexes with expected specs', async () => {
+    const coll = createFakeIndexCollection()
+    await ensureTimelockQueueIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(2)
+    expect(coll.createIndexCalls[0]).toEqual({
+      spec: { network: 1, operationId: 1 },
+      options: { unique: true, name: 'unique_network_operation_id' },
+    })
+    expect(coll.createIndexCalls[1]).toEqual({
+      spec: { network: 1, status: 1 },
+      options: { name: 'network_status' },
+    })
+  })
+
+  it('surfaces an index-options conflict (code 85) as a clear error', async () => {
+    const err = Object.assign(new Error('conflict'), { code: 85 })
+    const coll = createFakeIndexCollection({ createIndexError: err })
+    await expectRejects(ensureTimelockQueueIndexes(coll), /Index conflict/)
+  })
+
+  it('surfaces an index-keyspec conflict (code 86) as a clear error', async () => {
+    const err = Object.assign(new Error('conflict'), { code: 86 })
+    const coll = createFakeIndexCollection({ createIndexError: err })
+    await expectRejects(ensureTimelockQueueIndexes(coll), /Index conflict/)
+  })
+
+  it('rethrows any other createIndex error unchanged', async () => {
+    const err = Object.assign(new Error('network down'), { code: 6 })
+    const coll = createFakeIndexCollection({ createIndexError: err })
+    await expectRejects(ensureTimelockQueueIndexes(coll), 'network down')
+  })
+
+  it('tolerates a not-authorized createIndex (code 13) when the indexes already exist', async () => {
+    const err = Object.assign(
+      new Error('not authorized on timelock-operations to execute command'),
+      { code: 13 }
+    )
+    const coll = createFakeIndexCollection({
+      createIndexError: err,
+      existingIndexes: [
+        { name: '_id_' },
+        { name: 'unique_network_operation_id' },
+        { name: 'network_status' },
+      ],
+    })
+    await ensureTimelockQueueIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(2)
+  })
+
+  it('tolerates a not-authorized createIndex matched by message when code is absent', async () => {
+    const err = new Error(
+      'not authorized on timelock-operations to execute command { createIndexes: ... }'
+    )
+    const coll = createFakeIndexCollection({
+      createIndexError: err,
+      existingIndexes: [
+        { name: 'unique_network_operation_id' },
+        { name: 'network_status' },
+      ],
+    })
+    await ensureTimelockQueueIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(2)
+  })
+
+  it('proceeds non-fatally when not authorized and the indexes are missing', async () => {
+    const err = Object.assign(
+      new Error('not authorized on timelock-operations'),
+      { code: 13 }
+    )
+    const coll = createFakeIndexCollection({
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }],
+    })
+    await ensureTimelockQueueIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(2)
+  })
+
+  it('proceeds non-fatally when not authorized and listIndexes also fails', async () => {
+    const err = Object.assign(
+      new Error('not authorized on timelock-operations'),
+      { code: 13 }
+    )
+    const listErr = Object.assign(new Error('not authorized to listIndexes'), {
+      code: 13,
+    })
+    const coll = createFakeIndexCollection({
+      createIndexError: err,
+      listIndexesError: listErr,
+    })
+    await ensureTimelockQueueIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(2)
   })
 })
