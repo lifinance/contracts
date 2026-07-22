@@ -72,6 +72,14 @@
       "0x35970eA7235E8AC9Dc3D6cb78557E4e3a6e783ff": {
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
+      },
+      "0x7FFE27a83a95bF814188C3244E06C8d497589287": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.5"
+      },
+      "0xC9A3eaD2f8f3d6ED100CAb7A5375605bbeBceAAE": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -79,7 +87,7 @@
       "Executor": "0x464fC28B9CbC1781286c8626B6E925275c8C14F1",
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
       "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
-      "GasZipPeriphery": "",
+      "GasZipPeriphery": "0x9F80FDADcA03a6e062B13BAe1B5e5c0B2A166049",
       "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
       "LidoWrapper": "",
       "OutputValidator": "",
