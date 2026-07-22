@@ -1,6 +1,6 @@
 ---
 name: resolve-audit-issues
-description: Work through an external auditor's GitHub issues for a contracts PR — discover the audit repo from Slack, load every finding, triage fix-vs-acknowledge in one gate, implement each fix as its own commit on a remediation branch, then reply to each issue with "fixed <commit>" or "acknowledged <reason>". Use when an audit is completed and the findings live as issues in the auditor's repo.
+description: Work through an external auditor's GitHub issues for a contracts PR — discover the audit repo from Slack, load every finding, triage fix-vs-acknowledge in one gate, implement each fix as its own commit on a remediation branch, reply to each issue with "fixed <commit>" or "acknowledged <reason>", then post a Slack wrap-up nudging the auditor and pinging @smartcontract_core to re-review. Use when an audit is completed and the findings live as issues in the auditor's repo.
 usage: /resolve-audit-issues <PR_NUMBER_OR_URL_OR_FACET> [--audit-repo <owner/repo>]
 ---
 
@@ -11,8 +11,8 @@ usage: /resolve-audit-issues <PR_NUMBER_OR_URL_OR_FACET> [--audit-repo <owner/re
 An external auditor (Sujith, Burrasec) delivers findings as **GitHub issues in their own
 repo**, one issue per finding, severity-labelled. This command drives the response end to end:
 discover that repo, read every finding, decide per issue whether to **fix** or **acknowledge**,
-implement fixes one-commit-each on a fresh remediation branch, and reply to each issue with a
-commit link or a reason.
+implement fixes one-commit-each on a fresh remediation branch, reply to each issue with a
+commit link or a reason, and post a Slack wrap-up nudging the auditor + pinging the SC team.
 
 **Control model — one gate.** The command analyses *all* issues and presents a single triage
 table. You approve/edit the whole plan once. Then it executes autonomously, pausing only for
@@ -32,15 +32,16 @@ Acknowledged findings produce no commit.
   - Merging the remediation PR or any multisig rollout → `/multisig-rollout`.
   - Requesting the audit in the first place → `/request-audit`.
 
-## Auditors (for Slack discovery)
+## Auditors (for Slack discovery + the wrap-up nudge)
 
-| Auditor | Channel | Repo owner (typical) |
-|---|---|---|
-| Sujith Somraaj | `#dev-sc-audit` | `sujithsomraaj` |
-| Burrasec (Josip Koncurat) | `#dev-sc-audit-burrasec` | `burrasec` / firm org |
+| Auditor | Channel | webhook `--channel` | env var | Auditor mention | Repo owner (typical) |
+|---|---|---|---|---|---|
+| Sujith Somraaj | `#dev-sc-audit` | `dev-sc-audit` | `WEBHOOK_DEV_SC_AUDIT` | `<@U05GN6XH57T>` | `sujithsomraaj` |
+| Burrasec (Josip Koncurat) | `#dev-sc-audit-burrasec` | `dev-sc-audit-burrasec` | `WEBHOOK_DEV_SC_AUDIT_BURRASEC` | `<@U094M720QDP>` | `burrasec` / firm org |
 
 The owner column is a hint, not a rule — always confirm the discovered repo with the user
-before trusting it (Step 1).
+before trusting it (Step 1). SC-team review tag: `@smartcontract_core` MUST be sent as
+`<!subteam^S096X6MCB0C>` — a plain `@…` does not notify.
 
 ---
 
@@ -243,13 +244,53 @@ Reply body format (exact wording the team uses):
 **Leave issues open** — the auditor closes each one on verification. Do not close them yourself
 unless the user says so.
 
-Report a summary:
+## Step 9 — Slack wrap-up (nudge auditor + ping SC team)
+
+Once **every** issue has a reply, post one message to the auditor's audit channel: nudge the
+auditor that all findings are addressed, and ping `@smartcontract_core` to review the findings
+and our responses. Webhooks can't thread, so this is one self-contained channel message (not a
+thread reply).
+
+**This is an external publish** — draft it, show it, and post only after the user's explicit
+yes (fold it into Step 7's pre-post review, or confirm here if you ran Step 8 separately).
+
+Draft (backtick code style per the auditor-facing convention — wrap contract/version/PR refs):
+
+```text
+Audit remediation for `{Facet}` `{version}` is ready for re-review.
+
+Findings: {N} total — {fixed_count} fixed, {ack_count} acknowledged.
+Remediation PR: {remediation_pr_url}
+
+Hey {auditor_mention} — all issues are addressed; please take another look when you get a chance 🙏
+<!subteam^S096X6MCB0C> please review the audit findings and our responses.
+```
+
+Resolve `{auditor_mention}` and the channel from the Auditors table (the auditor identified in
+Step 1). Write the message to a temp file and post:
+
+```bash
+bunx tsx script/utils/send-slack-webhook-message.ts \
+  --channel {webhook_channel} \
+  --message-file /tmp/audit-wrapup-<pr>.txt
+```
+
+Interpret the exit code (same convention as `request-audit`):
+
+| Exit | Meaning | Action |
+|---|---|---|
+| `0` | posted | `✅ Posted wrap-up to #{channel}` |
+| `2` | `WEBHOOK_*` env var not set | Print the drafted message and tell the user to post it manually; name the missing env var (URL in 1Password → Developers Smart Contract → Webhooks SC Channels) |
+| `1` | Slack / network error | Report stderr, do **not** retry |
+
+Then report the final summary:
 
 ```text
 Remediation PR: <new_pr_url>  (draft)
 Replies posted to <owner>/<repo>:
   fixed: #1 #3 #8 …   (N commits)
   acknowledged: #2 #6 …   (M)
+Slack: nudged <auditor> + pinged @smartcontract_core in #<channel>
 Awaiting auditor re-review.
 ```
 
