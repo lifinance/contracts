@@ -7,7 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, InvalidSendingToken } from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -177,7 +177,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            defaultUSDCAmount
         );
 
         validMayanDataNative = MayanFacet.MayanData(
@@ -189,7 +190,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            defaultNativeAmount
         );
 
         invalidMayanDataEVM2Solana = MayanFacet.MayanData(
@@ -201,7 +203,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            0
         );
     }
 
@@ -340,9 +343,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -414,9 +417,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -431,7 +434,17 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-        amount = bound(amount, 150, 100_000);
+        amount = bound(amount, 150, 99_999);
+        // The direct-path bind (#7) requires the order's encoded amountIn to equal the amount
+        // Mayan pulls. The base test varies minAmount (amount * usdc.decimals) against a fixed
+        // fixture, so rewrite the encoded amount to match before delegating.
+        validMayanData.protocolData = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        ).testReplaceInputAmount(
+                validMayanData.protocolData,
+                amount * 10 ** usdc.decimals()
+            );
+
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
@@ -489,7 +502,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            4123123123123000000
         );
 
         vm.startPrank(DEV_WALLET);
@@ -557,7 +571,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            0
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -598,7 +613,8 @@ contract MayanFacetTest is TestBaseFacet {
             swapCalldata,
             ARBITRUM_WETH,
             0.99 ether,
-            USER_RECEIVER
+            USER_RECEIVER,
+            0
         );
 
         vm.startPrank(USER_SENDER);
@@ -663,24 +679,7 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.minAmount = amountOut;
 
         delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: address(0),
-                fromAmount: amountIn,
-                callData: abi.encodeWithSelector(
-                    uniswap.swapTokensForExactETH.selector,
-                    amountOut,
-                    amountIn,
-                    path,
-                    _facetTestContractAddress,
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
 
         usdc.approve(_facetTestContractAddress, amountIn);
 
@@ -693,7 +692,8 @@ contract MayanFacetTest is TestBaseFacet {
             swapCalldata,
             ARBITRUM_WETH,
             0.5 ether,
-            USER_RECEIVER
+            USER_RECEIVER,
+            amountOut
         );
 
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
@@ -709,7 +709,8 @@ contract MayanFacetTest is TestBaseFacet {
         MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
             address(MAYAN_FORWARDER)
         );
-        // The exact-out source swap yields 1 ETH; normalization to 8 decimals leaves 1e18.
+        // The exact-out source swap yields 1 ETH == mayanAmountIn, so the raw committed amount is
+        // forwarded to swapAndForwardEth (native swap input is bound to swapData, never normalized).
         assertEq(
             forwarder.lastAmountIn(),
             forwarder.lastValue(),
@@ -735,6 +736,155 @@ contract MayanFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_SENDER), initialUSDCBalance - amountIn);
     }
 
+    // @dev Extracted from the test body so the SwapData construction does not share the test
+    //      function's stack frame — keeps `forge coverage --ir-minimum` under the stack limit.
+    function _pushExactOutNativeSwap(
+        address[] memory path,
+        uint256 amountOut,
+        uint256 amountIn
+    ) private {
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function test_BindsNativeSwapOutputToMayanAmountInAndRefundsSurplus()
+        public
+    {
+        // #1/#3: an exact-out source swap yields 1 ETH, but only mayanAmountIn (0.8 ETH) — the
+        // amount swapData/minMiddleAmount were quoted for — is forwarded to swapAndForwardEth;
+        // the 0.2 ETH positive slippage is refunded to refundRecipient, never bridged onward.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        address refundRecipient = address(0xD00D);
+        uint256 committed = 0.8 ether;
+
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.destinationChainId = 137;
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = 1 ether;
+        uint256 amountIn = uniswap.getAmountsIn(amountOut, path)[0];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
+
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"a1b2c3d4",
+            ARBITRUM_WETH,
+            0.5 ether,
+            refundRecipient,
+            committed
+        );
+
+        uint256 refundBalanceBefore = refundRecipient.balance;
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+
+        assertEq(
+            forwarder.lastValue(),
+            committed,
+            "only the committed amount is forwarded to Mayan"
+        );
+        assertEq(
+            refundRecipient.balance - refundBalanceBefore,
+            amountOut - committed,
+            "positive native slippage is refunded to refundRecipient"
+        );
+    }
+
+    function test_RefundsErc20PositiveSlippageToRefundRecipient() public {
+        // #1: on the ERC20 swap path the realized output above mayanAmountIn is refunded to
+        // refundRecipient and only the committed amount is forwarded to Mayan.
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        address refundRecipient = address(0xD00D);
+
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC(); // realized output == defaultUSDCAmount (100e6)
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        uint256 committed = defaultUSDCAmount - 10 * 10 ** usdc.decimals();
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = refundRecipient;
+        data.mayanAmountIn = committed;
+
+        uint256 refundBalanceBefore = usdc.balanceOf(refundRecipient);
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(refundRecipient) - refundBalanceBefore,
+            defaultUSDCAmount - committed,
+            "positive ERC20 slippage is refunded to refundRecipient"
+        );
+    }
+
+    function testRevert_DirectErc20AmountDoesNotMatchOrderAmount() public {
+        // #7: on the direct entrypoint the amount Mayan pulls (minAmount) must equal the order's
+        // encoded input; a mismatch reverts instead of stranding the remainder in the Forwarder.
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        // validMayanData encodes 100e6; declare a different minAmount.
+        bridgeData.minAmount = 50 * 10 ** usdc.decimals();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidAmount.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
+        vm.stopPrank();
+    }
+
     function testRevert_SwapAndForwardEthReceiverMismatch() public {
         // Receiver validation guards the new path too: a protocolData whose parsed receiver differs
         // from bridgeData.receiver reverts before any forwarding, even with swapProtocol set.
@@ -751,7 +901,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             ARBITRUM_WETH,
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            1 ether
         );
 
         vm.startPrank(USER_SENDER);
@@ -787,7 +938,8 @@ contract MayanFacetTest is TestBaseFacet {
             hex"c1c0e9c9",
             ARBITRUM_WETH,
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            1 ether
         );
 
         vm.startPrank(USER_SENDER);
@@ -830,6 +982,24 @@ contract MayanFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_SwapOutputAssetDoesNotMatchSendingAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        // Last swap outputs USDC; declaring DAI as the bridge sending asset is the mismatch.
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            validMayanData
+        );
+        vm.stopPrank();
+    }
+
     function test_RefundsExcessNativeToRefundRecipient() public {
         // The excess native value must be refunded to MayanData.refundRecipient (the user), not to
         // msg.sender (which may be a relayer). Mayan's forwarder is out of scope, so it is etched
@@ -853,7 +1023,8 @@ contract MayanFacetTest is TestBaseFacet {
             hex"c1c0e9c9",
             ARBITRUM_WETH,
             0.99 ether,
-            refundRecipient
+            refundRecipient,
+            0
         );
 
         uint256 excess = 0.5 ether;
@@ -917,7 +1088,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            100000000
         );
         // invalid protocolData that produces wrong receiver for payload
 
@@ -944,6 +1116,68 @@ contract MayanFacetTest is TestBaseFacet {
         vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
 
         testFacet.testReplaceInputAmount(shortData, newAmount);
+    }
+
+    /// @dev Regression for the MayanSwap.swap (0x6111ad25) amount rewrite: amountIn sits at a
+    ///      FIXED head offset (byte 452), so a non-empty customPayload in the tail must not shift
+    ///      which word gets overwritten. Builds otherwise-identical calldata with an empty and a
+    ///      non-empty payload and asserts only the amountIn word changes in both. The non-empty
+    ///      case is sized so the previous `length - 256` offset would have landed on the sentinel
+    ///      word (324) instead of amountIn, corrupting it.
+    function test_ReplaceInputAmountRewritesMayanSwapAmountRegardlessOfPayload()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+        uint256 newAmount = 999;
+
+        bytes memory emptyPayload = _buildMayanSwapProtocolData(111, 0);
+        bytes memory withPayload = _buildMayanSwapProtocolData(111, 96);
+
+        bytes memory outEmpty = testFacet.testReplaceInputAmount(
+            emptyPayload,
+            newAmount
+        );
+        bytes memory outWithPayload = testFacet.testReplaceInputAmount(
+            withPayload,
+            newAmount
+        );
+
+        assertEq(outEmpty.length, emptyPayload.length);
+        assertEq(outWithPayload.length, withPayload.length);
+        assertEq(_readWordAt(outEmpty, 452), newAmount);
+        assertEq(_readWordAt(outWithPayload, 452), newAmount);
+        assertEq(_readWordAt(outEmpty, 324), 0xDEAD);
+        assertEq(_readWordAt(outWithPayload, 324), 0xDEAD);
+    }
+
+    /// @dev Builds MayanSwap.swap-shaped calldata: selector + 14 head words + amountIn word, then
+    ///      `payloadLen` tail bytes. Word 10 (byte 324) holds a sentinel so tests can prove
+    ///      non-amount bytes survive the rewrite.
+    function _buildMayanSwapProtocolData(
+        uint256 amountIn,
+        uint256 payloadLen
+    ) internal pure returns (bytes memory) {
+        bytes memory head = abi.encodePacked(
+            bytes4(0x6111ad25),
+            new bytes(320), // words 0..9  -> bytes [4,324)
+            uint256(0xDEAD), // word 10 sentinel -> bytes [324,356)
+            new bytes(96), // words 11..13 -> bytes [356,452)
+            amountIn // word 14 amountIn -> bytes [452,484)
+        );
+
+        return abi.encodePacked(head, new bytes(payloadLen));
+    }
+
+    /// @dev Reads the 32-byte word at `byteOffset` within a bytes buffer.
+    function _readWordAt(
+        bytes memory data,
+        uint256 byteOffset
+    ) internal pure returns (uint256 word) {
+        assembly {
+            word := mload(add(add(data, 0x20), byteOffset))
+        }
     }
 
     // The HyperCore receiver-parsing coverage is split across the tests below. It was originally
@@ -1072,6 +1306,32 @@ contract MayanFacetTest is TestBaseFacet {
             ),
             bytes32(0),
             "non-HyperEVM destChainId must yield zero receiver"
+        );
+    }
+
+    function test_ParseHypercoreReceiverReturnsZeroWhenPayloadTruncated()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+
+        // A genuine handler order whose customPayload declares fewer than 20 bytes cannot hold
+        // the receiver. The bounds check must yield zero rather than a padded partial read that
+        // could be crafted to match _bridgeData.receiver.
+        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
+            HYPERCORE_RECEIVER
+        );
+        bytes memory shortPayload = abi.encodePacked(
+            bytes10(bytes20(uint160(HYPERCORE_RECEIVER)))
+        );
+
+        assertEq(
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, shortPayload)
+            ),
+            bytes32(0),
+            "truncated customPayload (<20 bytes) must yield zero receiver"
         );
     }
 
@@ -1263,7 +1523,8 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.receiver = HYPERCORE_RECEIVER;
         bridgeData.destinationChainId = 1337;
         bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = defaultUSDCAmount;
+        // Must equal the order's encoded amountIn (offset 36) under the direct-path bind (#7).
+        bridgeData.minAmount = 0x4c1a6c;
 
         MayanFacet.MayanData memory hyperCoreData = MayanFacet.MayanData(
             "",
@@ -1273,7 +1534,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            0
         );
 
         vm.mockCall(
@@ -1312,7 +1574,8 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             address(0),
             0,
-            USER_RECEIVER
+            USER_RECEIVER,
+            0
         );
 
         vm.startPrank(USER_SENDER);

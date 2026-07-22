@@ -187,6 +187,7 @@ const runNativeSwapAndForwardEth = async (
     middleToken: parsed.args.middleToken,
     minMiddleAmount: parsed.args.minMiddleAmount,
     refundRecipient: address,
+    mayanAmountIn: amountIn,
   }
 
   console.info('Dev Wallet Address:', address)
@@ -286,6 +287,7 @@ const runErc20ForwardErc20 = async (
     middleToken: NATIVE_ETH,
     minMiddleAmount: 0,
     refundRecipient: address,
+    mayanAmountIn: amountIn,
   }
 
   console.info('Dev Wallet Address:', address)
