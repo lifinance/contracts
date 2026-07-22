@@ -51,10 +51,6 @@ jobs:
 
       - name: Run Olympix Integrated Security
         id: olympix
-        # continue-on-error: an incomplete scan (e.g. the analyzer's internal timeout) must not hard-fail the gate on
-        # an infra limit we cannot control; the "Verify Olympix produced a SARIF report" step below turns a missing
-        # report into a loud warning instead. Real findings, when produced, are still uploaded and blocked on normally.
-        continue-on-error: true
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: olympix/integrated-security@79cbce2446c47a8381bef23d09528e9ef08cc066 # main
         env:
