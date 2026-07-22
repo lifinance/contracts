@@ -37,6 +37,8 @@ config()
 
 const ARBITRUM_CHAIN_ID = 42161
 const LIFI_ADDRESS = deployments.LiFiDiamond
+// Optional Mayan API key (raises rate limits on the swap-router calldata lookup).
+const MAYAN_API_KEY = process.env.MAYAN_API_KEY
 // Mayan (and the facet's `LibAsset.isNativeAsset`) represents native ETH as the zero address.
 const NATIVE_ETH = constants.AddressZero
 const ARB_WETH_ADDRESS = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -96,9 +98,9 @@ const findNativeSwapAndForwardEthQuote = async (
 
     let payload
     try {
-      // Fetches the source-swap (ETH->middleToken) router calldata from Mayan,
-      // which becomes the facet's swapData/swapProtocol.
-      payload = getSwapFromEvmTxPayload(
+      // In the current SDK this is async: it fetches the source-swap (ETH->middleToken)
+      // router calldata from Mayan, which becomes the facet's swapData/swapProtocol.
+      payload = await getSwapFromEvmTxPayload(
         quote,
         address,
         address, // destinationAddress == receiver (must match `_parseReceiver`)
@@ -106,7 +108,8 @@ const findNativeSwapAndForwardEthQuote = async (
         address,
         ARBITRUM_CHAIN_ID,
         null,
-        null
+        null,
+        { apiKey: MAYAN_API_KEY }
       )
     } catch (err) {
       // Surface auth/network/payload failures instead of silently folding them
@@ -238,7 +241,7 @@ const runErc20ForwardErc20 = async (
     throw new Error('No Mayan quote returned')
   }
 
-  const payload = getSwapFromEvmTxPayload(
+  const payload = await getSwapFromEvmTxPayload(
     quotes[0],
     address,
     address,
@@ -246,7 +249,8 @@ const runErc20ForwardErc20 = async (
     address,
     ARBITRUM_CHAIN_ID,
     null,
-    null
+    null,
+    { apiKey: MAYAN_API_KEY }
   )
 
   const parsed = iface.parseTransaction({ data: payload.data as string })
