@@ -100,14 +100,18 @@ gh api /user/repository_invitations \
   --jq '.[] | {id, repo: .repository.full_name}'
 ```
 
-- If a pending invitation to the discovered repo exists → **accept it automatically** (no
-  confirmation needed — pre-authorised for this workflow):
+- If a pending invitation exists **whose repo owner matches the auditor discovered in Step 1**
+  → **accept it automatically**. This is pre-authorised because `/request-audit` already
+  confirmed the auditor and their findings repo before the audit began; accepting here just
+  materialises access the team already agreed to grant.
 
   ```bash
   gh api -X PATCH /user/repository_invitations/<invitation_id>
   ```
 
   Report `✅ Accepted invite to <owner>/<repo>`.
+- If the only pending invite is for a repo whose owner does **not** match the discovered
+  auditor → do **not** accept it; surface it and ask the user before doing anything.
 - If already a collaborator (issue list in Step 3 succeeds) → skip silently.
 - If no invite and no access → tell the user to ask the auditor to add them; stop.
 
@@ -225,7 +229,9 @@ Process issues independently. For each **Fix**:
    fix(<Facet>): <short finding title> (audit <owner>/<repo>#<n>)
    ```
 
-   Record the full commit SHA for the reply.
+   Record the full commit SHA for the reply. The pre-commit hook runs Solhint + Prettier
+   (lint-staged auto-fixes formatting into the commit); if it reports a Solhint error, fix the
+   code — never bypass the hook with `--no-verify`.
 
 For each **Acknowledge**: no code, no commit — just carry the approved rationale to Step 8.
 
