@@ -256,6 +256,14 @@
       "0x3B76d15Eb68a7a0E09b86D9aee3c49fD006cdFB2": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
+      },
+      "0xCDFE2fc28F6f824F9E619728A52363bd558aB4d0": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
+      },
+      "0x962125b0b3c2329EAd744a0ad383D37F78C608e9": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
