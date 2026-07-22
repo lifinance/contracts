@@ -190,6 +190,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership, LiFiData {
 
         // pull tokens from msg.sender
         LibAsset.transferFromERC20(
+            // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
             address(uint160(uint256(sendingAssetId))),
             msg.sender,
             address(this),
@@ -229,6 +230,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership, LiFiData {
     ) external {
         // Deposit assets
         LibAsset.transferFromERC20(
+            // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
             address(uint160(uint256(sendingAssetId))),
             msg.sender,
             address(this),
@@ -357,6 +359,7 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership, LiFiData {
         // Check if receiver is EVM address (20 bytes) or non-EVM (longer)
         // If the first 12 bytes are zero, it's likely an EVM address
         if (bytes12(data[44:56]) == bytes12(0)) {
+            // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
             bridgeData.receiver = address(
                 uint160(uint256(bytes32(data[44:76])))
             );
@@ -398,12 +401,14 @@ contract AcrossFacetPackedV4 is ILiFi, TransferrableOwnership, LiFiData {
         }
 
         bridgeData.transactionId = bytes32(data[4:12]); // we truncate intentionally to save gas (not dangerous)
+        // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
         bridgeData.sendingAssetId = address(
             uint160(uint256(bytes32(data[76:108])))
         ); // sendingAssetId
         // Check if receiver is EVM address (20 bytes) or non-EVM (longer)
         // If the first 12 bytes are zero, it's likely an EVM address
         if (bytes12(data[44:56]) == bytes12(0)) {
+            // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
             bridgeData.receiver = address(
                 uint160(uint256(bytes32(data[44:76])))
             );
