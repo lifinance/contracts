@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", or "sync the whitelist for PR <N> and propose". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires VPN (MongoDB), gh, and the Slack MCP server.
+description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", "sync the whitelist for PR <N> and propose", or "add <chain> to Polymer CCTP and propagate the domain mappings". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires VPN (MongoDB), gh, and the Slack MCP server.
 usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -12,6 +12,8 @@ Drives the production rollout lifecycle in two modes:
 - **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
 Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
+
+**PolymerCCTP add-on**: a `PolymerCCTPFacet` rollout that adds a chain or CCTP corridor also has to propagate its chainId→CCTP-domain mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
@@ -126,6 +128,25 @@ step is needed (design:
   prints a conspicuous `⚠️ IRREVERSIBLE FACET REMOVAL` banner and dry-runs
   without `--yes`; use it only for a deliberate cold-network sweep. See
   [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
+
+## Phase 3b — Propagate CCTP chainId→domain mappings (PolymerCCTP only)
+
+Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `PolymerCCTPFacet` is the only facet with cross-chain chainId→domain storage today; a future one would follow the same shape.
+
+Two triggers:
+
+- **New chain deployed** — rides on deploy mode. Add the new chain's `{ chainId, domainId }` to `config/polymercctp.json` **before** the deploy (so it ships in the rollout PR and the init call is consistent), then propagate it to the already-live chains after the deploy.
+- **New CCTP corridor, no deploy** — standalone, whitelist-mode-like: Circle adds a domain for a chain we run no diamond on. Add the mapping to `config/polymercctp.json` and propagate only — skip the deploy (Phase 2) and the deployed-addresses PR; the `config/polymercctp.json` change ships in its own PR.
+
+Propagate (diff-driven — proposes only where the on-chain mapping is unset or stale, so re-running is safe and a too-wide network set no-ops):
+
+```bash
+bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
+```
+
+Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array). Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping `setChainIdToDomainId`, created carrying one signature — same lifecycle as every other proposal here.
+
+**Scope impact on the tail:** these proposals land on chains *beyond* the deploy target — potentially every live PolymerCCTP chain. Fold them into the rest of the run — capture them in Phase 4, add their networks + nonces to the PR table in Phase 5 (and stage the `config/polymercctp.json` diff — it targets `main`), verify them in Phase 7, list their networks in the Phase 8 Slack post. The runner signs them alongside the deploy proposals in Phase 6.
 
 ## Phase 4 — Capture proposals
 
