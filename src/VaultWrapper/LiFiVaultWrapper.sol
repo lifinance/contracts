@@ -33,8 +33,9 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
-///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the initial fee
-///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
+///      withdrawal. Identity (`underlying`/`adapter`/`owner`) and the initial fee
+///      configuration are set write-once in `initialize` (the `FACTORY` is bound at
+///      construction). The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
 ///      All four fee types are charged: management (time-based dilution) and performance
 ///      (high-water-mark dilution) fee-shares are minted to this contract via `_accrueFees`,
@@ -117,12 +118,14 @@ contract LiFiVaultWrapper is
 
     /// Immutables ///
 
-    /// @notice The only address allowed to initialize instances of this implementation,
-    ///         bound at construction. Every proxy that reaches `initialize` has therefore
-    ///         passed the factory's deploy-time validation (adapter approval, underlying
-    ///         allowlist, fee bounds), so a counterfeit proxy pointed at the official
-    ///         beacon can never be initialized with unvetted parameters.
-    address public immutable EXPECTED_FACTORY;
+    /// @notice The factory bound to this implementation at construction: the only address
+    ///         allowed to initialize instances, and the source read by later modules for the
+    ///         factory-level global circuit breaker, fee bounds, and LI.FI fee recipient.
+    ///         Every proxy that reaches `initialize` has therefore passed the factory's
+    ///         deploy-time validation (adapter approval, underlying allowlist, fee bounds),
+    ///         so a counterfeit proxy pointed at the official beacon can never be initialized
+    ///         with unvetted parameters.
+    address public immutable FACTORY;
 
     /// Storage ///
 
@@ -130,9 +133,6 @@ contract LiFiVaultWrapper is
     address public underlying;
     /// @notice The approved yield adapter the wrapper routes deposits/withdrawals through.
     address public adapter;
-    /// @notice The factory that deployed this instance (the initializer); read by later
-    ///         modules for the factory-level global circuit breaker.
-    address public factory;
     /// @notice Whether this clone's deposits are paused by the integrator (the per-vault
     ///         `owner`), the only authority over this flag. LI.FI has no per-instance pause;
     ///         its lever is the factory-level global circuit breaker, a separate source read
@@ -200,7 +200,7 @@ contract LiFiVaultWrapper is
     /// @param _expectedFactory The factory whose deploys may initialize instances.
     constructor(address _expectedFactory) {
         if (_expectedFactory == address(0)) revert ZeroAddress();
-        EXPECTED_FACTORY = _expectedFactory;
+        FACTORY = _expectedFactory;
         _disableInitializers();
     }
 
@@ -219,7 +219,7 @@ contract LiFiVaultWrapper is
         FeeReceiver[] calldata _receivers,
         address _accessGate
     ) external initializer {
-        if (msg.sender != EXPECTED_FACTORY) revert NotFactory();
+        if (msg.sender != FACTORY) revert NotFactory();
         if (
             _underlying == address(0) ||
             _adapter == address(0) ||
@@ -236,7 +236,6 @@ contract LiFiVaultWrapper is
         // array; see the subsystem OZ-v5 stack-pressure note).
         _setIntegratorFeeReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
-        factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
         integratorShareBps = _integratorShareBps;
@@ -784,7 +783,7 @@ contract LiFiVaultWrapper is
 
         uint8 idx = uint8(_feeType);
         if (_newRateBps != 0) {
-            (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(factory)
+            (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(FACTORY)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
@@ -861,7 +860,7 @@ contract LiFiVaultWrapper is
         lifiFeeShares = 0;
         integratorFeeShares = 0;
 
-        address lifiRecipient = ILiFiVaultWrapperFactory(factory)
+        address lifiRecipient = ILiFiVaultWrapperFactory(FACTORY)
             .lifiFeeRecipient();
 
         (
@@ -913,7 +912,7 @@ contract LiFiVaultWrapper is
     /// @return True if this clone is paused by the integrator or the factory-level global
     ///         circuit breaker is engaged.
     function depositsPaused() public view returns (bool) {
-        return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
+        return paused || ILiFiVaultWrapperFactory(FACTORY).globalPaused();
     }
 
     /// Access control ///

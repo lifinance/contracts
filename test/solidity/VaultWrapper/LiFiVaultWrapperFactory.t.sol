@@ -65,7 +65,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
     }
 
     function test_ImplementationBoundToFactory() public view {
-        assertEq(impl.EXPECTED_FACTORY(), address(factory));
+        assertEq(impl.FACTORY(), address(factory));
     }
 
     function testRevert_ImplementationConstructorRejectsZeroFactory() public {
@@ -399,7 +399,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
         assertEq(w.owner(), vaultAdmin);
-        assertEq(w.factory(), address(factory));
+        assertEq(w.FACTORY(), address(factory));
         for (uint256 i; i < 4; ++i) {
             assertEq(w.integratorShareBps(i), 8000); // factory default
         }

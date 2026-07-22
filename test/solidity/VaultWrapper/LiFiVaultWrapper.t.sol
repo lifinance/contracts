@@ -148,7 +148,7 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.underlying(), address(underlying));
         assertEq(wrapper.adapter(), address(adapter));
         assertEq(wrapper.owner(), vaultAdmin);
-        assertEq(wrapper.factory(), address(this));
+        assertEq(wrapper.FACTORY(), address(this));
         for (uint256 i; i < 4; ++i) {
             assertEq(wrapper.integratorShareBps(i), 8000);
         }

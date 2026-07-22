@@ -57,7 +57,7 @@ contract VaultWrapperDeployScriptsTest is Test {
         assertEq(factory.owner(), address(timelock));
         assertEq(factory.BEACON(), address(beacon));
         assertEq(beacon.implementation(), address(impl));
-        assertEq(impl.EXPECTED_FACTORY(), address(factory));
+        assertEq(impl.FACTORY(), address(factory));
 
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);

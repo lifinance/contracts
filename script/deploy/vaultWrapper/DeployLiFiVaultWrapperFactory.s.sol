@@ -232,7 +232,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
             revert WiringMismatch("beacon.owner");
         if (_beacon.implementation() != address(_impl))
             revert WiringMismatch("beacon.implementation");
-        if (_impl.EXPECTED_FACTORY() != address(_factory))
+        if (_impl.FACTORY() != address(_factory))
             revert WiringMismatch("impl.expectedFactory");
 
         if (_factory.owner() != address(_timelock))
