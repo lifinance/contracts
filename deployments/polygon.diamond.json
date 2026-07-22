@@ -53,9 +53,9 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xC3A6F4A7FA4E9b79a7bBD2C7283C0c5e076590B8": {
+      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",

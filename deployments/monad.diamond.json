@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x64b48C3aAEaCf8981E75E26Ba6c52380B8669A05": {
+      "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
         "Name": "PolymerCCTPFacet",
-        "Version": "2.1.0"
+        "Version": "3.0.0"
       },
       "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
