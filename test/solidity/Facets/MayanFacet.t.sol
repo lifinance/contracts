@@ -679,24 +679,7 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.minAmount = amountOut;
 
         delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: address(0),
-                fromAmount: amountIn,
-                callData: abi.encodeWithSelector(
-                    uniswap.swapTokensForExactETH.selector,
-                    amountOut,
-                    amountIn,
-                    path,
-                    _facetTestContractAddress,
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
 
         usdc.approve(_facetTestContractAddress, amountIn);
 
@@ -753,6 +736,33 @@ contract MayanFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(USER_SENDER), initialUSDCBalance - amountIn);
     }
 
+    // @dev Extracted from the test body so the SwapData construction does not share the test
+    //      function's stack frame — keeps `forge coverage --ir-minimum` under the stack limit.
+    function _pushExactOutNativeSwap(
+        address[] memory path,
+        uint256 amountOut,
+        uint256 amountIn
+    ) private {
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
     function test_BindsNativeSwapOutputToMayanAmountInAndRefundsSurplus()
         public
     {
@@ -781,24 +791,7 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.minAmount = amountOut;
 
         delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: address(0),
-                fromAmount: amountIn,
-                callData: abi.encodeWithSelector(
-                    uniswap.swapTokensForExactETH.selector,
-                    amountOut,
-                    amountIn,
-                    path,
-                    _facetTestContractAddress,
-                    block.timestamp + 20 minutes
-                ),
-                requiresDeposit: true
-            })
-        );
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
 
         usdc.approve(_facetTestContractAddress, amountIn);
 
