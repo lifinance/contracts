@@ -339,6 +339,44 @@ real signed transactions forces changes into `confirm-safe-tx` / `reconcile` /
 `getNextNonce` — exactly the code the constraints say to leave untouched — and it drags
 the queue back behind the `sc_private` tunnel gate.
 
+### Required MongoDB privilege on `deferred-cleanup` (operational prerequisite)
+
+The queue depends on one **partial unique index** — `unique_open_task_key` on `taskKey`
+filtered to the open statuses (§7) — which `getParkedTasksCollection()` ensures on
+connect via `createIndex`. Creating an index is a **`createIndex` privileged action**;
+plain `readWrite` does **not** grant it. So the `MONGODB_URI` role used by rollouts / CI
+/ `/deprecate-contract` must have **`readWrite` _plus_ index-creation on the
+`deferred-cleanup` DB** (equivalently: the built-in `readWrite` role already covers
+`createIndex`, but a **custom/scoped** role that only grants `find`/`insert`/`update`
+does not — that is the trap).
+
+- **Observed failure (EXSC-611 rollout, 2026-07-22).** Running a facet cut with
+  `DRAIN_PARKED_TASKS=true`, and independently `list-parked-tasks.ts`, both failed with
+  `not authorized on deferred-cleanup to execute command { createIndexes: "parkedTasks", … }`.
+  The `clusterTime` signature in the error proves `MONGODB_URI` **is** set and points at
+  a real cluster that has the `deferred-cleanup` DB — the role simply lacks
+  `createIndex` **on that DB**. The sibling `timelock-operations/queue` on the same
+  cluster works, so the grant almost certainly **drifted**: the newer `deferred-cleanup`
+  DB was added without extending the service role to it.
+- **Infra fix (preferred, durable).** Grant the `MONGODB_URI` service role
+  `readWrite` (with index privileges) on `deferred-cleanup`, mirroring its grant on
+  `timelock-operations`. Equivalently, create `unique_open_task_key` **once** via an
+  admin/migration; then every runtime consumer only needs `readWrite`, and even a
+  `createIndex`-less role degrades cleanly (below).
+- **Code robustness (already in place).** `ensureParkedTasksIndexes`
+  (`parked-tasks.ts`) treats an authorization failure (server code 13) as **non-fatal**:
+  it checks via `listIndexes` (a `read` action) whether `unique_open_task_key` already
+  exists. If it does, dedup is intact and the queue is fully functional on a
+  `readWrite`-only role; if it does not, it **warns loudly that enqueue dedup is
+  unenforced** but still lets reads / enqueue / claim / drain proceed. This keeps the
+  un-gated design promise (CI, rollouts, reconcile jobs reach the queue without a
+  tunnel) alive even before the infra grant lands — at the cost of dedup until the index
+  exists. **With this fix the drain and `list-parked-tasks` run to completion on a
+  `readWrite`-only role instead of aborting; the only degradation until the index exists
+  is that enqueue dedup is unenforced (duplicate open tasks are possible — harmless: the
+  drain processes each and a re-park whose facet is already gone resolves to
+  `superseded`). The cold-network reconcile backstop (§8) remains the catch-all.**
+
 ---
 
 ## 6. Drain: how a parked task becomes a proposal, and how the PR link reaches the reviewer (chokepoint Q2 → RESOLVED)

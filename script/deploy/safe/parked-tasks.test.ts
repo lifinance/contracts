@@ -111,6 +111,10 @@ function matchesFilter(row: IParkedTask, filter: Filter<IParkedTask>): boolean {
 
 interface IFakeOptions {
   createIndexError?: Error
+  /** Index descriptors `listIndexes().toArray()` returns (default: none). */
+  existingIndexes?: { name: string }[]
+  /** When set, `listIndexes().toArray()` rejects with this error. */
+  listIndexesError?: Error
 }
 
 type IFakeCollection = Collection<IParkedTask> & {
@@ -179,6 +183,14 @@ function createFakeCollection(
       createIndexCalls.push({ spec, options: opts })
       if (options.createIndexError) throw options.createIndexError
       return (opts as { name: string }).name
+    },
+    listIndexes() {
+      return {
+        async toArray(): Promise<{ name: string }[]> {
+          if (options.listIndexesError) throw options.listIndexesError
+          return options.existingIndexes ?? []
+        },
+      }
     },
   }
   return api as unknown as IFakeCollection
@@ -582,5 +594,57 @@ describe('ensureParkedTasksIndexes', () => {
     const err = Object.assign(new Error('network down'), { code: 6 })
     const coll = createFakeCollection([], { createIndexError: err })
     await expectRejects(ensureParkedTasksIndexes(coll), 'network down')
+  })
+
+  it('tolerates a not-authorized createIndex (code 13) when the index already exists', async () => {
+    const err = Object.assign(
+      new Error('not authorized on deferred-cleanup to execute command'),
+      { code: 13 }
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }, { name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('tolerates a not-authorized createIndex matched by message when code is absent', async () => {
+    const err = new Error(
+      'not authorized on deferred-cleanup to execute command { createIndexes: ... }'
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and the index is missing', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and listIndexes also fails', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const listErr = Object.assign(new Error('not authorized to listIndexes'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      listIndexesError: listErr,
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
   })
 })
