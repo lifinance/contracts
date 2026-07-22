@@ -68,6 +68,9 @@ export type ParkedTaskStatus =
 /** Statuses under which a `taskKey` is still active and must stay unique. */
 const OPEN_STATUSES: ParkedTaskStatus[] = ['queued', 'proposed']
 
+/** Name of the partial unique index the dedup guarantees depend on. */
+const OPEN_TASK_KEY_INDEX_NAME = 'unique_open_task_key'
+
 /**
  * A deferred diamond-maintenance task, parked until the network is next touched.
  * One record per (kind, network, environment, facetName) — the finest grain
@@ -146,18 +149,45 @@ export function computeTaskKey(
 }
 
 /**
- * Ensures the partial unique index the queue depends on. Idempotent for an
- * exact-match re-creation (Mongo no-ops); an index-*conflict* (codes 85/86 —
- * a same-named index with a different definition) is surfaced as a clear error
- * so an operator reconciles the drifted index rather than the queue proceeding
- * against an unintended one.
+ * True when `error` is a MongoDB authorization failure — the connected role lacks
+ * the `createIndex` action on the `deferred-cleanup` DB (server code 13,
+ * `Unauthorized`). Matched by code with a message fallback, since the queue's
+ * whole reason to exist on the un-gated `MONGODB_URI` cluster is to be reachable
+ * from readWrite-only, non-interactive consumers (CI, rollouts, reconcile jobs).
+ */
+function isUnauthorizedError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (('code' in error && (error as { code: number }).code === 13) ||
+      /not authorized/i.test(error.message))
+  )
+}
+
+/**
+ * Ensures the partial unique index the queue depends on.
+ *
+ * Idempotent for an exact-match re-creation (Mongo no-ops). Two failure modes are
+ * handled so the shared adapter never takes the whole subsystem down:
+ *
+ * - **Index conflict** (codes 85/86 — a same-named index with a *different*
+ *   definition) is surfaced as a clear error so an operator reconciles the drifted
+ *   index rather than the queue proceeding against an unintended one.
+ * - **Authorization failure** (code 13) — the connected role has `readWrite` but
+ *   not `createIndex` on `deferred-cleanup`. Because every consumer (read, list,
+ *   enqueue, claim, drain, reconcile) connects through {@link getParkedTasksCollection}
+ *   → here, a hard throw would make the entire un-gated queue unusable from the
+ *   standard rollout / CI credential. Instead this degrades: if an admin already
+ *   created the index (`listIndexes`, a `read`-role action), dedup is intact and we
+ *   proceed silently; if not, we warn loudly (dedup is unenforced until an admin
+ *   creates it) but still proceed so reads/enqueue/claim work.
  *
  * The index is unique on `taskKey` but only over the *open* statuses, so a facet
  * can be re-parked once a prior task retires (executed/cancelled/superseded).
  * `$in` in a partial filter requires MongoDB server ≥ 6.0.
  *
  * @param parkedTasks - The collection to index.
- * @throws Error on an index definition conflict, or any other createIndex error.
+ * @throws Error on an index definition conflict, or any non-authorization
+ *   createIndex error.
  */
 export async function ensureParkedTasksIndexes(
   parkedTasks: Collection<IParkedTask>
@@ -168,9 +198,10 @@ export async function ensureParkedTasksIndexes(
       {
         unique: true,
         partialFilterExpression: { status: { $in: OPEN_STATUSES } },
-        name: 'unique_open_task_key',
+        name: OPEN_TASK_KEY_INDEX_NAME,
       }
     )
+    return
   } catch (error: unknown) {
     if (
       error instanceof Error &&
@@ -179,11 +210,46 @@ export async function ensureParkedTasksIndexes(
         (error as { code: number }).code === 86)
     )
       throw new Error(
-        `Index conflict for "unique_open_task_key" on ${parkedTasks.collectionName}. ` +
+        `Index conflict for "${OPEN_TASK_KEY_INDEX_NAME}" on ${parkedTasks.collectionName}. ` +
           `Existing index has a different definition; drop or reconcile it before retrying.`,
         { cause: error }
       )
-    throw error
+    if (!isUnauthorizedError(error)) throw error
+
+    let indexPresent = false
+    try {
+      const indexes = await parkedTasks.listIndexes().toArray()
+      indexPresent = indexes.some(
+        (index) => index.name === OPEN_TASK_KEY_INDEX_NAME
+      )
+    } catch (listError: unknown) {
+      consola.warn(
+        `Cannot create or verify the "${OPEN_TASK_KEY_INDEX_NAME}" index on ` +
+          `${parkedTasks.collectionName}: the MONGODB_URI role lacks createIndex on ` +
+          `the deferred-cleanup DB, and listIndexes also failed. Proceeding without ` +
+          `index verification — enqueue dedup may be unenforced.`,
+        listError
+      )
+      return
+    }
+
+    if (indexPresent) {
+      consola.debug(
+        `"${OPEN_TASK_KEY_INDEX_NAME}" already exists on ${parkedTasks.collectionName}; ` +
+          `the current MONGODB_URI role cannot create indexes but the dedup index is ` +
+          `present, so the queue is fully functional.`
+      )
+      return
+    }
+
+    consola.warn(
+      `The "${OPEN_TASK_KEY_INDEX_NAME}" index is MISSING on ${parkedTasks.collectionName} ` +
+        `and the current MONGODB_URI role lacks createIndex on the deferred-cleanup DB. ` +
+        `Reads/enqueue/claim will work, but enqueue DEDUP IS NOT ENFORCED — duplicate open ` +
+        `parked tasks can be inserted. Have an admin create the index once (readWrite + ` +
+        `createIndex on deferred-cleanup), then this warning clears. See ` +
+        `docs/DeferredDiamondCleanupQueue.md §5.`
+    )
   }
 }
 

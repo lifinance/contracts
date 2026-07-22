@@ -122,6 +122,15 @@ step is needed (design:
   **why** each facet is being removed.
 - **Best-effort**: a drain failure never blocks the primary proposal or the exit
   code.
+- **MongoDB privilege caveat**: the queue lives on the un-gated `MONGODB_URI`
+  cluster (DB `deferred-cleanup`), so the drain needs no tunnel — but it does need
+  the role to have `readWrite` **including index creation** on that DB. If the
+  role is `createIndex`-less (the grant drifted from `timelock-operations`), the
+  drain still runs (the adapter degrades non-fatally), but until an admin creates
+  the `unique_open_task_key` index, **enqueue dedup is unenforced** and you may see
+  a loud `DEDUP IS NOT ENFORCED` warning. Fix is infra (grant `readWrite`+index on
+  `deferred-cleanup`, or create the index once). See
+  [docs/DeferredDiamondCleanupQueue.md](../../docs/DeferredDiamondCleanupQueue.md) §5.
 - **Cold networks** (never touched by a rollout) are caught by the standalone
   `reconcile-parked-tasks` job + TTL alert and the `cleanUpProdDiamond --auto
   --all-networks` backstop (spec §8) — not by this skill. That backstop still
