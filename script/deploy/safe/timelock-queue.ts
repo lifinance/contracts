@@ -131,6 +131,19 @@ export async function getTimelockQueueCollection(): Promise<{
 }
 
 /**
+ * Extracts the MongoDB server error code from an unknown thrown value, or
+ * `undefined` when the value is not an `Error` carrying a numeric `code`.
+ *
+ * @param error - The value thrown by a driver call.
+ * @returns The numeric server code, or `undefined`.
+ */
+function getMongoErrorCode(error: unknown): number | undefined {
+  return error instanceof Error && 'code' in error
+    ? (error as { code: number }).code
+    : undefined
+}
+
+/**
  * True when `error` is a MongoDB authorization failure — the connected role lacks
  * the `createIndex` action on the `timelock-operations` DB (server code 13,
  * `Unauthorized`). Matched by code with a message fallback, mirroring
@@ -143,9 +156,8 @@ export async function getTimelockQueueCollection(): Promise<{
  */
 function isUnauthorizedError(error: unknown): boolean {
   return (
-    error instanceof Error &&
-    (('code' in error && (error as { code: number }).code === 13) ||
-      /not authorized/i.test(error.message))
+    getMongoErrorCode(error) === 13 ||
+    (error instanceof Error && /not authorized/i.test(error.message))
   )
 }
 
@@ -197,12 +209,8 @@ async function safeCreateIndex(
     // hitting these codes means the deployed index has drifted from the spec
     // we want — surfacing it forces an operator to reconcile rather than
     // letting the runner proceed against an unintended index.
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      ((error as { code: number }).code === 85 ||
-        (error as { code: number }).code === 86)
-    )
+    const code = getMongoErrorCode(error)
+    if (code === 85 || code === 86)
       throw new Error(
         `Index conflict for "${options.name}" on ${
           collection.collectionName

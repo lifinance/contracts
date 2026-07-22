@@ -319,17 +319,14 @@ describe('ensureTimelockQueueIndexes', () => {
     })
   })
 
-  it('surfaces an index-options conflict (code 85) as a clear error', async () => {
-    const err = Object.assign(new Error('conflict'), { code: 85 })
-    const coll = createFakeIndexCollection({ createIndexError: err })
-    await expectRejects(ensureTimelockQueueIndexes(coll), /Index conflict/)
-  })
-
-  it('surfaces an index-keyspec conflict (code 86) as a clear error', async () => {
-    const err = Object.assign(new Error('conflict'), { code: 86 })
-    const coll = createFakeIndexCollection({ createIndexError: err })
-    await expectRejects(ensureTimelockQueueIndexes(coll), /Index conflict/)
-  })
+  it.each([85, 86])(
+    'surfaces an index conflict (code %i) as a clear error',
+    async (code) => {
+      const err = Object.assign(new Error('conflict'), { code })
+      const coll = createFakeIndexCollection({ createIndexError: err })
+      await expectRejects(ensureTimelockQueueIndexes(coll), /Index conflict/)
+    }
+  )
 
   it('rethrows any other createIndex error unchanged', async () => {
     const err = Object.assign(new Error('network down'), { code: 6 })
