@@ -435,12 +435,32 @@ contract MayanFacet is
                     ),
                     eq(mload(add(dataPtr, 0xa4)), MAYAN_HYPEREVM_DEST_CHAIN_ID)
                 ) {
-                    receiver := shr(
-                        96,
-                        mload(
-                            add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204)))
-                        )
-                    )
+                    // Bounds-check the caller-controlled customPayload offset and its
+                    // declared length before reading, so a truncated or out-of-range
+                    // payload cannot be padded into a receiver matching _bridgeData.receiver.
+                    // `off` is the ABI offset from the args block (after the 4-byte selector):
+                    // the length word sits at data byte 4+off, the payload data at 4+off+32.
+                    let dataLen := mload(protocolData)
+                    let off := mload(add(dataPtr, 0x204))
+                    // Length word must fit fully: 4 + off + 32 <= dataLen. `off < dataLen`
+                    // is checked first so the subsequent add cannot overflow-wrap.
+                    if and(
+                        lt(off, dataLen),
+                        iszero(gt(add(off, 0x24), dataLen))
+                    ) {
+                        let plen := mload(add(dataPtr, add(0x04, off)))
+                        // Payload must hold at least the 20-byte receiver and fully fit:
+                        // 4 + off + 32 + plen <= dataLen.
+                        if and(
+                            iszero(lt(plen, 20)),
+                            iszero(gt(add(add(off, 0x24), plen), dataLen))
+                        ) {
+                            receiver := shr(
+                                96,
+                                mload(add(dataPtr, add(0x24, off)))
+                            )
+                        }
+                    }
                 }
             }
             case 0x6147435b {
@@ -455,12 +475,32 @@ contract MayanFacet is
                     ),
                     eq(mload(add(dataPtr, 0xa4)), MAYAN_HYPEREVM_DEST_CHAIN_ID)
                 ) {
-                    receiver := shr(
-                        96,
-                        mload(
-                            add(add(dataPtr, 0x24), mload(add(dataPtr, 0x204)))
-                        )
-                    )
+                    // Bounds-check the caller-controlled customPayload offset and its
+                    // declared length before reading, so a truncated or out-of-range
+                    // payload cannot be padded into a receiver matching _bridgeData.receiver.
+                    // `off` is the ABI offset from the args block (after the 4-byte selector):
+                    // the length word sits at data byte 4+off, the payload data at 4+off+32.
+                    let dataLen := mload(protocolData)
+                    let off := mload(add(dataPtr, 0x204))
+                    // Length word must fit fully: 4 + off + 32 <= dataLen. `off < dataLen`
+                    // is checked first so the subsequent add cannot overflow-wrap.
+                    if and(
+                        lt(off, dataLen),
+                        iszero(gt(add(off, 0x24), dataLen))
+                    ) {
+                        let plen := mload(add(dataPtr, add(0x04, off)))
+                        // Payload must hold at least the 20-byte receiver and fully fit:
+                        // 4 + off + 32 + plen <= dataLen.
+                        if and(
+                            iszero(lt(plen, 20)),
+                            iszero(gt(add(add(off, 0x24), plen), dataLen))
+                        ) {
+                            receiver := shr(
+                                96,
+                                mload(add(dataPtr, add(0x24, off)))
+                            )
+                        }
+                    }
                 }
             }
             default {

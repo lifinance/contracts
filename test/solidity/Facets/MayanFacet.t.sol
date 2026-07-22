@@ -1155,6 +1155,32 @@ contract MayanFacetTest is TestBaseFacet {
         );
     }
 
+    function test_ParseHypercoreReceiverReturnsZeroWhenPayloadTruncated()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+
+        // A genuine handler order whose customPayload declares fewer than 20 bytes cannot hold
+        // the receiver. The bounds check must yield zero rather than a padded partial read that
+        // could be crafted to match _bridgeData.receiver.
+        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
+            HYPERCORE_RECEIVER
+        );
+        bytes memory shortPayload = abi.encodePacked(
+            bytes10(bytes20(uint160(HYPERCORE_RECEIVER)))
+        );
+
+        assertEq(
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, shortPayload)
+            ),
+            bytes32(0),
+            "truncated customPayload (<20 bytes) must yield zero receiver"
+        );
+    }
+
     function test_ParseReceiverFallsThroughToDestAddrForNonDepositOrder()
         public
     {
