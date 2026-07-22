@@ -10,7 +10,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { IMayan } from "../Interfaces/IMayan.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, InvalidSendingToken, NoSwapDataProvided } from "../Errors/GenericErrors.sol";
 
 /// @title Mayan Facet
 /// @author LI.FI (https://li.fi)
@@ -138,6 +138,21 @@ contract MayanFacet is
     {
         if (_mayanData.refundRecipient == address(0)) {
             revert InvalidCallData();
+        }
+
+        // The facet treats the last swap's output as the bridge sending asset (its balance
+        // increase becomes minAmount). Require them to match before any deposit/swap so a
+        // mismatched route cannot forward a stray sendingAssetId balance while the real swap
+        // output is left behind.
+        uint256 numSwaps = _swapData.length;
+        if (numSwaps == 0) {
+            revert NoSwapDataProvided();
+        }
+        if (
+            _swapData[numSwaps - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InvalidSendingToken();
         }
 
         _bridgeData.minAmount = _depositAndSwap(

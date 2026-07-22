@@ -7,7 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, InvalidSendingToken } from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -826,6 +826,24 @@ contract MayanFacetTest is TestBaseFacet {
             bridgeData,
             swapData,
             data
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapOutputAssetDoesNotMatchSendingAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        // Last swap outputs USDC; declaring DAI as the bridge sending asset is the mismatch.
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            validMayanData
         );
         vm.stopPrank();
     }
