@@ -343,9 +343,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -417,9 +417,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
