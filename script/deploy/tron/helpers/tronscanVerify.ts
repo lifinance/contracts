@@ -28,21 +28,20 @@ export const TRONSCAN_SUCCESS_MESSAGE_RE =
 const CONTRACT_SUBDIRS = ['', 'Facets', 'Periphery', 'Security', 'Helpers']
 
 export interface IVerifyParams {
-  explorerApiUrl: string
-  contractName: string
-  address: string
-  source: string
-  fileName: string
-  compiler: string
-  optimizerRuns: number
-  viaIR: boolean
-  license: number
-  constructorParams: string
+  readonly explorerApiUrl: string
+  readonly contractName: string
+  readonly address: string
+  readonly source: string
+  readonly fileName: string
+  readonly compiler: string
+  readonly optimizerRuns: number
+  readonly viaIR: boolean
+  readonly license: number
 }
 
 export interface IVerifyResult {
-  ok: boolean
-  message: string
+  readonly ok: boolean
+  readonly message: string
 }
 
 /**
@@ -129,16 +128,6 @@ export async function flattenContractSource(
   }
 }
 
-/** Normalize constructor args to TronScan's expected form (hex without `0x`). */
-export function normalizeConstructorParams(raw: string | undefined): string {
-  if (!raw) return ''
-  const trimmed = raw.trim()
-  if (trimmed === '' || trimmed.toLowerCase() === '0x') return ''
-  return trimmed.startsWith('0x') || trimmed.startsWith('0X')
-    ? trimmed.slice(2)
-    : trimmed
-}
-
 /**
  * Interpret the TronScan verification response. Success is signalled by a
  * success *message* (see {@link TRONSCAN_SUCCESS_MESSAGE_RE}); a mismatch
@@ -175,7 +164,10 @@ export async function verifyContractOnTronscan(
   form.append('compiler', params.compiler)
   form.append('optimizer', '1')
   form.append('runs', String(params.optimizerRuns))
-  form.append('constructorParams', params.constructorParams)
+  // TronScan matches runtime bytecode, so constructor args are never needed, but
+  // the verify form always sends this field — keep it (empty) to mirror the
+  // confirmed-working request shape rather than dropping it from the multipart body.
+  form.append('constructorParams', '')
   form.append('viaIR', params.viaIR ? '1' : '0')
   form.append(
     'files',

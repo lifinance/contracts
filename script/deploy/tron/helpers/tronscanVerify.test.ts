@@ -8,7 +8,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'bun:test'
 import {
   assertSafePathSegment,
   interpretResponse,
-  normalizeConstructorParams,
   resolveFlattenedPath,
   resolveSourcePath,
 } from './tronscanVerify'
@@ -69,26 +68,6 @@ describe('interpretResponse', () => {
     const fail = interpretResponse(true, 'gateway timeout')
     expect(fail.ok).toBe(false)
     expect(fail.message).toBe('gateway timeout')
-  })
-})
-
-describe('normalizeConstructorParams', () => {
-  it('returns empty for undefined, empty, and 0x', () => {
-    expect(normalizeConstructorParams(undefined)).toBe('')
-    expect(normalizeConstructorParams('')).toBe('')
-    expect(normalizeConstructorParams('  ')).toBe('')
-    expect(normalizeConstructorParams('0x')).toBe('')
-    expect(normalizeConstructorParams('0X')).toBe('')
-  })
-
-  it('strips a 0x/0X prefix and trims', () => {
-    expect(normalizeConstructorParams('0xabcd')).toBe('abcd')
-    expect(normalizeConstructorParams('0XABCD')).toBe('ABCD')
-    expect(normalizeConstructorParams('  0xdead  ')).toBe('dead')
-  })
-
-  it('passes through bare hex unchanged', () => {
-    expect(normalizeConstructorParams('abcd')).toBe('abcd')
   })
 })
 

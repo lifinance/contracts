@@ -35,7 +35,13 @@ import {
   type IVerifyParams,
 } from './helpers/tronscanVerify'
 
-/** Contracts already verified on TronScan — skipped unless named via --only. */
+/**
+ * Contracts already verified on TronScan by other means before this CLI existed,
+ * whose source is not reliably reproducible from the current fork checkout — so
+ * skipped by default (override with --only). Contracts verified *through* this
+ * tool do NOT belong here: TronScan returns an "already verified" success that
+ * the response parser handles, so re-running them is harmless.
+ */
 const ALREADY_VERIFIED = new Set(['AccessManagerFacet', 'LiFiDiamond'])
 
 /**
@@ -194,9 +200,6 @@ const main = defineCommand({
         optimizerRuns,
         viaIR,
         license,
-        // TronScan matches runtime bytecode, so constructor args are not
-        // needed (contracts with constructors verify with this left empty).
-        constructorParams: '',
       }
 
       if (dryRun) {
