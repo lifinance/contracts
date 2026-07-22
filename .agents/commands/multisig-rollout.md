@@ -131,11 +131,11 @@ step is needed (design:
 
 ## Phase 3b — Propagate CCTP chainId→domain mappings (PolymerCCTP only)
 
-Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond. The deploy's `initPolymerCCTP` init call seeds the *newly deployed* chain with the full `config/polymercctp.json` set, so the new chain can already route everywhere — but every **already-live** chain still can't route *to* the new chain until its mapping is added. `PolymerCCTPFacet` is the only facet with cross-chain chainId→domain storage today; a future one would follow the same shape.
+Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `PolymerCCTPFacet` is the only facet with cross-chain chainId→domain storage today; a future one would follow the same shape.
 
 Two triggers:
 
-- **New chain deployed** — rides on deploy mode. After the deploy, add the new chain's `{ chainId, domainId }` to `config/polymercctp.json`, then propagate.
+- **New chain deployed** — rides on deploy mode. Add the new chain's `{ chainId, domainId }` to `config/polymercctp.json` **before** the deploy (so it ships in the rollout PR and the init call is consistent), then propagate it to the already-live chains after the deploy.
 - **New CCTP corridor, no deploy** — standalone, whitelist-mode-like: Circle adds a domain for a chain we run no diamond on. Add the mapping to `config/polymercctp.json` and propagate only — skip the deploy (Phase 2) and the deployed-addresses PR; the `config/polymercctp.json` change ships in its own PR.
 
 Propagate (diff-driven — proposes only where the on-chain mapping is unset or stale, so re-running is safe and a too-wide network set no-ops):
