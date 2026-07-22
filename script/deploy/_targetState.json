@@ -49,7 +49,7 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0",
+        "SymbiosisFacet": "2.0.0",
         "ThorSwapFacet": "1.2.1",
         "WhitelistManagerFacet": "1.0.0",
         "LiFiIntentEscrowFacetV2": "1.0.0",
@@ -430,7 +430,7 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0",
+        "SymbiosisFacet": "2.0.0",
         "ThorSwapFacet": "1.2.1",
         "WhitelistManagerFacet": "1.0.0",
         "LiFiIntentEscrowFacetV2": "1.0.0",
@@ -1197,7 +1197,7 @@
         "GlacisFacet": "1.1.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "1.0.0",
+        "SymbiosisFacet": "2.0.0",
         "WhitelistManagerFacet": "1.0.0"
       }
     }
@@ -1595,7 +1595,7 @@
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "1.0.0",
+        "SymbiosisFacet": "2.0.0",
         "WhitelistManagerFacet": "1.0.0"
       }
     }

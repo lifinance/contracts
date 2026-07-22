@@ -672,6 +672,13 @@
       "auditReportPath": "./audit/reports/2026.07.20_LibBytes(v1.1.0).pdf",
       "auditCommitHash": "0fbe4b5f92a5cee5b3825ed565ac57985ace284f"
     },
+    "audit20260721": {
+      "auditCompletedOn": "21.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.21_SymbiosisFacet(v2.0.0).pdf",
+      "auditCommitHash": "74ade3e7fa5b66977ace20293832c948745dad9c"
+    },
     "audit20260722": {
       "auditCompletedOn": "22.07.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -1058,7 +1065,8 @@
       "1.2.0": ["audit20251229"]
     },
     "SymbiosisFacet": {
-      "1.0.0": ["audit20250508"]
+      "1.0.0": ["audit20250508"],
+      "2.0.0": ["audit20260721"]
     },
     "ThorSwapFacet": {
       "1.2.1": ["audit20250109_1", "audit20250508"]
