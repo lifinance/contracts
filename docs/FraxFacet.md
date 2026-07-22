@@ -83,7 +83,7 @@ otherwise).
   LI.FI contract on the destination chain.
 - **Destination validation (`destinationChainId` ↔ `dstEid`).** The facet holds an
   owner-governed `chainId → LayerZero EID` mapping (see below) and requires
-  `getChainIdToEid(bridgeData.destinationChainId) == fraxData.dstEid`, reverting
+  `getFraxChainIdToEid(bridgeData.destinationChainId) == fraxData.dstEid`, reverting
   `UnsupportedChainId` if the destination chain is not configured and
   `InformationMismatch` if the supplied `dstEid` does not match. This binds the
   actual LayerZero routing target (`dstEid`) to the chain that analytics/accounting
@@ -109,15 +109,15 @@ above). This follows the `SupersetFacet` pattern.
   deployment/upgrade it is executed as the `diamondCut` init call (the
   `UpdateFraxFacet` script reads the `mappings` array from `config/frax.json`), so
   it is **not** registered as a diamond method.
-- `setChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
+- `setFraxChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
   initial seeding (requires a prior `initFrax`, else reverts `NotInitialized`).
-- `getChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
+- `getFraxChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
   `UnsupportedChainId` when unset. `chainId == 0` and `lzEid == 0` are rejected on
   write (EID `0` is the "unset" sentinel).
 
 **Operational requirement:** every destination chain a route targets **must** be
 present in `config/frax.json` `mappings` and seeded on each diamond (via `initFrax`
-on first deploy, or `setChainIdToEid` for later additions) before that route is
+on first deploy, or `setFraxChainIdToEid` for later additions) before that route is
 usable — an unseeded destination reverts `UnsupportedChainId`. LayerZero EIDs are
 sourced from
 [the LayerZero deployments list](https://docs.layerzero.network/v2/deployments/deployed-contracts).

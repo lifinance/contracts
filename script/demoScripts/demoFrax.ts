@@ -17,7 +17,7 @@
  * AFTER the staging deployment, not against mainnet before funds exist):
  *   - FraxFacet deployed and registered on the arbitrum staging Diamond, with the
  *     chainId -> LayerZero EID mapping seeded for the destination chain (initFrax /
- *     setChainIdToEid) — otherwise the facet reverts UnsupportedChainId
+ *     setFraxChainIdToEid) — otherwise the facet reverts UnsupportedChainId
  *   - the staging dev wallet funded with frxUSD (the bridged amount) and a little
  *     ETH to cover the native LayerZero messaging fee
  *

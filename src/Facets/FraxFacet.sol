@@ -82,7 +82,7 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     event FraxChainMappingsInitialized(ChainIdConfig[] chainIdConfigs);
 
     /// @notice Emitted when a chainId -> LayerZero EID entry is set or updated.
-    event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+    event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
     /// Constructor ///
 
@@ -126,7 +126,7 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (chainId == 0 || lzEid == 0) revert InvalidConfig();
 
             s.lzEids[chainId] = lzEid;
-            emit ChainIdToEidSet(chainId, lzEid);
+            emit FraxChainIdToEidSet(chainId, lzEid);
         }
 
         s.chainMappingsInitialized = true;
@@ -136,7 +136,7 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @notice Adds or updates chainId -> LayerZero EID entries (owner-only).
     /// @param _chainIdConfigs Batch of `{chainId, lzEid}` entries.
-    function setChainIdToEid(
+    function setFraxChainIdToEid(
         ChainIdConfig[] calldata _chainIdConfigs
     ) external {
         if (_chainIdConfigs.length == 0) revert InvalidConfig();
@@ -152,14 +152,14 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             if (chainId == 0 || lzEid == 0) revert InvalidConfig();
 
             s.lzEids[chainId] = lzEid;
-            emit ChainIdToEidSet(chainId, lzEid);
+            emit FraxChainIdToEidSet(chainId, lzEid);
         }
     }
 
     /// @notice Returns the LayerZero EID configured for `_chainId`.
     /// @param _chainId LI.FI chain ID to look up.
     /// @return lzEid LayerZero endpoint ID.
-    function getChainIdToEid(
+    function getFraxChainIdToEid(
         uint256 _chainId
     ) public view returns (uint32 lzEid) {
         lzEid = _getStorage().lzEids[_chainId];
@@ -172,7 +172,7 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _bridgeData The core information needed for bridging
     /// @param _fraxData Data specific to Frax HopV2
     function startBridgeTokensViaFrax(
-        ILiFi.BridgeData memory _bridgeData,
+        ILiFi.BridgeData calldata _bridgeData,
         FraxData calldata _fraxData
     )
         external
@@ -281,8 +281,8 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // dstEid is the actual LayerZero routing target and is trusted from backend calldata;
         // bridgeData.destinationChainId is what analytics/accounting index on. Bind them so a
         // caller cannot route funds to one chain while the transfer is recorded as another.
-        // getChainIdToEid reverts UnsupportedChainId when the destination is not configured.
-        if (getChainIdToEid(_destinationChainId) != _fraxData.dstEid) {
+        // getFraxChainIdToEid reverts UnsupportedChainId when the destination is not configured.
+        if (getFraxChainIdToEid(_destinationChainId) != _fraxData.dstEid) {
             revert InformationMismatch();
         }
     }
@@ -423,8 +423,17 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             ""
         );
 
-        uint256 unusedFee = IERC20(feeToken).balanceOf(address(this)) -
-            feeTokenBalanceBefore;
+        // Sweep only the fee token HopV2 did not pull. Guard the subtraction: the same
+        // proxy-upgrade drift the snapshot defends against could make HopV2 pull MORE than
+        // quoted, and if the diamond held any incidental pre-existing feeToken balance the
+        // post-send balance can fall below the baseline. An over-pull must degrade to "no
+        // refund", never revert an otherwise-valid bridge with an arithmetic panic.
+        uint256 feeTokenBalanceAfter = IERC20(feeToken).balanceOf(
+            address(this)
+        );
+        uint256 unusedFee = feeTokenBalanceAfter > feeTokenBalanceBefore
+            ? feeTokenBalanceAfter - feeTokenBalanceBefore
+            : 0;
         if (unusedFee != 0) {
             LibAsset.transferAsset(
                 feeToken,

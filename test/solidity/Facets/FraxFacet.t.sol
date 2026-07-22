@@ -36,7 +36,7 @@ contract FraxFacetTest is TestBaseFacet {
     event FraxChainMappingsInitialized(
         FraxFacet.ChainIdConfig[] chainIdConfigs
     );
-    event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+    event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
     TestFraxFacet internal fraxFacet;
     FraxFacet.FraxData internal fraxData;
@@ -84,8 +84,8 @@ contract FraxFacetTest is TestBaseFacet {
             .removeAllowedContractSelector
             .selector;
         functionSelectors[4] = fraxFacet.initFrax.selector;
-        functionSelectors[5] = fraxFacet.setChainIdToEid.selector;
-        functionSelectors[6] = fraxFacet.getChainIdToEid.selector;
+        functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
+        functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
@@ -496,17 +496,17 @@ contract FraxFacetTest is TestBaseFacet {
 
     function test_DefaultChainMappingsSeeded() public {
         assertEq(
-            fraxFacet.getChainIdToEid(DST_CHAINID_FRAXTAL),
+            fraxFacet.getFraxChainIdToEid(DST_CHAINID_FRAXTAL),
             DST_EID_FRAXTAL
         );
-        assertEq(fraxFacet.getChainIdToEid(8453), 30184);
+        assertEq(fraxFacet.getFraxChainIdToEid(8453), 30184);
     }
 
     function testRevert_GetChainIdToEidUnsupported() public {
         vm.expectRevert(
             abi.encodeWithSelector(UnsupportedChainId.selector, 99999)
         );
-        fraxFacet.getChainIdToEid(99999);
+        fraxFacet.getFraxChainIdToEid(99999);
     }
 
     function test_CanSetChainIdToEid() public {
@@ -515,22 +515,22 @@ contract FraxFacetTest is TestBaseFacet {
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 137, lzEid: 30109 });
 
         vm.expectEmit(true, true, true, true, address(fraxFacet));
-        emit ChainIdToEidSet(137, 30109);
+        emit FraxChainIdToEidSet(137, 30109);
 
         vm.prank(USER_DIAMOND_OWNER);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
 
-        assertEq(fraxFacet.getChainIdToEid(137), 30109);
+        assertEq(fraxFacet.getFraxChainIdToEid(137), 30109);
 
         // updating an existing entry overwrites and re-emits
         configs[0].lzEid = 30111;
         vm.expectEmit(true, true, true, true, address(fraxFacet));
-        emit ChainIdToEidSet(137, 30111);
+        emit FraxChainIdToEidSet(137, 30111);
 
         vm.prank(USER_DIAMOND_OWNER);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
 
-        assertEq(fraxFacet.getChainIdToEid(137), 30111);
+        assertEq(fraxFacet.getFraxChainIdToEid(137), 30111);
     }
 
     function testRevert_SetChainIdToEidFromNonOwner() public {
@@ -540,7 +540,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_SENDER);
         vm.expectRevert(OnlyContractOwner.selector);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
     }
 
     function testRevert_SetChainIdToEidEmpty() public {
@@ -549,7 +549,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
     }
 
     function testRevert_SetChainIdToEidZeroChainId() public {
@@ -559,7 +559,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
     }
 
     function testRevert_SetChainIdToEidZeroEid() public {
@@ -569,7 +569,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
-        fraxFacet.setChainIdToEid(configs);
+        fraxFacet.setFraxChainIdToEid(configs);
     }
 
     function testRevert_SetChainIdToEidBeforeInit() public {
@@ -587,7 +587,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(address(0));
         vm.expectRevert(NotInitialized.selector);
-        fresh.setChainIdToEid(configs);
+        fresh.setFraxChainIdToEid(configs);
     }
 
     function test_InitFraxEmitsAndSetsMappings() public {
@@ -600,16 +600,19 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(address(0));
         vm.expectEmit(true, true, true, true, address(fresh));
-        emit ChainIdToEidSet(configs[0].chainId, configs[0].lzEid);
+        emit FraxChainIdToEidSet(configs[0].chainId, configs[0].lzEid);
         vm.expectEmit(true, true, true, true, address(fresh));
-        emit ChainIdToEidSet(configs[1].chainId, configs[1].lzEid);
+        emit FraxChainIdToEidSet(configs[1].chainId, configs[1].lzEid);
         vm.expectEmit(true, true, true, true, address(fresh));
         emit FraxChainMappingsInitialized(configs);
 
         fresh.initFrax(configs);
 
-        assertEq(fresh.getChainIdToEid(DST_CHAINID_FRAXTAL), DST_EID_FRAXTAL);
-        assertEq(fresh.getChainIdToEid(8453), 30184);
+        assertEq(
+            fresh.getFraxChainIdToEid(DST_CHAINID_FRAXTAL),
+            DST_EID_FRAXTAL
+        );
+        assertEq(fresh.getFraxChainIdToEid(8453), 30184);
     }
 
     function testRevert_InitFraxFromNonOwner() public {
@@ -737,8 +740,8 @@ contract FraxFacetTempoTest is TestBase {
             .removeAllowedContractSelector
             .selector;
         functionSelectors[4] = fraxFacet.initFrax.selector;
-        functionSelectors[5] = fraxFacet.setChainIdToEid.selector;
-        functionSelectors[6] = fraxFacet.getChainIdToEid.selector;
+        functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
+        functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
@@ -990,5 +993,37 @@ contract FraxFacetTempoTest is TestBase {
         vm.expectRevert(InformationMismatch.selector);
         fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
         vm.stopPrank();
+    }
+
+    function test_Tempo_FeeOverPullDegradesToNoRefundInsteadOfReverting()
+        public
+    {
+        // Defensive: the fee snapshot anticipates HopV2's fee logic changing on a proxy
+        // upgrade. If sendOFT ever pulled MORE fee token than quoteStatic reported and the
+        // diamond held an incidental pre-existing balance to cover the excess, the unused-fee
+        // sweep must degrade to "no refund" rather than underflow-revert an otherwise-valid
+        // bridge. hop pulls 1e6 more than the 5e6 quoted, covered by a 2e6 pre-existing balance.
+        uint256 preExisting = 2 * 1e6;
+        uint256 feePull = FEE_QUOTE + 1e6;
+        deal(address(pathUsd), address(fraxFacet), preExisting);
+        hop.setFeeConfig(address(pathUsd), FEE_QUOTE, feePull);
+
+        uint256 refundBefore = pathUsd.balanceOf(USER_REFUND);
+
+        vm.startPrank(USER_SENDER);
+        bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
+        pathUsd.approve(address(fraxFacet), FEE_QUOTE);
+
+        // must NOT revert with an arithmetic panic
+        fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
+        vm.stopPrank();
+
+        // over-pull consumed 1e6 of the pre-existing balance; nothing is swept as "unused"
+        assertEq(pathUsd.balanceOf(USER_REFUND), refundBefore);
+        assertEq(
+            pathUsd.balanceOf(address(fraxFacet)),
+            preExisting - (feePull - FEE_QUOTE)
+        );
+        assertEq(bridgedToken.balanceOf(address(hop)), BRIDGE_AMOUNT);
     }
 }
