@@ -3249,6 +3249,36 @@ function warning() {
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
 }
+# logWithTimestamp: Print a message prefixed with the current timestamp.
+#
+# Usage: logWithTimestamp MESSAGE
+#   MESSAGE - Text to log
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] MESSAGE" to stdout.
+# Example: logWithTimestamp "Backed up foundry.toml"
+function logWithTimestamp() {
+  local MESSAGE="$1"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] %s\n' "$TIMESTAMP" "$MESSAGE"
+}
+# logNetworkResult: Print a per-network status line prefixed with a timestamp.
+#
+# Usage: logNetworkResult NETWORK STATUS MESSAGE
+#   NETWORK - Network name the result belongs to
+#   STATUS  - Short status token (e.g. SUCCESS, FAILED)
+#   MESSAGE - Result detail text
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] [NETWORK] STATUS: MESSAGE" to stdout.
+# Example: logNetworkResult "arbitrum" "SUCCESS" "deployed FraxFacet"
+function logNetworkResult() {
+  local NETWORK="$1"
+  local STATUS="$2"
+  local MESSAGE="$3"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
+}
 # <<<<< output to console
 
 # >>>>> Reading and manipulation of target state JSON file

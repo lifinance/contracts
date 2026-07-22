@@ -344,24 +344,6 @@ function isContractAlreadyVerified() {
 }
 
 # =============================================================================
-# LOGGING UTILITY FUNCTIONS
-# =============================================================================
-
-function logWithTimestamp() {
-    local MESSAGE="$1"
-    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$TIMESTAMP] $MESSAGE"
-}
-
-function logNetworkResult() {
-    local NETWORK="$1"
-    local STATUS="$2"
-    local MESSAGE="$3"
-    local TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$TIMESTAMP] [$NETWORK] $STATUS: $MESSAGE"
-}
-
-# =============================================================================
 # MULTISIG PROPOSAL FUNCTIONS
 # =============================================================================
 
