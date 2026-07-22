@@ -932,6 +932,66 @@ const updateCommand = defineCommand({
   },
 })
 
+// Define list-unverified command
+const listUnverifiedCommand = defineCommand({
+  meta: {
+    name: 'list-unverified',
+    description:
+      'Print TSV rows for deployment records not marked verified, so a caller can re-run block-explorer verification with the recorded toolchain.',
+  },
+  args: {
+    environment: {
+      type: 'string',
+      description: 'Environment (staging or production)',
+      default: 'production',
+    },
+  },
+  async run({ args }) {
+    if (args.environment !== 'staging' && args.environment !== 'production') {
+      consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    const manager = new DeploymentLogManager(
+      config,
+      args.environment as keyof typeof EnvironmentEnum
+    )
+
+    let exitCode = 0
+    try {
+      await manager.connect()
+      const records = await manager.queryDeployments({})
+      const unverified = records.filter((record) => record.verified !== true)
+
+      consola.info(
+        `Found ${unverified.length} unverified record(s) out of ${records.length} in ${args.environment}`
+      )
+
+      // TSV rows go to stdout so a shell caller can read them field-by-field;
+      // all diagnostics above/below use consola. Columns:
+      // network, contractName, address, constructorArgs, solcVersion, evmVersion, optimizerRuns
+      for (const record of unverified) {
+        const row = [
+          record.network,
+          record.contractName,
+          record.address,
+          record.constructorArgs ?? '',
+          record.solcVersion ?? '',
+          record.evmVersion ?? '',
+          record.optimizerRuns ?? '',
+        ].join('\t')
+        process.stdout.write(`${row}\n`)
+      }
+    } catch (error) {
+      consola.error('list-unverified failed:', error)
+      exitCode = 1
+    } finally {
+      await manager.disconnect()
+    }
+    if (exitCode !== 0) process.exit(exitCode)
+  },
+})
+
 // Define create-indexes command
 const createIndexesCommand = defineCommand({
   meta: {
@@ -985,6 +1045,7 @@ const main = defineCommand({
     sync: syncCommand,
     add: addCommand,
     update: updateCommand,
+    'list-unverified': listUnverifiedCommand,
     'create-indexes': createIndexesCommand,
   },
 })

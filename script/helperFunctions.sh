@@ -2115,6 +2115,10 @@ function verifyContract() {
   local CONTRACT=$2
   local ADDRESS=$3
   local ARGS=$4
+  # Optional toolchain overrides, sourced from the recorded per-contract values in
+  # the Mongo 'contract-deployments' DB. When empty, forge falls back to foundry.toml
+  # [profile.default], which is only correct for contracts compiled with the current config.
+  local SOLC_VERSION="${5:-}" EVM_VERSION="${6:-}" OPTIMIZER_RUNS="${7:-}"
 
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
@@ -2208,6 +2212,15 @@ function verifyContract() {
     VERIFY_CMD+=("--constructor-args" "$ARGS")
   else
     warning "Skipping invalid constructor args for verify-contract (expected 0x-prefixed hex with an even number of hex digits); not passing --constructor-args."
+  fi
+
+  # Pin the toolchain to the recorded per-contract values so re-verifying an old
+  # deployment recompiles with the solc/evm/optimizer it was built with, not the
+  # current foundry.toml config. zkEVM (--zksync) is left to its own pinning path.
+  if ! isZkEvmNetwork "$NETWORK"; then
+    [[ -n "$SOLC_VERSION" ]] && VERIFY_CMD+=("--compiler-version" "$SOLC_VERSION")
+    [[ -n "$EVM_VERSION" ]] && VERIFY_CMD+=("--evm-version" "$EVM_VERSION")
+    [[ -n "$OPTIMIZER_RUNS" ]] && VERIFY_CMD+=("--num-of-optimizations" "$OPTIMIZER_RUNS")
   fi
 
   # Get API key and determine verification method
@@ -2385,6 +2398,55 @@ function verifyContract() {
   # If we get here, verification failed after all retries
   echo "[error] Failed to verify $CONTRACT on $NETWORK after $MAX_RETRIES attempts"
   return 1
+}
+
+# verifyUnverifiedContractsFromMongo: Re-verify every deployment the Mongo
+# 'contract-deployments' DB has not marked verified, recompiling each with its
+# recorded solc/evm/optimizer instead of the foundry.toml defaults. This keeps
+# re-verification correct after a network's config group changes (e.g. london->cancun).
+#
+# Usage: verifyUnverifiedContractsFromMongo [ENVIRONMENT]
+#   ENVIRONMENT - Optional: "production" (default) or "staging"
+#
+# Behavior:
+#   - Rows with BOTH solc and evm empty cannot pin a compile and are skipped.
+#   - Each remaining row is verified via verifyContract with the recorded toolchain.
+#
+# Returns: 0 if no verification failed, 1 otherwise. Prints verified/skipped/failed totals.
+# Example: verifyUnverifiedContractsFromMongo "production"
+function verifyUnverifiedContractsFromMongo() {
+  local ENVIRONMENT="${1:-production}"
+
+  local ROWS
+  if ! ROWS=$(bunx tsx script/deploy/update-deployment-logs.ts list-unverified --environment "$ENVIRONMENT"); then
+    error "failed to list unverified contracts from MongoDB ($ENVIRONMENT)"
+    return 1
+  fi
+
+  local VERIFIED_COUNT=0 SKIPPED_COUNT=0 FAILED_COUNT=0
+
+  local NETWORK CONTRACT ADDRESS CONSTRUCTOR_ARGS SOLC EVM OPT
+  while IFS=$'\t' read -r NETWORK CONTRACT ADDRESS CONSTRUCTOR_ARGS SOLC EVM OPT; do
+    # Only whole TSV rows drive verification; consola diagnostics on stdout lack the address column.
+    [[ -z "$NETWORK" || -z "$CONTRACT" || -z "$ADDRESS" ]] && continue
+
+    # Without a recorded solc or evm we cannot pin the compile; foundry.toml defaults would
+    # reintroduce the config-drift bug this function exists to avoid, so skip such records.
+    if [[ -z "$SOLC" && -z "$EVM" ]]; then
+      echo "[skip] $CONTRACT@$NETWORK: no recorded solc/evm"
+      SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+      continue
+    fi
+
+    if verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC" "$EVM" "$OPT"; then
+      VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
+    else
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
+  done <<<"$ROWS"
+
+  echo "[info] verifyUnverifiedContractsFromMongo ($ENVIRONMENT): verified=$VERIFIED_COUNT skipped=$SKIPPED_COUNT failed=$FAILED_COUNT"
+  [[ "$FAILED_COUNT" -eq 0 ]]
 }
 
 function getEtherscanApiKeyName() {
