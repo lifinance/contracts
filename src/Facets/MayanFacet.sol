@@ -21,6 +21,15 @@ import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, I
 ///      the customPayload receiver instead of destAddr, but only after verifying destAddr equals
 ///      MAYAN_HYPERCORE_DEPOSITOR, so the customPayload is trusted only for genuine HCDepositor
 ///      orders.
+/// @dev Positive-slippage handling deviates from the default [CONV:FACET-REFUNDS] pattern
+///      (scale the bridge minAmountOut proportionally): Mayan's output floors live inside the
+///      opaque per-selector protocolData (order minAmountOut) and opaque swapData, so scaling
+///      them on-chain would require the same fragile per-selector calldata rewriting the audit
+///      flagged as unsafe. Instead swapAndStartBridgeTokensViaMayan binds the realized source
+///      output down to MayanData.mayanAmountIn (the amount the Mayan quote was generated for)
+///      and refunds the positive slippage to refundRecipient, so the amount reaching Mayan
+///      always matches its quoted floors. Trade-off: positive slippage is returned on the source
+///      chain rather than bridged onward.
 /// @custom:version 2.0.0
 contract MayanFacet is
     ILiFi,
@@ -58,6 +67,13 @@ contract MayanFacet is
     /// @param minMiddleAmount The minimum middleToken amount that must result from the swap
     /// @param refundRecipient The address that receives excess native value and swap leftovers;
     ///        must be the user, never the relayer, so refunds are not stranded on a relayer
+    /// @param mayanAmountIn The exact input amount (in sendingAssetId units) the Mayan quote,
+    ///        protocolData and swapData were generated for. On swapAndStartBridgeTokensViaMayan
+    ///        the realized source-swap output is bound down to this committed amount and the
+    ///        positive slippage is refunded to refundRecipient, so the amount handed to Mayan
+    ///        always matches the output floors (order minAmountOut / minMiddleAmount) and the
+    ///        opaque swapData its quote was built for. Ignored by startBridgeTokensViaMayan,
+    ///        where the deposited minAmount is itself the committed amount.
     struct MayanData {
         bytes32 nonEVMReceiver;
         address mayanProtocol;
@@ -67,6 +83,7 @@ contract MayanFacet is
         address middleToken;
         uint256 minMiddleAmount;
         address refundRecipient;
+        uint256 mayanAmountIn;
     }
 
     /// Errors ///
@@ -108,8 +125,12 @@ contract MayanFacet is
             _bridgeData.minAmount
         );
 
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // Normalize the amount to 8 decimals
+        // Only forwardEth's order is denominated in the 8-decimal-normalized native amount;
+        // swapAndForwardEth must receive the raw amount so it matches swapData.
+        if (
+            LibAsset.isNativeAsset(_bridgeData.sendingAssetId) &&
+            _mayanData.swapProtocol == address(0)
+        ) {
             _bridgeData.minAmount = _normalizeAmount(
                 _bridgeData.minAmount,
                 18
@@ -155,28 +176,47 @@ contract MayanFacet is
             revert InvalidSendingToken();
         }
 
-        _bridgeData.minAmount = _depositAndSwap(
+        uint256 realizedAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(_mayanData.refundRecipient)
         );
 
-        uint256 decimals;
+        // Bind the realized source-swap output down to the amount the Mayan quote was generated
+        // for (mayanAmountIn) and refund the positive slippage, so the amount handed to Mayan
+        // matches its stale output floors (order minAmountOut / minMiddleAmount) and the opaque
+        // swapData. See the contract-level note on the [CONV:FACET-REFUNDS] deviation.
+        uint256 committedAmount = _mayanData.mayanAmountIn;
+        if (committedAmount == 0 || realizedAmount < committedAmount) {
+            revert InvalidAmount();
+        }
+
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-        decimals = isNative
-            ? 18
-            : ERC20(_bridgeData.sendingAssetId).decimals();
 
-        // Normalize the amount to 8 decimals
-        _bridgeData.minAmount = _normalizeAmount(
-            _bridgeData.minAmount,
-            uint8(decimals)
-        );
+        if (isNative) {
+            // The excess native (realizedAmount - committedAmount) is swept to refundRecipient by
+            // the refundExcessNative modifier. swapAndForwardEth must receive the raw committed
+            // amount so it matches swapData; forwardEth's order is denominated in the
+            // 8-decimal-normalized native amount.
+            _bridgeData.minAmount = _mayanData.swapProtocol == address(0)
+                ? _normalizeAmount(committedAmount, 18)
+                : committedAmount;
+        } else {
+            if (realizedAmount > committedAmount) {
+                LibAsset.transferAsset(
+                    _bridgeData.sendingAssetId,
+                    payable(_mayanData.refundRecipient),
+                    realizedAmount - committedAmount
+                );
+            }
 
-        // Native values are not passed as calldata
-        if (!isNative) {
-            // Update the protocol data with the new input amount
+            // Normalize to 8 decimals and rewrite the encoded input so protocolData's amountIn
+            // matches the (bound) amount Mayan pulls.
+            _bridgeData.minAmount = _normalizeAmount(
+                committedAmount,
+                ERC20(_bridgeData.sendingAssetId).decimals()
+            );
             _mayanData.protocolData = _replaceInputAmount(
                 _mayanData.protocolData,
                 _bridgeData.minAmount
@@ -226,6 +266,18 @@ contract MayanFacet is
         IMayan.PermitParams memory emptyPermitParams;
 
         if (!LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+            // Bind the ERC20 amount Mayan pulls (minAmount) to the amount its order encodes, so a
+            // mismatch cannot leave the remainder stranded in Mayan's Forwarder (forwardERC20 has
+            // no token-return step). On the swap entrypoint _replaceInputAmount already rewrote
+            // the encoded amount to minAmount, so this is a no-op there and enforces the binding
+            // on the direct entrypoint.
+            if (
+                _readInputAmount(_mayanData.protocolData) !=
+                _bridgeData.minAmount
+            ) {
+                revert InvalidAmount();
+            }
+
             LibAsset.maxApproveERC20(
                 IERC20(_bridgeData.sendingAssetId),
                 address(MAYAN),
@@ -521,6 +573,28 @@ contract MayanFacet is
             amount *= 10 ** (decimals - 8);
         }
         return amount;
+    }
+
+    // @dev Reads the encoded input amount from the protocol data at the selector's amount offset
+    //      (the same slot _replaceInputAmount rewrites): byte 452 for MayanSwap.swap, else byte 36.
+    // @param protocolData The protocol data for the Mayan protocol
+    // @return amount The encoded input amount
+    function _readInputAmount(
+        bytes memory protocolData
+    ) internal pure returns (uint256 amount) {
+        bytes4 functionSelector = bytes4(protocolData[0]) |
+            (bytes4(protocolData[1]) >> 8) |
+            (bytes4(protocolData[2]) >> 16) |
+            (bytes4(protocolData[3]) >> 24);
+
+        uint256 amountIndex = functionSelector == 0x6111ad25 ? 452 : 36;
+        if (protocolData.length < amountIndex + 32) {
+            revert ProtocolDataTooShort();
+        }
+
+        assembly {
+            amount := mload(add(add(protocolData, 0x20), amountIndex))
+        }
     }
 
     // @dev Replaces the input amount in the protocol data
