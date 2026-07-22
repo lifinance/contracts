@@ -946,6 +946,68 @@ contract MayanFacetTest is TestBaseFacet {
         testFacet.testReplaceInputAmount(shortData, newAmount);
     }
 
+    /// @dev Regression for the MayanSwap.swap (0x6111ad25) amount rewrite: amountIn sits at a
+    ///      FIXED head offset (byte 452), so a non-empty customPayload in the tail must not shift
+    ///      which word gets overwritten. Builds otherwise-identical calldata with an empty and a
+    ///      non-empty payload and asserts only the amountIn word changes in both. The non-empty
+    ///      case is sized so the previous `length - 256` offset would have landed on the sentinel
+    ///      word (324) instead of amountIn, corrupting it.
+    function test_ReplaceInputAmountRewritesMayanSwapAmountRegardlessOfPayload()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+        uint256 newAmount = 999;
+
+        bytes memory emptyPayload = _buildMayanSwapProtocolData(111, 0);
+        bytes memory withPayload = _buildMayanSwapProtocolData(111, 96);
+
+        bytes memory outEmpty = testFacet.testReplaceInputAmount(
+            emptyPayload,
+            newAmount
+        );
+        bytes memory outWithPayload = testFacet.testReplaceInputAmount(
+            withPayload,
+            newAmount
+        );
+
+        assertEq(outEmpty.length, emptyPayload.length);
+        assertEq(outWithPayload.length, withPayload.length);
+        assertEq(_readWordAt(outEmpty, 452), newAmount);
+        assertEq(_readWordAt(outWithPayload, 452), newAmount);
+        assertEq(_readWordAt(outEmpty, 324), 0xDEAD);
+        assertEq(_readWordAt(outWithPayload, 324), 0xDEAD);
+    }
+
+    /// @dev Builds MayanSwap.swap-shaped calldata: selector + 14 head words + amountIn word, then
+    ///      `payloadLen` tail bytes. Word 10 (byte 324) holds a sentinel so tests can prove
+    ///      non-amount bytes survive the rewrite.
+    function _buildMayanSwapProtocolData(
+        uint256 amountIn,
+        uint256 payloadLen
+    ) internal pure returns (bytes memory) {
+        bytes memory head = abi.encodePacked(
+            bytes4(0x6111ad25),
+            new bytes(320), // words 0..9  -> bytes [4,324)
+            uint256(0xDEAD), // word 10 sentinel -> bytes [324,356)
+            new bytes(96), // words 11..13 -> bytes [356,452)
+            amountIn // word 14 amountIn -> bytes [452,484)
+        );
+
+        return abi.encodePacked(head, new bytes(payloadLen));
+    }
+
+    /// @dev Reads the 32-byte word at `byteOffset` within a bytes buffer.
+    function _readWordAt(
+        bytes memory data,
+        uint256 byteOffset
+    ) internal pure returns (uint256 word) {
+        assembly {
+            word := mload(add(add(data, 0x20), byteOffset))
+        }
+    }
+
     // The HyperCore receiver-parsing coverage is split across the tests below. It was originally
     // one function, but under the legacy codegen pipeline (solc 0.8.17 / london, used for
     // London-EVM production deploys) the combined locals plus the Swift v2 ABI encoder overflowed

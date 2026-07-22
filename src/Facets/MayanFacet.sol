@@ -476,24 +476,31 @@ contract MayanFacet is
         bytes memory protocolData,
         uint256 inputAmount
     ) internal pure returns (bytes memory) {
-        if (protocolData.length < 68) {
-            revert ProtocolDataTooShort();
-        }
-
-        bytes memory modifiedData = new bytes(protocolData.length);
         bytes4 functionSelector = bytes4(protocolData[0]) |
             (bytes4(protocolData[1]) >> 8) |
             (bytes4(protocolData[2]) >> 16) |
             (bytes4(protocolData[3]) >> 24);
 
         uint256 amountIndex;
-        // Only the wh swap method has the amount as last argument
+        // MayanSwap.swap encodes amountIn as its final argument. It is a static ABI-head word at
+        // a FIXED offset (word 14 -> byte 452), not a length-relative one: the preceding dynamic
+        // customPayload lives in the tail, so `length - 256` only lands on amountIn when the
+        // payload is empty and silently overwrites the wrong word otherwise. All other selectors
+        // carry amountIn as the 2nd argument at byte 36.
         bytes4 swapSelector = 0x6111ad25;
         if (functionSelector == swapSelector) {
-            amountIndex = protocolData.length - 256;
+            amountIndex = 452;
         } else {
             amountIndex = 36;
         }
+
+        // Reject calldata too short to hold the selector + amount word at its expected offset,
+        // so the rewrite can never read/write past the buffer.
+        if (protocolData.length < amountIndex + 32) {
+            revert ProtocolDataTooShort();
+        }
+
+        bytes memory modifiedData = new bytes(protocolData.length);
 
         // Copy the function selector and params before amount in
         for (uint256 i = 0; i < amountIndex; i++) {
