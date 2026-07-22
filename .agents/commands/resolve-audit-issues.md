@@ -151,15 +151,24 @@ risk. Follow the Solidity rules that apply to the touched files (`100-solidity-b
 `101-solidity-contracts`, `102-facets`, `104-receiver-contracts`, `105-security`) — a fix must
 not weaken diamond/selector/storage invariants or governance flows.
 
-Present one table, most-severe first:
+Present one table, most-severe first. It must be **self-contained** — the reader should
+understand each finding and our response without opening the issue. Keep a **Finding** column
+(a neutral 1–2 sentence summary of what the auditor actually reported — the observation + the
+affected code/path, in your words, not a copy of the title) separate from **Rationale**
+(*our* decision reasoning + residual risk):
 
 ```text
-| # | Sev  | Title                                   | Proposal    | Rationale / residual risk               |
-|---|------|-----------------------------------------|-------------|-----------------------------------------|
-| 3 | Med  | Native swap calldata reused with …      | Fix         | Bind amount into calldata; …            |
-| 2 | Med  | Mayan refund recipient not validated    | Acknowledge | Forwarder is trusted+immutable; …       |
-| … |      |                                         |             |                                         |
+| # | Sev  | Title                                | Finding (what the auditor reported)                                  | Proposal    | Rationale / residual risk               |
+|---|------|--------------------------------------|----------------------------------------------------------------------|-------------|-----------------------------------------|
+| 3 | Med  | Native swap calldata reused …        | `swapAndForwardEth` forwards the original `swapData` built for the   | Fix         | Bind realized amount into calldata; …   |
+|   |      |                                      | quoted amount, so a different realized input reverts or strands …    |             |                                         |
+| 2 | Med  | Mayan refund recipient not validated | Facet validates the destination receiver but never the order's own   | Acknowledge | Forwarder is trusted+immutable; …       |
+|   |      |                                      | refund identity (`trader`/`refundAddr`), so refunds can go elsewhere | |          |                                         |
 ```
+
+The **Finding** column is a faithful summary of the auditor's issue body, not an assessment —
+never soften or pre-judge it there; your judgement belongs in **Rationale**. Keep it tight but
+complete enough that the fix/acknowledge decision is legible on its own.
 
 For each **Acknowledge**, the rationale must be a real reason the finding is a non-issue or an
 accepted trade-off (trust boundary, gas cost, out-of-scope by design) — never "won't fix" with
