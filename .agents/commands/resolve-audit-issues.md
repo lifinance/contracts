@@ -55,16 +55,21 @@ gh pr view <PR> --repo lifinance/contracts \
 ```
 
 Capture: `number`, `url`, `headRefName`, the **last** `commits[].oid` (the audited head — the
-commit the auditor reviewed; re-run with `--json commits` if the array came back empty), and
-the facet/contract names from the title brackets. Extract any `EXSC-\d+` ticket from body /
-title / branch for later PR linkage.
+commit the auditor reviewed; re-run with `--json commits` if the array came back empty), the
+facet/contract **names and versions** from the title brackets (e.g. `MayanFacet v2.0.0` →
+`facet = MayanFacet`, `version = v2.0.0` — the version is needed for the Step 9 wrap-up), and a
+ref-safe **slug** of the primary facet (lowercase, non-`[a-z0-9._-]` → `-`) for the branch name
+in Step 4. Extract any `EXSC-\d+` ticket from body / title / branch for later PR linkage.
 
 If given a facet name with no PR, find the PR: `gh pr list --repo lifinance/contracts --search
 "<Facet>" --state all`. If ambiguous, list matches and ask.
 
 ## Step 1 — Discover the audit repo
 
-If `--audit-repo <owner/repo>` was passed, use it and skip discovery.
+If `--audit-repo <owner/repo>` was passed, use it and skip the Slack search — but still
+**identify the auditor** (and therefore the channel + mention needed for Step 9) from the repo
+owner via the Auditors table; if the owner doesn't map to a known auditor, ask the user which
+auditor/channel it is. Never leave the auditor unresolved just because discovery was skipped.
 
 Otherwise search Slack for the auditor's repo link tied to this facet. The audit-completion
 message names the findings repo (e.g. `github.com/<auditor>/lifi-<facet>-v<version>`):
@@ -108,10 +113,17 @@ gh api /user/repository_invitations \
 
 ## Step 3 — Load all findings
 
+Load **every** open issue — do not cap. `gh issue list --limit N` silently truncates at `N`, so
+page through the REST API instead:
+
 ```bash
-gh issue list --repo <owner>/<repo> --state open --limit 100 \
-  --json number,title,labels
+gh api --paginate repos/<owner>/<repo>/issues \
+  -f state=open --jq '.[] | select(.pull_request | not) | {number, title}'
 ```
+
+(`--paginate` follows every page; the `pull_request` filter drops PRs, which the issues
+endpoint also returns.) If you do use `gh issue list`, set a limit well above the issue count
+and **fail loudly** if the returned count equals the limit — that means results were truncated.
 
 For each issue, pull the full body (and any existing comments, so you don't re-answer a
 finding already resolved in a prior run):
@@ -132,10 +144,13 @@ PR branch), so remediation history is isolated and gets its own PR.
 Create a dedicated worktree off the audited branch so the diamond invariants and tests build
 cleanly and you never touch the main checkout:
 
+Use the ref-safe `<slug>` from Step 0 (never the raw facet name) for both the worktree path
+and the branch, so spaces/slashes can't break branch creation:
+
 ```bash
-~/.claude/scripts/contracts-wt-add.sh audit/<facet>-remediation
+~/.claude/scripts/contracts-wt-add.sh audit/<slug>-remediation
 # then, in the new worktree, base the branch on the audited head:
-git checkout -b audit/<facet>-remediation <audited_oid_or_pr_head>
+git checkout -b audit/<slug>-remediation <audited_oid_or_pr_head>
 git submodule update --init --recursive
 bun install && bun typechain:incremental   # avoid the fresh-worktree lint-staged trap
 ```
@@ -215,9 +230,11 @@ rather than ballooning the diff.
 
 ## Step 7 — Final review, push, open the remediation PR
 
-Before anything leaves the machine, show the user the **full diff set** (all fix commits) and
-the **drafted reply for every issue**. This is a content check — the triage gate already
-approved the plan.
+**One publish gate for everything external.** Before anything leaves the machine, render
+*together* in a single review: the **full diff set** (all fix commits), the **drafted reply for
+every issue** (Step 8), and the **drafted Slack wrap-up** (Step 9). The user gives **one**
+approval that covers all external posts — there is no second gate later. This is a content
+check; the triage gate already approved the plan.
 
 On go:
 
@@ -232,8 +249,8 @@ On go:
 
 ## Step 8 — Reply to each issue
 
-**Posting to the auditor's repo is an external publish.** Draft every reply, show them all, and
-post only after the user's explicit **yes** in Step 7's review. Then, per issue:
+Posting happens only after the single Step 7 approval. Then, per issue, and **tracking the
+result of each** (you'll need it to gate Step 9):
 
 ```bash
 # fixed
@@ -253,15 +270,24 @@ Reply body format (exact wording the team uses):
 **Leave issues open** — the auditor closes each one on verification. Do not close them yourself
 unless the user says so.
 
+If any `gh issue comment` failed, keep that issue in a **pending** set — it gates Step 9.
+
 ## Step 9 — Slack wrap-up (nudge auditor + ping SC team)
 
-Once **every** issue has a reply, post one message to the auditor's audit channel: nudge the
-auditor that all findings are addressed, and ping `@smartcontract_core` to review the findings
-and our responses. Webhooks can't thread, so this is one self-contained channel message (not a
-thread reply).
+**Gate: only run this if every issue reply from Step 8 succeeded.** If any reply is still
+pending, do **not** post the wrap-up — it would claim "all issues are addressed" while some
+never got a reply. Instead report which issues failed and stop; the user re-runs after those
+replies land.
 
-**This is an external publish** — draft it, show it, and post only after the user's explicit
-yes (fold it into Step 7's pre-post review, or confirm here if you ran Step 8 separately).
+When all replies are confirmed, post one message (already approved in Step 7) to the auditor's
+audit channel: nudge the auditor that all findings are addressed, and ping `@smartcontract_core`
+to review the findings and our responses. Webhooks can't thread, so this is one self-contained
+channel message (not a thread reply).
+
+Before writing the message file, **validate that no `{...}` placeholder is unresolved** —
+`{Facet}`, `{version}`, `{auditor_mention}`, `{webhook_channel}`, the counts, and
+`{remediation_pr_url}` must all have real values (from Step 0 and the auditor identified in
+Step 1). If any is missing, stop and ask rather than posting a half-filled message.
 
 Draft (backtick code style per the auditor-facing convention — wrap contract/version/PR refs):
 
@@ -292,14 +318,16 @@ Interpret the exit code (same convention as `request-audit`):
 | `2` | `WEBHOOK_*` env var not set | Print the drafted message and tell the user to post it manually; name the missing env var (URL in 1Password → Developers Smart Contract → Webhooks SC Channels) |
 | `1` | Slack / network error | Report stderr, do **not** retry |
 
-Then report the final summary:
+Then report the final summary. The **Slack** line must reflect the actual webhook result — not
+a fixed string: `posted to #<channel>` (exit 0), `manual fallback — post it yourself` (exit 2),
+or `failed — <error>` (exit 1):
 
 ```text
 Remediation PR: <new_pr_url>  (draft)
 Replies posted to <owner>/<repo>:
   fixed: #1 #3 #8 …   (N commits)
   acknowledged: #2 #6 …   (M)
-Slack: nudged <auditor> + pinged @smartcontract_core in #<channel>
+Slack: posted to #<channel> — nudged <auditor> + pinged @smartcontract_core
 Awaiting auditor re-review.
 ```
 
