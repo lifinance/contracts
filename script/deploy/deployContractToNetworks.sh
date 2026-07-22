@@ -320,7 +320,7 @@ function deployContractToNetworks() {
   done < <(echo "$GROUPS_JSON" | jq -r '.invalid[]')
 
   if [[ ${#INVALID_NETWORKS[@]} -gt 0 ]]; then
-    error "cannot resolve an EVM-version group for: ${INVALID_NETWORKS[*]} - check 'deployedWithEvmVersion'/'isZkEVM' in networks.json"
+    error "cannot resolve an EVM-version group for: ${INVALID_NETWORKS[*]} - check 'targetEvmVersion'/'isZkEVM' in networks.json"
     exit 1
   fi
 

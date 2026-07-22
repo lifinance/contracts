@@ -3022,7 +3022,7 @@ function getIncludedNetworksByEvmVersionArray() {
     fi
 
     # get the EVM version for this network
-    local network_evm_version=$(jq -r --arg network "$network" '.[$network].deployedWithEvmVersion // empty' "$FILE")
+    local network_evm_version=$(jq -r --arg network "$network" '.[$network].targetEvmVersion // empty' "$FILE")
 
     # check if the network's EVM version matches the requested version
     if [[ "$network_evm_version" == "$EVM_VERSION" ]]; then

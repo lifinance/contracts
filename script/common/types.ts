@@ -24,16 +24,16 @@ export type NetworkKey = SupportedChain | TronNetworkKey
 type NetworkRow = (typeof networks)[keyof typeof networks]
 
 /**
- * Every distinct `deployedWithEvmVersion` value in `config/networks.json`.
+ * Every distinct `targetEvmVersion` value in `config/networks.json`.
  */
-export type DeployedEvmVersionLabel = NetworkRow['deployedWithEvmVersion']
+export type TargetEvmVersionLabel = NetworkRow['targetEvmVersion']
 
 /**
- * EVM hardfork labels used across scripts and config (e.g. `networks.json` → `deployedWithEvmVersion`,
+ * EVM hardfork labels used across scripts and config (e.g. `networks.json` → `targetEvmVersion`,
  * validated fork names for deploy tooling, artifact paths such as `safe/<fork>/`).
  * Union is derived from `networks.json`, excluding placeholders (`n/a`, empty).
  */
-export type EVMVersion = Exclude<Lowercase<DeployedEvmVersionLabel>, 'n/a' | ''>
+export type EVMVersion = Exclude<Lowercase<TargetEvmVersionLabel>, 'n/a' | ''>
 
 /** Map of network name → network config (without the runtime-derived `id` field). */
 export interface INetworksObject {
@@ -66,8 +66,7 @@ export interface INetwork {
   explorerApiUrl: string
   multicallAddress: string
   safeAddress: string
-  deployedWithEvmVersion: DeployedEvmVersionLabel
-  deployedWithSolcVersion: string
+  targetEvmVersion: TargetEvmVersionLabel
   gasZipChainId: number
   id: string
   isZkEVM: boolean

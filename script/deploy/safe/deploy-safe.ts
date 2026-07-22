@@ -11,7 +11,7 @@
  *         - safe/cancun/ (for Cancun EVM networks)
  *         - safe/london/ (for London EVM networks)
  *      The appropriate version is automatically selected based on the network's
- *      deployedWithEvmVersion in networks.json.
+ *      targetEvmVersion in networks.json.
  *
  * Workflow:
  *   • Merge owners from `config/global.json` + `--owners` CLI argument
@@ -398,8 +398,8 @@ const main = defineCommand({
         )
 
       evmVersion = v as EVMVersion
-    } else if (networkConfig?.deployedWithEvmVersion) {
-      const v = networkConfig.deployedWithEvmVersion.toLowerCase()
+    } else if (networkConfig?.targetEvmVersion) {
+      const v = networkConfig.targetEvmVersion.toLowerCase()
       if ((EVM_VERSIONS as readonly string[]).includes(v))
         evmVersion = v as EVMVersion
     }

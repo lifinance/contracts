@@ -246,31 +246,6 @@ function getNetworksByEvmVersionAndContractDeployment() {
 # getNetworkEvmVersion / getNetworkGroup live in
 # script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
-function getNetworkSolcVersion() {
-    local NETWORK="$1"
-
-    if [[ -z "$NETWORK" ]]; then
-        error "Network name is required"
-        return 1
-    fi
-
-    # Check if network exists in networks.json
-    if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
-        error "Network '$NETWORK' not found in networks.json"
-        return 1
-    fi
-
-    # Get Solidity version
-    local SOLC_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].deployedWithSolcVersion // empty' "$NETWORKS_JSON_FILE_PATH")
-
-    if [[ -z "$SOLC_VERSION" || "$SOLC_VERSION" == "null" ]]; then
-        error "Solc version not defined for network '$NETWORK' in networks.json"
-        return 1
-    fi
-
-    echo "$SOLC_VERSION"
-}
-
 function isZkEvmNetwork() {
     local NETWORK="$1"
 
@@ -2427,7 +2402,6 @@ export -f isContractAlreadyVerified
 # Network utilities
 export -f getNetworksByEvmVersionAndContractDeployment
 export -f getNetworkEvmVersion
-export -f getNetworkSolcVersion
 export -f isZkEvmNetwork
 export -f getNetworkGroup
 

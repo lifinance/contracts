@@ -88,7 +88,7 @@ export const EVM_VERSIONS: readonly EVMVersion[] = Object.freeze(
   Array.from(
     new Set(
       Object.values(networks).map((n) =>
-        n.deployedWithEvmVersion.trim().toLowerCase()
+        n.targetEvmVersion.trim().toLowerCase()
       )
     )
   )

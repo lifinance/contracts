@@ -17,7 +17,7 @@ The system automatically groups networks by their EVM version and zkEVM status, 
 2. **Group 2: zkEVM Networks** (use profile.zksync) - Networks like zksync, polygonzkevm
 3. **Group 3: London EVM** (solc 0.8.17) - Networks like mainnet, arbitrum, base
 
-**Important Note**: The solc version used for compilation is determined by the EVM version, not by the `deployedWithSolcVersion` field in `networks.json`. The `deployedWithSolcVersion` field reflects the version that was used when the network was originally deployed, but for our grouping purposes, we use the appropriate solc version for each EVM version:
+**Important Note**: The solc version used for compilation is determined by the EVM version. For our grouping purposes, we use the appropriate solc version for each EVM version:
 
 - Cancun EVM networks → solc 0.8.29 (executed first)
 - London EVM networks → solc 0.8.17
@@ -167,9 +167,9 @@ groupNetworksByExecutionGroup "${NETWORKS[@]}"
 The system reads `networks.json` to determine:
 
 - `isZkEVM`: true/false (determines if it's a zkEVM network)
-- `deployedWithEvmVersion`: "london" or "cancun" (determines the compilation group)
+- `targetEvmVersion`: "london" or "cancun" (determines the compilation group)
 
-**Note**: The `deployedWithSolcVersion` field is not used for grouping. Instead, the system uses the appropriate solc version for each EVM version:
+**Note**: The solc version is not stored in `networks.json`; the system derives the appropriate solc version from each EVM version:
 
 - London EVM → solc 0.8.17
 - Cancun EVM → solc 0.8.29
@@ -208,15 +208,15 @@ Each network must have these properties:
 {
   "network_name": {
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london"
+    "targetEvmVersion": "london"
   }
 }
 ```
 
-**Note**: The `deployedWithSolcVersion` field is optional and not used for grouping. The system will use the appropriate solc version based on the EVM version:
+**Note**: The solc version is derived from the EVM version, not stored in `networks.json`:
 
-- `"deployedWithEvmVersion": "london"` → uses solc 0.8.17
-- `"deployedWithEvmVersion": "cancun"` → uses solc 0.8.29
+- `"targetEvmVersion": "london"` → uses solc 0.8.17
+- `"targetEvmVersion": "cancun"` → uses solc 0.8.29
 - `"isZkEVM": true` → uses solc 0.8.17 with zksolc compiler via [profile.zksync]; no foundry.toml updates or recompilation needed
 
 ### Foundry.toml Profiles

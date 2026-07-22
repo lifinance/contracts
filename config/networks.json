@@ -15,8 +15,7 @@
     "safeAddress": "0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357",
     "gasZipChainId": 255,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "0g": {
@@ -35,8 +34,7 @@
     "safeAddress": "0x1EbcC798195934F002293Cc07f63fC6F6065a1c9",
     "gasZipChainId": 508,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x8a08535E676c51c24DAf6Ae548BE394B38591EAC"
   },
   "abstract": {
@@ -55,8 +53,7 @@
     "safeAddress": "0xdb877C7834091BFdb25A62242A20bD6C70aE259a",
     "gasZipChainId": 110,
     "isZkEVM": true,
-    "deployedWithEvmVersion": "n/a",
-    "deployedWithSolcVersion": "0.8.26"
+    "targetEvmVersion": "n/a"
   },
   "apechain": {
     "name": "apechain",
@@ -74,8 +71,7 @@
     "safeAddress": "0x18FA92415EA566828b4A5191B4cC7B73e4230059",
     "gasZipChainId": 296,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "arbitrum": {
@@ -94,8 +90,7 @@
     "safeAddress": "0x743b11478D69C18693F41f25051a10DD4D1a6F39",
     "gasZipChainId": 57,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "arbitrumnova": {
@@ -114,8 +109,7 @@
     "safeAddress": "0xFa51bDc81ebB187C347559D1D7E564a713013e82",
     "gasZipChainId": 53,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
   },
   "arbitrumsepolia": {
@@ -134,8 +128,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B"
   },
   "arctestnet": {
@@ -154,8 +147,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "castSendAsync": true
   },
@@ -175,8 +167,7 @@
     "safeAddress": "0x859E868A97F52B67FfEaf3226ba8914ea491705E",
     "gasZipChainId": 525,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "castSendAsync": true,
     "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap), so the automated periphery healthcheck cannot pass: skipHealthcheck is set and the healthcheck is run manually before merge to verify deployed addresses.",
@@ -198,8 +189,7 @@
     "safeAddress": "0x5CC4321e1fd413Db3Ac7EBB3097c1DF7878e0D17",
     "gasZipChainId": 15,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "base": {
@@ -218,8 +208,7 @@
     "safeAddress": "0x01Cf79E397376F8143C2c0b0592dA62B5e294FcB",
     "gasZipChainId": 54,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "basesepolia": {
@@ -238,8 +227,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B"
   },
   "berachain": {
@@ -258,8 +246,7 @@
     "safeAddress": "0x4f5E2DF437440784f3a488b1186C3AA4a8E08605",
     "gasZipChainId": 143,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.26",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x5f63A2d7850776465b84Bc0fe6284BBC8188dbC7"
   },
   "blast": {
@@ -278,8 +265,7 @@
     "safeAddress": "0x79D2DcfBf45120F06C42c34ee191f31A541bdF64",
     "gasZipChainId": 96,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "bob": {
@@ -300,8 +286,7 @@
     "safeWebUrl": "",
     "gasZipChainId": 150,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "boba": {
@@ -320,8 +305,7 @@
     "safeAddress": "0x9276717Fd35b958922058B9B8A6DCe8679158950",
     "gasZipChainId": 140,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "botanix": {
@@ -340,8 +324,7 @@
     "safeAddress": "0x68feA7dc931B1de6F251Cb5F5A9798192E533e53",
     "gasZipChainId": 496,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "customVerificationFlags": {
       "-e": "verifyContract"
@@ -363,8 +346,7 @@
     "safeAddress": "0x2C4C366da2bE1977C2CDBbA647BC1885689C7BAa",
     "gasZipChainId": 14,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "celo": {
@@ -383,8 +365,7 @@
     "safeAddress": "0xE08c67C51D42024D1AF30a62289e429194fb3963",
     "gasZipChainId": 21,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "cronos": {
@@ -403,8 +384,7 @@
     "safeAddress": "0x10E01f4c7810384BD3170E2756320cF8B229a8C4",
     "gasZipChainId": 36,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "etherlink": {
@@ -423,8 +403,7 @@
     "safeAddress": "0x51ACbaCaf52488328f6c5B277238143645CA4f71",
     "gasZipChainId": 346,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "london",
     "create3Factory": "0x95d0A9c49A990514cB6FDAA7FfB49550BD23F148"
   },
   "flare": {
@@ -443,8 +422,7 @@
     "safeAddress": "0x2d77baaE0E6182aE22c677ea27E37F67A9881696",
     "gasZipChainId": 38,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "flow": {
@@ -463,8 +441,7 @@
     "safeAddress": "0x2A41576d93A4ac3d850456cBdC655fef5e4f0325",
     "gasZipChainId": 437,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "fraxtal": {
@@ -483,8 +460,7 @@
     "safeAddress": "0x5eA89Fd36DA26B6514de42AC7BFE0E650942e048",
     "gasZipChainId": 10,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "fuse": {
@@ -503,8 +479,7 @@
     "safeAddress": "0x1289d28f5aACe12c5121f8f8597F16b25E29FEE4",
     "gasZipChainId": 31,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gnosis": {
@@ -523,8 +498,7 @@
     "safeAddress": "0x2deA87C92aAB9257409987A019be44ea9e774226",
     "gasZipChainId": 16,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "gravity": {
@@ -543,8 +517,7 @@
     "safeAddress": "0x7F9fc7c740F499E4c79cc4dD1883b3D69025CB42",
     "gasZipChainId": 240,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "hemi": {
@@ -565,8 +538,7 @@
     "safeWebUrl": "",
     "gasZipChainId": 397,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "hyperevm": {
@@ -587,8 +559,7 @@
     "safeWebUrl": "",
     "gasZipChainId": 430,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xf1469bEc8cDccEC511C0DdAaBa88B63f5841137a",
     "devNotes": "Dual-block architecture: contract deploys need big blocks (30M gas) instead of small blocks (~2-3M gas). Big blocks are opt-in PER ADDRESS via a gasless L1 action and do NOT carry over on wallet rotation - every new deployer/dev EOA must be enabled individually, and the address must first be a HyperCore Core user (receive USDC/HYPE on the Core/L1 side, NOT on HyperEVM). Full runbook: docs/HyperEVMBigBlocks.md. Toggle FE: https://hyperevm-block-toggle.vercel.app/"
   },
@@ -608,8 +579,7 @@
     "safeAddress": "0x96D3525fa4674ACEBB7B7472D3e6602b4359EfF6",
     "gasZipChainId": 95,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "ink": {
@@ -628,8 +598,7 @@
     "safeAddress": "0x2F4Fa4AfF166A8C2F8eF8cBC8365F47812232292",
     "gasZipChainId": 392,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "jovay": {
@@ -648,8 +617,7 @@
     "safeAddress": "0xb53FAC3Ee98A98BB8f05630D7F3d396BbAcBb7Fd",
     "gasZipChainId": 507,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "devNotes": "Does not seem to support automatic contract verification according to https://docs.jovay.io/developer/verify-contract-guide"
   },
@@ -669,8 +637,7 @@
     "safeAddress": "0x769Afd93e5aB48dF5f6b7f298c246a9d58f1cc68",
     "gasZipChainId": 33,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xC3C73FEE9Cef413880696e6C39365BDf8cD564f9",
     "devNotes": "Verification seems to fail but contracts are sometimes still verified. For deployments, it sometimes help to set GAS_ESTIMATE_MULTIPLIER in .env to 200 or higher"
   },
@@ -690,8 +657,7 @@
     "safeAddress": "0x33EEFCD0FCBB2A04F169903b24c7C57Ad4898eC1",
     "gasZipChainId": 485,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
     "gasPrice": 3000000000,
     "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast"
@@ -712,8 +678,7 @@
     "safeAddress": "0xF0Bae8A7bA611148c1b5f124A246A1197d5FA267",
     "gasZipChainId": 442,
     "isZkEVM": true,
-    "deployedWithEvmVersion": "n/a",
-    "deployedWithSolcVersion": "0.8.26"
+    "targetEvmVersion": "n/a"
   },
   "linea": {
     "name": "linea",
@@ -731,8 +696,7 @@
     "safeAddress": "0xe131756d0036EE1c19D42548779C28A1E39633cF",
     "gasZipChainId": 59,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "lisk": {
@@ -751,8 +715,7 @@
     "safeAddress": "0x5092977581B9b2a816f30eaaAe927A5EF066Cf78",
     "gasZipChainId": 238,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "mantle": {
@@ -771,8 +734,7 @@
     "safeAddress": "0x3Fe04EA66e010613943e507723dbC7A205CEC23C",
     "gasZipChainId": 13,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
     "devNotes": "When using LDA 1.11.0 in evm=cancun some transactions were failing. So probably better to always use 0.8.17 and evm=london"
   },
@@ -792,8 +754,7 @@
     "safeAddress": "0xb160467220BF28e596015EA841eD9b8daC6102Fd",
     "gasZipChainId": 514,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "customDeployFlags": "--gas-limit 50000000 --gas-price 2000000 --skip-simulation",
     "devNotes": "For forge script deployments, customDeployFlags in this config are applied by deploySingleContract.sh, updateFacetConfig.sh, and diamondUpdateFacet.sh. Use --legacy when running forge script manually."
@@ -814,8 +775,7 @@
     "safeAddress": "0x1f1b30aD821634FEdCFFf90450faE05663Fd2E07",
     "gasZipChainId": 30,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785",
     "customVerificationFlags": {
       "-e": "verifyContract"
@@ -837,8 +797,7 @@
     "safeAddress": "0x031f25F640E0530a51F5617757B281A8Df5614ee",
     "gasZipChainId": 73,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "monad": {
@@ -857,8 +816,7 @@
     "safeAddress": "0x94288DB96fBe7EB6847965120BE91eaB81f3A6d0",
     "gasZipChainId": 511,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "devNotes": "UpdateScripts often fail with weird errors while deployments work fine. Workaround is to copy the calldata and send/propose it directly"
   },
@@ -878,8 +836,7 @@
     "safeAddress": "0x0DD1D3A856Ee83657c5540881cb4394A635443Da",
     "gasZipChainId": 28,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "morph": {
@@ -898,8 +855,7 @@
     "safeAddress": "0x065F2837844Ca0883Eb3Fdd8A2d68cfAe770e5fb",
     "gasZipChainId": 340,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x8a08535E676c51c24DAf6Ae548BE394B38591EAC",
     "devNotes": ""
   },
@@ -919,8 +875,7 @@
     "safeAddress": "0x81a6e51Fc9A56cF77E2025Cf63C258061c401183",
     "gasZipChainId": 477,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
   "optimism": {
@@ -939,8 +894,7 @@
     "safeAddress": "0xDd6e4Eb5399dDdE78881EfA00D3554D12Cb3402b",
     "gasZipChainId": 55,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "opbnb": {
@@ -959,8 +913,7 @@
     "safeAddress": "0x1F397f54C92923C339c4Ea486084Ec6C9d6877f7",
     "gasZipChainId": 58,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "optimismsepolia": {
@@ -979,8 +932,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x0646828A29Cc814454eD97b7b89c9B72D03Ac167"
   },
   "pharos": {
@@ -999,8 +951,7 @@
     "safeAddress": "0x6E95989d7203434950Cc3DDa006dc24dDC927Cf7",
     "gasZipChainId": 522,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d"
   },
   "plasma": {
@@ -1019,8 +970,7 @@
     "safeAddress": "0x4f983A3Cb21C7147D20192e47727DaA7CAe1f788",
     "gasZipChainId": 506,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "customVerificationFlags": {
       "-e": "verifyContract"
@@ -1042,8 +992,7 @@
     "safeAddress": "0xCd8934D77fcac3b5666d92C7c3902f6B7Ba3F3E6",
     "gasZipChainId": 450,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x222bA29344DEba8a713bd795E7eA4BD4FB79665C"
   },
   "polygon": {
@@ -1062,8 +1011,7 @@
     "safeAddress": "0x5beFc110D47851531FBDbF23B029Cc691A8091e0",
     "gasZipChainId": 17,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "robinhood": {
@@ -1082,8 +1030,7 @@
     "safeAddress": "0xE49447936F02d8be7c2b37de03329bFa8EaDa6B6",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xe514Ab33F262ccCff8b8ec46a7ca8e2F0bfD1b95",
     "customDeployFlags": "--with-gas-price 110000000",
     "skipHealthcheck": true,
@@ -1105,8 +1052,7 @@
     "safeAddress": "0x9eEa8071FdE75bDBE1BEd0eb3d67F241940A501f",
     "gasZipChainId": 413,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "devNotes": "Contract verification is not working, but it is deployed. Only supports Sourcify verification but couldnt get it work. Details in helperFunctions.sh"
   },
@@ -1126,8 +1072,7 @@
     "safeAddress": "0xeb911914097339AC513af1Cc19E7CdB875832E75",
     "gasZipChainId": 254,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "scroll": {
@@ -1146,8 +1091,7 @@
     "safeAddress": "0x6A9E30fA905d601FAb813FF85af8C1FAbF21B240",
     "gasZipChainId": 41,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "sei": {
@@ -1166,8 +1110,7 @@
     "safeAddress": "0xcB9D5a9C740d856A13221A882B3A3e975ADD2606",
     "gasZipChainId": 246,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "somnia": {
@@ -1186,8 +1129,7 @@
     "safeAddress": "0x9A9a96827a97b145cb1dB0e79297F9206A22f5Fc",
     "gasZipChainId": 524,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xE2cb61f7e383270c9153563C6e5A18E5A7A43397",
     "gasEstimateMultiplier": 10000,
     "devNotes": "deployments only worked with extra large gas multiplier (used 10000)"
@@ -1208,8 +1150,7 @@
     "safeAddress": "0x120405f18153e2592EAb5BB8fE8755a5CCA66DCB",
     "gasZipChainId": 414,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "sonic": {
@@ -1228,8 +1169,7 @@
     "safeAddress": "0x3A000532658eEA550679DbF97Db333A9763BCa19",
     "gasZipChainId": 389,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "sophon": {
@@ -1248,8 +1188,7 @@
     "safeAddress": "0xEd16F4d0802f95213afD558A8385D28a921c5c96",
     "gasZipChainId": 484,
     "isZkEVM": true,
-    "deployedWithEvmVersion": "n/a",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "n/a",
     "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
   },
   "stable": {
@@ -1268,8 +1207,7 @@
     "safeAddress": "0xBa663f314B78492de579835F85Dc90d62E563cD1",
     "gasZipChainId": 513,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "superposition": {
@@ -1288,8 +1226,7 @@
     "safeAddress": "0x2BB647f471Ab4A2a2a7800f4c4F66bA44864392f",
     "gasZipChainId": 303,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "swellchain": {
@@ -1308,8 +1245,7 @@
     "safeAddress": "0xdD26Fb3CBF2E6D6658e0473fc96f4c016aE3a75c",
     "gasZipChainId": 385,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
   },
   "taiko": {
@@ -1328,8 +1264,7 @@
     "safeAddress": "0x85083A0e051E1f80c7eB41fAf50cA0f87983a4B1",
     "gasZipChainId": 249,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "telos": {
@@ -1348,8 +1283,7 @@
     "safeAddress": "0xF409c958a8dbCc52F381ed31C024d379c45A47Fd",
     "gasZipChainId": 47,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x44c7101EB9bC7cA8f2F87DF8C371cd193afDc604",
     "devNotes": "Contract verification currently not working, details here: https://docs.telos.net/build/toolchains/foundry/"
   },
@@ -1371,8 +1305,7 @@
     "safeAddress": "0x5950027D54f072e19c01Eb726ef0A7C5A12C447D",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.29",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000",
     "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path. Gas is paid in TIP-20 stablecoins (no native asset; eth_getBalance returns a sentinel): the default fee token is pathUSD (feeTokenAddress), and an account can override it via the FeeManager predeploy (feeManagerAddress) userTokens(account). eth_gasPrice is quoted in attodollars (1e18) per gas.",
@@ -1394,8 +1327,7 @@
     "safeAddress": "0x47fC7F355A944E16eDA73055587aaF6fE99c6f1a",
     "gasZipChainId": 362,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "vana": {
@@ -1414,8 +1346,7 @@
     "safeAddress": "0x56161929c47dc6112Ad77FB39d88Fd55FC4fb25c",
     "gasZipChainId": 488,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
   },
   "viction": {
@@ -1434,8 +1365,7 @@
     "safeAddress": "0x99550143Ba943663F154E19e8F498799Dd3bB64f",
     "gasZipChainId": 43,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
     "devNotes": "Contract Verification does not work correctly. It appears like it fails but it doesnt. Need to manually update deploy log (verify flag) after. Contract deployments work only after removing --skip-simulation flag when calling forge scripts. Sometimes removing --json flag helped to push a script through"
   },
@@ -1455,8 +1385,7 @@
     "safeAddress": "0x7a80F608552a100f80559919e6f1a5c491c2bB9a",
     "gasZipChainId": 269,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "xdc": {
@@ -1475,8 +1404,7 @@
     "safeAddress": "0x57A9316866f1256c7008295aCa7C79D96DFC209c",
     "gasZipChainId": 420,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x8b60A21A0e2852cCC944971486868beBB9f32287"
   },
   "xlayer": {
@@ -1495,8 +1423,7 @@
     "safeAddress": "0x6dCD96462FA2aEBf8Ddc6c65713c094217aCBb05",
     "gasZipChainId": 146,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
   "tron": {
@@ -1515,8 +1442,7 @@
     "safeAddress": "TG7unADV9rXUNzH1Q1FkEnqhQ3xxJdXeBs",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": "TF6k2qp486asKXz7scZVyyFEirwhTydeNs",
     "devNotes": "TRX spend drops sharply if you rent energy instead of only burning TRX. https://www.zinergy.ag/ aggregates multiple providers; https://catfee.io/ has been cheaper in practice with fewer UI issues. Best for bursts (deployments or many txs within ~1h); anecdotal ~50–60% savings vs burning TRX alone."
   },
@@ -1536,8 +1462,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "london",
-    "deployedWithSolcVersion": "0.8.17",
+    "targetEvmVersion": "london",
     "create3Factory": ""
   },
   "zksync": {
@@ -1556,8 +1481,7 @@
     "safeAddress": "0x5BD7e0cE8f1a3f362836FA2a45a26bA5C2fEF7C0",
     "gasZipChainId": 51,
     "isZkEVM": true,
-    "deployedWithEvmVersion": "n/a",
-    "deployedWithSolcVersion": "0.8.17"
+    "targetEvmVersion": "n/a"
   },
   "localanvil": {
     "name": "localanvil",
@@ -1575,8 +1499,7 @@
     "safeAddress": "",
     "gasZipChainId": 0,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "",
-    "deployedWithSolcVersion": "",
+    "targetEvmVersion": "",
     "create3Factory": ""
   }
 }
