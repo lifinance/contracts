@@ -148,12 +148,16 @@ Use the ref-safe `<slug>` from Step 0 (never the raw facet name) for both the wo
 and the branch, so spaces/slashes can't break branch creation:
 
 ```bash
-~/.claude/scripts/contracts-wt-add.sh audit/<slug>-remediation
-# then, in the new worktree, base the branch on the audited head:
-git checkout -b audit/<slug>-remediation <audited_oid_or_pr_head>
+# Create the worktree and the remediation branch in one step, based on the audited head:
+git worktree add ../<slug>-remediation <audited_oid_or_pr_head> -b audit/<slug>-remediation
+cd ../<slug>-remediation
 git submodule update --init --recursive
 bun install && bun typechain:incremental   # avoid the fresh-worktree lint-staged trap
+ln -s <main-checkout>/.env .env            # framework/deploy scripts read the shared .env
 ```
+
+(If you have a personal worktree helper it's a convenience, not a requirement — the raw
+command above is the portable idiom and works on any clean checkout.)
 
 Verify the base is right: `git log <pr_head>..HEAD` should be empty (you branched from the PR
 head, not from stale main). See the worktree memories for the submodule / typechain / prettier
