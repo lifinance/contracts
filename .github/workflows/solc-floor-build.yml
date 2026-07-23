@@ -9,9 +9,9 @@
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
 # - The profile skips test/script (they trip the legacy pipeline's "stack too deep", a
 #   codegen limit unrelated to floor-feature detection) and matches production codegen.
-# - The Earn Vault Wrapper (src/VaultWrapper/**) is on OpenZeppelin v5 and declares a
-#   higher floor (`^0.8.24`); it is floor-checked by a second build step using the
-#   `solc_floor_vaultwrapper` profile (solc 0.8.24 + evm cancun) instead of being skipped.
+# - The Earn Vault Wrapper (src/VaultWrapper/**) is on OpenZeppelin v5 and pins `^0.8.29`,
+#   matching the default compile version, so the ordinary build already floor-checks it;
+#   it is skipped by the `solc_floor` profile (which can only compile the 0.8.17 floor).
 
 name: Verify Floor-Compiler Build
 on:
@@ -97,16 +97,6 @@ jobs:
         env:
           FOUNDRY_PROFILE: solc_floor
         run: forge build
-
-      - name: Build src/VaultWrapper with subsystem floor compiler (solc 0.8.24)
-        # The Earn Vault Wrapper is on OpenZeppelin v5 and declares a higher floor
-        # (`^0.8.24`) than the Diamond, so it is excluded from the profile above and
-        # floor-checked here instead. The `solc_floor_vaultwrapper` profile pins solc
-        # 0.8.24 + evm cancun; the explicit path scopes the build to the subsystem. A
-        # failure means a src/VaultWrapper/ contract uses a feature newer than `^0.8.24`.
-        env:
-          FOUNDRY_PROFILE: solc_floor_vaultwrapper
-        run: forge build src/VaultWrapper
 
   solc-floor-build-required:
     # Aggregator job for branch protection. Reports green when the heavy job

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.29;
 
 import { FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
