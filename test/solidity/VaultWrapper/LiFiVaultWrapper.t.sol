@@ -53,9 +53,11 @@ contract HostileUnderlying is MockERC4626 {
 /// @notice Minimal ERC-4626-shaped yield source that can be configured to accept fewer
 ///         assets than requested on deposit, or return fewer on withdraw, to exercise the
 ///         wrapper's adapter-shortfall guards. Mirrors the full 4626 view surface at 1:1
-///         (shares == assets throughout) so the wrapper's realizable previews — which
-///         route through `convertToShares`/`previewRedeem` even off the strict exact-out
-///         `withdraw` path via `maxWithdraw` — resolve against this stub too.
+///         (shares == assets throughout): `convertToShares`/`previewRedeem` back the
+///         wrapper's realizable previews, and `maxWithdraw`/`previewWithdraw`/
+///         `previewMint` back the strict exact-out `withdraw` path's own liquidity check
+///         and cost-aware share pricing (both now consult the adapter unconditionally,
+///         even though this stub itself is never source-liquidity-capped).
 contract LossyVault {
     MockERC20 public immutable ASSET_TOKEN;
     mapping(address => uint256) public balanceOf;
@@ -117,6 +119,21 @@ contract LossyVault {
     }
 
     function previewRedeem(uint256 _shares) external pure returns (uint256) {
+        return _shares;
+    }
+
+    /// @dev Unlimited, mirroring the real deployed source's default: this double exists
+    ///      to test the adapter deposit/withdraw shortfall paths, not the source-liquidity-
+    ///      aware `maxWithdraw` view (covered in `LiFiVaultWrapperExitRealizabilityTest`).
+    function maxWithdraw(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
+
+    function previewWithdraw(uint256 _assets) external pure returns (uint256) {
+        return _assets;
+    }
+
+    function previewMint(uint256 _shares) external pure returns (uint256) {
         return _shares;
     }
 }

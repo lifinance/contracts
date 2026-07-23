@@ -581,15 +581,27 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Cost-aware exact-out preview: the shares to burn are priced off the position
+    ///      value the source will actually consume to deliver `assets` plus the
+    ///      withdrawal fee (adapter `previewWithdrawCost`, >= the owed amount when the
+    ///      source charges exit fees), not off the owed amount alone. The exiting caller
+    ///      therefore pays their own source-side exit cost; with an owed-based preview
+    ///      that cost would silently dilute the remaining holders. Equals the old
+    ///      preview exactly on a standard source (cost == owed).
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
-            _assets: assets,
-            _feeBps: _rate(FeeType.Withdrawal)
-        });
+        uint256 owed = assets +
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+        uint256 cost = IYieldAdapter(adapter).previewWithdrawCost(
+            underlying,
+            owed
+        );
 
-        return super.previewWithdraw(assets + withdrawalFee);
+        return _convertToShares(cost, Math.Rounding.Ceil);
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -598,11 +610,8 @@ contract LiFiVaultWrapper is
     ///      same source math `withdrawUpTo` executes), then the withdrawal fee is carved
     ///      out of the realizable amount. On a standard source this equals the plain
     ///      valuation-based preview; on a fee-charging source it truthfully quotes the
-    ///      caller's post-haircut proceeds, keeping preview == execution. OZ's `maxWithdraw`
-    ///      is implemented as `previewRedeem(maxRedeem(owner))`, so it — and therefore
-    ///      `withdraw`'s own limit check — now also transits the adapter's realizable
-    ///      preview even though `withdraw` itself stays on the strict exact-out path;
-    ///      Task 4 (liquidity-aware `maxWithdraw`/`maxRedeem`) reconciles this pair.
+    ///      caller's post-haircut proceeds, keeping preview == execution. `maxWithdraw`
+    ///      deliberately does not route through this preview — see its own docs below.
     function previewRedeem(
         uint256 shares
     ) public view override returns (uint256) {
@@ -674,12 +683,20 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
     ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only). Otherwise reports the strict exact-out
-    ///      capacity of the owner's shares — deliberately NOT OZ's
+    ///      is checked in the entrypoint only). Otherwise reports the smaller of (a) the
+    ///      strict exact-out capacity of the owner's shares — deliberately NOT OZ's
     ///      `previewRedeem(maxRedeem(owner))`: `previewRedeem` quotes the loss-tolerant
     ///      redeem, whose vault-emptying drain sweeps rounding residue the strict
-    ///      `withdraw` path cannot deliver (it would over-burn). Matches the pre-drain
-    ///      fee-aware value exactly. Task 4 adds source-liquidity awareness.
+    ///      `withdraw` path cannot deliver (it would over-burn) — and (b) what the
+    ///      source's liquidity allows net of the withdrawal fee (adapter `maxWithdraw`,
+    ///      fail-soft to 0: a broken source limit view reads as closed, never as
+    ///      unlimited, and cannot make this view revert). The balance-side capacity uses
+    ///      the adapter's realizable view (`previewWithdrawUpTo`, floor share basis, no
+    ///      drain sentinel) rather than a plain valuation: on a lossy source the
+    ///      cost-aware `previewWithdraw` grosses the share burn UP, so pricing capacity
+    ///      off the pre-loss valuation could quote an amount whose own burn exceeds the
+    ///      owner's balance; the realizable view already nets the source's exit cost so
+    ///      the round-trip stays within balance.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
@@ -689,23 +706,66 @@ contract LiFiVaultWrapper is
             balanceOf(owner),
             Math.Rounding.Floor
         );
-
-        return
-            gross -
+        uint256 realizable = IYieldAdapter(adapter).previewWithdrawUpTo(
+            underlying,
+            address(this),
+            gross
+        );
+        uint256 fromBalance = realizable -
             LibVaultWrapperMath.feeOnTotal({
-                _assets: gross,
+                _assets: realizable,
                 _feeBps: _rate(FeeType.Withdrawal)
             });
+
+        uint256 liquidity = IYieldAdapter(adapter).maxWithdraw(
+            underlying,
+            address(this)
+        );
+        uint256 fromLiquidity = liquidity -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: liquidity,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+
+        return fromBalance < fromLiquidity ? fromBalance : fromLiquidity;
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
-    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned (see
+    ///      `maxWithdraw`). Otherwise caps the owner's share balance by the source's
+    ///      realizable liquidity converted to shares — a redeem beyond that would burn
+    ///      shares the source cannot pay for. The "unconstrained" check compares
+    ///      `liquidity` against the REALIZABLE full-drain value (adapter
+    ///      `previewWithdrawUpTo` with the full-position sentinel), not raw
+    ///      `totalAssets()`: an honest source's own exit fee already nets out of both
+    ///      `maxWithdraw` and the realizable preview identically, so only a genuine
+    ///      liquidity shortfall (not the ordinary fee haircut) makes `liquidity` read
+    ///      lower. Comparing against `totalAssets()` instead would misread every
+    ///      fee-charging-but-unconstrained source as liquidity-capped. When the
+    ///      source's liquidity covers the whole realizable position the cap cannot bind
+    ///      and the balance is returned untouched (also avoiding conversion overflow on
+    ///      unlimited-liquidity sentinels).
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxRedeem(owner);
+        uint256 balance = balanceOf(owner);
+        uint256 liquidity = IYieldAdapter(adapter).maxWithdraw(
+            underlying,
+            address(this)
+        );
+        uint256 realizableFull = IYieldAdapter(adapter).previewWithdrawUpTo(
+            underlying,
+            address(this),
+            type(uint256).max
+        );
+        if (liquidity >= realizableFull) return balance;
+
+        uint256 fromLiquidity = _convertToShares(
+            liquidity,
+            Math.Rounding.Floor
+        );
+
+        return balance < fromLiquidity ? balance : fromLiquidity;
     }
 
     /// Internal ///
@@ -829,6 +889,10 @@ contract LiFiVaultWrapper is
     ///      a shortfall shrinks fee and payout together. A zero-valuation dust redeem
     ///      skips the adapter round-trip entirely (mirroring `_transferOut`'s zero
     ///      short-circuit), so sources that reject zero-share redemptions cannot block it.
+    ///      A last-share exit whose whole-position value floors below 1 wei skips the
+    ///      adapter (gross == 0) and can leave that sub-wei-valued residue behind an
+    ///      empty vault; it accrues to the next depositor, who stays protected by the
+    ///      offset/floor/`ZeroSharesMinted` guards.
     function _redeemRealizable(
         address _caller,
         address _receiver,
