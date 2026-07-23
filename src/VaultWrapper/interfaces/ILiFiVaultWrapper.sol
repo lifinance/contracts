@@ -144,6 +144,11 @@ interface ILiFiVaultWrapper {
     /// @notice Thrown when a deposit or mint would leave the total share supply below the
     ///         minimum supply floor (a post-operation supply of exactly zero included).
     error SupplyBelowMinimum(uint256 supply, uint256 minSupply);
+    /// @notice Thrown when a deposit would forward a non-zero net amount into the yield
+    ///         source yet mint zero shares (its assets rounded away against a
+    ///         donation-inflated price per share while supply sits at or above the
+    ///         floor) — otherwise the caller's assets are lost to the pool for no shares.
+    error ZeroSharesMinted(uint256 assets);
     /// @notice Thrown at initialization when the asset's ERC-20 decimals() cannot be read
     ///         as a well-formed uint8, so the virtual-share offset cannot be sized safely.
     error AssetDecimalsUnavailable();

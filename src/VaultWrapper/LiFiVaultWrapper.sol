@@ -643,12 +643,14 @@ contract LiFiVaultWrapper is
     /// @dev Deposit-side supply floor: after a non-zero deposit/mint the total supply must
     ///      be at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
     ///      dust-sized share denominator (the first-depositor inflation attack's
-    ///      precondition) — the existing supply plus the deposit's own mint always sum
-    ///      to the floor, capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
-    ///      of the donation. A post-operation supply of exactly zero is rejected too:
-    ///      that is only reachable when a non-zero deposit mints zero shares (its assets
-    ///      rounded away against a donation-inflated, zero-supply vault), which would
-    ///      forward the caller's assets into the yield source for no shares — a 100% loss.
+    ///      precondition), capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
+    ///      of the donation. A post-operation supply of exactly zero is rejected here too:
+    ///      it is reached when a non-zero deposit mints zero shares against a
+    ///      donation-inflated *empty* vault. The complementary case — a non-zero deposit
+    ///      minting zero shares while supply already sits at or above the floor (parked
+    ///      there by prior floor-exempt exits, then donation-inflated) — passes this check
+    ///      and is caught instead by the `shares == 0` guard in `_deposit`: a passing
+    ///      supply check alone does not imply the deposit minted anything.
     ///      A zero-amount `deposit(0)`/`mint(0)` moves nothing and mints nothing, so the
     ///      caller skips this check entirely: the no-op stays a no-op even in a sub-floor
     ///      state. Exits are also deliberately exempt (they never call this): `_accrueFees`
@@ -659,8 +661,9 @@ contract LiFiVaultWrapper is
     ///      limit views (a documented EIP-4626 deviation): with the offset floored at
     ///      `MIN_DECIMALS_OFFSET`, an ordinary deposit into a clean vault always clears the
     ///      floor, so the only amounts `<= maxDeposit` that still revert are non-zero
-    ///      deposits into a donation-inflated empty vault or an exit-stranded sub-floor
-    ///      vault — edge states not worth modeling in the limit views.
+    ///      deposits that mint zero shares against a donation-inflated vault and deposits
+    ///      into an exit-stranded sub-floor vault — edge states not worth modeling in the
+    ///      limit views.
     function _enforceSupplyFloor() private view {
         uint256 supply = totalSupply();
         if (supply < MIN_SHARE_SUPPLY)
@@ -675,11 +678,15 @@ contract LiFiVaultWrapper is
     ///      whole — sub-fee-denominator dust — input, or a bare zero deposit) skips the adapter
     ///      call entirely: there is nothing to invest, the fee is already routed, and a standard
     ///      ERC-4626 source reverts on a zero-asset forward, so short-circuiting keeps `deposit`
-    ///      non-reverting in exactly the cases where `previewDeposit` returns 0. Pause is
-    ///      enforced upstream in `deposit`/`mint`. Both `deposit` and `mint` route through
-    ///      this seam, so the post-operation supply floor is enforced here once for every
-    ///      inflow entrypoint (a zero-amount call mints nothing and skips it); exits go
-    ///      through `_withdraw` and are structurally exempt (see `_enforceSupplyFloor`).
+    ///      non-reverting in exactly the cases where `previewDeposit` returns 0. A deposit
+    ///      that would forward a non-zero net amount yet minted zero shares (assets rounded
+    ///      away against a donation-inflated price while supply sits at/above the floor)
+    ///      reverts `ZeroSharesMinted` before the forward, so the caller never loses assets
+    ///      to the pool for no shares. Pause is enforced upstream in `deposit`/`mint`. Both
+    ///      `deposit` and `mint` route through this seam, so the post-operation supply floor
+    ///      is enforced here once for every inflow entrypoint (a zero-amount call mints
+    ///      nothing and skips it); exits go through `_withdraw` and are structurally exempt
+    ///      (see `_enforceSupplyFloor`).
     function _deposit(
         address caller,
         address receiver,
@@ -696,6 +703,7 @@ contract LiFiVaultWrapper is
         _routeFee(FeeType.Deposit, depositFee);
         uint256 invested = assets - depositFee;
         if (invested == 0) return;
+        if (shares == 0) revert ZeroSharesMinted(assets);
 
         uint256 deposited = _routeThroughAdapter(
             abi.encodeCall(
