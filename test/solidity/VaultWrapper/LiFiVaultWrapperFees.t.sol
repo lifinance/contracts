@@ -537,7 +537,10 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         uint256 out = wrapper.redeem(shares, alice, alice);
 
         assertEq(out, previewed);
-        assertApproxEqAbs(out, DEPOSIT + 50e18, 1);
+        // 2-wei tolerance: redeem realizes through the adapter's floor share basis
+        // (convertToShares then previewRedeem), adding one floor round-trip at the
+        // source on top of the wrapper's own floor conversion — both favor the vault.
+        assertApproxEqAbs(out, DEPOSIT + 50e18, 2);
         assertEq(_accruedFeeShares(), 0);
         assertEq(_accruedFeeAssets(), 0);
     }

@@ -52,7 +52,10 @@ contract HostileUnderlying is MockERC4626 {
 
 /// @notice Minimal ERC-4626-shaped yield source that can be configured to accept fewer
 ///         assets than requested on deposit, or return fewer on withdraw, to exercise the
-///         wrapper's adapter-shortfall guards.
+///         wrapper's adapter-shortfall guards. Mirrors the full 4626 view surface at 1:1
+///         (shares == assets throughout) so the wrapper's realizable previews — which
+///         route through `convertToShares`/`previewRedeem` even off the strict exact-out
+///         `withdraw` path via `maxWithdraw` — resolve against this stub too.
 contract LossyVault {
     MockERC20 public immutable ASSET_TOKEN;
     mapping(address => uint256) public balanceOf;
@@ -106,6 +109,14 @@ contract LossyVault {
     }
 
     function convertToAssets(uint256 _shares) external pure returns (uint256) {
+        return _shares;
+    }
+
+    function convertToShares(uint256 _assets) external pure returns (uint256) {
+        return _assets;
+    }
+
+    function previewRedeem(uint256 _shares) external pure returns (uint256) {
         return _shares;
     }
 }
@@ -437,7 +448,10 @@ contract LiFiVaultWrapperTest is Test {
         vm.prank(alice);
         uint256 assetsOut = wrapper.redeem(shares, alice, alice);
 
-        assertApproxEqAbs(assetsOut, DEPOSIT + yield, 1);
+        // 2-wei tolerance: redeem realizes through the adapter's floor share basis
+        // (convertToShares then previewRedeem), adding one floor round-trip at the
+        // source on top of the wrapper's own floor conversion — both favor the vault.
+        assertApproxEqAbs(assetsOut, DEPOSIT + yield, 2);
     }
 
     function test_TwoDepositorsShareProportionally() public {

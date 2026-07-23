@@ -3,9 +3,12 @@ pragma solidity ^0.8.29;
 
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { FeeConfig, FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { VaultWrapperFeeTestBase } from "test/solidity/VaultWrapper/VaultWrapperFeeTestBase.sol";
 import { MockCappedERC4626 } from "test/solidity/VaultWrapper/mocks/MockCappedERC4626.sol";
+import { MockLossyERC4626 } from "test/solidity/VaultWrapper/mocks/MockLossyERC4626.sol";
+import { MockShortPayingERC4626 } from "test/solidity/VaultWrapper/mocks/MockShortPayingERC4626.sol";
 
 /// @notice Exit realizability and source-limit awareness (review findings #3/#4):
 ///         loss-tolerant redeem, cost-aware exact-out withdraw, and max*/preview views
@@ -177,5 +180,149 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
 
         assertEq(wrapper.maxDeposit(alice), 0);
         assertEq(wrapper.maxMint(alice), 0);
+    }
+
+    /// Loss-tolerant redeem (finding #3) ///
+
+    function test_RedeemSurvivesSourceTurningLossy() public {
+        // The bricking scenario from the finding: the underlying adds an exit fee
+        // AFTER deposits are in. Old behavior: AdapterWithdrawShortfall forever.
+        FeeConfig memory fees;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, 100); // 1% exit fee
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT);
+
+        uint256 shares = w.balanceOf(alice);
+        uint256 quoted = w.previewRedeem(shares);
+
+        vm.prank(alice);
+        uint256 paid = w.redeem(shares, alice, alice);
+
+        // The haircut lands on the exiting user, exits keep working, and the
+        // preview told the truth about it.
+        assertEq(paid, quoted);
+        assertEq(asset.balanceOf(alice), paid);
+        assertApproxEqAbs(paid, (DEPOSIT * 99) / 100, 2);
+    }
+
+    function test_RedeemPassesShortfallThroughOnShortPayingSource() public {
+        FeeConfig memory fees;
+        MockShortPayingERC4626 short = new MockShortPayingERC4626(asset);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(short),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT);
+
+        uint256 shares = w.balanceOf(alice);
+
+        vm.prank(alice);
+        uint256 paid = w.redeem(shares, alice, alice);
+
+        // Previews cannot see a lying source, but the exit still works and only
+        // the exiter absorbs the withheld wei.
+        assertApproxEqAbs(paid, DEPOSIT - short.SHORTFALL(), 2);
+        assertEq(asset.balanceOf(alice), paid);
+    }
+
+    function test_RedeemSlippageOverloadGuardsLossyProceeds() public {
+        FeeConfig memory fees;
+        MockShortPayingERC4626 short = new MockShortPayingERC4626(asset);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(short),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT);
+
+        uint256 shares = w.balanceOf(alice);
+        uint256 quoted = w.previewRedeem(shares); // over-promises by SHORTFALL
+
+        vm.prank(alice);
+        vm.expectPartialRevert(ILiFiVaultWrapper.SlippageExceeded.selector);
+
+        w.redeem(shares, alice, alice, quoted);
+    }
+
+    function test_RedeemReturnValueAndEventCarryActualProceeds() public {
+        _deposit(alice, DEPOSIT);
+        uint256 shares = wrapper.balanceOf(alice);
+        uint256 quoted = wrapper.previewRedeem(shares);
+
+        vm.prank(alice);
+        vm.expectEmit(true, true, true, true, address(wrapper));
+        emit Withdraw(alice, alice, alice, quoted, shares);
+        uint256 paid = wrapper.redeem(shares, alice, alice);
+
+        assertEq(paid, quoted);
+    }
+
+    function test_RedeemChargesWithdrawalFeeOnActualProceeds() public {
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Withdrawal)] = WITHDRAW_FEE;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, 100);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT);
+        wrapper = w; // point the base-class fee counters helper at this instance
+
+        uint256 shares = w.balanceOf(alice);
+
+        vm.prank(alice);
+        uint256 paid = w.redeem(shares, alice, alice);
+
+        // Fee basis is what the source actually paid, not the pre-loss valuation:
+        // fee + payout == actual proceeds, and the fee is feeOnTotal(actual).
+        uint256 actual = paid + _accruedFeeAssets();
+        assertApproxEqAbs(actual, (DEPOSIT * 99) / 100, 2);
+        assertEq(asset.balanceOf(address(w)), _accruedFeeAssets());
+    }
+
+    function test_RedeemAllowanceStillEnforced() public {
+        _deposit(alice, DEPOSIT);
+        uint256 shares = wrapper.balanceOf(alice);
+
+        vm.prank(bob);
+        vm.expectRevert(); // ERC20InsufficientAllowance
+        wrapper.redeem(shares, bob, alice);
+
+        vm.prank(alice);
+        wrapper.approve(bob, shares);
+
+        vm.prank(bob);
+        uint256 paid = wrapper.redeem(shares, bob, alice);
+
+        assertEq(asset.balanceOf(bob), paid);
+        assertEq(wrapper.balanceOf(alice), 0);
+    }
+
+    /// Helpers ///
+
+    event Withdraw(
+        address indexed sender,
+        address indexed receiver,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
+    );
+
+    function _depositTo(
+        LiFiVaultWrapper _w,
+        address _from,
+        uint256 _amount
+    ) internal {
+        asset.mint(_from, _amount);
+        vm.startPrank(_from);
+        asset.approve(address(_w), _amount);
+        _w.deposit(_amount, _from);
+        vm.stopPrank();
     }
 }

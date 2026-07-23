@@ -31,7 +31,7 @@ import { LibAsset } from "../../Libraries/LibAsset.sol";
 ///      surface: they tolerate a source that charges exit fees, caps deposits, or limits
 ///      withdrawal liquidity, and report what the source can actually deliver rather than
 ///      assuming the strict standard above.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
@@ -146,6 +146,11 @@ contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     /// @dev Uses `convertToShares` (floor) as the share basis — see `previewWithdrawUpTo`
     ///      for why — so on an honest source this returns AT MOST `_assets`, never more.
+    ///      After a heavy loss, a dust target can floor to shares whose redeemable value
+    ///      itself floors to zero; standard sources (including solmate) revert a
+    ///      zero-asset redeem, so that case is skipped rather than bubbling the revert —
+    ///      `previewWithdrawUpTo` already reports 0 for it via the same `previewRedeem`
+    ///      call, so preview/execution parity holds.
     function withdrawUpTo(
         address _asset,
         address _underlying,
@@ -156,6 +161,11 @@ contract ERC4626Adapter is IYieldAdapter {
         uint256 held = source.balanceOf(address(this));
         if (shares > held) shares = held;
         if (shares == 0) return 0;
+        // A dust target after a heavy loss can convert to shares whose redeemable
+        // value floors to zero; standard sources (incl. solmate) revert a
+        // zero-asset redeem, so skip the round-trip — the exit still succeeds
+        // and preview/execution parity holds (previewWithdrawUpTo reports 0 here).
+        if (source.previewRedeem(shares) == 0) return 0;
 
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
         source.redeem({
