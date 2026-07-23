@@ -31,4 +31,35 @@ contract MockZeroAdapter is IYieldAdapter {
     ) external pure returns (uint256) {
         return 0;
     }
+
+    function maxDeposit(address, address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function maxWithdraw(address, address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function previewWithdrawUpTo(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
+    }
+
+    function previewWithdrawCost(
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
+    }
+
+    function withdrawUpTo(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
+    }
 }
