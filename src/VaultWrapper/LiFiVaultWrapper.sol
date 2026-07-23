@@ -598,25 +598,36 @@ contract LiFiVaultWrapper is
     ///      same source math `withdrawUpTo` executes), then the withdrawal fee is carved
     ///      out of the realizable amount. On a standard source this equals the plain
     ///      valuation-based preview; on a fee-charging source it truthfully quotes the
-    ///      caller's post-haircut proceeds, keeping preview == execution.
+    ///      caller's post-haircut proceeds, keeping preview == execution. OZ's `maxWithdraw`
+    ///      is implemented as `previewRedeem(maxRedeem(owner))`, so it — and therefore
+    ///      `withdraw`'s own limit check — now also transits the adapter's realizable
+    ///      preview even though `withdraw` itself stays on the strict exact-out path;
+    ///      Task 4 (liquidity-aware `maxWithdraw`/`maxRedeem`) reconciles this pair.
     function previewRedeem(
         uint256 shares
     ) public view override returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 assetsUnderManagement = totalAssets();
         uint256 gross = _convertToAssets(shares, Math.Rounding.Floor);
         if (gross == 0) return 0;
 
+        // Mirrors `_redeemRealizable`'s drain condition exactly (see there), computed
+        // pre-accrual: a redeem of every outstanding share, INCLUDING the fee-shares
+        // `_accrueFees` is about to mint, empties the vault.
+        bool drains = shares ==
+            supply + _pendingFeeShares(supply, assetsUnderManagement);
         uint256 realizable = IYieldAdapter(adapter).previewWithdrawUpTo(
             underlying,
             address(this),
-            gross
+            drains ? type(uint256).max : gross
         );
 
         return
             realizable -
-            LibVaultWrapperMath.feeOnTotal(
-                realizable,
-                _rate(FeeType.Withdrawal)
-            );
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: realizable,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -663,13 +674,28 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
     ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    ///      is checked in the entrypoint only). Otherwise reports the strict exact-out
+    ///      capacity of the owner's shares — deliberately NOT OZ's
+    ///      `previewRedeem(maxRedeem(owner))`: `previewRedeem` quotes the loss-tolerant
+    ///      redeem, whose vault-emptying drain sweeps rounding residue the strict
+    ///      `withdraw` path cannot deliver (it would over-burn). Matches the pre-drain
+    ///      fee-aware value exactly. Task 4 adds source-liquidity awareness.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxWithdraw(owner);
+        uint256 gross = _convertToAssets(
+            balanceOf(owner),
+            Math.Rounding.Floor
+        );
+
+        return
+            gross -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: gross,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
     }
 
     /// @inheritdoc ERC4626Upgradeable
@@ -809,25 +835,31 @@ contract LiFiVaultWrapper is
         address _owner,
         uint256 _shares
     ) private returns (uint256 assets) {
+        address assetToken = asset();
         uint256 gross = _convertToAssets(_shares, Math.Rounding.Floor);
         if (_caller != _owner) _spendAllowance(_owner, _caller, _shares);
         _burn(_owner, _shares);
 
         if (gross != 0) {
+            // A vault-emptying exit drains the whole position: with zero shares
+            // outstanding no claim remains, and floor-rounding residue would
+            // otherwise strand value behind an empty vault (the supply==0 /
+            // assets>0 inflation-attack precondition).
+            uint256 target = totalSupply() == 0 ? type(uint256).max : gross;
             uint256 withdrawn = _routeThroughAdapter(
                 abi.encodeCall(
                     IYieldAdapter.withdrawUpTo,
-                    (asset(), underlying, gross)
+                    (assetToken, underlying, target)
                 )
             );
-            uint256 fee = LibVaultWrapperMath.feeOnTotal(
-                withdrawn,
-                _rate(FeeType.Withdrawal)
-            );
+            uint256 fee = LibVaultWrapperMath.feeOnTotal({
+                _assets: withdrawn,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
             _routeFee(FeeType.Withdrawal, fee);
             assets = withdrawn - fee;
             if (assets != 0) {
-                SafeERC20.safeTransfer(IERC20(asset()), _receiver, assets);
+                SafeERC20.safeTransfer(IERC20(assetToken), _receiver, assets);
             }
         }
 

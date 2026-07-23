@@ -31,7 +31,7 @@ import { LibAsset } from "../../Libraries/LibAsset.sol";
 ///      surface: they tolerate a source that charges exit fees, caps deposits, or limits
 ///      withdrawal liquidity, and report what the source can actually deliver rather than
 ///      assuming the strict standard above.
-/// @custom:version 1.0.1
+/// @custom:version 1.0.0
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
@@ -117,14 +117,18 @@ contract ERC4626Adapter is IYieldAdapter {
     ///      up on a source that charges an exit fee), so the exiter's own shares absorb
     ///      their source-side exit cost rather than diluting the remaining holders. See
     ///      `withdrawUpTo`, which MUST use the same basis for preview/execution parity.
+    ///      `_assets == type(uint256).max` skips the conversion (which would overflow)
+    ///      and targets the full position directly — see the interface NatSpec.
     function previewWithdrawUpTo(
         address _underlying,
         address _holder,
         uint256 _assets
     ) external view returns (uint256 assets) {
         IERC4626 source = IERC4626(_underlying);
-        uint256 shares = source.convertToShares(_assets);
         uint256 held = source.balanceOf(_holder);
+        uint256 shares = _assets == type(uint256).max
+            ? held
+            : source.convertToShares(_assets);
         if (shares > held) shares = held;
         if (shares == 0) return 0;
 
@@ -150,21 +154,22 @@ contract ERC4626Adapter is IYieldAdapter {
     ///      itself floors to zero; standard sources (including solmate) revert a
     ///      zero-asset redeem, so that case is skipped rather than bubbling the revert —
     ///      `previewWithdrawUpTo` already reports 0 for it via the same `previewRedeem`
-    ///      call, so preview/execution parity holds.
+    ///      call, so preview/execution parity holds. `_assets == type(uint256).max`
+    ///      skips the conversion (which would overflow) and targets the full position
+    ///      directly — see the interface NatSpec.
     function withdrawUpTo(
         address _asset,
         address _underlying,
         uint256 _assets
     ) external returns (uint256 withdrawn) {
         IERC4626 source = IERC4626(_underlying);
-        uint256 shares = source.convertToShares(_assets);
         uint256 held = source.balanceOf(address(this));
+        uint256 shares = _assets == type(uint256).max
+            ? held
+            : source.convertToShares(_assets);
         if (shares > held) shares = held;
         if (shares == 0) return 0;
-        // A dust target after a heavy loss can convert to shares whose redeemable
-        // value floors to zero; standard sources (incl. solmate) revert a
-        // zero-asset redeem, so skip the round-trip — the exit still succeeds
-        // and preview/execution parity holds (previewWithdrawUpTo reports 0 here).
+        // Zero-value dust skip — see @dev above.
         if (source.previewRedeem(shares) == 0) return 0;
 
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));

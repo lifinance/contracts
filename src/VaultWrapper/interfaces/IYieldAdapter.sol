@@ -104,9 +104,16 @@ interface IYieldAdapter {
     ///      the same share math so previews match execution. Per EIP-4626 preview
     ///      semantics it does NOT cap at source-side liquidity limits (only at the
     ///      position); it MAY revert if the source's preview reverts.
+    ///      `_assets == type(uint256).max` is a full-drain request: realize the
+    ///      holder's ENTIRE position rather than the floor-rounded value of a
+    ///      finite target. Used by the wrapper when an exit burns the last
+    ///      outstanding share, so no valueful residue is left behind an empty vault
+    ///      — floor-rounding residue there would recreate the supply==0/assets>0
+    ///      inflation-attack precondition.
     /// @param _underlying The protocol-specific yield source identifier.
     /// @param _holder The account whose position is valued (the wrapper).
-    /// @param _assets The realization target, in assets.
+    /// @param _assets The realization target, in assets, or `type(uint256).max` to
+    ///        drain the entire position.
     /// @return assets The assets the source would actually pay out.
     function previewWithdrawUpTo(
         address _underlying,
@@ -136,9 +143,16 @@ interface IYieldAdapter {
     ///      position, and reports the measured balance delta. MUST NOT touch adapter
     ///      storage. This is the loss-tolerant exit primitive backing the wrapper's
     ///      `redeem`; the strict exact-out primitive remains `withdraw`.
+    ///      `_assets == type(uint256).max` is a full-drain request: realize the
+    ///      holder's ENTIRE position rather than the floor-rounded value of a finite
+    ///      target. Used by the wrapper when an exit burns the last outstanding
+    ///      share, so no valueful residue is left behind an empty vault —
+    ///      floor-rounding residue there would recreate the supply==0/assets>0
+    ///      inflation-attack precondition.
     /// @param _asset The ERC20 asset to receive (lands on the wrapper).
     /// @param _underlying The yield source to realize from.
-    /// @param _assets The realization target, in assets.
+    /// @param _assets The realization target, in assets, or `type(uint256).max` to
+    ///        drain the entire position.
     /// @return withdrawn The amount of `_asset` actually returned to the wrapper.
     function withdrawUpTo(
         address _asset,

@@ -237,6 +237,39 @@ contract ERC4626AdapterTest is Test {
         assertEq(withdrawn, 0);
     }
 
+    function test_WithdrawUpToSentinelDrainsEntirePositionDespiteFloorRounding()
+        public
+    {
+        // Odd-wei donation makes the floor-based convertToShares(finite target)
+        // strand 1 wei of shares even on what looks like a full-value request —
+        // the type(uint256).max sentinel bypasses that conversion entirely and
+        // targets the full position directly.
+        _seed(address(source), address(harness), 1_000e18);
+        token.mint(address(source), 333); // donation: PPS now fractional
+
+        uint256 fullValue = source.previewRedeem(
+            source.balanceOf(address(harness))
+        );
+        uint256 quoted = adapter.previewWithdrawUpTo(
+            address(source),
+            address(harness),
+            type(uint256).max
+        );
+
+        assertEq(quoted, fullValue);
+
+        uint256 withdrawn = harness.route(
+            address(adapter),
+            abi.encodeCall(
+                IYieldAdapter.withdrawUpTo,
+                (address(token), address(source), type(uint256).max)
+            )
+        );
+
+        assertEq(withdrawn, quoted);
+        assertEq(source.balanceOf(address(harness)), 0);
+    }
+
     function test_WithdrawUpToAtInflatedSharePriceNeverOvershoots() public {
         _seed(address(source), address(harness), 1_000e18);
         token.mint(address(source), 333e18); // donation: PPS now non-integer

@@ -2,6 +2,8 @@
 pragma solidity ^0.8.29;
 
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { FeeConfig, FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
@@ -243,8 +245,18 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
         uint256 shares = w.balanceOf(alice);
         uint256 quoted = w.previewRedeem(shares); // over-promises by SHORTFALL
 
+        // The mock is 1:1 with no yield/loss, so the wrapper's own valuation is exact
+        // (no virtual-share rounding here); the only shortfall is the source's SHORTFALL.
+        uint256 expectedActual = quoted - short.SHORTFALL();
+
         vm.prank(alice);
-        vm.expectPartialRevert(ILiFiVaultWrapper.SlippageExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.SlippageExceeded.selector,
+                expectedActual,
+                quoted
+            )
+        );
 
         w.redeem(shares, alice, alice, quoted);
     }
@@ -275,15 +287,31 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
         wrapper = w; // point the base-class fee counters helper at this instance
 
         uint256 shares = w.balanceOf(alice);
+        uint256 quoted = w.previewRedeem(shares);
 
         vm.prank(alice);
         uint256 paid = w.redeem(shares, alice, alice);
+
+        // Pre-redeem quote parity: previewRedeem computes the fee on the realizable
+        // (post-loss) amount, so this only holds if execution uses the same basis —
+        // a buggy fee-on-gross implementation would diverge here by ~1% of the fee.
+        assertEq(paid, quoted);
 
         // Fee basis is what the source actually paid, not the pre-loss valuation:
         // fee + payout == actual proceeds, and the fee is feeOnTotal(actual).
         uint256 actual = paid + _accruedFeeAssets();
         assertApproxEqAbs(actual, (DEPOSIT * 99) / 100, 2);
         assertEq(asset.balanceOf(address(w)), _accruedFeeAssets());
+        // Exact fee pin: feeOnTotal(actual) = ceil(actual * rate / (10_000 + rate)).
+        assertEq(
+            _accruedFeeAssets(),
+            Math.mulDiv(
+                actual,
+                WITHDRAW_FEE,
+                uint256(WITHDRAW_FEE) + 10_000,
+                Math.Rounding.Ceil
+            )
+        );
     }
 
     function test_RedeemAllowanceStillEnforced() public {
@@ -291,7 +319,14 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
         uint256 shares = wrapper.balanceOf(alice);
 
         vm.prank(bob);
-        vm.expectRevert(); // ERC20InsufficientAllowance
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientAllowance.selector,
+                bob,
+                0,
+                shares
+            )
+        );
         wrapper.redeem(shares, bob, alice);
 
         vm.prank(alice);
@@ -302,6 +337,21 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
 
         assertEq(asset.balanceOf(bob), paid);
         assertEq(wrapper.balanceOf(alice), 0);
+    }
+
+    function test_SoleHolderFullRedeemLeavesNoResidualPosition() public {
+        _deposit(alice, DEPOSIT);
+        _simulateYield(333); // odd wei so the PPS is fractional and floors bite
+        uint256 shares = wrapper.balanceOf(alice);
+        uint256 quoted = wrapper.previewRedeem(shares);
+
+        vm.prank(alice);
+        uint256 paid = wrapper.redeem(shares, alice, alice);
+
+        assertEq(paid, quoted); // drain is mirrored in the preview
+        assertEq(wrapper.totalSupply(), 0);
+        assertEq(wrapper.totalAssets(), 0); // no valueful residue behind an empty vault
+        assertEq(underlying.balanceOf(address(wrapper)), 0);
     }
 
     /// Helpers ///
