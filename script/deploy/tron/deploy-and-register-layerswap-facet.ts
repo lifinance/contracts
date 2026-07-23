@@ -60,8 +60,14 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
     // Use default value
   }
 
-  const networkName =
-    environment === EnvironmentEnum.production ? 'tron' : 'tronshasta'
+  if (environment !== EnvironmentEnum.production) {
+    consola.error(
+      'LayerSwapFacet Tron deploy targets tron mainnet (production) only — tronshasta is not configured'
+    )
+    process.exit(1)
+  }
+
+  const networkName = 'tron'
 
   const network = networkName as SupportedChain
 
@@ -74,11 +80,7 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
   } catch (error: any) {
     consola.error(error.message)
     consola.error(
-      `Please ensure ${
-        environment === EnvironmentEnum.production
-          ? 'PRIVATE_KEY_PRODUCTION'
-          : 'PRIVATE_KEY'
-      } is set in your .env file`
+      'Please ensure PRIVATE_KEY_PRODUCTION is set in your .env file'
     )
     process.exit(1)
   }
@@ -118,13 +120,11 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
       )
 
     const globalConfig = await Bun.file('config/global.json').json()
-    const envKey =
-      environment === EnvironmentEnum.production ? 'production' : 'staging'
-    const backendSignerRaw = globalConfig.backendSigner?.[envKey]
+    const backendSignerRaw = globalConfig.backendSigner?.production
 
     if (!backendSignerRaw)
       throw new Error(
-        `backendSigner not found for '${envKey}' in config/global.json`
+        "backendSigner not found for 'production' in config/global.json"
       )
 
     const depository = tronAddressToHex(tronWeb, depositoryRaw)
