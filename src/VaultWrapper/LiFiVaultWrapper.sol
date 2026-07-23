@@ -45,7 +45,16 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      pays those tracked entitlements out: LI.FI's parts go to the factory's live
 ///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..50 receiver
 ///      wallets (no re-split happens at distribution). Pause is enforced on the
-///      deposit/mint path only (withdrawals stay open). Access control is a single
+///      deposit/mint path only (withdrawals stay open). Exits split by tolerance:
+///      `redeem` is loss-tolerant and share-sourced, realizing the burned shares'
+///      valuation from the yield source and charging the withdrawal fee on the
+///      ACTUAL proceeds delivered, with a full-drain sweep when the burn empties
+///      `totalSupply` so no valueful residue is left behind an empty vault; `withdraw`
+///      stays strict and exact-out, reverting `AdapterWithdrawShortfall` on a
+///      shortfall instead. Share price (`totalAssets`) stays valuation-based rather
+///      than realizable — a deliberate asymmetry, since the exiting caller bears any
+///      source-side exit cost while it remains an upper bound on a share's worth for
+///      everyone else. Access control is a single
 ///      pluggable `IAccessGate` (`accessGate`, zero = fully permissionless): entry checks
 ///      `isAllowed(receiver)`, holder-to-holder share transfers check
 ///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
@@ -402,9 +411,13 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). The shared
-    ///      `_deposit` seam enforces the post-operation supply floor (see
-    ///      `_enforceSupplyFloor`).
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). A reverting or
+    ///      malformed source-side `maxDeposit` view degrades the same way (see `maxDeposit`),
+    ///      so `super.deposit` reverts `ERC4626ExceededMaxDeposit` even when the source's own
+    ///      `deposit` function would have accepted the assets — deliberate, since a limit view
+    ///      that cannot be trusted is treated as closed rather than risking a silent
+    ///      over-deposit. The shared `_deposit` seam enforces the post-operation supply floor
+    ///      (see `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
         address receiver
@@ -419,7 +432,9 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). `maxMint` derives from
+    ///      `maxDeposit`, so the same fail-soft-to-0 coupling documented on `deposit` applies
+    ///      here: a reverting source-side `maxDeposit` view blocks `mint` too. The shared
     ///      `_deposit` seam enforces the post-operation supply floor (see
     ///      `_enforceSupplyFloor`).
     function mint(
@@ -448,8 +463,18 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
-    ///      are exempt): an exit must always be able to empty the caller's position.
+    /// @dev Share-sourced and loss-tolerant (exact-in): burns the shares, realizes their
+    ///      valuation from the yield source via the adapter's `withdrawUpTo`, and pays out
+    ///      whatever the source actually delivered (net of the withdrawal fee, which is
+    ///      charged on actual proceeds). A source that pays under valuation — an exit fee
+    ///      added after deployment, a fee-on-transfer asset — reduces THIS caller's payout
+    ///      instead of bricking every exit; `previewRedeem` mirrors the same realizable
+    ///      math so honest sources still preview exactly, and the EIP-5143 overload
+    ///      bounds the damage from a lying one. The exact-out counterpart `withdraw`
+    ///      stays strict (`AdapterWithdrawShortfall`). Return value and `Withdraw` event
+    ///      carry actual proceeds. Deliberately NOT floor-checked (see
+    ///      `_enforceSupplyFloor` for why exits are exempt): an exit must always be able
+    ///      to empty the caller's position.
     function redeem(
         uint256 shares,
         address receiver,
@@ -458,7 +483,11 @@ contract LiFiVaultWrapper is
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        return super.redeem(shares, receiver, owner);
+        uint256 maxShares = maxRedeem(owner);
+        if (shares > maxShares)
+            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+
+        return _redeemRealizable(_msgSender(), receiver, owner, shares);
     }
 
     /// EIP-5143 slippage-guarded entrypoints ///
@@ -567,27 +596,48 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Cost-aware exact-out preview: the shares to burn are priced off the position
+    ///      value the source will actually consume to deliver `assets` plus the
+    ///      withdrawal fee (adapter `previewWithdrawCost`, >= the owed amount when the
+    ///      source charges exit fees), not off the owed amount alone. The exiting caller
+    ///      therefore pays their own source-side exit cost; with an owed-based preview
+    ///      that cost would silently dilute the remaining holders. Equal up to
+    ///      source-side rounding on a standard source (a non-1:1 source PPS can round
+    ///      the cost chain up by one source-share's value).
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
-            _assets: assets,
-            _feeBps: _rate(FeeType.Withdrawal)
-        });
+        uint256 owed = assets +
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+        uint256 cost = IYieldAdapter(adapter).previewWithdrawCost(
+            underlying,
+            owed
+        );
 
-        return super.previewWithdraw(assets + withdrawalFee);
+        return _convertToShares(cost, Math.Rounding.Ceil);
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Realizable-value preview: mirrors `redeem`'s execution exactly — the shares'
+    ///      valuation is pushed through the adapter's static `previewWithdrawUpTo` (the
+    ///      same source math `withdrawUpTo` executes), then the withdrawal fee is carved
+    ///      out of the realizable amount. On a standard source this equals the plain
+    ///      valuation-based preview; on a fee-charging source it truthfully quotes the
+    ///      caller's post-haircut proceeds, keeping preview == execution. `maxWithdraw`
+    ///      deliberately does not route through this preview — see its own docs below.
     function previewRedeem(
         uint256 shares
     ) public view override returns (uint256) {
-        uint256 assets = super.previewRedeem(shares);
+        uint256 realizable = _realizableForShares(shares);
+        if (realizable == 0) return 0;
 
         return
-            assets -
+            realizable -
             LibVaultWrapperMath.feeOnTotal({
-                _assets: assets,
+                _assets: realizable,
                 _feeBps: _rate(FeeType.Withdrawal)
             });
     }
@@ -596,46 +646,196 @@ contract LiFiVaultWrapper is
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
     ///      the receiver, so EIP-4626 consumers see the vault as closed to deposits and do
     ///      not build deposits that would revert. Mirrors `deposit`'s guards; a reverting
-    ///      gate reverts this view too (fail-closed, like the entrypoint).
+    ///      gate reverts this view too (fail-closed, like the entrypoint). Otherwise
+    ///      reports the source's own acceptance cap (via the adapter, fail-soft to 0)
+    ///      grossed up by the deposit fee — the max a caller can actually push through
+    ///      `deposit` without the source rejecting the forward.
     function maxDeposit(
         address receiver
     ) public view override returns (uint256) {
         if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
-        return super.maxDeposit(receiver);
+        uint256 cap = IYieldAdapter(adapter).maxDeposit(
+            underlying,
+            address(this)
+        );
+        if (cap == type(uint256).max) return cap;
+
+        uint256 fee = LibVaultWrapperMath.feeOnRaw(
+            cap,
+            _rate(FeeType.Deposit)
+        );
+        unchecked {
+            uint256 gross = cap + fee;
+            return gross < cap ? type(uint256).max : gross;
+        }
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
-    ///      the receiver, so EIP-4626 consumers see the vault as closed to mints and do
-    ///      not build mints that would revert. Mirrors `mint`'s guards; a reverting gate
-    ///      reverts this view too (fail-closed, like the entrypoint).
+    ///      the receiver (see `maxDeposit`). Otherwise converts the asset-side max into
+    ///      shares via `previewDeposit`, preserving the unlimited sentinel.
     function maxMint(address receiver) public view override returns (uint256) {
-        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
+        uint256 assets = maxDeposit(receiver);
+        if (assets == 0) return 0;
+        if (assets == type(uint256).max) return type(uint256).max;
 
-        return super.maxMint(receiver);
+        return previewDeposit(assets);
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
     ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    ///      is checked in the entrypoint only). Otherwise reports the smaller of (a) the
+    ///      strict exact-out capacity of the owner's shares — deliberately NOT OZ's
+    ///      `previewRedeem(maxRedeem(owner))`: `previewRedeem` quotes the loss-tolerant
+    ///      redeem, whose vault-emptying drain sweeps rounding residue the strict
+    ///      `withdraw` path cannot deliver (it would over-burn) — and (b) what the
+    ///      source's liquidity allows net of the withdrawal fee (adapter `maxWithdraw`,
+    ///      fail-soft to 0: a broken source limit view reads as closed, never as
+    ///      unlimited, and cannot make this view revert). The balance-side capacity uses
+    ///      the adapter's realizable view (`previewWithdrawUpTo`, floor share basis, no
+    ///      drain sentinel) rather than a plain valuation: on a lossy source the
+    ///      cost-aware `previewWithdraw` grosses the share burn UP, so pricing capacity
+    ///      off the pre-loss valuation could still quote an amount whose own burn
+    ///      exceeds the owner's balance by a wei or two — the realizable and cost-aware
+    ///      chains are floor/ceil conversions that don't commute exactly at the wei
+    ///      level on a fee-charging source. The candidate is therefore FORWARD-VERIFIED
+    ///      through `previewWithdraw` itself (the exact preview `withdraw` executes):
+    ///      if the resulting burn fits the balance the candidate stands; otherwise one
+    ///      conservative shave is applied and re-verified, reporting 0 rather than ever
+    ///      over-promising (EIP-4626 max* MUST NOT over-report).
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxWithdraw(owner);
+        uint256 gross = _convertToAssets(
+            balanceOf(owner),
+            Math.Rounding.Floor
+        );
+        uint256 realizable = IYieldAdapter(adapter).previewWithdrawUpTo(
+            underlying,
+            address(this),
+            gross
+        );
+        uint256 fromBalance = realizable -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: realizable,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+
+        uint256 liquidity = IYieldAdapter(adapter).maxWithdraw(
+            underlying,
+            address(this)
+        );
+        uint256 fromLiquidity = liquidity -
+            LibVaultWrapperMath.feeOnTotal({
+                _assets: liquidity,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+
+        uint256 candidate = fromBalance < fromLiquidity
+            ? fromBalance
+            : fromLiquidity;
+        if (candidate == 0) return 0;
+
+        // Forward-verify through the exact preview `withdraw` executes: the
+        // realizable (floor) quote and the cost-aware (ceil) burn don't commute
+        // at the wei level on fee-charging sources. One shave covers honest
+        // sources; anything still over after that reports closed rather than
+        // over-reporting (EIP-4626 max* must never over-report).
+        uint256 balance = balanceOf(owner);
+        uint256 needed = previewWithdraw(candidate);
+        if (needed <= balance) return candidate;
+
+        uint256 shave = _convertToAssets(needed - balance, Math.Rounding.Ceil);
+        if (shave >= candidate) return 0;
+        candidate -= shave;
+
+        return previewWithdraw(candidate) <= balance ? candidate : 0;
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
-    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned (see
+    ///      `maxWithdraw`). Otherwise caps the owner's share balance by the source's
+    ///      liquidity — a redeem beyond that would burn shares the source cannot pay
+    ///      for. The liquidity constraint bites on DELIVERED assets, so "unconstrained"
+    ///      is FORWARD-VERIFIED by asking what redeeming the full balance would actually
+    ///      deliver (`_realizableForShares`, the same helper `previewRedeem` uses)
+    ///      rather than comparing two independently-rounded source views
+    ///      (`maxWithdraw` vs a full-drain `previewWithdrawUpTo`) against each other —
+    ///      those can differ by a wei even on an honest, fully-liquid source, which
+    ///      would misread it as capped and, on the capped branch below, cap at the
+    ///      wrong (gross vs. net) basis. When capped, the liquidity (a delivery-basis,
+    ///      i.e. post-source-fee amount) is mapped back to the GROSS position value its
+    ///      delivery would consume (adapter `previewWithdrawCost`, the same source-fee
+    ///      grossing `previewWithdraw` uses) before converting to a share budget —
+    ///      converting the net liquidity at the gross share price would under-cap. The
+    ///      resulting share candidate is itself forward-verified and, on any residual
+    ///      wei-level divergence, shaved by one asset-wei of shares and re-verified,
+    ///      reporting 0 rather than ever over-promising.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxRedeem(owner);
+        uint256 balance = balanceOf(owner);
+        if (balance == 0) return 0;
+
+        uint256 liquidity = IYieldAdapter(adapter).maxWithdraw(
+            underlying,
+            address(this)
+        );
+        if (liquidity == 0) return 0;
+        // Forward-verified: the source constrains DELIVERED assets, so compare
+        // what redeeming the full balance would actually deliver — not two
+        // independently-rounded source views against each other.
+        if (_realizableForShares(balance) <= liquidity) return balance;
+
+        // Capped: map the delivery-basis liquidity to the gross position value
+        // its delivery consumes (source-fee grossing via previewWithdrawCost),
+        // cap the shares at that budget, then forward-verify and shave one
+        // asset-wei of shares on any residual wei-level divergence.
+        uint256 grossBudget = IYieldAdapter(adapter).previewWithdrawCost(
+            underlying,
+            liquidity
+        );
+        uint256 shares = _convertToShares(grossBudget, Math.Rounding.Floor);
+        if (shares >= balance) shares = balance;
+        if (shares == 0) return 0;
+        if (_realizableForShares(shares) <= liquidity) return shares;
+
+        uint256 shave = _convertToShares(1, Math.Rounding.Ceil);
+        if (shave >= shares) return 0;
+        shares -= shave;
+
+        return _realizableForShares(shares) <= liquidity ? shares : 0;
+    }
+
+    /// @dev Source-delivered assets for redeeming `_shares` (before the wrapper's
+    ///      withdrawal fee): the shares' floor valuation pushed through the adapter's
+    ///      realizable preview, with the full-drain sentinel exactly when `_shares`
+    ///      is every outstanding share (post-accrual supply — see `_redeemRealizable`).
+    ///      Single source of truth for the drain condition, shared by `previewRedeem`
+    ///      and `maxRedeem`'s forward-verification.
+    /// @param _shares The share amount being redeemed.
+    /// @return The source-delivered assets, before the wrapper's own withdrawal fee.
+    function _realizableForShares(
+        uint256 _shares
+    ) private view returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 assetsUnderManagement = totalAssets();
+        uint256 gross = _convertToAssets(_shares, Math.Rounding.Floor);
+        if (gross == 0) return 0;
+
+        bool drains = _shares ==
+            supply + _pendingFeeShares(supply, assetsUnderManagement);
+
+        return
+            IYieldAdapter(adapter).previewWithdrawUpTo(
+                underlying,
+                address(this),
+                drains ? type(uint256).max : gross
+            );
     }
 
     /// Internal ///
@@ -715,9 +915,11 @@ contract LiFiVaultWrapper is
             revert AdapterDepositShortfall(invested, deposited);
     }
 
-    /// @dev OZ's `_withdraw` keeps ownership of the allowance spend, share burn, and `Withdraw`
-    ///      event; this overrides only its `_transferOut` seam to source the assets from the yield
-    ///      source instead of an idle balance. Redeems the withdrawal amount plus the exit fee,
+    /// @dev Serves the exact-out `withdraw` path only — `redeem` exits through
+    ///      `_redeemRealizable`. OZ's `_withdraw` keeps ownership of the allowance spend,
+    ///      share burn, and `Withdraw` event; this overrides only its `_transferOut` seam
+    ///      to source the assets from the yield source instead of an idle balance.
+    ///      Redeems the withdrawal amount plus the exit fee,
     ///      reverts on a short-paying source BEFORE paying the receiver (so OZ's preceding burn
     ///      rolls back and the owner keeps their shares), skims the fee (plus any excess a
     ///      round-up source paid beyond the owed amount, so no idle asset is left unattributed),
@@ -746,6 +948,56 @@ contract LiFiVaultWrapper is
         // untracked dust that silently left AUM.
         _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
+    }
+
+    /// @dev Redeem workflow: OZ's `_withdraw` sequence (allowance spend, burn, event)
+    ///      with a loss-tolerant realization instead of the strict `_transferOut`. The
+    ///      share valuation is computed BEFORE the burn (the burn changes the supply the
+    ///      valuation divides by), post-accrual so pending fee-shares are already minted.
+    ///      The withdrawal fee is charged on ACTUAL proceeds via `feeOnTotal`, so fee and
+    ///      payout always sum to what the source paid — nothing strands unattributed, and
+    ///      a shortfall shrinks fee and payout together. A zero-valuation dust redeem
+    ///      skips the adapter round-trip entirely (mirroring `_transferOut`'s zero
+    ///      short-circuit), so sources that reject zero-share redemptions cannot block it.
+    ///      A last-share exit whose whole-position value floors below 1 wei skips the
+    ///      adapter (gross == 0) and can leave that sub-wei-valued residue behind an
+    ///      empty vault; it accrues to the next depositor, who stays protected by the
+    ///      offset/floor/`ZeroSharesMinted` guards.
+    function _redeemRealizable(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _shares
+    ) private returns (uint256 assets) {
+        address assetToken = asset();
+        uint256 gross = _convertToAssets(_shares, Math.Rounding.Floor);
+        if (_caller != _owner) _spendAllowance(_owner, _caller, _shares);
+        _burn(_owner, _shares);
+
+        if (gross != 0) {
+            // A vault-emptying exit drains the whole position: with zero shares
+            // outstanding no claim remains, and floor-rounding residue would
+            // otherwise strand value behind an empty vault (the supply==0 /
+            // assets>0 inflation-attack precondition).
+            uint256 target = totalSupply() == 0 ? type(uint256).max : gross;
+            uint256 withdrawn = _routeThroughAdapter(
+                abi.encodeCall(
+                    IYieldAdapter.withdrawUpTo,
+                    (assetToken, underlying, target)
+                )
+            );
+            uint256 fee = LibVaultWrapperMath.feeOnTotal({
+                _assets: withdrawn,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+            _routeFee(FeeType.Withdrawal, fee);
+            assets = withdrawn - fee;
+            if (assets != 0) {
+                SafeERC20.safeTransfer(IERC20(assetToken), _receiver, assets);
+            }
+        }
+
+        emit Withdraw(_caller, _receiver, _owner, assets, _shares);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's

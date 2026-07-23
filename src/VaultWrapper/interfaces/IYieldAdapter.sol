@@ -10,15 +10,16 @@ pragma solidity ^0.8.29;
 ///         than changing the factory or the wrapper implementation.
 /// @dev Methods split by how the wrapper invokes them, and this split is a security
 ///      invariant adapters MUST honour:
-///      - `resolveAsset` and `totalAssets` are invoked as ordinary (static) calls and
-///        run in the adapter's own context; they take an explicit `_holder`/`_underlying`
-///        and MUST be free of side effects.
-///      - `deposit` and `withdraw` are invoked via `delegatecall` and therefore run in
-///        the wrapper's context: `address(this)`, token balances, and yield-source
-///        positions are the wrapper's. They MUST be stateless with respect to adapter
-///        storage (no reads or writes of adapter state) so a shared adapter cannot
-///        corrupt or be corrupted by the wrapper's storage layout; they may only act on
-///        their arguments and external calls.
+///      - `resolveAsset`, `totalAssets`, `maxDeposit`, `maxWithdraw`,
+///        `previewWithdrawUpTo`, and `previewWithdrawCost` are invoked as ordinary
+///        (static) calls and run in the adapter's own context; they take an explicit
+///        `_holder`/`_underlying` and MUST be free of side effects.
+///      - `deposit`, `withdraw`, and `withdrawUpTo` are invoked via `delegatecall` and
+///        therefore run in the wrapper's context: `address(this)`, token balances, and
+///        yield-source positions are the wrapper's. They MUST be stateless with respect
+///        to adapter storage (no reads or writes of adapter state) so a shared adapter
+///        cannot corrupt or be corrupted by the wrapper's storage layout; they may only
+///        act on their arguments and external calls.
 /// @custom:version 1.0.0
 interface IYieldAdapter {
     /// @notice Thrown when the adapter cannot resolve the underlying's asset.
@@ -68,6 +69,92 @@ interface IYieldAdapter {
     /// @param _assets The amount of `_asset` to withdraw.
     /// @return withdrawn The amount of `_asset` returned to the wrapper.
     function withdraw(
+        address _asset,
+        address _underlying,
+        uint256 _assets
+    ) external returns (uint256 withdrawn);
+
+    /// @notice Max assets the yield source currently accepts from `_holder` on a deposit.
+    /// @dev Ordinary static call. MUST be fail-soft: if the source's own limit view
+    ///      reverts or is malformed, return 0 (conservatively closed) rather than
+    ///      reverting or over-reporting — the wrapper's EIP-4626 `max*` views must
+    ///      never revert because of the source.
+    /// @param _underlying The protocol-specific yield source identifier.
+    /// @param _holder The depositing account (the wrapper).
+    /// @return maxAssets The max assets the source accepts; 0 when unknown.
+    function maxDeposit(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 maxAssets);
+
+    /// @notice Max assets `_holder` can currently pull out of the yield source
+    ///         (position and source-side liquidity combined).
+    /// @dev Ordinary static call. Fail-soft like `maxDeposit`: 0 when unknown.
+    /// @param _underlying The protocol-specific yield source identifier.
+    /// @param _holder The account whose position is exited (the wrapper).
+    /// @return maxAssets The max assets realizable; 0 when unknown.
+    function maxWithdraw(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 maxAssets);
+
+    /// @notice Assets actually receivable if `_holder` tried to realize `_assets`
+    ///         from the yield source right now, capped at `_holder`'s position.
+    /// @dev Ordinary static call; the static mirror of `withdrawUpTo`, and MUST use
+    ///      the same share math so previews match execution. Per EIP-4626 preview
+    ///      semantics it does NOT cap at source-side liquidity limits (only at the
+    ///      position); it MAY revert if the source's preview reverts.
+    ///      `_assets == type(uint256).max` is a full-drain request: realize the
+    ///      holder's ENTIRE position rather than the floor-rounded value of a
+    ///      finite target. Used by the wrapper when an exit burns the last
+    ///      outstanding share, so no valueful residue is left behind an empty vault
+    ///      — floor-rounding residue there would recreate the supply==0/assets>0
+    ///      inflation-attack precondition.
+    /// @param _underlying The protocol-specific yield source identifier.
+    /// @param _holder The account whose position is valued (the wrapper).
+    /// @param _assets The realization target, in assets, or `type(uint256).max` to
+    ///        drain the entire position.
+    /// @return assets The assets the source would actually pay out.
+    function previewWithdrawUpTo(
+        address _underlying,
+        address _holder,
+        uint256 _assets
+    ) external view returns (uint256 assets);
+
+    /// @notice Position value consumed to deliver exactly `_assets` out of the yield
+    ///         source (>= `_assets` when the source charges exit fees).
+    /// @dev Ordinary static call, used by the wrapper's exact-out `previewWithdraw` so
+    ///      the exiting user's shares — not the remaining holders — pay the source's
+    ///      exit cost. Rounds up (conservative for the vault). MAY revert if the
+    ///      source's preview reverts.
+    /// @param _underlying The protocol-specific yield source identifier.
+    /// @param _assets The exact assets to be delivered.
+    /// @return cost The position value consumed, in assets.
+    function previewWithdrawCost(
+        address _underlying,
+        uint256 _assets
+    ) external view returns (uint256 cost);
+
+    /// @notice Realizes up to `_assets` of `_asset` from `_underlying` into the wrapper,
+    ///         paying out whatever the source can actually deliver instead of reverting
+    ///         on a shortfall.
+    /// @dev DELEGATECALL ONLY — runs in the wrapper's context (see `withdraw`). Redeems
+    ///      the source shares nominally worth `_assets`, capped at the wrapper's whole
+    ///      position, and reports the measured balance delta. MUST NOT touch adapter
+    ///      storage. This is the loss-tolerant exit primitive backing the wrapper's
+    ///      `redeem`; the strict exact-out primitive remains `withdraw`.
+    ///      `_assets == type(uint256).max` is a full-drain request: realize the
+    ///      holder's ENTIRE position rather than the floor-rounded value of a finite
+    ///      target. Used by the wrapper when an exit burns the last outstanding
+    ///      share, so no valueful residue is left behind an empty vault —
+    ///      floor-rounding residue there would recreate the supply==0/assets>0
+    ///      inflation-attack precondition.
+    /// @param _asset The ERC20 asset to receive (lands on the wrapper).
+    /// @param _underlying The yield source to realize from.
+    /// @param _assets The realization target, in assets, or `type(uint256).max` to
+    ///        drain the entire position.
+    /// @return withdrawn The amount of `_asset` actually returned to the wrapper.
+    function withdrawUpTo(
         address _asset,
         address _underlying,
         uint256 _assets

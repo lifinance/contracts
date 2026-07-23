@@ -101,9 +101,11 @@ contract VaultWrapperInvariantHandler is Test {
 
     function withdraw(uint256 _actorSeed, uint256 _assets) external {
         address actor = _actor(_actorSeed);
-        // maxWithdraw is fee-aware (previewRedeem(maxRedeem(owner)) with the wrapper's
-        // fee-deducting previewRedeem), so withdraw(maxWithdraw(actor)) is exactly
-        // exitable — drive the full allowed range so near-max/full exits are exercised.
+        // maxWithdraw forward-verifies its candidate through the wrapper's own
+        // cost-aware previewWithdraw (the exact preview withdraw executes), so
+        // withdraw(maxWithdraw(actor)) is guaranteed to fit the actor's strict
+        // exact-out capacity — drive the full allowed range so near-max/full exits
+        // are exercised.
         uint256 ceiling = WRAPPER.maxWithdraw(actor);
         if (ceiling == 0) return;
 
