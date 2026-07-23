@@ -596,24 +596,41 @@ contract LiFiVaultWrapper is
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
     ///      the receiver, so EIP-4626 consumers see the vault as closed to deposits and do
     ///      not build deposits that would revert. Mirrors `deposit`'s guards; a reverting
-    ///      gate reverts this view too (fail-closed, like the entrypoint).
+    ///      gate reverts this view too (fail-closed, like the entrypoint). Otherwise
+    ///      reports the source's own acceptance cap (via the adapter, fail-soft to 0)
+    ///      grossed up by the deposit fee — the max a caller can actually push through
+    ///      `deposit` without the source rejecting the forward.
     function maxDeposit(
         address receiver
     ) public view override returns (uint256) {
         if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
-        return super.maxDeposit(receiver);
+        uint256 cap = IYieldAdapter(adapter).maxDeposit(
+            underlying,
+            address(this)
+        );
+        if (cap == type(uint256).max) return cap;
+
+        uint256 fee = LibVaultWrapperMath.feeOnRaw(
+            cap,
+            _rate(FeeType.Deposit)
+        );
+        unchecked {
+            uint256 gross = cap + fee;
+            return gross < cap ? type(uint256).max : gross;
+        }
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
-    ///      the receiver, so EIP-4626 consumers see the vault as closed to mints and do
-    ///      not build mints that would revert. Mirrors `mint`'s guards; a reverting gate
-    ///      reverts this view too (fail-closed, like the entrypoint).
+    ///      the receiver (see `maxDeposit`). Otherwise converts the asset-side max into
+    ///      shares via `previewDeposit`, preserving the unlimited sentinel.
     function maxMint(address receiver) public view override returns (uint256) {
-        if (depositsPaused() || !_depositAllowed(receiver)) return 0;
+        uint256 assets = maxDeposit(receiver);
+        if (assets == 0) return 0;
+        if (assets == type(uint256).max) return type(uint256).max;
 
-        return super.maxMint(receiver);
+        return previewDeposit(assets);
     }
 
     /// @inheritdoc ERC4626Upgradeable

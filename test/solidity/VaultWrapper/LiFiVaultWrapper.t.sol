@@ -67,6 +67,13 @@ contract LossyVault {
         return address(ASSET_TOKEN);
     }
 
+    /// @dev Unlimited, mirroring the ERC-4626 default: this double exists to test the
+    ///      adapter deposit/withdraw shortfall paths, not the source-cap-aware `maxDeposit`
+    ///      view (covered in `LiFiVaultWrapperExitRealizabilityTest`).
+    function maxDeposit(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
+
     function setDepositPullBps(uint256 _bps) external {
         depositPullBps = _bps;
     }
