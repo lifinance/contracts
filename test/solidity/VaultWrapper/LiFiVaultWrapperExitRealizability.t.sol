@@ -10,6 +10,7 @@ import { FeeConfig, FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol"
 import { VaultWrapperFeeTestBase } from "test/solidity/VaultWrapper/VaultWrapperFeeTestBase.sol";
 import { MockCappedERC4626 } from "test/solidity/VaultWrapper/mocks/MockCappedERC4626.sol";
 import { MockLossyERC4626 } from "test/solidity/VaultWrapper/mocks/MockLossyERC4626.sol";
+import { MockLossyCappedERC4626 } from "test/solidity/VaultWrapper/mocks/MockLossyCappedERC4626.sol";
 import { MockShortPayingERC4626 } from "test/solidity/VaultWrapper/mocks/MockShortPayingERC4626.sol";
 
 /// @notice Exit realizability and source-limit awareness (review findings #3/#4):
@@ -377,7 +378,10 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
         // source's 1% exit fee: her burn is ~1% more than the no-fee burn would be.
         assertEq(asset.balanceOf(alice), half);
         assertGt(burned, w.previewDeposit(half));
-        // Bob's redeemable value is untouched (±2 wei rounding dust).
+        // Bob's redeemable value is untouched (±2 wei rounding dust — the plan's
+        // original ±1 undercounts the double floor/ceil rounding through
+        // convertToAssets + previewWithdrawUpTo; do not silently widen this further
+        // without re-checking why a wider drift crept in).
         assertApproxEqAbs(
             w.previewRedeem(w.balanceOf(bob)),
             bobQuoteBefore,
@@ -515,6 +519,106 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
 
         vm.prank(alice);
         w.withdraw(max, alice, alice); // must not revert
+    }
+
+    /// Forward-verified off-fee-grid regressions (quality review findings) ///
+
+    function test_WithdrawMaxWithdrawSucceedsOffFeeGridOnLossySource() public {
+        FeeConfig memory noFees;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, 100);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            noFees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        // Ragged, off-the-1%-fee-grid deposit amounts (the reviewer's exact repro):
+        // an algebraic (non-forward-verified) candidate rounds 1 share-wei over.
+        _depositTo(w, alice, DEPOSIT + 1);
+        _depositTo(w, bob, DEPOSIT + 1);
+
+        uint256 max = w.maxWithdraw(alice);
+
+        vm.prank(alice);
+        w.withdraw(max, alice, alice); // must not revert
+
+        FeeConfig memory withdrawFee;
+        withdrawFee.rateBps[uint8(FeeType.Withdrawal)] = WITHDRAW_FEE;
+        MockLossyERC4626 lossyWithFee = new MockLossyERC4626(asset, 100);
+        LiFiVaultWrapper wWithFee = _newWrapperFor(
+            address(lossyWithFee),
+            withdrawFee,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(wWithFee, alice, DEPOSIT + 1);
+        _depositTo(wWithFee, bob, DEPOSIT + 1);
+
+        uint256 maxWithFee = wWithFee.maxWithdraw(alice);
+
+        vm.prank(alice);
+        wWithFee.withdraw(maxWithFee, alice, alice); // must not revert
+    }
+
+    function test_SoleHolderFullRedeemSucceedsOffFeeGridOnLossySource()
+        public
+    {
+        FeeConfig memory noFees;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, 100);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            noFees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT + 1);
+
+        uint256 balance = w.balanceOf(alice);
+
+        assertEq(w.maxRedeem(alice), balance);
+
+        vm.prank(alice);
+        w.redeem(balance, alice, alice); // must not revert
+
+        assertEq(w.totalAssets(), 0);
+        assertEq(w.totalSupply(), 0);
+    }
+
+    function test_MaxWithdrawLiquidityCapWithWithdrawalFee() public {
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Withdrawal)] = WITHDRAW_FEE;
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(capped),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT);
+        capped.setLiquidity(100e18);
+
+        uint256 max = w.maxWithdraw(alice);
+
+        vm.prank(alice);
+        w.withdraw(max, alice, alice); // must not revert
+    }
+
+    function test_ExitLimitsOnLossyAndCappedSource() public {
+        FeeConfig memory noFees;
+        MockLossyCappedERC4626 lossyCapped = new MockLossyCappedERC4626(
+            asset,
+            100
+        );
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossyCapped),
+            noFees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, DEPOSIT + 1);
+        lossyCapped.setLiquidity(100e18 + 7);
+
+        uint256 maxAssets = w.maxWithdraw(alice);
+        vm.prank(alice);
+        w.withdraw(maxAssets, alice, alice); // must not revert
+
+        uint256 maxShares = w.maxRedeem(alice);
+        vm.prank(alice);
+        w.redeem(maxShares, alice, alice); // must not revert
     }
 
     /// Helpers ///

@@ -586,8 +586,9 @@ contract LiFiVaultWrapper is
     ///      withdrawal fee (adapter `previewWithdrawCost`, >= the owed amount when the
     ///      source charges exit fees), not off the owed amount alone. The exiting caller
     ///      therefore pays their own source-side exit cost; with an owed-based preview
-    ///      that cost would silently dilute the remaining holders. Equals the old
-    ///      preview exactly on a standard source (cost == owed).
+    ///      that cost would silently dilute the remaining holders. Equal up to
+    ///      source-side rounding on a standard source (a non-1:1 source PPS can round
+    ///      the cost chain up by one source-share's value).
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
@@ -615,21 +616,8 @@ contract LiFiVaultWrapper is
     function previewRedeem(
         uint256 shares
     ) public view override returns (uint256) {
-        uint256 supply = totalSupply();
-        uint256 assetsUnderManagement = totalAssets();
-        uint256 gross = _convertToAssets(shares, Math.Rounding.Floor);
-        if (gross == 0) return 0;
-
-        // Mirrors `_redeemRealizable`'s drain condition exactly (see there), computed
-        // pre-accrual: a redeem of every outstanding share, INCLUDING the fee-shares
-        // `_accrueFees` is about to mint, empties the vault.
-        bool drains = shares ==
-            supply + _pendingFeeShares(supply, assetsUnderManagement);
-        uint256 realizable = IYieldAdapter(adapter).previewWithdrawUpTo(
-            underlying,
-            address(this),
-            drains ? type(uint256).max : gross
-        );
+        uint256 realizable = _realizableForShares(shares);
+        if (realizable == 0) return 0;
 
         return
             realizable -
@@ -694,9 +682,14 @@ contract LiFiVaultWrapper is
     ///      the adapter's realizable view (`previewWithdrawUpTo`, floor share basis, no
     ///      drain sentinel) rather than a plain valuation: on a lossy source the
     ///      cost-aware `previewWithdraw` grosses the share burn UP, so pricing capacity
-    ///      off the pre-loss valuation could quote an amount whose own burn exceeds the
-    ///      owner's balance; the realizable view already nets the source's exit cost so
-    ///      the round-trip stays within balance.
+    ///      off the pre-loss valuation could still quote an amount whose own burn
+    ///      exceeds the owner's balance by a wei or two — the realizable and cost-aware
+    ///      chains are floor/ceil conversions that don't commute exactly at the wei
+    ///      level on a fee-charging source. The candidate is therefore FORWARD-VERIFIED
+    ///      through `previewWithdraw` itself (the exact preview `withdraw` executes):
+    ///      if the resulting burn fits the balance the candidate stands; otherwise one
+    ///      conservative shave is applied and re-verified, reporting 0 rather than ever
+    ///      over-promising (EIP-4626 max* MUST NOT over-report).
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
@@ -727,45 +720,107 @@ contract LiFiVaultWrapper is
                 _feeBps: _rate(FeeType.Withdrawal)
             });
 
-        return fromBalance < fromLiquidity ? fromBalance : fromLiquidity;
+        uint256 candidate = fromBalance < fromLiquidity
+            ? fromBalance
+            : fromLiquidity;
+        if (candidate == 0) return 0;
+
+        // Forward-verify through the exact preview `withdraw` executes: the
+        // realizable (floor) quote and the cost-aware (ceil) burn don't commute
+        // at the wei level on fee-charging sources. One shave covers honest
+        // sources; anything still over after that reports closed rather than
+        // over-reporting (EIP-4626 max* must never over-report).
+        uint256 balance = balanceOf(owner);
+        uint256 needed = previewWithdraw(candidate);
+        if (needed <= balance) return candidate;
+
+        uint256 shave = _convertToAssets(needed - balance, Math.Rounding.Ceil);
+        if (shave >= candidate) return 0;
+        candidate -= shave;
+
+        return previewWithdraw(candidate) <= balance ? candidate : 0;
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned (see
     ///      `maxWithdraw`). Otherwise caps the owner's share balance by the source's
-    ///      realizable liquidity converted to shares — a redeem beyond that would burn
-    ///      shares the source cannot pay for. The "unconstrained" check compares
-    ///      `liquidity` against the REALIZABLE full-drain value (adapter
-    ///      `previewWithdrawUpTo` with the full-position sentinel), not raw
-    ///      `totalAssets()`: an honest source's own exit fee already nets out of both
-    ///      `maxWithdraw` and the realizable preview identically, so only a genuine
-    ///      liquidity shortfall (not the ordinary fee haircut) makes `liquidity` read
-    ///      lower. Comparing against `totalAssets()` instead would misread every
-    ///      fee-charging-but-unconstrained source as liquidity-capped. When the
-    ///      source's liquidity covers the whole realizable position the cap cannot bind
-    ///      and the balance is returned untouched (also avoiding conversion overflow on
-    ///      unlimited-liquidity sentinels).
+    ///      liquidity — a redeem beyond that would burn shares the source cannot pay
+    ///      for. The liquidity constraint bites on DELIVERED assets, so "unconstrained"
+    ///      is FORWARD-VERIFIED by asking what redeeming the full balance would actually
+    ///      deliver (`_realizableForShares`, the same helper `previewRedeem` uses)
+    ///      rather than comparing two independently-rounded source views
+    ///      (`maxWithdraw` vs a full-drain `previewWithdrawUpTo`) against each other —
+    ///      those can differ by a wei even on an honest, fully-liquid source, which
+    ///      would misread it as capped and, on the capped branch below, cap at the
+    ///      wrong (gross vs. net) basis. When capped, the liquidity (a delivery-basis,
+    ///      i.e. post-source-fee amount) is mapped back to the GROSS position value its
+    ///      delivery would consume (adapter `previewWithdrawCost`, the same source-fee
+    ///      grossing `previewWithdraw` uses) before converting to a share budget —
+    ///      converting the net liquidity at the gross share price would under-cap. The
+    ///      resulting share candidate is itself forward-verified and, on any residual
+    ///      wei-level divergence, shaved by one asset-wei of shares and re-verified,
+    ///      reporting 0 rather than ever over-promising.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
         uint256 balance = balanceOf(owner);
+        if (balance == 0) return 0;
+
         uint256 liquidity = IYieldAdapter(adapter).maxWithdraw(
             underlying,
             address(this)
         );
-        uint256 realizableFull = IYieldAdapter(adapter).previewWithdrawUpTo(
+        if (liquidity == 0) return 0;
+        // Forward-verified: the source constrains DELIVERED assets, so compare
+        // what redeeming the full balance would actually deliver — not two
+        // independently-rounded source views against each other.
+        if (_realizableForShares(balance) <= liquidity) return balance;
+
+        // Capped: map the delivery-basis liquidity to the gross position value
+        // its delivery consumes (source-fee grossing via previewWithdrawCost),
+        // cap the shares at that budget, then forward-verify and shave one
+        // asset-wei of shares on any residual wei-level divergence.
+        uint256 grossBudget = IYieldAdapter(adapter).previewWithdrawCost(
             underlying,
-            address(this),
-            type(uint256).max
+            liquidity
         );
-        if (liquidity >= realizableFull) return balance;
+        uint256 shares = _convertToShares(grossBudget, Math.Rounding.Floor);
+        if (shares >= balance) shares = balance;
+        if (shares == 0) return 0;
+        if (_realizableForShares(shares) <= liquidity) return shares;
 
-        uint256 fromLiquidity = _convertToShares(
-            liquidity,
-            Math.Rounding.Floor
-        );
+        uint256 shave = _convertToShares(1, Math.Rounding.Ceil);
+        if (shave >= shares) return 0;
+        shares -= shave;
 
-        return balance < fromLiquidity ? balance : fromLiquidity;
+        return _realizableForShares(shares) <= liquidity ? shares : 0;
+    }
+
+    /// @dev Source-delivered assets for redeeming `_shares` (before the wrapper's
+    ///      withdrawal fee): the shares' floor valuation pushed through the adapter's
+    ///      realizable preview, with the full-drain sentinel exactly when `_shares`
+    ///      is every outstanding share (post-accrual supply — see `_redeemRealizable`).
+    ///      Single source of truth for the drain condition, shared by `previewRedeem`
+    ///      and `maxRedeem`'s forward-verification.
+    /// @param _shares The share amount being redeemed.
+    /// @return The source-delivered assets, before the wrapper's own withdrawal fee.
+    function _realizableForShares(
+        uint256 _shares
+    ) private view returns (uint256) {
+        uint256 supply = totalSupply();
+        uint256 assetsUnderManagement = totalAssets();
+        uint256 gross = _convertToAssets(_shares, Math.Rounding.Floor);
+        if (gross == 0) return 0;
+
+        bool drains = _shares ==
+            supply + _pendingFeeShares(supply, assetsUnderManagement);
+
+        return
+            IYieldAdapter(adapter).previewWithdrawUpTo(
+                underlying,
+                address(this),
+                drains ? type(uint256).max : gross
+            );
     }
 
     /// Internal ///

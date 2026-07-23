@@ -64,11 +64,16 @@ contract MockLossyERC4626 is ERC4626 {
         return super.previewWithdraw(gross);
     }
 
+    /// @dev Derived from THIS contract's own overridden `previewRedeem` (not a
+    ///      separately recomputed fee formula): a caller forward-verifying this value
+    ///      against `previewRedeem`'s own full-drain quote (as
+    ///      `LiFiVaultWrapper.maxRedeem` does) must see byte-identical numbers, or an
+    ///      off-the-fee-grid balance can make two independently-rounded formulas for
+    ///      the "same" fee-net value disagree by a wei with no real liquidity
+    ///      shortfall behind it.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
-        return
-            (super.previewRedeem(balanceOf[owner]) * (BPS - EXIT_FEE_BPS)) /
-            BPS;
+        return previewRedeem(balanceOf[owner]);
     }
 }
