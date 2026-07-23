@@ -20,8 +20,14 @@ deployAllContracts() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
+  # Preserve a caller-provided VERIFY_CONTRACTS override before sourcing .env: otherwise a
+  # `VERIFY_CONTRACTS=true` in .env silently re-enables inline verification that the caller
+  # (e.g. the deploy-network Phase-1 command) explicitly asked to turn off.
+  local VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS:-}"
+
   # load env variables
   source .env
+  [[ -n "$VERIFY_CONTRACTS_OVERRIDE" ]] && VERIFY_CONTRACTS="$VERIFY_CONTRACTS_OVERRIDE"
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -119,6 +125,7 @@ deployAllContracts() {
       bun fetch-rpcs
       # reload .env file to have the new RPC URL available
       source .env
+      [[ -n "$VERIFY_CONTRACTS_OVERRIDE" ]] && VERIFY_CONTRACTS="$VERIFY_CONTRACTS_OVERRIDE"
     fi
 
     # get deployer wallet balance

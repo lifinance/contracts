@@ -2566,9 +2566,18 @@ function verifyNetworkContractsParallel() {
 
   # Verification concurrency is intentionally lower than MAX_CONCURRENT_JOBS: block explorers
   # rate-limit aggressively. Each verifyContract already retries with backoff on 429/gateway.
-  local CONCURRENCY=${VERIFICATION_MAX_CONCURRENT_JOBS:-4}
-  if [[ -n "$MAX_CONCURRENT_JOBS" && "$MAX_CONCURRENT_JOBS" -lt "$CONCURRENCY" ]]; then
-    CONCURRENCY=$MAX_CONCURRENT_JOBS
+  local CONCURRENCY="${VERIFICATION_MAX_CONCURRENT_JOBS:-4}"
+  local MAX_JOBS="${MAX_CONCURRENT_JOBS:-}"
+  if ! [[ "$CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
+    error "VERIFICATION_MAX_CONCURRENT_JOBS must be a positive integer"
+    return 1
+  fi
+  if [[ -n "$MAX_JOBS" ]]; then
+    if ! [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+      error "MAX_CONCURRENT_JOBS must be a positive integer"
+      return 1
+    fi
+    (( MAX_JOBS < CONCURRENCY )) && CONCURRENCY="$MAX_JOBS"
   fi
 
   local WORK_DIR
@@ -2631,8 +2640,13 @@ function verifyNetworkContractsParallel() {
       SOLC_VERSION=$(echo "$ENTRY" | jq -r '.SOLC_VERSION // empty')
       EVM_VERSION=$(echo "$ENTRY" | jq -r '.EVM_VERSION // empty')
       ZK_SOLC_VERSION=$(echo "$ENTRY" | jq -r '.ZK_SOLC_VERSION // empty')
-      logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"
-      OK=$((OK + 1))
+      if logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"; then
+        OK=$((OK + 1))
+      else
+        # Contract is verified on-chain, but the log's VERIFIED flag didn't persist (e.g. MongoDB
+        # unavailable) — surface it so the summary doesn't claim success while state stays stale.
+        FAILED+=("$CONTRACT ($ADDRESS): verified but log update failed")
+      fi
     else
       FAILED+=("$CONTRACT ($ADDRESS)")
     fi

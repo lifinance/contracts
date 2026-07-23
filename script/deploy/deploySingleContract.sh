@@ -263,20 +263,31 @@ deploySingleContract() {
   # execute script
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
-  # Reset before the loop so a value leaked from a previous contract can never wrongly trigger the
-  # short-circuit below (deploySingleContract is called in a loop by deployFacetAndAddToDiamond).
+  # Reset before the loop so values leaked from a previous contract can never (a) wrongly trigger the
+  # short-circuit below, or (b) feed the constructor-arg extraction if the loop is skipped
+  # (deploySingleContract is called in a loop by deployFacetAndAddToDiamond; RAW_RETURN_DATA is global).
   ADDRESS=""
+  RAW_RETURN_DATA=""
+  CONSTRUCTOR_ARGS_FROM_LOG=""
 
   # Short-circuit already-deployed contracts (opt out with SKIP_IF_ALREADY_DEPLOYED=false).
   # DEPLOYSALT includes the compiled bytecode, so the predicted CREATE3 address is version-specific:
   # if it already has code (NEW_DEPLOYMENT=="true"), this exact contract+version is already deployed
   # and running the forge script would only fork the RPC (~dozens of calls) to no-op. Reuse the
-  # deployed address and skip the loop; the log-matching further below supplies the constructor args.
+  # deployed address and skip the loop.
   # A version bump changes the bytecode -> a different salt/address with no code -> deploys normally.
   # (Only the non-zkEVM CREATE3 path sets NEW_DEPLOYMENT, so this naturally never fires on zkEVM.)
   if [[ "${SKIP_IF_ALREADY_DEPLOYED:-true}" == "true" && "$NEW_DEPLOYMENT" == "true" ]]; then
     echo "[info] $CONTRACT already deployed at $CONTRACT_ADDRESS (version-specific CREATE3 salt) - skipping forge deployment"
     ADDRESS="$CONTRACT_ADDRESS"
+    # No forge run means no fresh RAW_RETURN_DATA to parse; recover this contract's constructor args
+    # from its existing log entry so a still-pending verification uses the correct args (not a stale
+    # blob from the previous contract, nor an empty fallback that would fail verification).
+    local SKIP_LOG_ENTRY
+    SKIP_LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    if [[ $? -eq 0 ]]; then
+      CONSTRUCTOR_ARGS_FROM_LOG=$(echo "$SKIP_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS // empty")
+    fi
   fi
 
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ] && [[ -z "$ADDRESS" ]]; do
@@ -432,16 +443,21 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
-  local JSON_DATA
-  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
-  
-  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
-  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  # A skipped deployment has no fresh RAW_RETURN_DATA; use the args recovered from the log entry.
+  if [[ -z "$RAW_RETURN_DATA" ]]; then
+    CONSTRUCTOR_ARGS="${CONSTRUCTOR_ARGS_FROM_LOG:-0x}"
+  else
+    # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+    local JSON_DATA
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+
+    # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+    if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+    fi
+
+    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   fi
-  
-  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
   CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"

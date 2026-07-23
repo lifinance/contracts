@@ -116,9 +116,10 @@ START_STAGE=<N> END_STAGE=<N> NON_INTERACTIVE=true VERIFY_CONTRACTS=false \
 grep -c "STAGE <N> completed" /tmp/stage<N>.log   # 1 = advance; 0 = inspect/re-run
 ```
 
-(`VERIFY_CONTRACTS=false` is in `.env`, so to truly disable inline verification either edit `.env`
-for the run or rely on the Phase-2 sweep; deploying verification-off avoids inline `--watch`
-blocking and Blockscout indexing-lag failures.)
+(`deployAllContracts` preserves a caller-provided `VERIFY_CONTRACTS` across its `source .env`, so
+the inline `VERIFY_CONTRACTS=false` above genuinely disables verification even when `.env` sets it
+to `true` — no need to edit `.env`. Deploying verification-off avoids inline `--watch` blocking and
+Blockscout indexing-lag failures; verify in the Phase-2 sweep instead.)
 
 - **Marker present** → advance to N+1. **Absent** → re-run the same stage (idempotent; heavy
   stage 5 may need a few re-runs). Cap ~5; then stop + surface with the log.
