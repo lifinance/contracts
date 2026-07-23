@@ -1,7 +1,7 @@
 ---
 name: eip7702-atomic-batch
 usage: /eip7702-atomic-batch --config <path.json> [--broadcast]
-description: Run one or more contract calls atomically from an EOA using an EIP-7702 sponsored transaction. The EOA ("authority") signs an off-chain 7702 authorization delegating its code to the canonical Multicall3 (0xcA11…, same address on every EVM chain), and a "sponsor" account submits and pays for a single type-4 transaction that runs Multicall3.aggregate3 in the authority's context — so every call executes with `msg.sender == authority`, all-or-nothing. Use whenever you need to (a) batch several actions that must succeed or fail together as one EOA (e.g. approve+call, transfer+register), or (b) get a transaction out of an EOA that CANNOT hold gas — a gas-starved key, or a COMPROMISED key being drained by a sweeper bot — because in the sponsored shape the authority never needs a native balance and there is no funding tx for a bot to front-run. Concretely: "transfer ownership from the compromised old deployer without the sweeper stealing the gas", "batch these calls atomically", "sponsor a gasless tx for this EOA", "the sweeper keeps taking the gas before my tx lands". EVM chains with EIP-7702 live only (Ethereum + most L2s post-Pectra: arbitrum, polygon, bsc, base, optimism, …). NOT for Tron (use `interact-tron`), and NOT a substitute for Safe/timelock governance flows.
+description: Run one or more contract calls atomically from an EOA via an EIP-7702 sponsored transaction — the EOA ("authority") only signs an off-chain authorization while a separate "sponsor" account pays for and sends a single type-4 tx that executes the calls with `msg.sender == authority`, all-or-nothing. Use whenever you need to (a) batch several actions that must succeed or fail together as one EOA (e.g. approve+call, transfer+register, migrate+verify), or (b) get a transaction out of an EOA that CANNOT hold gas — a gas-starved key, or a COMPROMISED key being drained by a sweeper bot — because the authority never needs a native balance and there is no funding tx for a bot to front-run. Concretely: "transfer ownership from the compromised old deployer without the sweeper stealing the gas", "the sweeper keeps taking the gas before my tx lands", "batch these calls atomically as this wallet", "sponsor a gasless tx for this EOA", "run approve then deposit in one atomic tx". EVM chains with EIP-7702 live only (Ethereum + most L2s post-Pectra: arbitrum, polygon, bsc, base, optimism, …). NOT for Tron (use `interact-tron`), and NOT a way to bypass Safe/timelock governance flows.
 ---
 
 # EIP-7702 Atomic Batch (sponsored EOA execution)
@@ -87,6 +87,20 @@ Flags: `--broadcast` (send; otherwise dry-run), `--config <path>`, and
   with an audited delegate — see "Choosing the delegate" below.
 - `calls[]` — each is `{ target, function, args }` (human-readable signature) **or**
   `{ target, data }` (raw calldata). Executed atomically in order.
+
+**Self-batch example** (one wallet runs approve + deposit atomically — omit
+`authorityKeyEnv`, so the sponsor *is* the authority and signs with `executor: 'self'`):
+
+```json
+{
+  "network": "base",
+  "sponsorKeyEnv": "PRIVATE_KEY_PRODUCTION",
+  "calls": [
+    { "target": "0xUSDC", "function": "approve(address,uint256)", "args": ["0xVault", "1000000"] },
+    { "target": "0xVault", "function": "deposit(uint256)", "args": ["1000000"] }
+  ]
+}
+```
 
 ## Choosing the delegate: Multicall3 vs a custom executor (decide with the user)
 
