@@ -15,8 +15,8 @@
  *   - self       (authorityKeyEnv omitted / == sponsorKeyEnv): one EOA batches its own
  *     calls atomically.
  *
- * DRY-RUN by default (simulates every call + signs the auth + estimates the tx, sends
- * nothing). Pass --broadcast to execute.
+ * DRY-RUN by default (signs the auth, simulates the whole authorized batch + estimates the
+ * tx, sends nothing). Pass --broadcast to execute.
  *
  * After a successful batch the authority is UNDELEGATED by default (a second sponsored
  * tx resets its code to empty), so no open delegate is left behind — an open delegate on
