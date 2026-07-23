@@ -1,7 +1,7 @@
 # Diamond Health Check (all production networks)
 # - Read-only companion to the per-network health check: runs script/deploy/healthCheck.ts across
 #   EVERY production network (mainnet + active) via script/deploy/healthCheckAllNetworks.ts and posts
-#   ONE consolidated Slack status per run that checks something (see the Slack note below). It
+#   ONE consolidated Slack status ONLY when a run surfaces an issue (see the Slack note below). It
 #   asserts the live on-chain invariants encoded in
 #   script/deploy/healthCheckInvariants.ts — including the Executor↔ERC20Proxy binding whose drift
 #   caused bug bounty #292 (Executor pointed at a retired proxy on Optimism + opBNB).
@@ -16,12 +16,12 @@
 #     * workflow_dispatch — manual run / drill
 #   Deliberately NOT run on pull_request: live on-chain checks must not gate PRs (see
 #   deploymentAddressConsistency.yml for the static PR tier).
-# - Slack: ONE consolidated status (pass = green, fail = red + the failing network list, plus a link to
-#   the run), so a green day is confirmed and a silently-broken cron shows up as a MISSING message.
-#   Exception: a push run whose changed deploy logs map to ZERO production networks (e.g. a
-#   staging-only deploy) checked nothing, so it stays silent — a "0/0 passed" post would be pure
-#   noise. The cron/dispatch heartbeat is unaffected (the full fleet is never empty), so the
-#   MISSING-message signal for a broken cron still holds.
+# - Slack: SIGNAL-ONLY. A message is posted only when a run surfaces something actionable — a failed
+#   network or runner error (:rotating_light: ACTION NEEDED) or a network that passed with warnings
+#   (:warning:). Fully-green runs, and the staging-only no-op push that resolves zero production
+#   networks, stay SILENT so the channel carries only issues, not routine confirmations.
+#   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
+#   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by viem
 #   transport retries and a one-shot re-verify of each fatal invariant before a network is marked failed.
 
@@ -129,16 +129,16 @@ jobs:
             exit 1
           fi
 
-      # Build ONE consolidated Slack message and post it below. Runs on every trigger (schedule,
-      # push-to-main, manual) unless the job was cancelled, so a healthy run is confirmed and a
-      # silently-broken cron shows up as a MISSING message.
-      # Skipped only when the run checked nothing: a push whose changed deploy logs map to zero
-      # production networks exits success with total=0 (staging-only deploy), and a "0/0 passed"
-      # post is pure noise. This never masks a real problem — the "no production networks resolved"
-      # error path exits non-zero (outcome=failure), and cron/dispatch always sweep total>0.
+      # Build and post a Slack message ONLY when the run surfaces something actionable: a failed
+      # network or a runner error (outcome=failure), or a network that passed WITH warnings
+      # (warned_count != 0). A fully-green run — and the staging-only no-op push that resolves zero
+      # production networks (success, warned_count=0) — stays silent to keep the channel signal-only.
+      # Trade-off: there is no longer a positive green heartbeat, so a silently-broken cron (never
+      # fired, or died before this step) no longer self-announces as a MISSING message; track cron
+      # liveness separately if that dead-man's-switch is needed.
       - name: Compose health-check status message
         id: status_msg
-        if: ${{ !cancelled() && !(steps.healthcheck.outcome == 'success' && steps.healthcheck.outputs.total == '0') }}
+        if: ${{ !cancelled() && (steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
         env:
           GH_TOKEN: ${{ github.token }}
           OUTCOME: ${{ steps.healthcheck.outcome }}
@@ -184,7 +184,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify Slack with health-check status
-        if: ${{ !cancelled() && !(steps.healthcheck.outcome == 'success' && steps.healthcheck.outputs.total == '0') }}
+        if: ${{ !cancelled() && (steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
