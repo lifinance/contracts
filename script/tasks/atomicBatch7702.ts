@@ -44,6 +44,7 @@ import {
   getAddress,
   encodeFunctionData,
   parseAbi,
+  zeroAddress,
   type Address,
   type Hex,
 } from 'viem'
@@ -72,6 +73,10 @@ interface IBatchConfig {
 
 const argv = process.argv.slice(2)
 const BROADCAST = argv.includes('--broadcast')
+// Auto-clear the delegation after the batch by default. An open delegate (e.g.
+// Multicall3) left on a funded account is drainable by anyone, so we undelegate unless
+// the caller explicitly wants the delegation to persist (a restricted delegate).
+const KEEP_DELEGATION = argv.includes('--keep-delegation')
 const configPath =
   argv.find((a) => a.startsWith('--config='))?.split('=')[1] ||
   (argv.includes('--config') ? argv[argv.indexOf('--config') + 1] : '')
@@ -232,5 +237,38 @@ async function main() {
       ? '✅ batch executed atomically'
       : '✗ tx reverted — investigate'
   )
+
+  // Clear the delegation unless asked to keep it. Leaving an open delegate (Multicall3)
+  // on the authority lets anyone drive it afterwards — dangerous for a funded account.
+  if (rcpt.status === 'success' && !KEEP_DELEGATION) {
+    console.log('\n→ clearing delegation (authorization -> zero address) ...')
+    const clearAuth = await wallet.signAuthorization({
+      account: authority,
+      contractAddress: zeroAddress,
+    })
+    const clearHash = await wallet.sendTransaction({
+      authorizationList: [clearAuth],
+      to: authority.address,
+      data: '0x',
+    })
+    await pub.waitForTransactionReceipt({
+      hash: clearHash,
+      pollingInterval: 200,
+    })
+    const codeAfter =
+      (await pub.getCode({ address: authority.address })) || '0x'
+    console.log(
+      codeAfter === '0x'
+        ? `  ✅ delegation cleared (tx ${clearHash})`
+        : `  ⚠ delegation still present (${codeAfter.slice(
+            0,
+            24
+          )}) — re-run undelegate`
+    )
+  } else if (KEEP_DELEGATION) {
+    console.log(
+      '\n⚠ --keep-delegation set: authority remains delegated. Ensure the delegate is access-restricted (Multicall3 is NOT).'
+    )
+  }
 }
 main()

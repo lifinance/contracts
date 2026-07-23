@@ -60,6 +60,9 @@ NODE_PATH=./node_modules bunx tsx script/tasks/atomicBatch7702.ts --config ./bat
 Requires `bun`, the relevant keys in `.env`, and an RPC (resolves
 `ETH_NODE_URI_<NETWORK>` first, else `networks.json` `rpcUrl`).
 
+Flags: `--broadcast` (send; otherwise dry-run), `--config <path>`, and
+`--keep-delegation` (skip the automatic undelegate — see the delegate section below).
+
 ## Config JSON
 
 ```json
@@ -79,9 +82,37 @@ Requires `bun`, the relevant keys in `.env`, and an RPC (resolves
 - `authorityKeyEnv` — env var of the EOA whose behalf the calls run on. **Omit it (or set
   it equal to `sponsorKeyEnv`) for a self-batch** where one EOA batches its own calls; the
   engine then signs with `executor: 'self'`.
-- `delegate` — optional; defaults to Multicall3. Only override with an audited delegate.
+- `delegate` — optional; defaults to the canonical **Multicall3**
+  (`0xcA11bde05977b3631167028862bE2a173976CA11`, hardcoded in the engine). Only override
+  with an audited delegate — see "Choosing the delegate" below.
 - `calls[]` — each is `{ target, function, args }` (human-readable signature) **or**
   `{ target, data }` (raw calldata). Executed atomically in order.
+
+## Choosing the delegate: Multicall3 vs a custom executor (decide with the user)
+
+**Always raise this before broadcasting** — it's a security decision, not a default to
+assume. `aggregate3` on Multicall3 has **no access control**: while an EOA is delegated to
+it, *anyone* can call the EOA's `aggregate3` and execute arbitrary calls as that EOA. That
+is acceptable **only** for an account with nothing left to lose during the delegation
+window; it is dangerous for a funded/privileged one.
+
+| | **Multicall3 (default)** | **Custom restricted executor** |
+|---|---|---|
+| Setup | none — deployed at the same address on every chain | must write + **audit** + deploy a contract |
+| Access control | none (open) | caller-checked (`msg.sender == sponsor`) or signature-verifying |
+| Safe to leave delegated? | **No** | Yes |
+| Best for | empty / throwaway / already-compromised keys, **with auto-undelegate** | funded/privileged accounts, or a delegation meant to persist |
+
+Rule of thumb to confirm with the user:
+
+- **Account is empty / compromised / throwaway, one-shot batch** → Multicall3 + the default
+  auto-undelegate is sufficient (this was the EXSC-660 case).
+- **Account holds funds or privileges, or the delegation should persist** → do **not** use
+  Multicall3. Use a restricted executor (flag this as a follow-up: it's a new Solidity
+  contract needing its own audit gate before use on production).
+
+If the account is funded and a restricted executor isn't available yet, **stop** and
+surface the tradeoff rather than delegating it to open Multicall3.
 
 ## What the engine does
 
@@ -93,17 +124,25 @@ Requires `bun`, the relevant keys in `.env`, and an RPC (resolves
 5. Estimates the type-4 tx — this is the live check that the chain accepts EIP-7702.
 6. On `--broadcast`: sends the single sponsor-paid type-4 tx, waits for the receipt, and
    reports `success`/revert. Idempotent to re-run (re-simulates first).
+7. **Auto-undelegates** by default: on success it sends a second sponsored type-4 tx with
+   the authorization pointing at the zero address, resetting the authority's code to empty,
+   and verifies `getCode == 0x`. Pass `--keep-delegation` to skip this (only when using a
+   restricted delegate you intend to persist).
 
 ## Safety notes
 
 - **Irreversibility is per-call.** The 7702 mechanism is safe, but the *calls* may not be
   (e.g. OZ single-step `transferOwnership` is final). Review the batch; rely on the dry-run
   simulation.
-- **Lingering delegation.** After the tx the authority's code stays delegated to the
-  delegate until changed. With Multicall3 (no access control) anyone can then call the
-  authority's `aggregate3` acting as it — harmless if the authority holds/owns nothing
-  afterwards. To be clean, follow up with an authorization back to the zero address to
-  undelegate.
+- **Lingering delegation is auto-cleared.** By default the engine undelegates the authority
+  (authorization → zero address) right after the batch, so no open delegate is left behind.
+  Only pass `--keep-delegation` when the delegate is access-restricted and meant to persist.
+  Note there is still a brief window *between* the batch tx and the undelegate tx where an
+  open Multicall3 delegation is drivable by anyone — which is why Multicall3 must only be
+  used on accounts that hold nothing during that window (see "Choosing the delegate").
+- **Compromised keys stay compromised.** Undelegating does not make a leaked-key EOA safe —
+  whoever holds the key can re-delegate it. The durable protection is that the account no
+  longer owns/holds anything (e.g. ownership moved to a safe wallet).
 - **Never** point `delegate` at an unaudited or attacker-controlled contract.
 - **Keys** are read from `.env` and never printed. The authority key for a compromised
   wallet is used only to sign the off-chain authorization.
