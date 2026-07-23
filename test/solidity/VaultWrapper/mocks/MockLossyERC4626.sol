@@ -70,7 +70,11 @@ contract MockLossyERC4626 is ERC4626 {
     ///      `LiFiVaultWrapper.maxRedeem` does) must see byte-identical numbers, or an
     ///      off-the-fee-grid balance can make two independently-rounded formulas for
     ///      the "same" fee-net value disagree by a wei with no real liquidity
-    ///      shortfall behind it.
+    ///      shortfall behind it. This redeem-basis honesty is an exact-in/exact-out
+    ///      tradeoff: off the fee grid, `previewWithdraw(maxWithdraw(owner))` can
+    ///      exceed `owner`'s share balance by one, since this `maxWithdraw` is not
+    ///      derived from the exact-out `previewWithdraw` it would need to match to be
+    ///      exact-out-honest too — that flavor lives in `MockLossyCappedERC4626`.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {

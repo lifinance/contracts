@@ -30,6 +30,70 @@ withdrawal.
   entry, share transfers, and exits.
 - Pause is enforced on the deposit/mint path only; withdrawals stay open.
 
+## Exit semantics
+
+`redeem` (exact-in, share-sourced) and `withdraw` (exact-out, asset-sourced)
+tolerate a misbehaving yield source differently:
+
+- **`redeem`** is loss-tolerant: it burns the shares, realizes their valuation
+  from the source via the adapter's `withdrawUpTo`, and pays out whatever the
+  source actually delivered. The withdrawal fee is charged on the ACTUAL
+  proceeds (not the nominal target), so a shortfall shrinks fee and payout
+  together rather than reverting the whole exit. Actual proceeds are both the
+  return value and the `Withdraw` event amount. `previewRedeem` mirrors the
+  same realizable math, so an honest source still previews exactly what
+  `redeem` pays, and the EIP-5143 `redeem` overload bounds the caller's
+  exposure to a lying one. When the burn empties `totalSupply`, both `redeem`
+  and `previewRedeem` switch to a full-drain sweep of the whole position
+  instead of the floor-rounded value of the finite target — leaving no
+  valueful residue behind an empty vault, which would otherwise recreate the
+  supply-zero/assets-positive inflation-attack precondition. A last-share exit
+  whose whole-position value itself floors below 1 wei can still leave
+  sub-wei residue; it is bounded, accrues to the next depositor, and stays
+  behind the same inflation guards.
+- **`withdraw`** stays strict: it targets an exact asset amount and reverts
+  `AdapterWithdrawShortfall` if the source pays less. `previewWithdraw` is
+  cost-aware — it prices the share burn off the position value the source
+  will actually consume to deliver the exact amount (`previewWithdrawCost`,
+  which grosses up for a source-side exit fee), so the exiting caller pays
+  their own exit cost via a larger share burn instead of diluting the
+  remaining holders.
+
+`maxWithdraw`/`maxRedeem` are liquidity- and realizability-aware: each
+candidate is FORWARD-VERIFIED through the exact preview its entrypoint
+executes (`previewWithdraw`/`previewRedeem`), so the reported ceiling never
+lets a caller's next call revert on that basis — it may under-report by a wei
+rather than over-report. Both are fail-soft: a broken source-side limit view
+reads as closed (0), including `maxRedeem` returning 0 when the source's
+liquidity view itself reads 0 — a deliberate fail-closed posture even for a
+dust-sized position. `maxDeposit`/`maxMint` are fail-soft the same way (0 on a
+reverting or malformed source cap) and fee-gross a positive cap while
+preserving the unlimited sentinel. Per EIP-4626, none of the four preview
+functions (`previewDeposit`/`previewMint`/`previewWithdraw`/`previewRedeem`)
+cap at these limits — only the `max*` views do.
+
+A reverting source-side `maxDeposit` view degrades to 0 the same as any other
+fail-soft limit, which means `deposit`/`mint` revert `ERC4626ExceededMaxDeposit`/
+`ERC4626ExceededMaxMint` even if the source's own `deposit` function would have
+worked — the fail-soft-to-0 coupling is deliberate: a source whose limit view
+cannot be trusted is treated as closed rather than risking silent over-deposit.
+
+`totalAssets()` stays valuation-based (the adapter's `convertToAssets` on the
+wrapper's position) rather than realizable — a deliberate asymmetry: exits
+realize what the source can actually deliver and the exiting caller bears any
+exit cost, while share price (and the management/performance fees and
+high-water mark derived from it) stays an upper bound on what a share is
+worth, not a promise of what redeeming it nets on a fee-charging source.
+
+**Residual risks.** A source whose preview functions revert blocks `redeem`
+and the exit-limit views that route through those previews; recovery is a
+beacon upgrade (subsystem governance, 48h timelock). A well-formed source that
+lies in its own favor (over-quoting a preview) can only be bounded by the
+caller's own EIP-5143 overload, not detected by the wrapper. Deposit-side
+share dilution (a source that consumes the full deposited asset but credits
+fewer shares than a standard vault would) is not caught by either exit
+primitive and remains unsupported — it needs a dedicated adapter.
+
 ## Admin role
 
 The per-vault admin is OZ's two-step `owner`

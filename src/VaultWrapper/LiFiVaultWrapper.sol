@@ -45,7 +45,16 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      pays those tracked entitlements out: LI.FI's parts go to the factory's live
 ///      `lifiFeeRecipient`, the integrator's parts are fanned across its 1..50 receiver
 ///      wallets (no re-split happens at distribution). Pause is enforced on the
-///      deposit/mint path only (withdrawals stay open). Access control is a single
+///      deposit/mint path only (withdrawals stay open). Exits split by tolerance:
+///      `redeem` is loss-tolerant and share-sourced, realizing the burned shares'
+///      valuation from the yield source and charging the withdrawal fee on the
+///      ACTUAL proceeds delivered, with a full-drain sweep when the burn empties
+///      `totalSupply` so no valueful residue is left behind an empty vault; `withdraw`
+///      stays strict and exact-out, reverting `AdapterWithdrawShortfall` on a
+///      shortfall instead. Share price (`totalAssets`) stays valuation-based rather
+///      than realizable — a deliberate asymmetry, since the exiting caller bears any
+///      source-side exit cost while it remains an upper bound on a share's worth for
+///      everyone else. Access control is a single
 ///      pluggable `IAccessGate` (`accessGate`, zero = fully permissionless): entry checks
 ///      `isAllowed(receiver)`, holder-to-holder share transfers check
 ///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
@@ -402,9 +411,13 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). The shared
-    ///      `_deposit` seam enforces the post-operation supply floor (see
-    ///      `_enforceSupplyFloor`).
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). A reverting or
+    ///      malformed source-side `maxDeposit` view degrades the same way (see `maxDeposit`),
+    ///      so `super.deposit` reverts `ERC4626ExceededMaxDeposit` even when the source's own
+    ///      `deposit` function would have accepted the assets — deliberate, since a limit view
+    ///      that cannot be trusted is treated as closed rather than risking a silent
+    ///      over-deposit. The shared `_deposit` seam enforces the post-operation supply floor
+    ///      (see `_enforceSupplyFloor`).
     function deposit(
         uint256 assets,
         address receiver
@@ -419,7 +432,9 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). The shared
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). `maxMint` derives from
+    ///      `maxDeposit`, so the same fail-soft-to-0 coupling documented on `deposit` applies
+    ///      here: a reverting source-side `maxDeposit` view blocks `mint` too. The shared
     ///      `_deposit` seam enforces the post-operation supply floor (see
     ///      `_enforceSupplyFloor`).
     function mint(
