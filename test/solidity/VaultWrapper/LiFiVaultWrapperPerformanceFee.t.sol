@@ -270,6 +270,31 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         assertGt(_accruedFeeShares(), 0);
     }
 
+    function test_SetFeeRateEnableAtZeroSupplyIgnoresDonatedPrice() public {
+        _stackWithFactory(0); // performance disabled, no deposits — supply stays 0
+
+        uint256 hwmBefore = wrapper.perfHighWaterMarkPps();
+
+        // Donate underlying shares straight to the wrapper: totalAssets() reports them
+        // as AUM while the real share supply is still zero, so the price per share is
+        // measured against the virtual offset alone and reads far above par.
+        uint256 donation = 1_000e18;
+        asset.mint(address(this), donation);
+        asset.approve(address(underlying), donation);
+        underlying.deposit(donation, address(wrapper));
+
+        assertEq(wrapper.totalSupply(), 0);
+        assertGt(_pps(), hwmBefore);
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Performance, PERF_RATE);
+
+        // The watermark must ignore the donation-inflated price and stay at par;
+        // otherwise it parks permanently above any reachable price and the
+        // performance fee accrues zero for the vault's entire life.
+        assertEq(wrapper.perfHighWaterMarkPps(), hwmBefore);
+    }
+
     function test_SetFeeRateToggleAtTroughCannotLowerWatermark() public {
         _stackWithFactory(PERF_RATE);
         _deposit(alice, DEPOSIT);

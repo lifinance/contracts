@@ -780,7 +780,11 @@ contract LiFiVaultWrapper is
     ///      from disabled re-anchors the watermark UP to the current share price when
     ///      that is higher, so gains made while it was disabled are never charged
     ///      retroactively; it never moves the watermark down, so toggling the fee off
-    ///      and on after a drawdown cannot re-charge the recovery to the old peak.
+    ///      and on after a drawdown cannot re-charge the recovery to the old peak. The
+    ///      re-anchor is skipped while supply is zero: with no holders there is no
+    ///      disabled-period growth to exclude, and the price per share at zero supply is
+    ///      measured against the virtual offset alone, so a dust donation would otherwise
+    ///      park the watermark permanently out of reach.
     /// @param _feeType The fee type to update.
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
     function setFeeRate(
@@ -796,7 +800,9 @@ contract LiFiVaultWrapper is
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
             if (
-                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
+                _feeType == FeeType.Performance &&
+                _feeConfig.rateBps[idx] == 0 &&
+                totalSupply() != 0
             ) {
                 uint192 currentPps = SafeCast.toUint192(
                     LibVaultWrapperMath.pricePerShare(
