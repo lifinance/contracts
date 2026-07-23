@@ -88,6 +88,13 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.maxWithdraw(address(capped), holder), 0);
     }
 
+    function test_MaxViewsFallBackToZeroWhenUnderlyingHasNoCode() public {
+        address eoa = makeAddr("underlyingEoa");
+
+        assertEq(adapter.maxDeposit(eoa, holder), 0);
+        assertEq(adapter.maxWithdraw(eoa, holder), 0);
+    }
+
     /// previewWithdrawUpTo ///
 
     function test_PreviewWithdrawUpToMatchesRequestOnStandardSource() public {
@@ -190,6 +197,40 @@ contract ERC4626AdapterTest is Test {
         // Whole position, 1% source fee carved out.
         assertEq(withdrawn, 99e18);
         assertEq(token.balanceOf(address(harness)), 99e18);
+    }
+
+    function test_WithdrawUpToReturnsZeroOnEmptyPosition() public {
+        uint256 withdrawn = harness.route(
+            address(adapter),
+            abi.encodeCall(
+                IYieldAdapter.withdrawUpTo,
+                (address(token), address(source), 400e18)
+            )
+        );
+
+        assertEq(withdrawn, 0);
+        assertEq(token.balanceOf(address(harness)), 0);
+    }
+
+    function test_WithdrawUpToAtInflatedSharePriceNeverOvershoots() public {
+        _seed(address(source), address(harness), 1_000e18);
+        token.mint(address(source), 333e18); // donation: PPS now non-integer
+
+        uint256 quoted = adapter.previewWithdrawUpTo(
+            address(source),
+            address(harness),
+            400e18
+        );
+        uint256 withdrawn = harness.route(
+            address(adapter),
+            abi.encodeCall(
+                IYieldAdapter.withdrawUpTo,
+                (address(token), address(source), 400e18)
+            )
+        );
+
+        assertEq(withdrawn, quoted);
+        assertLe(withdrawn, 400e18);
     }
 
     /// Helpers ///

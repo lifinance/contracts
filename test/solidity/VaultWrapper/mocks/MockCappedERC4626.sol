@@ -6,7 +6,9 @@ import { ERC4626 } from "solmate/mixins/ERC4626.sol";
 
 /// @notice ERC-4626 vault with a deposit cap and a withdrawal-liquidity cap, both
 ///         reported by its max* views and enforced on execution; the views can also be
-///         toggled to revert, exercising the adapter's fail-soft fallback.
+///         toggled to revert, exercising the adapter's fail-soft fallback. Both caps are
+///         per-call thresholds (the max single deposit/withdrawal amount), not
+///         cumulative budgets that decrement as they're consumed.
 contract MockCappedERC4626 is ERC4626 {
     uint256 public depositCap = type(uint256).max;
     uint256 public liquidity = type(uint256).max;

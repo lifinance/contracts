@@ -45,6 +45,8 @@ contract MockLossyERC4626 is ERC4626 {
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
-        return previewRedeem(balanceOf[owner]);
+        return
+            (super.previewRedeem(balanceOf[owner]) * (BPS - EXIT_FEE_BPS)) /
+            BPS;
     }
 }

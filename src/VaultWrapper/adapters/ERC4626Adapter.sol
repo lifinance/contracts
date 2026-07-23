@@ -97,7 +97,7 @@ contract ERC4626Adapter is IYieldAdapter {
             _underlying,
             abi.encodeCall(IERC4626.maxDeposit, (_holder))
         );
-        return ok ? value : 0;
+        maxAssets = ok ? value : 0;
     }
 
     /// @inheritdoc IYieldAdapter
@@ -109,17 +109,21 @@ contract ERC4626Adapter is IYieldAdapter {
             _underlying,
             abi.encodeCall(IERC4626.maxWithdraw, (_holder))
         );
-        return ok ? value : 0;
+        maxAssets = ok ? value : 0;
     }
 
     /// @inheritdoc IYieldAdapter
+    /// @dev Uses `convertToShares` (floor), not `previewWithdraw` (which grosses shares
+    ///      up on a source that charges an exit fee), so the exiter's own shares absorb
+    ///      their source-side exit cost rather than diluting the remaining holders. See
+    ///      `withdrawUpTo`, which MUST use the same basis for preview/execution parity.
     function previewWithdrawUpTo(
         address _underlying,
         address _holder,
         uint256 _assets
     ) external view returns (uint256 assets) {
         IERC4626 source = IERC4626(_underlying);
-        uint256 shares = source.previewWithdraw(_assets);
+        uint256 shares = source.convertToShares(_assets);
         uint256 held = source.balanceOf(_holder);
         if (shares > held) shares = held;
         if (shares == 0) return 0;
@@ -140,13 +144,15 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
+    /// @dev Uses `convertToShares` (floor) as the share basis — see `previewWithdrawUpTo`
+    ///      for why — so on an honest source this returns AT MOST `_assets`, never more.
     function withdrawUpTo(
         address _asset,
         address _underlying,
         uint256 _assets
     ) external returns (uint256 withdrawn) {
         IERC4626 source = IERC4626(_underlying);
-        uint256 shares = source.previewWithdraw(_assets);
+        uint256 shares = source.convertToShares(_assets);
         uint256 held = source.balanceOf(address(this));
         if (shares > held) shares = held;
         if (shares == 0) return 0;
