@@ -621,6 +621,182 @@ contract LiFiVaultWrapperExitRealizabilityTest is VaultWrapperFeeTestBase {
         w.redeem(maxShares, alice, alice); // must not revert
     }
 
+    /// Conformance fuzz ///
+
+    /// @dev Invariant 5: advertised maxima never over-report across cap/liquidity/fee
+    ///      combinations on an honest capped source — executing every advertised max
+    ///      never reverts.
+    function testFuzz_AdvertisedMaximaNeverRevert(
+        uint256 _depositCap,
+        uint256 _liquidity,
+        uint256 _seedAmount,
+        uint16 _withdrawFeeBps
+    ) public {
+        _depositCap = bound(_depositCap, 1e6, 1_000_000e18);
+        _liquidity = bound(_liquidity, 1e6, 1_000_000e18);
+        _seedAmount = bound(_seedAmount, 1e6, _depositCap);
+        _withdrawFeeBps = uint16(bound(_withdrawFeeBps, 0, 500));
+
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Withdrawal)] = _withdrawFeeBps;
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(capped),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        capped.setDepositCap(_depositCap);
+        _depositTo(w, alice, _seedAmount);
+        capped.setLiquidity(_liquidity);
+
+        uint256 maxDep = w.maxDeposit(bob);
+        if (maxDep != 0 && maxDep != type(uint256).max) {
+            uint256 amount = maxDep > 1_000_000e18 ? 1_000_000e18 : maxDep;
+            asset.mint(bob, amount);
+            vm.startPrank(bob);
+            asset.approve(address(w), amount);
+            w.deposit(amount, bob);
+            vm.stopPrank();
+        }
+
+        uint256 maxW = w.maxWithdraw(alice);
+        if (maxW != 0) {
+            vm.prank(alice);
+            w.withdraw(maxW, alice, alice);
+        }
+        uint256 maxR = w.maxRedeem(alice);
+        if (maxR != 0) {
+            vm.prank(alice);
+            w.redeem(maxR, alice, alice);
+        }
+    }
+
+    /// @dev Invariant 3: preview == execution in the same block on a lossy-but-honest
+    ///      source, for both exit entrypoints, at ragged amounts and fees.
+    function testFuzz_PreviewsMatchExecutionOnLossySource(
+        uint256 _amount,
+        uint256 _exitPart,
+        uint16 _sourceFeeBps,
+        uint16 _withdrawFeeBps
+    ) public {
+        _amount = bound(_amount, 1e12, 1_000_000e18);
+        _sourceFeeBps = uint16(bound(_sourceFeeBps, 0, 1000));
+        _withdrawFeeBps = uint16(bound(_withdrawFeeBps, 0, 500));
+
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Withdrawal)] = _withdrawFeeBps;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, _sourceFeeBps);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, _amount);
+
+        // redeem: returned assets equal the preview exactly.
+        uint256 shares = w.balanceOf(alice);
+        uint256 sharePart = bound(_exitPart, 1, shares);
+        uint256 quotedAssets = w.previewRedeem(sharePart);
+
+        vm.prank(alice);
+        uint256 paid = w.redeem(sharePart, alice, alice);
+
+        assertEq(paid, quotedAssets, "redeem != previewRedeem");
+
+        // withdraw: burned shares equal the preview exactly.
+        uint256 maxW = w.maxWithdraw(alice);
+        if (maxW == 0) return;
+        uint256 assetsOut = bound(_exitPart, 1, maxW);
+        uint256 quotedShares = w.previewWithdraw(assetsOut);
+
+        vm.prank(alice);
+        uint256 burned = w.withdraw(assetsOut, alice, alice);
+
+        assertEq(burned, quotedShares, "withdraw != previewWithdraw");
+        assertEq(asset.balanceOf(alice), paid + assetsOut);
+    }
+
+    /// @dev Invariant 4: an exiting user cannot dilute remaining holders through
+    ///      either exit path on a lossy source.
+    function testFuzz_ExitsNeverDiluteRemainingHolders(
+        uint256 _amount,
+        uint256 _exitPart,
+        uint16 _sourceFeeBps
+    ) public {
+        _amount = bound(_amount, 1e12, 1_000_000e18);
+        _sourceFeeBps = uint16(bound(_sourceFeeBps, 0, 1000));
+
+        FeeConfig memory fees;
+        MockLossyERC4626 lossy = new MockLossyERC4626(asset, _sourceFeeBps);
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(lossy),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, _amount);
+        _depositTo(w, bob, _amount);
+
+        uint256 bobBefore = w.previewRedeem(w.balanceOf(bob));
+
+        // withdraw leg
+        uint256 maxW = w.maxWithdraw(alice);
+        if (maxW != 0) {
+            uint256 assetsOut = bound(_exitPart, 1, maxW);
+            vm.prank(alice);
+            w.withdraw(assetsOut, alice, alice);
+        }
+
+        // redeem leg (whatever alice has left)
+        uint256 aliceShares = w.balanceOf(alice);
+        if (aliceShares != 0) {
+            uint256 sharePart = bound(_exitPart, 1, aliceShares);
+            vm.prank(alice);
+            w.redeem(sharePart, alice, alice);
+        }
+
+        // Bob's realizable value never drops by more than rounding dust.
+        assertGe(w.previewRedeem(w.balanceOf(bob)) + 2, bobBefore);
+    }
+
+    /// @dev Invariants 1+5 on a source that is BOTH lossy and liquidity-capped, at
+    ///      ragged amounts: the advertised maxima stay executable and exits never brick.
+    function testFuzz_ExitLimitsExecutableOnLossyCappedSource(
+        uint256 _amount,
+        uint256 _liquidity,
+        uint16 _sourceFeeBps,
+        uint16 _withdrawFeeBps
+    ) public {
+        _amount = bound(_amount, 1e12, 1_000_000e18);
+        _liquidity = bound(_liquidity, 1e6, 1_000_000e18);
+        _sourceFeeBps = uint16(bound(_sourceFeeBps, 0, 1000));
+        _withdrawFeeBps = uint16(bound(_withdrawFeeBps, 0, 500));
+
+        FeeConfig memory fees;
+        fees.rateBps[uint8(FeeType.Withdrawal)] = _withdrawFeeBps;
+        MockLossyCappedERC4626 source = new MockLossyCappedERC4626(
+            asset,
+            _sourceFeeBps
+        );
+        LiFiVaultWrapper w = _newWrapperFor(
+            address(source),
+            fees,
+            [SPLIT, SPLIT, SPLIT, SPLIT]
+        );
+        _depositTo(w, alice, _amount);
+        source.setLiquidity(_liquidity);
+
+        uint256 maxW = w.maxWithdraw(alice);
+        if (maxW != 0) {
+            vm.prank(alice);
+            w.withdraw(maxW, alice, alice);
+        }
+
+        uint256 maxR = w.maxRedeem(alice);
+        if (maxR != 0) {
+            vm.prank(alice);
+            w.redeem(maxR, alice, alice);
+        }
+    }
+
     /// Helpers ///
 
     event Withdraw(
