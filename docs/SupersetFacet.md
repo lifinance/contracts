@@ -6,19 +6,25 @@ The Superset Facet bridges tokens through Superset's hub-and-spoke virtual pools
 Liquidity stays on each spoke chain; pricing and settlement are computed on a
 hub chain (Arbitrum) using Uniswap-V3 math against mirror tokens.
 
+Same-chain swaps are also supported (DEX mode): set
+`bridgeData.destinationChainId` to the source chain id. The facet intentionally
+does **not** apply `Validatable.validateBridgeData`'s
+`CannotBridgeToSameNetwork` guard (same pattern as `LiFiIntentEscrowFacet`).
+Superset's `multiHopSwapWithOutputChain` **rejects** a local `toEid`
+(`"cannot target local chain"`), so same-chain routes use different entrypoints.
+
 The same facet is deployed on **both hub and spoke chains** — it auto-detects the
-role at construction time from `block.chainid` (Arbitrum = hub) and routes to
-the matching Superset entrypoint:
+role at construction time from `block.chainid` (Arbitrum = hub) and dispatches:
 
-- **Spoke chains** (Base, Unichain) → `SpokePoolManager.multiHopSwapWithOutputChain`
-  (9-arg ABI; includes `refundAddress` + `options` because the source → hub LZ
-  leg is async).
-- **Hub chain** (Arbitrum) → `HubPoolManager.multiHopSwapWithOutputChain`
-  (7-arg ABI; no `refundAddress`/`options` because the hub processes
-  synchronously on its own chain).
+| Source | Destination | Entrypoint |
+| --- | --- | --- |
+| Spoke | Same spoke | `SpokePoolManager.multiHopSwap` (LZ round-trip via hub; refunds collapse onto `receiver`) |
+| Spoke | Other chain | `SpokePoolManager.multiHopSwapWithOutputChain` |
+| Hub | Hub (DEX) | `HubPoolManager.exactInput` (atomic; omni path converted to a Uniswap-V3 address path on-chain) |
+| Hub | Spoke | `HubPoolManager.multiHopSwapWithOutputChain` |
 
-On both paths, the destination delivery is a LayerZero message from the hub to
-the destination spoke, which transfers the output token to `bridgeData.receiver`.
+On cross-chain and spoke same-chain paths, settlement is async via LayerZero.
+Hub same-chain is atomic in the same transaction.
 
 ```mermaid
 graph LR;
@@ -49,7 +55,12 @@ After adding mappings to `config/superset.json`, propagate them to every chain w
 
 ## Destination Chain Validation
 
-The facet validates that the backend-supplied `_supersetData.toEid` matches the LayerZero EID stored for `_bridgeData.destinationChainId`. A mismatch reverts with `InvalidConfig`; a destination chain that has not been onboarded reverts with `UnsupportedChainId(chainId)`. This makes the off-chain `(destinationChainId, toEid)` pair structurally consistent with on-chain configuration.
+For **cross-chain** routes the facet validates that the backend-supplied
+`_supersetData.toEid` matches the LayerZero EID stored for
+`_bridgeData.destinationChainId`. A mismatch reverts with `InvalidConfig`; a
+destination chain that has not been onboarded reverts with
+`UnsupportedChainId(chainId)`. Same-chain DEX routes skip the `toEid` check
+(those entrypoints do not take a destination EID).
 
 ## Superset Specific Parameters
 
@@ -271,3 +282,13 @@ To get a transaction for a transfer from 100 USDT on Base to USDC on Unichain yo
 ```shell
 curl 'https://li.quest/v1/quote?fromChain=BAS&fromAmount=100000000&fromToken=USDT&toChain=UNI&toToken=USDC&slippage=0.005&allowBridges=superset&fromAddress={YOUR_WALLET_ADDRESS}'
 ```
+
+### Same-Chain DEX
+
+Once backend DEX routing is live, same-chain Superset quotes use matching
+`fromChain` / `toChain` (and typically `allowExchanges=superset` rather than
+`allowBridges`). Contract-side that maps to
+`bridgeData.destinationChainId == block.chainid`:
+
+- **Spoke source**: still needs LayerZero `options` + `lzFee` (round-trip via hub); `toEid` is ignored.
+- **Hub source**: atomic `exactInput`; `lzFee` should be `0`; `fallbackEoA` / `toEid` / `options` are unused.

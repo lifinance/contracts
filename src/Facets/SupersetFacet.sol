@@ -9,23 +9,44 @@ import { IOmniTokenAddressBook } from "../Interfaces/IOmniTokenAddressBook.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { DeadlineExpired, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { DeadlineExpired, InvalidAmount, InvalidConfig, InvalidReceiver, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 /// @title SupersetFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridges stablecoins via Superset's hub-and-spoke virtual pools
-///         (LayerZero messaging; hub on Arbitrum).
-/// @dev    Same protocol exposes two slightly different ABIs depending on whether
-///         the facet is deployed on the hub chain or on a spoke chain. The branch
-///         is selected by `IS_HUB`, derived once at construction time from
-///         `block.chainid`.
+///         (LayerZero messaging; hub on Arbitrum). Also supports same-chain
+///         swaps (DEX mode) when `bridgeData.destinationChainId == block.chainid`.
+/// @dev    Same protocol exposes different ABIs depending on (hub vs spoke) ×
+///         (same-chain vs cross-chain). Role is selected by `IS_HUB` (derived
+///         once at construction from `block.chainid`); same-chain is selected
+///         when `bridgeData.destinationChainId == block.chainid`:
+///         - spoke same-chain → `SpokePoolManager.multiHopSwap` (LZ round-trip)
+///         - spoke cross-chain → `SpokePoolManager.multiHopSwapWithOutputChain`
+///         - hub same-chain → `HubPoolManager.exactInput` (atomic; omni path
+///           converted to a Uniswap-V3 address path on-chain)
+///         - hub cross-chain → `HubPoolManager.multiHopSwapWithOutputChain`
 ///         Native source asset is not supported because Superset does not support it.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// @notice Validates bridge data for Superset transfers.
+    /// @dev Does not enforce a same-network guard because same-chain swaps
+    ///      (Superset DEX mode) are supported.
+    /// @param _bridgeData The core information needed for bridging
+    modifier validateBridgeDataSuperset(ILiFi.BridgeData memory _bridgeData) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_bridgeData.minAmount == 0) {
+            revert InvalidAmount();
+        }
+        _;
+    }
+
     /// Constants ///
 
     /// @notice Chain ID of Arbitrum One (the Superset hub).
@@ -33,6 +54,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @dev Byte width of a single packed OmniToken ID at the head of `SupersetData.path`.
     uint256 internal constant OMNI_TOKEN_ID_BYTES = 32;
+
+    /// @dev Byte width of a packed Uniswap-V3 fee tier between path tokens.
+    uint256 internal constant FEE_BYTES = 3;
 
     /// @dev Diamond storage namespace.
     bytes32 internal constant NAMESPACE =
@@ -214,7 +238,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(_supersetData.refundAddress))
-        validateBridgeData(_bridgeData)
+        validateBridgeDataSuperset(_bridgeData)
         noNativeAsset(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -248,7 +272,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(_supersetData.refundAddress))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataSuperset(_bridgeData)
         noNativeAsset(_bridgeData)
     {
         // The bridged token is the last swap's output, so it must match
@@ -281,7 +305,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // preserved against the actual post-swap amount.
         // `_depositAndSwap` reverts when the swap returns less than the floor,
         // so by here `_bridgeData.minAmount >= preSwapMinAmount` and the ratio
-        // never tightens the floor. `validateBridgeData` already rejects
+        // never tightens the floor. `validateBridgeDataSuperset` already rejects
         // `_bridgeData.minAmount == 0`, so `preSwapMinAmount > 0`.
         SupersetData memory modifiedSupersetData = _supersetData;
         modifiedSupersetData.amountOutMin = FixedPointMathLib.mulDiv(
@@ -305,7 +329,20 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         address _sendingAssetId,
         SupersetData calldata _supersetData
     ) internal view {
-        if (_supersetData.path.length < OMNI_TOKEN_ID_BYTES) {
+        bool sameChain = _destinationChainId == block.chainid;
+
+        // At least one hop: omniTokenId(32) || fee(3) || omniTokenId(32).
+        if (
+            _supersetData.path.length <
+            OMNI_TOKEN_ID_BYTES + FEE_BYTES + OMNI_TOKEN_ID_BYTES
+        ) {
+            revert InvalidConfig();
+        }
+        if (
+            (_supersetData.path.length - OMNI_TOKEN_ID_BYTES) %
+                (FEE_BYTES + OMNI_TOKEN_ID_BYTES) !=
+            0
+        ) {
             revert InvalidConfig();
         }
 
@@ -334,17 +371,20 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         // refundAddress also receives source-side excess native and swap leftovers,
-        // so it must be set even on the hub branch where Superset itself ignores it.
+        // so it must be set even on branches where Superset itself ignores it.
         if (_supersetData.refundAddress == address(0)) {
             revert InvalidConfig();
         }
 
-        // Must be a non-zero EOA
-        if (
-            _supersetData.fallbackEoA == address(0) ||
-            _supersetData.fallbackEoA.code.length != 0
-        ) {
-            revert InvalidConfig();
+        // Hub same-chain (`exactInput`) is atomic and has no fallbackEoA.
+        // All other branches require a non-zero pure EOA.
+        if (!(IS_HUB && sameChain)) {
+            if (
+                _supersetData.fallbackEoA == address(0) ||
+                _supersetData.fallbackEoA.code.length != 0
+            ) {
+                revert InvalidConfig();
+            }
         }
 
         if (msg.value < _supersetData.lzFee) {
@@ -355,16 +395,19 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert DeadlineExpired();
         }
 
-        // Ensure backend-supplied `toEid` resolves to the same LayerZero endpoint
-        // as `bridgeData.destinationChainId` would. Reverts `UnsupportedChainId`
-        // if no mapping is configured for the destination chain.
-        if (getChainIdToEid(_destinationChainId) != _supersetData.toEid) {
-            revert InvalidConfig();
+        // Cross-chain only: bind backend `toEid` to the configured mapping.
+        // Same-chain entrypoints do not take `toEid` (spoke `multiHopSwap` /
+        // hub `exactInput`); Superset reverts with "cannot target local chain"
+        // if `multiHopSwapWithOutputChain` is called with the local EID.
+        if (!sameChain) {
+            if (getChainIdToEid(_destinationChainId) != _supersetData.toEid) {
+                revert InvalidConfig();
+            }
         }
     }
 
-    /// @dev Bridge execution: approves the pool manager, then calls the hub or spoke
-    ///      ABI depending on `IS_HUB`.
+    /// @dev Bridge/swap execution: approves the pool manager, then dispatches to
+    ///      the matching Superset ABI for (hub|spoke) × (same-chain|cross-chain).
     /// @param _bridgeData Core LI.FI bridge data
     /// @param _supersetData Superset-specific parameters
     function _startBridge(
@@ -377,10 +420,39 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
+        bool sameChain = _bridgeData.destinationChainId == block.chainid;
+
         if (IS_HUB) {
-            // Hub flow: no `refundAddress`/`options` (failures revert synchronously
-            // on the hub; no source → hub LZ leg).
-            ISupersetHubPoolManager(POOL_MANAGER).multiHopSwapWithOutputChain{
+            if (sameChain) {
+                // Atomic hub DEX swap — no LZ fee / messaging.
+                ISupersetHubPoolManager(POOL_MANAGER).exactInput(
+                    ISupersetHubPoolManager.ExactInputParams({
+                        path: _omniPathToLocalAddressPath(_supersetData.path),
+                        recipient: _bridgeData.receiver,
+                        deadline: _supersetData.deadline,
+                        amountIn: _bridgeData.minAmount,
+                        amountOutMinimum: _supersetData.amountOutMin
+                    })
+                );
+            } else {
+                // Hub → spoke: no `refundAddress`/`options` (failures revert
+                // synchronously on the hub; no source → hub LZ leg).
+                ISupersetHubPoolManager(POOL_MANAGER)
+                    .multiHopSwapWithOutputChain{
+                    value: _supersetData.lzFee
+                }({
+                    _path: _supersetData.path,
+                    _amountIn: _bridgeData.minAmount,
+                    _amountOutMin: _supersetData.amountOutMin,
+                    _recipient: _bridgeData.receiver,
+                    _fallbackEoA: _supersetData.fallbackEoA,
+                    _deadline: _supersetData.deadline,
+                    _toEid: _supersetData.toEid
+                });
+            }
+        } else if (sameChain) {
+            // Spoke → hub → same spoke. Refunds collapse onto `receiver`.
+            ISupersetSpokePoolManager(POOL_MANAGER).multiHopSwap{
                 value: _supersetData.lzFee
             }({
                 _path: _supersetData.path,
@@ -389,7 +461,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _recipient: _bridgeData.receiver,
                 _fallbackEoA: _supersetData.fallbackEoA,
                 _deadline: _supersetData.deadline,
-                _toEid: _supersetData.toEid
+                _options: _supersetData.options
             });
         } else {
             ISupersetSpokePoolManager(POOL_MANAGER)
@@ -407,6 +479,61 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         }
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Converts an OmniToken path (`omniId(32)||fee(3)||…`) to a Uniswap-V3
+    ///      address path (`address(20)||fee(3)||…`) via the hub address book.
+    /// @param _omniPath Packed OmniToken path from `SupersetData.path`
+    /// @return localPath Packed local-address path for `HubPoolManager.exactInput`
+    function _omniPathToLocalAddressPath(
+        bytes memory _omniPath
+    ) internal view returns (bytes memory localPath) {
+        IOmniTokenAddressBook addressBook = ISupersetPoolManager(POOL_MANAGER)
+            .getOmniTokenAddressBook();
+
+        address tokenIn = addressBook.getAddressForOmniToken(
+            _readUint256(_omniPath, 0)
+        );
+        if (tokenIn == address(0)) revert InvalidConfig();
+
+        localPath = abi.encodePacked(tokenIn);
+
+        uint256 offset = OMNI_TOKEN_ID_BYTES;
+        while (offset < _omniPath.length) {
+            uint24 fee = _readUint24(_omniPath, offset);
+            offset += FEE_BYTES;
+
+            address tokenOut = addressBook.getAddressForOmniToken(
+                _readUint256(_omniPath, offset)
+            );
+            offset += OMNI_TOKEN_ID_BYTES;
+
+            if (tokenOut == address(0)) revert InvalidConfig();
+
+            localPath = abi.encodePacked(localPath, fee, tokenOut);
+        }
+    }
+
+    /// @dev Reads a big-endian `uint256` from `_data` at byte `_offset`.
+    function _readUint256(
+        bytes memory _data,
+        uint256 _offset
+    ) private pure returns (uint256 value) {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            value := mload(add(add(_data, 32), _offset))
+        }
+    }
+
+    /// @dev Reads a big-endian `uint24` from `_data` at byte `_offset`.
+    function _readUint24(
+        bytes memory _data,
+        uint256 _offset
+    ) private pure returns (uint24 value) {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            value := shr(232, mload(add(add(_data, 32), _offset)))
+        }
     }
 
     /// @dev Fetches diamond storage.
