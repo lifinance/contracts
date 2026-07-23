@@ -18,8 +18,13 @@
  * DRY-RUN by default (simulates every call + signs the auth + estimates the tx, sends
  * nothing). Pass --broadcast to execute.
  *
+ * After a successful batch the authority is UNDELEGATED by default (a second sponsored
+ * tx resets its code to empty), so no open delegate is left behind — an open delegate on
+ * a funded account is drainable by anyone. Pass --keep-delegation to skip this (only with
+ * an access-restricted delegate meant to persist).
+ *
  * Usage:
- *   bunx tsx script/tasks/atomicBatch7702.ts --config <path.json> [--broadcast]
+ *   bunx tsx script/tasks/atomicBatch7702.ts --config <path.json> [--broadcast] [--keep-delegation]
  *
  * Config JSON:
  *   {
