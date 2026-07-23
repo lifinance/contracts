@@ -177,24 +177,11 @@ async function main() {
     args: [calls3],
   })
 
-  // Simulate every call AS the authority (catches reverts before we sign/spend).
-  for (const [i, c] of calls3.entries()) {
-    try {
-      await pub.call({
-        account: authority.address,
-        to: c.target,
-        data: c.callData,
-      })
-      console.log(`✓ sim call ${i} -> ${c.target} ok`)
-    } catch (e) {
-      console.log(
-        `✗ sim call ${i} -> ${c.target} FAILED: ${errMsg(e).slice(0, 120)}`
-      )
-      return
-    }
-  }
-
-  // Sign the 7702 authorization. executor:'self' only when the authority also sends.
+  // Sign the 7702 authorization FIRST (executor:'self' only when the authority also
+  // sends), so we can simulate the full atomic batch with the delegation applied.
+  // Simulating each call separately against pre-batch state would wrongly fail dependent
+  // batches (e.g. approve then deposit), which only succeed once aggregate3 runs them
+  // together in the authority's context.
   const authorization = await wallet.signAuthorization(
     isSelf
       ? { account: authority, contractAddress: delegate, executor: 'self' }
@@ -203,6 +190,32 @@ async function main() {
   console.log(
     `✓ signed 7702 authorization -> ${delegate} (nonce ${authorization.nonce})`
   )
+
+  // Simulate the whole authorized aggregate3 tx; a revert aborts before we spend.
+  try {
+    await pub.call({
+      account: sponsor,
+      to: authority.address,
+      data: aggregateData,
+      authorizationList: [authorization],
+    })
+    console.log(
+      `✓ simulation: authorized aggregate3 (${calls3.length} call(s)) succeeds`
+    )
+  } catch (e) {
+    const m = errMsg(e)
+    if (/revert/i.test(m)) {
+      console.log(`✗ simulation reverted: ${m.slice(0, 140)}`)
+      return
+    }
+    // Not a revert — likely an RPC that can't eth_call a 7702 tx. Warn, let estimateGas gate.
+    console.log(
+      `⚠ could not simulate (RPC may not support 7702 eth_call): ${m.slice(
+        0,
+        120
+      )}`
+    )
+  }
 
   try {
     const gas = await pub.estimateGas({
@@ -243,9 +256,11 @@ async function main() {
       : '✗ tx reverted — investigate'
   )
 
-  // Clear the delegation unless asked to keep it. Leaving an open delegate (Multicall3)
-  // on the authority lets anyone drive it afterwards — dangerous for a funded account.
-  if (rcpt.status === 'success' && !KEEP_DELEGATION) {
+  // Clear the delegation unless asked to keep it. A 7702 authorization is applied BEFORE
+  // execution and is NOT rolled back if the batch reverts, so a mined-but-reverted tx also
+  // leaves the delegate active — undelegate on any mined batch, not just successful ones.
+  // Leaving an open delegate (Multicall3) lets anyone drive the authority afterwards.
+  if (!KEEP_DELEGATION) {
     console.log('\n→ clearing delegation (authorization -> zero address) ...')
     const clearAuth = await wallet.signAuthorization({
       account: authority,

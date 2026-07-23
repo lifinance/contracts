@@ -132,28 +132,42 @@ surface the tradeoff rather than delegating it to open Multicall3.
 
 1. Resolves the chain/RPC and the sponsor + authority accounts.
 2. Builds a Multicall3 `aggregate3` batch with `allowFailure: false` (atomic).
-3. **Simulates every call as the authority** (`eth_call` with `from = authority`) — aborts
-   before signing/spending if any would revert.
-4. Signs the 7702 authorization (with `executor: 'self'` only in the self-batch shape).
+3. Signs the 7702 authorization (with `executor: 'self'` only in the self-batch shape).
+4. **Simulates the whole authorized `aggregate3`** as one call, with the delegation applied
+   — aborts before spending if it reverts. Simulating each call separately against
+   pre-batch state would wrongly fail dependent batches (e.g. approve→deposit), which only
+   succeed once `aggregate3` runs them together.
 5. Estimates the type-4 tx — this is the live check that the chain accepts EIP-7702.
 6. On `--broadcast`: sends the single sponsor-paid type-4 tx, waits for the receipt, and
-   reports `success`/revert. Idempotent to re-run (re-simulates first).
-7. **Auto-undelegates** by default: on success it sends a second sponsored type-4 tx with
-   the authorization pointing at the zero address, resetting the authority's code to empty,
-   and verifies `getCode == 0x`. Pass `--keep-delegation` to skip this (only when using a
-   restricted delegate you intend to persist).
+   reports `success`/revert. Re-running re-simulates first, but is **not idempotent** — a
+   successful state-changing batch repeats its effects if you run it again.
+7. **Auto-undelegates** by default on any *mined* batch (success or revert — a 7702
+   delegation is applied before execution and is not rolled back on revert): sends a second
+   sponsored tx with the authorization pointing at the zero address, resetting the
+   authority's code to empty, and verifies `getCode == 0x`. Pass `--keep-delegation` to skip
+   (only when using a restricted delegate you intend to persist).
 
 ## Safety notes
 
 - **Irreversibility is per-call.** The 7702 mechanism is safe, but the *calls* may not be
   (e.g. OZ single-step `transferOwnership` is final). Review the batch; rely on the dry-run
   simulation.
+- **Public-mempool front-running of the authorization (Critical for funded authorities).**
+  A signed 7702 authorization binds the authority, delegate, nonce, and signature — but
+  **not the sponsor**. If you `--broadcast` into a public mempool, another actor can lift the
+  authorization from your pending tx and land their own higher-fee sponsored tx first,
+  applying the delegation and — with the open Multicall3 delegate — executing *arbitrary*
+  calls as the authority before your batch runs. For an **empty** authority (the EXSC-660
+  case) there's nothing to steal, so it's safe. For a **funded or privileged** authority,
+  do **not** `--broadcast` to a public mempool: use protected orderflow / a private bundle,
+  and/or a restricted executor instead of open `aggregate3` (see "Choosing the delegate").
 - **Lingering delegation is auto-cleared.** By default the engine undelegates the authority
-  (authorization → zero address) right after the batch, so no open delegate is left behind.
-  Only pass `--keep-delegation` when the delegate is access-restricted and meant to persist.
-  Note there is still a brief window *between* the batch tx and the undelegate tx where an
-  open Multicall3 delegation is drivable by anyone — which is why Multicall3 must only be
-  used on accounts that hold nothing during that window (see "Choosing the delegate").
+  (authorization → zero address) after any *mined* batch — success or revert, since the
+  delegation isn't rolled back on revert — so no open delegate is left behind. Only pass
+  `--keep-delegation` when the delegate is access-restricted and meant to persist. Note the
+  brief window *between* the batch tx and the undelegate tx where an open Multicall3
+  delegation is drivable by anyone — another reason Multicall3 is only for accounts that
+  hold nothing during that window.
 - **Compromised keys stay compromised.** Undelegating does not make a leaked-key EOA safe —
   whoever holds the key can re-delegate it. The durable protection is that the account no
   longer owns/holds anything (e.g. ownership moved to a safe wallet).
