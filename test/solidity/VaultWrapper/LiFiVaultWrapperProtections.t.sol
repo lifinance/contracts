@@ -353,7 +353,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
         // The victim's deposit rounds to zero shares against the inflated price. Without
         // the zero-supply guard this would forward the assets for no shares (100% loss);
-        // the floor must reject it.
+        // the floor must reject it (post-operation supply stays 0).
         uint256 victimDeposit = 1e18;
         asset.mint(victim, victimDeposit);
         vm.startPrank(victim);
@@ -365,6 +365,45 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
                 ILiFiVaultWrapper.SupplyBelowMinimum.selector,
                 0,
                 MIN_SHARE_SUPPLY
+            )
+        );
+
+        wrapper.deposit(victimDeposit, victim);
+        vm.stopPrank();
+    }
+
+    function testRevert_ZeroShareDepositAtParkedSupplyFloor() public {
+        // The supply floor alone does not catch a zero-share deposit: an attacker parks
+        // the supply at exactly MIN_SHARE_SUPPLY with a dust deposit (exits are
+        // floor-exempt, so any supply >= the floor is reachable and holdable), then
+        // donates source shares to inflate the price. A later non-zero deposit rounds to
+        // zero shares while supply stays at the floor, so `_enforceSupplyFloor` passes —
+        // the `shares == 0` guard must reject it, else the assets are forwarded for free.
+        _deposit(attacker, 1);
+        assertEq(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
+
+        MockERC4626 source = MockERC4626(address(underlying));
+        uint256 donated = 3_000_000e18;
+        asset.mint(attacker, donated);
+        vm.startPrank(attacker);
+        asset.approve(address(source), donated);
+        uint256 donatedShares = source.deposit(donated, attacker);
+        source.transfer(address(wrapper), donatedShares);
+        vm.stopPrank();
+
+        assertEq(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
+        assertGt(wrapper.totalAssets(), 0);
+
+        uint256 victimDeposit = 1e18;
+        asset.mint(victim, victimDeposit);
+        vm.startPrank(victim);
+        asset.approve(address(wrapper), victimDeposit);
+        assertEq(wrapper.previewDeposit(victimDeposit), 0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.ZeroSharesMinted.selector,
+                victimDeposit
             )
         );
 
