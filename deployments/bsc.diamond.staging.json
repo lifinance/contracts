@@ -60,6 +60,10 @@
       "0x0610B9614E3B7352afd98eE5F3520b9222CCBe87": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.2.0"
       }
     },
     "Periphery": {

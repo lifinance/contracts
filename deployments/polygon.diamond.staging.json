@@ -56,6 +56,10 @@
       "0xEB6803A40B8350286e1E8684068E28c5c57a94AE": {
         "Name": "MayanFacet",
         "Version": "1.3.0"
+      },
+      "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.2.0"
       }
     },
     "Periphery": {
