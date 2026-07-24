@@ -15,6 +15,12 @@ deploySingleContract() {
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
 
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported override BEFORE sourcing .env
+  # (see deployAllContracts). The verify gate below consults VERIFY_CONTRACTS_OVERRIDE, which
+  # .env never sets, so an inline `VERIFY_CONTRACTS=false` survives this (and any parent's)
+  # re-source. The `:-` guard preserves a value already promoted by an outer caller.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load env variables
   source .env
 
@@ -281,8 +287,43 @@ deploySingleContract() {
   # execute script
   attempts=1
   ADDRESS_COLLISION_DETECTED=false
+  # Reset before the loop so values leaked from a previous contract can never (a) wrongly trigger the
+  # short-circuit below, or (b) feed the constructor-arg extraction if the loop is skipped
+  # (deploySingleContract is called in a loop by deployFacetAndAddToDiamond; RAW_RETURN_DATA is global).
+  ADDRESS=""
+  RAW_RETURN_DATA=""
+  CONSTRUCTOR_ARGS_FROM_LOG=""
 
-  while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ]; do
+  # Short-circuit already-deployed contracts (opt out with SKIP_IF_ALREADY_DEPLOYED=false).
+  # DEPLOYSALT includes the compiled bytecode, so the predicted CREATE3 address is version-specific:
+  # if it already has code (NEW_DEPLOYMENT=="true"), this exact contract+version is already deployed
+  # and running the forge script would only fork the RPC (~dozens of calls) to no-op. Reuse the
+  # deployed address and skip the loop.
+  # A version bump changes the bytecode -> a different salt/address with no code -> deploys normally.
+  # (Only the non-zkEVM CREATE3 path sets NEW_DEPLOYMENT, so this naturally never fires on zkEVM.)
+  if [[ "${SKIP_IF_ALREADY_DEPLOYED:-true}" == "true" && "$NEW_DEPLOYMENT" == "true" ]]; then
+    echo "[info] $CONTRACT already deployed at $CONTRACT_ADDRESS (version-specific CREATE3 salt) - skipping forge deployment"
+    ADDRESS="$CONTRACT_ADDRESS"
+    # No forge run means no fresh RAW_RETURN_DATA to parse; recover this contract's constructor args
+    # from its existing log entry so a still-pending verification uses the correct args (not a stale
+    # blob from the previous contract, nor an empty fallback that would fail verification).
+    local SKIP_LOG_ENTRY
+    SKIP_LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
+    if [[ $? -eq 0 ]]; then
+      CONSTRUCTOR_ARGS_FROM_LOG=$(echo "$SKIP_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS // empty")
+    fi
+    # If no constructor args could be recovered — no master-log entry (e.g. a prior run crashed
+    # after broadcast but before logging, or Mongo was unreachable), or the entry has none — the
+    # extraction below falls back to CONSTRUCTOR_ARGS="0x" and the log write persists that
+    # placeholder. That is fine for a contract with no constructor args, but for one WITH args the
+    # Phase-2 verification sweep (which reads args from the log) then fails forever with no hint.
+    # Warn loudly so the operator can correct the logged args before verifying.
+    if [[ -z "$CONSTRUCTOR_ARGS_FROM_LOG" ]]; then
+      warning "$CONTRACT is already deployed at $CONTRACT_ADDRESS but no constructor args could be recovered from the master log (missing or incomplete log entry). A placeholder CONSTRUCTOR_ARGS=0x will be logged for this address. If $CONTRACT has constructor args, its Phase-2 verification will FAIL until you correct CONSTRUCTOR_ARGS in the deployment log."
+    fi
+  fi
+
+  while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ] && [[ -z "$ADDRESS" ]]; do
     echo "[info] trying to deploy $CONTRACT now - attempt ${attempts} (max attempts: $MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT) "
 
     # ensure that gas price is below maximum threshold (for mainnet only)
@@ -434,16 +475,21 @@ deploySingleContract() {
   fi
 
   # extract constructor arguments from return data
-  # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
-  local JSON_DATA
-  JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
-  
-  # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
-  if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
-    JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+  # A skipped deployment has no fresh RAW_RETURN_DATA; use the args recovered from the log entry.
+  if [[ -z "$RAW_RETURN_DATA" ]]; then
+    CONSTRUCTOR_ARGS="${CONSTRUCTOR_ARGS_FROM_LOG:-0x}"
+  else
+    # Use sed to handle multi-line JSON (critical for large hex strings that cause forge to output multi-line JSON)
+    local JSON_DATA
+    JSON_DATA=$(echo "$RAW_RETURN_DATA" | sed -n '/{"logs":/,/}$/p' | tr -d '\n' | sed 's/} *$/}/')
+
+    # Fallback: if sed method fails, try grep method (but this may truncate multi-line JSON)
+    if [[ -z "$JSON_DATA" || "$JSON_DATA" == "" ]]; then
+      JSON_DATA=$(echo "$RAW_RETURN_DATA" | grep -o '{"logs":.*}' | tail -1)
+    fi
+
+    CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   fi
-  
-  CONSTRUCTOR_ARGS=$(echo "$JSON_DATA" | jq -r '.returns.constructorArgs.value // .returns[1].value // "0x"' 2>/dev/null | head -1 | tr -d '\n')
   # Validate extracted constructor args before verify/log: 0x + hex only, even-length payload
   CONSTRUCTOR_ARGS=$(echo "$CONSTRUCTOR_ARGS" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   local CA_HEX_PAYLOAD="${CONSTRUCTOR_ARGS#0x}"
@@ -493,8 +539,11 @@ deploySingleContract() {
     ZK_SOLC_VERSION=""
   fi
 
-  # check if contract verification is enabled in config and contract not yet verified according to log file
-  if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
+  # check if contract verification is enabled in config and contract not yet verified according to log file.
+  # VERIFY_CONTRACTS_OVERRIDE (a caller value promoted before any `source .env`) wins over .env's
+  # VERIFY_CONTRACTS, which same-shell re-sources keep resetting; fall back to VERIFY_CONTRACTS when unset.
+  local EFFECTIVE_VERIFY_CONTRACTS="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+  if [[ "$EFFECTIVE_VERIFY_CONTRACTS" == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
     # For zkEVM networks, add delay before verification to allow API to index the contract
     # This helps avoid "504 Gateway Time-out" errors when API tries to fetch contract ABI
     if isZkEvmNetwork "$NETWORK"; then

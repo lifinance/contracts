@@ -5,6 +5,7 @@ deployAllContracts() {
 
   # load required resources
   source script/helperFunctions.sh
+  source script/deploy/deploySingleContract.sh
   source script/deploy/deployAndStoreCREATE3Factory.sh
   source script/deploy/deployCoreFacets.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
@@ -18,6 +19,16 @@ deployAllContracts() {
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
+
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported VERIFY_CONTRACTS_OVERRIDE
+  # BEFORE sourcing .env. This override — never set by .env — is what the verify gate in
+  # deploySingleContract actually consults. Restoring VERIFY_CONTRACTS itself is not enough:
+  # every deploy stage calls same-shell functions (deployCoreFacets, deploySingleContract,
+  # deployFacetAndAddToDiamond) that each re-`source .env` and reset VERIFY_CONTRACTS back to
+  # its .env value before the gate runs. The `:-` guard captures the caller value exactly
+  # once (outermost entry wins), so a `VERIFY_CONTRACTS=false` from the deploy-network Phase-1
+  # command genuinely disables inline verification even when .env sets VERIFY_CONTRACTS=true.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
 
   # load env variables
   source .env
@@ -52,46 +63,61 @@ deployAllContracts() {
     fi
   fi
 
-  # Ask user where to start the deployment process
-  echo "Which stage would you like to start from?"
-  START_FROM=$(
-    gum choose \
-      "1) Initial setup and CREATE3Factory deployment" \
-      "2) Deploy core facets" \
-      "3) Deploy diamond and update with core facets" \
-      "4) Set approval for refund wallet" \
-      "5) Deploy non-core facets and add to diamond" \
-      "6) Deploy periphery contracts" \
-      "7) Add periphery to diamond" \
-      "8) Update whitelist.json and execute sync whitelist script" \
-      "9) Fund PauserWallet and DevWallet" \
-      "10) Verify ERC20Proxy authorization" \
-      "11) Run health check only" \
-      "12) Ownership transfer to timelock (production only)"
-  )
-
-  # Extract the stage number from the selection (e.g. "12) ...")
-  # Important: do NOT substring-match "1)" as it would also match "10)", "11)", "12)".
-  if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
-    START_STAGE="${BASH_REMATCH[1]}"
+  # Stage range selection.
+  # Interactive use: ask via gum, run from the chosen stage through stage 12.
+  # Automated use (e.g. the deploy-network skill): preset START_STAGE (and optionally
+  # END_STAGE) in the environment to bound the run and skip the prompt entirely. This
+  # lets a caller run one stage per invocation to stay under process time limits; every
+  # stage is idempotent (CREATE3 + diamondCut) so a bounded/re-run range is safe.
+  END_STAGE="${END_STAGE:-12}"
+  if [[ -n "${START_STAGE:-}" ]]; then
+    echo "[info] START_STAGE=$START_STAGE END_STAGE=$END_STAGE preset in environment; skipping interactive stage selection"
   else
-    error "invalid selection: $START_FROM - exiting script now"
-    exit 1
+    echo "Which stage would you like to start from?"
+    START_FROM=$(
+      gum choose \
+        "1) Initial setup and CREATE3Factory deployment" \
+        "2) Deploy core facets" \
+        "3) Deploy diamond and update with core facets" \
+        "4) Set approval for refund wallet" \
+        "5) Deploy non-core facets and add to diamond" \
+        "6) Deploy periphery contracts" \
+        "7) Add periphery to diamond" \
+        "8) Update whitelist.json and execute sync whitelist script" \
+        "9) Fund PauserWallet and DevWallet" \
+        "10) Verify ERC20Proxy authorization" \
+        "11) Run health check only" \
+        "12) Ownership transfer to timelock (production only)"
+    )
+
+    # Extract the stage number from the selection (e.g. "12) ...")
+    # Important: do NOT substring-match "1)" as it would also match "10)", "11)", "12)".
+    if [[ "$START_FROM" =~ ^([0-9]+)\) ]]; then
+      START_STAGE="${BASH_REMATCH[1]}"
+    else
+      error "invalid selection: $START_FROM - exiting script now"
+      exit 1
+    fi
   fi
 
   if [[ "$START_STAGE" -lt 1 || "$START_STAGE" -gt 12 ]]; then
-    error "invalid selection (stage out of range): $START_FROM - exiting script now"
+    error "invalid START_STAGE (out of range 1-12): $START_STAGE - exiting script now"
     exit 1
   fi
 
-  echo "Starting from stage $START_STAGE: $START_FROM"
+  if [[ "$END_STAGE" -lt "$START_STAGE" || "$END_STAGE" -gt 12 ]]; then
+    error "invalid END_STAGE ($END_STAGE): must be between START_STAGE ($START_STAGE) and 12 - exiting script now"
+    exit 1
+  fi
+
+  echo "Starting from stage $START_STAGE through stage $END_STAGE"
   echo ""
 
   # since we only support mutable diamonds, no need to ask user to select diamond type
   local DIAMOND_CONTRACT_NAME="LiFiDiamond"
 
   # Stage 1: Initial setup and CREATE3Factory deployment
-  if [[ $START_STAGE -le 1 ]]; then
+  if [[ $START_STAGE -le 1 && $END_STAGE -ge 1 ]]; then
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 1: Initial setup and CREATE3Factory deployment"
 
     # add RPC URL to MongoDB (only if not already in .env)
@@ -102,6 +128,7 @@ deployAllContracts() {
       bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
       bun fetch-rpcs
       # reload .env file to have the new RPC URL available
+      # (VERIFY_CONTRACTS_OVERRIDE is unaffected by source .env, so no restore needed)
       source .env
     fi
 
@@ -154,7 +181,7 @@ deployAllContracts() {
   fi
 
   # Stage 2: Deploy core facets
-  if [[ $START_STAGE -le 2 ]]; then
+  if [[ $START_STAGE -le 2 && $END_STAGE -ge 2 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 2: Deploy core facets"
 
@@ -166,7 +193,7 @@ deployAllContracts() {
   fi
 
   # Stage 3: Deploy diamond and update with core facets
-  if [[ $START_STAGE -le 3 ]]; then
+  if [[ $START_STAGE -le 3 && $END_STAGE -ge 3 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 3: Deploy diamond and update with core facets"
 
@@ -203,7 +230,7 @@ deployAllContracts() {
   fi
 
   # Stage 4: Set approval for refund wallet
-  if [[ $START_STAGE -le 4 ]]; then
+  if [[ $START_STAGE -le 4 && $END_STAGE -ge 4 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 4: Set approval for refund wallet"
 
@@ -218,7 +245,7 @@ deployAllContracts() {
   fi
 
   # Stage 5: Deploy non-core facets and add to diamond
-  if [[ $START_STAGE -le 5 ]]; then
+  if [[ $START_STAGE -le 5 && $END_STAGE -ge 5 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 5: Deploy non-core facets and add to diamond"
 
@@ -256,7 +283,7 @@ deployAllContracts() {
   fi
 
   # Stage 6: Deploy periphery contracts
-  if [[ $START_STAGE -le 6 ]]; then
+  if [[ $START_STAGE -le 6 && $END_STAGE -ge 6 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Deploy periphery contracts"
 
@@ -267,7 +294,7 @@ deployAllContracts() {
   fi
 
   # Stage 7: Add periphery to diamond
-  if [[ $START_STAGE -le 7 ]]; then
+  if [[ $START_STAGE -le 7 && $END_STAGE -ge 7 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 7: Add periphery to diamond"
 
@@ -280,7 +307,7 @@ deployAllContracts() {
   fi
 
   # Stage 8: Update whitelist.json and execute sync whitelist script
-  if [[ $START_STAGE -le 8 ]]; then
+  if [[ $START_STAGE -le 8 && $END_STAGE -ge 8 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 8: Update whitelist.json and execute sync whitelist script"
 
@@ -293,7 +320,7 @@ deployAllContracts() {
   fi
 
   # Stage 9: Fund PauserWallet and DevWallet
-  if [[ $START_STAGE -le 9 ]]; then
+  if [[ $START_STAGE -le 9 && $END_STAGE -ge 9 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 9: Fund PauserWallet and DevWallet"
 
@@ -348,8 +375,13 @@ deployAllContracts() {
         DEFAULT_FUND_AMOUNT=$FALLBACK_FUND_AMOUNT
         warning "could not estimate pause cost for $NETWORK; falling back to default $DEFAULT_FUND_AMOUNT wei"
       fi
-      echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
-      FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+      if [[ "${NON_INTERACTIVE:-}" == "true" ]]; then
+        echo "[info] NON_INTERACTIVE: funding PauserWallet with computed default $DEFAULT_FUND_AMOUNT wei"
+        FUNDING_AMOUNT="$DEFAULT_FUND_AMOUNT"
+      else
+        echo "PauserWallet balance is 0. Enter wei to send to $PAUSER_WALLET_ADDRESS (edit or press Enter to confirm default):"
+        FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+      fi
       FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
       # Validate that FUNDING_AMOUNT is a numeric value
@@ -383,8 +415,13 @@ deployAllContracts() {
 
       if [[ "$BALANCE" == "0" ]]; then
         local DEFAULT_FUND_AMOUNT=2000000000000000
-        echo "DevWallet balance is 0. Enter wei to send to $DEV_WALLET_ADDRESS (edit or press Enter to confirm default):"
-        FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+        if [[ "${NON_INTERACTIVE:-}" == "true" ]]; then
+          echo "[info] NON_INTERACTIVE: funding DevWallet with default $DEFAULT_FUND_AMOUNT wei"
+          FUNDING_AMOUNT="$DEFAULT_FUND_AMOUNT"
+        else
+          echo "DevWallet balance is 0. Enter wei to send to $DEV_WALLET_ADDRESS (edit or press Enter to confirm default):"
+          FUNDING_AMOUNT=$(gum input --value "$DEFAULT_FUND_AMOUNT" --placeholder "wei amount" --width 40)
+        fi
         FUNDING_AMOUNT="${FUNDING_AMOUNT:-$DEFAULT_FUND_AMOUNT}"
 
         # Validate that FUNDING_AMOUNT is a numeric value
@@ -405,7 +442,7 @@ deployAllContracts() {
   fi
 
   # Stage 10: Verify ERC20Proxy authorization
-  if [[ $START_STAGE -le 10 ]]; then
+  if [[ $START_STAGE -le 10 && $END_STAGE -ge 10 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 10: Verify ERC20Proxy authorization"
 
@@ -426,7 +463,7 @@ deployAllContracts() {
   fi
 
   # Stage 11: Run health check only
-  if [[ $START_STAGE -le 11 ]]; then
+  if [[ $START_STAGE -le 11 && $END_STAGE -ge 11 ]]; then
     echo ""
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 11: Run health check only"
     bun run healthcheck --network "$NETWORK" --environment "$ENVIRONMENT"
@@ -435,7 +472,13 @@ deployAllContracts() {
 
     # Pause and ask user if they want to continue with ownership transfer.
     # Testnets keep deployerWallet as the owner, so Stage 12 is skipped entirely.
-    if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
+    # Bounded runs (END_STAGE < 12) stop here without prompting — ownership transfer is
+    # a deliberate step outside an automated bring-up.
+    if [[ "$END_STAGE" -lt 12 ]]; then
+      echo "[info] END_STAGE=$END_STAGE: stopping after stage 11 (ownership transfer not in requested range)"
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< deployAllContracts completed"
+      return
+    elif [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "Health check completed. Do you want to continue with ownership transfer to timelock?"
       echo "This should only be done if the health check shows only diamond ownership errors."
@@ -454,7 +497,7 @@ deployAllContracts() {
   fi
 
   # Stage 12: Ownership transfer to timelock (production only; skipped on testnet)
-  if [[ $START_STAGE -le 12 ]]; then
+  if [[ $START_STAGE -le 12 && $END_STAGE -ge 12 ]]; then
     if [[ "$ENVIRONMENT" == "production" ]] && ! isTestnetNetwork "$NETWORK"; then
       echo ""
       echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 12: Ownership transfer to timelock (production only)"

@@ -2314,7 +2314,8 @@ function verifyContract() {
     # Check if command failed with non-zero exit code
     if [ $VERIFY_EXIT_CODE -ne 0 ]; then
       # Check for specific error types that should trigger retry with longer delay
-      if echo "$VERIFY_OUTPUT" | grep -qi "504\|Gateway Time-out\|timeout\|Failed to obtain contract ABI"; then
+      # (includes explorer rate-limiting, which parallel verification is prone to hit)
+      if echo "$VERIFY_OUTPUT" | grep -qi "504\|Gateway Time-out\|timeout\|Failed to obtain contract ABI\|429\|rate limit\|too many requests"; then
         warning "API timeout or gateway error detected. This may be temporary - will retry with longer delay..."
         error "Verification command failed with exit code $VERIFY_EXIT_CODE (API timeout/gateway error)"
         if [ -n "$VERIFY_OUTPUT" ]; then
@@ -2543,6 +2544,121 @@ function verifyAllUnverifiedContractsInLogFile() {
   done
 
   echo "[info] done (verified contracts: $COUNTER)"
+}
+function verifyNetworkContractsParallel() {
+  # Parallel, network-scoped verification sweep with explorer rate-limit backoff.
+  # Verifies every not-yet-verified contract for ONE network/environment concurrently, then
+  # updates the deployment log SEQUENTIALLY afterwards (parallel log writes would corrupt it).
+  # Meant to run AFTER a full deploy (deploy stages with VERIFY_CONTRACTS=false) so the explorer
+  # has indexed everything. Requires the log to be synced first: `bun mongo-logs:sync`.
+  # Args: $1 NETWORK, $2 ENVIRONMENT
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  if [[ -z "$NETWORK" || -z "$ENVIRONMENT" ]]; then
+    error "verifyNetworkContractsParallel requires NETWORK and ENVIRONMENT"
+    return 1
+  fi
+  if [ ! -f "$LOG_FILE_PATH" ]; then
+    error "log file not found at $LOG_FILE_PATH (run 'bun mongo-logs:sync' first)"
+    return 1
+  fi
+
+  # Verification concurrency is intentionally lower than MAX_CONCURRENT_JOBS: block explorers
+  # rate-limit aggressively. Each verifyContract already retries with backoff on 429/gateway.
+  local CONCURRENCY="${VERIFICATION_MAX_CONCURRENT_JOBS:-4}"
+  local MAX_JOBS="${MAX_CONCURRENT_JOBS:-}"
+  if ! [[ "$CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
+    error "VERIFICATION_MAX_CONCURRENT_JOBS must be a positive integer"
+    return 1
+  fi
+  if [[ -n "$MAX_JOBS" ]]; then
+    if ! [[ "$MAX_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+      error "MAX_CONCURRENT_JOBS must be a positive integer"
+      return 1
+    fi
+    (( MAX_JOBS < CONCURRENCY )) && CONCURRENCY="$MAX_JOBS"
+  fi
+
+  local WORK_DIR
+  WORK_DIR=$(mktemp -d)
+  local WORK_LIST="$WORK_DIR/worklist"
+  : >"$WORK_LIST"
+
+  # Collect all unverified entries for this network/environment into a tab-separated work list.
+  local CONTRACT
+  for CONTRACT in $(jq -r 'keys[]' "$LOG_FILE_PATH"); do
+    jq -e --arg c "$CONTRACT" --arg n "$NETWORK" '.[$c][$n]' "$LOG_FILE_PATH" >/dev/null 2>&1 || continue
+    local VERSION
+    for VERSION in $(jq -r --arg c "$CONTRACT" --arg n "$NETWORK" --arg e "$ENVIRONMENT" '.[$c][$n][$e] // {} | keys[]' "$LOG_FILE_PATH" 2>/dev/null); do
+      local ENTRY
+      ENTRY=$(jq -r --arg c "$CONTRACT" --arg n "$NETWORK" --arg e "$ENVIRONMENT" --arg v "$VERSION" '.[$c][$n][$e][$v][0]' "$LOG_FILE_PATH")
+      [[ -z "$ENTRY" || "$ENTRY" == "null" ]] && continue
+      [[ "$(echo "$ENTRY" | jq -r '.VERIFIED // "false"')" == "true" ]] && continue
+      local ADDRESS ARGS
+      ADDRESS=$(echo "$ENTRY" | jq -r '.ADDRESS // empty')
+      ARGS=$(echo "$ENTRY" | jq -r '.CONSTRUCTOR_ARGS // empty')
+      [[ -z "$ADDRESS" ]] && continue
+      printf '%s\t%s\t%s\t%s\n' "$CONTRACT" "$VERSION" "$ADDRESS" "$ARGS" >>"$WORK_LIST"
+    done
+  done
+
+  local TOTAL
+  TOTAL=$(wc -l <"$WORK_LIST" | tr -d ' ')
+  if [[ "$TOTAL" -eq 0 ]]; then
+    echo "[info] no unverified contracts for $NETWORK/$ENVIRONMENT"
+    rm -rf "$WORK_DIR"
+    return 0
+  fi
+  echo "[info] verifying $TOTAL contract(s) for $NETWORK/$ENVIRONMENT (concurrency: $CONCURRENCY)"
+
+  # Dispatch parallel verification jobs. Each writes only its own result file; no job touches the
+  # shared log. Small stagger between dispatches to avoid a thundering herd against the explorer.
+  while IFS=$'\t' read -r CONTRACT VERSION ADDRESS ARGS; do
+    while [[ $(jobs -r | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do sleep 1; done
+    (
+      if verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS" >/dev/null 2>&1; then
+        echo "ok" >"$WORK_DIR/$CONTRACT.$VERSION.result"
+      else
+        echo "fail" >"$WORK_DIR/$CONTRACT.$VERSION.result"
+      fi
+    ) &
+    sleep 2
+  done <"$WORK_LIST"
+  wait
+
+  # Sequentially flip VERIFIED=true in the log for the successes (preserving all other fields).
+  local OK=0
+  local FAILED=()
+  while IFS=$'\t' read -r CONTRACT VERSION ADDRESS ARGS; do
+    if [[ "$(cat "$WORK_DIR/$CONTRACT.$VERSION.result" 2>/dev/null)" == "ok" ]]; then
+      local ENTRY TIMESTAMP OPTIMIZER_RUNS SALT SOLC_VERSION EVM_VERSION ZK_SOLC_VERSION
+      ENTRY=$(jq -r --arg c "$CONTRACT" --arg n "$NETWORK" --arg e "$ENVIRONMENT" --arg v "$VERSION" '.[$c][$n][$e][$v][0]' "$LOG_FILE_PATH")
+      TIMESTAMP=$(echo "$ENTRY" | jq -r '.TIMESTAMP // empty')
+      OPTIMIZER_RUNS=$(echo "$ENTRY" | jq -r '.OPTIMIZER_RUNS // empty')
+      SALT=$(echo "$ENTRY" | jq -r '.SALT // empty')
+      SOLC_VERSION=$(echo "$ENTRY" | jq -r '.SOLC_VERSION // empty')
+      EVM_VERSION=$(echo "$ENTRY" | jq -r '.EVM_VERSION // empty')
+      ZK_SOLC_VERSION=$(echo "$ENTRY" | jq -r '.ZK_SOLC_VERSION // empty')
+      if logContractDeploymentInfo "$CONTRACT" "$NETWORK" "$TIMESTAMP" "$VERSION" "$OPTIMIZER_RUNS" "$ARGS" "$ENVIRONMENT" "$ADDRESS" "true" "$SALT" "$SOLC_VERSION" "$EVM_VERSION" "$ZK_SOLC_VERSION"; then
+        OK=$((OK + 1))
+      else
+        # Contract is verified on-chain, but the log's VERIFIED flag didn't persist (e.g. MongoDB
+        # unavailable) — surface it so the summary doesn't claim success while state stays stale.
+        FAILED+=("$CONTRACT ($ADDRESS): verified but log update failed")
+      fi
+    else
+      FAILED+=("$CONTRACT ($ADDRESS)")
+    fi
+  done <"$WORK_LIST"
+
+  rm -rf "$WORK_DIR"
+  echo "[info] verified $OK/$TOTAL for $NETWORK/$ENVIRONMENT"
+  if [[ ${#FAILED[@]} -gt 0 ]]; then
+    warning "still unverified (explorer rate-limit/indexing lag — re-run to retry): ${FAILED[*]}"
+    return 1
+  fi
+  return 0
 }
 function removeFacetFromDiamond() {
   # read function arguments into variables
