@@ -135,6 +135,32 @@ contract AllBridgeFacetTest is TestBaseFacet {
         return configs;
     }
 
+    /// @dev Deploys a fresh diamond with the AllBridgeFacet mounted but
+    ///      deliberately NOT initialized (initAllBridge is left uncalled). The
+    ///      diamond owner is the real USER_DIAMOND_OWNER, so tests can exercise
+    ///      owner-gated paths without relying on fresh storage defaulting the
+    ///      contract owner to address(0).
+    function _deployUninitializedAllBridgeFacet()
+        internal
+        returns (TestAllBridgeFacet)
+    {
+        LiFiDiamond testDiamond = createDiamond(
+            USER_DIAMOND_OWNER,
+            USER_PAUSER
+        );
+
+        TestAllBridgeFacet facet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
+
+        bytes4[] memory functionSelectors = new bytes4[](4);
+        functionSelectors[0] = facet.initAllBridge.selector;
+        functionSelectors[1] = facet.setChainIdToAllBridgeChainId.selector;
+        functionSelectors[2] = facet.unsetChainIdToAllBridgeChainId.selector;
+        functionSelectors[3] = facet.getChainIdToAllBridgeChainId.selector;
+        addFacet(testDiamond, address(facet), functionSelectors);
+
+        return TestAllBridgeFacet(address(testDiamond));
+    }
+
     function setUp() public {
         customBlockNumberForForking = 17556456;
         initTestBase();
@@ -572,15 +598,13 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_FailsToSetChainIdToAllBridgeChainIdIfNotInitialized()
         public
     {
-        vm.startPrank(address(0));
-
-        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
-            ALLBRIDGE_ROUTER
-        );
+        TestAllBridgeFacet uninitializedFacet = _deployUninitializedAllBridgeFacet();
 
         AllBridgeFacet.ChainIdConfig[]
             memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 16);
+
+        vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(NotInitialized.selector);
 
@@ -667,11 +691,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_FailsToUnsetChainIdToAllBridgeChainIdIfNotInitialized()
         public
     {
-        vm.startPrank(address(0));
+        TestAllBridgeFacet uninitializedFacet = _deployUninitializedAllBridgeFacet();
 
-        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
-            ALLBRIDGE_ROUTER
-        );
+        vm.startPrank(USER_DIAMOND_OWNER);
 
         vm.expectRevert(NotInitialized.selector);
 
@@ -734,6 +756,49 @@ contract AllBridgeFacetTest is TestBaseFacet {
             ALLBRIDGE_ID_STELLAR
         );
         vm.stopPrank();
+    }
+
+    /// @dev Re-initialization is a partial overwrite (see initAllBridge
+    ///      NatSpec): entries in the second call take effect, entries only in
+    ///      the first call are preserved.
+    function test_InitAllBridgeReInitializationPartiallyOverwrites() public {
+        TestAllBridgeFacet facet = _deployUninitializedAllBridgeFacet();
+
+        // first init: map Polygon and Arbitrum
+        AllBridgeFacet.ChainIdConfig[]
+            memory firstConfigs = new AllBridgeFacet.ChainIdConfig[](2);
+        firstConfigs[0] = AllBridgeFacet.ChainIdConfig(
+            LIFI_CHAIN_ID_POLYGON,
+            ALLBRIDGE_ID_POLYGON
+        );
+        firstConfigs[1] = AllBridgeFacet.ChainIdConfig(
+            LIFI_CHAIN_ID_ARBITRUM,
+            ALLBRIDGE_ID_ARBITRUM
+        );
+
+        vm.startPrank(USER_DIAMOND_OWNER);
+        facet.initAllBridge(firstConfigs);
+
+        // second init: overwrite Polygon's mapping only, omit Arbitrum
+        AllBridgeFacet.ChainIdConfig[]
+            memory secondConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        secondConfigs[0] = AllBridgeFacet.ChainIdConfig(
+            LIFI_CHAIN_ID_POLYGON,
+            ALLBRIDGE_ID_BASE
+        );
+        facet.initAllBridge(secondConfigs);
+        vm.stopPrank();
+
+        // (a) the second call's entry took effect
+        assertEq(
+            facet.getChainIdToAllBridgeChainId(LIFI_CHAIN_ID_POLYGON),
+            ALLBRIDGE_ID_BASE
+        );
+        // (b) the first call's entry omitted from the second call is preserved
+        assertEq(
+            facet.getChainIdToAllBridgeChainId(LIFI_CHAIN_ID_ARBITRUM),
+            ALLBRIDGE_ID_ARBITRUM
+        );
     }
 
     function testRevert_InitAllBridgeWithZeroChainId() public {
