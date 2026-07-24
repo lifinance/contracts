@@ -15,6 +15,12 @@ deploySingleContract() {
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
 
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported override BEFORE sourcing .env
+  # (see deployAllContracts). The verify gate below consults VERIFY_CONTRACTS_OVERRIDE, which
+  # .env never sets, so an inline `VERIFY_CONTRACTS=false` survives this (and any parent's)
+  # re-source. The `:-` guard preserves a value already promoted by an outer caller.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load env variables
   source .env
 
@@ -288,6 +294,15 @@ deploySingleContract() {
     if [[ $? -eq 0 ]]; then
       CONSTRUCTOR_ARGS_FROM_LOG=$(echo "$SKIP_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS // empty")
     fi
+    # If no constructor args could be recovered — no master-log entry (e.g. a prior run crashed
+    # after broadcast but before logging, or Mongo was unreachable), or the entry has none — the
+    # extraction below falls back to CONSTRUCTOR_ARGS="0x" and the log write persists that
+    # placeholder. That is fine for a contract with no constructor args, but for one WITH args the
+    # Phase-2 verification sweep (which reads args from the log) then fails forever with no hint.
+    # Warn loudly so the operator can correct the logged args before verifying.
+    if [[ -z "$CONSTRUCTOR_ARGS_FROM_LOG" ]]; then
+      warning "$CONTRACT is already deployed at $CONTRACT_ADDRESS but no constructor args could be recovered from the master log (missing or incomplete log entry). A placeholder CONSTRUCTOR_ARGS=0x will be logged for this address. If $CONTRACT has constructor args, its Phase-2 verification will FAIL until you correct CONSTRUCTOR_ARGS in the deployment log."
+    fi
   fi
 
   while [ $attempts -le "$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" ] && [[ -z "$ADDRESS" ]]; do
@@ -507,8 +522,11 @@ deploySingleContract() {
     ZK_SOLC_VERSION=""
   fi
 
-  # check if contract verification is enabled in config and contract not yet verified according to log file
-  if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
+  # check if contract verification is enabled in config and contract not yet verified according to log file.
+  # VERIFY_CONTRACTS_OVERRIDE (a caller value promoted before any `source .env`) wins over .env's
+  # VERIFY_CONTRACTS, which same-shell re-sources keep resetting; fall back to VERIFY_CONTRACTS when unset.
+  local EFFECTIVE_VERIFY_CONTRACTS="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+  if [[ "$EFFECTIVE_VERIFY_CONTRACTS" == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
     # For zkEVM networks, add delay before verification to allow API to index the contract
     # This helps avoid "504 Gateway Time-out" errors when API tries to fetch contract ABI
     if isZkEvmNetwork "$NETWORK"; then

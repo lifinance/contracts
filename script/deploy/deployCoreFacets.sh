@@ -15,6 +15,11 @@ deployCoreFacets() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported override before sourcing .env
+  # so it survives this same-shell re-source and reaches deploySingleContract's verify gate
+  # (see deployAllContracts). The `:-` guard preserves a value already set by an outer caller.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load env variables
   source .env
 

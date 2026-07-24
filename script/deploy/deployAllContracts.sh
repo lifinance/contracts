@@ -20,14 +20,18 @@ deployAllContracts() {
   local NETWORK="$1"
   local ENVIRONMENT="$2"
 
-  # Preserve a caller-provided VERIFY_CONTRACTS override before sourcing .env: otherwise a
-  # `VERIFY_CONTRACTS=true` in .env silently re-enables inline verification that the caller
-  # (e.g. the deploy-network Phase-1 command) explicitly asked to turn off.
-  local VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS:-}"
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported VERIFY_CONTRACTS_OVERRIDE
+  # BEFORE sourcing .env. This override — never set by .env — is what the verify gate in
+  # deploySingleContract actually consults. Restoring VERIFY_CONTRACTS itself is not enough:
+  # every deploy stage calls same-shell functions (deployCoreFacets, deploySingleContract,
+  # deployFacetAndAddToDiamond) that each re-`source .env` and reset VERIFY_CONTRACTS back to
+  # its .env value before the gate runs. The `:-` guard captures the caller value exactly
+  # once (outermost entry wins), so a `VERIFY_CONTRACTS=false` from the deploy-network Phase-1
+  # command genuinely disables inline verification even when .env sets VERIFY_CONTRACTS=true.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
 
   # load env variables
   source .env
-  [[ -n "$VERIFY_CONTRACTS_OVERRIDE" ]] && VERIFY_CONTRACTS="$VERIFY_CONTRACTS_OVERRIDE"
 
   # get file suffix based on value in variable ENVIRONMENT
   local FILE_SUFFIX=$(getFileSuffix "$ENVIRONMENT")
@@ -124,8 +128,8 @@ deployAllContracts() {
       bun add-network-rpc --network "$NETWORK" --rpc-url "$(getRpcUrlFromNetworksJson "$NETWORK")"
       bun fetch-rpcs
       # reload .env file to have the new RPC URL available
+      # (VERIFY_CONTRACTS_OVERRIDE is unaffected by source .env, so no restore needed)
       source .env
-      [[ -n "$VERIFY_CONTRACTS_OVERRIDE" ]] && VERIFY_CONTRACTS="$VERIFY_CONTRACTS_OVERRIDE"
     fi
 
     # get deployer wallet balance

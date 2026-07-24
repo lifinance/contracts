@@ -41,9 +41,12 @@ once per stage with the stage range and non-interactive mode preset in the envir
 - **PATH**: prepend `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 - **`dangerouslyDisableSandbox: true`** for anything doing network I/O (deploy, verify, cast, mongo).
 - **Env overrides that SURVIVE the script's `.env` re-source** (not set in `.env`): `START_STAGE`,
-  `END_STAGE`, `NON_INTERACTIVE`. Set these inline. Anything already in `.env` (`PRODUCTION`,
-  `VERIFY_CONTRACTS`, `GLOBAL_FILE_PATH`, `DO_NOT_VERIFY_IN_THESE_NETWORKS`) is re-sourced by the
-  script and CANNOT be overridden by an export — edit the `.env` file for those.
+  `END_STAGE`, `NON_INTERACTIVE`. Set these inline. `VERIFY_CONTRACTS` also survives despite being
+  in `.env`: the deploy scripts promote a caller-provided value into an exported
+  `VERIFY_CONTRACTS_OVERRIDE` before every `source .env`, and the verify gate consults that override
+  — so an inline `VERIFY_CONTRACTS=false` reliably disables inline verification. The other `.env`
+  vars (`PRODUCTION`, `GLOBAL_FILE_PATH`, `DO_NOT_VERIFY_IN_THESE_NETWORKS`) are re-sourced and
+  CANNOT be overridden by an export — edit the `.env` file for those.
 - **Output is huge** (bytecode dumps on single lines) — pipe to a log file and `grep` for markers
   (`STAGE N completed`, `successfully verified`, `Failed`, `Error:`), do NOT tail raw.
 - **10-min SIGTERM**: the agent's Bash tool hard-kills any command (incl. backgrounded) at ~10min.
@@ -116,10 +119,12 @@ START_STAGE=<N> END_STAGE=<N> NON_INTERACTIVE=true VERIFY_CONTRACTS=false \
 grep -c "STAGE <N> completed" /tmp/stage<N>.log   # 1 = advance; 0 = inspect/re-run
 ```
 
-(`deployAllContracts` preserves a caller-provided `VERIFY_CONTRACTS` across its `source .env`, so
-the inline `VERIFY_CONTRACTS=false` above genuinely disables verification even when `.env` sets it
-to `true` — no need to edit `.env`. Deploying verification-off avoids inline `--watch` blocking and
-Blockscout indexing-lag failures; verify in the Phase-2 sweep instead.)
+(The deploy scripts promote the caller-provided `VERIFY_CONTRACTS` into an exported
+`VERIFY_CONTRACTS_OVERRIDE` before every `source .env`, and the verify gate in `deploySingleContract`
+consults that override — so the inline `VERIFY_CONTRACTS=false` above genuinely disables verification
+even when `.env` sets it to `true`, and even though each deploy stage re-sources `.env`. No need to
+edit `.env`. Deploying verification-off avoids inline `--watch` blocking and Blockscout indexing-lag
+failures; verify in the Phase-2 sweep instead.)
 
 - **Marker present** → advance to N+1. **Absent** → re-run the same stage (idempotent; heavy
   stage 5 may need a few re-runs). Cap ~5; then stop + surface with the log.
