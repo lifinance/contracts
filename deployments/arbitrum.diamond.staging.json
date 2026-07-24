@@ -240,6 +240,26 @@
       "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
+      },
+      "0xc8D1bb44ED16b05518D7E32BD7fb2746594C9045": {
+        "Name": "MayanFacet",
+        "Version": "2.0.0"
+      },
+      "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.2.0"
+      },
+      "0x3B76d15Eb68a7a0E09b86D9aee3c49fD006cdFB2": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
+      },
+      "0xCDFE2fc28F6f824F9E619728A52363bd558aB4d0": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
+      },
+      "0x962125b0b3c2329EAd744a0ad383D37F78C608e9": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

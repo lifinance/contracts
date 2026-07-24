@@ -11,6 +11,7 @@ paths:
 
 - Location: `src/Facets/`; name contains `Facet`.
 - Required functions: `_startBridge` (internal), `swapAndStartBridgeTokensVia{FacetName}`, `startBridgeTokensVia{FacetName}`.
+- Facet-scoped selector naming ([CONV:FACET-SELECTORS]): every **external/public** function that is specific to one facet — admin setters, getters, initializers, config methods — must carry the facet/bridge identifier in its name (e.g. `setFraxChainIdToEid`, `getFraxChainIdToEid`, `initFrax`), never a generic name (`setChainIdToEid`, `getChainIdToEid`). Bare names collide by selector when two facets copy-paste the same config subsystem, and `UpdateScriptBase.buildDiamondCut` silently reassigns a colliding selector to the newly-cut facet **and removes every other selector of the previously-owning facet** — uninstalling a live bridge facet at deploy time with no error. The `startBridgeTokensVia{FacetName}` convention already enforces this for entrypoints; apply the same rule to *all* facet-specific functions. When adding a facet whose logic is derived from an existing one, diff its external selectors against the source facet and rename any that match.
 - Modifiers: `nonReentrant`, `refundExcessNative`, `validateBridgeData`, `doesNotContainSourceSwaps`/`doesContainSourceSwaps`, `doesNotContainDestinationCalls`/`doesContainDestinationCalls`.
 - Parameter handling:
   - `receiverAddress` first in `{facetName}Data`, must match `bridgeData.receiver` (EVM).

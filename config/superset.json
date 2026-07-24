@@ -8,8 +8,17 @@
     "unichain": "0x326D0B0357b394EC5bbeFE87554243E5dc76e56E"
   },
   "mappings": [
-    { "chainId": 42161, "lzEid": 30110 },
-    { "chainId": 8453, "lzEid": 30184 },
-    { "chainId": 130, "lzEid": 30320 }
+    {
+      "chainId": 130,
+      "lzEid": 30320
+    },
+    {
+      "chainId": 8453,
+      "lzEid": 30184
+    },
+    {
+      "chainId": 42161,
+      "lzEid": 30110
+    }
   ]
 }
