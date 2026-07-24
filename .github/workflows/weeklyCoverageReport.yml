@@ -82,16 +82,17 @@ jobs:
           # forge coverage hits live RPCs for fork tests and has no built-in
           # retry, so a single transient RPC blip sinks the whole report. Retry
           # the full command (--rerun can't be used — coverage needs the complete
-          # run). Kept low: --ir-minimum coverage is slow (~8 min/run).
-          for i in 1 2 3; do
-            echo "::group::forge coverage (attempt $i/3)"
+          # run). Off the merge path and weekly, so retries are generous (10) to
+          # ride out RPC flakiness even though --ir-minimum coverage is slow (~8 min/run).
+          for i in $(seq 1 10); do
+            echo "::group::forge coverage (attempt $i/10)"
             if forge coverage --report lcov --force --ir-minimum; then
               echo "::endgroup::"
               break
             fi
             echo "::endgroup::"
-            if [[ "$i" -eq 3 ]]; then
-              echo "forge coverage failed after 3 attempts" >&2
+            if [[ "$i" -eq 10 ]]; then
+              echo "forge coverage failed after 10 attempts" >&2
               exit 1
             fi
             sleep 15
