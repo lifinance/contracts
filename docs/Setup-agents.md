@@ -29,7 +29,10 @@ this page doesn't repeat them.
   `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"`
   (`~/.local/bin` is where `lifi-connect` installs).
 - **Assume the human has already authenticated and started any needed tunnel.**
-  Don't run the browser login or open the prod tunnel yourself.
+  Don't run the browser login or open the prod tunnel yourself — and don't ask
+  the human to confirm it's up before you start. Proceed optimistically: run the
+  tunnel-dependent command, and only surface a problem if it actually fails
+  (Safe/Mongo scripts fail fast with an actionable error — see below).
 
 ## When a Safe/Mongo script fails
 
