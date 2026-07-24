@@ -2455,7 +2455,6 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
-        "GenericSwapFacet": "1.0.0",
         "GenericSwapFacetV3": "2.0.0",
         "LiFiIntentEscrowFacet": "1.1.2",
         "LiFiTimelockController": "1.0.1",
