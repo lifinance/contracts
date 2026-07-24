@@ -37,6 +37,7 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
+          persist-credentials: false # no later step needs git creds; the gh api call uses GH_TOKEN
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
@@ -56,11 +57,14 @@ jobs:
           # redacted from all subsequent log output for the rest of the run.
           while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              name="${line%%=*}"
               value="${line#*=}"
               if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
               if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
               echo "::add-mask::$value"
-              echo "$line" >> "$GITHUB_ENV"
+              # Write the quote-stripped value: GITHUB_ENV does not strip quotes, so
+              # appending the raw line would leak literal quotes into the RPC URL.
+              echo "${name}=${value}" >> "$GITHUB_ENV"
             fi
           done < ".env"
         env:
@@ -138,6 +142,10 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }} # scopes the gh api jobs lookup (needs actions: read)
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          JOB_NAME: ${{ github.job }}
           OUTCOME: ${{ steps.coverage.outcome }}
           LINE_COVERAGE: ${{ steps.coverage.outputs.line_coverage }}
           FUNCTION_COVERAGE: ${{ steps.coverage.outputs.function_coverage }}
@@ -149,9 +157,9 @@ jobs:
           set -euo pipefail
           # Deep-link straight to THIS job so the Slack link lands on the report; fall back to the
           # run overview if the jobs API can't be read. `set -e` is on, so guard the gh api call.
-          RUN_OVERVIEW="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          if ! RUN_URL=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-            --jq '[.jobs[] | select(.name == "${{ github.job }}") | .html_url][0] // .jobs[0].html_url' 2>/dev/null); then
+          RUN_OVERVIEW="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}"
+          if ! RUN_URL=$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs" \
+            --jq "[.jobs[] | select(.name == \"${JOB_NAME}\") | .html_url][0] // .jobs[0].html_url" 2>/dev/null); then
             RUN_URL=""
           fi
           RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
