@@ -1,0 +1,646 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.29;
+
+import { Test } from "forge-std/Test.sol";
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
+import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
+import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
+import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
+import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
+import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
+import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
+
+/// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
+///         deposit, used to test delegatecall revert bubbling and the reentrancy guard.
+contract HostileUnderlying is MockERC4626 {
+    enum Mode {
+        None,
+        Revert,
+        Reenter
+    }
+
+    error Boom();
+
+    Mode public mode;
+    LiFiVaultWrapper public wrapper;
+
+    constructor(ERC20 _asset) MockERC4626(_asset, "Hostile", "HOST") {}
+
+    function arm(Mode _mode, LiFiVaultWrapper _wrapper) external {
+        mode = _mode;
+        wrapper = _wrapper;
+    }
+
+    function deposit(
+        uint256 _assets,
+        address _to
+    ) public override returns (uint256) {
+        if (mode == Mode.Revert) revert Boom();
+        if (mode == Mode.Reenter)
+            wrapper.withdraw(1, address(this), address(this));
+
+        return super.deposit(_assets, _to);
+    }
+}
+
+/// @notice Minimal ERC-4626-shaped yield source that can be configured to accept fewer
+///         assets than requested on deposit, or return fewer on withdraw, to exercise the
+///         wrapper's adapter-shortfall guards.
+contract LossyVault {
+    MockERC20 public immutable ASSET_TOKEN;
+    mapping(address => uint256) public balanceOf;
+    uint256 public depositPullBps = 10_000;
+    uint256 public withdrawSendBps = 10_000;
+
+    constructor(MockERC20 _asset) {
+        ASSET_TOKEN = _asset;
+    }
+
+    function asset() external view returns (address) {
+        return address(ASSET_TOKEN);
+    }
+
+    function setDepositPullBps(uint256 _bps) external {
+        depositPullBps = _bps;
+    }
+
+    function setWithdrawSendBps(uint256 _bps) external {
+        withdrawSendBps = _bps;
+    }
+
+    function deposit(
+        uint256 _assets,
+        address _receiver
+    ) external returns (uint256 shares) {
+        ASSET_TOKEN.transferFrom(
+            msg.sender,
+            address(this),
+            (_assets * depositPullBps) / 10_000
+        );
+        shares = _assets;
+        balanceOf[_receiver] += shares;
+    }
+
+    function withdraw(
+        uint256 _assets,
+        address _receiver,
+        address _owner
+    ) external returns (uint256 shares) {
+        shares = _assets;
+        balanceOf[_owner] -= shares;
+        ASSET_TOKEN.transfer(_receiver, (_assets * withdrawSendBps) / 10_000);
+    }
+
+    function convertToAssets(uint256 _shares) external pure returns (uint256) {
+        return _shares;
+    }
+}
+
+contract LiFiVaultWrapperTest is Test {
+    MockERC20 internal asset;
+    MockERC4626 internal underlying;
+    ERC4626Adapter internal adapter;
+    UpgradeableBeacon internal beacon;
+    LiFiVaultWrapper internal wrapper;
+
+    address internal alice = makeAddr("alice");
+    address internal bob = makeAddr("bob");
+    address internal vaultAdmin = makeAddr("vaultAdmin");
+
+    uint256 internal constant DEPOSIT = 1_000e18;
+
+    event VaultWrapperConfigured(
+        address indexed asset,
+        address indexed underlying,
+        address indexed adapter,
+        address vaultWrapperAdmin
+    );
+
+    /// @dev This test contract is the `factory` (it deploys the beacon proxies), so the
+    ///      wrapper reads the global circuit breaker back from here.
+    function globalPaused() external pure returns (bool) {
+        return false;
+    }
+
+    function setUp() public {
+        asset = new MockERC20("Token", "TKN", 18);
+        underlying = new MockERC4626(asset, "Yield Token", "yTKN");
+        adapter = new ERC4626Adapter();
+        beacon = new UpgradeableBeacon(
+            address(new LiFiVaultWrapper(address(this))),
+            address(this)
+        );
+        wrapper = _newWrapper(address(underlying));
+    }
+
+    /// Initialization ///
+
+    function test_InitializeSetsState() public view {
+        assertTrue(wrapper.initialized());
+        assertEq(wrapper.asset(), address(asset));
+        assertEq(wrapper.underlying(), address(underlying));
+        assertEq(wrapper.adapter(), address(adapter));
+        assertEq(wrapper.owner(), vaultAdmin);
+        assertEq(wrapper.FACTORY(), address(this));
+        for (uint256 i; i < 4; ++i) {
+            assertEq(wrapper.integratorShareBps(i), 8000);
+        }
+        // 18-decimal asset: derived offset 0 is floored at the 6 minimum, so shares
+        // are 24 decimals (see MIN_DECIMALS_OFFSET).
+        assertEq(wrapper.decimals(), 24);
+        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.symbol(), "lfTKN");
+    }
+
+    function test_InitializeEmitsVaultWrapperConfigured() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit VaultWrapperConfigured(
+            address(asset),
+            address(underlying),
+            address(adapter),
+            vaultAdmin
+        );
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeTwice() public {
+        FeeConfig memory fees;
+
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+
+        wrapper.initialize(
+            address(underlying),
+            address(adapter),
+            vaultAdmin,
+            _splits8000(),
+            fees,
+            defaultReceivers(),
+            address(0)
+        );
+    }
+
+    function testRevert_InitializeByNonFactory() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert(ILiFiVaultWrapper.NotFactory.selector);
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsZeroAddress() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                address(0),
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsZeroAssetFromAdapter() public {
+        MockZeroAdapter zeroAdapter = new MockZeroAdapter();
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(zeroAdapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_InitializeRejectsFullIntegratorShare() public {
+        FeeConfig memory fees;
+        // Only one element is invalid, proving each fee type's share is validated.
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                [uint16(8000), 10_000, 8000, 8000],
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.InvalidIntegratorShareBps.selector,
+                uint16(10_000)
+            )
+        );
+
+        new BeaconProxy(address(beacon), initCall);
+    }
+
+    function testRevert_FeeGettersRejectInvalidFeeType() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.InvalidFeeType.selector,
+                uint8(4)
+            )
+        );
+        wrapper.feeRate(4);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.InvalidFeeType.selector,
+                uint8(4)
+            )
+        );
+        wrapper.feeEnabled(4);
+    }
+
+    function test_NameAndSymbolDeriveFromAssetSymbol() public view {
+        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.symbol(), "lfTKN");
+    }
+
+    function test_NameAndSymbolFallBackWhenAssetHasNoSymbol() public {
+        MockERC20 noSymbolAsset = new MockERC20("No Symbol", "", 18);
+        MockERC4626 noSymbolUnderlying = new MockERC4626(
+            noSymbolAsset,
+            "Yield",
+            "yNS"
+        );
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(noSymbolUnderlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        LiFiVaultWrapper w = LiFiVaultWrapper(
+            address(new BeaconProxy(address(beacon), initCall))
+        );
+
+        assertEq(w.name(), "LI.FI Earn VW");
+        assertEq(w.symbol(), "lfVW");
+    }
+
+    /// Deposit / pass-through ///
+
+    function test_DepositForwardsAssetsToUnderlying() public {
+        _deposit(alice, DEPOSIT);
+
+        // Shares carry the virtual-share offset, so they scale the asset amount by
+        // 10 ** offset; the asset-side balances stay 1:1 with the deposit.
+        uint256 expectedShares = DEPOSIT * 10 ** wrapper.shareDecimalsOffset();
+        assertEq(asset.balanceOf(address(wrapper)), 0);
+        assertEq(asset.balanceOf(address(underlying)), DEPOSIT);
+        assertEq(underlying.balanceOf(address(wrapper)), DEPOSIT);
+        assertEq(wrapper.totalAssets(), DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), expectedShares);
+        assertEq(wrapper.totalSupply(), expectedShares);
+    }
+
+    function test_MintForwardsAssetsToUnderlying() public {
+        uint256 shares = DEPOSIT * 10 ** wrapper.shareDecimalsOffset();
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(wrapper), DEPOSIT);
+        uint256 assetsIn = wrapper.mint(shares, alice);
+        vm.stopPrank();
+
+        assertEq(assetsIn, DEPOSIT);
+        assertEq(wrapper.balanceOf(alice), shares);
+        assertEq(wrapper.totalAssets(), DEPOSIT);
+        assertEq(asset.balanceOf(address(wrapper)), 0);
+    }
+
+    /// Round-trips ///
+
+    function test_RedeemRoundTrip() public {
+        _deposit(alice, DEPOSIT);
+
+        uint256 shares = wrapper.balanceOf(alice);
+        vm.prank(alice);
+        uint256 assetsOut = wrapper.redeem(shares, alice, alice);
+
+        assertApproxEqAbs(assetsOut, DEPOSIT, 1);
+        assertApproxEqAbs(asset.balanceOf(alice), DEPOSIT, 1);
+        assertEq(wrapper.balanceOf(alice), 0);
+    }
+
+    function test_WithdrawRoundTrip() public {
+        _deposit(alice, DEPOSIT);
+
+        uint256 scale = 10 ** wrapper.shareDecimalsOffset();
+
+        vm.prank(alice);
+        uint256 sharesBurned = wrapper.withdraw(DEPOSIT, alice, alice);
+
+        assertApproxEqAbs(sharesBurned, DEPOSIT * scale, scale);
+        assertApproxEqAbs(asset.balanceOf(alice), DEPOSIT, 1);
+        assertApproxEqAbs(wrapper.balanceOf(alice), 0, scale);
+    }
+
+    /// Accounting ///
+
+    function test_PreviewMatchesActualDepositAndRedeem() public {
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(wrapper), DEPOSIT);
+
+        uint256 previewedShares = wrapper.previewDeposit(DEPOSIT);
+        uint256 mintedShares = wrapper.deposit(DEPOSIT, alice);
+        assertEq(mintedShares, previewedShares);
+
+        uint256 previewedAssets = wrapper.previewRedeem(mintedShares);
+        uint256 redeemedAssets = wrapper.redeem(mintedShares, alice, alice);
+        vm.stopPrank();
+
+        assertEq(redeemedAssets, previewedAssets);
+    }
+
+    function test_YieldAccrualIncreasesRedeemValue() public {
+        _deposit(alice, DEPOSIT);
+
+        // Simulate yield: assets appear in the underlying without new shares minted.
+        uint256 yield = 100e18;
+        asset.mint(address(underlying), yield);
+
+        assertEq(wrapper.totalAssets(), DEPOSIT + yield);
+
+        uint256 shares = wrapper.balanceOf(alice);
+        vm.prank(alice);
+        uint256 assetsOut = wrapper.redeem(shares, alice, alice);
+
+        assertApproxEqAbs(assetsOut, DEPOSIT + yield, 1);
+    }
+
+    function test_TwoDepositorsShareProportionally() public {
+        _deposit(alice, DEPOSIT);
+        _deposit(bob, DEPOSIT);
+
+        assertApproxEqAbs(wrapper.balanceOf(alice), wrapper.balanceOf(bob), 1);
+        assertEq(wrapper.totalAssets(), DEPOSIT * 2);
+
+        uint256 bobShares = wrapper.balanceOf(bob);
+        vm.prank(bob);
+        uint256 bobAssets = wrapper.redeem(bobShares, bob, bob);
+
+        assertApproxEqAbs(bobAssets, DEPOSIT, 1);
+        assertApproxEqAbs(wrapper.totalAssets(), DEPOSIT, 1);
+    }
+
+    function test_VirtualSharesGiveSecondDepositorFairShares() public {
+        // The smallest floor-clearing first deposit (1e6 shares = MIN_SHARE_SUPPLY;
+        // anything smaller reverts SupplyBelowMinimum) must not let virtual-share
+        // accounting zero out a normal-sized second deposit (the empty-vault edge
+        // the inflation attack targets).
+        _deposit(alice, 1e6);
+        _deposit(bob, DEPOSIT);
+
+        uint256 bobShares = wrapper.balanceOf(bob);
+        assertGt(bobShares, 0);
+
+        vm.prank(bob);
+        uint256 bobAssets = wrapper.redeem(bobShares, bob, bob);
+
+        assertApproxEqAbs(bobAssets, DEPOSIT, 2);
+    }
+
+    /// Adapter delegatecall safety ///
+
+    function testRevert_AdapterRevertBubblesUp() public {
+        HostileUnderlying hostile = new HostileUnderlying(asset);
+        LiFiVaultWrapper w = _newWrapper(address(hostile));
+        hostile.arm(HostileUnderlying.Mode.Revert, w);
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+
+        vm.expectRevert(HostileUnderlying.Boom.selector);
+
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+    }
+
+    function testRevert_ReentrantCallBlocked() public {
+        HostileUnderlying hostile = new HostileUnderlying(asset);
+        LiFiVaultWrapper w = _newWrapper(address(hostile));
+        hostile.arm(HostileUnderlying.Mode.Reenter, w);
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+    }
+
+    /// Adapter shortfall guards ///
+
+    function testRevert_DepositShortfallFromAdapter() public {
+        LossyVault lossy = new LossyVault(asset);
+        LiFiVaultWrapper w = _newWrapper(address(lossy));
+        lossy.setDepositPullBps(9000); // yield source accepts only 90%
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.AdapterDepositShortfall.selector,
+                DEPOSIT,
+                (DEPOSIT * 9000) / 10000
+            )
+        );
+
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+    }
+
+    function testRevert_WithdrawShortfallFromAdapter() public {
+        LossyVault lossy = new LossyVault(asset);
+        LiFiVaultWrapper w = _newWrapper(address(lossy));
+
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(w), DEPOSIT);
+        w.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+
+        lossy.setWithdrawSendBps(9000); // yield source returns only 90%
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapper.AdapterWithdrawShortfall.selector,
+                DEPOSIT,
+                (DEPOSIT * 9000) / 10000
+            )
+        );
+
+        w.withdraw(DEPOSIT, alice, alice);
+    }
+
+    /// Admin transfer (two-step) ///
+
+    function test_TransferOwnershipTwoStep() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(vaultAdmin);
+        wrapper.transferOwnership(newAdmin);
+        assertEq(wrapper.pendingOwner(), newAdmin);
+        assertEq(wrapper.owner(), vaultAdmin);
+
+        vm.prank(newAdmin);
+        wrapper.acceptOwnership();
+        assertEq(wrapper.owner(), newAdmin);
+        assertEq(wrapper.pendingOwner(), address(0));
+    }
+
+    function test_TransferOwnershipCanBeCancelled() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.startPrank(vaultAdmin);
+        wrapper.transferOwnership(newAdmin);
+        wrapper.transferOwnership(address(0));
+        vm.stopPrank();
+
+        assertEq(wrapper.pendingOwner(), address(0));
+    }
+
+    function testRevert_TransferOwnershipNotAdmin() public {
+        address stranger = makeAddr("stranger");
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
+        wrapper.transferOwnership(makeAddr("newAdmin"));
+    }
+
+    function testRevert_AcceptOwnershipNotPending() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(vaultAdmin);
+        wrapper.transferOwnership(newAdmin);
+
+        address stranger = makeAddr("stranger");
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector,
+                stranger
+            )
+        );
+        wrapper.acceptOwnership();
+    }
+
+    function testRevert_RenounceOwnershipDisabled() public {
+        vm.prank(vaultAdmin);
+        vm.expectRevert(ILiFiVaultWrapper.RenounceDisabled.selector);
+        wrapper.renounceOwnership();
+    }
+
+    /// Helpers ///
+
+    function _splits8000() internal pure returns (uint16[4] memory) {
+        return [uint16(8000), 8000, 8000, 8000];
+    }
+
+    function _newWrapper(
+        address _underlying
+    ) internal returns (LiFiVaultWrapper w) {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        w = LiFiVaultWrapper(
+            address(new BeaconProxy(address(beacon), initCall))
+        );
+    }
+
+    function _deposit(address _from, uint256 _amount) internal {
+        asset.mint(_from, _amount);
+        vm.startPrank(_from);
+        asset.approve(address(wrapper), _amount);
+        wrapper.deposit(_amount, _from);
+        vm.stopPrank();
+    }
+}

@@ -20,6 +20,14 @@ cache = true
 [profile.default.fuzz]
 runs = 256
 
+# Invariant campaign shared by the vault-wrapper suite (the repo's only invariant tests).
+# Set here rather than per-function so every invariant runs one identical campaign; the ci
+# profile inherits it, so CI enforces the same depth and fail-on-revert.
+[profile.default.invariant]
+runs = 64
+depth = 32
+fail_on_revert = true
+
 [profile.ci]
 # Inherits [profile.default]; only fuzz runs differ for faster CI.
 
@@ -39,10 +47,16 @@ runs = 32
 # - test/script are skipped: only deployed contracts must honor the floor, and those
 #   suites trip the legacy pipeline's "stack too deep" (a codegen limit, not a
 #   floor-incompatibility signal) which would mask the real check.
+# - src/VaultWrapper/** is skipped HERE because the standalone Earn Vault Wrapper builds
+#   on OpenZeppelin v5 and pins `^0.8.29` (matching the default compile version), so it
+#   cannot compile under 0.8.17. Its floor equals the version the default profile already
+#   builds with, so the ordinary forge build IS its floor check — no separate floor profile
+#   is needed. Nothing in the Diamond imports it, so excluding it here does not weaken the
+#   Diamond's check.
 [profile.solc_floor]
 solc_version = '0.8.17'
 evm_version = 'london'
-skip = ['test/**', 'script/**']
+skip = ['test/**', 'script/**', 'src/VaultWrapper/**']
 
 [profile.zksync]
 solc_version = '0.8.29'

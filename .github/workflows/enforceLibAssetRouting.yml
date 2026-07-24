@@ -61,6 +61,12 @@ jobs:
             # routes through LibAsset.transferFromERC20), not on a token - text-based grep
             # cannot tell these apart
             "src/Periphery/Executor.sol"
+            # VaultWrapper is a standalone OpenZeppelin v5 subsystem (SafeERC20 /
+            # forceApprove), not a Diamond contract, and is scoped to its own OZ v5
+            # remapping in remappings.txt; LibAsset is a v4.9.2 Diamond library and does
+            # not apply here. Allowlisted per file (not by folder) so a future raw-transfer
+            # bug in a NEW subsystem file is still flagged.
+            "src/VaultWrapper/LiFiVaultWrapper.sol"
           )
 
           ##### Matches .safeTransfer(, .safeTransferFrom( and raw .transfer(, .transferFrom(
