@@ -217,7 +217,7 @@ Each network must have these properties:
 
 - `"targetEvmVersion": "london"` → uses solc 0.8.17
 - `"targetEvmVersion": "cancun"` → uses solc 0.8.29
-- `"isZkEVM": true` → uses solc 0.8.17 with zksolc compiler via [profile.zksync]; no foundry.toml updates or recompilation needed
+- `"isZkEVM": true` → uses the zksolc compiler via [profile.zksync]; no foundry.toml updates or recompilation needed
 
 ### Foundry.toml Profiles
 
