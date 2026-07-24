@@ -29,6 +29,8 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 
 ## Phase 0 — Preflight
 
+**Proceed optimistically — do not pre-gate on tunnel or signing.** Assume the human has the `lifi-connect` tunnel up (per `docs/Setup-agents.md`). Do not ask "how should we run this given I can't open the tunnel / sign" — just execute. The MongoDB scripts fail fast (`list-pending-proposals.ts` exits `2`) if the tunnel is actually down, and signing is handed off in Phase 6 when it's actually needed. The only up-front gate is confirming the resolved plan (contract/version/networks) in Phase 2, since it costs gas across many chains.
+
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
