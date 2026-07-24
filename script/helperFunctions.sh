@@ -2148,6 +2148,9 @@ function verifyContract() {
   echoDebug "ARGS=$ARGS"
   echoDebug "FULL_PATH=$FULL_PATH"
   echoDebug "CHAIN_ID=$CHAIN_ID"
+  echoDebug "SOLC_VERSION_OVERRIDE=$SOLC_VERSION_OVERRIDE"
+  echoDebug "EVM_VERSION_OVERRIDE=$EVM_VERSION_OVERRIDE"
+  echoDebug "OPTIMIZER_RUNS_OVERRIDE=$OPTIMIZER_RUNS_OVERRIDE"
 
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
