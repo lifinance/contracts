@@ -292,7 +292,16 @@ deploySingleContract() {
     local SKIP_LOG_ENTRY
     SKIP_LOG_ENTRY=$(findContractInMasterLog "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION")
     if [[ $? -eq 0 ]]; then
-      CONSTRUCTOR_ARGS_FROM_LOG=$(echo "$SKIP_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS // empty")
+      # findContractInMasterLog keys only on contract/network/environment/version, so a same-version
+      # entry can point at a DIFFERENT address than the one we're short-circuiting (e.g. after a salt
+      # change). Only trust its constructor args when the entry's ADDRESS matches CONTRACT_ADDRESS
+      # (case-insensitive); otherwise leave CONSTRUCTOR_ARGS_FROM_LOG empty so the warning + placeholder
+      # fallback below runs rather than writing another address's args against CONTRACT_ADDRESS.
+      local SKIP_LOG_ADDRESS
+      SKIP_LOG_ADDRESS=$(echo "$SKIP_LOG_ENTRY" | jq -r ".ADDRESS // empty")
+      if [[ -n "$SKIP_LOG_ADDRESS" && "$(echo "$SKIP_LOG_ADDRESS" | tr '[:upper:]' '[:lower:]')" == "$(echo "$CONTRACT_ADDRESS" | tr '[:upper:]' '[:lower:]')" ]]; then
+        CONSTRUCTOR_ARGS_FROM_LOG=$(echo "$SKIP_LOG_ENTRY" | jq -r ".CONSTRUCTOR_ARGS // empty")
+      fi
     fi
     # If no constructor args could be recovered — no master-log entry (e.g. a prior run crashed
     # after broadcast but before logging, or Mongo was unreachable), or the entry has none — the

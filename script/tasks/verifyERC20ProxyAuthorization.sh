@@ -103,18 +103,28 @@ authorizeExecutorOnZkEvm() {
   local PRIVATE_KEY_TO_USE
   PRIVATE_KEY_TO_USE=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") || { error "no private key for $NETWORK"; return 1; }
 
-  local OWNER_BALANCE
-  OWNER_BALANCE=$(cast balance "$OWNER" --rpc-url "$RPC_URL")
-  echo "[info] Owner ($OWNER) native balance: $OWNER_BALANCE wei"
+  # Capture the balance and the lookup's exit status separately: a transient RPC failure yields an
+  # empty string, which must NOT be mistaken for "balance is zero" and trigger auto-funding. Fail
+  # closed — on any failed/empty lookup, skip funding and leave the balance unknown.
+  local OWNER_BALANCE OWNER_BALANCE_OK=true
+  OWNER_BALANCE=$(cast balance "$OWNER" --rpc-url "$RPC_URL") || OWNER_BALANCE_OK=false
+  if [[ "$OWNER_BALANCE_OK" != "true" || -z "$OWNER_BALANCE" ]]; then
+    warning "Could not read owner ($OWNER) native balance on $NETWORK (RPC error?); skipping automatic funding (fail closed). Fund the owner manually if it lacks gas for the setAuthorizedCaller tx."
+    OWNER_BALANCE=""
+  else
+    echo "[info] Owner ($OWNER) native balance: $OWNER_BALANCE wei"
+  fi
 
   local DEFAULT_FUND_AMOUNT=1000000000000000 # 0.001 native; one cheap state-setting tx
   local DO_FUND_OWNER=false
 
-  # Only top up when the owner can't cover the tx. Compare with bc: wei balances routinely exceed
-  # 2^63 and would overflow bash integer arithmetic. Without this gate, every NON_INTERACTIVE rerun
-  # (e.g. before the manual authorization lands) would send another DEFAULT_FUND_AMOUNT.
+  # Only top up when we successfully read a balance AND it can't cover the tx. A missing/failed balance
+  # fails closed (no funding) rather than being treated as insufficient funds. Compare with bc: wei
+  # balances routinely exceed 2^63 and would overflow bash integer arithmetic. Without the sufficiency
+  # gate, every NON_INTERACTIVE rerun (e.g. before the manual authorization lands) would send another
+  # DEFAULT_FUND_AMOUNT.
   local OWNER_NEEDS_FUNDING=false
-  if [[ -z "$OWNER_BALANCE" ]] || (( $(echo "$OWNER_BALANCE < $DEFAULT_FUND_AMOUNT" | bc -l) )); then
+  if [[ -n "$OWNER_BALANCE" ]] && (( $(echo "$OWNER_BALANCE < $DEFAULT_FUND_AMOUNT" | bc -l) )); then
     OWNER_NEEDS_FUNDING=true
   fi
 
