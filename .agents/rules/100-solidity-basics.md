@@ -22,6 +22,15 @@ paths:
 - Functions/vars camelCase; constants & immutables are CONSTANT_CASE.
 - Function params use leading underscore (e.g., `_amount`).
 
+## Address ⇄ bytes32 Conversions ([CONV:ADDR-BYTES32])
+
+- Use the `LibBytes` helpers; never hand-roll the cast:
+  - `LibBytes.toBytes32(addr)` — address → bytes32 (widening, lossless).
+  - `LibBytes.toAddress(b)` — bytes32 → address, **checked** (reverts `NotAnAddress` if the top 96 bits are set). This is the default.
+  - `LibBytes.toAddressUnchecked(b)` — bytes32 → address by truncation; only where dropping the high bits is intentional / already guarded.
+- A raw `bytes32(uint256(uint160(x)))` / `address(uint160(uint256(x)))` in new code is flagged by the Olympix `unsafe-downcast` detector. The helper centralises the (dismissed) finding so call sites stay clean.
+- Numeric narrowing (`uintN(...)`) is out of scope here — tracked separately (EXSC-617).
+
 ## NatSpec Requirements ([CONV:NATSPEC])
 
 - Contracts & interfaces must include:

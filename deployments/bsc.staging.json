@@ -35,5 +35,6 @@
   "LiFiDEXAggregator": "0x6140b987d6b51fd75b66c3b07733beb5167c42fc",
   "GasZipPeriphery": "0x46d8Aa20D5aD98927Cf885De9eBf9436E8E551c2",
   "CalldataVerificationFacet": "0x6f94e6760DA419A0243d046660ccF34309a6dBD3",
-  "WhitelistManagerFacet": "0x610808987E1da09a8F82a30084Cc176c51f66aAB"
+  "WhitelistManagerFacet": "0x610808987E1da09a8F82a30084Cc176c51f66aAB",
+  "SymbiosisFacet": "0x0610B9614E3B7352afd98eE5F3520b9222CCBe87"
 }

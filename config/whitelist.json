@@ -1342,6 +1342,17 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/openocean.svg",
       "webUrl": "https://openocean.finance/classic",
       "contracts": {
+        "robinhood": [
+          {
+            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
+            "functions": {
+              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])",
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0xbc80f1a8": "uniswapV3SwapTo(address,uint256,uint256,uint256[])",
+              "0x30eef8bd": "swapGmxV2(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
+            }
+          }
+        ],
         "mainnet": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
@@ -1751,6 +1762,15 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/kyberswap.svg",
       "webUrl": "https://kyberswap.com/",
       "contracts": {
+        "robinhood": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
         "mainnet": [
           {
             "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
@@ -4394,6 +4414,14 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/nordstern_finance.svg",
       "webUrl": "https://nordstern.finance",
       "contracts": {
+        "robinhood": [
+          {
+            "address": "0x603206d6105217dd972e4ab30676a220ca393346",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
         "mainnet": [
           {
             "address": "0xa929c559e5e6537359680f39cb4e3708e1a14dd1",
@@ -4807,6 +4835,14 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/bitget.svg",
       "webUrl": "https://www.bitget.com/",
       "contracts": {
+        "avalanche": [
+          {
+            "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
         "mainnet": [
           {
             "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
@@ -9420,6 +9456,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x48eCDAA6aDA921f61357c1104829E9b1f4D1F75E",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }

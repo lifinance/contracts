@@ -4,6 +4,11 @@ name: Olympix Static Analysis
 # - detects potential security vulnerabilities and uploads the results to github code scanning
 # - only scans diff (added, renamed, modified) solidity files in src/ instead of the whole repository
 # - ensures security issues are identified before merging, allowing the team to review and discuss findings within the PR
+# - known limitation: the olympix analyzer has a fixed internal ~3-minute analysis timeout (not configurable via any
+#   action input). On large changed-file sets it can hit that timeout, print "Code analysis finished unsuccessfully
+#   because of timeout", exit 0 (green), and write NO olympix.sarif. To avoid a misleading hard failure at the upload
+#   step (github/codeql-action reporting "Path does not exist: olympix.sarif"), the SARIF is only uploaded when it was
+#   actually produced; an incomplete scan surfaces a loud warning + job-summary note instead of a cryptic red.
 
 on:
   pull_request:
@@ -45,6 +50,7 @@ jobs:
           echo "ARGS=$args" >> $GITHUB_ENV
 
       - name: Run Olympix Integrated Security
+        id: olympix
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: olympix/integrated-security@79cbce2446c47a8381bef23d09528e9ef08cc066 # main
         env:
@@ -52,8 +58,31 @@ jobs:
         with:
           args: --output-format sarif --output-path ./ ${{ env.ARGS }}
 
-      - name: Upload Result to GitHub Code Scanning
+      - name: Verify Olympix produced a SARIF report
+        id: sarif-check
         if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          OLYMPIX_OUTCOME: ${{ steps.olympix.outcome }}
+        run: |
+          if [ -f olympix.sarif ]; then
+            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Olympix produced olympix.sarif; results will be uploaded to Code Scanning."
+          else
+            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Olympix static analysis incomplete::Olympix finished without writing olympix.sarif (analyzer step outcome: ${OLYMPIX_OUTCOME}). This is usually the analyzer's internal ~3-minute timeout on a large changed-file set. No static-analysis results were uploaded to Code Scanning for this PR — review the 'Run Olympix Integrated Security' step logs; re-running the job or landing the change in smaller PRs may let the scan complete."
+            {
+              echo "### ⚠️ Olympix static analysis incomplete"
+              echo ""
+              echo "Olympix finished without producing \`olympix.sarif\` (analyzer step outcome: \`${OLYMPIX_OUTCOME}\`)."
+              echo "This is typically the analyzer's internal ~3-minute timeout when many files change at once."
+              echo "**No static-analysis results were uploaded to GitHub Code Scanning for this run.**"
+              echo ""
+              echo "Re-run the job, or land the change in smaller PRs, to let the scan complete."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Result to GitHub Code Scanning
+        if: steps.changed-files.outputs.any_changed == 'true' && steps.sarif-check.outputs.sarif_exists == 'true'
         uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
         with:
           sarif_file: olympix.sarif

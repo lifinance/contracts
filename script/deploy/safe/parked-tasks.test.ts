@@ -38,6 +38,7 @@ import {
   markExecuted,
   markSuperseded,
   revertToQueued,
+  setSafeTxHash,
   type IParkedTask,
   type IParkedTaskInput,
 } from './parked-tasks'
@@ -110,6 +111,10 @@ function matchesFilter(row: IParkedTask, filter: Filter<IParkedTask>): boolean {
 
 interface IFakeOptions {
   createIndexError?: Error
+  /** Index descriptors `listIndexes().toArray()` returns (default: none). */
+  existingIndexes?: { name: string }[]
+  /** When set, `listIndexes().toArray()` rejects with this error. */
+  listIndexesError?: Error
 }
 
 type IFakeCollection = Collection<IParkedTask> & {
@@ -178,6 +183,14 @@ function createFakeCollection(
       createIndexCalls.push({ spec, options: opts })
       if (options.createIndexError) throw options.createIndexError
       return (opts as { name: string }).name
+    },
+    listIndexes() {
+      return {
+        async toArray(): Promise<{ name: string }[]> {
+          if (options.listIndexesError) throw options.listIndexesError
+          return options.existingIndexes ?? []
+        },
+      }
     },
   }
   return api as unknown as IFakeCollection
@@ -510,6 +523,47 @@ describe('status transitions', () => {
   })
 })
 
+describe('setSafeTxHash', () => {
+  const KEY = 'facet-removal|arbitrum|production|A'
+  function seedOne(status: IParkedTask['status']): IFakeCollection {
+    return createFakeCollection([
+      {
+        taskKey: KEY,
+        kind: 'facet-removal',
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facetName: 'A',
+        diamondAddress: DIAMOND,
+        facetAddress: FACET,
+        prUrl: PR_URL,
+        status,
+        enqueuer: 'dev@li.finance',
+        createdAt: new Date(),
+        proposedAt: new Date(),
+      },
+    ])
+  }
+
+  it('links a proposed task to its minted proposal', async () => {
+    const coll = seedOne('proposed')
+    const updated = await setSafeTxHash(coll, KEY, '0xdeadbeef')
+    expect(updated?.safeTxHash).toBe('0xdeadbeef')
+    expect(coll.rows[0]?.safeTxHash).toBe('0xdeadbeef')
+    expect(coll.rows[0]?.status).toBe('proposed')
+  })
+
+  it('returns null when the task is not proposed (e.g. still queued)', async () => {
+    const coll = seedOne('queued')
+    expect(await setSafeTxHash(coll, KEY, '0xdeadbeef')).toBeNull()
+    expect(coll.rows[0]?.safeTxHash).toBeUndefined()
+  })
+
+  it('returns null for an unknown taskKey', async () => {
+    const coll = seedOne('proposed')
+    expect(await setSafeTxHash(coll, 'nope', '0xabc')).toBeNull()
+  })
+})
+
 describe('ensureParkedTasksIndexes', () => {
   it('creates the partial unique index on taskKey for open statuses', async () => {
     const coll = createFakeCollection()
@@ -540,5 +594,57 @@ describe('ensureParkedTasksIndexes', () => {
     const err = Object.assign(new Error('network down'), { code: 6 })
     const coll = createFakeCollection([], { createIndexError: err })
     await expectRejects(ensureParkedTasksIndexes(coll), 'network down')
+  })
+
+  it('tolerates a not-authorized createIndex (code 13) when the index already exists', async () => {
+    const err = Object.assign(
+      new Error('not authorized on deferred-cleanup to execute command'),
+      { code: 13 }
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }, { name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('tolerates a not-authorized createIndex matched by message when code is absent', async () => {
+    const err = new Error(
+      'not authorized on deferred-cleanup to execute command { createIndexes: ... }'
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and the index is missing', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and listIndexes also fails', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const listErr = Object.assign(new Error('not authorized to listIndexes'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      listIndexesError: listErr,
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
   })
 })
