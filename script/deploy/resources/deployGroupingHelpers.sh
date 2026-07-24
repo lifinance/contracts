@@ -39,7 +39,7 @@ EVM_CANCUN="cancun"
 # foundry.toml backup file used while a group build temporarily rewrites it
 FOUNDRY_TOML_BACKUP="foundry.toml.backup"
 
-# getNetworkEvmVersion NETWORK -> echoes the network's deployedWithEvmVersion.
+# getNetworkEvmVersion NETWORK -> echoes the network's targetEvmVersion.
 function getNetworkEvmVersion() {
     local NETWORK="$1"
 
@@ -56,7 +56,7 @@ function getNetworkEvmVersion() {
 
     # Get EVM version
     local EVM_VERSION
-    EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].deployedWithEvmVersion // empty' "$NETWORKS_JSON_FILE_PATH")
+    EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].targetEvmVersion // empty' "$NETWORKS_JSON_FILE_PATH")
 
     if [[ -z "$EVM_VERSION" || "$EVM_VERSION" == "null" ]]; then
         error "EVM version not defined for network '$NETWORK' in networks.json"
