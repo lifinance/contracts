@@ -140,11 +140,14 @@ async function main() {
   const sponsor = privateKeyToAccount(
     keyFromEnv(cfg.sponsorKeyEnv || 'PRIVATE_KEY_PRODUCTION')
   )
+  // Resolve the authority account first, then derive `isSelf` from the resolved
+  // addresses — NOT from env-var names. A distinct env var holding the same private key
+  // as the sponsor is still a self-batch, and must take the executor:'self' nonce path.
   const authorityEnv = cfg.authorityKeyEnv ?? ''
-  const isSelf = !authorityEnv || authorityEnv === cfg.sponsorKeyEnv
-  const authority = isSelf
-    ? sponsor
-    : privateKeyToAccount(keyFromEnv(authorityEnv))
+  const authority = authorityEnv
+    ? privateKeyToAccount(keyFromEnv(authorityEnv))
+    : sponsor
+  const isSelf = authority.address === sponsor.address
   const delegate = getAddress(cfg.delegate || MULTICALL3)
 
   const wallet = createWalletClient({
@@ -262,10 +265,15 @@ async function main() {
   // Leaving an open delegate (Multicall3) lets anyone drive the authority afterwards.
   if (!KEEP_DELEGATION) {
     console.log('\n→ clearing delegation (authorization -> zero address) ...')
-    const clearAuth = await wallet.signAuthorization({
-      account: authority,
-      contractAddress: zeroAddress,
-    })
+    // Mirror the batch authorization: in self-batch mode the authority also sends this
+    // clear tx, so the clearing authorization needs nonce txNonce+1 — viem only applies
+    // that +1 with executor:'self'. Without it the auth carries a stale (already-consumed)
+    // nonce, is silently ignored, and the delegation is never cleared.
+    const clearAuth = await wallet.signAuthorization(
+      isSelf
+        ? { account: authority, contractAddress: zeroAddress, executor: 'self' }
+        : { account: authority, contractAddress: zeroAddress }
+    )
     const clearHash = await wallet.sendTransaction({
       authorizationList: [clearAuth],
       to: authority.address,
@@ -285,7 +293,7 @@ async function main() {
             24
           )}) — re-run undelegate`
     )
-  } else if (KEEP_DELEGATION) {
+  } else {
     console.log(
       '\n⚠ --keep-delegation set: authority remains delegated. Ensure the delegate is access-restricted (Multicall3 is NOT).'
     )
