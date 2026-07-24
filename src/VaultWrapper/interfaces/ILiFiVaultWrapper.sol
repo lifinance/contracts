@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
@@ -91,6 +91,20 @@ interface ILiFiVaultWrapper {
         uint256 amount
     );
 
+    /// @notice Emitted when the LI.FI payout fails (e.g. a blacklisted recipient). The amount
+    ///         is left in the wrapper — still tracked as owed LI.FI fees — instead of
+    ///         reverting the whole distribution and blocking the independent integrator
+    ///         payouts. Governance can repoint the recipient via the factory's
+    ///         `setLifiFeeRecipient` and call `distributeFees` again to claim it.
+    /// @param recipient The LI.FI fee recipient whose transfer reverted.
+    /// @param token The fee-pool token retained (the asset, or this wrapper's shares).
+    /// @param amount The amount retained in the wrapper.
+    event LifiPayoutRetained(
+        address indexed recipient,
+        address indexed token,
+        uint256 amount
+    );
+
     /// Errors ///
 
     /// @notice Thrown when a deposit is attempted while any pause source is engaged.
@@ -99,6 +113,9 @@ interface ILiFiVaultWrapper {
     error InvalidFeeType(uint8 feeType);
     /// @notice Thrown when a required initialization address is the zero address.
     error ZeroAddress();
+    /// @notice Thrown when initialize is called by anyone other than the factory the
+    ///         implementation was bound to at construction.
+    error NotFactory();
     /// @notice Thrown when a fee type's integrator share is 100% (10000 bps) or more.
     error InvalidIntegratorShareBps(uint16 integratorShareBps);
     /// @notice Thrown when ownership renouncement is attempted; the admin role is non-renounceable.
@@ -134,7 +151,9 @@ interface ILiFiVaultWrapper {
     /// Functions ///
 
     /// @notice One-time setup of a vault wrapper immediately after deployment.
-    /// @dev The asset is resolved from `_underlying` via `_adapter` rather than passed in,
+    /// @dev Callable only by the factory the implementation was bound to at construction,
+    ///      so every initialized instance has passed the factory's deploy-time validation.
+    ///      The asset is resolved from `_underlying` via `_adapter` rather than passed in,
     ///      so it cannot disagree with what the adapter actually reports.
     /// @param _underlying The protocol-specific yield source (e.g. an ERC-4626 vault).
     /// @param _adapter The approved yield adapter the vault wrapper routes through at runtime.

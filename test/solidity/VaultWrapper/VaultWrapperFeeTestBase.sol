@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
@@ -67,8 +67,10 @@ abstract contract VaultWrapperFeeTestBase is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
+        // This test contract acts as the factory for the direct beacon-proxy
+        // wrappers, so the implementation is bound to it.
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(address(this))),
             address(this)
         );
     }
@@ -135,8 +137,19 @@ abstract contract VaultWrapperFeeTestBase is Test {
         uint16 _rate,
         uint16 _maxBps
     ) internal {
+        // The setUp implementation is bound to this test contract, so the factory
+        // stack needs its own implementation+beacon bound to the factory — the
+        // second CREATE after the implementation (beacon in between).
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
+        UpgradeableBeacon stackBeacon = new UpgradeableBeacon(
+            address(new LiFiVaultWrapper(predictedFactory)),
+            address(this)
+        );
         factory = new LiFiVaultWrapperFactory(
-            address(beacon),
+            address(stackBeacon),
             owner,
             makeAddr("pauser"),
             makeAddr("onboarder"),

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
@@ -134,7 +134,7 @@ contract LiFiVaultWrapperTest is Test {
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
         beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper()),
+            address(new LiFiVaultWrapper(address(this))),
             address(this)
         );
         wrapper = _newWrapper(address(underlying));
@@ -148,7 +148,7 @@ contract LiFiVaultWrapperTest is Test {
         assertEq(wrapper.underlying(), address(underlying));
         assertEq(wrapper.adapter(), address(adapter));
         assertEq(wrapper.owner(), vaultAdmin);
-        assertEq(wrapper.factory(), address(this));
+        assertEq(wrapper.FACTORY(), address(this));
         for (uint256 i; i < 4; ++i) {
             assertEq(wrapper.integratorShareBps(i), 8000);
         }
@@ -199,6 +199,28 @@ contract LiFiVaultWrapperTest is Test {
             defaultReceivers(),
             address(0)
         );
+    }
+
+    function testRevert_InitializeByNonFactory() public {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                address(underlying),
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert(ILiFiVaultWrapper.NotFactory.selector);
+
+        new BeaconProxy(address(beacon), initCall);
     }
 
     function testRevert_InitializeRejectsZeroAddress() public {

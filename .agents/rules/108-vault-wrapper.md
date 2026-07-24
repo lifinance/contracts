@@ -71,6 +71,17 @@ and counter-intuitive against the repo's Diamond-era conventions.
   silently picks up v4 — keep VaultWrapper code under the scoped paths.
 - The repo does not enable `via_ir`; v5's namespaced-storage accessors raise stack
   pressure, so keep `initialize`/large functions shallow rather than enabling it.
+- **Pragma is `^0.8.29`, not the repo-wide `^0.8.17`** (a deliberate override of
+  `[CONV:LICENSE]`'s pragma rule for this subsystem only): OZ v5.6.1's
+  `ERC4626Upgradeable` requires `^0.8.24` and the toolchain emits `mcopy` (cancun), so
+  `^0.8.17` would be a provably false floor. The subsystem is only ever deployed by LI.FI
+  with the repo's default compiler, so it pins that exact version (`^0.8.29`) rather than a
+  lower "honest minimum" — a lower floor would buy nothing (verification and bytecode key
+  off the exact compiler, not the pragma range) at the cost of a separate floor build. Every
+  file under `src/VaultWrapper/`, `test/solidity/VaultWrapper/`, and `script/deploy/vaultWrapper/`
+  pins `^0.8.29`. Because that equals the default compile version, the ordinary build is the
+  floor check; the subsystem is excluded from the `solc_floor` profile (which only compiles
+  the Diamond's 0.8.17 floor) and needs no profile of its own.
 
 ## Identity and onboarding ([CONV:VW-IDENTITY])
 

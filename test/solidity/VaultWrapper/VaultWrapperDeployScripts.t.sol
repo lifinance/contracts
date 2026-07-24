@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -57,6 +57,7 @@ contract VaultWrapperDeployScriptsTest is Test {
         assertEq(factory.owner(), address(timelock));
         assertEq(factory.BEACON(), address(beacon));
         assertEq(beacon.implementation(), address(impl));
+        assertEq(impl.FACTORY(), address(factory));
 
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
@@ -33,8 +33,9 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      live in proxy storage (no constructor-set immutables, which a beacon proxy cannot give
 ///      per instance). This contract DOES custody funds: it holds the yield-source position on
 ///      behalf of depositors and transiently holds the asset while routing a deposit or
-///      withdrawal. Identity (`underlying`/`adapter`/`owner`/`factory`) and the initial fee
-///      configuration are set write-once in `initialize`. The per-vault admin role is OZ's
+///      withdrawal. Identity (`underlying`/`adapter`/`owner`) and the initial fee
+///      configuration are set write-once in `initialize` (the `FACTORY` is bound at
+///      construction). The per-vault admin role is OZ's
 ///      two-step `owner` (`transferOwnership`/`acceptOwnership`); renouncing it is disabled.
 ///      All four fee types are charged: management (time-based dilution) and performance
 ///      (high-water-mark dilution) fee-shares are minted to this contract via `_accrueFees`,
@@ -115,15 +116,23 @@ contract LiFiVaultWrapper is
     ///         real deposit ever notices it.
     uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
 
+    /// Immutables ///
+
+    /// @notice The factory bound to this implementation at construction: the only address
+    ///         allowed to initialize instances, and the source read by later modules for the
+    ///         factory-level global circuit breaker, fee bounds, and LI.FI fee recipient.
+    ///         Every proxy that reaches `initialize` has therefore passed the factory's
+    ///         deploy-time validation (adapter approval, underlying allowlist, fee bounds),
+    ///         so a counterfeit proxy pointed at the official beacon can never be initialized
+    ///         with unvetted parameters.
+    address public immutable FACTORY;
+
     /// Storage ///
 
     /// @notice The yield source this wrapper deposits into (e.g. an ERC-4626 vault).
     address public underlying;
     /// @notice The approved yield adapter the wrapper routes deposits/withdrawals through.
     address public adapter;
-    /// @notice The factory that deployed this instance (the initializer); read by later
-    ///         modules for the factory-level global circuit breaker.
-    address public factory;
     /// @notice Whether this clone's deposits are paused by the integrator (the per-vault
     ///         `owner`), the only authority over this flag. LI.FI has no per-instance pause;
     ///         its lever is the factory-level global circuit breaker, a separate source read
@@ -184,13 +193,19 @@ contract LiFiVaultWrapper is
     /// Initialization ///
 
     /// @dev Locks the implementation contract so only beacon proxies (which have their own
-    ///      storage) can be initialized — never the implementation itself.
-    constructor() {
+    ///      storage) can be initialized — never the implementation itself. Binds the
+    ///      implementation to the single factory allowed to initialize proxies; with a
+    ///      CREATE3-deployed factory its address is predictable before it exists, so the
+    ///      implementation can be deployed first and the beacon/factory wired after.
+    /// @param _expectedFactory The factory whose deploys may initialize instances.
+    constructor(address _expectedFactory) {
+        if (_expectedFactory == address(0)) revert ZeroAddress();
+        FACTORY = _expectedFactory;
         _disableInitializers();
     }
 
     /// @inheritdoc ILiFiVaultWrapper
-    /// @dev Permissionless but single-shot: the factory deploys and initializes in one
+    /// @dev Factory-only and single-shot: the bound factory deploys and initializes in one
     ///      transaction, and OpenZeppelin's `initializer` guard blocks any later call. All
     ///      arguments are validated by the factory before this is reached. Share name/symbol
     ///      derive from the asset symbol (e.g. "LI.FI Earn USDC" / "lfUSDC"), falling back to
@@ -204,6 +219,7 @@ contract LiFiVaultWrapper is
         FeeReceiver[] calldata _receivers,
         address _accessGate
     ) external initializer {
+        if (msg.sender != FACTORY) revert NotFactory();
         if (
             _underlying == address(0) ||
             _adapter == address(0) ||
@@ -220,7 +236,6 @@ contract LiFiVaultWrapper is
         // array; see the subsystem OZ-v5 stack-pressure note).
         _setIntegratorFeeReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
-        factory = msg.sender;
         underlying = _underlying;
         adapter = _adapter;
         integratorShareBps = _integratorShareBps;
@@ -768,7 +783,7 @@ contract LiFiVaultWrapper is
 
         uint8 idx = uint8(_feeType);
         if (_newRateBps != 0) {
-            (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(factory)
+            (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(FACTORY)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
@@ -819,11 +834,13 @@ contract LiFiVaultWrapper is
     ///      LI.FI's parts go to the factory's live `lifiFeeRecipient`; the integrator's
     ///      parts are fanned across its wallets by bps (last absorbs the rounding
     ///      remainder). CEI: all four counters are zeroed before any transfer, and the call
-    ///      is `nonReentrant`. A failing integrator transfer (e.g. a blacklisted wallet) does
-    ///      not revert the distribution — its share is left in the wrapper and re-booked as
-    ///      still-owed integrator fees, so the integrator can rotate to a working wallet via
-    ///      `setIntegratorFeeReceivers` and call this again to claim it. No-op when every
-    ///      counter is empty.
+    ///      is `nonReentrant`. A failing transfer on either side (e.g. a blacklisted
+    ///      integrator wallet, or a blocked LI.FI recipient) does not revert the
+    ///      distribution — its share is left in the wrapper and re-booked as still-owed,
+    ///      so the two sides never hold each other's payout hostage. The integrator can
+    ///      rotate to a working wallet via `setIntegratorFeeReceivers`, and governance can
+    ///      repoint the LI.FI recipient via the factory's `setLifiFeeRecipient`, then call
+    ///      this again to claim it. No-op when every counter is empty.
     function distributeFees() external nonReentrant {
         _accrueFees();
 
@@ -843,27 +860,36 @@ contract LiFiVaultWrapper is
         lifiFeeShares = 0;
         integratorFeeShares = 0;
 
-        address lifiRecipient = ILiFiVaultWrapperFactory(factory)
+        address lifiRecipient = ILiFiVaultWrapperFactory(FACTORY)
             .lifiFeeRecipient();
 
-        uint256 assetsRetained = _distributeFeePool(
-            asset(),
-            lifiAssets,
-            integratorAssets,
-            lifiRecipient
-        );
-        uint256 sharesRetained = _distributeFeePool(
-            address(this),
-            lifiShares,
-            integratorShares,
-            lifiRecipient
-        );
+        (
+            uint256 assetsIntegratorRetained,
+            uint256 assetsLifiRetained
+        ) = _distributeFeePool(
+                asset(),
+                lifiAssets,
+                integratorAssets,
+                lifiRecipient
+            );
+        (
+            uint256 sharesIntegratorRetained,
+            uint256 sharesLifiRetained
+        ) = _distributeFeePool(
+                address(this),
+                lifiShares,
+                integratorShares,
+                lifiRecipient
+            );
 
-        // Fees whose integrator transfer failed stay in the wrapper as still-owed
-        // integrator fees, claimable on a later distribution (nonReentrant guards this
-        // post-transfer write).
-        integratorFeeAssets = uint128(assetsRetained);
-        integratorFeeShares = uint128(sharesRetained);
+        // Fees whose transfer failed stay in the wrapper as still-owed fees, claimable on
+        // a later distribution once the recipient is fixed — the integrator by rotating
+        // wallets, LI.FI by repointing the factory recipient (nonReentrant guards these
+        // post-transfer writes).
+        integratorFeeAssets = uint128(assetsIntegratorRetained);
+        integratorFeeShares = uint128(sharesIntegratorRetained);
+        lifiFeeAssets = uint128(assetsLifiRetained);
+        lifiFeeShares = uint128(sharesLifiRetained);
     }
 
     /// Pause controls ///
@@ -886,7 +912,7 @@ contract LiFiVaultWrapper is
     /// @return True if this clone is paused by the integrator or the factory-level global
     ///         circuit breaker is engaged.
     function depositsPaused() public view returns (bool) {
-        return paused || ILiFiVaultWrapperFactory(factory).globalPaused();
+        return paused || ILiFiVaultWrapperFactory(FACTORY).globalPaused();
     }
 
     /// Access control ///
@@ -1257,30 +1283,46 @@ contract LiFiVaultWrapper is
 
     /// @dev Pays out one fee pool of `_token` from the per-recipient parts booked at
     ///      accrual — no split happens here (see `_splitFee`). The integrator's part is
-    ///      fanned across the receiver wallets; LI.FI is paid its booked part and is NOT
-    ///      caught, so a reverting LI.FI recipient (factory-governed) is its own concern.
+    ///      fanned across the receiver wallets; LI.FI is paid its booked part. Both sides
+    ///      use OZ's non-reverting `trySafeTransfer`: a failed transfer on either side has
+    ///      its amount returned to the caller (which re-books it as still-owed) and left in
+    ///      the wrapper, so neither a blacklisted integrator wallet nor a blocked LI.FI
+    ///      recipient can revert the distribution and hold the other side's payout hostage.
     ///      Caller must zero the counters first (CEI). No-op on an empty fee pool.
     /// @param _token The fee-pool token (the vault asset, or this wrapper's shares).
     /// @param _lifiPart LI.FI's booked part of the fee pool.
     /// @param _integratorPart The integrator's booked part of the fee pool.
     /// @param _lifiRecipient The live LI.FI fee recipient.
-    /// @return retained The integrator amount whose transfer failed, left in the wrapper.
+    /// @return integratorRetained The integrator amount whose transfer failed, left in the wrapper.
+    /// @return lifiRetained The LI.FI amount whose transfer failed, left in the wrapper.
     function _distributeFeePool(
         address _token,
         uint256 _lifiPart,
         uint256 _integratorPart,
         address _lifiRecipient
-    ) private returns (uint256 retained) {
-        if (_lifiPart == 0 && _integratorPart == 0) return 0;
+    ) private returns (uint256 integratorRetained, uint256 lifiRetained) {
+        if (_lifiPart == 0 && _integratorPart == 0) return (0, 0);
 
         // pay integrators; any wallet whose transfer fails leaves its share in the wrapper
-        retained = _payIntegrators(_token, _integratorPart);
+        integratorRetained = _payIntegrators(_token, _integratorPart);
 
-        if (_lifiPart > 0) {
-            SafeERC20.safeTransfer(IERC20(_token), _lifiRecipient, _lifiPart);
+        if (
+            _lifiPart > 0 &&
+            !SafeERC20.trySafeTransfer(
+                IERC20(_token),
+                _lifiRecipient,
+                _lifiPart
+            )
+        ) {
+            lifiRetained = _lifiPart;
+            emit LifiPayoutRetained(_lifiRecipient, _token, _lifiPart);
         }
 
-        emit FeePoolDistributed(_token, _lifiPart, _integratorPart - retained);
+        emit FeePoolDistributed(
+            _token,
+            _lifiPart - lifiRetained,
+            _integratorPart - integratorRetained
+        );
     }
 
     /// @dev Fans `_integratorTotal` of `_token` across the integrator wallets by their bps, the

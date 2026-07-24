@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
@@ -34,7 +34,13 @@ contract LiFiVaultWrapperFactoryTest is Test {
     address internal assetToken = address(new MockERC20("Asset", "AST", 18));
 
     function setUp() public virtual {
-        impl = new LiFiVaultWrapper();
+        // The implementation binds the factory allowed to call initialize; the factory
+        // is the second CREATE after the implementation (beacon in between).
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 2
+        );
+        impl = new LiFiVaultWrapper(predictedFactory);
         beacon = new UpgradeableBeacon(address(impl), address(this));
         factory = new LiFiVaultWrapperFactory(
             address(beacon),
@@ -56,6 +62,15 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.lifiFeeRecipient(), lifiRecipient);
         assertEq(factory.defaultIntegratorShareBps(), 8000);
         assertFalse(factory.globalPaused());
+    }
+
+    function test_ImplementationBoundToFactory() public view {
+        assertEq(impl.FACTORY(), address(factory));
+    }
+
+    function testRevert_ImplementationConstructorRejectsZeroFactory() public {
+        vm.expectRevert(ILiFiVaultWrapper.ZeroAddress.selector);
+        new LiFiVaultWrapper(address(0));
     }
 
     function test_ConstructorRevertsOnZeroBeacon() public {
@@ -384,7 +399,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(w.underlying(), address(underlying));
         assertEq(w.adapter(), address(adapter));
         assertEq(w.owner(), vaultAdmin);
-        assertEq(w.factory(), address(factory));
+        assertEq(w.FACTORY(), address(factory));
         for (uint256 i; i < 4; ++i) {
             assertEq(w.integratorShareBps(i), 8000); // factory default
         }
@@ -582,7 +597,32 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setFeeBounds(FeeType.Performance, 0, 500); // tighten max to 5%
         DeployParams memory p = _params(0); // rate 1000 = 10%
         vm.prank(onboarder);
-        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(1000),
+                uint16(0),
+                uint16(500)
+            )
+        );
+        factory.deploy(p);
+    }
+
+    function test_DeployRevertsOnFeeBelowBound() public {
+        _enableUnderlyingAndBounds(); // perf bounds 0..5000
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 800, 5000); // require at least 8%
+        DeployParams memory p = _params(0); // rate 1000 = 10% is fine; drop it below min
+        p.fees = FeeConfig({ rateBps: [uint16(500), 0, 0, 0] }); // 5% < 8% min
+        vm.prank(onboarder);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(500),
+                uint16(800),
+                uint16(5000)
+            )
+        );
         factory.deploy(p);
     }
 
@@ -606,7 +646,14 @@ contract LiFiVaultWrapperFactoryTest is Test {
         factory.setUnderlyingAllowed(address(underlying), true);
         DeployParams memory p = _params(0); // Performance rate 1000, enabled
         vm.prank(onboarder);
-        vm.expectRevert(ILiFiVaultWrapperFactory.FeeRateAboveBound.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILiFiVaultWrapperFactory.FeeRateOutOfBounds.selector,
+                uint16(1000),
+                uint16(0),
+                uint16(0)
+            )
+        );
         factory.deploy(p);
     }
 

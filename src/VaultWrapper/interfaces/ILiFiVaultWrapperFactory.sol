@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { FeeType, FEE_TYPE_COUNT } from "../LiFiVaultWrapperTypes.sol";
 
@@ -123,8 +123,12 @@ interface ILiFiVaultWrapperFactory {
     error UnderlyingNotAllowed();
     /// @notice Thrown when the chosen adapter is not approved.
     error AdapterNotApproved();
-    /// @notice Thrown when an enabled fee rate is outside its configured bounds.
-    error FeeRateAboveBound();
+    /// @notice Thrown when an enabled fee rate is outside its configured bounds (below the
+    ///         minimum or above the maximum). Shares the signature — and therefore the
+    ///         selector — of the wrapper's `setFeeRate` bound check, so both the deploy path
+    ///         and the runtime path report the same diagnostic with the offending rate and
+    ///         its bounds.
+    error FeeRateOutOfBounds(uint16 rateBps, uint16 minBps, uint16 maxBps);
     /// @notice Thrown when an enabled fee rate exceeds its immutable cap.
     error FeeRateAboveCap();
     /// @notice Thrown when ownership renunciation is attempted (disabled).

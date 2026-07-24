@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -419,7 +419,8 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
             if (rate == 0) continue;
             if (rate > _cap(FeeType(i))) revert FeeRateAboveCap();
             FeeBounds memory b = feeBounds[FeeType(i)];
-            if (rate < b.minBps || rate > b.maxBps) revert FeeRateAboveBound();
+            if (rate < b.minBps || rate > b.maxBps)
+                revert FeeRateOutOfBounds(rate, b.minBps, b.maxBps);
         }
     }
 }

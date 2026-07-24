@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -28,7 +28,13 @@ contract VaultWrapperTimelockTest is Test {
     address internal stranger = makeAddr("stranger");
 
     function setUp() public {
-        impl = new LiFiVaultWrapper();
+        // The factory is the fourth CREATE in this setUp (impl, beacon, timelock,
+        // factory); the implementation binds the factory address at construction.
+        address predictedFactory = vm.computeCreateAddress(
+            address(this),
+            vm.getNonce(address(this)) + 3
+        );
+        impl = new LiFiVaultWrapper(predictedFactory);
         beacon = new UpgradeableBeacon(address(impl), address(this));
 
         address[] memory proposers = new address[](1);
@@ -210,7 +216,7 @@ contract VaultWrapperTimelockTest is Test {
     /// Beacon upgrade gating ///
 
     function test_BeaconUpgradeViaTimelock() public {
-        LiFiVaultWrapper newImpl = new LiFiVaultWrapper();
+        LiFiVaultWrapper newImpl = new LiFiVaultWrapper(address(factory));
         bytes memory data = abi.encodeCall(
             beacon.upgradeTo,
             (address(newImpl))
@@ -224,7 +230,7 @@ contract VaultWrapperTimelockTest is Test {
     }
 
     function testRevert_BeaconUpgradeDirectByMultisig() public {
-        LiFiVaultWrapper newImpl = new LiFiVaultWrapper();
+        LiFiVaultWrapper newImpl = new LiFiVaultWrapper(address(factory));
 
         vm.prank(multisig);
         vm.expectRevert(
