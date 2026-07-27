@@ -206,15 +206,18 @@ export interface ICoreFacetExemption {
  */
 export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
   {
-    facet: 'LiFiIntentEscrowFacet',
+    facet: 'LiFiIntentEscrowFacetV2',
     reason:
-      'Core for networks onboarded from V2-227 (#1997) onward, which deployed it to the chains named there. The networks below predate that decision and are exempt until the facet is backfilled — remove a network here once the facet is deployed and registered on it.',
+      'LiFiIntentEscrowFacetV2 supersedes LiFiIntentEscrowFacet and is core going forward (V2-227, #1997), deployed to the chains named there. The networks below predate that decision and are exempt until the facet is backfilled — remove a network here once the facet is deployed and registered on it.',
     networks: [
       '0g',
       'abstract',
       'apechain',
       'arbitrumnova',
+      'arbitrumsepolia',
+      'arctestnet',
       'avalanche',
+      'basesepolia',
       'berachain',
       'blast',
       'bob',
@@ -245,6 +248,7 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'morph',
       'nibiru',
       'opbnb',
+      'optimismsepolia',
       'plasma',
       'plume',
       'ronin',

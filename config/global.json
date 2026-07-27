@@ -54,7 +54,7 @@
     "EmergencyPauseFacet",
     "GasZipFacet",
     "GenericSwapFacetV3",
-    "LiFiIntentEscrowFacet",
+    "LiFiIntentEscrowFacetV2",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WhitelistManagerFacet",
@@ -71,9 +71,7 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": [
-    "0x23b872dd"
-  ],
+  "blacklistedFunctionSelectors": ["0x23b872dd"],
   "whitelistPeripheryFunctions": {
     "FeeCollector": [
       {
