@@ -11,7 +11,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
@@ -417,11 +417,12 @@ contract PolymerCCTPFacet is
 
                 // The Solana event receiver is the recipient owner wallet, so it must be
                 // present: a zero nonEVMReceiver would burn the USDC to the ATA while
-                // emitting an unusable recipient the relayer cannot act on. Mirrors the
-                // Stellar arm's nonEVMReceiver guard. The matching mintRecipient guard on
-                // solanaReceiverATA lives in the burn branch below.
+                // emitting an unusable recipient the relayer cannot act on. The matching
+                // mintRecipient guard on solanaReceiverATA lives in the burn branch below.
+                // (The Stellar arm folds the same condition into a compound InvalidCallData
+                // check; that shipped selector is left untouched here.)
                 if (_polymerData.nonEVMReceiver == bytes32(0)) {
-                    revert InvalidCallData();
+                    revert InvalidNonEVMReceiver();
                 }
             } else if (isSolanaDestination) {
                 revert InvalidReceiver();

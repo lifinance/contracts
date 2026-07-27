@@ -7,7 +7,7 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, InvalidSendingToken, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -997,7 +997,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.nonEVMReceiver = bytes32(0);
         validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
-        vm.expectRevert(InvalidCallData.selector);
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
 
         initiateBridgeTxWithFacet(false);
 

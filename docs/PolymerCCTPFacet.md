@@ -51,7 +51,7 @@ Solana (`LIFI_CHAIN_ID_SOLANA`, CCTP domain `5`) is non-EVM and carries **no** f
 - `solanaReceiverATA` — the recipient's USDC Associated Token Account. This is the CCTP `mintRecipient`, because CCTP mints SPL tokens into a token account, not into a wallet.
 - `nonEVMReceiver` — the recipient **owner wallet**. This is what the facet emits as the `receiver` of `BridgeToNonEVMChainBytes32`.
 
-Both are required to be non-zero (`InvalidCallData` for a zero `nonEVMReceiver`, `InvalidConfig` for a zero `solanaReceiverATA`), and `hookData` must be empty.
+Both are required to be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `InvalidConfig` for a zero `solanaReceiverATA`), and `hookData` must be empty.
 
 Emitting the **wallet** rather than the ATA is deliberate: the off-chain relayer derives the ATA from the emitted receiver. If the event carried a token account, the relayer would derive an ATA _of_ a token account — a junk address that leaks rent in SOL and can make the mint revert. This is the fix in [EXP-612](https://linear.app/lifi-linear/issue/EXP-612); the LI.FI API is responsible for resolving a user-pasted token account back to its owner wallet and deriving the real ATA.
 
