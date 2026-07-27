@@ -600,7 +600,16 @@ export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
  * Parse address result from callTronContract output
  */
 export function parseTronAddressOutput(output: string): string {
-  return output.trim().replace(/^["']|["']$/g, '')
+  // callTronContract prepends TronWeb's diagnostic lines ("\u2699 Initializing TronWeb...",
+  // "\u2699 Calling <fn> on <addr>", ...) to the actual return value, so the address is the
+  // LAST meaningful line, not the whole blob. Trimming the blob leaves it starting with the
+  // first diagnostic line, which then fails every "is this a T... address" test and reads as
+  // an unregistered/absent contract. Take the last non-empty, non-diagnostic line instead.
+  const lines = output
+    .split('\n')
+    .map((line) => line.trim().replace(/^["']|["']$/g, ''))
+    .filter((line) => line.length > 0 && !line.startsWith('\u2699'))
+  return lines[lines.length - 1] ?? ''
 }
 
 /**

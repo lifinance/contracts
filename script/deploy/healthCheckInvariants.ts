@@ -1208,9 +1208,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               ctx.tronRpcUrl
             )
 
-            const cleanedAddress = registeredAddressOutput
-              .trim()
-              .replace(/^["']|["']$/g, '')
+            // Use the shared parser, not an ad-hoc trim: callTronContract's output carries
+            // TronWeb diagnostic lines ahead of the return value.
+            const cleanedAddress = parseTronAddressOutput(
+              registeredAddressOutput
+            )
             const registeredAddress =
               cleanedAddress.startsWith('T') && cleanedAddress.length === 34
                 ? cleanedAddress
