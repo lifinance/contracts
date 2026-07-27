@@ -61,9 +61,12 @@ it can be posted for peer review.
   least one approval from the smart-contract core team and re-evaluates on
   every review event — including the approval dismissal caused by the stage-9
   audit commit, which is why stage 10 needs a fresh approval.
-- **`securityAlertsReview.yml`** can revert a ready PR back to draft while
-  blocking security alerts exist; resolve the alerts, then mark the PR ready
-  again.
+- **`securityAlertsReview.yml`** is the only workflow that reverts a ready PR
+  back to draft. It fires on `ready_for_review` and force-drafts when Olympix
+  code-scanning alerts are unresolved, dismissed without a comment, or
+  dismissed with the invalid reason "Used in tests" (only production code is
+  analyzed). The fix is resolving or properly dismissing the alerts (comment +
+  valid reason), then marking the PR ready again — never an audit entry.
 - **Audit labels are protected** (`protectAuditLabels.yml`): `AuditRequired`,
   `AuditNotRequired`, and `AuditCompleted` may only be set or removed by the CI
   bot — never assign or remove them manually.
