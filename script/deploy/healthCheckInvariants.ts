@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
+import { TRON_ZERO_ADDRESS } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
@@ -30,7 +31,8 @@ import {
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
-import { SAFE_THRESHOLD } from './shared/constants'
+import { SAFE_THRESHOLD, ZERO_ADDRESS } from './shared/constants'
+import { evaluateFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -199,6 +201,29 @@ export function isInvariantApplicable(
   if (scope.requiresGasZip && !ctx.supportsGasZip) return false
 
   return true
+}
+
+/**
+ * Base58 encoding of the Tron zero address. `TRON_ZERO_ADDRESS` from the devkit is the hex
+ * (`41...`) form, and `callTronContract` returns base58, so both spellings must be checked.
+ */
+const TRON_ZERO_ADDRESS_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Whether a parsed Tron address names a real contract rather than an unset slot.
+ *
+ * The zero address is itself a well-formed 34-character base58 `T...` string, so a shape check
+ * alone reads an unregistered periphery slot as registered. Pure.
+ *
+ * @param value - output of {@link parseTronAddressOutput}
+ */
+export function isNonZeroTronAddress(value: string): boolean {
+  return (
+    value.startsWith('T') &&
+    value.length === 34 &&
+    value !== TRON_ZERO_ADDRESS_BASE58 &&
+    value !== TRON_ZERO_ADDRESS
+  )
 }
 
 /**
@@ -1103,6 +1128,120 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `Periphery contract ${periphery} registered in Diamond`
             )
         }
+      }
+    },
+  },
+  {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets REGISTERED ON CHAIN, not on target state: the failure this guards
+      // against is a facet being live while its companion is absent, and target state was itself
+      // missing the receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      const facetNamesByAddress = Object.fromEntries(
+        Object.entries(ctx.deployedContracts).map(([name, address]) => [
+          String(address).toLowerCase(),
+          name,
+        ])
+      )
+      const liveFacets = ctx.onChainFacets
+        .map((facet) => facetNamesByAddress[facet.address.toLowerCase()])
+        .filter((name): name is string => typeof name === 'string')
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${
+            carveOut.coupling
+          }: companion not required (triggered by ${carveOut.triggeredBy.join(
+            ', '
+          )}) — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = [...new Set(required.flatMap((r) => r.requiresAnyOf))]
+      const registered = new Map<string, boolean>()
+
+      if (ctx.isTron && ctx.tronRpcUrl)
+        for (const periphery of wanted)
+          try {
+            const output = await callTronContract(
+              ctx.diamondAddress,
+              'getPeripheryContract(string)',
+              [periphery],
+              'address',
+              ctx.tronRpcUrl
+            )
+            registered.set(
+              periphery,
+              isNonZeroTronAddress(parseTronAddressOutput(output))
+            )
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logError(
+              `Failed to read periphery registration for ${periphery}: ${errorMessage}`
+            )
+            return
+          }
+      else if (ctx.publicClient) {
+        const peripheryRegistry = getContract({
+          address: ctx.diamondAddress as Address,
+          abi: parseAbi([
+            'function getPeripheryContract(string) external view returns (address)',
+          ]),
+          client: ctx.publicClient,
+        })
+        const addresses = await Promise.all(
+          wanted.map((periphery) =>
+            peripheryRegistry.read.getPeripheryContract([periphery])
+          )
+        )
+        wanted.forEach((periphery, index) =>
+          registered.set(
+            periphery,
+            addresses[index] !== undefined &&
+              getAddress(addresses[index] as Address) !== ZERO_ADDRESS
+          )
+        )
+      } else return
+
+      for (const requirement of required) {
+        const satisfiedBy = requirement.requiresAnyOf.filter((periphery) =>
+          registered.get(periphery)
+        )
+        if (satisfiedBy.length > 0)
+          consola.success(
+            `${requirement.coupling}: ${satisfiedBy.join(
+              ' / '
+            )} registered for ${requirement.triggeredBy.join(', ')}`
+          )
+        else
+          ctx.logError(
+            `${requirement.triggeredBy.join(
+              ', '
+            )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
+              ', '
+            )}) - destination calls for this integration are disabled on this network`
+          )
       }
     },
   },

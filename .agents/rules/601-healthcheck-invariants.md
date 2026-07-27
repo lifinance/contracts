@@ -33,8 +33,17 @@ invariant must be added, adjusted, or removed. Use this checklist:
   new proxy, etc.) → add a binding invariant mirroring `executor-erc20proxy-binding` /
   `receiver-executor-binding`: register the contract and its getter (for Receivers, extend
   the `RECEIVER_EXECUTOR_GETTERS` list) and assert it points at the deployed counterpart.
+- **Facet added whose feature needs a companion periphery contract on the same chain** (a
+  bridge facet that handles the source side while a Receiver handles destination calls) →
+  declare the pairing in `config/global.json` → `facetPeripheryCouplings` instead of relying
+  on anyone remembering it. The `facet-required-periphery` invariant then fails on any chain
+  where the facet is live and none of the `requiresAnyOf` contracts is registered. Declare
+  the coupling even when the feature is not live yet — set `notRequiredYet` with a reason and
+  remove that field to activate it. Never suppress a real gap: `notRequiredOn` is for chains
+  where the destination side genuinely does not apply, and every entry needs a reason.
 - **Contract removed / deprecated** → remove its registry entry and any hardcoded name
-  lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`).
+  lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`, and its
+  coupling from `facetPeripheryCouplings`).
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter).

@@ -12,6 +12,7 @@ import {
   HEALTH_CHECK_INVARIANTS,
   findDuplicateSelectors,
   getInvariantExclusion,
+  isNonZeroTronAddress,
   isInvariantApplicable,
   runHealthCheckInvariants,
   type IHealthCheckContext,
@@ -221,6 +222,127 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     const names = HEALTH_CHECK_INVARIANTS.map((i) => i.name)
     expect(names).toContain('executor-erc20proxy-binding')
     expect(names).toContain('receiver-executor-binding')
+  })
+})
+
+describe('isNonZeroTronAddress', () => {
+  it('accepts a real Tron contract address', () => {
+    expect(isNonZeroTronAddress('TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt')).toBe(
+      true
+    )
+  })
+
+  it('rejects the Tron zero address (a well-formed T... string that means "unset")', () => {
+    expect(isNonZeroTronAddress('T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb')).toBe(
+      false
+    )
+  })
+
+  it('rejects malformed output', () => {
+    expect(isNonZeroTronAddress('')).toBe(false)
+    expect(
+      isNonZeroTronAddress('0x0000000000000000000000000000000000000000')
+    ).toBe(false)
+    expect(isNonZeroTronAddress('TooShort')).toBe(false)
+  })
+})
+
+describe('facet-required-periphery invariant', () => {
+  const FACET_ADDRESS = '0x1111111111111111111111111111111111111111'
+  const RECEIVER_ADDRESS = '0x2222222222222222222222222222222222222222'
+  const DIAMOND_ADDRESS = '0x3333333333333333333333333333333333333333'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'facet-required-periphery'
+  ) as IHealthCheckInvariant
+
+  /**
+   * Context with `AcrossFacetV4` registered on chain, and a stub client that resolves
+   * `getPeripheryContract(name)` from `registryEntries` (absent name => zero address).
+   */
+  function makeCouplingCtx(
+    registryEntries: Record<string, string>,
+    { liveFacets = true }: { liveFacets?: boolean } = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND_ADDRESS,
+      deployedContracts: {
+        AcrossFacetV4: FACET_ADDRESS,
+        ReceiverAcrossV4: RECEIVER_ADDRESS,
+      },
+      onChainFacets: liveFacets
+        ? [{ address: FACET_ADDRESS, selectors: ['0xaaaaaaaa'] }]
+        : [],
+      publicClient: {
+        readContract: async ({ args }: { args: [string] }) =>
+          registryEntries[args[0]] ??
+          '0x0000000000000000000000000000000000000000',
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('is registered as a production-scoped error that reads on-chain facets', () => {
+    expect(invariant).toBeDefined()
+    expect(invariant.severity).toBe('error')
+    expect(invariant.readsOnChainFacets).toBe(true)
+    expect(invariant.scope.environments).toEqual(['production'])
+  })
+
+  it('passes when the companion receiver is registered in the diamond', async () => {
+    const ctx = makeCouplingCtx({ ReceiverAcrossV4: RECEIVER_ADDRESS })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('fails when a live facet has no companion registered', async () => {
+    const ctx = makeCouplingCtx({})
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('AcrossFacetV4')
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4')
+    expect(ctx.errors[0]).toContain('destination calls')
+  })
+
+  it('accepts any one of the alternative companions (Across V4 may use the V3 receiver)', async () => {
+    const ctx = makeCouplingCtx({ ReceiverAcrossV3: RECEIVER_ADDRESS })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('warns instead of silently passing when the on-chain facet list is unavailable', async () => {
+    const ctx = makeCouplingCtx({}, { liveFacets: false })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('coupling check skipped')
+  })
+
+  it('does not require a companion for a facet without a declared coupling', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.deployedContracts = { GenericSwapFacetV3: FACET_ADDRESS }
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('does not require a companion for a coupling marked notRequiredYet', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.deployedContracts = { LiFiIntentEscrowFacetV2: FACET_ADDRESS }
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
   })
 })
 

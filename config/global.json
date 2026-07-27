@@ -71,6 +71,54 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
+  "facetPeripheryCouplings": {
+    "acrossV3": {
+      "facets": [
+        "AcrossFacet"
+      ],
+      "requiresAnyOf": [
+        "ReceiverAcrossV3"
+      ]
+    },
+    "acrossV4": {
+      "facets": [
+        "AcrossFacetV4",
+        "AcrossFacetPackedV4",
+        "AcrossV4SwapFacet"
+      ],
+      "requiresAnyOf": [
+        "ReceiverAcrossV4",
+        "ReceiverAcrossV3"
+      ],
+      "devNotes": "Across kept the handleV3AcrossMessage callback signature in V4, so either receiver can service a V4 destination call - which of the two the backend addresses is a routing decision, not a contract constraint."
+    },
+    "chainflip": {
+      "facets": [
+        "ChainflipFacet"
+      ],
+      "requiresAnyOf": [
+        "ReceiverChainflip"
+      ]
+    },
+    "oif": {
+      "facets": [
+        "LiFiIntentEscrowFacet",
+        "LiFiIntentEscrowFacetV2"
+      ],
+      "requiresAnyOf": [
+        "ReceiverOIF"
+      ],
+      "notRequiredYet": "OIF destination-side execution is not supported yet (confirmed by Alexander Lindgren 2026-07-27), so the escrow facets ship without a receiver. Remove this field to activate the check once destination support lands."
+    },
+    "stargateV2": {
+      "facets": [
+        "StargateFacetV2"
+      ],
+      "requiresAnyOf": [
+        "ReceiverStargateV2"
+      ]
+    }
+  },
   "blacklistedFunctionSelectors": [
     "0x23b872dd"
   ],
