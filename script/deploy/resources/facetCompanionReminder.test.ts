@@ -11,7 +11,11 @@ import {
 
 import type { TFacetPeripheryCouplings } from '../shared/facetPeripheryCouplings'
 
-import { buildCompanionReminder, readDeployLog } from './facetCompanionReminder'
+import {
+  buildCompanionReminder,
+  isValidNetworkName,
+  readDeployLog,
+} from './facetCompanionReminder'
 
 const COUPLINGS: TFacetPeripheryCouplings = {
   acrossV4: {
@@ -108,6 +112,14 @@ describe('readDeployLog', () => {
     const log = readDeployLog('mainnet', 'production', process.cwd())
 
     expect(Object.values(log)).not.toContain('')
+  })
+
+  it('refuses a network name that could traverse out of deployments/', () => {
+    expect(isValidNetworkName('../../.env')).toBe(false)
+    expect(isValidNetworkName('mainnet/../secret')).toBe(false)
+    expect(isValidNetworkName('bsc-testnet')).toBe(true)
+    expect(isValidNetworkName('mainnet')).toBe(true)
+    expect(readDeployLog('../../.env', 'production', process.cwd())).toEqual({})
   })
 
   it('returns an empty map for a network with no deploy log', () => {
