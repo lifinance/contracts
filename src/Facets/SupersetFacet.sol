@@ -254,7 +254,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             _bridgeData.minAmount
         );
 
-        _startBridge(_bridgeData, _supersetData);
+        _startBridge(_bridgeData, _supersetData, _supersetData.amountOutMin);
     }
 
     /// @notice Performs a swap before bridging via Superset
@@ -307,14 +307,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // so by here `_bridgeData.minAmount >= preSwapMinAmount` and the ratio
         // never tightens the floor. `validateBridgeDataSuperset` already rejects
         // `_bridgeData.minAmount == 0`, so `preSwapMinAmount > 0`.
-        SupersetData memory modifiedSupersetData = _supersetData;
-        modifiedSupersetData.amountOutMin = FixedPointMathLib.mulDiv(
+        uint256 scaledAmountOutMin = FixedPointMathLib.mulDiv(
             _supersetData.amountOutMin,
             _bridgeData.minAmount,
             preSwapMinAmount
         );
 
-        _startBridge(_bridgeData, modifiedSupersetData);
+        _startBridge(_bridgeData, _supersetData, scaledAmountOutMin);
     }
 
     /// Internal Methods ///
@@ -410,9 +409,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     ///      the matching Superset ABI for (hub|spoke) × (same-chain|cross-chain).
     /// @param _bridgeData Core LI.FI bridge data
     /// @param _supersetData Superset-specific parameters
+    /// @param _amountOutMin Destination slippage floor to enforce; equals
+    ///        `_supersetData.amountOutMin` on the plain bridge path, or the
+    ///        post-swap rescaled floor on the swap-and-bridge path.
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        SupersetData memory _supersetData
+        SupersetData calldata _supersetData,
+        uint256 _amountOutMin
     ) internal {
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
@@ -435,7 +438,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                             recipient: _bridgeData.receiver,
                             deadline: _supersetData.deadline,
                             amountIn: _bridgeData.minAmount,
-                            amountOutMinimum: _supersetData.amountOutMin
+                            amountOutMinimum: _amountOutMin
                         })
                     );
                 if (amountOut == 0) revert InvalidConfig();
@@ -448,7 +451,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 }({
                     _path: _supersetData.path,
                     _amountIn: _bridgeData.minAmount,
-                    _amountOutMin: _supersetData.amountOutMin,
+                    _amountOutMin: _amountOutMin,
                     _recipient: _bridgeData.receiver,
                     _fallbackEoA: _supersetData.fallbackEoA,
                     _deadline: _supersetData.deadline,
@@ -462,7 +465,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             }({
                 _path: _supersetData.path,
                 _amountIn: _bridgeData.minAmount,
-                _amountOutMin: _supersetData.amountOutMin,
+                _amountOutMin: _amountOutMin,
                 _recipient: _bridgeData.receiver,
                 _fallbackEoA: _supersetData.fallbackEoA,
                 _deadline: _supersetData.deadline,
@@ -473,7 +476,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 .multiHopSwapWithOutputChain{ value: _supersetData.lzFee }({
                 _path: _supersetData.path,
                 _amountIn: _bridgeData.minAmount,
-                _amountOutMin: _supersetData.amountOutMin,
+                _amountOutMin: _amountOutMin,
                 _recipient: _bridgeData.receiver,
                 _refundAddress: _supersetData.refundAddress,
                 _fallbackEoA: _supersetData.fallbackEoA,
@@ -491,13 +494,13 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @param _omniPath Packed OmniToken path from `SupersetData.path`
     /// @return localPath Packed local-address path for `HubPoolManager.exactInput`
     function _omniPathToLocalAddressPath(
-        bytes memory _omniPath
+        bytes calldata _omniPath
     ) internal view returns (bytes memory localPath) {
         IOmniTokenAddressBook addressBook = ISupersetPoolManager(POOL_MANAGER)
             .getOmniTokenAddressBook();
 
         address tokenIn = addressBook.getAddressForOmniToken(
-            _readUint256(_omniPath, 0)
+            uint256(bytes32(_omniPath[:OMNI_TOKEN_ID_BYTES]))
         );
         if (tokenIn == address(0)) revert InvalidConfig();
 
@@ -505,39 +508,19 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
         uint256 offset = OMNI_TOKEN_ID_BYTES;
         while (offset < _omniPath.length) {
-            uint24 fee = _readUint24(_omniPath, offset);
+            uint24 fee = uint24(bytes3(_omniPath[offset:offset + FEE_BYTES]));
             offset += FEE_BYTES;
 
             address tokenOut = addressBook.getAddressForOmniToken(
-                _readUint256(_omniPath, offset)
+                uint256(
+                    bytes32(_omniPath[offset:offset + OMNI_TOKEN_ID_BYTES])
+                )
             );
             offset += OMNI_TOKEN_ID_BYTES;
 
             if (tokenOut == address(0)) revert InvalidConfig();
 
             localPath = abi.encodePacked(localPath, fee, tokenOut);
-        }
-    }
-
-    /// @dev Reads a big-endian `uint256` from `_data` at byte `_offset`.
-    function _readUint256(
-        bytes memory _data,
-        uint256 _offset
-    ) private pure returns (uint256 value) {
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            value := mload(add(add(_data, 32), _offset))
-        }
-    }
-
-    /// @dev Reads a big-endian `uint24` from `_data` at byte `_offset`.
-    function _readUint24(
-        bytes memory _data,
-        uint256 _offset
-    ) private pure returns (uint24 value) {
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            value := shr(232, mload(add(add(_data, 32), _offset)))
         }
     }
 
