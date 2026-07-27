@@ -3,14 +3,27 @@
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario arbitrum-to-base
  *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-to-unichain-w-swap
+ *   bunx tsx script/demoScripts/demoSuperset.ts --scenario arbitrum-samechain-dex
+ *   bunx tsx script/demoScripts/demoSuperset.ts --scenario base-samechain-dex
  *
- * Executed runs:
+ * Executed runs (cross-chain):
  *   base-to-unichain        SRC https://basescan.org/tx/0x89c55da51e3461637cc5a17371c23417d4600f073659d7ba407694e022f263f2
  *                           DST https://uniscan.xyz/tx/0xe2702ba8c1d45f3bc7a1ce94c9193538389d84037eeadab49a8e375db64fe040
  *   arbitrum-to-base        SRC https://arbiscan.io/tx/0x4a087bf8a7e6f4658c5f2d0dac9d9d6e783691a65d11822153f3a8fa2482610e
  *                           DST https://basescan.org/tx/0x10eabe39174e6426a49d9145ec59af580f26958fc89cffe75259c4d973d7cbd5
  *   base-to-unichain-w-swap SRC https://basescan.org/tx/0x446053ee8e5b2400bf46eef45188f3289dce8333c0cbe0cc635cbf5a1eca3ce9
  *                           DST https://uniscan.xyz/tx/0x905d8ca1a6a61c31049a6f7e0e40be78b66872d4870d84a9bcba2d2648c35c27
+ *
+ * Same-chain (DEX) scenarios — `destinationChainId == sourceChainId`:
+ *   arbitrum-samechain-dex  Hub source → atomic `HubPoolManager.exactInput`; no LayerZero
+ *                           message, so `lzFee = 0` and `toEid`/`fallbackEoA`/`options`
+ *                           are unused. Path + amountOutMin below are a real, live-quoted
+ *                           USDC→tGBP route (see SupersetFacet.HubFork.t.sol, same route).
+ *   base-samechain-dex      Spoke source → `SpokePoolManager.multiHopSwap` (LZ round-trip
+ *                           source→hub→source). Still needs real `options` + `lzFee`; the
+ *                           values below are carried over from the Base→hub leg of
+ *                           `base-to-unichain` and should be re-quoted against a live
+ *                           same-chain quote (EXBE-484) before a mainnet run.
  */
 
 import { randomBytes } from 'crypto'
@@ -50,12 +63,23 @@ type Scenario =
   | 'base-to-unichain'
   | 'arbitrum-to-base'
   | 'base-to-unichain-w-swap'
+  | 'arbitrum-samechain-dex'
+  | 'base-samechain-dex'
 
 const SCENARIO_NAMES = [
   'base-to-unichain',
   'arbitrum-to-base',
   'base-to-unichain-w-swap',
+  'arbitrum-samechain-dex',
+  'base-samechain-dex',
 ] as const
+
+// Source-chain IDs, used to detect same-chain (DEX) routes at runtime.
+const SOURCE_CHAIN_IDS: Record<string, number> = {
+  base: 8453,
+  arbitrum: 42161,
+  unichain: 130,
+}
 
 interface IPreSwap {
   fromToken: Address
@@ -154,13 +178,60 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
       lzFee: 181180803718221n, // 20% buffer above quoted request fee (raw: 150984003098517)
     },
   },
+
+  'arbitrum-samechain-dex': {
+    description:
+      'Arbitrum → Arbitrum · 1 USDC → tGBP (hub source, same-chain DEX via exactInput)',
+    sourceChain: 'arbitrum',
+    destinationChainId: 42161, // == source: same-chain (DEX) route
+    sourceToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC on Arbitrum
+    amount: '1',
+    superset: {
+      // omniId(2=USDC) || fee(500) || omniId(4=tGBP); resolved to local
+      // addresses on-chain, then swapped atomically via HubPoolManager.exactInput.
+      omniPath:
+        '0x00000000000000000000000000000000000000000000000000000000000000020001f40000000000000000000000000000000000000000000000000000000000000004',
+      amountOutMin: 740000000000000000n, // ~0.74 tGBP; live quote ≈0.748 tGBP per 1 USDC, ~1% floor
+      toEid: 0, // unused on hub same-chain (exactInput takes no destination EID)
+      options: '0x', // unused; no LayerZero message on the atomic hub path
+      lzFee: 0n, // atomic — no LayerZero fee
+    },
+  },
+
+  'base-samechain-dex': {
+    description:
+      'Base → Base · 1 USDC → WBTC (spoke source, same-chain DEX via multiHopSwap round-trip)',
+    sourceChain: 'base',
+    destinationChainId: 8453, // == source: same-chain (DEX) route
+    sourceToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+    amount: '1',
+    superset: {
+      omniPath:
+        '0x0000000000000000000000000000000000000000000000000000000000000002000bb80000000000000000000000000000000000000000000000000000000000000003',
+      amountOutMin: 1472n, // off-band hub quote for 1 USDC in, minus 1% slippage
+      toEid: 0, // unused on spoke same-chain (multiHopSwap takes no destination EID)
+      // NOTE: options + lzFee below are carried over from the Base→hub leg of
+      // `base-to-unichain`. The spoke same-chain round-trip (source→hub→source)
+      // must be re-quoted against a live same-chain quote (EXBE-484) before a
+      // real run; treat these as placeholders sufficient to shape the tx.
+      options:
+        '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
+      lzFee: 181180803718221n,
+    },
+  },
 }
 
 function assertConfigured(s: IScenarioConfig): void {
   const missing: string[] = []
+  // Hub same-chain (exactInput) is atomic: no LayerZero message, so `options`
+  // and `lzFee` are legitimately empty/zero and must not be flagged as missing.
+  const isHubSameChain =
+    s.destinationChainId === SOURCE_CHAIN_IDS[s.sourceChain] &&
+    s.sourceChain === 'arbitrum'
   if (s.superset.omniPath === '0x') missing.push('superset.omniPath')
-  if (s.superset.options === '0x') missing.push('superset.options')
-  if (s.superset.lzFee === 0n) missing.push('superset.lzFee')
+  if (!isHubSameChain && s.superset.options === '0x')
+    missing.push('superset.options')
+  if (!isHubSameChain && s.superset.lzFee === 0n) missing.push('superset.lzFee')
   if (s.superset.amountOutMin === 0n) missing.push('superset.amountOutMin')
   if (s.preSwap) {
     if (s.preSwap.fromAmount === 0n) missing.push('preSwap.fromAmount')

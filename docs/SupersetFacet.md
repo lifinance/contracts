@@ -292,3 +292,26 @@ Once backend DEX routing is live, same-chain Superset quotes use matching
 
 - **Spoke source**: still needs LayerZero `options` + `lzFee` (round-trip via hub); `toEid` is ignored.
 - **Hub source**: atomic `exactInput`; `lzFee` should be `0`; `fallbackEoA` / `toEid` / `options` are unused.
+
+Demo scenarios for both same-chain routes live in
+`script/demoScripts/demoSuperset.ts` (`arbitrum-samechain-dex`,
+`base-samechain-dex`).
+
+#### ABI provenance (for reviewers / auditors)
+
+The Superset entrypoints this facet calls are minimal interfaces mirrored from
+Superset's (private) `virtual-pools` contracts. They were verified against that
+source, not just assumed from the SDK:
+
+| Facet call | Superset source | Notes |
+| --- | --- | --- |
+| `ISupersetHubPoolManager.exactInput(ExactInputParams)` → `uint256` | `HubPoolManager.exactInput` → `SwapManager.exactInput` (atomic swap over the hub's Uniswap-V3 mirror pools) | `ExactInputParams` is the canonical Uniswap-V3 `ISwapRouter` struct `{ bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum }`. |
+| `ISupersetSpokePoolManager.multiHopSwap(path, amountIn, amountOutMin, recipient, fallbackEoA, deadline, options)` | `SpokePoolManager.multiHopSwap` | Same-chain (LZ round-trip source→hub→source). |
+| Local address path `address(20) ‖ fee(3) ‖ …` for `exactInput` | SDK `buildLocalTokenPath` | Produced on-chain by `_omniPathToLocalAddressPath`. |
+| `ISupersetPoolManager.getOmniTokenAddressBook()` | `HubPoolManager.getOmniTokenAddressBook` / spoke equivalent | Used to resolve OmniToken IDs → local token addresses. |
+
+The hub `exactInput` path is also exercised end-to-end against the **live**
+`HubPoolManager` on Arbitrum (`test/solidity/Facets/SupersetFacet.HubFork.t.sol`,
+100 USDC → tGBP), complementing the mock-based unit tests. The deployed hub
+`HubPoolManager` (`0xcC687…961c`) is not source-verified on Arbiscan, so the
+interface should be re-confirmed against Superset's source at audit time.
