@@ -22,8 +22,9 @@
  *   base-samechain-dex      Spoke source → `SpokePoolManager.multiHopSwap` (LZ round-trip
  *                           source→hub→source). Still needs real `options` + `lzFee`; the
  *                           values below are carried over from the Base→hub leg of
- *                           `base-to-unichain` and should be re-quoted against a live
- *                           same-chain quote (EXBE-484) before a mainnet run.
+ *                           `base-to-unichain` and cover only one message, so this
+ *                           scenario is marked `requiresRequote` and refuses to run
+ *                           without `--force` until re-quoted (EXBE-484).
  */
 
 import { randomBytes } from 'crypto'
@@ -75,11 +76,15 @@ const SCENARIO_NAMES = [
 ] as const
 
 // Source-chain IDs, used to detect same-chain (DEX) routes at runtime.
-const SOURCE_CHAIN_IDS: Record<string, number> = {
+const SOURCE_CHAIN_IDS: Partial<Record<SupportedChain, number>> = {
   base: 8453,
   arbitrum: 42161,
   unichain: 130,
 }
+
+// Superset's hub chain. Mirrors the facet's `IS_HUB` (derived on-chain from
+// `block.chainid == 42161`), so hub-only branches stay in sync with the contract.
+const HUB_CHAIN: SupportedChain = 'arbitrum'
 
 interface IPreSwap {
   fromToken: Address
@@ -103,6 +108,9 @@ interface IScenarioConfig {
   amount: string // human-readable; ignored when preSwap is present
   preSwap?: IPreSwap
   superset: ISupersetParams
+  // Set when the scenario's LayerZero params are known-placeholder values that
+  // would underpay on-chain. Execution is blocked unless `--force` is passed.
+  requiresRequote?: boolean
 }
 
 const SHARED = {
@@ -211,13 +219,17 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
       amountOutMin: 1472n, // off-band hub quote for 1 USDC in, minus 1% slippage
       toEid: 0, // unused on spoke same-chain (multiHopSwap takes no destination EID)
       // NOTE: options + lzFee below are carried over from the Base→hub leg of
-      // `base-to-unichain`. The spoke same-chain round-trip (source→hub→source)
-      // must be re-quoted against a live same-chain quote (EXBE-484) before a
-      // real run; treat these as placeholders sufficient to shape the tx.
+      // `base-to-unichain` and only cover ONE message — the spoke same-chain
+      // round-trip (source→hub→source) needs more. Must be re-quoted against a
+      // live same-chain quote (EXBE-484) before a real run; `requiresRequote`
+      // below blocks execution until then.
       options:
         '0x0003010021010000000000000000000000000000000000000000000000000000275ebff3b07d',
       lzFee: 181180803718221n,
     },
+    // Placeholder LZ params would underpay the round-trip and stall at the LZ
+    // layer. Require an explicit --force to run this against mainnet.
+    requiresRequote: true,
   },
 }
 
@@ -227,7 +239,7 @@ function assertConfigured(s: IScenarioConfig): void {
   // and `lzFee` are legitimately empty/zero and must not be flagged as missing.
   const isHubSameChain =
     s.destinationChainId === SOURCE_CHAIN_IDS[s.sourceChain] &&
-    s.sourceChain === 'arbitrum'
+    s.sourceChain === HUB_CHAIN
   if (s.superset.omniPath === '0x') missing.push('superset.omniPath')
   if (!isHubSameChain && s.superset.options === '0x')
     missing.push('superset.options')
@@ -254,6 +266,12 @@ const cli = defineCommand({
       description: `One of: ${SCENARIO_NAMES.join(' | ')}`,
       required: true,
     },
+    force: {
+      type: 'boolean',
+      description:
+        'Run a scenario whose LayerZero params are known placeholders (see requiresRequote)',
+      default: false,
+    },
   },
   run: async ({ args }) => {
     if (!SCENARIO_NAMES.includes(args.scenario as Scenario))
@@ -264,6 +282,15 @@ const cli = defineCommand({
       )
     const scenario = SCENARIOS[args.scenario as Scenario]
     assertConfigured(scenario)
+
+    // Fail fast rather than broadcasting a tx that underpays the LayerZero fee
+    // and stalls mid-flight (funds escrowed on the spoke, no delivery).
+    if (scenario.requiresRequote && !args.force)
+      throw new Error(
+        `Scenario "${args.scenario}" still carries placeholder LayerZero params ` +
+          `(options/lzFee) that would underpay on-chain. Re-quote them against a ` +
+          `live same-chain quote (EXBE-484) first, or pass --force to run anyway.`
+      )
 
     consola.info(scenario.description)
 
