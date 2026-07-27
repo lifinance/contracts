@@ -408,13 +408,15 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         validPolymerData.nonEVMReceiver = bytes32(uint256(0x1234));
         validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
 
-        // For Solana the event carries the actual mint target (the ATA), not nonEVMReceiver,
-        // so the emitted receiver can never diverge from where the USDC is minted.
+        // For Solana the event carries the recipient owner wallet (nonEVMReceiver), while the
+        // USDC is minted to that wallet's USDC ATA (solanaReceiverATA). Emitting the wallet
+        // lets the relayer derive the ATA itself; emitting a token account instead would make
+        // it derive an ATA *of* a token account (junk account, SOL leak, possible mint revert).
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit ILiFi.BridgeToNonEVMChainBytes32(
             bridgeData.transactionId,
             bridgeData.destinationChainId,
-            validPolymerData.solanaReceiverATA
+            validPolymerData.nonEVMReceiver
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -979,6 +981,25 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             bridgeData,
             polymerDataWithHook
         );
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SolanaDestinationWithZeroNonEVMReceiver() public {
+        // The Solana event receiver is the owner wallet, so a zero nonEVMReceiver would emit
+        // an unusable recipient while the USDC is still burned to the ATA.
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validPolymerData.nonEVMReceiver = bytes32(0);
+        validPolymerData.solanaReceiverATA = bytes32(uint256(0x5678));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
     }
