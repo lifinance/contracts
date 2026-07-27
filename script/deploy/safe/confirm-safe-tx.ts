@@ -36,6 +36,7 @@ import {
   getTargetName,
 } from './safe-decode-utils'
 import {
+  canExecuteWithNonceStatus,
   getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
@@ -45,6 +46,7 @@ import {
   initializeSafeClient,
   initializeSafeTransaction,
   isAddressASafeOwner,
+  isFutureNonceExecutionAllowed,
   isSignedByCurrentSigner,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
@@ -58,6 +60,7 @@ import {
   type ISafeTxDocument,
   type ISafeTxMongoDocument,
   type SafeClient,
+  type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
@@ -448,7 +451,7 @@ const processTxs = async (
     const txNonce = BigInt(tx.safeTx.data.nonce)
     // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
     // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
-    const nonceStatus =
+    const nonceStatus: SafeNonceStatus =
       txNonce === expectedNonce
         ? 'current'
         : txNonce < expectedNonce
@@ -554,7 +557,8 @@ const processTxs = async (
       : undefined
 
     // Determine available actions based on signature status
-    // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
+    // Execute options are offered regardless of nonce status; the nonce gate runs
+    // after the choice so the operator sees why a specific proposal is refused
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
@@ -616,7 +620,6 @@ const processTxs = async (
 
     if (action === 'Do Nothing') continue
 
-    // If user chose an execute action but nonce is not current, warn clearly and confirm
     const isExecuteAction = [
       'Execute',
       'Execute with Deployer',
@@ -624,7 +627,17 @@ const processTxs = async (
       'Sign and Execute With Deployer',
     ].includes(action)
 
-    if (isExecuteAction && nonceStatus === 'stale') {
+    // Both nonce mismatches are guaranteed on-chain reverts, so broadcasting is
+    // refused by default (the future case is overridable — see safe-utils). Only
+    // execute actions are gated: a future-nonce proposal must still be signable
+    // so signatures accumulate while the blocking proposal is pending.
+    const nonceDecision = isExecuteAction
+      ? canExecuteWithNonceStatus(nonceStatus, {
+          allowFutureNonce: isFutureNonceExecutionAllowed(),
+        })
+      : undefined
+
+    if (nonceDecision?.reason === 'stale-nonce') {
       consola.error('')
       consola.error('='.repeat(80))
       consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
@@ -647,7 +660,7 @@ const processTxs = async (
       continue
     }
 
-    if (isExecuteAction && nonceStatus === 'future') {
+    if (nonceDecision && nonceDecision.reason !== 'nonce-current') {
       // Check if there is actually a pending proposal for the blocking nonce in the DB
       const blockingPendingTx = await pendingTransactions.findOne({
         safeAddress: txSafeAddress,
@@ -659,7 +672,7 @@ const processTxs = async (
 
       consola.warn('')
       consola.warn('='.repeat(80))
-      consola.warn('⚠  GS026 WARNING — THIS TRANSACTION WILL REVERT')
+      consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
       consola.warn('='.repeat(80))
       consola.warn(
         `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
@@ -682,18 +695,23 @@ const processTxs = async (
       consola.warn('='.repeat(80))
       consola.warn('')
 
-      const proceed = await consola.prompt(
-        'Proceed anyway? (will revert with GS026)',
-        {
-          type: 'select',
-          options: ['No — abort execution', 'Yes — execute anyway'],
-        }
-      )
-
-      if (proceed.startsWith('No')) {
-        consola.info('Execution aborted')
+      if (!nonceDecision.canExecute) {
+        consola.error(
+          '  Execution refused — broadcasting would spend gas on a guaranteed revert.'
+        )
+        consola.info(
+          '  Signing is still available: re-run and choose "Sign" to add your signature now.'
+        )
+        consola.info(
+          '  If the configured RPC is known to report an out-of-date on-chain nonce, re-run with ALLOW_FUTURE_NONCE_EXECUTION=true.'
+        )
+        consola.info('Execution aborted — proposal nonce is not reachable yet')
         continue
       }
+
+      consola.warn(
+        '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding despite the nonce gap.'
+      )
     }
 
     // eslint-disable-next-line require-atomic-updates

@@ -888,6 +888,74 @@ export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
 }
 
 /**
+ * Where a pending proposal's nonce sits relative to the Safe's next expected
+ * nonce: `stale` was already consumed on-chain, `future` is only reachable once
+ * a lower-nonce proposal has executed, `current` is executable now.
+ */
+export type SafeNonceStatus = 'current' | 'stale' | 'future'
+
+/** Options for {@link canExecuteWithNonceStatus}. */
+export interface INonceExecutionOptions {
+  /** Result of {@link isFutureNonceExecutionAllowed} (the operator escape hatch). */
+  allowFutureNonce: boolean
+}
+
+/**
+ * Result of {@link canExecuteWithNonceStatus}, discriminated on `canExecute`.
+ * `reason` identifies the case so the caller can render the matching message
+ * without re-deriving the decision.
+ */
+export type NonceExecutionDecision =
+  | { canExecute: true; reason: 'nonce-current' | 'future-nonce-override' }
+  | { canExecute: false; reason: 'stale-nonce' | 'future-nonce' }
+
+/**
+ * Whether the operator escape hatch for broadcasting a future-nonce proposal is
+ * enabled. Default OFF — it exists only for the case where the configured RPC
+ * reports an out-of-date on-chain nonce, which makes an executable proposal look
+ * like a future one.
+ *
+ * @returns true only when the escape-hatch env flag is set to the string `true`.
+ */
+export function isFutureNonceExecutionAllowed(): boolean {
+  return process.env.ALLOW_FUTURE_NONCE_EXECUTION === 'true'
+}
+
+/**
+ * Whether a proposal may be broadcast given where its nonce sits relative to the
+ * Safe's expected nonce.
+ *
+ * Both mismatch cases are guaranteed on-chain reverts, so both are refused by
+ * default: a stale nonce fails the Safe's nonce check outright, and a future
+ * nonce fails with GS026. Only the future case has a legitimate false-positive
+ * (a lagging RPC under-reporting the on-chain nonce), so only that one can be
+ * overridden — see {@link isFutureNonceExecutionAllowed}. A stale reading would
+ * require an RPC reporting a nonce ahead of consensus, which cannot happen, so
+ * no override is offered there.
+ *
+ * Signing is out of scope: this gates broadcasting only, and callers must keep
+ * sign-only actions available for future-nonce proposals so signatures can be
+ * collected while the blocking proposal is still pending.
+ *
+ * @param status - Nonce position of the proposal relative to the Safe.
+ * @param options - Whether the future-nonce escape hatch is enabled.
+ * @returns A discriminated decision carrying the reason for the outcome.
+ */
+export function canExecuteWithNonceStatus(
+  status: SafeNonceStatus,
+  options: INonceExecutionOptions
+): NonceExecutionDecision {
+  if (status === 'stale') return { canExecute: false, reason: 'stale-nonce' }
+
+  if (status === 'future')
+    return options.allowFutureNonce
+      ? { canExecute: true, reason: 'future-nonce-override' }
+      : { canExecute: false, reason: 'future-nonce' }
+
+  return { canExecute: true, reason: 'nonce-current' }
+}
+
+/**
  * Converts an in-memory Safe tx (Map signatures, bigint fields) into the plain
  * object shape MongoDB stores. Mirrors propose-to-safe-tron.ts.
  */
