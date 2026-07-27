@@ -500,7 +500,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             .getOmniTokenAddressBook();
 
         address tokenIn = addressBook.getAddressForOmniToken(
-            uint256(bytes32(_omniPath[:OMNI_TOKEN_ID_BYTES]))
+            abi.decode(_omniPath[:OMNI_TOKEN_ID_BYTES], (uint256))
         );
         if (tokenIn == address(0)) revert InvalidConfig();
 
@@ -512,8 +512,9 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             offset += FEE_BYTES;
 
             address tokenOut = addressBook.getAddressForOmniToken(
-                uint256(
-                    bytes32(_omniPath[offset:offset + OMNI_TOKEN_ID_BYTES])
+                abi.decode(
+                    _omniPath[offset:offset + OMNI_TOKEN_ID_BYTES],
+                    (uint256)
                 )
             );
             offset += OMNI_TOKEN_ID_BYTES;
