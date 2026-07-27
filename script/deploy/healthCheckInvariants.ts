@@ -457,7 +457,11 @@ async function checkAndLogDeployment(
   return true
 }
 
-const getExpectedPairs = async (
+/**
+ * Expand config into the set of (contract, selector) pairs the diamond whitelist should hold.
+ * Exported for testing.
+ */
+export const getExpectedPairs = async (
   network: string,
   deployedContracts: Record<string, Address | string>,
   whitelistConfig: IWhitelistConfig,
@@ -500,6 +504,13 @@ const getExpectedPairs = async (
     if (peripheryConfig) {
       const networkPeripheryContracts = peripheryConfig[network.toLowerCase()]
       if (networkPeripheryContracts) {
+        // How many entries share each name on this network. A name used more than once
+        // cannot be resolved against `deployedContracts` (one address per name), so the
+        // staleness comparison below has to sit out those entries.
+        const entriesPerName = new Map<string, number>()
+        for (const { name } of networkPeripheryContracts)
+          entriesPerName.set(name, (entriesPerName.get(name) ?? 0) + 1)
+
         for (const peripheryContract of networkPeripheryContracts) {
           // The address in whitelist.json is authoritative: this check asks "does the
           // diamond's whitelist match config", and not every whitelisted periphery
@@ -521,9 +532,13 @@ const getExpectedPairs = async (
           // A config address that disagrees with a contract we did deploy means the
           // whitelist entry is stale — diamondSyncWhitelist would whitelist the wrong
           // address. Surface it, but keep config as the source of truth for this check.
+          // Skipped when the name is not unique on this network: `deployedContracts` holds
+          // one address per name, so at most one of the entries could ever match it and
+          // the rest would warn spuriously.
           if (
             configAddr &&
             deployedAddr &&
+            entriesPerName.get(peripheryContract.name) === 1 &&
             String(configAddr).toLowerCase() !==
               String(deployedAddr).toLowerCase()
           )
