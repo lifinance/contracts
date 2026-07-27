@@ -36,7 +36,6 @@
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
-- [Pioneer Facet](./PioneerFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
 - [Polymer CCTP Facet](./PolymerCCTPFacet.md)
 - [Relay Depository Facet](./RelayDepositoryFacet.md)
