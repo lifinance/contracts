@@ -30,6 +30,7 @@ import {
   type IHealthCheckContext,
 } from './healthCheckInvariants'
 import {
+  deriveNonCoreFacets,
   getCoreFacets,
   getCorePeriphery,
   getTronWallet,
@@ -153,14 +154,13 @@ export async function runHealthCheckForNetwork(
         // Surface (not silence): a production network with no target state means the
         // non-core facet comparison is skipped, i.e. reduced coverage.
         missingProductionTargetState = true
+      // Note: the FULL core list, not `coreFacetsToCheck` — see deriveNonCoreFacets.
       else
-        nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter(
-          (k) =>
-            !coreFacetsToCheck.includes(k) &&
-            !getCorePeriphery().includes(k) &&
-            k !== 'LiFiDiamond' &&
-            k.includes('Facet')
-        )
+        nonCoreFacets = deriveNonCoreFacets({
+          targetStateContracts: Object.keys(networkTarget.LiFiDiamond),
+          coreFacets: getCoreFacets(),
+          corePeriphery: getCorePeriphery(),
+        })
     }
 
     let publicClient: PublicClient | undefined
