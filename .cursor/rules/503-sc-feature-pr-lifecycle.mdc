@@ -1,0 +1,1 @@
+../../.agents/rules/503-sc-feature-pr-lifecycle.md
