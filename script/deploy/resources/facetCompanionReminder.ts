@@ -16,7 +16,7 @@
  * Prints the reminder when a companion is missing, otherwise prints nothing. Always exits 0.
  */
 import { existsSync, readFileSync, realpathSync } from 'fs'
-import { join } from 'path'
+import { isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 import { DEPLOYMENT_FILE_SUFFIX } from '../shared/constants'
@@ -86,11 +86,16 @@ export function readDeployLog(
 ): Record<string, string> {
   if (!isValidNetworkName(network)) return {}
 
-  const path = join(
-    repoRoot,
-    'deployments',
+  const deploymentsDir = resolve(repoRoot, 'deployments')
+  const path = resolve(
+    deploymentsDir,
     `${network}.${DEPLOYMENT_FILE_SUFFIX(environment)}json`
   )
+  // Belt-and-braces on top of the name check: the resolved path must stay inside deployments/,
+  // so no combination of inputs can make this read an arbitrary file.
+  const relativeToDir = relative(deploymentsDir, path)
+  if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return {}
+
   if (!existsSync(path)) return {}
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
@@ -107,11 +112,15 @@ export function readDeployLog(
 
 /**
  * CLI entry: print the reminder for the given contract/network/environment. Best-effort by design —
- * missing arguments or an unreadable log print nothing rather than interfering with the deploy.
+ * missing arguments, an unrecognised network name, or an unreadable log print nothing rather than
+ * interfering with the deploy.
  */
 function runCli(): void {
   const [contractName, network, environment] = process.argv.slice(2)
   if (!contractName || !network) return
+  // A name that is not a plain network key would produce a reminder naming a network that cannot
+  // exist, so say nothing at all rather than emit confusing output.
+  if (!isValidNetworkName(network)) return
 
   const reminder = buildCompanionReminder(
     contractName,

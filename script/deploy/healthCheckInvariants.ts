@@ -1179,6 +1179,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       const wanted = [...new Set(required.flatMap((r) => r.requiresAnyOf))]
       const registered = new Map<string, boolean>()
+      // Lookups that never resolved. A failed read is not evidence of absence, so a coupling
+      // whose companions all failed is reported as undetermined rather than as a violation.
+      const unresolved = new Set<string>()
 
       if (ctx.isTron && ctx.tronRpcUrl)
         for (const periphery of wanted)
@@ -1195,12 +1198,13 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               isNonZeroTronAddress(parseTronAddressOutput(output))
             )
           } catch (error: unknown) {
+            // Keep going: one flaky read must not abandon the couplings not yet checked.
             const errorMessage =
               error instanceof Error ? error.message : String(error)
-            ctx.logError(
+            ctx.logWarn(
               `Failed to read periphery registration for ${periphery}: ${errorMessage}`
             )
-            return
+            unresolved.add(periphery)
           }
       else if (ctx.publicClient) {
         const peripheryRegistry = getContract({
@@ -1210,38 +1214,70 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ]),
           client: ctx.publicClient,
         })
-        const addresses = await Promise.all(
+        const results = await Promise.allSettled(
           wanted.map((periphery) =>
             peripheryRegistry.read.getPeripheryContract([periphery])
           )
         )
-        wanted.forEach((periphery, index) =>
+        wanted.forEach((periphery, index) => {
+          const result = results[index]
+          if (result?.status !== 'fulfilled') {
+            const reason =
+              result?.status === 'rejected'
+                ? String(result.reason)
+                : 'no result'
+            ctx.logWarn(
+              `Failed to read periphery registration for ${periphery}: ${reason}`
+            )
+            unresolved.add(periphery)
+            return
+          }
           registered.set(
             periphery,
-            addresses[index] !== undefined &&
-              getAddress(addresses[index] as Address) !== ZERO_ADDRESS
+            getAddress(result.value as Address) !== ZERO_ADDRESS
           )
+        })
+      } else {
+        ctx.logWarn(
+          'Neither a Tron RPC URL nor an EVM client is available - facet/periphery coupling check skipped'
         )
-      } else return
+        return
+      }
 
       for (const requirement of required) {
         const satisfiedBy = requirement.requiresAnyOf.filter((periphery) =>
           registered.get(periphery)
         )
-        if (satisfiedBy.length > 0)
+        if (satisfiedBy.length > 0) {
           consola.success(
             `${requirement.coupling}: ${satisfiedBy.join(
               ' / '
             )} registered for ${requirement.triggeredBy.join(', ')}`
           )
-        else
-          ctx.logError(
-            `${requirement.triggeredBy.join(
+          continue
+        }
+
+        const undetermined = requirement.requiresAnyOf.filter((periphery) =>
+          unresolved.has(periphery)
+        )
+        if (undetermined.length === requirement.requiresAnyOf.length) {
+          ctx.logWarn(
+            `${
+              requirement.coupling
+            }: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
               ', '
-            )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
-              ', '
-            )}) - destination calls for this integration are disabled on this network`
+            )})`
           )
+          continue
+        }
+
+        ctx.logError(
+          `${requirement.triggeredBy.join(
+            ', '
+          )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
+            ', '
+          )}) - destination calls for this integration are disabled on this network`
+        )
       }
     },
   },

@@ -327,6 +327,50 @@ describe('facet-required-periphery invariant', () => {
     expect(ctx.warnings[0]).toContain('coupling check skipped')
   })
 
+  it('warns instead of erroring when every companion lookup fails (a failed read is not absence)', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = {
+      readContract: async () => {
+        throw new Error('RPC 429')
+      },
+    } as unknown as IHealthCheckContext['publicClient']
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('could not determine'))).toBe(
+      true
+    )
+  })
+
+  it('still evaluates the remaining companions when only one lookup fails', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = {
+      readContract: async ({ args }: { args: [string] }) => {
+        if (args[0] === 'ReceiverAcrossV4') throw new Error('RPC 429')
+        return RECEIVER_ADDRESS
+      },
+    } as unknown as IHealthCheckContext['publicClient']
+
+    await invariant.run(ctx)
+
+    // ReceiverAcrossV3 resolved and is registered, so the coupling is satisfied despite the
+    // failed V4 lookup.
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('warns instead of silently returning when no chain client is available', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = undefined
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('coupling check skipped'))).toBe(
+      true
+    )
+  })
+
   it('does not require a companion for a facet without a declared coupling', async () => {
     const ctx = makeCouplingCtx({})
     ctx.deployedContracts = { GenericSwapFacetV3: FACET_ADDRESS }
