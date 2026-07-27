@@ -5,17 +5,21 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 
 import {
+  CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   findDuplicateSelectors,
+  getExemptCoreFacets,
   getInvariantExclusion,
   isInvariantApplicable,
   runHealthCheckInvariants,
   type IHealthCheckContext,
   type IHealthCheckInvariant,
+  type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
 
@@ -275,6 +279,54 @@ describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
   it('every exclusion carries a non-empty reason', () => {
     for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
       expect(exclusion.reason.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('getExemptCoreFacets', () => {
+  const sample: ICoreFacetExemption[] = [
+    { facet: 'SomeFacet', reason: 'because', networks: ['somechain'] },
+  ]
+
+  it('returns the facet and reason for an exempt network', () => {
+    expect(getExemptCoreFacets('somechain', sample)).toEqual([
+      { facet: 'SomeFacet', reason: 'because' },
+    ])
+  })
+
+  it('matches the network case-insensitively', () => {
+    expect(getExemptCoreFacets('SomeChain', sample)).toHaveLength(1)
+  })
+
+  it('returns nothing for a network that is not listed, so new chains stay enforced', () => {
+    expect(getExemptCoreFacets('brandnewchain', sample)).toEqual([])
+  })
+})
+
+describe('CORE_FACET_EXEMPTIONS table integrity', () => {
+  const coreFacets = new Set<string>(globalConfig.coreFacets)
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a facet that is actually core (guards stale grandfathering)', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      expect(coreFacets).toContain(exemption.facet)
+  })
+
+  it('every exempt network is a known network', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      for (const network of exemption.networks)
+        expect(knownNetworks).toContain(network.toLowerCase())
+  })
+
+  it('every exemption carries a non-empty reason', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+  })
+
+  it('lists no network twice per facet', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS) {
+      const lower = exemption.networks.map((n) => n.toLowerCase())
+      expect(new Set(lower).size).toBe(lower.length)
+    }
   })
 })
 
