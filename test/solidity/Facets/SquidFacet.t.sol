@@ -337,6 +337,21 @@ contract SquidFacetTest is TestBaseFacet {
             ""
         );
 
+        vm.expectCall(
+            SQUID_ROUTER,
+            abi.encodeCall(
+                ISquidRouter.callBridge,
+                (
+                    ADDRESS_USDC,
+                    bridgeData.minAmount,
+                    squidData.sourceCalls,
+                    squidData.bridgedTokenSymbol,
+                    squidData.destinationChain,
+                    LibBytes.toHexString(uint160(bridgeData.receiver), 20)
+                )
+            )
+        );
+
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
