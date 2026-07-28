@@ -661,7 +661,7 @@
     "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
     "gasPrice": 3000000000,
     "gasEstimateMultiplier": 200,
-    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast. The pinned 3 gwei combined with the repo-wide 500 multiplier makes forge reserve gasLimit*3gwei up front, which blocked a ~918k-gas deploy against a 0.01 ETH balance; 200 keeps a 2x limit buffer while staying fundable"
+    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast. Because that pin makes forge reserve gasLimit*3gwei up front, the reserve scales with whatever GAS_ESTIMATE_MULTIPLIER the operator's .env carries (.env.example ships 130, but a local 500 reserved 0.0151 ETH and blocked a ~918k-gas deploy against a 0.01 ETH balance). gasEstimateMultiplier pins it to 200 here so the reserve is deterministic across operators"
   },
   "lens": {
     "name": "lens",
