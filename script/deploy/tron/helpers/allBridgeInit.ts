@@ -48,8 +48,8 @@ export const ALLBRIDGE_INIT_SELECTOR = toFunctionSelector(
 )
 
 export interface IAllBridgeChainIdConfig {
-  chainId: bigint
-  allBridgeChainId: bigint
+  readonly chainId: bigint
+  readonly allBridgeChainId: bigint
 }
 
 /** Id fields read from the JSON source text rather than the parsed double. */

@@ -24,9 +24,9 @@ import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
  */
 export interface IDiamondCutInit {
   /** Contract to delegatecall — normally the facet being added. */
-  initAddress: Address
+  readonly initAddress: Address
   /** Encoded initializer call, e.g. `initAllBridge(ChainIdConfig[])`. */
-  initCalldata: Hex
+  readonly initCalldata: Hex
 }
 
 /**
