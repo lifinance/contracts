@@ -55,10 +55,17 @@ struct FraxData {
 }
 ```
 
-Both entrypoints validate `_fraxData` up front (reverting `InvalidCallData` on a
-zero `refundRecipient`, `oft`, or `dstEid`) and verify that the OFT's underlying
-token matches `bridgeData.sendingAssetId` (reverting `InformationMismatch`
-otherwise).
+Both entrypoints validate `_fraxData` up front — **before any deposit or swap** — so an
+invalid route costs the caller nothing but gas:
+
+- `InvalidCallData` on a zero `refundRecipient`, `oft`, or `dstEid`.
+- `InvalidReceiver` when `bridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel (this
+  version is EVM-only, see below).
+- `UnsupportedChainId` / `InformationMismatch` on the `destinationChainId` ↔ `dstEid`
+  cross-check.
+- `InformationMismatch` when the OFT's underlying `token()` is not
+  `bridgeData.sendingAssetId`.
+- `TokenNotSupported` when `HOP.approvedOft(oft)` is `false`.
 
 - `nativeFee` is the native LayerZero messaging fee. It is `0` on Tempo, where the
   fee is charged in an ERC20 gas token instead (see below).
@@ -92,10 +99,35 @@ otherwise).
   every destination a route targets before that route can be used. This is stricter
   than the pure analytics-only model of `AcrossFacetV4` / `PaxosTransitFacet`, and
   mirrors `SupersetFacet`.
-- **HopV2 trust surface.** The HopV2 contract is an **upgradeable proxy** with an
-  admin `recover()` function. The facet grants it an ERC20 allowance via the
-  standard LI.FI `maxApproveERC20` pattern (scoped to the bridged amount). This is
-  a trust surface worth noting.
+- **HopV2 trust surface / standing approval (explicit trust assumption).** The HopV2
+  contract is an **upgradeable proxy** with an admin `recover()` function, and the facet
+  approves it via the standard LI.FI `LibAsset.maxApproveERC20` pattern. Note what that
+  pattern actually does: the `amount` argument is only the *required-allowance
+  threshold* — when the current allowance is insufficient the allowance is set to
+  **`type(uint256).max`**. So after the first bridge of a given token, the Diamond
+  carries a **standing unlimited allowance** to HopV2 for that token, and HopV2 can be
+  upgraded by its admin to arbitrary logic. This is identical to how every other LI.FI
+  facet approves its bridge, and the residual risk is bounded by the "Diamond holds
+  nothing between transactions" invariant above (tokens are pulled, forwarded, and any
+  remainder refunded within the same call), but the trust assumption is explicit:
+  **an upgraded, malicious HopV2 could spend any balance the Diamond happens to hold in
+  an approved token at that moment.**
+- **OFT support pre-check.** HopV2 only routes OFTs it has been configured with
+  (`HOP.approvedOft(oft)`). The facet checks this **before** any deposit or swap, so an
+  unapproved OFT reverts `TokenNotSupported` up front instead of failing deep inside
+  `sendOFT` after `_depositAndSwap` has already executed the caller's swap. The whole
+  transaction reverts either way, so this is a gas / error-clarity guarantee rather than a
+  fund-safety one.
+- **EVM destinations only (this version).** HopV2 takes a `bytes32` recipient and Frax
+  does route to non-EVM spokes (Solana, LayerZero EID `30168`) via the Fraxtal hub, but
+  this version derives the recipient from the 20-byte `bridgeData.receiver`
+  (`bytes32(uint256(uint160(receiver)))`), which is EVM-only. The facet therefore
+  **rejects the `NON_EVM_ADDRESS` sentinel with `InvalidReceiver`** instead of bridging
+  it literally, and no non-EVM chain ID is present in `config/frax.json` `mappings`.
+  Supporting Solana would mean adding a `bytes32` non-EVM receiver to `FraxData` (per the
+  existing LI.FI non-EVM facet pattern: validate non-zero, emit
+  `BridgeToNonEVMChainBytes32`) plus seeding `LIFI_CHAIN_ID_SOLANA → 30168` — a scoped
+  follow-up, not part of this version.
 
 ## ChainId → LayerZero EID mapping
 
@@ -121,6 +153,18 @@ on first deploy, or `setFraxChainIdToEid` for later additions) before that route
 usable — an unseeded destination reverts `UnsupportedChainId`. LayerZero EIDs are
 sourced from
 [the LayerZero deployments list](https://docs.layerzero.network/v2/deployments/deployed-contracts).
+
+**Deprecated spokes.** `berachain`, `mode` and `scroll` are deliberately absent from both
+the `hop` address map and `mappings` in `config/frax.json`: Frax is removing them from the
+hop mesh (confirmed by the Frax team on PR #2048). Do not re-add them.
+
+**Source-only chains.** Some networks have a live HopV2 spoke (so FraxFacet can be
+deployed there and bridge **out**) but no `mappings` entry, which makes them unusable as a
+**destination** — currently `katana`, `somnia`, `stable` and `tempo`. Tempo is the notable
+one: the full TIP20 source path is implemented, yet `destinationChainId == 4217` reverts
+`UnsupportedChainId` until a mapping is added. This is launch scoping, resolved together
+with the BE integration (EXP-514); add the entries with `setFraxChainIdToEid` when those
+destinations go live.
 
 ## Tempo (EndpointV2Alt) special case
 

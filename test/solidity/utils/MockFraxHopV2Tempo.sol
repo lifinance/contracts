@@ -63,8 +63,20 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
 
     uint256 public lastAmountPulled;
 
+    /// @dev Mirrors HopV2.approvedOft. Defaults to true so the happy paths need no extra
+    ///      wiring; flip it to exercise the facet's unapproved-OFT rejection.
+    bool internal oftApproved = true;
+
     constructor(uint256 _dustRate) {
         DUST_RATE = _dustRate;
+    }
+
+    function setOftApproved(bool _approved) external {
+        oftApproved = _approved;
+    }
+
+    function approvedOft(address) external view returns (bool) {
+        return oftApproved;
     }
 
     /// @notice Configures the fee token, the amount reported by quoteStatic, and the

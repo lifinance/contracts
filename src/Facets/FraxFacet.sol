@@ -6,10 +6,11 @@ import { IFraxHopV2, IFraxOFT, ITipFeeManager } from "../Interfaces/IFraxHopV2.s
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, NotInitialized, TokenNotSupported, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title FraxFacet
 /// @author LI.FI (https://li.fi)
@@ -19,8 +20,20 @@ import { InformationMismatch, InvalidCallData, InvalidConfig, NotInitialized, Un
 ///      the OFT's dust granularity, forwarded to the HopV2 contract in the same call, and
 ///      any dust remainder plus excess native fee are returned to the refundRecipient within
 ///      the same transaction; no balance is meant to persist between calls.
+/// @dev EVM destinations only. HopV2 takes a bytes32 recipient and Frax does route to
+///      non-EVM spokes (e.g. Solana) via the Fraxtal hub, but this version encodes the
+///      recipient from the 20-byte bridgeData.receiver and therefore rejects the
+///      NON_EVM_ADDRESS sentinel (see docs/FraxFacet.md).
+/// @dev Trust assumption: the facet grants HopV2 — an upgradeable proxy — a standing
+///      unlimited ERC20 allowance via LibAsset.maxApproveERC20 (see docs/FraxFacet.md).
 /// @custom:version 1.0.0
-contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract FraxFacet is
+    ILiFi,
+    LiFiData,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Constants ///
 
     /// @dev Diamond storage namespace for the chainId -> LayerZero EID mapping.
@@ -184,7 +197,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateFraxData(_bridgeData.destinationChainId, _fraxData);
+        _validateFraxData(
+            _bridgeData.destinationChainId,
+            _bridgeData.sendingAssetId,
+            _bridgeData.receiver,
+            _fraxData
+        );
 
         // On standard chains the LayerZero fee is the only native outflow and must come from
         // msg.value, never from stray diamond balance. On Tempo the fee is an ERC20, so no
@@ -222,7 +240,12 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateFraxData(_bridgeData.destinationChainId, _fraxData);
+        _validateFraxData(
+            _bridgeData.destinationChainId,
+            _bridgeData.sendingAssetId,
+            _bridgeData.receiver,
+            _fraxData
+        );
 
         // On Tempo the fee is an ERC20 and no native is ever consumed; reject stray msg.value
         // here too (symmetric with the non-swap path) so it fails fast instead of being
@@ -260,11 +283,19 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
-    /// @dev Validates FraxData fields shared by both entry points
+    /// @dev Validates FraxData and the bridgeData fields it must agree with. Every check here
+    ///      is a pure calldata/config check, so both entry points run it BEFORE depositing or
+    ///      swapping: a bad route then costs only the validation gas instead of the full
+    ///      deposit + swap + sendOFT path before reverting (the whole tx reverts either way,
+    ///      so no funds are at risk — this is a gas and error-clarity guarantee).
     /// @param _destinationChainId The LI.FI destination chain ID from bridgeData
+    /// @param _sendingAssetId The ERC20 to be bridged (bridgeData.sendingAssetId)
+    /// @param _receiver The destination recipient from bridgeData
     /// @param _fraxData Data specific to Frax HopV2
     function _validateFraxData(
         uint256 _destinationChainId,
+        address _sendingAssetId,
+        address _receiver,
         FraxData calldata _fraxData
     ) internal view {
         // refundExcessNative forwards excess native to refundRecipient; a zero address would
@@ -278,12 +309,31 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidCallData();
         }
 
+        // This version is EVM-only: the bytes32 HopV2 recipient is derived from the 20-byte
+        // receiver. The NON_EVM_ADDRESS sentinel carries no recipient of its own, so without
+        // this guard it would be bridged literally and the funds delivered to the sentinel.
+        if (_receiver == NON_EVM_ADDRESS) {
+            revert InvalidReceiver();
+        }
+
         // dstEid is the actual LayerZero routing target and is trusted from backend calldata;
         // bridgeData.destinationChainId is what analytics/accounting index on. Bind them so a
         // caller cannot route funds to one chain while the transfer is recorded as another.
         // getFraxChainIdToEid reverts UnsupportedChainId when the destination is not configured.
         if (getFraxChainIdToEid(_destinationChainId) != _fraxData.dstEid) {
             revert InformationMismatch();
+        }
+
+        // The OFT's underlying token must be exactly what we bridge; otherwise HopV2 would
+        // pull a different asset than the one deposited/validated here.
+        if (IFraxOFT(_fraxData.oft).token() != _sendingAssetId) {
+            revert InformationMismatch();
+        }
+
+        // HopV2 only routes OFTs it has been configured with; an unapproved one reverts
+        // inside sendOFT. Check it here so the failure happens before the user's funds move.
+        if (!HOP.approvedOft(_fraxData.oft)) {
+            revert TokenNotSupported();
         }
     }
 
@@ -294,11 +344,8 @@ contract FraxFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         ILiFi.BridgeData memory _bridgeData,
         FraxData calldata _fraxData
     ) internal {
-        // The OFT's underlying token must be exactly what we bridge; otherwise HopV2 would
-        // pull a different asset than the one deposited/validated here.
-        if (IFraxOFT(_fraxData.oft).token() != _bridgeData.sendingAssetId) {
-            revert InformationMismatch();
-        }
+        // NOTE: oft.token() == sendingAssetId and HOP.approvedOft(oft) are enforced in
+        // _validateFraxData, before any deposit or swap.
 
         // HopV2 floors the amount to the OFT's dust granularity and only pulls the floored
         // amount. Compute it up front so we approve and bridge exactly that, and can return

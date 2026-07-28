@@ -9,7 +9,7 @@ import { TestToken } from "../utils/TestToken.sol";
 import { MockFraxHopV2Tempo, MockFraxOFT, MockTipFeeManager } from "../utils/MockFraxHopV2Tempo.sol";
 import { FraxFacet } from "lifi/Facets/FraxFacet.sol";
 import { IFraxHopV2 } from "lifi/Interfaces/IFraxHopV2.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, NotInitialized, OnlyContractOwner, TransferFromFailed, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, NotInitialized, OnlyContractOwner, TokenNotSupported, TransferFromFailed, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 
 // Stub FraxFacet: adds the whitelist-manager selectors so pre-bridge swaps can be tested
 contract TestFraxFacet is FraxFacet, TestWhitelistManagerBase {
@@ -60,9 +60,11 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function setUp() public {
-        // Arbitrum fork pinned to a block where frxUSD is an approvedOft on the hop
+        // Arbitrum fork pinned to a block where frxUSD is an approvedOft on the hop.
+        // Re-pinned after Frax upgraded the RemoteHopV2 implementation (flagged on PR #2048)
+        // so these fork tests run against the current hop bytecode, not the pre-upgrade one.
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
-        customBlockNumberForForking = 483300000;
+        customBlockNumberForForking = 488500000;
         initTestBase();
 
         frxUSD = ERC20(FRXUSD);
@@ -455,6 +457,71 @@ contract FraxFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// non-EVM receiver sentinel (this version is EVM-only) ///
+
+    function testRevert_WhenReceiverIsNonEvmSentinel() public {
+        // NON_EVM_ADDRESS carries no recipient; without the guard it would be encoded as
+        // the bytes32 HopV2 recipient and the funds delivered to the sentinel address
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeReceiverIsNonEvmSentinel() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// HOP.approvedOft pre-check ///
+
+    function testRevert_WhenOftIsNotApprovedByHop() public {
+        // an OFT whose token() matches sendingAssetId but which the hop does not route:
+        // it clears the token cross-check and must be caught by the approvedOft pre-check
+        MockFraxOFT unapprovedOft = new MockFraxOFT(FRXUSD);
+        assertFalse(IFraxHopV2(HOP).approvedOft(address(unapprovedOft)));
+        fraxData.oft = address(unapprovedOft);
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(TokenNotSupported.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeOftIsNotApprovedByHop() public {
+        // the swap path must reject the unapproved OFT in _validateFraxData, i.e. before
+        // _depositAndSwap runs the user's swap - not inside HopV2.sendOFT afterwards
+        MockFraxOFT unapprovedOft = new MockFraxOFT(FRXUSD);
+        fraxData.oft = address(unapprovedOft);
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(TokenNotSupported.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -1025,5 +1092,30 @@ contract FraxFacetTempoTest is TestBase {
             preExisting - (feePull - FEE_QUOTE)
         );
         assertEq(bridgedToken.balanceOf(address(hop)), BRIDGE_AMOUNT);
+    }
+
+    function testRevert_Tempo_WhenOftNotApprovedByHop() public {
+        // the approvedOft pre-check gates the Tempo branch too, and runs before the fee
+        // token is quoted, pulled or approved
+        hop.setOftApproved(false);
+
+        vm.startPrank(USER_SENDER);
+        bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
+        pathUsd.approve(address(fraxFacet), FEE_QUOTE);
+
+        vm.expectRevert(TokenNotSupported.selector);
+        fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
+        vm.stopPrank();
+    }
+
+    function testRevert_Tempo_WhenReceiverIsNonEvmSentinel() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
+        vm.stopPrank();
     }
 }
