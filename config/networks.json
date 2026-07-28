@@ -660,7 +660,8 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
     "gasPrice": 3000000000,
-    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast"
+    "gasEstimateMultiplier": 200,
+    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast. The pinned 3 gwei combined with the repo-wide 500 multiplier makes forge reserve gasLimit*3gwei up front, which blocked a ~918k-gas deploy against a 0.01 ETH balance; 200 keeps a 2x limit buffer while staying fundable"
   },
   "lens": {
     "name": "lens",
