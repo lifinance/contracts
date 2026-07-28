@@ -83,11 +83,15 @@ audit — **no product features**.
 - **Tests (5)** — new `MockTronUSDT.sol` (mimics the missing-return
   behavior), added `LibAsset.t.sol` and `WithdrawablePeriphery.t.sol` cases,
   and minor tweaks to the ReceiverAcrossV3/V4/OIF/StargateV2 tests.
-- **CI (3)** — `olympixStaticAnalysis.yml` (skip files identical to
+- **CI (5)** — `olympixStaticAnalysis.yml` (skip files identical to
   upstream), `versionControlAndAuditCheck.yml` (accept the `-tron` version
-  suffix and skip the audit-commit-association check on `sync/upstream-*`
-  PRs), and `verifyCommitsSigned.yml` **removed** (upstream squash-merges
+  suffix and skip the audit-commit-association check for upstream-inherited
+  audits on `sync/upstream-*` PRs), `syncUpstreamContracts.yml` (the weekly
+  sync job itself), `tronForkDeltaCheck.yml` (the fork-delta guard — see
+  below), and `verifyCommitsSigned.yml` **removed** (upstream squash-merges
   break the signed-commit chain downstream).
+- **Scripts (1)** — `script/tasks/checkTronForkDelta.ts` plus its rule engine
+  `tronForkDelta.ts` and unit tests: the machinery behind the guard.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
@@ -127,6 +131,11 @@ must map to exactly one bytecode**. The fork uses a `-tron` overlay scheme:
 - Only move to `2.2.0-tron` once `main` is actually at `2.2.0` **and** the
   fork has synced to that baseline (never imply a `main` version that
   doesn't exist yet).
+- Conversely, once the fork **has** synced to `2.2.0`, the overlay must move
+  with it — an overlay left at `2.1.3-tron` on top of upstream's `2.2.0` code
+  is a version that no longer maps to one bytecode. This is the single most
+  likely way to break the scheme, so CI enforces it (see
+  [the fork-delta guard](#the-fork-delta-guard)).
 - GitHub Actions were adjusted to accept versions beyond the plain
   `{X.Y.Z}` shape.
 
@@ -144,12 +153,28 @@ pulls from this repo; it never pushes code back to `main`. Deploy logs are
 the explicit exception — they round-trip back upstream (see Part 2) and
 then flow back down through the normal sync.
 
-**Current process (PR-based):** a periodic sync PR is opened on
-`contracts-tron` from a `sync/upstream-YYYY-MM-DD` branch that merges
-`upstream/main` (this repo) into the fork's `main`. Review the (usually
-tiny) _real_ diff, then merge. Recent examples: `contracts-tron` #13 (May)
-and #15 (June, 192 commits). Merge conflicts are rare because the fork's
-delta is so small.
+**Current process (automated, PR only on exception):**
+`syncUpstreamContracts.yml` on the fork runs weekly (Mon 06:00 UTC, also
+`workflow_dispatch`-able). It merges `upstream/main` (this repo) into the
+fork's `main` and then decides where the result goes:
+
+| Merge      | Gates                    | Result                                                                             |
+| ---------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| clean      | delta guard + tests pass | pushed straight to the fork's `main` as the `lifi-contracts-tron-sync` App          |
+| clean      | either gate fails        | pushed to `sync/upstream-YYYY-MM-DD-<run>` + PR, all required checks apply          |
+| conflicted | not run                  | conflict markers committed to that branch + PR for manual resolution                |
+
+The direct-push path depends on the App being registered as a bypass actor
+on the fork's "main protection" ruleset (one-time manual setup, EXSC-587 /
+EXSC-599); without it that push is rejected and the job fails. Branch
+protection still applies to humans. Reviewer attention is reserved for the
+exception paths.
+
+Note that a **plain merge is genuinely protective**: it is not a mirror or
+an overwrite, so fork-only hunks survive on their own and an upstream edit
+to the same region raises a conflict rather than clobbering us. What a merge
+cannot judge is whether the result is still correctly *labelled* — that is
+the delta guard's job (next section).
 
 **When to update which — the order:**
 
@@ -163,9 +188,10 @@ delta is so small.
 3. **A contract that has a `-tron` variant** → update **both** repos, this
    repo first, then the fork (bumping the `-tron` version).
 
-**CI carve-outs on sync PRs:** to keep routine sync PRs low-noise, sync PRs
-skip the audit-commit-association check and skip Olympix for files
-identical to upstream.
+**CI carve-outs on sync PRs:** to keep routine sync PRs low-noise, they skip
+Olympix for files identical to upstream, and skip the audit-commit-association
+check for audits **inherited from upstream** (an audit entry the sync PR itself
+adds is still verified — see [the fork-delta guard](#the-fork-delta-guard)).
 
 ### ⚠️ The main pain — required-check noise on sync PRs
 
@@ -185,22 +211,98 @@ introduced **zero** fork-authored code. Short-term fix: set the existing
 will fire on sync PRs. A new dev should expect this and **verify the real
 diff rather than chase the healthcheck noise.**
 
-### Planned / target state (WIP)
+### The fork-delta guard
 
-To remove the required-check pain on routine syncs, the plan is a dedicated
-GitHub App with pull-request-mode bypass in the org's branch-protection
-bypass list for the fork's `main`. A scheduled job:
+Everything above protects the overlay's _content_. The guard protects its
+_label_ — the property audits actually depend on.
 
-1. Fetches `upstream/main` (this repo) and merges it into the fork's `main`
-   locally.
-2. **No conflicts** → pushes the merge commit **directly** to the fork's
-   `main` — no PR, no required checks. Branch protection still applies to
-   humans; only the app bypasses.
-3. **Conflicts** → pushes to a `sync/upstream-YYYY-MM-DD` branch and opens a
-   PR for human resolution (the only path that produces a PR).
+#### The gap it closes
 
-This reserves reviewer attention for genuine conflicts. WIP on the
-`feat/sync-upstream-workflow` branch (in `contracts-tron`).
+This repo's `versionControlAndAuditCheck.yml` forces a version bump on any
+non-comment change to a `src/**/*.sol` file. So when upstream changes an
+overlaid contract, upstream's version line moves (`2.1.3` → `2.2.0`) while
+the fork's line reads `2.1.3-tron` — the **same line on both sides**, which
+means git raises a conflict every time. That is a useful accident: an
+upstream change to an overlaid contract can never merge silently.
+
+But the conflict then lands on a human, and nothing checked how they
+resolved it. Taking upstream's side on that one line — the natural
+one-keystroke resolution — produces a file that still carries the Tron
+bypass but claims to be plain `2.2.0`. It goes **green**: the audit check
+sees `2.1.3-tron` → `2.2.0`, looks for an audit entry for `LibAsset 2.2.0`,
+finds the one synced from upstream (where the contract was audited _without_
+the bypass), and passes. The result is a mislabelled contract, CI-approved,
+one deploy away from breaking one-version-↔-one-bytecode.
+
+#### What it enforces
+
+`tronForkDeltaCheck.yml` runs `script/tasks/checkTronForkDelta.ts` on every
+fork PR, and `syncUpstreamContracts.yml` runs the same script against the
+merge result before anything reaches `main`. Two invariants, keyed off the
+`-tron` suffix itself — there is no manifest to maintain, because the suffix
+*is* the inventory:
+
+1. **Every file that carried a `-tron` version before the change still
+   carries one**, its baseline still matches upstream's current version for
+   that file, the overlay is still actually present, and any audit-relevant
+   change bumps the version and lands an audit-log entry.
+2. **No file diverges from upstream without declaring it** with a `-tron`
+   version — so the overlay cannot grow silently.
+
+| Code                      | Fires when                                                              |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `TRON_SUFFIX_LOST`        | an overlaid file came out of the change without its `-tron` suffix       |
+| `TRON_BASELINE_STALE`     | the overlay is `2.1.3-tron` but upstream has moved to `2.2.0`            |
+| `TRON_DELTA_MISSING`      | a `-tron` file is now equivalent to upstream (clobbered, or obsolete)    |
+| `TRON_VERSION_NOT_BUMPED` | an overlaid file changed materially with no version change               |
+| `TRON_AUDIT_MISSING`      | the new `-tron` version has no entry in `auditLog.json`                  |
+| `TRON_FILE_DELETED`       | an overlaid file disappeared                                             |
+| `VERSION_TAG_MISSING`     | an overlaid file lost its `@custom:version` tag                          |
+| `UNDECLARED_FORK_DELTA`   | a file differs from upstream but carries no `-tron` version              |
+| `UPSTREAM_TRON_LEAK`      | upstream itself carries a `-tron` version — the repos have crossed       |
+
+"Audit-relevant" uses the same comment/pragma/whitespace filter as
+`versionControlAndAuditCheck.yml`, so the two never disagree about whether a
+change needed a bump. Only `src/**/*.sol` is covered: the rest of the delta
+(CI workflows, `config/networks.json`) carries no version tag and is not
+machine-checkable.
+
+#### What to do when it fires on a sync PR
+
+Almost always this means upstream bumped an overlaid contract. Then:
+
+1. **Re-apply, don't re-resolve blindly.** Read upstream's change and check
+   the overlay still does what it should on top of it — for `LibAsset` that
+   the `transferERC20` bypass is still on the path every ERC-20 transfer
+   takes; for `WithdrawablePeriphery` that `withdrawToken` still routes
+   through `LibAsset.transferAsset`.
+2. **Rebase the suffix**: `2.1.3-tron` → `2.2.0-tron` (or `2.2.0-tron-r2` if
+   this is a further Tron-only iteration on that baseline).
+3. **Log the review.** The rebased version is a new version and needs its
+   own `auditLog.json` entry. How much review it needs is a **human call,
+   recorded in the PR**:
+   - upstream's change does **not** touch the functions the overlay lives in
+     → an internal SC-core review of the re-applied delta is enough; log it
+     like any other audit, with a written review note at `auditReportPath`.
+   - upstream's change **does** touch them → commission a full external
+     audit, as for any other `-tron` change.
+
+   Upstream's audit of `2.2.0` does not cover our delta, which is why an
+   entry is required either way. Write a **new** audit entry — pointing
+   `2.2.0-tron` at the previous overlay's audit ID is rejected, because the
+   audit-commit-association check is skipped only for audits **inherited**
+   from upstream, and that older ID's commit does not live in this PR. A
+   fork-authored entry added by the sync PR is verified normally.
+4. If the guard says `TRON_DELTA_MISSING`, upstream may have adopted an
+   equivalent fix. That is good news — retire the overlay deliberately
+   (drop the `-tron` version along with the code) rather than patching the
+   check.
+
+Run it locally against a candidate resolution with:
+
+```bash
+bunx tsx script/tasks/checkTronForkDelta.ts --base origin/main --head HEAD --upstream upstream/main
+```
 
 ### New-dev gotchas (quick checklist)
 
@@ -212,7 +314,11 @@ This reserves reviewer attention for genuine conflicts. WIP on the
   the `withdrawToken` re-route still apply cleanly on the fork.
 - On sync PRs, unrelated required-check / healthcheck failures are
   **expected** — confirm the real diff is clean; don't fix on-chain state
-  to satisfy a sync PR.
+  to satisfy a sync PR. The **fork-delta check is the exception**: when it
+  fails it is never noise, it is the overlay being mislabelled.
+- Resolving a version-line conflict on an overlaid contract: **keep our
+  `-tron` suffix and move the baseline**, never take upstream's plain
+  version line. See [the fork-delta guard](#the-fork-delta-guard).
 - Watch versioning: one `@custom:version` ↔ one bytecode. Use `-tron` /
   `-tron-rN` for anything that differs.
 
@@ -450,7 +556,9 @@ Tronscan API endpoints (from `config/networks.json`):
 
 **Tickets:** EXSC-241 (fix Tron USDT transfers), EXSC-315 (`contracts-tron`
 USDT bypass — PR #9), EXSC-330 (store git commit hash in deploy logs),
-EXSC-299 (GenericSwapFacet v1 deprecation), EXSC-575 (this doc).
+EXSC-299 (GenericSwapFacet v1 deprecation), EXSC-575 (this doc), EXSC-587 /
+EXSC-599 / EXSC-603 (the automated sync job, its App bypass and its test
+gate).
 
 **PRs:** [`contracts` #1715](https://github.com/lifinance/contracts/pull/1715)
 (LibAsset routing + Tron work); `contracts-tron`
