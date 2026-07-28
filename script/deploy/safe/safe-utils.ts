@@ -261,15 +261,15 @@ export class SafeClient {
     tronWalletClient?: TronWalletClient,
     networkName?: string
   ): Promise<IChainExecutor | undefined> {
-    let chainId: number | undefined
+    let configChainId: number | undefined
     if (networkName) {
       try {
-        chainId = getViemChainForNetworkName(networkName).id
+        configChainId = getViemChainForNetworkName(networkName).id
       } catch {
-        chainId = undefined
+        configChainId = undefined
       }
     }
-    if (chainId === undefined) chainId = await publicClient.getChainId()
+    const chainId = configChainId ?? (await publicClient.getChainId())
 
     if (isTronTvmChainId(chainId)) {
       // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
@@ -284,6 +284,22 @@ export class SafeClient {
       const { TronChainExecutor } = await import('./executors/tron-executor')
       return new TronChainExecutor(tronWalletClient, networkKey)
     }
+
+    // When the chain id came from config, a single global --rpc-url override can
+    // still point every network at the wrong endpoint. Cross-check the live RPC
+    // in the background and warn on mismatch, so a misconfigured URL is visible
+    // rather than silently selecting an executor for the wrong chain. Fire-and-
+    // forget — a diagnostic that must not add latency to the init path.
+    if (configChainId !== undefined)
+      void publicClient
+        .getChainId()
+        .then((liveChainId) => {
+          if (liveChainId !== configChainId)
+            consola.warn(
+              `[${networkName}] RPC reports chain id ${liveChainId} but config expects ${configChainId} — check the --rpc-url override`
+            )
+        })
+        .catch(() => undefined)
 
     const { EvmChainExecutor } = await import('./executors/evm-executor')
     return new EvmChainExecutor(
@@ -1676,9 +1692,17 @@ export function getOrCreatePooledPromise<T>(
   return promise
 }
 
-/** Closes all pooled Safe clients. Call once at the end of a confirm-safe-tx run. */
+/** Upper bound on how long pooled-client cleanup may run before it is abandoned. */
+export const POOL_CLEANUP_TIMEOUT_MS = 5_000 // 5 seconds
+
+/**
+ * Closes all pooled Safe clients. Call once at the end of a confirm-safe-tx run.
+ * @param pool - Pool to drain; defaults to the module-level pool
+ * @param timeoutMs - Cleanup deadline; a slow/hung in-flight init must not stall exit
+ */
 export async function releaseAllPooledSafeClients(
-  pool: Map<string, Promise<ISafeClientBundle>> = safeClientPool
+  pool: Map<string, Promise<ISafeClientBundle>> = safeClientPool,
+  timeoutMs: number = POOL_CLEANUP_TIMEOUT_MS
 ): Promise<void> {
   const closes = [...pool.values()].map(async (promise) => {
     try {
@@ -1689,8 +1713,24 @@ export async function releaseAllPooledSafeClients(
       consola.warn(`Warning during pooled SafeClient cleanup: ${errorMsg}`)
     }
   })
-  await Promise.allSettled(closes)
-  pool.clear()
+
+  // An in-flight prefetch init against a slow/hung RPC would otherwise block
+  // shutdown (and, on error paths, the operator's exit) indefinitely.
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      consola.warn(
+        `Pooled SafeClient cleanup timed out after ${timeoutMs}ms; abandoning remaining closes`
+      )
+      resolve()
+    }, timeoutMs)
+  })
+  try {
+    await Promise.race([Promise.allSettled(closes), deadline])
+  } finally {
+    if (timer) clearTimeout(timer)
+    pool.clear()
+  }
 }
 
 /**
@@ -1754,27 +1794,16 @@ export async function getNetworksWithPendingTransactions(
 }
 
 /**
- * Gets networks where the user can take action (is a Safe owner AND has actionable transactions)
+ * Gets networks where the user can take action (is a Safe owner AND has actionable transactions).
+ * Ownership is read from the chain with a read-only client, so no signer material is needed here.
  * @param pendingTransactions - MongoDB collection
  * @param signerAddress - Address of the signer to check ownership for
- * @param privateKey - Private key for signing (optional if useLedger is true)
- * @param useLedger - Whether to use a Ledger device for signing
- * @param ledgerOptions - Options for Ledger connection
- * @param account - Pre-created account (for Ledger)
  * @param rpcUrl - Optional RPC URL override
  * @returns List of network names where the signer can take action
  */
 export async function getNetworksWithActionableTransactions(
   pendingTransactions: Collection<ISafeTxDocument>,
   signerAddress: Address,
-  _privateKey?: string,
-  _useLedger?: boolean,
-  _ledgerOptions?: {
-    derivationPath?: string
-    ledgerLive?: boolean
-    accountIndex?: number
-  },
-  _account?: Account,
   rpcUrl?: string
 ): Promise<string[]> {
   // First, get all networks with pending transactions

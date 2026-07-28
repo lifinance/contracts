@@ -722,4 +722,15 @@ describe('releaseAllPooledSafeClients', () => {
     expect(cleaned.sort()).toEqual(['a', 'c'])
     expect(pool.size).toBe(0)
   })
+
+  it('does not hang on a never-settling in-flight client and still clears the pool', async () => {
+    const { releaseAllPooledSafeClients } = await import('./safe-utils')
+    // A pooled promise that never resolves (e.g. a prefetch init against a hung
+    // RPC) must not stall shutdown past the timeout.
+    const pool = new Map([['stuck', new Promise(() => undefined)]])
+    const startedAt = Date.now()
+    await releaseAllPooledSafeClients(pool as never, 20) // 20ms deadline
+    expect(Date.now() - startedAt).toBeLessThan(1000)
+    expect(pool.size).toBe(0)
+  })
 })

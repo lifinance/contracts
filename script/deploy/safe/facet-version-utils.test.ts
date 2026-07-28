@@ -243,6 +243,54 @@ describe('facet-version-utils', () => {
         fs.rmSync(scalarRoot, { recursive: true, force: true })
       }
     })
+
+    it('does not memoize a transient parse failure — a later valid read succeeds', () => {
+      const flakyRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'facet-version-utils-flaky-')
+      )
+      const cachePath = path.join(
+        flakyRoot,
+        '.cache',
+        'deployments_production.json'
+      )
+      try {
+        fs.mkdirSync(path.join(flakyRoot, '.cache'), { recursive: true })
+        // First read hits a partially-written file (parse throws → catch path).
+        fs.writeFileSync(cachePath, '{ broken')
+        expect(
+          getDeployedFacetVersionFromLog(
+            'AcrossFacetV3',
+            'optimism',
+            [FACET_ADDRESS],
+            flakyRoot
+          )
+        ).toBeNull()
+
+        // The transient failure must not be memoized: once the file is whole,
+        // the next call resolves the version rather than staying disabled.
+        fs.writeFileSync(
+          cachePath,
+          JSON.stringify([
+            {
+              contractName: 'AcrossFacetV3',
+              network: 'optimism',
+              version: '2.0.0',
+              address: FACET_ADDRESS,
+            },
+          ])
+        )
+        expect(
+          getDeployedFacetVersionFromLog(
+            'AcrossFacetV3',
+            'optimism',
+            [FACET_ADDRESS],
+            flakyRoot
+          )
+        ).toBe('2.0.0')
+      } finally {
+        fs.rmSync(flakyRoot, { recursive: true, force: true })
+      }
+    })
   })
 
   describe('getTargetStateFacetVersion', () => {

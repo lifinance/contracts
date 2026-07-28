@@ -51,7 +51,9 @@ function loadProductionDeploymentRecords(
     cachedProductionDeploymentRecordsByRoot.set(base, typedRecords)
     return typedRecords
   } catch {
-    cachedProductionDeploymentRecordsByRoot.set(base, null)
+    // Transient read/parse faults (e.g. a partially-written cache during a
+    // concurrent refresh) must not permanently disable facet-version display —
+    // only the missing-file / invalid-shape paths above memoize null.
     return null
   }
 }

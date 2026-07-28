@@ -78,6 +78,24 @@ function normalizeSelector(selector: string): string {
   return lower.startsWith('0x') ? lower : `0x${lower}`
 }
 
+/**
+ * True when `signature` actually hashes to `selector`. Guards the sources that
+ * pair a selector with a signature textually (whitelist.json, the disk cache,
+ * 4byte responses) rather than deriving the selector from the signature — so a
+ * hand-edited typo or a poisoned cache degrades to "unknown selector" in the
+ * signing UI instead of a wrong-but-plausible function name.
+ */
+function isVerifiedSelectorSignature(
+  selector: string,
+  signature: string
+): boolean {
+  try {
+    return toFunctionSelector(signature) === normalizeSelector(selector)
+  } catch {
+    return false
+  }
+}
+
 function nameFromSignature(signature: string): string {
   const parenIndex = signature.indexOf('(')
   return parenIndex === -1 ? signature : signature.slice(0, parenIndex)
@@ -137,6 +155,7 @@ export function buildSelectorMapFromWhitelist(
   const addEntry = (selector: unknown, signature: unknown): void => {
     if (typeof selector !== 'string' || typeof signature !== 'string') return
     if (!signature.trim()) return
+    if (!isVerifiedSelectorSignature(selector, signature)) return
     setIfAbsent(map, selector, {
       name: nameFromSignature(signature),
       signature,
@@ -279,9 +298,15 @@ export function parseFourByteBatchResponse(
     const key = normalizeSelector(selector)
     const entries = fnResults[key]
     if (!Array.isArray(entries)) continue
-    const first = entries[0]
-    if (isRecord(first) && typeof first.name === 'string' && first.name)
-      map.set(key, first.name)
+    // 4byte can return multiple (and colliding) signatures per selector; take
+    // the first that actually hashes back to the requested selector.
+    const match = entries.find(
+      (entry): entry is { name: string } =>
+        isRecord(entry) &&
+        typeof entry.name === 'string' &&
+        isVerifiedSelectorSignature(key, entry.name)
+    )
+    if (match) map.set(key, match.name)
   }
   return map
 }
@@ -293,7 +318,10 @@ function readDiskCache(cachePath: string): Record<string, string> {
     if (!isRecord(parsed)) return {}
     const out: Record<string, string> = {}
     for (const [selector, signature] of Object.entries(parsed))
-      if (typeof signature === 'string')
+      if (
+        typeof signature === 'string' &&
+        isVerifiedSelectorSignature(selector, signature)
+      )
         out[normalizeSelector(selector)] = signature
     return out
   } catch {

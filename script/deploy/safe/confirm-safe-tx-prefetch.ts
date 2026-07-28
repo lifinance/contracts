@@ -35,6 +35,20 @@ export interface IConfirmSafeTxNetworkContext {
   txs: IAugmentedSafeTxDocument[]
 }
 
+/**
+ * Outcome of preparing one network. A discriminated union rather than a bare
+ * `context | null` so the caller can tell an actionable network apart from the
+ * distinct non-actionable causes and react to each — a not-an-owner signer or a
+ * failed threshold/nonce read must not look like "nothing to do".
+ */
+export type PrepareConfirmSafeTxNetworkResult =
+  | { kind: 'ready'; context: IConfirmSafeTxNetworkContext }
+  | { kind: 'nothing-actionable' }
+  | { kind: 'not-owner'; signerAddress: Address; owners: Address[] }
+  | { kind: 'owner-check-failed'; error: string }
+  | { kind: 'read-failed'; error: string }
+  | { kind: 'prepare-error'; error: string }
+
 export interface IPrepareConfirmSafeTxNetworkParams {
   network: string
   pendingTxs: ISafeTxDocument[]
@@ -53,11 +67,14 @@ export interface IPrepareConfirmSafeTxNetworkParams {
 
 /**
  * Initializes the Safe client, reconciles in-flight rows, and builds the
- * actionable tx list for one network. Returns null when the signer cannot act.
+ * actionable tx list for one network.
+ * @param params - Network, pending rows, signer material and reconcile coverage
+ * @returns A discriminated result: `ready` with the context, or a specific
+ * non-actionable cause the caller logs (or aborts on) appropriately
  */
 export async function prepareConfirmSafeTxNetwork(
   params: IPrepareConfirmSafeTxNetworkParams
-): Promise<IConfirmSafeTxNetworkContext | null> {
+): Promise<PrepareConfirmSafeTxNetworkResult> {
   const {
     network,
     pendingTxs: initialPendingTxs,
@@ -70,7 +87,7 @@ export async function prepareConfirmSafeTxNetwork(
     startupReconciledKeys,
   } = params
 
-  if (initialPendingTxs.length === 0) return null
+  if (initialPendingTxs.length === 0) return { kind: 'nothing-actionable' }
 
   const txSafeAddress = initialPendingTxs[0]?.safeAddress as Address
   const { safe, chain, safeAddress } = await getOrInitializeSafeClient(
@@ -89,14 +106,12 @@ export async function prepareConfirmSafeTxNetwork(
   let existingOwners: Address[]
   try {
     existingOwners = await safe.getOwners()
-    if (!isAddressASafeOwner(existingOwners, signerAddress)) return null
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.warn(
-      `[${network}] Skipping prefetch — failed owner check: ${errorMsg}`
-    )
-    return null
+    return { kind: 'owner-check-failed', error: errorMsg }
   }
+  if (!isAddressASafeOwner(existingOwners, signerAddress))
+    return { kind: 'not-owner', signerAddress, owners: existingOwners }
 
   let threshold: number
   let onChainNonce: bigint
@@ -107,10 +122,7 @@ export async function prepareConfirmSafeTxNetwork(
     ])
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.warn(
-      `[${network}] Skipping prefetch — failed threshold/nonce read: ${errorMsg}`
-    )
-    return null
+    return { kind: 'read-failed', error: errorMsg }
   }
 
   let pendingTxs = initialPendingTxs
@@ -169,20 +181,23 @@ export async function prepareConfirmSafeTxNetwork(
     })
   )
 
-  if (txs.length === 0) return null
+  if (txs.length === 0) return { kind: 'nothing-actionable' }
 
   return {
-    network,
-    networkKey,
-    pendingTxs,
-    safe,
-    chain,
-    safeAddress,
-    txSafeAddress,
-    signerAddress,
-    threshold,
-    onChainNonce,
-    txs,
+    kind: 'ready',
+    context: {
+      network,
+      networkKey,
+      pendingTxs,
+      safe,
+      chain,
+      safeAddress,
+      txSafeAddress,
+      signerAddress,
+      threshold,
+      onChainNonce,
+      txs,
+    },
   }
 }
 
@@ -193,7 +208,7 @@ export async function prepareConfirmSafeTxNetwork(
 export class ConfirmSafeTxPrefetchQueue {
   private readonly inflight = new Map<
     string,
-    Promise<IConfirmSafeTxNetworkContext | null>
+    Promise<PrepareConfirmSafeTxNetworkResult>
   >()
 
   /**
@@ -202,8 +217,23 @@ export class ConfirmSafeTxPrefetchQueue {
   public constructor(
     private readonly prepare: (
       params: IPrepareConfirmSafeTxNetworkParams
-    ) => Promise<IConfirmSafeTxNetworkContext | null> = prepareConfirmSafeTxNetwork
+    ) => Promise<PrepareConfirmSafeTxNetworkResult> = prepareConfirmSafeTxNetwork
   ) {}
+
+  private runPrepare(
+    network: string,
+    params: Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>
+  ): Promise<PrepareConfirmSafeTxNetworkResult> {
+    // Unexpected throws (RPC/Ledger/init faults) become a `prepare-error`
+    // result rather than a rejected promise, so a background prefetch never
+    // produces an unhandled rejection and the caller decides how to react.
+    return this.prepare({ ...params, network }).catch(
+      (error: unknown): PrepareConfirmSafeTxNetworkResult => {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        return { kind: 'prepare-error', error: errorMsg }
+      }
+    )
+  }
 
   /**
    * Starts background preparation for a network if not already in flight.
@@ -214,52 +244,74 @@ export class ConfirmSafeTxPrefetchQueue {
   ): void {
     const key = network.toLowerCase()
     if (this.inflight.has(key)) return
-
-    this.inflight.set(
-      key,
-      this.prepare({ ...params, network }).catch((error: unknown) => {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.warn(`[${network}] Prefetch failed: ${errorMsg}`)
-        return null
-      })
-    )
+    this.inflight.set(key, this.runPrepare(network, params))
   }
 
   /**
-   * Returns prepared context for a network, waiting on any in-flight prefetch.
-   * Logs how long the caller actually waited — with an effective prefetch this
-   * is ~0ms; the delta vs a cold take() is the AC-5 timing evidence.
+   * Returns the prepared result for a network, waiting on any in-flight
+   * prefetch. Logs how long the caller actually waited — with an effective
+   * prefetch this is ~0ms; the delta vs a cold take() is the AC-5 timing
+   * evidence.
+   *
+   * A prefetched `ready` result is re-validated against the Safe's live nonce
+   * before it is returned: the prefetch may have been computed minutes ago
+   * (while the operator reviewed the previous network) and another signer may
+   * have executed on this Safe in the meantime, which would leave the cached
+   * nonce — and the reconcile that ran with it — stale. On a mismatch the
+   * context is discarded and re-prepared inline, so only the cheap nonce read
+   * is ever wasted, never a stale signing/execution decision.
    */
   public async take(
     network: string,
     params: Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>
-  ): Promise<IConfirmSafeTxNetworkContext | null> {
+  ): Promise<PrepareConfirmSafeTxNetworkResult> {
     const key = network.toLowerCase()
     const startedAt = Date.now()
     const inflight = this.inflight.get(key)
     if (inflight) {
       this.inflight.delete(key)
-      const context = await inflight
+      const result = await inflight
       consola.debug(
-        `[${network}] Prefetched context ready after ${
+        `[${network}] Prefetched result ready after ${
           Date.now() - startedAt
         }ms wait`
       )
-      return context
+      return this.revalidateNonce(network, params, result)
     }
 
-    const context = await this.prepare({ ...params, network }).catch(
-      (error: unknown) => {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.warn(`[${network}] Preparation failed: ${errorMsg}`)
-        return null
-      }
-    )
+    const result = await this.runPrepare(network, params)
     consola.debug(
-      `[${network}] Context prepared inline (no prefetch) in ${
+      `[${network}] Result prepared inline (no prefetch) in ${
         Date.now() - startedAt
       }ms`
     )
-    return context
+    return result
+  }
+
+  /**
+   * Discards a prefetched `ready` context whose on-chain nonce advanced since
+   * the prefetch ran and re-prepares it inline. A failed nonce read keeps the
+   * prefetched context (best effort — the interactive path re-derives nonce
+   * status per tx anyway).
+   */
+  private async revalidateNonce(
+    network: string,
+    params: Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>,
+    result: PrepareConfirmSafeTxNetworkResult
+  ): Promise<PrepareConfirmSafeTxNetworkResult> {
+    if (result.kind !== 'ready') return result
+    let freshNonce: bigint
+    try {
+      freshNonce = await result.context.safe.getNonce()
+    } catch {
+      return result
+    }
+    if (freshNonce === result.context.onChainNonce) return result
+
+    consola.warn(
+      `[${network}] On-chain nonce advanced ${result.context.onChainNonce} → ` +
+        `${freshNonce} since prefetch — re-preparing to avoid stale state`
+    )
+    return this.runPrepare(network, params)
   }
 }

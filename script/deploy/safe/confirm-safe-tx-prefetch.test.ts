@@ -3,8 +3,8 @@
  *
  * The queue is exercised through an injected `prepare` function — the real
  * `prepareConfirmSafeTxNetwork` needs a live RPC/Mongo environment, and the
- * queue's own behavior (dedup, consume-on-take, fallback, error swallowing)
- * is independent of it.
+ * queue's own behavior (dedup, consume-on-take, error wrapping, nonce
+ * re-validation) is independent of it.
  */
 import {
   describe,
@@ -17,11 +17,12 @@ import {
   ConfirmSafeTxPrefetchQueue,
   type IConfirmSafeTxNetworkContext,
   type IPrepareConfirmSafeTxNetworkParams,
+  type PrepareConfirmSafeTxNetworkResult,
 } from './confirm-safe-tx-prefetch'
 
 type PrepareFn = (
   params: IPrepareConfirmSafeTxNetworkParams
-) => Promise<IConfirmSafeTxNetworkContext | null>
+) => Promise<PrepareConfirmSafeTxNetworkResult>
 
 const DUMMY_PARAMS = {
   pendingTxs: [],
@@ -29,20 +30,35 @@ const DUMMY_PARAMS = {
   startupReconciledKeys: new Set<string>(),
 } as unknown as Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>
 
-function fakeContext(network: string): IConfirmSafeTxNetworkContext {
-  return { network } as unknown as IConfirmSafeTxNetworkContext
+/**
+ * A `ready` result whose context reports `nonce` from `safe.getNonce()`. Later
+ * re-reads can be made to differ from `onChainNonce` to exercise re-validation.
+ */
+function readyResult(
+  network: string,
+  onChainNonce = 1n,
+  nonceReads: bigint[] = [onChainNonce]
+): PrepareConfirmSafeTxNetworkResult {
+  let call = 0
+  const safe = {
+    getNonce: async () => nonceReads[Math.min(call++, nonceReads.length - 1)],
+  }
+  return {
+    kind: 'ready',
+    context: {
+      network,
+      onChainNonce,
+      safe,
+    } as unknown as IConfirmSafeTxNetworkContext,
+  }
 }
 
-function makePrepare(
-  impl?: (
-    params: IPrepareConfirmSafeTxNetworkParams
-  ) => Promise<IConfirmSafeTxNetworkContext | null>
-) {
+function makePrepare(impl?: PrepareFn) {
   const calls: string[] = []
   const prepare: PrepareFn = async (params) => {
     calls.push(params.network)
     if (impl) return impl(params)
-    return fakeContext(params.network)
+    return readyResult(params.network)
   }
   return { prepare, calls }
 }
@@ -56,8 +72,8 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
     queue.schedule('arbitrum', DUMMY_PARAMS)
     queue.schedule('ARBITRUM', DUMMY_PARAMS) // case-insensitive key
 
-    const ctx = await queue.take('arbitrum', DUMMY_PARAMS)
-    expect(ctx?.network).toBe('arbitrum')
+    const result = await queue.take('arbitrum', DUMMY_PARAMS)
+    expect(result.kind).toBe('ready')
     expect(calls).toEqual(['arbitrum'])
   })
 
@@ -76,38 +92,44 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
     const { prepare, calls } = makePrepare()
     const queue = new ConfirmSafeTxPrefetchQueue(prepare)
 
-    const ctx = await queue.take('mainnet', DUMMY_PARAMS)
-    expect(ctx?.network).toBe('mainnet')
+    const result = await queue.take('mainnet', DUMMY_PARAMS)
+    expect(result.kind).toBe('ready')
     expect(calls).toEqual(['mainnet'])
   })
 
-  it('a scheduled preparation error surfaces as null from take(), not a throw', async () => {
+  it('a scheduled preparation throw surfaces as a prepare-error result, not a rejection', async () => {
     const { prepare } = makePrepare(async () => {
       throw new Error('RPC exploded')
     })
     const queue = new ConfirmSafeTxPrefetchQueue(prepare)
 
     queue.schedule('optimism', DUMMY_PARAMS)
-    const ctx = await queue.take('optimism', DUMMY_PARAMS)
-    expect(ctx).toBeNull()
+    const result = await queue.take('optimism', DUMMY_PARAMS)
+    expect(result.kind).toBe('prepare-error')
+    if (result.kind === 'prepare-error')
+      expect(result.error).toBe('RPC exploded')
   })
 
-  it('a direct take() preparation error surfaces as null, not a throw', async () => {
+  it('a direct take() preparation throw surfaces as a prepare-error result', async () => {
     const { prepare } = makePrepare(async () => {
       throw new Error('Mongo exploded')
     })
     const queue = new ConfirmSafeTxPrefetchQueue(prepare)
 
-    const ctx = await queue.take('polygon', DUMMY_PARAMS)
-    expect(ctx).toBeNull()
+    const result = await queue.take('polygon', DUMMY_PARAMS)
+    expect(result.kind).toBe('prepare-error')
   })
 
-  it('take() passes through a null preparation result (nothing actionable)', async () => {
-    const { prepare } = makePrepare(async () => null)
+  it('take() passes through a nothing-actionable result unchanged', async () => {
+    const { prepare } = makePrepare(async () => ({
+      kind: 'nothing-actionable',
+    }))
     const queue = new ConfirmSafeTxPrefetchQueue(prepare)
 
     queue.schedule('bsc', DUMMY_PARAMS)
-    expect(await queue.take('bsc', DUMMY_PARAMS)).toBeNull()
+    expect((await queue.take('bsc', DUMMY_PARAMS)).kind).toBe(
+      'nothing-actionable'
+    )
   })
 
   it('parallel schedules for different networks run independently', async () => {
@@ -121,8 +143,82 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
       queue.take('arbitrum', DUMMY_PARAMS),
       queue.take('base', DUMMY_PARAMS),
     ])
-    expect(a?.network).toBe('arbitrum')
-    expect(b?.network).toBe('base')
+    expect(a.kind).toBe('ready')
+    expect(b.kind).toBe('ready')
     expect(calls.sort()).toEqual(['arbitrum', 'base'])
+  })
+
+  it('take() keeps a prefetched ready result when the nonce is unchanged', async () => {
+    // getNonce is read at prepare (1n) and re-read at take (1n) — no re-prepare.
+    const { prepare, calls } = makePrepare(async (params) =>
+      readyResult(params.network, 1n, [1n])
+    )
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('mainnet', DUMMY_PARAMS)
+    const result = await queue.take('mainnet', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('ready')
+    expect(calls).toEqual(['mainnet']) // no re-prepare
+  })
+
+  it('take() re-prepares a prefetched context whose nonce advanced since prefetch', async () => {
+    // First prepare: onChainNonce 1n, but the take()-time re-read returns 2n
+    // (another signer executed) → discard and re-prepare inline.
+    const { prepare, calls } = makePrepare(async (params) => {
+      if (calls.length === 1) return readyResult(params.network, 1n, [2n])
+      return readyResult(params.network, 2n, [2n])
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('mainnet', DUMMY_PARAMS)
+    const result = await queue.take('mainnet', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('ready')
+    if (result.kind === 'ready') expect(result.context.onChainNonce).toBe(2n)
+    expect(calls).toEqual(['mainnet', 'mainnet']) // re-prepared once
+  })
+
+  it('take() keeps the prefetched context when the nonce re-read fails', async () => {
+    const { prepare, calls } = makePrepare(async (params) => {
+      const result = readyResult(params.network, 1n)
+      ;(result as { context: IConfirmSafeTxNetworkContext }).context.safe = {
+        getNonce: async () => {
+          throw new Error('nonce read failed')
+        },
+      } as unknown as IConfirmSafeTxNetworkContext['safe']
+      return result
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('mainnet', DUMMY_PARAMS)
+    const result = await queue.take('mainnet', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('ready')
+    expect(calls).toEqual(['mainnet']) // best effort — no re-prepare
+  })
+
+  it('take() does not re-read the nonce on the inline (non-prefetch) path', async () => {
+    let nonceReads = 0
+    const { prepare } = makePrepare(async (params) => {
+      const safe = {
+        getNonce: async () => {
+          nonceReads++
+          return 1n
+        },
+      }
+      return {
+        kind: 'ready',
+        context: {
+          network: params.network,
+          onChainNonce: 1n,
+          safe,
+        } as unknown as IConfirmSafeTxNetworkContext,
+      }
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    await queue.take('mainnet', DUMMY_PARAMS) // no prior schedule
+    expect(nonceReads).toBe(0)
   })
 })

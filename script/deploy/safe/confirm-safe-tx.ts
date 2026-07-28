@@ -856,10 +856,6 @@ const main = defineCommand({
         networks = await getNetworksWithActionableTransactions(
           pendingTransactions,
           signerAddress,
-          privateKey,
-          useLedger,
-          ledgerOptions,
-          ledgerResult?.account,
           args.rpcUrl
         )
 
@@ -961,12 +957,45 @@ const main = defineCommand({
           pendingTxs: networkTxs,
         })
 
-        if (!prepared) {
-          consola.success(`No actionable pending transactions on ${network}`)
-          continue
+        switch (prepared.kind) {
+          case 'ready':
+            await processTxs(
+              keyType,
+              pendingTransactions,
+              args.rpcUrl,
+              prepared.context
+            )
+            break
+          case 'nothing-actionable':
+            consola.success(`No actionable pending transactions on ${network}`)
+            break
+          case 'not-owner':
+            consola.error(
+              `[${network}] The current signer is not an owner of this Safe — cannot sign or execute`
+            )
+            consola.error(`  Signer: ${prepared.signerAddress}`)
+            consola.error(`  Owners: ${prepared.owners.join(', ')}`)
+            break
+          case 'owner-check-failed':
+            consola.error(
+              `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
+            )
+            break
+          case 'read-failed':
+            // Unknown threshold/nonce state must abort rather than proceed —
+            // a signing/execution decision on stale state is unsafe.
+            throw new Error(
+              `Could not read threshold/nonce for the Safe on ${network}: ${prepared.error}`
+            )
+          case 'prepare-error':
+            throw new Error(`Failed to prepare ${network}: ${prepared.error}`)
+          default: {
+            const exhaustive: never = prepared
+            throw new Error(
+              `Unhandled prepare result: ${JSON.stringify(exhaustive)}`
+            )
+          }
         }
-
-        await processTxs(keyType, pendingTransactions, args.rpcUrl, prepared)
       }
 
       // Close MongoDB connection

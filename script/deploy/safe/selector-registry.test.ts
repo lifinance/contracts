@@ -83,6 +83,11 @@ describe('buildSelectorMapFromClearSigningFormats', () => {
 })
 
 describe('buildSelectorMapFromWhitelist', () => {
+  const SWAP_COMPLETE_SIG = 'swapAndCompleteBridgeTokens(bytes32)'
+  const SWAP_COMPLETE_SELECTOR = toFunctionSelector(SWAP_COMPLETE_SIG)
+  const SWAP_EXACT_SIG = 'swapExactTokensForTokens(uint256,uint256)'
+  const SWAP_EXACT_SELECTOR = toFunctionSelector(SWAP_EXACT_SIG)
+
   it('harvests PERIPHERY selector/signature entries', () => {
     const map = buildSelectorMapFromWhitelist({
       PERIPHERY: {
@@ -92,18 +97,18 @@ describe('buildSelectorMapFromWhitelist', () => {
             address: '0x0000000000000000000000000000000000000001',
             selectors: [
               {
-                selector: '0xAABBCCDD',
-                signature: 'swapAndCompleteBridgeTokens(bytes32)',
+                selector: SWAP_COMPLETE_SELECTOR,
+                signature: SWAP_COMPLETE_SIG,
               },
             ],
           },
         ],
       },
     })
-    expect(map.get('0xaabbccdd')?.name).toBe('swapAndCompleteBridgeTokens')
-    expect(map.get('0xaabbccdd')?.signature).toBe(
-      'swapAndCompleteBridgeTokens(bytes32)'
+    expect(map.get(SWAP_COMPLETE_SELECTOR)?.name).toBe(
+      'swapAndCompleteBridgeTokens'
     )
+    expect(map.get(SWAP_COMPLETE_SELECTOR)?.signature).toBe(SWAP_COMPLETE_SIG)
   })
 
   it('harvests section contracts functions maps', () => {
@@ -116,7 +121,7 @@ describe('buildSelectorMapFromWhitelist', () => {
               {
                 address: '0x0000000000000000000000000000000000000002',
                 functions: {
-                  '0x12345678': 'swapExactTokensForTokens(uint256,uint256)',
+                  [SWAP_EXACT_SELECTOR]: SWAP_EXACT_SIG,
                 },
               },
             ],
@@ -124,7 +129,28 @@ describe('buildSelectorMapFromWhitelist', () => {
         },
       ],
     })
-    expect(map.get('0x12345678')?.name).toBe('swapExactTokensForTokens')
+    expect(map.get(SWAP_EXACT_SELECTOR)?.name).toBe('swapExactTokensForTokens')
+  })
+
+  it('drops entries whose signature does not hash to the claimed selector', () => {
+    const map = buildSelectorMapFromWhitelist({
+      PERIPHERY: {
+        mainnet: [
+          {
+            name: 'Executor',
+            address: '0x0000000000000000000000000000000000000001',
+            selectors: [
+              // Wrong selector for the signature — must not surface a
+              // wrong-but-plausible function name in the signing UI.
+              { selector: '0xdeadbeef', signature: SWAP_COMPLETE_SIG },
+              // Unparseable signature — dropped without throwing.
+              { selector: '0x12345678', signature: 'not a signature' },
+            ],
+          },
+        ],
+      },
+    })
+    expect(map.size).toBe(0)
   })
 
   it('returns an empty map for malformed input', () => {
@@ -173,6 +199,36 @@ describe('parseFourByteBatchResponse', () => {
     expect(map.has('0xdeadbee1')).toBe(false)
   })
 
+  it('picks the entry that hashes to the selector, skipping colliding wrong ones', () => {
+    const response = {
+      ok: true,
+      result: {
+        function: {
+          [TRANSFER_SELECTOR]: [
+            // 4byte returns collisions; the first does not hash to the selector.
+            { name: 'not_transfer(address,uint256)' },
+            { name: 'transfer(address,uint256)' },
+          ],
+        },
+        event: {},
+      },
+    }
+    const map = parseFourByteBatchResponse(response, [TRANSFER_SELECTOR])
+    expect(map.get(TRANSFER_SELECTOR)).toBe('transfer(address,uint256)')
+  })
+
+  it('drops a selector whose only signature does not hash to it', () => {
+    const response = {
+      ok: true,
+      result: {
+        function: { [TRANSFER_SELECTOR]: [{ name: 'foo(uint256)' }] },
+        event: {},
+      },
+    }
+    const map = parseFourByteBatchResponse(response, [TRANSFER_SELECTOR])
+    expect(map.has(TRANSFER_SELECTOR)).toBe(false)
+  })
+
   it('returns an empty map for malformed responses', () => {
     expect(parseFourByteBatchResponse(null, ['0xa9059cbb']).size).toBe(0)
     expect(parseFourByteBatchResponse({ ok: false }, ['0xa9059cbb']).size).toBe(
@@ -204,18 +260,20 @@ describe('resolveSelectorsViaFourByte', () => {
     return { fetcher, callCount: () => calls }
   }
 
+  const FOO_SELECTOR = toFunctionSelector('foo(uint256)') // 0x2fbebd38
+
   it('resolves a batch of selectors with a single request', async () => {
     const cachePath = makeTmpCachePath()
     const { fetcher, callCount } = makeFetcher({
-      '0xa9059cbb': 'transfer(address,uint256)',
-      '0x12345678': 'foo(uint256)',
+      [TRANSFER_SELECTOR]: 'transfer(address,uint256)',
+      [FOO_SELECTOR]: 'foo(uint256)',
     })
     const map = await resolveSelectorsViaFourByte(
-      ['0xa9059cbb', '0x12345678'],
+      [TRANSFER_SELECTOR, FOO_SELECTOR],
       { cachePath, fetcher }
     )
-    expect(map.get('0xa9059cbb')).toBe('transfer(address,uint256)')
-    expect(map.get('0x12345678')).toBe('foo(uint256)')
+    expect(map.get(TRANSFER_SELECTOR)).toBe('transfer(address,uint256)')
+    expect(map.get(FOO_SELECTOR)).toBe('foo(uint256)')
     expect(callCount()).toBe(1)
   })
 
@@ -235,6 +293,24 @@ describe('resolveSelectorsViaFourByte', () => {
     })
     expect(map.get('0xa9059cbb')).toBe('transfer(address,uint256)')
     expect(second.callCount()).toBe(0)
+  })
+
+  it('ignores a poisoned disk-cache entry that does not hash to its selector', async () => {
+    const cachePath = makeTmpCachePath()
+    // Hand-edited / poisoned cache: right selector, wrong signature.
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({ [TRANSFER_SELECTOR]: 'foo(uint256)' })
+    )
+    const { fetcher, callCount } = makeFetcher({}) // network offers nothing
+    const map = await resolveSelectorsViaFourByte([TRANSFER_SELECTOR], {
+      cachePath,
+      fetcher,
+    })
+    // The poisoned entry is not trusted, so resolution falls through to the
+    // network (proven by the fetch) rather than returning the wrong signature.
+    expect(map.has(TRANSFER_SELECTOR)).toBe(false)
+    expect(callCount()).toBe(1)
   })
 
   it('does not persist negative results to disk', async () => {
