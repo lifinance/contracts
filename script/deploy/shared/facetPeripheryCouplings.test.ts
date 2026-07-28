@@ -9,6 +9,7 @@ import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
   identifyCoupledFacetsOnChain,
+  isValidFacetName,
   loadFacetSelectorsFromArtifact,
   resolveLiveFacets,
   type TFacetPeripheryCouplings,
@@ -220,6 +221,13 @@ describe('identifyCoupledFacetsOnChain', () => {
     )
 
     expect(live).toEqual([])
+  })
+
+  it('refuses a path-traversal facet name rather than reading outside out/', () => {
+    // Names come from config/global.json today, but harden the read regardless (mirrors readDeployLog).
+    expect(isValidFacetName('AcrossFacetV4')).toBe(true)
+    expect(isValidFacetName('../../.env')).toBe(false)
+    expect(loadFacetSelectorsFromArtifact('../../../etc/passwd')).toBeNull()
   })
 
   it('reports a facet whose artifact cannot be loaded as unresolved, not absent', () => {

@@ -12,7 +12,7 @@
  * the deploy-time reminder.
  */
 import { existsSync, readFileSync } from 'fs'
-import { resolve } from 'path'
+import { isAbsolute, relative, resolve } from 'path'
 
 import globalConfig from '../../../config/global.json'
 
@@ -129,6 +129,14 @@ export interface IResolvedLiveFacets {
 }
 
 /**
+ * Facet names are Solidity contract identifiers (alphanumeric + underscore). Reject anything else
+ * so a name can never traverse outside `out/` (e.g. `../../.env`) once composed into a file path.
+ */
+export function isValidFacetName(name: string): boolean {
+  return /^[A-Za-z0-9_]+$/.test(name)
+}
+
+/**
  * Load a facet's function selectors from its Forge artifact (`out/<Facet>.sol/<Facet>.json`),
  * lowercased and `0x`-prefixed. Selectors are keccak of the function signature, so they are the
  * same across compilers (evm / zkevm) and match what a diamond's `facets()` returns on any chain.
@@ -140,12 +148,15 @@ export interface IResolvedLiveFacets {
 export function loadFacetSelectorsFromArtifact(
   facetName: string
 ): string[] | null {
-  const artifactPath = resolve(
-    process.cwd(),
-    'out',
-    `${facetName}.sol`,
-    `${facetName}.json`
-  )
+  if (!isValidFacetName(facetName)) return null
+
+  const outDir = resolve(process.cwd(), 'out')
+  const artifactPath = resolve(outDir, `${facetName}.sol`, `${facetName}.json`)
+  // Belt-and-braces on top of the name check: the resolved path must stay inside out/, so no
+  // combination of inputs can make this read an arbitrary file.
+  const relativeToDir = relative(outDir, artifactPath)
+  if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
+
   if (!existsSync(artifactPath)) return null
   try {
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf8')) as {
