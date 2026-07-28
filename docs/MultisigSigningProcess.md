@@ -11,10 +11,19 @@ Status: **current state**, verified against the repo. Author: Daniel B. (SC).
 
 ## 1. Purpose & scope
 
-- **Production mainnets only** go through Safe + timelock + quorum. Staging,
-  testnets, and runs with `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true` broadcast
-  directly from an EOA — see `sendOrPropose` in `script/helperFunctions.sh`
-  and in `script/safe/safeScriptHelpers.ts`.
+- **Safe + timelock + quorum is mandatory for every live production mainnet
+  diamond and cannot be opted out of.** Staging and testnets have no Safe and
+  broadcast directly from an EOA — see `sendOrPropose` in
+  `script/helperFunctions.sh` and in `script/safe/safeScriptHelpers.ts`.
+- The direct-broadcast escape hatch `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`
+  is **only** for a *new* production network during bring-up, before diamond
+  ownership is transferred to the timelock — it is not a way to skip
+  governance on a live network. Two things enforce that: `scriptMaster.sh`
+  prints a standing warning whenever the flag is set, and once ownership has
+  moved, the diamond's `LibDiamond.enforceIsContractOwner` makes any direct
+  EOA call revert. "Diamond is owned by the timelock (mainnet)" is a
+  health-check invariant (`script/deploy/healthCheckInvariants.ts`), so a
+  network left in the bring-up state is reported as unhealthy.
 - Scale: 71 active mainnet production networks (`config/networks.json`), each
   with its own Safe (`safeAddress`) and `LiFiTimelockController`.
 - There is **no Safe Transaction Service and no Safe{Wallet} UI** anywhere in
@@ -73,8 +82,13 @@ All EVM funnels end in `storeTransactionInMongoDB`
   `script/helperFunctions.sh`, by `script/tasks/diamondUpdateFacet.sh`,
   `diamondUpdatePeriphery.sh`, and `diamondEMERGENCYPause.sh` (all with
   `--timelock`), by `script/deploy/deployUpgradesToSAFE.sh` (**without**
-  `--timelock` — direct `diamondCut`, gated on non-`main` branches by
-  `script/deploy/github/verify-approvals.ts`), programmatically by
+  `--timelock` — a legacy Safe-direct `diamondCut`; it still goes through the
+  Safe with full threshold/quorum, it merely omits the timelock wrap, and it
+  refuses to run on testnets. On mainnet the diamond is owned by the timelock,
+  not the Safe, so the resulting proposal reverts on execution — this path is
+  effectively dead for production diamond cuts. It is additionally gated on
+  non-`main` branches by `script/deploy/github/verify-approvals.ts`, which
+  requires one SC-team and one auditor approval on the PR), programmatically by
   `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
   manually via `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
@@ -205,18 +219,30 @@ Honest list — the tooling displays these, but does **not** machine-assert them
 
 ## 7. Emergency path
 
-- **Pause** is deliberately outside the Safe flow for speed:
+This is the one **break-glass** path, and it is deliberately asymmetric: the
+fast, non-Safe leg can only *reduce* the diamond's capabilities, never grant
+or change any. Restoring capability always requires the Safe.
+
+- **Pause** sits outside the Safe flow for speed:
   `EmergencyPauseFacet.pauseDiamond` is callable by the registered pauser
   wallet (or the owner). `.github/workflows/diamondEmergencyPause.yml` pauses
   **every** production diamond directly from the PauserWallet EOA via the
   frozen `script/emergency/emergencyPauseBreakGlass.sh`; readiness is verified
-  weekly (`verifyEmergencyPauseReadiness.yml`).
-- **Unpause** goes back through the Safe:
-  `LiFiTimelockController.unpauseDiamond` is admin-only (the Safe) and
-  **bypasses minDelay** — fleet-wide unpause proposals target it via
-  `script/tasks/unpauseAllDiamonds.ts`; the per-network
-  `script/tasks/diamondEMERGENCYPause.sh` instead proposes the diamond's
-  `unpauseDiamond` wrapped in a regular timelock schedule (3 h delay).
+  weekly (`verifyEmergencyPauseReadiness.yml`). The authority this grants is
+  strictly de-privileging: `pauseDiamond` only redirects existing selectors to
+  a reverting fallback and `removeFacet` only removes a registered facet —
+  neither can add code, move funds, or change ownership. Governance is not
+  weakened, only the ability to keep serving traffic.
+- **Unpause** goes back through the Safe — it can never be done by the pauser
+  wallet. `EmergencyPauseFacet.unpauseDiamond` is diamond-owner-only, i.e. the
+  timelock. Two routes exist, and **both require full Safe threshold/quorum**:
+  - `LiFiTimelockController.unpauseDiamond` is `TIMELOCK_ADMIN_ROLE`-gated
+    (the Safe) and **bypasses `minDelay` only** — the 3 h delay is skipped so
+    an outage can be ended promptly; the multisig quorum is not. Fleet-wide
+    unpause proposals target it via `script/tasks/unpauseAllDiamonds.ts`.
+  - The per-network `script/tasks/diamondEMERGENCYPause.sh` instead proposes
+    the diamond's `unpauseDiamond` wrapped in a regular timelock schedule,
+    keeping the full 3 h delay.
 
 ## 8. Related scripts & workflows
 
