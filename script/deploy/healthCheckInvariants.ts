@@ -264,6 +264,7 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'swellchain',
       'taiko',
       'telos',
+      'tempo',
       'tron',
       'tronshasta',
       'unichain',
