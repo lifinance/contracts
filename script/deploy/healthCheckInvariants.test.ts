@@ -309,12 +309,13 @@ describe('facet-required-periphery invariant', () => {
     expect(ctx.errors[0]).toContain('destination calls')
   })
 
-  it('accepts any one of the alternative companions (Across V4 may use the V3 receiver)', async () => {
+  it('does not accept the deprecated V3 receiver in place of ReceiverAcrossV4', async () => {
     const ctx = makeCouplingCtx({ ReceiverAcrossV3: RECEIVER_ADDRESS })
 
     await invariant.run(ctx)
 
-    expect(ctx.errors).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4')
   })
 
   it('warns instead of silently passing when the on-chain facet list is unavailable', async () => {
@@ -380,13 +381,14 @@ describe('facet-required-periphery invariant', () => {
     expect(ctx.errors).toEqual([])
   })
 
-  it('does not require a companion for a coupling marked notRequiredYet', async () => {
+  it('requires ReceiverOIF wherever an intent-escrow facet is live', async () => {
     const ctx = makeCouplingCtx({})
     ctx.deployedContracts = { LiFiIntentEscrowFacetV2: FACET_ADDRESS }
 
     await invariant.run(ctx)
 
-    expect(ctx.errors).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
   })
 })
 

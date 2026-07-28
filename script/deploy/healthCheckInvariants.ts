@@ -1168,11 +1168,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       for (const carveOut of skipped)
         consola.info(
-          `⏭  ${
-            carveOut.coupling
-          }: companion not required (triggered by ${carveOut.triggeredBy.join(
-            ', '
-          )}) — ${carveOut.reason}`
+          `⏭  ${carveOut.facet}: ${carveOut.requiresAnyOf.join(
+            ' / '
+          )} not required here — ${carveOut.reason}`
         )
 
       if (required.length === 0) return
@@ -1250,7 +1248,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         if (satisfiedBy.length > 0) {
           consola.success(
-            `${requirement.coupling}: ${satisfiedBy.join(
+            `${satisfiedBy.join(
               ' / '
             )} registered for ${requirement.triggeredBy.join(', ')}`
           )
@@ -1262,9 +1260,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         if (undetermined.length === requirement.requiresAnyOf.length) {
           ctx.logWarn(
-            `${
-              requirement.coupling
-            }: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
+            `${requirement.triggeredBy.join(
+              ', '
+            )}: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
               ', '
             )})`
           )

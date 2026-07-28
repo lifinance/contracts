@@ -18,14 +18,15 @@ import {
 } from './facetCompanionReminder'
 
 const COUPLINGS: TFacetPeripheryCouplings = {
-  acrossV4: {
-    facets: ['AcrossFacetV4', 'AcrossFacetPackedV4'],
+  AcrossFacetV4: {
     requiresAnyOf: ['ReceiverAcrossV4', 'ReceiverAcrossV3'],
   },
-  oif: {
-    facets: ['LiFiIntentEscrowFacetV2'],
-    requiresAnyOf: ['ReceiverOIF'],
-    notRequiredYet: 'destination-side execution not supported yet',
+  AcrossFacetPackedV4: {
+    requiresAnyOf: ['ReceiverAcrossV4', 'ReceiverAcrossV3'],
+  },
+  ChainflipFacet: {
+    requiresAnyOf: ['ReceiverChainflip'],
+    notRequiredOn: { somechain: 'source-only there' },
   },
 }
 
@@ -71,15 +72,16 @@ describe('buildCompanionReminder', () => {
     ).toBeNull()
   })
 
-  it('stays silent for a coupling that is not required yet', () => {
+  it('stays silent for a facet carved out on this network', () => {
     expect(
-      buildCompanionReminder(
-        'LiFiIntentEscrowFacetV2',
-        'mainnet',
-        {},
-        COUPLINGS
-      )
+      buildCompanionReminder('ChainflipFacet', 'somechain', {}, COUPLINGS)
     ).toBeNull()
+  })
+
+  it('still reminds for a carved-out facet on other networks', () => {
+    expect(
+      buildCompanionReminder('ChainflipFacet', 'mainnet', {}, COUPLINGS)
+    ).toContain('ReceiverChainflip')
   })
 
   it('also covers the packed variant of a facet family', () => {
