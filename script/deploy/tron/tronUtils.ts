@@ -600,7 +600,16 @@ export function ensureTronAddress(address: string, tronWeb: TronWeb): string {
  * Parse address result from callTronContract output
  */
 export function parseTronAddressOutput(output: string): string {
-  return output.trim().replace(/^["']|["']$/g, '')
+  // callTronContract prepends TronWeb's diagnostic lines ("\u2699 Initializing TronWeb...",
+  // "\u2699 Calling <fn> on <addr>", ...) to the actual return value, so the address is the
+  // LAST meaningful line, not the whole blob. Trimming the blob leaves it starting with the
+  // first diagnostic line, which then fails every "is this a T... address" test and reads as
+  // an unregistered/absent contract. Take the last non-empty, non-diagnostic line instead.
+  const lines = output
+    .split('\n')
+    .map((line) => line.trim().replace(/^["']|["']$/g, ''))
+    .filter((line) => line.length > 0 && !line.startsWith('\u2699'))
+  return lines[lines.length - 1] ?? ''
 }
 
 /**
@@ -702,6 +711,39 @@ export function parseTroncastNestedArray(
     }
   }
   return [result, i]
+}
+
+/**
+ * Parse a troncast array / nested-array return value (e.g. getAllContractSelectorPairs's
+ * `address[],bytes4[][]`) into a JS array.
+ *
+ * `callTronContract` prepends the troncast command echo (`$ bun run …`) and TronWeb's
+ * `⚙`-prefixed diagnostic lines to the actual return value — and one of those diagnostics
+ * ("⚙ Formatted params: []") itself contains a `[`. So the payload cannot be read by trimming
+ * the blob and taking the first bracket: the echo + diagnostic lines must be stripped first
+ * (the same assumption `parseTronAddressOutput` fixes for single-address returns), then the
+ * bracketed payload that remains is parsed.
+ *
+ * @throws if no bracketed payload is present after stripping diagnostics.
+ */
+export function parseTroncastArrayOutput(output: string): unknown[] {
+  const payload = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        !line.startsWith('⚙') && // TronWeb diagnostic lines
+        !line.startsWith('$') // troncast command echo
+    )
+    .join(' ')
+    .trim()
+
+  const arrayStart = payload.indexOf('[')
+  if (arrayStart === -1) throw new Error('Expected array format')
+
+  const [parsed] = parseTroncastNestedArray(payload, arrayStart)
+  return parsed
 }
 
 /**

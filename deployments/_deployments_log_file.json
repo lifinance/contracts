@@ -272,6 +272,14 @@
       "production": {
         "1.0.0": [
           {
+            "ADDRESS": "0xf7993A8df974AD022647E63402d6315137c58ABf",
+            "OPTIMIZER_RUNS": "10000",
+            "TIMESTAMP": "2022-10-18 10:35:58",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true"
+          },
+          {
             "ADDRESS": "0xaD50118509eB4c8e3E39a370151B0fD5D5957013",
             "OPTIMIZER_RUNS": "1000000",
             "TIMESTAMP": "2023-07-20 17:05:56",
