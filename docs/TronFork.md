@@ -66,7 +66,7 @@ of the fork rather than an unanswerable question in `main`.
 ### What actually differs in the fork (the delta)
 
 The fork stays close to upstream, but the delta is more than one line:
-**~17 files across 6 categories** (verified by a clean upstream→fork merge
+**~20 files across 7 categories** (verified by a clean upstream→fork merge
 of 69 commits with **zero conflicts**, then diffing the fully-synced tree
 against `main`). Everything here is Tron-enablement, CI, test, config or
 audit — **no product features**.
@@ -90,8 +90,8 @@ audit — **no product features**.
   sync job itself), `tronForkDeltaCheck.yml` (the fork-delta guard — see
   below), and `verifyCommitsSigned.yml` **removed** (upstream squash-merges
   break the signed-commit chain downstream).
-- **Scripts (1)** — `script/tasks/checkTronForkDelta.ts` plus its rule engine
-  `tronForkDelta.ts` and unit tests: the machinery behind the guard.
+- **Scripts (3)** — `script/tasks/checkTronForkDelta.ts`, its rule engine
+  `tronForkDelta.ts`, and unit tests: the machinery behind the guard.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
@@ -298,7 +298,8 @@ Almost always this means upstream bumped an overlaid contract. Then:
    (drop the `-tron` version along with the code) rather than patching the
    check.
 
-Run it locally against a candidate resolution with:
+Run it locally from a **`contracts-tron` checkout** (the scripts are
+fork-only and are not present in this repo) against a candidate resolution:
 
 ```bash
 bunx tsx script/tasks/checkTronForkDelta.ts --base origin/main --head HEAD --upstream upstream/main
@@ -339,9 +340,10 @@ fork receives them back through the normal sync. This keeps this repo the
 single source of truth for deploy logs on every chain, Tron included.
 
 1. **Sync the fork first.** On `contracts-tron`, bring `main` up to date
-   with this repo's `main` — merge the pending
-   `sync/upstream-YYYY-MM-DD` PR (or open one) if this repo added or
-   updated the contract about to be deployed. (See
+   with this repo's `main` — wait for (or trigger) the weekly
+   `syncUpstreamContracts.yml` job, or merge any pending
+   `sync/upstream-*` exception PR if one is open for conflicts / failed
+   gates. (See
    [Sync mechanism](#sync-mechanism--direction-order-when-to-update-which)
    above.)
 2. **Deploy from `contracts-tron`.** With the fork synced, run the Tron
@@ -356,8 +358,9 @@ single source of truth for deploy logs on every chain, Tron included.
    why the fork still never "pushes back": the logs land in the canonical
    repo, not via a fork branch.
 4. **Let the logs flow back to the fork.** Once merged here, those deploy
-   logs reach `contracts-tron` on the next upstream→fork sync PR (step 1 of
-   the next deploy).
+   logs reach `contracts-tron` on the next upstream→fork sync (step 1 of
+   the next deploy) — usually a direct push to the fork's `main`, or via a
+   `sync/upstream-*` PR if gates fail.
 
 ### Why Tron needs custom deploy scripts
 
