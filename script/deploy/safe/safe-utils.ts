@@ -1607,9 +1607,15 @@ function safeClientPoolKey(
   account?: Account,
   privateKey?: string
 ): string {
+  // Never key on raw private-key material: derive the (non-secret) address,
+  // which is also collision-free where a key prefix is not.
   const accountPart =
     account?.address.toLowerCase() ??
-    (privateKey ? `pk:${privateKey.slice(0, 8)}` : 'ledger')
+    (privateKey
+      ? privateKeyToAccount(
+          (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex
+        ).address.toLowerCase()
+      : 'ledger')
   return `${network.toLowerCase()}:${safeAddress.toLowerCase()}:${accountPart}`
 }
 
@@ -1647,7 +1653,11 @@ export async function getOrInitializeSafeClient(
     ledgerOptions,
     safeAddress,
     account
-  )
+  ).catch((error: unknown) => {
+    // Drop the poisoned entry so a later attempt can retry a transient failure
+    if (safeClientPool.get(key) === promise) safeClientPool.delete(key)
+    throw error
+  })
   safeClientPool.set(key, promise)
   return promise
 }
@@ -2140,8 +2150,10 @@ async function createSelectorMap(): Promise<Map<
     cachedDiamondSelectorMap = selectorMap
     return selectorMap
   } catch (error) {
+    // Transient IO faults (EMFILE, partially-written diamond.json) must not
+    // permanently disable selector decoding — only missing-file/invalid-shape
+    // paths memoize null.
     consola.warn(`Error creating selector map: ${error}`)
-    cachedDiamondSelectorMap = null
     return null
   }
 }
