@@ -42,7 +42,7 @@ import {
   checkOwnershipTron,
   ensureTronAddress,
   parseTronAddressOutput,
-  parseTroncastNestedArray,
+  parseTroncastArrayOutput,
 } from './tron/tronUtils'
 
 /** Severity of a failed invariant: `error` fails the run (exit 1); `warning` is reported but non-fatal. */
@@ -97,7 +97,6 @@ export interface IHealthCheckContext {
   nonCoreFacets: string[]
   deployerWallet: string
   refundWallet: string
-  feeCollectorOwner: string
   pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
@@ -170,6 +169,128 @@ export function getInvariantExclusion(
     (e) =>
       e.invariant === invariantName && e.network.toLowerCase() === networkLower
   )
+}
+
+/**
+ * A core facet that became core AFTER some networks were already live, together with the
+ * networks that predate it. This is how a facet is made core "going forward": it stays in
+ * `config/global.json` → `coreFacets`, so every NEWLY onboarded network must have it (a new
+ * chain is absent from `networks` below and is therefore enforced by default — the safe
+ * direction), while the listed pre-existing networks are exempt until they are backfilled.
+ *
+ * Deliberately narrower than {@link IInvariantExclusion}: that carve-out disables a whole
+ * invariant on a network (losing coverage for every other facet), whereas this drops one
+ * facet from the expected core set and leaves the rest of `core-facets-deployed` and
+ * `facets-registered` fully enforced.
+ *
+ * The `networks` list is a shrinking to-do, not a permanent state: remove a network the moment
+ * the facet is deployed and registered there, and delete the whole entry once the list is
+ * empty. Exemptions apply to the health check only — `deployCoreFacets.sh` still reads
+ * `coreFacets` from global.json, so deploying the facet everywhere remains a one-command job.
+ */
+export interface ICoreFacetExemption {
+  /** Facet name as listed in `config/global.json` → `coreFacets`. */
+  facet: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) that predate the facet becoming core. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-facet grandfathering. See {@link ICoreFacetExemption}.
+ *
+ * Every entry is validated in `healthCheckInvariants.test.ts`: the facet must really be in
+ * `coreFacets`, every network must exist in `config/networks.json`, and the reason must be
+ * non-empty — so a stale exemption fails CI rather than silently hiding a real gap.
+ */
+export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'LiFiIntentEscrowFacetV2 supersedes LiFiIntentEscrowFacet and is core going forward (V2-227, #1997), deployed to the chains named there. The networks below predate that decision and are exempt until the facet is backfilled — remove a network here once the facet is deployed and registered on it.',
+    networks: [
+      '0g',
+      'abstract',
+      'apechain',
+      'arbitrumnova',
+      'arbitrumsepolia',
+      'arctestnet',
+      'avalanche',
+      'basesepolia',
+      'berachain',
+      'blast',
+      'bob',
+      'boba',
+      'botanix',
+      'celo',
+      'cronos',
+      'etherlink',
+      'flare',
+      'flow',
+      'fraxtal',
+      'fuse',
+      'gnosis',
+      'gravity',
+      'hemi',
+      'hyperevm',
+      'immutablezkevm',
+      'ink',
+      'kaia',
+      'lens',
+      'linea',
+      'lisk',
+      'mantle',
+      'metis',
+      'mode',
+      'monad',
+      'moonbeam',
+      'morph',
+      'nibiru',
+      'opbnb',
+      'optimismsepolia',
+      'plasma',
+      'plume',
+      'ronin',
+      'rootstock',
+      'scroll',
+      'sei',
+      'somnia',
+      'soneium',
+      'sonic',
+      'sophon',
+      'stable',
+      'superposition',
+      'swellchain',
+      'taiko',
+      'telos',
+      'tempo',
+      'tron',
+      'tronshasta',
+      'unichain',
+      'vana',
+      'viction',
+      'worldchain',
+      'xdc',
+      'xlayer',
+      'zksync',
+    ],
+  },
+]
+
+/**
+ * Core facets the given network is exempt from, with the reason for each. Pure; network match
+ * is case-insensitive. A network absent from every entry gets an empty list, i.e. the full
+ * core set is enforced — so new chains are covered without touching this table.
+ */
+export function getExemptCoreFacets(
+  network: string,
+  exemptions: ICoreFacetExemption[] = CORE_FACET_EXEMPTIONS
+): Array<{ facet: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ facet: e.facet, reason: e.reason }))
 }
 
 /**
@@ -341,11 +462,16 @@ async function checkAndLogDeployment(
   return true
 }
 
-const getExpectedPairs = async (
+/**
+ * Expand config into the set of (contract, selector) pairs the diamond whitelist should hold.
+ * Exported for testing.
+ */
+export const getExpectedPairs = async (
   network: string,
   deployedContracts: Record<string, Address | string>,
   whitelistConfig: IWhitelistConfig,
   logError: (msg: string) => void,
+  logWarn: (msg: string) => void,
   isTron = false
 ): Promise<Array<{ contract: string; selector: Hex }>> => {
   try {
@@ -383,17 +509,55 @@ const getExpectedPairs = async (
     if (peripheryConfig) {
       const networkPeripheryContracts = peripheryConfig[network.toLowerCase()]
       if (networkPeripheryContracts) {
+        // How many entries share each name on this network. A name used more than once
+        // cannot be resolved against `deployedContracts` (one address per name), so the
+        // staleness comparison below has to sit out those entries.
+        const entriesPerName = new Map<string, number>()
+        for (const { name } of networkPeripheryContracts)
+          entriesPerName.set(name, (entriesPerName.get(name) ?? 0) + 1)
+
         for (const peripheryContract of networkPeripheryContracts) {
-          const contractAddr = deployedContracts[peripheryContract.name]
-          if (contractAddr) {
-            for (const selectorInfo of peripheryContract.selectors || []) {
-              expectedPairs.push({
-                contract: isTron
-                  ? String(contractAddr)
-                  : getAddress(contractAddr as Address).toLowerCase(),
-                selector: selectorInfo.selector.toLowerCase() as Hex,
-              })
-            }
+          // The address in whitelist.json is authoritative: this check asks "does the
+          // diamond's whitelist match config", and not every whitelisted periphery
+          // contract is deployed by this repo (e.g. Composer is whitelisted only).
+          // Resolving by name from the deployments file instead would silently drop
+          // every such entry — and could not represent the several distinct addresses
+          // that share one name on a given network.
+          const configAddr = peripheryContract.address
+          const deployedAddr = deployedContracts[peripheryContract.name]
+          const contractAddr = configAddr || deployedAddr
+
+          if (!contractAddr) {
+            logWarn(
+              `Whitelist periphery entry "${peripheryContract.name}" has no address in config and is not in the deployments file; its selectors are excluded from the expected-pair set (reduced coverage).`
+            )
+            continue
+          }
+
+          // A config address that disagrees with a contract we did deploy means the
+          // whitelist entry is stale — diamondSyncWhitelist would whitelist the wrong
+          // address. Surface it, but keep config as the source of truth for this check.
+          // Skipped when the name is not unique on this network: `deployedContracts` holds
+          // one address per name, so at most one of the entries could ever match it and
+          // the rest would warn spuriously.
+          if (
+            configAddr &&
+            deployedAddr &&
+            entriesPerName.get(peripheryContract.name) === 1 &&
+            String(configAddr).toLowerCase() !==
+              String(deployedAddr).toLowerCase()
+          )
+            logWarn(
+              `Whitelist config lists ${peripheryContract.name} at ${configAddr} but deployments has ${deployedAddr}; config/whitelist.json may be stale.`
+            )
+
+          for (const selectorInfo of peripheryContract.selectors || []) {
+            expectedPairs.push({
+              contract: isTron
+                ? String(contractAddr)
+                : getAddress(contractAddr as Address).toLowerCase(),
+              selector: selectorInfo.selector.toLowerCase() as Hex,
+            })
           }
         }
       }
@@ -457,17 +621,7 @@ async function checkWhitelistIntegrity(
       tronRpcUrl
     )
 
-    let parsed: unknown[]
-    try {
-      parsed = JSON.parse(onChainDataOutput.trim())
-    } catch {
-      const trimmed = onChainDataOutput.trim()
-      if (!trimmed.startsWith('[')) {
-        throw new Error('Expected array format')
-      }
-      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
-      parsed = parsedArray as unknown[]
-    }
+    const parsed = parseTroncastArrayOutput(onChainDataOutput)
 
     if (!Array.isArray(parsed) || parsed.length !== 2) {
       throw new Error('Unexpected troncast output format')
@@ -654,6 +808,13 @@ async function checkWhitelistIntegrity(
         `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
       )
     } else {
+      // Use the executed wrapper, not `source diamondSyncWhitelist.sh && …`: the latter runs
+      // the #!/bin/bash script's body in the caller's interactive shell, and its `read -ra`
+      // (a bash builtin option) fails under zsh — the macOS default — leaving the network list
+      // empty. syncWhitelistToNetworks.sh runs under its own bash shebang.
+      const syncCmd = `./script/tasks/syncWhitelistToNetworks.sh ${network}${
+        environment === 'production' ? ' --production' : ''
+      }`
       if (missingPairsList.length > 0) {
         logError(
           `Pair Array is missing ${missingPairsList.length} pairs from config:`
@@ -665,9 +826,7 @@ async function checkWhitelistIntegrity(
         if (missingPairsList.length > 10) {
           logError(`  ... and ${missingPairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix missing pairs, run: ${syncCmd}`)
       }
       if (stalePairsList.length > 0) {
         logError(
@@ -680,9 +839,7 @@ async function checkWhitelistIntegrity(
         if (stalePairsList.length > 10) {
           logError(`  ... and ${stalePairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix stale pairs, run: ${syncCmd}`)
       }
     }
   } catch (error: unknown) {
@@ -693,7 +850,8 @@ async function checkWhitelistIntegrity(
 
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
 const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
-  { name: 'ReceiverAcrossV3', getter: 'executor' },
+  // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
+  // binding is no longer kept current, so it is intentionally not checked here.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
   { name: 'ReceiverChainflip', getter: 'executor' },
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
@@ -1044,9 +1202,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               ctx.tronRpcUrl
             )
 
-            const cleanedAddress = registeredAddressOutput
-              .trim()
-              .replace(/^["']|["']$/g, '')
+            // Use the shared parser, not an ad-hoc trim: callTronContract's output carries
+            // TronWeb diagnostic lines ahead of the return value.
+            const cleanedAddress = parseTronAddressOutput(
+              registeredAddressOutput
+            )
             const registeredAddress =
               cleanedAddress.startsWith('T') && cleanedAddress.length === 34
                 ? cleanedAddress
@@ -1162,6 +1322,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.deployedContracts,
             whitelistConfig as IWhitelistConfig,
             ctx.logError,
+            ctx.logWarn,
             ctx.isTron
           )
 
@@ -1187,7 +1348,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         }
       } catch (error) {
-        ctx.logError('Whitelist configuration not available')
+        const errorMessage =
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
     },
   },
@@ -1276,30 +1439,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         consola.info('Skipping diamond ownership check for staging environment')
     },
   },
-  {
-    name: 'feecollector-owner',
-    description: 'FeeCollector owner is the fee-collector owner wallet',
-    severity: 'error',
-    scope: {},
-    run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
-        await checkOwnershipTron(
-          'FeeCollector',
-          ctx.feeCollectorOwner,
-          ctx.deployedContracts,
-          ctx.tronRpcUrl,
-          ctx.tronWeb,
-          ctx.logError
-        )
-      else if (ctx.publicClient)
-        await checkOwnership(
-          'FeeCollector',
-          ctx.feeCollectorOwner,
-          ctx,
-          ctx.publicClient
-        )
-    },
-  },
+  // FeeCollector is deprecated: its on-chain owner is no longer maintained against
+  // config.feeCollectorOwner, so there is deliberately no 'feecollector-owner' invariant.
+  // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
     description: 'Receiver owner is the refund wallet',
@@ -1635,8 +1777,11 @@ async function executeInvariant(
   baseCtx: IHealthCheckContext,
   invariant: IHealthCheckInvariant
 ): Promise<boolean> {
+  // Do NOT format the severity as a `[error]`-style prefix here: this banner prints once per
+  // invariant per network, so a level-looking token makes every passing check match a grep for
+  // '[error]' in the CI log and makes a healthy run read as mass failure. Keep it a plain label.
   consola.box(
-    `[${invariant.severity}] ${invariant.name} — ${invariant.description}`
+    `${invariant.name} — ${invariant.description} (severity: ${invariant.severity})`
   )
   const errors: string[] = []
   const warnings: string[] = []
