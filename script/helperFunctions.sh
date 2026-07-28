@@ -3978,7 +3978,9 @@ function deployAndAddContractToDiamond() {
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
     RETURN_CODE2=$?
 
-    if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then
+    # both steps must succeed: a contract that is on-chain but not registered in the
+    # diamond (and, in production, has no Safe proposal) is a half-finished rollout
+    if [[ "$RETURN_CODE1" -eq 0 && "$RETURN_CODE2" -eq 0 ]]; then
       return 0
     else
       return 1
