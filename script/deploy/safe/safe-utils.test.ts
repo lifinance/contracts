@@ -539,3 +539,56 @@ describe('safeTxStatusConsumedNonce', () => {
     expect(safeTxStatusConsumedNonce('pending')).toBe(false)
   })
 })
+
+describe('decodeDiamondCut selector resolution', () => {
+  it('resolves all unknown selectors in a single batched 4byte request', async () => {
+    const { decodeDiamondCut } = await import('./safe-utils')
+    const originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = `${
+      process.env.TMPDIR ?? '/tmp'
+    }/selector-cache-test-${Date.now()}.json`
+    const originalFetch = globalThis.fetch
+    let fetchCalls = 0
+    globalThis.fetch = (async () => {
+      fetchCalls++
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            function: {
+              '0xdeadbe01': [{ name: 'unknownFn1()' }],
+              '0xdeadbe02': [{ name: 'unknownFn2()' }],
+              '0xdeadbe03': [{ name: 'unknownFn3()' }],
+            },
+            event: {},
+          },
+        })
+      )
+    }) as unknown as typeof fetch
+    try {
+      await decodeDiamondCut(
+        {
+          functionName: 'diamondCut',
+          args: [
+            [
+              [
+                '0x0000000000000000000000000000000000000000',
+                2, // Remove
+                ['0xdeadbe01', '0xdeadbe02', '0xdeadbe03'],
+              ],
+            ],
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+          ],
+        },
+        1
+      )
+      expect(fetchCalls).toBeLessThanOrEqual(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      if (originalCachePath === undefined)
+        delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+      else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+    }
+  })
+})

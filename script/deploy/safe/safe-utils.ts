@@ -43,10 +43,6 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
-import {
-  DEFAULT_FETCH_TIMEOUT_MS,
-  fetchWithTimeout,
-} from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   buildExplorerContractPageUrl,
@@ -60,6 +56,10 @@ import {
   getTargetStateFacetVersion,
 } from './facet-version-utils'
 import { buildReadOnlyClient } from './read-only-safe-client'
+import {
+  getLocalSelectorInfo,
+  resolveSelectorsViaFourByte,
+} from './selector-registry'
 import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
@@ -2072,59 +2072,18 @@ function getContractNameFromSelectorsInOut(
   }
 }
 
-/** Base URL for 4byte signature lookup (Sourcify; openchain.xyz-compatible API). */
-const FOURBYTE_LOOKUP_BASE =
-  'https://api.4byte.sourcify.dev/signature-database/v1/lookup'
-
-/** Item from 4byte/Sourcify signature lookup result (function name) */
-interface IFourByteLookupResultItem {
-  name: string
-}
-
-/** 4byte lookup API response shape for type-safe parsing (same as openchain.xyz) */
-interface IFourByteLookupResponse {
-  ok?: boolean
-  result?: {
-    function?: Record<string, IFourByteLookupResultItem[]>
-  }
-}
-
-function isFourByteLookupResponse(
-  value: unknown
-): value is IFourByteLookupResponse {
-  if (value === null || typeof value !== 'object') return false
-  const o = value as Record<string, unknown>
-  if (!o.result || typeof o.result !== 'object') return false
-  const result = o.result as Record<string, unknown>
-  if (!result.function || typeof result.function !== 'object') return false
-  return true
-}
-
 /**
- * Looks up a function selector via Sourcify 4byte signature database (api.4byte.sourcify.dev).
- * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
- * @returns Function signature string if found, null otherwise
+ * Normalizes a diamondCut selector entry (hex string or byte array) to a
+ * lowercase 0x-prefixed string for map lookups.
  */
-async function lookupSelectorFromFourByte(
-  selector: string
-): Promise<string | null> {
-  try {
-    const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
-    const url = `${FOURBYTE_LOOKUP_BASE}?function=${normalized}&filter=true`
-    const response = await fetchWithTimeout(
-      url,
-      undefined,
-      DEFAULT_FETCH_TIMEOUT_MS
-    )
-    if (!response.ok) return null
-    const raw: unknown = await response.json()
-    if (!isFourByteLookupResponse(raw)) return null
-    const first = raw.result?.function?.[normalized]?.[0]
-    if (first?.name && typeof first.name === 'string') return first.name
-    return null
-  } catch {
-    return null
-  }
+function normalizeDiamondCutSelector(selector: unknown): string {
+  if (typeof selector === 'string')
+    return (
+      selector.startsWith('0x') ? selector : `0x${selector}`
+    ).toLowerCase()
+  return `0x${Buffer.from(selector as Uint8Array).toString(
+    'hex'
+  )}`.toLowerCase()
 }
 
 let cachedDiamondSelectorMap:
@@ -2293,6 +2252,24 @@ export async function decodeDiamondCut(
     return (actionA <= 2 ? actionA : 99) - (actionB <= 2 ? actionB : 99)
   })
 
+  // Resolve every selector that neither diamond.json nor the local registry
+  // knows in ONE batched, disk-cached 4byte request up front — instead of one
+  // sequential HTTP round trip per unknown selector inside the display loop.
+  const unknownSelectors: string[] = []
+  for (const mod of sortedModifications) {
+    const modSelectors = mod[2]
+    if (!Array.isArray(modSelectors)) continue
+    for (const selector of modSelectors) {
+      const normalized = normalizeDiamondCutSelector(selector)
+      if (!selectorMap?.get(normalized) && !getLocalSelectorInfo(normalized))
+        unknownSelectors.push(normalized)
+    }
+  }
+  const fourByteResolved =
+    unknownSelectors.length > 0
+      ? await resolveSelectorsViaFourByte(unknownSelectors)
+      : new Map<string, string>()
+
   for (const mod of sortedModifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
@@ -2332,18 +2309,13 @@ export async function decodeDiamondCut(
           facetDisplay,
         ])
 
-      // Resolve each selector's name from the local diamond ABI first, then the
-      // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
-      // Remove uses the zero address, and per-selector lookup covers every action
-      // without depending on a live facet contract.
+      // Resolve each selector's name from the local diamond ABI first, then
+      // the local selector registry, then the pre-fetched batch of 4byte
+      // results. The facet ABI is never fetched by address: Remove uses the
+      // zero address, and per-selector lookup covers every action without
+      // depending on a live facet contract.
       for (const selector of selectors) {
-        const normalizedSelector =
-          typeof selector === 'string'
-            ? (selector.startsWith('0x')
-                ? selector
-                : `0x${selector}`
-              ).toLowerCase()
-            : `0x${Buffer.from(selector).toString('hex')}`.toLowerCase()
+        const normalizedSelector = normalizeDiamondCutSelector(selector)
         const functionInfo = selectorMap?.get(normalizedSelector)
         if (functionInfo) {
           consola.info(
@@ -2351,9 +2323,14 @@ export async function decodeDiamondCut(
           )
           continue
         }
-        const fourByteName = await lookupSelectorFromFourByte(
-          normalizedSelector
-        )
+        const localInfo = getLocalSelectorInfo(normalizedSelector)
+        if (localInfo) {
+          consola.info(
+            `${pre}Function: \u001b[34m${localInfo.name}\u001b[0m [${selector}] - ${localInfo.signature} \u001b[90m(${localInfo.source})\u001b[0m`
+          )
+          continue
+        }
+        const fourByteName = fourByteResolved.get(normalizedSelector)
         if (fourByteName)
           consola.info(
             `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
