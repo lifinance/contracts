@@ -73,9 +73,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
+      "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
         "Name": "LayerSwapFacet",

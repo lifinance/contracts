@@ -93,9 +93,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x5BE5EA0CAA51314160015F9fbD51A737D034527f": {
+      "0xDBd01ACafc8bffFeffC6ceF285FdC50D895c4761": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0xA338ac518a0aE28d75e0610BD78329241984d49A": {
         "Name": "EcoFacet",

@@ -97,9 +97,9 @@
         "Name": "CBridgeFacetPacked",
         "Version": "1.0.3"
       },
-      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
+      "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0xfDB9a62a5f4F98A0C4e4B864eB22a9EEcB0BcE5F": {
         "Name": "HopFacetPacked",
