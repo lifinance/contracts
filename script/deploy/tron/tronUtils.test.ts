@@ -5,7 +5,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { parseTronAddressOutput } from './tronUtils'
+import { parseTronAddressOutput, parseTroncastArrayOutput } from './tronUtils'
 
 describe('parseTronAddressOutput', () => {
   const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
@@ -49,5 +49,65 @@ describe('parseTronAddressOutput', () => {
 
   it('returns an empty string for empty input', () => {
     expect(parseTronAddressOutput('')).toBe('')
+  })
+})
+
+describe('parseTroncastArrayOutput', () => {
+  // Regression: getAllContractSelectorPairs() returns `address[],bytes4[][]`. callTronContract
+  // prepends the troncast command echo (`$ bun run …`) and TronWeb's diagnostic lines — one of
+  // which, "⚙ Formatted params: []", itself contains a `[`. The old parser trimmed the whole
+  // blob and required it to start with `[`; it started with `$ bun run …` instead, so it threw
+  // "Expected array format" and the whitelist-integrity invariant reported the swallowed
+  // "Whitelist configuration not available" on tron. This is the real captured mainnet output.
+  const REAL_OUTPUT = [
+    '$ bun run script/troncast/index.ts call "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --rpc-url <rpc-url>',
+    '⚙ Initializing TronWeb with mainnet network: <rpc-url>',
+    '⚙ Calling getAllContractSelectorPairs on TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt',
+    '⚙ Formatted params: []',
+    '⚙ Function signature: getAllContractSelectorPairs()',
+    '[[TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2 TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q] [[0x3ccfd60b 0xd0e30db0] [0xe0cbc5f2 0xeedd56e1]]]',
+  ].join('\n')
+
+  it('parses the address[],bytes4[][] payload past the echo and diagnostic lines', () => {
+    const parsed = parseTroncastArrayOutput(REAL_OUTPUT)
+    expect(parsed).toEqual([
+      [
+        'TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2',
+        'TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q',
+      ],
+      [
+        ['0x3ccfd60b', '0xd0e30db0'],
+        ['0xe0cbc5f2', '0xeedd56e1'],
+      ],
+    ])
+  })
+
+  it('does not mistake the "[" inside "⚙ Formatted params: []" for the payload start', () => {
+    // If the diagnostic line were not stripped, the first `[` in the blob would be the empty
+    // params array, and the parser would return `[]` instead of the real pairs.
+    const parsed = parseTroncastArrayOutput(REAL_OUTPUT)
+    expect((parsed[0] as unknown[]).length).toBe(2)
+  })
+
+  it('parses a bare bracketed payload with no diagnostics', () => {
+    expect(parseTroncastArrayOutput('[[TAbc] [[0x11111111]]]')).toEqual([
+      ['TAbc'],
+      [['0x11111111']],
+    ])
+  })
+
+  it('handles an empty on-chain result (no whitelisted pairs)', () => {
+    const output = ['⚙ Initializing TronWeb', '[[] []]'].join('\n')
+    expect(parseTroncastArrayOutput(output)).toEqual([[], []])
+  })
+
+  it('throws when no bracketed payload is present after stripping diagnostics', () => {
+    expect(() =>
+      parseTroncastArrayOutput('⚙ Initializing TronWeb\n⚙ Calling foo')
+    ).toThrow('Expected array format')
+  })
+
+  it('throws on empty input', () => {
+    expect(() => parseTroncastArrayOutput('')).toThrow('Expected array format')
   })
 })

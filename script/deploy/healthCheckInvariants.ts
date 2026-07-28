@@ -42,7 +42,7 @@ import {
   checkOwnershipTron,
   ensureTronAddress,
   parseTronAddressOutput,
-  parseTroncastNestedArray,
+  parseTroncastArrayOutput,
 } from './tron/tronUtils'
 
 /** Severity of a failed invariant: `error` fails the run (exit 1); `warning` is reported but non-fatal. */
@@ -620,17 +620,7 @@ async function checkWhitelistIntegrity(
       tronRpcUrl
     )
 
-    let parsed: unknown[]
-    try {
-      parsed = JSON.parse(onChainDataOutput.trim())
-    } catch {
-      const trimmed = onChainDataOutput.trim()
-      if (!trimmed.startsWith('[')) {
-        throw new Error('Expected array format')
-      }
-      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
-      parsed = parsedArray as unknown[]
-    }
+    const parsed = parseTroncastArrayOutput(onChainDataOutput)
 
     if (!Array.isArray(parsed) || parsed.length !== 2) {
       throw new Error('Unexpected troncast output format')
@@ -1354,7 +1344,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         }
       } catch (error) {
-        ctx.logError('Whitelist configuration not available')
+        const errorMessage =
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
     },
   },

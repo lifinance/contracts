@@ -714,6 +714,39 @@ export function parseTroncastNestedArray(
 }
 
 /**
+ * Parse a troncast array / nested-array return value (e.g. getAllContractSelectorPairs's
+ * `address[],bytes4[][]`) into a JS array.
+ *
+ * `callTronContract` prepends the troncast command echo (`$ bun run …`) and TronWeb's
+ * `⚙`-prefixed diagnostic lines to the actual return value — and one of those diagnostics
+ * ("⚙ Formatted params: []") itself contains a `[`. So the payload cannot be read by trimming
+ * the blob and taking the first bracket: the echo + diagnostic lines must be stripped first
+ * (the same assumption `parseTronAddressOutput` fixes for single-address returns), then the
+ * bracketed payload that remains is parsed.
+ *
+ * @throws if no bracketed payload is present after stripping diagnostics.
+ */
+export function parseTroncastArrayOutput(output: string): unknown[] {
+  const payload = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        !line.startsWith('⚙') && // TronWeb diagnostic lines
+        !line.startsWith('$') // troncast command echo
+    )
+    .join(' ')
+    .trim()
+
+  const arrayStart = payload.indexOf('[')
+  if (arrayStart === -1) throw new Error('Expected array format')
+
+  const [parsed] = parseTroncastNestedArray(payload, arrayStart)
+  return parsed
+}
+
+/**
  * Check ownership of a Tron contract
  * @param name - Contract name
  * @param expectedOwner - Expected owner address
