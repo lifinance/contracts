@@ -807,6 +807,13 @@ async function checkWhitelistIntegrity(
         `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
       )
     } else {
+      // Use the executed wrapper, not `source diamondSyncWhitelist.sh && …`: the latter runs
+      // the #!/bin/bash script's body in the caller's interactive shell, and its `read -ra`
+      // (a bash builtin option) fails under zsh — the macOS default — leaving the network list
+      // empty. syncWhitelistToNetworks.sh runs under its own bash shebang.
+      const syncCmd = `./script/tasks/syncWhitelistToNetworks.sh ${network}${
+        environment === 'production' ? ' --production' : ''
+      }`
       if (missingPairsList.length > 0) {
         logError(
           `Pair Array is missing ${missingPairsList.length} pairs from config:`
@@ -818,9 +825,7 @@ async function checkWhitelistIntegrity(
         if (missingPairsList.length > 10) {
           logError(`  ... and ${missingPairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix missing pairs, run: ${syncCmd}`)
       }
       if (stalePairsList.length > 0) {
         logError(
@@ -833,9 +838,7 @@ async function checkWhitelistIntegrity(
         if (stalePairsList.length > 10) {
           logError(`  ... and ${stalePairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix stale pairs, run: ${syncCmd}`)
       }
     }
   } catch (error: unknown) {
