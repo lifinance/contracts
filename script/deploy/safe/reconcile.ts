@@ -256,35 +256,35 @@ export async function reconcileAllSubmittedSafeTxs(
   }
 
   const covered = new Set<string>()
+  const groupEntries = [...groups.entries()]
   const results = await Promise.allSettled(
-    [...groups.entries()].map(
-      async ([key, { network, chainId, safeAddress }]) => {
-        const client = clientFactory(network)
-        const onChainNonce = await nonceReader(client, safeAddress)
-        await reconcileSubmittedSafeTxs(
-          pendingTransactions,
-          client,
-          network,
-          chainId,
-          safeAddress,
-          onChainNonce,
-          options
-        )
-        return key
-      }
-    )
+    groupEntries.map(async ([key, { network, chainId, safeAddress }]) => {
+      const client = clientFactory(network)
+      const onChainNonce = await nonceReader(client, safeAddress)
+      await reconcileSubmittedSafeTxs(
+        pendingTransactions,
+        client,
+        network,
+        chainId,
+        safeAddress,
+        onChainNonce,
+        options
+      )
+      return key
+    })
   )
 
-  for (const result of results) {
+  results.forEach((result, index) => {
     if (result.status === 'fulfilled') covered.add(result.value)
     else {
       const errorMsg =
         result.reason instanceof Error
           ? result.reason.message
           : String(result.reason)
-      consola.warn(`Startup reconcile failed: ${errorMsg}`)
+      const network = groupEntries[index]?.[1].network ?? 'unknown network'
+      consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
     }
-  }
+  })
 
   return covered
 }

@@ -197,6 +197,15 @@ export class ConfirmSafeTxPrefetchQueue {
   >()
 
   /**
+   * @param prepare - Injectable for tests; defaults to the real preparation.
+   */
+  public constructor(
+    private readonly prepare: (
+      params: IPrepareConfirmSafeTxNetworkParams
+    ) => Promise<IConfirmSafeTxNetworkContext | null> = prepareConfirmSafeTxNetwork
+  ) {}
+
+  /**
    * Starts background preparation for a network if not already in flight.
    */
   public schedule(
@@ -208,37 +217,49 @@ export class ConfirmSafeTxPrefetchQueue {
 
     this.inflight.set(
       key,
-      prepareConfirmSafeTxNetwork({ ...params, network }).catch(
-        (error: unknown) => {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error)
-          consola.warn(`[${network}] Prefetch failed: ${errorMsg}`)
-          return null
-        }
-      )
+      this.prepare({ ...params, network }).catch((error: unknown) => {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.warn(`[${network}] Prefetch failed: ${errorMsg}`)
+        return null
+      })
     )
   }
 
   /**
    * Returns prepared context for a network, waiting on any in-flight prefetch.
+   * Logs how long the caller actually waited — with an effective prefetch this
+   * is ~0ms; the delta vs a cold take() is the AC-5 timing evidence.
    */
   public async take(
     network: string,
     params: Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>
   ): Promise<IConfirmSafeTxNetworkContext | null> {
     const key = network.toLowerCase()
+    const startedAt = Date.now()
     const inflight = this.inflight.get(key)
     if (inflight) {
       this.inflight.delete(key)
-      return inflight
+      const context = await inflight
+      consola.debug(
+        `[${network}] Prefetched context ready after ${
+          Date.now() - startedAt
+        }ms wait`
+      )
+      return context
     }
 
-    return prepareConfirmSafeTxNetwork({ ...params, network }).catch(
+    const context = await this.prepare({ ...params, network }).catch(
       (error: unknown) => {
         const errorMsg = error instanceof Error ? error.message : String(error)
         consola.warn(`[${network}] Preparation failed: ${errorMsg}`)
         return null
       }
     )
+    consola.debug(
+      `[${network}] Context prepared inline (no prefetch) in ${
+        Date.now() - startedAt
+      }ms`
+    )
+    return context
   }
 }

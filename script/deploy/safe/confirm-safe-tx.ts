@@ -896,6 +896,12 @@ const main = defineCommand({
         }
       }
 
+      // INVARIANT: `account` (the Ledger account created once at startup) MUST
+      // be part of these params. With a pre-created account, SafeClient.init
+      // skips getLedgerAccount(), so a background prefetch never opens a second
+      // Ledger transport while the operator is signing on the current network —
+      // hw-transport-node-hid does not support concurrent use. Removing it
+      // would silently reintroduce device contention.
       const prefetchParamsBase = {
         pendingTransactions,
         privateKey,

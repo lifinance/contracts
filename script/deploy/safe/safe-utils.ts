@@ -1601,7 +1601,7 @@ interface ISafeClientBundle {
 
 const safeClientPool = new Map<string, Promise<ISafeClientBundle>>()
 
-function safeClientPoolKey(
+export function safeClientPoolKey(
   network: string,
   safeAddress: Address,
   account?: Account,
@@ -1642,29 +1642,45 @@ export async function getOrInitializeSafeClient(
 
   const finalSafeAddress = normalizeAddressForNetwork(network, rawSafeAddress)
   const key = safeClientPoolKey(network, finalSafeAddress, account, privateKey)
-  const cached = safeClientPool.get(key)
+  return getOrCreatePooledPromise(safeClientPool, key, () =>
+    initializeSafeClient(
+      network,
+      privateKey,
+      rpcUrl,
+      useLedger,
+      ledgerOptions,
+      safeAddress,
+      account
+    )
+  )
+}
+
+/**
+ * Returns the pooled promise for `key`, creating it via `factory` on a miss.
+ * A rejected promise evicts itself (guarded against replacing a newer entry)
+ * so a transient failure never poisons later calls for the same key.
+ */
+export function getOrCreatePooledPromise<T>(
+  pool: Map<string, Promise<T>>,
+  key: string,
+  factory: () => Promise<T>
+): Promise<T> {
+  const cached = pool.get(key)
   if (cached) return cached
 
-  const promise = initializeSafeClient(
-    network,
-    privateKey,
-    rpcUrl,
-    useLedger,
-    ledgerOptions,
-    safeAddress,
-    account
-  ).catch((error: unknown) => {
-    // Drop the poisoned entry so a later attempt can retry a transient failure
-    if (safeClientPool.get(key) === promise) safeClientPool.delete(key)
+  const promise = factory().catch((error: unknown) => {
+    if (pool.get(key) === promise) pool.delete(key)
     throw error
   })
-  safeClientPool.set(key, promise)
+  pool.set(key, promise)
   return promise
 }
 
 /** Closes all pooled Safe clients. Call once at the end of a confirm-safe-tx run. */
-export async function releaseAllPooledSafeClients(): Promise<void> {
-  const closes = [...safeClientPool.values()].map(async (promise) => {
+export async function releaseAllPooledSafeClients(
+  pool: Map<string, Promise<ISafeClientBundle>> = safeClientPool
+): Promise<void> {
+  const closes = [...pool.values()].map(async (promise) => {
     try {
       const { safe } = await promise
       await safe.cleanup()
@@ -1674,7 +1690,7 @@ export async function releaseAllPooledSafeClients(): Promise<void> {
     }
   })
   await Promise.allSettled(closes)
-  safeClientPool.clear()
+  pool.clear()
 }
 
 /**
