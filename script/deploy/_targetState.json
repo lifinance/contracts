@@ -27,7 +27,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "ArbitrumBridgeFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -115,7 +115,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -165,7 +165,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "Patcher": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -238,7 +238,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -420,7 +420,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "DeBridgeDlnFacet": "1.0.1",
@@ -839,7 +839,7 @@
         "TokenWrapper": "1.1.0",
         "Permit2Proxy": "1.0.4",
         "ReceiverAcrossV3": "1.1.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "DeBridgeDlnFacet": "1.0.1",
@@ -1075,7 +1075,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -1150,7 +1150,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.0",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -1339,7 +1339,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "1.0.0",
         "WhitelistManagerFacet": "1.0.0",
-        "LayerSwapFacet": "1.0.0"
+        "LayerSwapFacet": "1.0.0",
+        "AllBridgeFacet": "2.2.0"
       }
     }
   },
@@ -1469,7 +1470,8 @@
         "SymbiosisFacet": "1.0.0",
         "WhitelistManagerFacet": "1.0.0",
         "SupersetFacet": "1.0.0",
-        "LayerSwapFacet": "1.0.0"
+        "LayerSwapFacet": "1.0.0",
+        "AllBridgeFacet": "2.2.0"
       }
     }
   },
