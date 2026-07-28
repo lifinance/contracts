@@ -7,8 +7,8 @@
 #   workflow re-runs on every push, including force-pushes.
 # - Skips draft PRs.
 # - Exposes `signed-commits-required` as the stable aggregator job name to
-#   register in branch-protection settings (mirrors coverage-required in
-#   enforceTestCoverage.yml).
+#   register in branch-protection settings (mirrors the other `*-required`
+#   aggregator jobs used as required checks on `main`).
 # - Known limitation: GitHub's pulls.listCommits API truncates at 250 commits
 #   per PR. PRs with more commits will emit a warning; only the first 250
 #   are checked.

@@ -28,6 +28,11 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import {
+  ALLBRIDGE_INIT_SELECTOR,
+  encodeAllBridgeInitCalldata,
+  parseAllBridgeMappings,
+} from './helpers/allBridgeInit'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -107,8 +112,10 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     // Use new utility for balance validation
     // Pre-flight balance check: warn on low balances but do not abort here
     await validateBalance(tronWeb, 0)
-    // Load AllBridge configuration
-    const allbridgeConfig = await Bun.file('config/allbridge.json').json()
+    // Load AllBridge configuration. Kept as raw text as well, because the
+    // chain-id mappings must be revived from the JSON source (see allBridgeInit)
+    const allbridgeConfigJson = await Bun.file('config/allbridge.json').text()
+    const allbridgeConfig = JSON.parse(allbridgeConfigJson)
     const allBridgeAddress = allbridgeConfig[network]?.allBridge
 
     if (!allBridgeAddress)
@@ -119,8 +126,16 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     // Convert Base58 address to hex format with 0x prefix for constructor arguments
     const allBridgeAddressHex = tronAddressToHex(tronWeb, allBridgeAddress)
 
+    // Encode the post-cut initializer up front: a malformed `mappings` array
+    // should abort before anything is deployed, not after
+    const chainIdMappings = parseAllBridgeMappings(allbridgeConfigJson)
+    const initCalldata = encodeAllBridgeInitCalldata(chainIdMappings)
+
     consola.info('\nAllBridge Configuration:')
     consola.info(`AllBridge: ${allBridgeAddress} (${allBridgeAddressHex})`)
+    consola.info(`Chain-id mappings to seed: ${chainIdMappings.length}`)
+    for (const { chainId, allBridgeChainId } of chainIdMappings)
+      consola.info(`   ${chainId} -> ${allBridgeChainId}`)
 
     // Prepare deployment plan
     const contracts = ['AllBridgeFacet']
@@ -186,7 +201,14 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     const diamondAddress = await getContractAddress(network, 'LiFiDiamond')
     if (!diamondAddress) throw new Error('LiFiDiamond not found in deployments')
 
-    const selectors = await getFacetSelectors('AllBridgeFacet')
+    // `initAllBridge` is delegatecalled by the cut and must not be registered
+    // on the diamond — mirrors UpdateAllBridgeFacet.getExcludes() on EVM
+    const excludeSelectors = [ALLBRIDGE_INIT_SELECTOR]
+
+    const selectors = await getFacetSelectors(
+      'AllBridgeFacet',
+      excludeSelectors
+    )
 
     displayRegistrationInfo(
       'AllBridgeFacet',
@@ -195,15 +217,22 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
+    const facetAddressHex = tronAddressToHex(
+      tronWeb,
+      facetAddress
+    ) as `0x${string}`
+
     if (!dryRun)
       await proposeDiamondCut({
         facetName: 'AllBridgeFacet',
-        facetAddressHex: tronAddressToHex(
-          tronWeb,
-          facetAddress
-        ) as `0x${string}`,
+        facetAddressHex,
         diamondAddress,
         network: network,
+        excludeSelectors,
+        // The initializer rides inside the cut (delegatecalled by the diamond),
+        // so the facet is never live-but-uninitialised — same shape as the
+        // `_init`/`_calldata` pair UpdateScriptBase passes on EVM
+        init: { initAddress: facetAddressHex, initCalldata },
       })
     else
       consola.info('Dry run - skipping diamondCut proposal for AllBridgeFacet')
