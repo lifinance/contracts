@@ -54,7 +54,7 @@
     "EmergencyPauseFacet",
     "GasZipFacet",
     "GenericSwapFacetV3",
-    "LiFiIntentEscrowFacet",
+    "LiFiIntentEscrowFacetV2",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WhitelistManagerFacet",
@@ -63,7 +63,6 @@
   "corePeriphery": [
     "ERC20Proxy",
     "Executor",
-    "FeeCollector",
     "FeeForwarder",
     "GasZipPeriphery",
     "LiFiTimelockController",
@@ -71,20 +70,8 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
-  "blacklistedFunctionSelectors": [
-    "0x23b872dd"
-  ],
+  "blacklistedFunctionSelectors": ["0x23b872dd"],
   "whitelistPeripheryFunctions": {
-    "FeeCollector": [
-      {
-        "selector": "0xeedd56e1",
-        "signature": "collectTokenFees(address,uint256,uint256,address)"
-      },
-      {
-        "selector": "0xe0cbc5f2",
-        "signature": "collectNativeFees(uint256,uint256,address)"
-      }
-    ],
     "FeeForwarder": [
       {
         "selector": "0x332d746b",
@@ -113,12 +100,6 @@
       {
         "selector": "0x3ccfd60b",
         "signature": "withdraw()"
-      }
-    ],
-    "LiFiDEXAggregator": [
-      {
-        "selector": "0x2646478b",
-        "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
       }
     ],
     "Patcher": [
