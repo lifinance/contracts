@@ -32,7 +32,11 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD, ZERO_ADDRESS } from './shared/constants'
-import { evaluateFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  resolveLiveFacets,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -1151,19 +1155,23 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      const facetNamesByAddress = Object.fromEntries(
-        Object.entries(ctx.deployedContracts).map(([name, address]) => [
-          String(address).toLowerCase(),
-          name,
-        ])
+      // Identify live facets from the deploy log AND on-chain selectors, unioned. The periphery
+      // side of this check already reads on-chain truth (getPeripheryContract) rather than the
+      // deploy log because the log can be incomplete; the facet side must not reintroduce that
+      // dependency by name-resolving through the log alone, or a coupled facet that is live on
+      // chain but missing from the log would be dropped and its coupling never evaluated.
+      const couplings = getFacetPeripheryCouplings()
+      const { liveFacets, blindSpotWarning } = resolveLiveFacets(
+        ctx.onChainFacets,
+        ctx.deployedContracts as Record<string, string>,
+        Object.keys(couplings)
       )
-      const liveFacets = ctx.onChainFacets
-        .map((facet) => facetNamesByAddress[facet.address.toLowerCase()])
-        .filter((name): name is string => typeof name === 'string')
+      if (blindSpotWarning) ctx.logWarn(blindSpotWarning)
 
       const { required, skipped } = evaluateFacetPeripheryCouplings(
         liveFacets,
-        ctx.networkLower
+        ctx.networkLower,
+        couplings
       )
 
       for (const carveOut of skipped)

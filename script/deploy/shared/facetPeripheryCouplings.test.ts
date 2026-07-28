@@ -8,6 +8,9 @@ import {
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
+  identifyCoupledFacetsOnChain,
+  loadFacetSelectorsFromArtifact,
+  resolveLiveFacets,
   type TFacetPeripheryCouplings,
 } from './facetPeripheryCouplings'
 
@@ -148,6 +151,20 @@ describe('facetPeripheryCouplings registry in config/global.json', () => {
         expect(reason.length).toBeGreaterThan(0)
   })
 
+  it('every registry key resolves to a build artifact with selectors (selector identity is viable)', () => {
+    // resolveLiveFacets identifies coupled facets by their compiled selectors, so a registry key
+    // that has no loadable artifact would silently fall back to deploy-log-only identity. Guard it.
+    for (const facet of Object.keys(registry)) {
+      const selectors = loadFacetSelectorsFromArtifact(facet)
+      // Skipped, not failed, when out/ is absent (the TS unit-test job runs without forge build).
+      if (selectors === null) continue
+      expect(
+        selectors.length,
+        `${facet}: build artifact must expose at least one selector`
+      ).toBeGreaterThan(0)
+    }
+  })
+
   it('covers every facet of an already-coupled family (guards a forgotten new variant)', () => {
     // The registry is an allowlist, so a new family member (e.g. a future AcrossFacetV5) would
     // otherwise be silently unchecked. Any facet sharing a coupled facet's bridge prefix must
@@ -168,5 +185,109 @@ describe('facetPeripheryCouplings registry in config/global.json', () => {
     )
 
     expect(uncovered).toEqual([])
+  })
+})
+
+describe('identifyCoupledFacetsOnChain', () => {
+  // Injected loader — the suite never touches out/, so it is hermetic (the TS test job has no build).
+  const SELECTORS: Record<string, string[]> = {
+    AcrossFacetV4: ['0xaaaa0001', '0xaaaa0002'],
+    StargateFacetV2: ['0xbbbb0001'],
+  }
+  const load = (name: string) => SELECTORS[name] ?? null
+
+  it('identifies a facet whose full selector set is registered on chain, ignoring the deploy log', () => {
+    const { live, unresolved } = identifyCoupledFacetsOnChain(
+      [
+        {
+          address: '0xdead',
+          selectors: ['0xAAAA0001', '0xaaaa0002', '0x99999999'],
+        },
+      ],
+      ['AcrossFacetV4', 'StargateFacetV2'],
+      load
+    )
+
+    expect(live).toEqual(['AcrossFacetV4'])
+    expect(unresolved).toEqual([])
+  })
+
+  it('does not identify a facet when only part of its selector set is present', () => {
+    const { live } = identifyCoupledFacetsOnChain(
+      [{ address: '0xdead', selectors: ['0xaaaa0001'] }],
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(live).toEqual([])
+  })
+
+  it('reports a facet whose artifact cannot be loaded as unresolved, not absent', () => {
+    const { live, unresolved } = identifyCoupledFacetsOnChain(
+      [{ address: '0xdead', selectors: ['0xffffffff'] }],
+      ['UnknownFacet'],
+      load
+    )
+
+    expect(live).toEqual([])
+    expect(unresolved).toEqual(['UnknownFacet'])
+  })
+})
+
+describe('resolveLiveFacets', () => {
+  const SELECTORS: Record<string, string[]> = {
+    AcrossFacetV4: ['0xaaaa0001'],
+  }
+  const load = (name: string) => SELECTORS[name] ?? null
+  const FACET = '0x1111111111111111111111111111111111111111'
+
+  it('resolves a facet present in the deploy log by name (no selector help needed)', () => {
+    const { liveFacets, blindSpotWarning } = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xaaaa0001'] }],
+      { AcrossFacetV4: FACET },
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(liveFacets).toEqual(['AcrossFacetV4'])
+    expect(blindSpotWarning).toBeNull()
+  })
+
+  it('closes the gap: a coupled facet absent from the deploy log is caught via selectors', () => {
+    // The failure Daniela flagged — facet live on chain, missing from deploys/<network>.json.
+    const { liveFacets, blindSpotWarning } = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xaaaa0001'] }],
+      {},
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(liveFacets).toEqual(['AcrossFacetV4'])
+    expect(blindSpotWarning).toBeNull()
+  })
+
+  it('warns when an on-chain facet is absent from the log and selectors cannot identify it either', () => {
+    const noArtifacts = () => null
+    const { liveFacets, blindSpotWarning } = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xaaaa0001'] }],
+      {},
+      ['AcrossFacetV4'],
+      noArtifacts
+    )
+
+    expect(liveFacets).toEqual([])
+    expect(blindSpotWarning).toContain('could not be identified from selectors')
+  })
+
+  it('does not warn about a fully deploy-log-resolved facet even when artifacts are unavailable', () => {
+    const noArtifacts = () => null
+    const { blindSpotWarning } = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xaaaa0001'] }],
+      { AcrossFacetV4: FACET },
+      ['AcrossFacetV4'],
+      noArtifacts
+    )
+
+    expect(blindSpotWarning).toBeNull()
   })
 })
