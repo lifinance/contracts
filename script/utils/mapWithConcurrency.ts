@@ -28,14 +28,18 @@ export async function mapWithConcurrency<T, R>(
   const worker = async (): Promise<void> => {
     while (next < items.length) {
       const current = next++
-      const item = items[current]
-      if (item === undefined) continue
-      results[current] = await mapper(item, current)
+      // `current` is provably in-bounds, so the element is a real `T` even when
+      // its value is `undefined` — pass it through rather than skip it, or the
+      // result would keep a hole and `mapper` would never run for that index.
+      results[current] = await mapper(items[current] as T, current)
     }
   }
 
+  // A NaN limit would make `Math.min` NaN and spawn zero workers, leaving the
+  // results unfilled; floor it to the documented minimum of one.
+  const safeLimit = Number.isNaN(limit) ? 1 : limit
   const workers = Array.from(
-    { length: Math.max(1, Math.min(limit, items.length)) },
+    { length: Math.max(1, Math.min(safeLimit, items.length)) },
     () => worker()
   )
   await Promise.all(workers)

@@ -45,6 +45,26 @@ describe('mapWithConcurrency', () => {
     expect(peak).toBe(1)
   })
 
+  it('passes through undefined item values instead of skipping them', async () => {
+    const items = [1, undefined, 3] as (number | undefined)[]
+    const seen: (number | undefined)[] = []
+    const out = await mapWithConcurrency(items, 2, async (v, i) => {
+      seen[i] = v
+      return v
+    })
+    expect(out).toEqual([1, undefined, 3])
+    expect(seen).toEqual([1, undefined, 3])
+  })
+
+  it('treats a NaN limit as a single worker and still fills every result', async () => {
+    const out = await mapWithConcurrency(
+      [1, 2, 3],
+      Number.NaN,
+      async (n) => n * 2
+    )
+    expect(out).toEqual([2, 4, 6])
+  })
+
   it('returns an empty array for empty input without invoking the mapper', async () => {
     let called = false
     const out = await mapWithConcurrency([], 4, async () => {
