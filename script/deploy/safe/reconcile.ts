@@ -24,18 +24,15 @@ import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 import {
-  createPublicClient,
   decodeEventLog,
-  http,
   TransactionReceiptNotFoundError,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
 
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
-
 import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { NONCE_CONSUMING_STATUSES, type ISafeTxDocument } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
@@ -180,14 +177,6 @@ export interface IReconcileAllOptions extends IReconcileOptions {
   ) => Promise<bigint>
 }
 
-/** Builds a read-only viem client for a network, honoring an optional RPC override. */
-function buildReadOnlyClient(network: string, rpcUrl?: string): PublicClient {
-  return createPublicClient({
-    chain: getViemChainForNetworkName(network),
-    transport: http(rpcUrl),
-  }) as PublicClient
-}
-
 /** Reads a Safe's current on-chain nonce via the standard `nonce()` view. */
 async function defaultReadSafeNonce(
   client: PublicClient,
@@ -267,24 +256,35 @@ export async function reconcileAllSubmittedSafeTxs(
   }
 
   const covered = new Set<string>()
-  for (const [key, { network, chainId, safeAddress }] of groups)
-    try {
-      const client = clientFactory(network)
-      const onChainNonce = await nonceReader(client, safeAddress)
-      await reconcileSubmittedSafeTxs(
-        pendingTransactions,
-        client,
-        network,
-        chainId,
-        safeAddress,
-        onChainNonce,
-        options
-      )
-      covered.add(key)
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+  const results = await Promise.allSettled(
+    [...groups.entries()].map(
+      async ([key, { network, chainId, safeAddress }]) => {
+        const client = clientFactory(network)
+        const onChainNonce = await nonceReader(client, safeAddress)
+        await reconcileSubmittedSafeTxs(
+          pendingTransactions,
+          client,
+          network,
+          chainId,
+          safeAddress,
+          onChainNonce,
+          options
+        )
+        return key
+      }
+    )
+  )
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') covered.add(result.value)
+    else {
+      const errorMsg =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason)
+      consola.warn(`Startup reconcile failed: ${errorMsg}`)
     }
+  }
 
   return covered
 }

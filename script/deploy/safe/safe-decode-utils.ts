@@ -576,6 +576,36 @@ export function getRoleName(roleHash: string): string {
   return KNOWN_ROLE_NAMES[normalized] ?? ''
 }
 
+let diamondSelectorNameCache: Map<string, string> | null | undefined
+const fourByteSelectorCache = new Map<string, string | null>()
+
+function lookupDiamondFunctionName(selector: string): string | undefined {
+  if (diamondSelectorNameCache === undefined) {
+    diamondSelectorNameCache = new Map()
+    try {
+      const diamondPath = path.join(process.cwd(), 'diamond.json')
+      if (fs.existsSync(diamondPath)) {
+        const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
+        if (Array.isArray(abiData))
+          for (const abiItem of abiData)
+            if (abiItem.type === 'function')
+              try {
+                diamondSelectorNameCache.set(
+                  toFunctionSelector(abiItem),
+                  abiItem.name
+                )
+              } catch {
+                continue
+              }
+      }
+    } catch {
+      // leave cache empty
+    }
+  }
+
+  return diamondSelectorNameCache?.get(selector)
+}
+
 /**
  * Decodes a transaction's function call using diamond ABI
  * @param data - Transaction data
@@ -595,38 +625,28 @@ export async function decodeTransactionData(
   try {
     const selector = data.substring(0, 10)
 
-    // First try to find function in diamond ABI
-    try {
-      const projectRoot = process.cwd()
-      const diamondPath = path.join(projectRoot, 'diamond.json')
-
-      if (fs.existsSync(diamondPath)) {
-        const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-        if (Array.isArray(abiData))
-          // Search for matching function selector in diamond ABI
-          for (const abiItem of abiData)
-            if (abiItem.type === 'function')
-              try {
-                const calculatedSelector = toFunctionSelector(abiItem)
-                if (calculatedSelector === selector) {
-                  consola.info(
-                    `${pre}Using diamond ABI for function: ${abiItem.name}`
-                  )
-                  return {
-                    functionName: abiItem.name,
-                    decodedData: {
-                      functionName: abiItem.name,
-                      contractName: 'Diamond',
-                    },
-                  }
-                }
-              } catch (error) {
-                // Skip invalid ABI items
-                continue
-              }
+    const diamondFunctionName = lookupDiamondFunctionName(selector)
+    if (diamondFunctionName) {
+      consola.info(
+        `${pre}Using diamond ABI for function: ${diamondFunctionName}`
+      )
+      return {
+        functionName: diamondFunctionName,
+        decodedData: {
+          functionName: diamondFunctionName,
+          contractName: 'Diamond',
+        },
       }
-    } catch (error) {
-      consola.warn(`Error reading diamond ABI: ${error}`)
+    }
+
+    if (fourByteSelectorCache.has(selector)) {
+      const cachedName = fourByteSelectorCache.get(selector)
+      if (cachedName)
+        return {
+          functionName: cachedName,
+          decodedData: { functionName: cachedName },
+        }
+      return {}
     }
 
     // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
@@ -652,6 +672,7 @@ export async function decodeTransactionData(
       fn?.name
     ) {
       const functionName = fn.name
+      fourByteSelectorCache.set(selector, functionName)
 
       try {
         const decodedData = {
@@ -669,6 +690,7 @@ export async function decodeTransactionData(
       }
     }
 
+    fourByteSelectorCache.set(selector, null)
     return {}
   } catch (error) {
     consola.warn(`Error decoding transaction data: ${error}`)

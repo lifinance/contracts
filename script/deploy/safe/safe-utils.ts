@@ -59,6 +59,7 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
@@ -260,7 +261,15 @@ export class SafeClient {
     tronWalletClient?: TronWalletClient,
     networkName?: string
   ): Promise<IChainExecutor | undefined> {
-    const chainId = await publicClient.getChainId()
+    let chainId: number | undefined
+    if (networkName) {
+      try {
+        chainId = getViemChainForNetworkName(networkName).id
+      } catch {
+        chainId = undefined
+      }
+    }
+    if (chainId === undefined) chainId = await publicClient.getChainId()
 
     if (isTronTvmChainId(chainId)) {
       // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
@@ -1038,6 +1047,27 @@ export function getSigners(doc: ISafeTxDocument): string[] {
   return signers
 }
 
+/** Returns the number of signatures stored on a MongoDB Safe tx document. */
+export function getSignatureCountFromDoc(doc: ISafeTxDocument): number {
+  return getSigners(doc).length
+}
+
+/** Whether `signerAddress` appears in a MongoDB Safe tx document's signatures. */
+export function isDocSignedBySigner(
+  doc: ISafeTxDocument,
+  signerAddress: Address
+): boolean {
+  return getSigners(doc).includes(signerAddress.toLowerCase())
+}
+
+/** Whether a MongoDB Safe tx document has enough signatures to execute. */
+export function hasEnoughSignaturesInDoc(
+  doc: ISafeTxDocument,
+  threshold: number
+): boolean {
+  return getSignatureCountFromDoc(doc) >= threshold
+}
+
 /**
  * Extracts the 4-byte function selector from Safe tx calldata.
  * @param data - Calldata hex string from the Safe tx document
@@ -1563,6 +1593,80 @@ export async function initializeSafeClient(
   }
 }
 
+interface ISafeClientBundle {
+  safe: SafeClient
+  chain: Chain
+  safeAddress: Address
+}
+
+const safeClientPool = new Map<string, Promise<ISafeClientBundle>>()
+
+function safeClientPoolKey(
+  network: string,
+  safeAddress: Address,
+  account?: Account,
+  privateKey?: string
+): string {
+  const accountPart =
+    account?.address.toLowerCase() ??
+    (privateKey ? `pk:${privateKey.slice(0, 8)}` : 'ledger')
+  return `${network.toLowerCase()}:${safeAddress.toLowerCase()}:${accountPart}`
+}
+
+/**
+ * Returns a pooled Safe client for the run, reusing an existing init when possible.
+ */
+export async function getOrInitializeSafeClient(
+  network: string,
+  privateKey?: string,
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  },
+  safeAddress?: Address,
+  account?: Account
+): Promise<ISafeClientBundle> {
+  const rawSafeAddress =
+    safeAddress ?? networks[network.toLowerCase()]?.safeAddress
+  if (!rawSafeAddress)
+    throw new Error(`No Safe address configured for network ${network}`)
+
+  const finalSafeAddress = normalizeAddressForNetwork(network, rawSafeAddress)
+  const key = safeClientPoolKey(network, finalSafeAddress, account, privateKey)
+  const cached = safeClientPool.get(key)
+  if (cached) return cached
+
+  const promise = initializeSafeClient(
+    network,
+    privateKey,
+    rpcUrl,
+    useLedger,
+    ledgerOptions,
+    safeAddress,
+    account
+  )
+  safeClientPool.set(key, promise)
+  return promise
+}
+
+/** Closes all pooled Safe clients. Call once at the end of a confirm-safe-tx run. */
+export async function releaseAllPooledSafeClients(): Promise<void> {
+  const closes = [...safeClientPool.values()].map(async (promise) => {
+    try {
+      const { safe } = await promise
+      await safe.cleanup()
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`Warning during pooled SafeClient cleanup: ${errorMsg}`)
+    }
+  })
+  await Promise.allSettled(closes)
+  safeClientPool.clear()
+}
+
 /**
  * Gets the private key from environment or argument
  * @param privateKeyArg - Private key argument from command line
@@ -1637,14 +1741,14 @@ export async function getNetworksWithPendingTransactions(
 export async function getNetworksWithActionableTransactions(
   pendingTransactions: Collection<ISafeTxDocument>,
   signerAddress: Address,
-  privateKey?: string,
-  useLedger?: boolean,
-  ledgerOptions?: {
+  _privateKey?: string,
+  _useLedger?: boolean,
+  _ledgerOptions?: {
     derivationPath?: string
     ledgerLive?: boolean
     accountIndex?: number
   },
-  account?: Account,
+  _account?: Account,
   rpcUrl?: string
 ): Promise<string[]> {
   // First, get all networks with pending transactions
@@ -1679,82 +1783,63 @@ export async function getNetworksWithActionableTransactions(
         return { network, actionable: false, reason: 'no_safe_address_in_tx' }
       }
 
-      // Initialize a Safe client to check ownership and transaction status
-      // Use the Safe address from the transaction, not from networks.json
-      const { safe } = await initializeSafeClient(
+      const publicClient = buildReadOnlyClient(network, rpcUrl)
+      const normalizedSafeAddress = normalizeAddressForNetwork(
         network,
-        privateKey,
-        rpcUrl,
-        useLedger,
-        ledgerOptions,
-        txSafeAddress,
-        account
+        txSafeAddress
       )
 
+      let owners: Address[]
+      let threshold: number
       try {
-        // Check if the signer is an owner
-        const owners = await safe.getOwners()
-        const isOwner = isAddressASafeOwner(owners, signerAddress)
+        ;[owners, threshold] = await Promise.all([
+          publicClient.readContract({
+            address: normalizedSafeAddress,
+            abi: SAFE_SINGLETON_ABI,
+            functionName: 'getOwners',
+          }) as Promise<Address[]>,
+          publicClient
+            .readContract({
+              address: normalizedSafeAddress,
+              abi: SAFE_SINGLETON_ABI,
+              functionName: 'getThreshold',
+            })
+            .then(Number),
+        ])
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to read Safe state on ${network}: ${errorMsg}`)
+      }
 
-        // Log detailed ownership check
-        if (!isOwner) {
-          consola.warn(
-            `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
-          )
-          consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
-          return { network, actionable: false, reason: 'not_owner' }
+      const isOwner = isAddressASafeOwner(owners, signerAddress)
+      if (!isOwner) {
+        consola.warn(
+          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
+        )
+        consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
+        return { network, actionable: false, reason: 'not_owner' }
+      }
+
+      let hasActionableTx = false
+      for (const tx of networkTxs) {
+        const hasSignedAlready = isDocSignedBySigner(tx, signerAddress)
+        const canExecute = hasEnoughSignaturesInDoc(tx, threshold)
+
+        if (canExecute) {
+          hasActionableTx = true
+          break
         }
 
-        // Get threshold to check if transactions are actionable
-        const threshold = Number(await safe.getThreshold())
-
-        // Check if there are any actionable transactions
-        // A transaction is actionable if:
-        // 1. It has enough signatures to execute (user can execute it), OR
-        // 2. User hasn't signed it yet AND it needs more signatures
-        let hasActionableTx = false
-        for (const tx of networkTxs) {
-          try {
-            const safeTransaction = await initializeSafeTransaction(tx, safe)
-            const hasSignedAlready = isSignedByCurrentSigner(
-              safeTransaction,
-              signerAddress
-            )
-            const canExecute = hasEnoughSignatures(safeTransaction, threshold)
-
-            // If it can be executed, it's actionable
-            if (canExecute) {
-              hasActionableTx = true
-              break
-            }
-
-            // If user hasn't signed and it needs more signatures, it's actionable
-            if (
-              !hasSignedAlready &&
-              safeTransaction.signatures.size < threshold
-            ) {
-              hasActionableTx = true
-              break
-            }
-          } catch (error: unknown) {
-            // Skip transactions that can't be initialized
-            const errorMsg =
-              error instanceof Error ? error.message : String(error)
-            consola.debug(
-              `Failed to check transaction ${tx.safeTxHash} on ${network}: ${errorMsg}`
-            )
-            continue
-          }
+        if (!hasSignedAlready && getSignatureCountFromDoc(tx) < threshold) {
+          hasActionableTx = true
+          break
         }
+      }
 
-        return {
-          network,
-          actionable: hasActionableTx,
-          reason: hasActionableTx ? 'has_actionable_tx' : 'no_actionable_tx',
-        }
-      } finally {
-        // Always cleanup the Safe client
-        await safe.cleanup()
+      return {
+        network,
+        actionable: hasActionableTx,
+        reason: hasActionableTx ? 'has_actionable_tx' : 'no_actionable_tx',
       }
     })
   )
@@ -2042,6 +2127,11 @@ async function lookupSelectorFromFourByte(
   }
 }
 
+let cachedDiamondSelectorMap:
+  | Map<string, { name: string; signature: string }>
+  | null
+  | undefined
+
 /**
  * Creates a mapping of function selectors to function names from diamond ABI
  * @returns Map of selector to function info
@@ -2050,14 +2140,22 @@ async function createSelectorMap(): Promise<Map<
   string,
   { name: string; signature: string }
 > | null> {
+  if (cachedDiamondSelectorMap !== undefined) return cachedDiamondSelectorMap
+
   try {
     const projectRoot = process.cwd()
     const diamondPath = path.join(projectRoot, 'diamond.json')
 
-    if (!fs.existsSync(diamondPath)) return null
+    if (!fs.existsSync(diamondPath)) {
+      cachedDiamondSelectorMap = null
+      return null
+    }
 
     const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-    if (!Array.isArray(abiData)) return null
+    if (!Array.isArray(abiData)) {
+      cachedDiamondSelectorMap = null
+      return null
+    }
 
     const selectorMap = new Map<string, { name: string; signature: string }>()
 
@@ -2080,9 +2178,11 @@ async function createSelectorMap(): Promise<Map<
           continue
         }
 
+    cachedDiamondSelectorMap = selectorMap
     return selectorMap
   } catch (error) {
     consola.warn(`Error creating selector map: ${error}`)
+    cachedDiamondSelectorMap = null
     return null
   }
 }
