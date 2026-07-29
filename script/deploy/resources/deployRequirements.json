@@ -805,5 +805,76 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "ReceiverOIF": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_outputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".OIFOutputSettlerSimple",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "OUTPUT_SETTLER"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "DeBridgeDlnFacet": {
+    "configData": {
+      "_dlnSource": {
+        "configFileName": "debridgedln.json",
+        "keyInConfigFile": ".networks.<NETWORK>.dlnSource",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "DLN_SOURCE"
+      }
+    }
+  },
+  "EcoFacet": {
+    "configData": {
+      "_portal": {
+        "configFileName": "eco.json",
+        "keyInConfigFile": ".<NETWORK>.portal",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "PORTAL"
+      }
+    }
+  },
+  "LidoWrapper": {
+    "configData": {
+      "_stETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.stETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "ST_ETH"
+      },
+      "_wstETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.wstETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "WST_ETH_ADDRESS"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "MayanFacet": {
+    "configData": {
+      "_mayan": {
+        "configFileName": "mayan.json",
+        "keyInConfigFile": ".bridges.<NETWORK>.bridge",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "MAYAN"
+      }
+    }
   }
 }
