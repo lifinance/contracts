@@ -770,6 +770,12 @@
           "visible": "always"
         },
         {
+          "path": "_fraxData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -3789,6 +3795,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_fraxData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
