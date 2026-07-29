@@ -10,7 +10,9 @@ import networksConfig from '../../config/networks.json'
 
 import {
   CORE_FACET_EXEMPTIONS,
+  CORE_PERIPHERY_EXEMPTIONS,
   DEPRECATED_RECEIVERS,
+  filterExemptCorePeriphery,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   RECEIVER_EXECUTOR_GETTERS,
@@ -452,6 +454,46 @@ describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
   it('every exclusion carries a non-empty reason', () => {
     for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
       expect(exclusion.reason.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
+  const corePeriphery = new Set(
+    (globalConfig as { corePeriphery: string[] }).corePeriphery
+  )
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a real core periphery contract', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(corePeriphery).toContain(exemption.contract)
+  })
+
+  it('every exemption targets a known network with a non-empty reason', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS) {
+      expect(knownNetworks).toContain(exemption.network.toLowerCase())
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('filterExemptCorePeriphery drops only the exempt contract on the exempt network', () => {
+    const exemptions = [
+      { contract: 'TokenWrapper', network: 'somechain', reason: 'no native' },
+    ]
+
+    expect(
+      filterExemptCorePeriphery(
+        ['TokenWrapper', 'Executor'],
+        'somechain',
+        exemptions
+      )
+    ).toEqual(['Executor'])
+    expect(
+      filterExemptCorePeriphery(
+        ['TokenWrapper', 'Executor'],
+        'otherchain',
+        exemptions
+      )
+    ).toEqual(['TokenWrapper', 'Executor'])
   })
 })
 
