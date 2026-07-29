@@ -428,7 +428,8 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         if (IS_HUB) {
             if (sameChain) {
                 // Atomic hub DEX swap — no LZ fee / messaging.
-                // Hub enforces `amountOutMinimum`; treat a zero fill as invalid.
+                // Independently enforce the slippage floor even if a
+                // non-compliant pool manager skips its own check.
                 uint256 amountOut = ISupersetHubPoolManager(POOL_MANAGER)
                     .exactInput(
                         ISupersetHubPoolManager.ExactInputParams({
@@ -441,7 +442,7 @@ contract SupersetFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                             amountOutMinimum: _amountOutMin
                         })
                     );
-                if (amountOut == 0) revert InvalidConfig();
+                if (amountOut < _amountOutMin) revert InvalidConfig();
             } else {
                 // Hub → spoke: no `refundAddress`/`options` (failures revert
                 // synchronously on the hub; no source → hub LZ leg).
