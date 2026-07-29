@@ -104,7 +104,7 @@ contract FraxFacet is
     event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
     /// @notice Emitted when a chainId -> LayerZero EID entry is removed.
-    event FraxChainIdToEidRemoved(uint256 indexed chainId);
+    event FraxChainIdToEidUnset(uint256 indexed chainId);
 
     /// Constructor ///
 
@@ -186,7 +186,7 @@ contract FraxFacet is
     ///      seeded with it until it is removed here. Needed to retire a spoke Frax
     ///      deprecates from the hop mesh. Reverts `UnsupportedChainId` on an entry that is
     ///      not set, so a mistyped chain ID fails loudly instead of silently doing nothing.
-    function removeFraxChainIdToEid(uint256[] calldata _chainIds) external {
+    function unsetFraxChainIdToEid(uint256[] calldata _chainIds) external {
         if (_chainIds.length == 0) revert InvalidConfig();
         LibDiamond.enforceIsContractOwner();
 
@@ -199,7 +199,7 @@ contract FraxFacet is
             if (s.lzEids[chainId] == 0) revert UnsupportedChainId(chainId);
 
             delete s.lzEids[chainId];
-            emit FraxChainIdToEidRemoved(chainId);
+            emit FraxChainIdToEidUnset(chainId);
         }
     }
 

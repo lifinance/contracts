@@ -162,7 +162,7 @@ above). This follows the `SupersetFacet` pattern.
   it is **not** registered as a diamond method.
 - `setFraxChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
   initial seeding (requires a prior `initFrax`, else reverts `NotInitialized`).
-- `removeFraxChainIdToEid(uint256[])` — **owner-only**, deletes entries so those
+- `unsetFraxChainIdToEid(uint256[])` — **owner-only**, deletes entries so those
   destinations revert `UnsupportedChainId` again. Reverts `UnsupportedChainId` on a chain ID
   that is not set, so a mistyped removal fails loudly instead of silently doing nothing.
 - `getFraxChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
@@ -184,7 +184,7 @@ hop mesh (confirmed by the Frax team on PR #2048). Do not re-add them.
 > storage, so any diamond **already seeded** with a chain keeps routing to it regardless of
 > what the config file says. Retiring a spoke is a two-step operation: drop it from
 > `config/frax.json` (so future deployments never seed it) **and** call
-> `removeFraxChainIdToEid([chainId])` on every diamond that already has it. As of this
+> `unsetFraxChainIdToEid([chainId])` on every diamond that already has it. As of this
 > change the Arbitrum staging diamond still has `mode` (34443) and `scroll` (534352) seeded
 > from the pre-deprecation config and needs the removal call.
 

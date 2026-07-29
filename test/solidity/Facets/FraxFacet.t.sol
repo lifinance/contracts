@@ -45,7 +45,7 @@ contract FraxFacetTest is TestBaseFacet {
         FraxFacet.ChainIdConfig[] chainIdConfigs
     );
     event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
-    event FraxChainIdToEidRemoved(uint256 indexed chainId);
+    event FraxChainIdToEidUnset(uint256 indexed chainId);
 
     TestFraxFacet internal fraxFacet;
     FraxFacet.FraxData internal fraxData;
@@ -102,7 +102,7 @@ contract FraxFacetTest is TestBaseFacet {
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
-        functionSelectors[7] = fraxFacet.removeFraxChainIdToEid.selector;
+        functionSelectors[7] = fraxFacet.unsetFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
@@ -798,7 +798,7 @@ contract FraxFacetTest is TestBaseFacet {
         fresh.setFraxChainIdToEid(configs);
     }
 
-    /// removeFraxChainIdToEid — retiring a deprecated spoke ///
+    /// unsetFraxChainIdToEid — retiring a deprecated spoke ///
 
     /// @dev A destination stays routable on an already-seeded diamond until it is removed
     ///      on-chain; deleting it from config/frax.json alone does nothing.
@@ -811,8 +811,8 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit FraxChainIdToEidRemoved(8453);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        emit FraxChainIdToEidUnset(8453);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
 
         vm.expectRevert(
             abi.encodeWithSelector(UnsupportedChainId.selector, 8453)
@@ -825,7 +825,7 @@ contract FraxFacetTest is TestBaseFacet {
         chainIds[0] = DST_CHAINID_FRAXTAL;
 
         vm.prank(USER_DIAMOND_OWNER);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
 
         vm.startPrank(USER_SENDER);
         frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -846,7 +846,7 @@ contract FraxFacetTest is TestBaseFacet {
         chainIds[1] = DST_CHAINID_FRAXTAL;
 
         vm.prank(USER_DIAMOND_OWNER);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
 
         vm.expectRevert(
             abi.encodeWithSelector(UnsupportedChainId.selector, 8453)
@@ -866,7 +866,7 @@ contract FraxFacetTest is TestBaseFacet {
         chainIds[0] = 8453;
 
         vm.prank(USER_DIAMOND_OWNER);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
 
         FraxFacet.ChainIdConfig[]
             memory configs = new FraxFacet.ChainIdConfig[](1);
@@ -884,7 +884,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_SENDER);
         vm.expectRevert(OnlyContractOwner.selector);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
     }
 
     function testRevert_RemoveChainIdToEidEmpty() public {
@@ -892,7 +892,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
     }
 
     function testRevert_RemoveChainIdToEidNotSet() public {
@@ -904,7 +904,7 @@ contract FraxFacetTest is TestBaseFacet {
         vm.expectRevert(
             abi.encodeWithSelector(UnsupportedChainId.selector, 999999)
         );
-        fraxFacet.removeFraxChainIdToEid(chainIds);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
     }
 
     function testRevert_RemoveChainIdToEidBeforeInit() public {
@@ -919,7 +919,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.prank(address(0));
         vm.expectRevert(NotInitialized.selector);
-        fresh.removeFraxChainIdToEid(chainIds);
+        fresh.unsetFraxChainIdToEid(chainIds);
     }
 
     function test_InitFraxEmitsAndSetsMappings() public {
@@ -1074,7 +1074,7 @@ contract FraxFacetTempoTest is TestBase {
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
-        functionSelectors[7] = fraxFacet.removeFraxChainIdToEid.selector;
+        functionSelectors[7] = fraxFacet.unsetFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
