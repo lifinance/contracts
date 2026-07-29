@@ -1894,10 +1894,13 @@ function getContractNameFromNetworkDeployments(
   address: string
 ): string {
   const projectRoot = process.cwd()
-  const filePath = path.join(projectRoot, 'deployments', `${network}.json`)
+  const base = path.resolve(projectRoot, 'deployments')
+  const target = path.resolve(base, `${network}.json`)
+  const relative = path.relative(base, target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return 'Unknown'
   try {
-    if (!fs.existsSync(filePath)) return 'Unknown'
-    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    if (!fs.existsSync(target)) return 'Unknown'
+    const raw = JSON.parse(fs.readFileSync(target, 'utf8'))
     const data =
       raw && typeof raw === 'object' && raw.default ? raw.default : raw
     if (typeof data !== 'object' || data === null) return 'Unknown'

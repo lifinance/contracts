@@ -402,7 +402,11 @@ export function getDeployLogFile(
 ): Record<string, string> {
   const suffix =
     environment === EnvironmentEnum.production ? '' : `.${environment}`
-  const filePath = path.resolve(`deployments/${network}${suffix}.json`)
+  const base = path.resolve('deployments')
+  const filePath = path.resolve(base, `${network}${suffix}.json`)
+  const relative = path.relative(base, filePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative))
+    throw new Error(`Invalid path`)
 
   if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)

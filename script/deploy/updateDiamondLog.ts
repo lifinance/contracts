@@ -79,7 +79,14 @@ const updateDiamond = function (
     : `deployments/${network}.diamond.staging.json`
 
   try {
-    data = JSON.parse(fs.readFileSync(diamondFile, 'utf8')) as IDiamondFile
+    const path = require('path')
+    const base = path.resolve('deployments')
+    const target = path.resolve(base, path.basename(diamondFile))
+    const relative = path.relative(base, target)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error('Invalid file path')
+    }
+    data = JSON.parse(fs.readFileSync(target, 'utf8')) as IDiamondFile
   } catch {}
 
   if (!data[diamondContractName])
