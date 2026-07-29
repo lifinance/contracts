@@ -125,15 +125,6 @@
   "stable": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
-  "superposition": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
-  "swellchain": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
-  "taiko": {
-    "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
-  },
   "tempo": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
