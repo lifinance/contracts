@@ -68,10 +68,11 @@ git fetch origin "<headRefName>"
 git merge --no-edit "origin/<headRefName>"
 ```
 
-**On merge conflict → abort, do not attempt to auto-resolve.** Run `git merge --abort`,
-then report exactly which PR and which files collided, remove the worktree
-(`git worktree remove --force "$WT"`), and ask the user to either drop one PR from the set or
-resolve the overlap manually. Two branches that touch the same contract are the expected cause.
+**On merge conflict → stop, do not attempt to auto-resolve.** Run `git merge --abort`, then
+report exactly which PR and which files collided (`git diff --name-only --diff-filter=U`
+before aborting). **Keep the worktree** so the user can resolve manually in it if they choose,
+and ask them to either drop one PR from the set and re-run, or resolve the overlap by hand.
+Two branches that touch the same contract are the expected cause.
 
 ## Phase 3 — Open the labelled throwaway PR (fires Types Bindings)
 
