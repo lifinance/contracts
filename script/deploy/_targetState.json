@@ -1377,97 +1377,6 @@
       }
     }
   },
-  "swellchain": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "GlacisFacet": "1.2.0",
-        "RelayDepositoryFacet": "1.0.0"
-      }
-    }
-  },
-  "superposition": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "LayerSwapFacet": "1.0.0",
-        "RelayDepositoryFacet": "1.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
-      }
-    }
-  },
-  "taiko": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "LayerSwapFacet": "1.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
-      }
-    }
-  },
   "unichain": {
     "production": {
       "LiFiDiamond": {
@@ -1908,35 +1817,6 @@
       }
     }
   },
-  "sophon": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
-      }
-    }
-  },
   "tron": {
     "production": {
       "LiFiDiamond": {
@@ -2030,35 +1910,6 @@
         "NEARIntentsFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0"
-      }
-    }
-  },
-  "botanix": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
