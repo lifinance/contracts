@@ -131,8 +131,40 @@ export async function getTimelockQueueCollection(): Promise<{
 }
 
 /**
- * Ensures the indexes the queue depends on. Idempotent — duplicate-index
- * errors (Mongo error code 85/86) are swallowed.
+ * Extracts the MongoDB server error code from an unknown thrown value, or
+ * `undefined` when the value is not an `Error` carrying a numeric `code`.
+ *
+ * @param error - The value thrown by a driver call.
+ * @returns The numeric server code, or `undefined`.
+ */
+function getMongoErrorCode(error: unknown): number | undefined {
+  return error instanceof Error && 'code' in error
+    ? (error as { code: number }).code
+    : undefined
+}
+
+/**
+ * True when `error` is a MongoDB authorization failure — the connected role lacks
+ * the `createIndex` action on the `timelock-operations` DB (server code 13,
+ * `Unauthorized`). Matched by code with a message fallback, mirroring
+ * `parked-tasks.ts`: the queue runs on the un-gated `MONGODB_URI` cluster so it
+ * stays reachable from readWrite-only, non-interactive consumers (the execution
+ * runner, list/backfill scripts) without a tunnel.
+ *
+ * @param error - The error thrown by `createIndex`.
+ * @returns Whether the error is a MongoDB `Unauthorized` (code 13) failure.
+ */
+function isUnauthorizedError(error: unknown): boolean {
+  return (
+    getMongoErrorCode(error) === 13 ||
+    (error instanceof Error && /not authorized/i.test(error.message))
+  )
+}
+
+/**
+ * Ensures the indexes the queue depends on. Idempotent — an exact-match
+ * re-creation is a Mongo no-op. Index-definition *conflicts* (codes 85/86) and
+ * authorization failures (code 13) are handled per-index by {@link safeCreateIndex}.
  *
  * @param timelockQueue - The collection to index.
  */
@@ -169,6 +201,7 @@ async function safeCreateIndex(
 ): Promise<void> {
   try {
     await collection.createIndex(spec, options)
+    return
   } catch (error: unknown) {
     // Codes 85 (IndexOptionsConflict) and 86 (IndexKeySpecsConflict) only fire
     // when an index with the same name already exists with a *different*
@@ -176,12 +209,8 @@ async function safeCreateIndex(
     // hitting these codes means the deployed index has drifted from the spec
     // we want — surfacing it forces an operator to reconcile rather than
     // letting the runner proceed against an unintended index.
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      ((error as { code: number }).code === 85 ||
-        (error as { code: number }).code === 86)
-    )
+    const code = getMongoErrorCode(error)
+    if (code === 85 || code === 86)
       throw new Error(
         `Index conflict for "${options.name}" on ${
           collection.collectionName
@@ -190,7 +219,49 @@ async function safeCreateIndex(
         )}). Existing index has a different definition; drop or reconcile it before retrying.`,
         { cause: error }
       )
-    throw error
+    if (!isUnauthorizedError(error)) throw error
+
+    // Authorization failure (code 13): the connected role has `readWrite` but not
+    // `createIndex` on `timelock-operations`. Every consumer connects through
+    // getTimelockQueueCollection() → here, so a hard throw would take the entire
+    // un-gated queue (runner, list, backfill) down. Degrade instead: if an admin
+    // already created this index (`listIndexes`, a read-role action), it is intact
+    // and we proceed silently; if not, warn and still proceed so reads/enqueue work.
+    let indexPresent = false
+    try {
+      const indexes = await collection.listIndexes().toArray()
+      indexPresent = indexes.some((index) => index.name === options.name)
+    } catch (listError: unknown) {
+      consola.warn(
+        `Cannot create or verify the "${options.name}" index on ` +
+          `${collection.collectionName}: the MONGODB_URI role lacks createIndex on ` +
+          `the timelock-operations DB, and listIndexes also failed. Proceeding without ` +
+          `index verification — enqueue dedup may be unenforced.`,
+        listError
+      )
+      return
+    }
+
+    if (indexPresent) {
+      consola.debug(
+        `"${options.name}" already exists on ${collection.collectionName}; the ` +
+          `current MONGODB_URI role cannot create indexes but this index is present, ` +
+          `so the queue is fully functional.`
+      )
+      return
+    }
+
+    consola.warn(
+      `The "${options.name}" index is MISSING on ${collection.collectionName} and ` +
+        `the current MONGODB_URI role lacks createIndex on the timelock-operations DB. ` +
+        (options.unique
+          ? `Reads/enqueue/execute will work, but enqueue DEDUP IS NOT ENFORCED — ` +
+            `duplicate queue rows can be inserted for the same (network, operationId). `
+          : `Reads/enqueue/execute will work, but this query index is absent, so ` +
+            `network+status lookups fall back to collection scans. `) +
+        `Have an admin create the index once (readWrite + createIndex on ` +
+        `timelock-operations), then this warning clears.`
+    )
   }
 }
 

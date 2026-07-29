@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", "sync the whitelist for PR <N> and propose", or "add <chain> to Polymer CCTP and propagate the domain mappings". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires VPN (MongoDB), gh, and the Slack MCP server.
+description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", "sync the whitelist for PR <N> and propose", or "add <chain> to Polymer CCTP and propagate the domain mappings". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires the lifi-connect tunnel (MongoDB), gh, and the Slack MCP server.
 usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -29,12 +29,14 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 
 ## Phase 0 — Preflight
 
+**Proceed optimistically — do not pre-gate on tunnel or signing.** Assume the human has the `lifi-connect` tunnel up (per `docs/Setup-agents.md`). Do not ask "how should we run this given I can't open the tunnel / sign" — just execute. The MongoDB scripts fail fast (`list-pending-proposals.ts` exits `2`) if the tunnel is actually down, and signing is handed off in Phase 6 when it's actually needed. The only up-front gate is confirming the resolved plan (contract/version/networks) in Phase 2, since it costs gas across many chains.
+
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
 - `gh auth status` OK; Slack MCP connected (needed in Phase 8 — warn early if missing, posting falls to the user).
 - Working tree clean enough to branch later (deploy mode creates a PR from deployment-log changes).
-- VPN: verified implicitly later — `list-pending-proposals.ts` exits `2` with a clear message when the VPN is down; relay that to the user when it happens.
+- lifi-connect tunnel: verified implicitly later — `list-pending-proposals.ts` exits `2` with a clear message when the tunnel is down; relay that to the user when it happens.
 
 In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Foundry, deployer balances, the `.env`/`--production` agreement) before touching any network — don't duplicate that here.
 
@@ -180,7 +182,7 @@ Whitelist mode changes no files — skip this phase; the input PR plays the PR r
 
 ## Phase 6 — Hand off signing (then wait for the user to come back)
 
-This is the one step the skill cannot run itself: `confirm-safe-tx.ts` is an interactive program that drives the user's Ledger over USB, so it must run in *their* terminal. Give them (VPN required; Ledger is the default signer):
+This is the one step the skill cannot run itself: `confirm-safe-tx.ts` is an interactive program that drives the user's Ledger over USB, so it must run in *their* terminal. Give them (lifi-connect tunnel required; Ledger is the default signer):
 
 ```bash
 bunx tsx script/deploy/safe/confirm-safe-tx.ts
@@ -235,7 +237,7 @@ Summarize: networks rolled out (+ failures and their state), proposal nonces, PR
 
 ## Failure modes
 
-- `list-pending-proposals.ts` exits `2` → VPN down or `SC_MONGODB_URI` missing — tell the user, retry after they fix it.
+- `list-pending-proposals.ts` exits `2` → tunnel down or `SC_MONGODB_URI` missing — tell the user, retry after they fix it.
 - Deploy succeeded but no proposal row → propose step failed; check the deploy log for the network, re-run that single network via `deploy-contract`.
 - Stale/future nonce warnings during signing → `confirm-safe-tx.ts` explains them inline; relay its guidance (usually: delete + re-propose, or execute the blocking nonce first).
 - Slack MCP missing → give the user both message texts verbatim to post manually; do not fall back to webhooks (wrong identity).

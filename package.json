@@ -61,7 +61,8 @@
     "web3": "4.16.0",
     "handlebars": "4.7.9",
     "protobufjs": "7.5.5",
-    "google-gax": "3.1.4"
+    "google-gax": "3.1.4",
+    "socks": "2.8.9"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
