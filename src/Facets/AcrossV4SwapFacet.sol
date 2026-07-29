@@ -801,7 +801,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 8453) return 30184; // Base
         if (_chainId == 81224) return 30323; // Codex
         if (_chainId == 98866) return 30370; // Plume
-        // Taiko deprecated (EXP-577) — remove this entry once Across destination support for it is dropped.
+        // Taiko is no longer supported by LI.FI (deprecated in EXP-577); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 167000) return 30290; // Taiko
         if (_chainId == LIFI_CHAIN_ID_SOLANA) return 30168; // Solana
         revert InvalidCallData();
