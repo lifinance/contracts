@@ -129,6 +129,14 @@ The facet rejects `amountOutMin == 0` (`InvalidConfig`): a zero floor makes that
 check vacuous, disabling destination-side slippage protection and exposing the
 bridged amount to unbounded MEV. A zero floor is never a legitimate quote.
 
+On the hub same-chain route the swap settles atomically, so the facet also
+re-checks the `amountOut` returned by `exactInput` against `amountOutMin` and
+reverts with `InvalidConfig` on a shortfall. This is defense-in-depth against a
+pool manager that skips its own check; it validates the manager's reported
+output, not the recipient's balance delta. The other routes settle
+asynchronously through LayerZero and expose no synchronous return value, so they
+rely on the pool manager's own enforcement.
+
 ## `fallbackEoA` Constraint
 
 Superset requires the fallback recipient to be a pure EOA

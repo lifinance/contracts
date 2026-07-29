@@ -103,6 +103,14 @@ contract MockSupersetHubPoolManager is
 
     ExactInputParams public lastExactInput;
 
+    /// @dev Simulates a pool manager that skips its own
+    ///      `amountOut >= amountOutMinimum` check.
+    bool public underFill;
+
+    function setUnderFill(bool _underFill) external {
+        underFill = _underFill;
+    }
+
     function exactInput(
         ExactInputParams calldata _params
     ) external payable override returns (uint256 amountOut) {
@@ -116,7 +124,10 @@ contract MockSupersetHubPoolManager is
         );
 
         lastExactInput = _params;
-        return _params.amountOutMinimum;
+        return
+            underFill
+                ? _params.amountOutMinimum - 1
+                : _params.amountOutMinimum;
     }
 }
 
@@ -434,6 +445,25 @@ contract SupersetFacetTest is TestBaseFacet {
         }(bridgeData, validSupersetData);
     }
 
+    function testRevert_MisalignedPathLength() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        // 68 bytes: long enough for one hop, but not 32 + n * 35.
+        validSupersetData.path = abi.encodePacked(
+            bytes32(uint256(2)),
+            bytes3(uint24(3000)),
+            bytes32(uint256(3)),
+            bytes1(0)
+        );
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
     function testRevert_ZeroAmountOutMin() public {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
@@ -673,6 +703,46 @@ contract SupersetFacetTest is TestBaseFacet {
         assertEq(
             path,
             abi.encodePacked(ADDRESS_USDC, bytes3(uint24(3000)), ADDRESS_DAI)
+        );
+    }
+
+    function testRevert_HubSameChainUnderFill() public {
+        vm.chainId(42161);
+
+        MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            2,
+            ADDRESS_USDC
+        );
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            3,
+            ADDRESS_DAI
+        );
+        mockHub.setUnderFill(true);
+
+        TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
+
+        vm.prank(address(0));
+        hubFacet.initSuperset(_defaultChainIdConfigs());
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(hubFacet), defaultUSDCAmount);
+
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.bridge = "superset";
+        bridgeData.destinationChainId = 42161;
+        validSupersetData.toEid = 0;
+        validSupersetData.fallbackEoA = address(0);
+        validSupersetData.lzFee = 0;
+        // Above 1 so the mock's fill stays non-zero, i.e. a shortfall the
+        // superseded `amountOut == 0` check would have let through.
+        validSupersetData.amountOutMin = 1000;
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        hubFacet.startBridgeTokensViaSuperset{ value: 0 }(
+            bridgeData,
+            validSupersetData
         );
     }
 
