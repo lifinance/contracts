@@ -28,6 +28,7 @@ import {
   type PublicClient,
 } from 'viem'
 
+import healthCheckExclusionsConfig from '../../config/healthCheckExclusions.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
@@ -38,6 +39,7 @@ import {
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
+import { collectImmutableBindingChecks } from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -147,19 +149,24 @@ export interface IInvariantExclusion {
 }
 
 /**
- * Per-network invariant carve-outs. Empty by default — the correct response to a failing
+ * Per-network invariant carve-outs, loaded from `config/healthCheckExclusions.json` so ops can
+ * add one without editing TypeScript. Empty by default — the correct response to a failing
  * invariant is almost always to fix the on-chain/config drift, not to exclude the check.
  * Add an entry only for a genuine, permanent non-applicability, and link the ticket that
  * documents the decision in `reason`.
  *
- * Example (do not uncomment without a real case):
+ * Example entry (in the JSON file):
  *   {
- *     invariant: 'executor-erc20proxy-binding',
- *     network: 'somechain',
- *     reason: 'ERC20Proxy path deprecated on somechain; token pulls route via Permit2 (EXSC-000)',
- *   },
+ *     "invariant": "executor-erc20proxy-binding",
+ *     "network": "somechain",
+ *     "reason": "ERC20Proxy path deprecated on somechain; token pulls route via Permit2 (EXSC-000)"
+ *   }
+ *
+ * Every entry is validated in tests: the invariant name must exist in HEALTH_CHECK_INVARIANTS,
+ * the network must exist in config/networks.json, and the reason must be non-empty.
  */
-export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] = []
+export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] =
+  healthCheckExclusionsConfig as IInvariantExclusion[]
 
 /**
  * Return the carve-out for a given invariant on a given network, or undefined if the
@@ -878,7 +885,16 @@ async function checkWhitelistIntegrity(
 }
 
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
-const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
+/**
+ * Receivers whose Executor binding is asserted by `receiver-executor-binding`, with the getter
+ * each exposes. Every `Receiver*` companion in `config/global.json` → `facetPeripheryCouplings`
+ * must appear here (or be explicitly deprecated) — a colocated test enforces it, so a new
+ * coupling cannot ship presence-checked but binding-unchecked.
+ */
+export const RECEIVER_EXECUTOR_GETTERS: Array<{
+  name: string
+  getter: string
+}> = [
   // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
   // binding is no longer kept current, so it is intentionally not checked here.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
@@ -886,6 +902,42 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
+
+/** Receivers exempt from the coupling↔binding drift test because they are deprecated. */
+export const DEPRECATED_RECEIVERS = ['ReceiverAcrossV3']
+
+/**
+ * Resolve a periphery contract's address from the on-chain PeripheryRegistry first, falling back
+ * to the deploy log. The deploy log can be incomplete — ReceiverOIF is live on mainnet and base
+ * with no `deployments/*.json` entry — and resolving through the log alone silently exempts such
+ * contracts from binding/ownership checks (the blind spot behind EXSC-682/-684). A failed registry
+ * read falls back to the log rather than aborting: a read failure is not evidence of absence.
+ *
+ * @returns the address, or undefined when the contract is genuinely absent from both sources
+ */
+async function resolvePeripheryAddress(
+  name: string,
+  ctx: IHealthCheckContext,
+  publicClient: PublicClient
+): Promise<Address | undefined> {
+  try {
+    const registered = await getContract({
+      address: ctx.diamondAddress as Address,
+      abi: parseAbi([
+        'function getPeripheryContract(string) external view returns (address)',
+      ]),
+      client: publicClient,
+    }).read.getPeripheryContract([name])
+    if (getAddress(registered) !== ZERO_ADDRESS) return getAddress(registered)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ctx.logWarn(
+      `Could not read PeripheryRegistry for ${name} (falling back to deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[name]
+  return logged ? getAddress(logged as Address) : undefined
+}
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1165,7 +1217,13 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const expectedExecutor = getAddress(executorAddress as Address)
 
       for (const { name, getter } of RECEIVER_EXECUTOR_GETTERS) {
-        const receiverAddress = ctx.deployedContracts[name]
+        // Registry-first resolution: a receiver live on chain but missing from the deploy log
+        // must not silently escape the binding check (ReceiverOIF on mainnet/base).
+        const receiverAddress = await resolvePeripheryAddress(
+          name,
+          ctx,
+          ctx.publicClient
+        )
         if (!receiverAddress) continue
 
         const receiver = getContract({
@@ -1186,6 +1244,144 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             `${name}.${getter}() is ${boundExecutor}, expected deployed Executor ${expectedExecutor}`
           )
         else consola.success(`${name} is bound to the deployed Executor`)
+      }
+    },
+  },
+  {
+    name: 'periphery-registry-log-sync',
+    description:
+      'On-chain PeripheryRegistry and the deploy log agree for every known periphery contract',
+    severity: 'error',
+    scope: { environments: ['production'], chains: 'evm-only' },
+    remediation:
+      'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain registry.',
+    run: async (ctx) => {
+      if (!ctx.publicClient) return
+
+      // The deploy log is the identity source for most checks, so an entry missing from it is
+      // not cosmetic: it silently exempts that contract from every log-resolved check (how
+      // ReceiverOIF on mainnet/base escaped binding and ownership coverage). Names must be
+      // probed explicitly because the registry mapping has no enumerator.
+      const candidates = [
+        ...new Set([
+          ...getCorePeriphery(),
+          ...Object.keys(ctx.globalConfig.whitelistPeripheryFunctions),
+          ...Object.values(getFacetPeripheryCouplings()).flatMap(
+            (coupling) => coupling.requiresAnyOf
+          ),
+          ...RECEIVER_EXECUTOR_GETTERS.map((entry) => entry.name),
+        ]),
+      ].sort()
+
+      const peripheryRegistry = getContract({
+        address: ctx.diamondAddress as Address,
+        abi: parseAbi([
+          'function getPeripheryContract(string) external view returns (address)',
+        ]),
+        client: ctx.publicClient,
+      })
+      const results = await Promise.allSettled(
+        candidates.map((name) =>
+          peripheryRegistry.read.getPeripheryContract([name])
+        )
+      )
+
+      let inSync = 0
+      candidates.forEach((name, index) => {
+        const result = results[index]
+        if (result?.status !== 'fulfilled') {
+          const reason =
+            result?.status === 'rejected' ? String(result.reason) : 'no result'
+          ctx.logWarn(`Could not read registry entry for ${name}: ${reason}`)
+          return
+        }
+        const onChain = getAddress(result.value as Address)
+        // Not registered on this chain: presence is owned by periphery-registered /
+        // facet-required-periphery, not by this sync check.
+        if (onChain === ZERO_ADDRESS) return
+
+        const logged = ctx.deployedContracts[name]
+        if (!logged)
+          ctx.logError(
+            `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+          )
+        else if (getAddress(logged as Address) !== onChain)
+          ctx.logError(
+            `${name}: deploy log has ${getAddress(
+              logged as Address
+            )} but the on-chain registry has ${onChain}`
+          )
+        else inSync++
+      })
+      if (inSync > 0)
+        consola.success(
+          `${inSync} registered periphery contract(s) match the deploy log`
+        )
+    },
+  },
+  {
+    name: 'immutable-bindings-match-config',
+    description:
+      'Immutable constructor bindings match the config files (getter-annotated entries in deployRequirements.json)',
+    severity: 'error',
+    scope: { environments: ['production'], chains: 'evm-only' },
+    remediation:
+      'The live contract binds a stale address: redeploy it against the current config value and re-register it (diamondUpdatePeriphery), or fix the config entry if this chain genuinely still uses the old address.',
+    run: async (ctx) => {
+      if (!ctx.publicClient) return
+
+      // A contract like ReceiverAcrossV4 binds its counterparty (SPOKEPOOL) immutably at
+      // construction. If the integration migrates and config moves on, presence and
+      // executor-binding checks stay green while destination calls fail against a dead
+      // counterparty - so compare every annotated binding against config explicitly.
+      const checks = collectImmutableBindingChecks(
+        ctx.networkLower,
+        ctx.environment
+      )
+      for (const check of checks) {
+        const address = await resolvePeripheryAddress(
+          check.contractName,
+          ctx,
+          ctx.publicClient
+        )
+        // Contract not present on this chain - nothing to compare.
+        if (!address) continue
+
+        if (!check.expectedAddress) {
+          ctx.logWarn(
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.keyInConfigFile} value for this network - cannot verify ${check.getter}()`
+          )
+          continue
+        }
+
+        try {
+          const onChainValue = (await ctx.publicClient.readContract({
+            address,
+            abi: parseAbi([
+              `function ${check.getter}() external view returns (address)`,
+            ]),
+            functionName: check.getter,
+          })) as Address
+
+          if (getAddress(onChainValue) !== getAddress(check.expectedAddress))
+            ctx.logError(
+              `${check.contractName}.${check.getter}() is ${getAddress(
+                onChainValue
+              )} but ${check.configFileName} ${
+                check.keyInConfigFile
+              } expects ${getAddress(check.expectedAddress)}`
+            )
+          else
+            consola.success(
+              `${check.contractName}.${check.getter}() matches ${check.configFileName}`
+            )
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(
+            `Could not read ${check.contractName}.${check.getter}(): ${errorMessage}`
+          )
+        }
       }
     },
   },
@@ -1625,11 +1821,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
-    description: 'Receiver owner is the refund wallet',
+    description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
     scope: {},
     run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
+      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         await checkOwnershipTron(
           'Receiver',
           ctx.refundWallet,
@@ -1638,13 +1834,35 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ctx.tronWeb,
           ctx.logError
         )
-      else if (ctx.publicClient)
-        await checkOwnership(
-          'Receiver',
-          ctx.refundWallet,
+        return
+      }
+      if (!ctx.publicClient) return
+
+      await checkOwnership('Receiver', ctx.refundWallet, ctx, ctx.publicClient)
+
+      // The bridge-specific receivers were previously owner-checked nowhere. Resolve them
+      // registry-first so one missing from the deploy log is still covered (ReceiverOIF on
+      // mainnet/base); absent from both sources means genuinely not present on this chain.
+      for (const { name } of RECEIVER_EXECUTOR_GETTERS) {
+        const address = await resolvePeripheryAddress(
+          name,
           ctx,
           ctx.publicClient
         )
+        if (!address) continue
+
+        const owner = await getOwnableContract(
+          address,
+          ctx.publicClient
+        ).read.owner()
+        if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))
+          ctx.logError(
+            `${name} owner is ${getAddress(owner)}, expected ${getAddress(
+              ctx.refundWallet as Address
+            )}`
+          )
+        else consola.success(`${name} owner is correct`)
+      }
     },
   },
   {
