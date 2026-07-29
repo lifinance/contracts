@@ -1884,7 +1884,13 @@ function parseTargetStateGoogleSpreadsheet() {
     local EXISTING_NETWORKS
     # NOTE: the arg cannot be named ENV -- jq's built-in $ENV (the environment object)
     # shadows it, and indexing with an object silently yields no networks.
-    EXISTING_NETWORKS=$(jq -r --arg TARGET_ENV "$ENVIRONMENT" 'to_entries[] | select(.value[$TARGET_ENV] != null) | .key' "$TARGET_STATE_PATH")
+    # A jq failure must not read as "nothing would be lost" -- that silent pass is the same
+    # shape as the data loss this guard exists to prevent.
+    if ! EXISTING_NETWORKS=$(jq -r --arg TARGET_ENV "$ENVIRONMENT" 'to_entries[] | select(.value[$TARGET_ENV] != null) | .key' "$TARGET_STATE_PATH"); then
+      error "could not read the existing networks from $TARGET_STATE_PATH, so it cannot be verified that repopulating is safe. Cannot proceed."
+      rm -f "$CSV_FILE_PATH"
+      return 1
+    fi
 
     local MISSING_NETWORKS=()
     local EXISTING_NETWORK
@@ -1913,6 +1919,7 @@ function parseTargetStateGoogleSpreadsheet() {
   # make sure existing entries were removed properly (to prevent corrupted target state)
   if [[ $? -ne 0 ]]; then
     error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
+    rm -f "$CSV_FILE_PATH"
     return 1
   fi
 
@@ -2029,8 +2036,10 @@ function processNetworkLine() {
     if [[ -z "$CURRENT_VERSION" ]]; then
       # The lookup is case-sensitive, so a sheet cell spelled 'NearIntentsFacet' misses
       # 'NEARIntentsFacet' -- point at that before the reader assumes the contract is gone.
-      local CASE_MATCH
-      CASE_MATCH=$(find "${CONTRACT_DIRECTORY%/}" -iname "$CONTRACT.sol" -print -quit)
+      local CASE_MATCH=""
+      if [[ -n "$CONTRACT_DIRECTORY" ]]; then
+        CASE_MATCH=$(find "${CONTRACT_DIRECTORY%/}" -iname "$CONTRACT.sol" -print -quit 2>/dev/null)
+      fi
       if [[ -n "$CASE_MATCH" ]]; then
         warning "[$NETWORK] Warning: no src file named '$CONTRACT.sol', but '$(basename "$CASE_MATCH")' exists - fix the spelling in the Google sheet" >&2
       else
