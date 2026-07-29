@@ -47,25 +47,34 @@ specific to Frax HopV2 and is represented as the following struct type:
 /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
 ///        remainder that HopV2 does not bridge, and any excess native that HopV2 refunds
 ///        to the diamond mid-call. Must accept plain native transfers.
+/// @param nonEVMReceiver The bytes32 recipient on a non-EVM destination (e.g. a Solana
+///        pubkey). Required when bridgeData.receiver is NON_EVM_ADDRESS; must be
+///        bytes32(0) for EVM destinations.
 struct FraxData {
     address oft;
     uint32 dstEid;
     uint256 nativeFee;
     address refundRecipient;
+    bytes32 nonEVMReceiver;
 }
 ```
 
 Both entrypoints validate `_fraxData` up front — **before any deposit or swap** — so an
 invalid route costs the caller nothing but gas:
 
-- `InvalidCallData` on a zero `refundRecipient`, `oft`, or `dstEid`.
-- `InvalidReceiver` when `bridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel (this
-  version is EVM-only, see below).
+- `InvalidCallData` on a zero `refundRecipient`, `oft`, or `dstEid` — or on a non-zero
+  `nonEVMReceiver` for an EVM destination.
+- `InvalidReceiver` when the `NON_EVM_ADDRESS` sentinel and the destination kind disagree
+  (sentinel on an EVM destination, or a 20-byte receiver on a non-EVM one).
+- `InvalidNonEVMReceiver` when a non-EVM destination has a zero `nonEVMReceiver`.
 - `UnsupportedChainId` / `InformationMismatch` on the `destinationChainId` ↔ `dstEid`
   cross-check.
+- `TokenNotSupported` when `HOP.approvedOft(oft)` is `false`.
 - `InformationMismatch` when the OFT's underlying `token()` is not
   `bridgeData.sendingAssetId`.
-- `TokenNotSupported` when `HOP.approvedOft(oft)` is `false`.
+
+The `approvedOft` check runs **before** `oft.token()` deliberately: `oft` is caller-supplied,
+so the only external call this facet makes into it happens after the hop has allowlisted it.
 
 - `nativeFee` is the native LayerZero messaging fee. It is `0` on Tempo, where the
   fee is charged in an ERC20 gas token instead (see below).
@@ -118,16 +127,26 @@ invalid route costs the caller nothing but gas:
   `sendOFT` after `_depositAndSwap` has already executed the caller's swap. The whole
   transaction reverts either way, so this is a gas / error-clarity guarantee rather than a
   fund-safety one.
-- **EVM destinations only (this version).** HopV2 takes a `bytes32` recipient and Frax
-  does route to non-EVM spokes (Solana, LayerZero EID `30168`) via the Fraxtal hub, but
-  this version derives the recipient from the 20-byte `bridgeData.receiver`
-  (`bytes32(uint256(uint160(receiver)))`), which is EVM-only. The facet therefore
-  **rejects the `NON_EVM_ADDRESS` sentinel with `InvalidReceiver`** instead of bridging
-  it literally, and no non-EVM chain ID is present in `config/frax.json` `mappings`.
-  Supporting Solana would mean adding a `bytes32` non-EVM receiver to `FraxData` (per the
-  existing LI.FI non-EVM facet pattern: validate non-zero, emit
-  `BridgeToNonEVMChainBytes32`) plus seeding `LIFI_CHAIN_ID_SOLANA → 30168` — a scoped
-  follow-up, not part of this version.
+- **Non-EVM destinations (Solana).** HopV2's recipient is a `bytes32`, and Frax routes to
+  Solana (LayerZero EID `30168`) via the Fraxtal hub, so the facet supports both address
+  formats:
+  - **EVM destination** — recipient is the left-padded `bridgeData.receiver`;
+    `nonEVMReceiver` must be `bytes32(0)`.
+  - **Non-EVM destination** — `bridgeData.receiver` must be the `NON_EVM_ADDRESS` sentinel
+    and the real recipient travels as `fraxData.nonEVMReceiver`, which is passed to
+    `sendOFT` verbatim. The facet emits `BridgeToNonEVMChainBytes32` alongside
+    `LiFiTransferStarted`.
+
+  The two are cross-checked **in both directions**, because each mismatch loses funds: a
+  20-byte receiver on a non-EVM route would be left-padded into an unspendable Solana
+  account, and the sentinel on an EVM route would deliver the funds to `NON_EVM_ADDRESS`
+  itself. A non-EVM `nonEVMReceiver` is only checked for non-zero — a Solana pubkey cannot
+  be validated further on-chain.
+
+  Which destinations are non-EVM is decided by `_isNonEVMDestination`, currently
+  `LIFI_CHAIN_ID_SOLANA` (Frax's only non-EVM spoke). **Add further LI.FI non-EVM chain IDs
+  there as Frax adds spokes** — seeding a non-EVM chain ID in `mappings` without listing it
+  in `_isNonEVMDestination` would let an EVM-shaped receiver through.
 
 ## ChainId → LayerZero EID mapping
 
@@ -143,6 +162,9 @@ above). This follows the `SupersetFacet` pattern.
   it is **not** registered as a diamond method.
 - `setFraxChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
   initial seeding (requires a prior `initFrax`, else reverts `NotInitialized`).
+- `removeFraxChainIdToEid(uint256[])` — **owner-only**, deletes entries so those
+  destinations revert `UnsupportedChainId` again. Reverts `UnsupportedChainId` on a chain ID
+  that is not set, so a mistyped removal fails loudly instead of silently doing nothing.
 - `getFraxChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
   `UnsupportedChainId` when unset. `chainId == 0` and `lzEid == 0` are rejected on
   write (EID `0` is the "unset" sentinel).
@@ -157,6 +179,14 @@ sourced from
 **Deprecated spokes.** `berachain`, `mode` and `scroll` are deliberately absent from both
 the `hop` address map and `mappings` in `config/frax.json`: Frax is removing them from the
 hop mesh (confirmed by the Frax team on PR #2048). Do not re-add them.
+
+> **Removing a chain from config is not enough.** `initFrax` copies `mappings` into diamond
+> storage, so any diamond **already seeded** with a chain keeps routing to it regardless of
+> what the config file says. Retiring a spoke is a two-step operation: drop it from
+> `config/frax.json` (so future deployments never seed it) **and** call
+> `removeFraxChainIdToEid([chainId])` on every diamond that already has it. As of this
+> change the Arbitrum staging diamond still has `mode` (34443) and `scroll` (534352) seeded
+> from the pre-deprecation config and needs the removal call.
 
 **Source-only chains.** Some networks have a live HopV2 spoke (so FraxFacet can be
 deployed there and bridge **out**) but no `mappings` entry, which makes them unusable as a

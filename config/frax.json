@@ -1,5 +1,5 @@
 {
-  "DEV NOTICE": "after adding a new mapping, call initFrax (first deploy, wired into UpdateFraxFacet) or setFraxChainIdToEid (incremental update) on every diamond where FraxFacet is deployed. Every destination chain a route targets MUST be seeded here first (unseeded destinations revert UnsupportedChainId). Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts. \"tipFeeManager\"/\"pathUsd\" are intentionally sparse: they list ONLY chains where the value is non-zero (currently just Tempo). Any chain absent from these maps deploys with address(0) — do NOT pad them with zero entries for other networks (see rule 004-config-structure). berachain, mode and scroll are intentionally absent from \"hop\" and \"mappings\": Frax is deprecating them from the hop mesh (confirmed by the Frax team on PR #2048) — do NOT re-add them.",
+  "DEV NOTICE": "after adding a new mapping, call initFrax (first deploy, wired into UpdateFraxFacet) or setFraxChainIdToEid (incremental update) on every diamond where FraxFacet is deployed. Every destination chain a route targets MUST be seeded here first (unseeded destinations revert UnsupportedChainId). Source for LayerZero EIDs: https://docs.layerzero.network/v2/deployments/deployed-contracts. \"tipFeeManager\"/\"pathUsd\" are intentionally sparse: they list ONLY chains where the value is non-zero (currently just Tempo). Any chain absent from these maps deploys with address(0) — do NOT pad them with zero entries for other networks (see rule 004-config-structure). berachain, mode and scroll are intentionally absent from \"hop\" and \"mappings\": Frax is deprecating them from the hop mesh (confirmed by the Frax team on PR #2048) — do NOT re-add them. Removing a chain here does NOT disable it on diamonds already seeded via initFrax: call removeFraxChainIdToEid(chainIds) on each of them. chainId 1151111081099710 is LI.FI's Solana chain ID (non-EVM, bytes32 recipient) — routes via the Fraxtal hub to LayerZero EID 30168.",
   "hop": {
     "mainnet": "0x0000006D38568b00B457580b734e0076C62de659",
     "abstract": "0x0000006D38568b00B457580b734e0076C62de659",
@@ -112,6 +112,10 @@
     {
       "chainId": 98866,
       "lzEid": 30370
+    },
+    {
+      "chainId": 1151111081099710,
+      "lzEid": 30168
     }
   ]
 }

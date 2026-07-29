@@ -10,7 +10,7 @@ import { LiFiData } from "../Helpers/LiFiData.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, NotInitialized, TokenNotSupported, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NotInitialized, TokenNotSupported, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title FraxFacet
 /// @author LI.FI (https://li.fi)
@@ -20,10 +20,11 @@ import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, N
 ///      the OFT's dust granularity, forwarded to the HopV2 contract in the same call, and
 ///      any dust remainder plus excess native fee are returned to the refundRecipient within
 ///      the same transaction; no balance is meant to persist between calls.
-/// @dev EVM destinations only. HopV2 takes a bytes32 recipient and Frax does route to
-///      non-EVM spokes (e.g. Solana) via the Fraxtal hub, but this version encodes the
-///      recipient from the 20-byte bridgeData.receiver and therefore rejects the
-///      NON_EVM_ADDRESS sentinel (see docs/FraxFacet.md).
+/// @dev Supports both EVM and non-EVM destinations. HopV2's recipient is a bytes32, so a
+///      non-EVM destination (Solana, reached via the Fraxtal hub) carries its pubkey in
+///      FraxData.nonEVMReceiver and emits BridgeToNonEVMChainBytes32; EVM destinations use
+///      the left-padded bridgeData.receiver. The NON_EVM_ADDRESS sentinel and the
+///      destination kind are cross-checked in both directions (see docs/FraxFacet.md).
 /// @dev Trust assumption: the facet grants HopV2 — an upgradeable proxy — a standing
 ///      unlimited ERC20 allowance via LibAsset.maxApproveERC20 (see docs/FraxFacet.md).
 /// @custom:version 1.0.0
@@ -82,11 +83,16 @@ contract FraxFacet is
     /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
     ///        remainder that HopV2 does not bridge, and any excess native that HopV2 refunds
     ///        to the diamond mid-call. Must accept plain native transfers.
+    /// @param nonEVMReceiver The bytes32 recipient on a non-EVM destination (e.g. a Solana
+    ///        pubkey). Required (non-zero) when bridgeData.receiver is NON_EVM_ADDRESS, and
+    ///        MUST be bytes32(0) for EVM destinations so the two receiver fields can never
+    ///        disagree about where the funds go.
     struct FraxData {
         address oft;
         uint32 dstEid;
         uint256 nativeFee;
         address refundRecipient;
+        bytes32 nonEVMReceiver;
     }
 
     /// Events ///
@@ -96,6 +102,9 @@ contract FraxFacet is
 
     /// @notice Emitted when a chainId -> LayerZero EID entry is set or updated.
     event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+
+    /// @notice Emitted when a chainId -> LayerZero EID entry is removed.
+    event FraxChainIdToEidRemoved(uint256 indexed chainId);
 
     /// Constructor ///
 
@@ -166,6 +175,31 @@ contract FraxFacet is
 
             s.lzEids[chainId] = lzEid;
             emit FraxChainIdToEidSet(chainId, lzEid);
+        }
+    }
+
+    /// @notice Removes chainId -> LayerZero EID entries, disabling those destinations
+    ///         (owner-only).
+    /// @param _chainIds Batch of LI.FI chain IDs to remove.
+    /// @dev Deleting a config entry is not enough on its own: `initFrax` writes the mapping
+    ///      into diamond storage, so a destination stays routable on every diamond already
+    ///      seeded with it until it is removed here. Needed to retire a spoke Frax
+    ///      deprecates from the hop mesh. Reverts `UnsupportedChainId` on an entry that is
+    ///      not set, so a mistyped chain ID fails loudly instead of silently doing nothing.
+    function removeFraxChainIdToEid(uint256[] calldata _chainIds) external {
+        if (_chainIds.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage s = _getStorage();
+        if (!s.chainMappingsInitialized) revert NotInitialized();
+
+        for (uint256 i = 0; i < _chainIds.length; ++i) {
+            uint256 chainId = _chainIds[i];
+
+            if (s.lzEids[chainId] == 0) revert UnsupportedChainId(chainId);
+
+            delete s.lzEids[chainId];
+            emit FraxChainIdToEidRemoved(chainId);
         }
     }
 
@@ -309,11 +343,26 @@ contract FraxFacet is
             revert InvalidCallData();
         }
 
-        // This version is EVM-only: the bytes32 HopV2 recipient is derived from the 20-byte
-        // receiver. The NON_EVM_ADDRESS sentinel carries no recipient of its own, so without
-        // this guard it would be bridged literally and the funds delivered to the sentinel.
-        if (_receiver == NON_EVM_ADDRESS) {
-            revert InvalidReceiver();
+        // The recipient encoding depends on the destination's address format, so the sentinel
+        // and the destination kind must agree in BOTH directions:
+        //  - sentinel + non-EVM destination -> the real recipient travels in nonEVMReceiver,
+        //  - plain address + EVM destination -> the recipient is the 20-byte receiver.
+        // A non-EVM destination reached with a 20-byte receiver would left-pad an EVM address
+        // into a 32-byte Solana pubkey and strand the funds at an unspendable account, and the
+        // sentinel on an EVM destination would deliver them to NON_EVM_ADDRESS itself.
+        if (_isNonEVMDestination(_destinationChainId)) {
+            if (_receiver != NON_EVM_ADDRESS) revert InvalidReceiver();
+            // The pubkey cannot be validated any further on-chain; reject only the zero value.
+            if (_fraxData.nonEVMReceiver == bytes32(0)) {
+                revert InvalidNonEVMReceiver();
+            }
+        } else {
+            if (_receiver == NON_EVM_ADDRESS) revert InvalidReceiver();
+            // An EVM route ignores nonEVMReceiver, so a populated one means the caller
+            // disagrees with itself about the recipient. Reject rather than silently pick one.
+            if (_fraxData.nonEVMReceiver != bytes32(0)) {
+                revert InvalidCallData();
+            }
         }
 
         // dstEid is the actual LayerZero routing target and is trusted from backend calldata;
@@ -324,17 +373,29 @@ contract FraxFacet is
             revert InformationMismatch();
         }
 
+        // HopV2 only routes OFTs it has been configured with; an unapproved one reverts inside
+        // sendOFT. Checked BEFORE oft.token() below so the only external call this facet makes
+        // to the caller-supplied oft address is to one the hop itself already allowlists.
+        if (!HOP.approvedOft(_fraxData.oft)) {
+            revert TokenNotSupported();
+        }
+
         // The OFT's underlying token must be exactly what we bridge; otherwise HopV2 would
         // pull a different asset than the one deposited/validated here.
         if (IFraxOFT(_fraxData.oft).token() != _sendingAssetId) {
             revert InformationMismatch();
         }
+    }
 
-        // HopV2 only routes OFTs it has been configured with; an unapproved one reverts
-        // inside sendOFT. Check it here so the failure happens before the user's funds move.
-        if (!HOP.approvedOft(_fraxData.oft)) {
-            revert TokenNotSupported();
-        }
+    /// @dev Whether `_destinationChainId` is a non-EVM chain whose recipient is a raw bytes32
+    ///      rather than a 20-byte address. Frax's only non-EVM spoke today is Solana (reached
+    ///      via the Fraxtal hub); add further LI.FI non-EVM chain IDs here as Frax adds them.
+    /// @param _destinationChainId The LI.FI destination chain ID from bridgeData
+    /// @return isNonEVM True when the destination uses bytes32 recipients
+    function _isNonEVMDestination(
+        uint256 _destinationChainId
+    ) internal pure returns (bool isNonEVM) {
+        isNonEVM = _destinationChainId == LIFI_CHAIN_ID_SOLANA;
     }
 
     /// @dev Contains the business logic for bridging via Frax HopV2
@@ -364,7 +425,21 @@ contract FraxFacet is
             flooredAmount
         );
 
-        bytes32 recipient = bytes32(uint256(uint160(_bridgeData.receiver)));
+        // On a non-EVM destination the recipient is the raw bytes32 pubkey; on EVM it is the
+        // left-padded 20-byte receiver. _validateFraxData has already bound the sentinel and
+        // the destination kind together, so exactly one of these is populated.
+        bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
+        bytes32 recipient = isNonEVM
+            ? _fraxData.nonEVMReceiver
+            : bytes32(uint256(uint160(_bridgeData.receiver)));
+
+        if (isNonEVM) {
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                _fraxData.nonEVMReceiver
+            );
+        }
 
         if (TIP_FEE_MANAGER == address(0)) {
             HOP.sendOFT{ value: _fraxData.nativeFee }(
