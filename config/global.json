@@ -91,11 +91,6 @@
         "ReceiverChainflip"
       ]
     },
-    "LiFiIntentEscrowFacet": {
-      "requiresAnyOf": [
-        "ReceiverOIF"
-      ]
-    },
     "LiFiIntentEscrowFacetV2": {
       "requiresAnyOf": [
         "ReceiverOIF"

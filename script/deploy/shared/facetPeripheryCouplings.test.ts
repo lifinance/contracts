@@ -169,8 +169,10 @@ describe('facetPeripheryCouplings registry in config/global.json', () => {
   it('covers every facet of an already-coupled family (guards a forgotten new variant)', () => {
     // The registry is an allowlist, so a new family member (e.g. a future AcrossFacetV5) would
     // otherwise be silently unchecked. Any facet sharing a coupled facet's bridge prefix must
-    // itself be coupled — the deprecated AcrossFacet is the one documented exemption.
-    const DEPRECATED_EXEMPT = ['AcrossFacet']
+    // itself be coupled — deprecated facets are the documented exemptions: AcrossFacet, and
+    // LiFiIntentEscrowFacet (V1, superseded by V2; only testnets still run V1 without V2 and
+    // the coupling invariant is production-scoped).
+    const DEPRECATED_EXEMPT = ['AcrossFacet', 'LiFiIntentEscrowFacet']
     const families = ['Across', 'Chainflip', 'LiFiIntentEscrow', 'Stargate']
     const facetsOnDisk = [...new Bun.Glob('*.sol').scanSync('src/Facets')].map(
       (f) => f.replace(/\.sol$/, '')
