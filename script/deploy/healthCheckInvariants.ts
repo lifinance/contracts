@@ -149,24 +149,82 @@ export interface IInvariantExclusion {
 }
 
 /**
- * Per-network invariant carve-outs, loaded from `config/healthCheckExclusions.json` so ops can
- * add one without editing TypeScript. Empty by default — the correct response to a failing
- * invariant is almost always to fix the on-chain/config drift, not to exclude the check.
- * Add an entry only for a genuine, permanent non-applicability, and link the ticket that
- * documents the decision in `reason`.
+ * A per-contract, per-network core-periphery carve-out: this contract is INTENTIONALLY not
+ * deployed on this network (e.g. TokenWrapper on chains with no native/wrap path). Finer-grained
+ * than an invariant exclusion — the rest of the core periphery stays fully enforced there.
+ * The skip is printed with its reason whenever it applies, so it is never invisible.
+ */
+export interface ICorePeripheryExemption {
+  /** Contract name as in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Network key to exempt it on (as in config/networks.json; compared case-insensitively). */
+  network: string
+  /** Why this contract genuinely does not apply on this network. Shown in the run output. */
+  reason: string
+}
+
+/**
+ * Per-network carve-outs, loaded from `config/healthCheckExclusions.json` so ops can add one
+ * without editing TypeScript. Both lists are empty-by-default instruments: the correct response
+ * to a failing invariant is almost always to fix the on-chain/config drift, not to exclude the
+ * check. Add an entry only for a genuine, permanent non-applicability, and link the ticket or
+ * devNotes that documents the decision in `reason`.
  *
- * Example entry (in the JSON file):
- *   {
- *     "invariant": "executor-erc20proxy-binding",
- *     "network": "somechain",
- *     "reason": "ERC20Proxy path deprecated on somechain; token pulls route via Permit2 (EXSC-000)"
- *   }
+ * - `invariantExclusions`: skip one whole invariant on one network.
+ * - `corePeripheryExemptions`: exempt one core periphery CONTRACT on one network (finer-grained;
+ *   used where a whole-invariant skip would hide unrelated coverage, e.g. TokenWrapper on arc).
  *
- * Every entry is validated in tests: the invariant name must exist in HEALTH_CHECK_INVARIANTS,
- * the network must exist in config/networks.json, and the reason must be non-empty.
+ * Every entry is validated in tests: names must reference a real invariant / core periphery
+ * contract, the network must exist in config/networks.json, and the reason must be non-empty.
  */
 export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] =
-  healthCheckExclusionsConfig as IInvariantExclusion[]
+  (
+    healthCheckExclusionsConfig as {
+      invariantExclusions?: IInvariantExclusion[]
+    }
+  ).invariantExclusions ?? []
+
+/** Core-periphery contracts intentionally absent on specific networks (see above). */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] =
+  (
+    healthCheckExclusionsConfig as {
+      corePeripheryExemptions?: ICorePeripheryExemption[]
+    }
+  ).corePeripheryExemptions ?? []
+
+/**
+ * Return the exemption for a core periphery contract on a network, or undefined when the
+ * contract is expected there. Pure; network match is case-insensitive.
+ */
+export function getCorePeripheryExemption(
+  contract: string,
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): ICorePeripheryExemption | undefined {
+  const networkLower = network.toLowerCase()
+  return exemptions.find(
+    (e) => e.contract === contract && e.network.toLowerCase() === networkLower
+  )
+}
+
+/**
+ * Drop exempt core-periphery contracts from a check list, printing each skip with its reason
+ * so the carve-out is visible in the run output.
+ */
+export function filterExemptCorePeriphery(
+  contracts: string[],
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): string[] {
+  return contracts.filter((contract) => {
+    const exemption = getCorePeripheryExemption(contract, network, exemptions)
+    if (!exemption) return true
+    consola.info(
+      `⏭  Not requiring core periphery [${contract}] on ${network} — exempt: ${exemption.reason}`
+    )
+    return false
+  })
+}
 
 /**
  * Return the carve-out for a given invariant on a given network, or undefined if the
@@ -1090,6 +1148,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      peripheryToCheck = filterExemptCorePeriphery(
+        peripheryToCheck,
+        ctx.networkLower
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1204,6 +1266,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     name: 'receiver-executor-binding',
     description: 'Every deployed Receiver is bound to the deployed Executor',
     severity: 'error',
+    // evm-only: none of the coupled receivers exist on Tron (tron.json has only core
+    // periphery). Grow a Tron branch (callTronContract + base58 compare) with the first one.
     scope: { environments: ['production'], chains: 'evm-only' },
     run: async (ctx) => {
       if (!ctx.publicClient) return
@@ -1252,19 +1316,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description:
       'On-chain PeripheryRegistry and the deploy log agree for every known periphery contract',
     severity: 'error',
-    scope: { environments: ['production'], chains: 'evm-only' },
+    scope: { environments: ['production'] },
     remediation:
       'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain registry.',
     run: async (ctx) => {
-      if (!ctx.publicClient) return
-
       // The deploy log is the identity source for most checks, so an entry missing from it is
       // not cosmetic: it silently exempts that contract from every log-resolved check (how
       // ReceiverOIF on mainnet/base escaped binding and ownership coverage). Names must be
       // probed explicitly because the registry mapping has no enumerator.
       const candidates = [
         ...new Set([
-          ...getCorePeriphery(),
+          ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
           ...Object.keys(ctx.globalConfig.whitelistPeripheryFunctions),
           ...Object.values(getFacetPeripheryCouplings()).flatMap(
             (coupling) => coupling.requiresAnyOf
@@ -1272,6 +1334,53 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ...RECEIVER_EXECUTOR_GETTERS.map((entry) => entry.name),
         ]),
       ].sort()
+
+      if (ctx.isTron && ctx.tronRpcUrl) {
+        // Tron: registry output and deploy log are both base58 (T...), so compare directly;
+        // isNonZeroTronAddress guards both encodings of the zero address.
+        let inSync = 0
+        for (const name of candidates)
+          try {
+            const raw = await callTronContract(
+              ctx.diamondAddress,
+              'getPeripheryContract(string)',
+              [name],
+              'address',
+              ctx.tronRpcUrl
+            )
+            const onChain = parseTronAddressOutput(raw)
+            if (!isNonZeroTronAddress(onChain)) continue
+
+            const logged = ctx.deployedContracts[name]
+            if (!logged)
+              ctx.logError(
+                `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+              )
+            else if (String(logged) !== onChain)
+              ctx.logError(
+                `${name}: deploy log has ${logged} but the on-chain registry has ${onChain}`
+              )
+            else inSync++
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Could not read registry entry for ${name}: ${errorMessage}`
+            )
+          }
+        if (inSync > 0)
+          consola.success(
+            `${inSync} registered periphery contract(s) match the deploy log`
+          )
+        return
+      }
+
+      if (!ctx.publicClient) {
+        ctx.logWarn(
+          'Neither a Tron RPC URL nor an EVM client is available - registry/log sync check skipped'
+        )
+        return
+      }
 
       const peripheryRegistry = getContract({
         address: ctx.diamondAddress as Address,
@@ -1324,12 +1433,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description:
       'Immutable constructor bindings match the config files (getter-annotated entries in deployRequirements.json)',
     severity: 'error',
-    scope: { environments: ['production'], chains: 'evm-only' },
+    scope: { environments: ['production'] },
     remediation:
       'The live contract binds a stale address: redeploy it against the current config value and re-register it (diamondUpdatePeriphery), or fix the config entry if this chain genuinely still uses the old address.',
     run: async (ctx) => {
-      if (!ctx.publicClient) return
-
       // A contract like ReceiverAcrossV4 binds its counterparty (SPOKEPOOL) immutably at
       // construction. If the integration migrates and config moves on, presence and
       // executor-binding checks stay green while destination calls fail against a dead
@@ -1338,6 +1445,55 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         ctx.networkLower,
         ctx.environment
       )
+
+      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
+        // Tron: contracts live in the deploy log as base58; config values may be 0x (EVM hex)
+        // or base58, so normalize the expected side via ensureTronAddress before comparing.
+        for (const check of checks) {
+          const address = ctx.deployedContracts[check.contractName]
+          if (!address) continue
+
+          if (!check.expectedAddress) {
+            ctx.logWarn(
+              `${check.contractName} is deployed but ${check.configFileName} has no ${check.keyInConfigFile} value for this network - cannot verify ${check.getter}()`
+            )
+            continue
+          }
+
+          try {
+            const raw = await callTronContract(
+              String(address),
+              `${check.getter}()`,
+              [],
+              'address',
+              ctx.tronRpcUrl
+            )
+            const onChainValue = parseTronAddressOutput(raw)
+            const expected = ensureTronAddress(
+              check.expectedAddress,
+              ctx.tronWeb
+            )
+            if (onChainValue !== expected)
+              ctx.logError(
+                `${check.contractName}.${check.getter}() is ${onChainValue} but ${check.configFileName} ${check.keyInConfigFile} expects ${expected}`
+              )
+            else
+              consola.success(
+                `${check.contractName}.${check.getter}() matches ${check.configFileName}`
+              )
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Could not read ${check.contractName}.${check.getter}(): ${errorMessage}`
+            )
+          }
+        }
+        return
+      }
+
+      if (!ctx.publicClient) return
+
       for (const check of checks) {
         const address = await resolvePeripheryAddress(
           check.contractName,
@@ -1406,6 +1562,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      contractsToCheck = filterExemptCorePeriphery(
+        contractsToCheck,
+        ctx.networkLower
+      )
 
       if (contractsToCheck.length === 0) return
 
