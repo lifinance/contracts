@@ -27808,6 +27808,24 @@
           }
         ]
       }
+    },
+    "zksync": {
+      "production": {
+        "2.0.0": [
+          {
+            "ADDRESS": "0x2E09CeC715CB767F15c46aF8c33ff780eaAbFa74",
+            "OPTIMIZER_RUNS": "1000000",
+            "TIMESTAMP": "2026-07-27T08:41:55.000Z",
+            "CONSTRUCTOR_ARGS": "0x",
+            "SALT": "",
+            "VERIFIED": "true",
+            "SOLC_VERSION": "0.8.29",
+            "EVM_VERSION": "zkevm",
+            "ZK_SOLC_VERSION": "1.5.15",
+            "GIT_COMMIT_HASH": "6e231e8a03f0641af4906e92facc235e4f408d0c"
+          }
+        ]
+      }
     }
   },
   "LiFuelFeeCollector": {
