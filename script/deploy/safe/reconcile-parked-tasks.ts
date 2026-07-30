@@ -2,7 +2,7 @@
  * Deferred diamond-cleanup queue — reconcile + TTL job.
  *
  * Standalone counterpart to the drain (design: docs/DeferredDiamondCleanupQueue.md
- * §7/§8). Two responsibilities, both idempotent and safe to run on a cron:
+ * §7/§8). Three responsibilities, all idempotent and safe to run on a cron:
  *
  *  1. **Reconcile** open tasks against on-chain truth. The loupe is primary — if a
  *     parked facet's address is no longer routed, the removal is done: a claimed
@@ -18,8 +18,14 @@
  *     to the multisig-proposals Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
+ *  3. **Safe-to-prune report** — name the `deployments/*.json` entries whose
+ *     parked removal work is fully terminal, so the deferred log cleanup (spec
+ *     §8 deploy-log longevity) happens as a deliberate reviewed PR instead of
+ *     never.
+ *
  * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
- * {@link formatTtlAlertMessage}) are fully unit-tested; only the live CLI wiring
+ * {@link formatTtlAlertMessage}, {@link computeSafeToPrune},
+ * {@link formatSafeToPruneReport}) are fully unit-tested; only the live CLI wiring
  * (Mongo/loupe/Slack) is unit-test exempt, mirroring `getParkedTasksCollection()`.
  * Dry-run by default (#2047 convention); pass `--yes` to apply transitions and
  * send the alert.
@@ -31,6 +37,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress } from 'viem'
 
+import type { SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
 import { SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 
@@ -160,6 +168,79 @@ export function formatTtlAlertMessage(
   return lines.join('\n')
 }
 
+/** A deploy-log entry whose parked removal work is fully terminal — safe to prune. */
+export interface ISafeToPruneEntry {
+  network: string
+  environment: IParkedTask['environment']
+  facet: string
+}
+
+/**
+ * Returns the (network, facet) deploy-log entries that are safe to prune: at
+ * least one task for the pair reached `executed`/`superseded` (the facet is
+ * gone from the diamond) and none is still open. `cancelled`-only groups are
+ * never safe — a cancelled intent means the facet may still be registered.
+ * Entries whose log row is already gone are filtered via `hasLogEntry`.
+ *
+ * @param tasks - Candidate tasks (any status).
+ * @param hasLogEntry - Whether `deployments/<network>[.<env>].json` still lists the facet.
+ * @returns Prunable entries, de-duplicated, in first-seen order.
+ */
+export function computeSafeToPrune(
+  tasks: IParkedTask[],
+  hasLogEntry: (entry: ISafeToPruneEntry) => boolean
+): ISafeToPruneEntry[] {
+  const groups = new Map<string, IParkedTask[]>()
+  for (const t of tasks) {
+    const key = `${t.network}|${t.environment}|${t.facetName}`
+    const list = groups.get(key) ?? []
+    list.push(t)
+    groups.set(key, list)
+  }
+
+  const safe: ISafeToPruneEntry[] = []
+  for (const list of groups.values()) {
+    const first = list[0]
+    if (!first) continue
+    const gone = list.some(
+      (t) => t.status === 'executed' || t.status === 'superseded'
+    )
+    const open = list.some(
+      (t) => t.status === 'queued' || t.status === 'proposed'
+    )
+    if (!gone || open) continue
+    const entry: ISafeToPruneEntry = {
+      network: first.network,
+      environment: first.environment,
+      facet: first.facetName,
+    }
+    if (hasLogEntry(entry)) safe.push(entry)
+  }
+  return safe
+}
+
+/**
+ * Formats the safe-to-prune report, grouped by network. Returns `''` when
+ * nothing is prunable so the caller can skip printing.
+ */
+export function formatSafeToPruneReport(entries: ISafeToPruneEntry[]): string {
+  if (entries.length === 0) return ''
+  const byNetwork = new Map<string, ISafeToPruneEntry[]>()
+  for (const e of entries) {
+    const list = byNetwork.get(e.network) ?? []
+    list.push(e)
+    byNetwork.set(e.network, list)
+  }
+  const lines = [
+    `🧹 ${entries.length} deploy-log entr(ies) are safe to prune — every parked removal for them is terminal (open a PR removing the deployments/*.json rows):`,
+  ]
+  for (const [network, list] of byNetwork) {
+    lines.push(`[${network}]`)
+    for (const e of list) lines.push(`   - ${e.facet}`)
+  }
+  return lines.join('\n')
+}
+
 // ───────────────────────── live adapter (unit-test exempt) ─────────────────────
 
 type PendingTransactions = Awaited<
@@ -262,6 +343,38 @@ async function reconcileAll(
   }
 }
 
+/**
+ * Prints which deploy-log entries are now safe to prune (run after the
+ * reconcile so freshly-applied transitions count). Log presence is checked
+ * against the repo's `deployments/*.json`; a missing log file counts as
+ * already pruned. Report-only — the actual pruning is a reviewed PR.
+ */
+async function reportSafeToPrune(
+  parkedTasks: Parameters<typeof listParkedTasks>[0],
+  networkFilter: string | undefined
+): Promise<void> {
+  const all = await listParkedTasks(parkedTasks, { network: networkFilter })
+  const logsByKey = new Map<string, Record<string, string> | undefined>()
+  for (const t of all) {
+    const key = `${t.network}:${t.environment}`
+    if (logsByKey.has(key)) continue
+    try {
+      logsByKey.set(
+        key,
+        await getDeployments(t.network as SupportedChain, t.environment)
+      )
+    } catch {
+      logsByKey.set(key, undefined)
+    }
+  }
+  const entries = computeSafeToPrune(all, (e) =>
+    Boolean(logsByKey.get(`${e.network}:${e.environment}`)?.[e.facet])
+  )
+  const report = formatSafeToPruneReport(entries)
+  if (report) consola.info(report)
+  else consola.info('No deploy-log entries are ready to prune')
+}
+
 /** Computes and (when applying) sends the cold-network TTL alert. */
 async function runTtlAlert(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
@@ -318,6 +431,7 @@ const main = defineCommand({
     try {
       await reconcileAll(parkedTasks, args.network, apply)
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
+      await reportSafeToPrune(parkedTasks, args.network)
     } finally {
       await client.close()
     }

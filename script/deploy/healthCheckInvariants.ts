@@ -345,6 +345,51 @@ export function findDuplicateSelectors(
   return duplicates
 }
 
+/** Deprecated-but-still-registered facets, split by parked-removal coverage. */
+export interface IStaleRegisteredFacets {
+  /** Stale facets covered by an open parked-removal task — expected-pending. */
+  parked: string[]
+  /** Stale facets with NO open parked task — nothing scheduled to remove them. */
+  unparked: string[]
+}
+
+/**
+ * Classify on-chain facets that are deprecated (their deploy-log name is absent
+ * from the network's `_targetState.json` facet set) by whether an open parked
+ * removal covers them. Pure; addresses the deploy log cannot map are skipped —
+ * the `no-unexpected-facets` invariant owns those.
+ *
+ * @returns Sorted, de-duplicated facet names in each bucket.
+ */
+export function computeStaleRegisteredFacets(params: {
+  onChainFacets: IOnChainFacet[]
+  deployedContracts: Record<string, string>
+  expectedFacetNames: Set<string>
+  openParkedFacetNames: Set<string>
+}): IStaleRegisteredFacets {
+  const {
+    onChainFacets,
+    deployedContracts,
+    expectedFacetNames,
+    openParkedFacetNames,
+  } = params
+  const nameByAddress = Object.fromEntries(
+    Object.entries(deployedContracts).map(([name, address]) => [
+      String(address).toLowerCase(),
+      name,
+    ])
+  )
+  const parked = new Set<string>()
+  const unparked = new Set<string>()
+  for (const facet of onChainFacets) {
+    const name = nameByAddress[facet.address.toLowerCase()]
+    if (!name || expectedFacetNames.has(name)) continue
+    if (openParkedFacetNames.has(name)) parked.add(name)
+    else unparked.add(name)
+  }
+  return { parked: [...parked].sort(), unparked: [...unparked].sort() }
+}
+
 /** ABI fragment for reading a contract owner. */
 const OWNABLE_ABI = parseAbi([
   'function owner() external view returns (address)',
@@ -1632,6 +1677,97 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       if (unexpected === 0)
         consola.success('All on-chain facets are known deployed contracts')
+    },
+  },
+  {
+    name: 'no-stale-registered-facets',
+    description:
+      'Deprecated facets still registered on-chain are covered by an open parked-removal task',
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or remove it via script/tasks/cleanUpProdDiamond.ts.',
+    run: async (ctx) => {
+      if (ctx.onChainFacets.length === 0) {
+        consola.info(
+          'On-chain facet list unavailable; skipping stale-facet check'
+        )
+        return
+      }
+      const targetFacets =
+        ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond
+      if (!targetFacets) {
+        consola.info(
+          'No production target state for this network; skipping stale-facet check'
+        )
+        return
+      }
+      const expectedFacetNames = new Set(Object.keys(targetFacets))
+
+      // Cheap pre-pass without the queue: only touch Mongo when something is stale.
+      const prePass = computeStaleRegisteredFacets({
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: ctx.deployedContracts,
+        expectedFacetNames,
+        openParkedFacetNames: new Set(),
+      })
+      if (prePass.unparked.length === 0) {
+        consola.success('No stale registered facets')
+        return
+      }
+
+      let openParkedFacetNames: Set<string>
+      try {
+        // Lazy import: only stale networks need the queue (and its mongodb dep).
+        const { getParkedTasksCollection, listParkedTasks } = await import(
+          './safe/parked-tasks'
+        )
+        const { client, parkedTasks } = await getParkedTasksCollection()
+        try {
+          const open = [
+            ...(await listParkedTasks(parkedTasks, {
+              network: ctx.networkLower,
+              status: 'queued',
+            })),
+            ...(await listParkedTasks(parkedTasks, {
+              network: ctx.networkLower,
+              status: 'proposed',
+            })),
+          ]
+          openParkedFacetNames = new Set(open.map((t) => t.facetName))
+        } finally {
+          await client.close()
+        }
+      } catch (error: unknown) {
+        // An unreachable queue must not turn every parked removal into a false
+        // alarm — surface the reduced coverage instead of guessing.
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        ctx.logWarn(
+          `Parked-task queue unreachable — stale-facet coverage check skipped (${prePass.unparked.length} stale facet(s) unverified): ${errorMessage}`
+        )
+        return
+      }
+
+      const { parked, unparked } = computeStaleRegisteredFacets({
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: ctx.deployedContracts,
+        expectedFacetNames,
+        openParkedFacetNames,
+      })
+      for (const name of parked)
+        consola.info(
+          `Facet ${name} is deprecated and awaiting its parked removal (expected-pending)`
+        )
+      for (const name of unparked)
+        ctx.logWarn(
+          `Facet ${name} is registered on-chain but absent from _targetState.json and NOT covered by an open parked-removal task — no removal is scheduled`
+        )
+      if (unparked.length === 0)
+        consola.success(
+          'All stale registered facets are covered by parked removals'
+        )
     },
   },
   {

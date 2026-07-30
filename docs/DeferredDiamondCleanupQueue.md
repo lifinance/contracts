@@ -604,13 +604,20 @@ the parked task **retires** — longer than #2047's already-documented "don't pr
 until executed" window (Fact 10). Two mitigations, both in this spec:
 
 - The record stores `facetAddress` at enqueue (§4). The drain checks that address
-  against the loupe **directly**; if the log entry was pruned but the address is still
-  routed, the facet is **not** treated as superseded — it stays queued and alerts.
-  *(This needs a small engine affordance: resolve a named removal by stored address
-  when the log no longer maps it — a minor extension to `computeNamedFacetRemovals`/
-  `diffNamedFacets`. Flagged in §14 Q5.)*
+  against the loupe **directly**, and (EXSC-723) **resolves a pruned log entry by
+  address**: an unmapped on-chain address claimed by exactly one parked task's
+  stored `facetAddress` becomes a removal with its live loupe selectors — the log
+  entry is no longer load-bearing for the drain. Ambiguous cases (the log maps the
+  address to a *different* name, or two tasks claim one address) are never resolved:
+  they stay queued in `prunedButRouted` and alert for human investigation, so the
+  drain still never false-supersedes or wrong-cuts a live facet.
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
-  executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
+  executed" warning (Fact 10) is **strengthened** to "until the parked task retires" —
+  not for the drain (address-resolving, above) but because the health check's
+  queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
+  addresses to names through the log. The weekly reconcile job (§7) reports which
+  entries are **safe to prune** (every covering task terminal); pruning then is a
+  small reviewed PR.
 
 ---
 
@@ -754,9 +761,13 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    removal proposal — a single `scheduleBatch` Remove carrying every queued facet's
    origin PR via the `parkedTaskRefs` array (fewer proposals, one extra signature in
    the session). **Built in the follow-up PR** (`drainNetwork`).
-5. **Deploy-log hazard (§8).** Harden the drain to resolve by stored `facetAddress`
-   when the log entry was pruned (small engine extension), **and/or** just enforce
-   "don't prune the log until the parked task retires"? (Recommend both.)
+5. ~~**Deploy-log hazard (§8).**~~ **RESOLVED (EXSC-723):** both, plus detection.
+   The drain resolves a pruned entry by stored `facetAddress` (unambiguous
+   single-claim only; conflicts stay in `prunedButRouted` + alert), the queue-aware
+   health-check invariant `no-stale-registered-facets` flags any
+   deprecated-but-registered facet with no open parked task, and the reconcile job
+   reports deploy-log entries that are safe to prune once every covering task is
+   terminal.
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
    **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
    default, and whether that's per-network or global.
