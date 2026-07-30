@@ -64,7 +64,10 @@ import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
 
-const networks: Record<string, { safeAddress: string; status: string }> = data
+const networks: Record<
+  string,
+  { safeAddress: string; status: string; chainId: number }
+> = data
 
 // Types for Safe transactions
 export enum OperationTypeEnum {
@@ -259,7 +262,8 @@ export class SafeClient {
    * @param account - Account used for signing and broadcasting
    * @param tronWalletClient - Optional Tron signer required for TVM execution
    * @param networkName - Network name used to construct explorer URLs in results
-   * @param configChainId - Chain id resolved from config, skips the RPC lookup
+   * @param configChainId - Chain id resolved from config; used as the source
+   * of truth for executor selection and verified against the live RPC
    * @returns Executor implementation matching the connected chain
    * @throws Error if a Tron executor is required but no Tron signer is available
    */
@@ -272,6 +276,27 @@ export class SafeClient {
     configChainId?: number
   ): Promise<IChainExecutor | undefined> {
     const chainId = configChainId ?? (await publicClient.getChainId())
+
+    // When the chain id came from config, a single global --rpc-url override
+    // (or a wrong RPC env var) can still point this network at another chain's
+    // endpoint. That is never survivable: a Safe tx hash read from the wrong
+    // chain's Safe (deterministic deployments share addresses) would be signed
+    // for the wrong domain, so a proven mismatch aborts instead of warning.
+    // An unreachable RPC stays non-fatal — reads fail loudly later anyway.
+    if (configChainId !== undefined) {
+      let liveChainId: number | undefined
+      try {
+        liveChainId = await publicClient.getChainId()
+      } catch {
+        consola.warn(
+          `[${networkName}] Could not verify the RPC's chain id against config — proceeding unverified`
+        )
+      }
+      if (liveChainId !== undefined && liveChainId !== configChainId)
+        throw new Error(
+          `[${networkName}] RPC reports chain id ${liveChainId} but config expects ${configChainId} — check the --rpc-url override / RPC env var`
+        )
+    }
 
     if (isTronTvmChainId(chainId)) {
       // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
@@ -286,22 +311,6 @@ export class SafeClient {
       const { TronChainExecutor } = await import('./executors/tron-executor')
       return new TronChainExecutor(tronWalletClient, networkKey)
     }
-
-    // When the chain id came from config, a single global --rpc-url override can
-    // still point every network at the wrong endpoint. Cross-check the live RPC
-    // in the background and warn on mismatch, so a misconfigured URL is visible
-    // rather than silently selecting an executor for the wrong chain. Fire-and-
-    // forget — a diagnostic that must not add latency to the init path.
-    if (configChainId !== undefined)
-      void publicClient
-        .getChainId()
-        .then((liveChainId) => {
-          if (liveChainId !== configChainId)
-            consola.warn(
-              `[${networkName}] RPC reports chain id ${liveChainId} but config expects ${configChainId} — check the --rpc-url override`
-            )
-        })
-        .catch(() => undefined)
 
     const { EvmChainExecutor } = await import('./executors/evm-executor')
     return new EvmChainExecutor(
@@ -397,14 +406,13 @@ export class SafeClient {
       transport: walletTransport,
     })
 
+    // Read the chain id straight from networks.json — unlike
+    // getViemChainForNetworkName this needs no RPC env var, so the optimization
+    // (and the mismatch check above it) survives an explicit provider URL. An
+    // unknown network yields undefined and falls back to the live RPC lookup.
     let configChainId: number | undefined = chain?.id
-    if (configChainId === undefined && networkName) {
-      try {
-        configChainId = getViemChainForNetworkName(networkName).id
-      } catch {
-        configChainId = undefined
-      }
-    }
+    if (configChainId === undefined && networkName)
+      configChainId = networks[networkName.toLowerCase()]?.chainId
 
     const chainExecutor = await SafeClient.createChainExecutor(
       publicClient,
@@ -1633,6 +1641,15 @@ interface ISafeClientBundle {
 
 const safeClientPool = new Map<string, Promise<ISafeClientBundle>>()
 
+/**
+ * Builds the pool key identifying one Safe client: network + Safe address +
+ * signer identity.
+ * @param network - Network name
+ * @param safeAddress - Normalized Safe address
+ * @param account - Pre-created signer account, when available
+ * @param privateKey - Raw private key; only its derived address enters the key
+ * @returns Pool key string
+ */
 export function safeClientPoolKey(
   network: string,
   safeAddress: Address,
@@ -2326,7 +2343,7 @@ export async function decodeDiamondCut(
   })
 
   // Resolve every selector that neither diamond.json nor the local registry
-  // knows in ONE batched, disk-cached 4byte request up front — instead of one
+  // knows in batched, disk-cached 4byte requests up front — instead of one
   // sequential HTTP round trip per unknown selector inside the display loop.
   const unknownSelectors: string[] = []
   for (const mod of sortedModifications) {

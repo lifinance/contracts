@@ -57,12 +57,17 @@ describe('mapWithConcurrency', () => {
   })
 
   it('treats a NaN limit as a single worker and still fills every result', async () => {
-    const out = await mapWithConcurrency(
-      [1, 2, 3],
-      Number.NaN,
-      async (n) => n * 2
-    )
+    let inFlight = 0
+    let peak = 0
+    const out = await mapWithConcurrency([1, 2, 3], Number.NaN, async (n) => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      inFlight--
+      return n * 2
+    })
     expect(out).toEqual([2, 4, 6])
+    expect(peak).toBe(1)
   })
 
   it('returns an empty array for empty input without invoking the mapper', async () => {

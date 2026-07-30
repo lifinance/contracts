@@ -53,7 +53,8 @@ function loadProductionDeploymentRecords(
   } catch {
     // Transient read/parse faults (e.g. a partially-written cache during a
     // concurrent refresh) must not permanently disable facet-version display —
-    // only the missing-file / invalid-shape paths above memoize null.
+    // only the deterministic paths above (path escape, missing file, invalid
+    // shape) memoize null.
     return null
   }
 }

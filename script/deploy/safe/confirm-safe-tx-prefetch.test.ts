@@ -110,6 +110,68 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
       expect(result.error).toBe('RPC exploded')
   })
 
+  it('take() retries a transiently failed prefetch inline and returns the fresh result', async () => {
+    // Prefetch-time prepare fails (transient RPC blip); the inline retry at
+    // take() succeeds — the caller must see `ready`, not the stale error.
+    const { prepare, calls } = makePrepare(async (params) => {
+      if (calls.length === 1) throw new Error('transient RPC blip')
+      return readyResult(params.network)
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('optimism', DUMMY_PARAMS)
+    const result = await queue.take('optimism', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('ready')
+    expect(calls).toEqual(['optimism', 'optimism'])
+  })
+
+  it('take() retries prefetched read-failed and owner-check-failed results inline', async () => {
+    for (const kind of ['read-failed', 'owner-check-failed'] as const) {
+      const { prepare, calls } = makePrepare(async (params) => {
+        if (calls.length === 1) return { kind, error: 'stale failure' }
+        return readyResult(params.network)
+      })
+      const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+      queue.schedule('base', DUMMY_PARAMS)
+      const result = await queue.take('base', DUMMY_PARAMS)
+
+      expect(result.kind).toBe('ready')
+      expect(calls).toEqual(['base', 'base'])
+    }
+  })
+
+  it('take() surfaces a persistent failure after the inline retry', async () => {
+    const { prepare, calls } = makePrepare(async () => {
+      throw new Error('RPC still down')
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('optimism', DUMMY_PARAMS)
+    const result = await queue.take('optimism', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('prepare-error')
+    if (result.kind === 'prepare-error')
+      expect(result.error).toBe('RPC still down')
+    expect(calls).toEqual(['optimism', 'optimism'])
+  })
+
+  it('take() passes through prefetched not-owner without a retry — ownership is stable', async () => {
+    const { prepare, calls } = makePrepare(async () => ({
+      kind: 'not-owner',
+      signerAddress: '0x0000000000000000000000000000000000000001',
+      owners: [],
+    }))
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    queue.schedule('base', DUMMY_PARAMS)
+    const result = await queue.take('base', DUMMY_PARAMS)
+
+    expect(result.kind).toBe('not-owner')
+    expect(calls).toEqual(['base'])
+  })
+
   it('a direct take() preparation throw surfaces as a prepare-error result', async () => {
     const { prepare } = makePrepare(async () => {
       throw new Error('Mongo exploded')
@@ -179,8 +241,9 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
     expect(calls).toEqual(['mainnet', 'mainnet']) // re-prepared once
   })
 
-  it('take() keeps the prefetched context when the nonce re-read fails', async () => {
+  it('take() re-prepares when the nonce re-read fails — never trusts an unvalidated context', async () => {
     const { prepare, calls } = makePrepare(async (params) => {
+      if (calls.length > 1) return readyResult(params.network, 1n)
       const result = readyResult(params.network, 1n)
       ;(result as { context: IConfirmSafeTxNetworkContext }).context.safe = {
         getNonce: async () => {
@@ -195,7 +258,29 @@ describe('ConfirmSafeTxPrefetchQueue', () => {
     const result = await queue.take('mainnet', DUMMY_PARAMS)
 
     expect(result.kind).toBe('ready')
-    expect(calls).toEqual(['mainnet']) // best effort — no re-prepare
+    expect(calls).toEqual(['mainnet', 'mainnet']) // re-prepared once
+  })
+
+  it('a nonce-advance re-prepare clears the startup reconcile coverage', async () => {
+    // The advance proves another signer executed on this Safe — the re-prepare
+    // must reconcile and refetch even for Safes the startup sweep covered.
+    const seenCoverage: number[] = []
+    const { prepare, calls } = makePrepare(async (params) => {
+      seenCoverage.push(params.startupReconciledKeys.size)
+      if (calls.length === 1) return readyResult(params.network, 1n, [2n])
+      return readyResult(params.network, 2n, [2n])
+    })
+    const queue = new ConfirmSafeTxPrefetchQueue(prepare)
+
+    const params = {
+      ...DUMMY_PARAMS,
+      startupReconciledKeys: new Set(['mainnet:1:0xsafe']),
+    }
+    queue.schedule('mainnet', params)
+    const result = await queue.take('mainnet', params)
+
+    expect(result.kind).toBe('ready')
+    expect(seenCoverage).toEqual([1, 0]) // prefetch saw coverage, re-prepare did not
   })
 
   it('take() does not re-read the nonce on the inline (non-prefetch) path', async () => {

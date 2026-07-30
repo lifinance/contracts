@@ -544,9 +544,10 @@ describe('decodeDiamondCut selector resolution', () => {
   it('resolves all unknown selectors in a single batched 4byte request', async () => {
     const { decodeDiamondCut } = await import('./safe-utils')
     const originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
-    process.env.SELECTOR_SIGNATURE_CACHE_PATH = `${
+    const testCachePath = `${
       process.env.TMPDIR ?? '/tmp'
     }/selector-cache-test-${Date.now()}.json`
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = testCachePath
     const originalFetch = globalThis.fetch
     let fetchCalls = 0
     globalThis.fetch = (async () => {
@@ -589,6 +590,12 @@ describe('decodeDiamondCut selector resolution', () => {
       if (originalCachePath === undefined)
         delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
       else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+      const { unlinkSync } = await import('fs')
+      try {
+        unlinkSync(testCachePath)
+      } catch {
+        // never written — nothing to clean up
+      }
     }
   })
 })

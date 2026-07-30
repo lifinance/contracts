@@ -250,8 +250,7 @@ export class ConfirmSafeTxPrefetchQueue {
   /**
    * Returns the prepared result for a network, waiting on any in-flight
    * prefetch. Logs how long the caller actually waited — with an effective
-   * prefetch this is ~0ms; the delta vs a cold take() is the AC-5 timing
-   * evidence.
+   * prefetch this is ~0ms.
    *
    * A prefetched `ready` result is re-validated against the Safe's live nonce
    * before it is returned: the prefetch may have been computed minutes ago
@@ -276,7 +275,7 @@ export class ConfirmSafeTxPrefetchQueue {
           Date.now() - startedAt
         }ms wait`
       )
-      return this.revalidateNonce(network, params, result)
+      return this.revalidatePrefetched(network, params, result)
     }
 
     const result = await this.runPrepare(network, params)
@@ -289,10 +288,44 @@ export class ConfirmSafeTxPrefetchQueue {
   }
 
   /**
+   * Re-checks a prefetched result before it is handed to the caller, so a
+   * prefetch is semantics-preserving vs the sequential (no-prefetch) path.
+   * Failure kinds are re-prepared inline: the cached error may be minutes old
+   * and transient (an RPC blip while the operator reviewed the previous
+   * network), and without a prefetch the prepare would have run fresh right
+   * now — a fresh failure still surfaces as-is. `ready` contexts go through
+   * the nonce re-validation instead.
+   */
+  private async revalidatePrefetched(
+    network: string,
+    params: Omit<IPrepareConfirmSafeTxNetworkParams, 'network'>,
+    result: PrepareConfirmSafeTxNetworkResult
+  ): Promise<PrepareConfirmSafeTxNetworkResult> {
+    if (
+      result.kind === 'prepare-error' ||
+      result.kind === 'read-failed' ||
+      result.kind === 'owner-check-failed'
+    ) {
+      consola.warn(
+        `[${network}] Prefetched preparation had failed (${result.error}) — retrying inline`
+      )
+      return this.runPrepare(network, params)
+    }
+    return this.revalidateNonce(network, params, result)
+  }
+
+  /**
    * Discards a prefetched `ready` context whose on-chain nonce advanced since
-   * the prefetch ran and re-prepares it inline. A failed nonce read keeps the
-   * prefetched context (best effort — the interactive path re-derives nonce
-   * status per tx anyway).
+   * the prefetch ran and re-prepares it inline. A failed nonce re-read also
+   * re-prepares: proceeding on a context that just failed validation would be
+   * a signing/execution decision on possibly-stale state — the same reason an
+   * initial threshold/nonce read failure is a fatal `read-failed` — and the
+   * sequential (no-prefetch) path would have surfaced exactly that failure.
+   *
+   * The nonce-advance re-prepare clears the startup reconcile coverage for
+   * the run: the advance means another signer executed on this Safe, so the
+   * `submitted`/`pending` rows the startup sweep resolved are exactly what
+   * must be reconciled and refetched again.
    */
   private async revalidateNonce(
     network: string,
@@ -303,8 +336,12 @@ export class ConfirmSafeTxPrefetchQueue {
     let freshNonce: bigint
     try {
       freshNonce = await result.context.safe.getNonce()
-    } catch {
-      return result
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(
+        `[${network}] Nonce re-validation read failed (${errorMsg}) — re-preparing instead of trusting the prefetched context`
+      )
+      return this.runPrepare(network, params)
     }
     if (freshNonce === result.context.onChainNonce) return result
 
@@ -312,6 +349,9 @@ export class ConfirmSafeTxPrefetchQueue {
       `[${network}] On-chain nonce advanced ${result.context.onChainNonce} → ` +
         `${freshNonce} since prefetch — re-preparing to avoid stale state`
     )
-    return this.runPrepare(network, params)
+    return this.runPrepare(network, {
+      ...params,
+      startupReconciledKeys: new Set<string>(),
+    })
   }
 }

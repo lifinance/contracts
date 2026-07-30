@@ -76,8 +76,9 @@ const globalTimeoutExecutions: Array<{
 }> = []
 
 // `reconcileCoverageKey` values for each Safe whose `submitted` rows were
-// resolved by the startup reconcile sweep. Used to skip the redundant in-loop
-// reconcile inside processTxs — per Safe, not per network.
+// resolved by the startup reconcile sweep. Used to skip the redundant
+// per-network reconcile inside prepareConfirmSafeTxNetwork — per Safe, not
+// per network.
 const startupReconciledKeys = new Set<string>()
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
@@ -87,14 +88,9 @@ const startupReconciledKeys = new Set<string>()
 
 /**
  * Main function to process Safe transactions for a given network
- * @param network - Network name
- * @param privateKey - Private key of the signer (optional if useLedger is true)
  * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
- * @param pendingTxs - Pending transactions to process
  * @param pendingTransactions - MongoDB collection
  * @param rpcUrl - Optional RPC URL override
- * @param useLedger - Whether to use a Ledger device for signing
- * @param ledgerOptions - Options for Ledger connection
  * @param prepared - Network context prepared (or prefetched) before the interactive loop
  */
 const processTxs = async (
@@ -792,20 +788,23 @@ const main = defineCommand({
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
 
-      // Refresh the deployment-log cache concurrently with the reconcile sweep
-      // and ownership filtering below. It depends only on MONGODB_URI, so
-      // starting it here overlaps the on-chain setup steps instead of following
-      // them; the first network's prepare joins on it at the Promise.all below.
+      // Refresh .cache/deployments_production.json from MongoDB so every
+      // signer (not just the deployer's machine) sees up-to-date facet
+      // versions in the signing UI — unconditionally, since a facet deployed
+      // minutes ago must show up even when the local cache is younger than
+      // its TTL. Runs concurrently with the reconcile sweep and ownership
+      // filtering below (it depends only on MONGODB_URI); the flow joins on
+      // it at the Promise.all before the first network's prefetch starts.
       const deploymentCacheWarm = process.env.MONGODB_URI
         ? createDefaultCache({
             mongoUri: process.env.MONGODB_URI,
             databaseName: 'contract-deployments',
             batchSize: 100,
           })
-            .get('production')
+            .refresh('production')
             .then(() => undefined)
             .catch((error) => {
-              consola.debug(`Deployment cache load skipped: ${error}`)
+              consola.debug(`Deployment cache refresh skipped: ${error}`)
             })
         : Promise.resolve()
 
