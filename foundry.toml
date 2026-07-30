@@ -21,10 +21,15 @@ cache = true
 runs = 256
 
 [profile.ci]
-# Inherits [profile.default]; only fuzz runs differ for faster CI.
+# Inherits [profile.default]; only fuzz settings differ for faster CI.
 
 [profile.ci.fuzz]
 runs = 32
+# Pinned so a fuzz run over a forked chain reads the same state on every run and can be
+# served from ~/.foundry/cache/rpc. Unseeded, each `--rerun` draws fresh inputs that miss
+# the cache, which makes a fork-RPC timeout unretryable. The local default profile stays
+# unseeded, so a wider input space is still explored outside CI.
+seed = '0x1'
 
 # Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
 # Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that

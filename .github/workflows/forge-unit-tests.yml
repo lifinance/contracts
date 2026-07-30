@@ -89,9 +89,9 @@ jobs:
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
         with:
-          # Each shard runs `forge test --match-path <subset>` and so compiles a
-          # different partial out/; key the build cache per shard so they do not
-          # poison one another's cache.
+          # Each shard runs `forge test --match-path <subset>`, so it compiles a
+          # different partial out/ and forks a different set of chains; key the
+          # build and RPC caches per shard so they do not poison one another's.
           cache-key-suffix: ${{ matrix.shard }}
 
       - name: Install forge Dependencies
