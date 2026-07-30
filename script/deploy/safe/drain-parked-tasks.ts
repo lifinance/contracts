@@ -369,7 +369,16 @@ export async function proposeWithDrain(
       }
       return result
     } finally {
-      await queue.close()
+      // Best-effort: a failed connection close must not surface as a primary-proposal
+      // failure once the proposal is already signed and stored.
+      try {
+        await queue.close()
+      } catch (error) {
+        consola.warn(
+          'parked-task drain: queue close failed (non-fatal):',
+          error
+        )
+      }
     }
   } finally {
     draining = false

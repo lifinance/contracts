@@ -510,8 +510,8 @@ keeps emergency / break-glass proposals a single clean upgrade with nothing fold
 **Accepted tradeoff — execution-time atomicity (TOCTOU).** Because the removals share the
 upgrade's `scheduleBatch`, on-chain execution is atomic: if a folded facet is removed by
 another path during the timelock delay (between `prepareDrainNetwork`'s loupe read and
-execution), its `diamondCut` Remove reverts (`CannotRemoveFunctionThatDoesNotExist`) **and
-the whole batch — including the primary rollout cut — reverts.** The prepare-time partition
+execution), its `diamondCut` Remove reverts (`FunctionDoesNotExist`) **and the whole
+batch — including the primary rollout cut — reverts.** The prepare-time partition
 (supersede-if-gone / cancel-if-protected / keep-if-pruned) shrinks but cannot close this
 window, since a `scheduleBatch` is immutable once scheduled. The exposure is low in
 practice — parked removals target already-deprecated facets that nothing else is racing to
