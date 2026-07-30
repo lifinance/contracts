@@ -1,5 +1,12 @@
-import { existsSync, readFileSync } from 'fs'
-import { resolve } from 'path'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'fs'
+import { tmpdir } from 'os'
+import { join, resolve } from 'path'
 
 import {
   describe,
@@ -412,6 +419,107 @@ describe('parseUpdateScriptExcludes', () => {
       functionNames: ['initHop'],
       literalSelectors: [],
     })
+  })
+})
+
+describe('loadFacetRegisteredSelectors zksync-variant handling', () => {
+  // A synthetic repo root: the loader takes the root as a parameter, so the zksync divergence
+  // branch is exercised without depending on which real scripts happen to agree today.
+  function makeRepo(canonical: string | null, zksync: string | null): string {
+    const root = mkdtempSync(join(tmpdir(), 'coupling-zksync-'))
+    mkdirSync(join(root, 'out', 'FooFacet.sol'), { recursive: true })
+    writeFileSync(
+      join(root, 'out', 'FooFacet.sol', 'FooFacet.json'),
+      JSON.stringify({
+        methodIdentifiers: {
+          'SPOKEPOOL()': 'f6503992',
+          'bridge()': 'aaaaaaaa',
+          'swap()': 'bbbbbbbb',
+        },
+      })
+    )
+    if (canonical !== null) {
+      mkdirSync(join(root, 'script', 'deploy', 'facets'), { recursive: true })
+      writeFileSync(
+        join(root, 'script', 'deploy', 'facets', 'UpdateFooFacet.s.sol'),
+        canonical
+      )
+    }
+    if (zksync !== null) {
+      mkdirSync(join(root, 'script', 'deploy', 'zksync'), { recursive: true })
+      writeFileSync(
+        join(root, 'script', 'deploy', 'zksync', 'UpdateFooFacet.zksync.s.sol'),
+        zksync
+      )
+    }
+    return root
+  }
+
+  const EXCLUDE_SPOKEPOOL = `
+      contract DeployScript {
+        function getExcludes() internal view override returns (bytes4[] memory) {
+          bytes4[] memory excludes = new bytes4[](1);
+          excludes[0] = foo.SPOKEPOOL.selector;
+          return excludes;
+        }
+      }`
+  const EXCLUDE_SPOKEPOOL_AND_SWAP = `
+      contract DeployScript {
+        function getExcludes() internal view override returns (bytes4[] memory) {
+          bytes4[] memory excludes = new bytes4[](2);
+          excludes[0] = foo.SPOKEPOOL.selector;
+          excludes[1] = foo.swap.selector;
+          return excludes;
+        }
+      }`
+
+  it('applies the excludes when canonical and zksync agree', () => {
+    const root = makeRepo(EXCLUDE_SPOKEPOOL, EXCLUDE_SPOKEPOOL)
+
+    expect(loadFacetRegisteredSelectors('FooFacet', root)?.sort()).toEqual([
+      '0xaaaaaaaa',
+      '0xbbbbbbbb',
+    ])
+  })
+
+  it('degrades to unresolved when the zksync excludes diverge from the canonical ones', () => {
+    // Two different registration sets exist, so no single network-agnostic answer does.
+    const root = makeRepo(EXCLUDE_SPOKEPOOL, EXCLUDE_SPOKEPOOL_AND_SWAP)
+
+    expect(loadFacetRegisteredSelectors('FooFacet', root)).toBeNull()
+  })
+
+  it('degrades to unresolved when the zksync script exists but cannot be parsed', () => {
+    const unparseable = `
+      contract DeployScript {
+        function getExcludes() internal view override returns (bytes4[] memory) {
+          bytes4[] memory excludes = new bytes4[](1);
+          excludes[0] = computeSelector("SPOKEPOOL()");
+          return excludes;
+        }
+      }`
+    const root = makeRepo(EXCLUDE_SPOKEPOOL, unparseable)
+
+    expect(loadFacetRegisteredSelectors('FooFacet', root)).toBeNull()
+  })
+
+  it('uses the zksync excludes when only a zksync script exists', () => {
+    const root = makeRepo(null, EXCLUDE_SPOKEPOOL)
+
+    expect(loadFacetRegisteredSelectors('FooFacet', root)?.sort()).toEqual([
+      '0xaaaaaaaa',
+      '0xbbbbbbbb',
+    ])
+  })
+
+  it('returns the full artifact set when neither script exists', () => {
+    const root = makeRepo(null, null)
+
+    expect(loadFacetRegisteredSelectors('FooFacet', root)?.sort()).toEqual([
+      '0xaaaaaaaa',
+      '0xbbbbbbbb',
+      '0xf6503992',
+    ])
   })
 })
 

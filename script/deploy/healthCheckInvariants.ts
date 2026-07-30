@@ -972,12 +972,26 @@ const PERIPHERY_REGISTRY_ABI = parseAbi([
 ])
 
 /**
- * Read one PeripheryRegistry entry through the run-wide cache on `ctx`. Registry state does not
- * change during a health-check run, but four invariants probe overlapping name sets — uncached
- * that is 3-4x duplicate RPC reads per name per network, and the duplicates feed the rate limits
- * that degrade other checks. The promise is cached before it settles so concurrent invariants
- * share one in-flight read; a failed read is evicted, so retries (and the re-verify pass) hit the
- * RPC fresh rather than replaying the failure.
+ * `getAddress` that returns null for a malformed value instead of throwing — deploy-log entries
+ * are hand-editable, and one bad entry must never abort a whole per-contract check loop.
+ */
+function tryGetAddress(value: unknown): Address | null {
+  try {
+    return getAddress(String(value) as Address)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read one PeripheryRegistry entry through the run-wide cache on `ctx`. On-chain registry state
+ * does not change during a health-check run, but four invariants probe overlapping name sets —
+ * uncached that is 3-4x duplicate RPC reads per name per network, and the duplicates feed the
+ * rate limits that degrade other checks. The promise is cached before it settles so concurrent
+ * invariants share one in-flight read; a failed read is evicted, so retries hit the RPC fresh.
+ * One caveat: an individual RPC RESPONSE can still be wrong (a lagging load-balanced node), and
+ * a wrong success is sticky here — which is why `executeInvariant` gives its re-verify pass a
+ * fresh private cache instead of trusting this one.
  */
 function readPeripheryRegistryCached(
   name: string,
@@ -995,7 +1009,10 @@ function readPeripheryRegistryCached(
     .read.getPeripheryContract([name])
     .then((value) => getAddress(value as Address))
     .catch((error: unknown) => {
-      ctx.peripheryRegistryCache.delete(name)
+      // Evict only our own entry: the key may have been re-populated with a fresh healthy
+      // promise in the meantime, and a stale rejection must not tear that one down.
+      if (ctx.peripheryRegistryCache.get(name) === pending)
+        ctx.peripheryRegistryCache.delete(name)
       throw error
     })
   ctx.peripheryRegistryCache.set(name, pending)
@@ -1031,18 +1048,14 @@ async function resolvePeripheryAddress(
   }
   const logged = ctx.deployedContracts[name]
   if (!logged) return undefined
-  try {
-    return getAddress(logged as Address)
-  } catch {
-    // A malformed deploy-log entry must not throw past the per-receiver guards of the callers'
-    // loops and abort the receivers not yet checked.
+  const checksummed = tryGetAddress(logged)
+  if (!checksummed)
     ctx.logWarn(
       `Deploy log entry for ${name} is not a valid address (${String(
         logged
       )}) - skipping`
     )
-    return undefined
-  }
+  return checksummed ?? undefined
 }
 
 /**
@@ -1461,15 +1474,22 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         if (onChain === ZERO_ADDRESS) return
 
         const logged = ctx.deployedContracts[name]
-        if (!logged)
+        if (!logged) {
           ctx.logError(
             `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
           )
-        else if (getAddress(logged as Address) !== onChain)
+          return
+        }
+        const loggedAddress = tryGetAddress(logged)
+        if (!loggedAddress)
           ctx.logError(
-            `${name}: deploy log has ${getAddress(
-              logged as Address
-            )} but the on-chain registry has ${onChain}`
+            `${name}: deploy log entry ${String(
+              logged
+            )} is not a valid address (on chain: ${onChain})`
+          )
+        else if (loggedAddress !== onChain)
+          ctx.logError(
+            `${name}: deploy log has ${loggedAddress} but the on-chain registry has ${onChain}`
           )
         else inSync++
       })
@@ -1551,9 +1571,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // pass. Skip with a warning instead - facets-registered already warned about the failed
       // facets() read that left this list empty.
       if (ctx.onChainFacets.length === 0) {
-        ctx.logWarn(
-          'On-chain facet list unavailable - immutable-binding checks skipped'
-        )
+        if (checks.length > 0)
+          ctx.logWarn(
+            'On-chain facet list unavailable - immutable-binding checks skipped'
+          )
         return
       }
 
@@ -1731,11 +1752,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         })
 
         for (const periphery of contractsToCheck) {
-          if (unresolved.has(periphery)) continue
+          // Deploy-log presence is decidable without any registry read, so judge it BEFORE the
+          // unresolved skip - otherwise an unrelated flaky read downgrades a real "not deployed"
+          // error to a warning and the gate goes green on it.
           const peripheryAddress = ctx.deployedContracts[periphery]
-          if (!peripheryAddress)
+          if (!peripheryAddress) {
             ctx.logError(`Periphery contract ${periphery} not deployed `)
-          else if (!addresses.includes(getAddress(peripheryAddress))) {
+            continue
+          }
+          if (unresolved.has(periphery)) continue
+          const loggedAddress = tryGetAddress(peripheryAddress)
+          if (!loggedAddress) {
+            ctx.logWarn(
+              `Deploy log entry for ${periphery} is not a valid address (${String(
+                peripheryAddress
+              )}) - skipping`
+            )
+            continue
+          }
+          if (!addresses.includes(loggedAddress)) {
             if (periphery === 'LiFiTimelockController') continue
             ctx.logError(
               `Periphery contract ${periphery} not registered in Diamond`
@@ -2477,9 +2512,10 @@ async function executeInvariant(
     errors.length = 0
     warnings.length = 0
     // A lagging RPC node can return stale registry state as a SUCCESS, which the cache would
-    // replay here and defeat the whole point of re-verifying. Drop it so this pass reads fresh;
-    // invariants still running only pay an extra read.
-    baseCtx.peripheryRegistryCache.clear()
+    // replay here and defeat the whole point of re-verifying. Give ONLY this pass a fresh
+    // private cache: it re-reads everything it touches, while sibling invariants still running
+    // concurrently keep their shared entries untouched.
+    localCtx.peripheryRegistryCache = new Map()
     await runOnce()
     if (errors.length === 0)
       consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)

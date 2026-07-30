@@ -1279,10 +1279,99 @@ describe('periphery registry read cache', () => {
   })
 })
 
+describe('re-verify uses a private cache without disturbing concurrent invariants', () => {
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  it('leaves a sibling invariant cache entry intact while it re-verifies', async () => {
+    // The failing invariant's re-verify must not evict entries a concurrently running invariant
+    // already holds: clearing the SHARED map would make siblings re-read during the very RPC
+    // degradation that triggered the retry.
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async () => ZERO,
+      },
+    } as unknown as IHealthCheckContext)
+
+    const sharedCache = ctx.peripheryRegistryCache
+    const sentinel = Promise.resolve(EXECUTOR as `0x${string}`)
+    sharedCache.set('SentinelContract', sentinel)
+
+    await runHealthCheckInvariants(ctx, [
+      inv('always-fails', async (c) => c.logError('persistent drift')),
+    ])
+
+    expect(sharedCache.get('SentinelContract')).toBe(sentinel)
+  })
+})
+
 describe('periphery-registered survives a single failing registry read', () => {
   const EXECUTOR = '0x4444444444444444444444444444444444444444'
-  const FEE_COLLECTOR = '0x6666666666666666666666666666666666666666'
+  const TOKEN_WRAPPER = '0x6666666666666666666666666666666666666666'
   const DIAMOND = '0x3333333333333333333333333333333333333333'
+
+  /** Executor registered + logged; TokenWrapper's own registry read fails. */
+  function makeCtxWith(
+    deployedContracts: Record<string, string>
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      targetState: {
+        testnet1: {
+          production: { LiFiDiamond: { Executor: {}, TokenWrapper: {} } },
+        },
+      },
+      globalConfig: { whitelistPeripheryFunctions: {} },
+      deployedContracts,
+      publicClient: {
+        readContract: async ({ args }: { args?: [string] }) => {
+          if (args?.[0] === 'TokenWrapper') throw new Error('rpc boom')
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'periphery-registered'
+  ) as IHealthCheckInvariant
+
+  it('still errors on a not-deployed contract whose registry read failed', async () => {
+    // "Not deployed" is decidable from the deploy log alone, so a flaky read must not mask it.
+    const ctx = makeCtxWith({ Executor: EXECUTOR })
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.errors.some(
+        (e) => e.includes('TokenWrapper') && e.includes('not deployed')
+      )
+    ).toBe(true)
+  })
+
+  it('warns instead of throwing on a malformed deploy-log address', async () => {
+    // Malformed entry on the name whose read SUCCEEDS, so the code reaches the address parse
+    // rather than skipping it as unresolved.
+    const ctx = makeCtxWith({
+      Executor: '0x12NOT_AN_ADDRESS',
+      TokenWrapper: TOKEN_WRAPPER,
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('Executor') && w.includes('not a valid address')
+      )
+    ).toBe(true)
+  })
 
   it('warns on the failing name, judges the rest, and never flags the failed one unregistered', async () => {
     const ctx = makeCtx()
@@ -1290,15 +1379,15 @@ describe('periphery-registered survives a single failing registry read', () => {
       diamondAddress: DIAMOND,
       targetState: {
         testnet1: {
-          production: { LiFiDiamond: { Executor: {}, FeeCollector: {} } },
+          production: { LiFiDiamond: { Executor: {}, TokenWrapper: {} } },
         },
       },
       globalConfig: { whitelistPeripheryFunctions: {} },
-      deployedContracts: { Executor: EXECUTOR, FeeCollector: FEE_COLLECTOR },
+      deployedContracts: { Executor: EXECUTOR, TokenWrapper: TOKEN_WRAPPER },
       publicClient: {
         readContract: async ({ args }: { args?: [string] }) => {
           if (args?.[0] === 'Executor') throw new Error('rpc boom')
-          return FEE_COLLECTOR
+          return TOKEN_WRAPPER
         },
       },
     } as unknown as IHealthCheckContext)
