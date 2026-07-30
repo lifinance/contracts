@@ -37,6 +37,8 @@ import {
 import targetStateJson from '../_targetState.json'
 import { getCoreFacets, getCorePeriphery } from '../shared/globalContractLists'
 
+import { ABI_DIAMOND_CUT } from './safe-decode-utils'
+
 // ES-module `__dirname`, so source-tree paths resolve from this file's location
 // rather than `process.cwd()`. A CWD-relative `src` lookup would silently return
 // an empty set when run from another directory, disabling the drift guard.
@@ -754,10 +756,6 @@ export async function revalidateRemovalsOnChain(
 /** EIP-2535 FacetCutAction.Remove */
 const FACET_CUT_REMOVE = 2
 
-const DIAMOND_CUT_ABI = parseAbi([
-  'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
-])
-
 /** One Remove facet-cut extracted from a `diamondCut` payload (address is always 0 on-wire). */
 export interface IRemoveFacetCut {
   selectors: `0x${string}`[]
@@ -778,18 +776,24 @@ export function extractRemoveFacetCuts(
   for (const payload of payloads) {
     let decoded: ReturnType<typeof decodeFunctionData>
     try {
-      decoded = decodeFunctionData({ abi: DIAMOND_CUT_ABI, data: payload })
+      decoded = decodeFunctionData({ abi: ABI_DIAMOND_CUT, data: payload })
     } catch {
       continue
     }
     if (decoded.functionName !== 'diamondCut' || !decoded.args) continue
-    const facetCuts = decoded.args[0] as readonly {
-      action: number | bigint
-      functionSelectors: readonly `0x${string}`[]
-    }[]
-    for (const cut of facetCuts)
-      if (Number(cut.action) === FACET_CUT_REMOVE)
-        cuts.push({ selectors: [...cut.functionSelectors] })
+    // ABI_DIAMOND_CUT uses positional tuple components; viem yields
+    // [facetAddress, action, functionSelectors][] (not named fields).
+    const facetCuts = decoded.args[0] as readonly (readonly [
+      unknown,
+      number | bigint,
+      readonly `0x${string}`[]
+    ])[]
+    for (const cut of facetCuts) {
+      const action = cut[1]
+      const selectors = cut[2]
+      if (Number(action) === FACET_CUT_REMOVE)
+        cuts.push({ selectors: [...selectors] })
+    }
   }
   return cuts
 }

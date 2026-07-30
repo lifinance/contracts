@@ -530,7 +530,8 @@ export async function formatTimelockScheduleBatch(
 }
 
 // Known ABIs for reliable decoding of common Safe/timelock calls
-const ABI_DIAMOND_CUT = parseAbi([
+/** Shared `diamondCut` ABI — import from here; do not re-`parseAbi` the same signature elsewhere. */
+export const ABI_DIAMOND_CUT = parseAbi([
   'function diamondCut((address,uint8,bytes4[])[],address,bytes)',
 ])
 const ABI_SCHEDULE_BATCH = parseAbi([
