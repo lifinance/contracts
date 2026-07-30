@@ -98,8 +98,16 @@ export interface INetwork {
    * Extra forge script flags appended verbatim to the deploy command in
    * script/deploy/deploySingleContract.sh (e.g. tempo's "--gas-limit 40000000").
    * If the flags include --skip-simulation, simulation is skipped regardless of env-based flags.
+   * Only applied on the standard deploy path; the zkEVM path builds its own command and ignores
+   * this field.
    */
   customDeployFlags?: string
+  /**
+   * Fixed gas price in wei for deploys on chains where the RPC's suggested price is unusable.
+   * script/deploy/deploySingleContract.sh passes it via the ETH_GAS_PRICE env var, since forge's
+   * --gas-price flag only affects simulation and not the broadcast.
+   */
+  gasPrice?: number
   /**
    * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
    * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
