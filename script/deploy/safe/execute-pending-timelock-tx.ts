@@ -33,7 +33,15 @@ import {
 } from '../../utils/slack-notifier'
 
 import { confirmTimelockExecution } from './confirm-timelock-execution'
+import {
+  buildRemovalSnapshotFromPayloads,
+  revalidateRemovalsOnChain,
+} from './diamondRemovalDiff'
 import { createChainCaller } from './executors/create-chain-caller'
+import {
+  getParkedTasksCollection,
+  listParkedTasksBySafeTxHash,
+} from './parked-tasks'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import {
   byOperationId,
@@ -1090,6 +1098,194 @@ async function getPendingOperations(
   }
 }
 
+/**
+ * Marks a timelock queue row `failed` so the cron does not retry a batch that
+ * failed pre-execute re-validation (stale folded removals). Best-effort: a Mongo
+ * error is logged and does not change the caller's abort decision.
+ */
+async function markTimelockOpFailed(
+  networkName: string,
+  operationId: Hex,
+  failureReason: string,
+  networkPrefix: string
+): Promise<void> {
+  try {
+    const { client, timelockQueue } = await getTimelockQueueCollection()
+    try {
+      await timelockQueue.updateOne(byOperationId(networkName, operationId), {
+        $set: {
+          status: 'failed',
+          failureReason,
+          updatedAt: new Date(),
+        },
+      })
+      consola.info(
+        `${networkPrefix} Marked queue row ${operationId} as failed (${failureReason})`
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    consola.warn(
+      `${networkPrefix} Failed to mark timelock queue row failed: ${error}`
+    )
+  }
+}
+
+/**
+ * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
+ * snapshot from Remove payloads + parked tasks (doomed addresses), re-reads the
+ * loupe, and aborts the whole batch if any selector is stale. Legacy Remove cuts
+ * with no parked rows (e.g. cleanUpProdDiamond) cannot recover doomed addresses
+ * from calldata — those warn and proceed.
+ *
+ * @returns `'ok'` to continue execution, `'failed'` when the op must not run.
+ */
+async function revalidateFoldedRemovalsOrAbort(
+  operation: ITimelockOperation,
+  networkName: string,
+  networkPrefix: string,
+  isDryRun: boolean,
+  notifyFailure: (error: unknown) => Promise<void>
+): Promise<'ok' | 'failed'> {
+  if (!operation.safeTxHash) return 'ok'
+
+  let parked: Awaited<ReturnType<typeof listParkedTasksBySafeTxHash>>
+  try {
+    const { client, parkedTasks } = await getParkedTasksCollection()
+    try {
+      parked = await listParkedTasksBySafeTxHash(
+        parkedTasks,
+        operation.safeTxHash
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    // Queue unreachable — refuse Remove cuts rather than execute them blind.
+    // Ops with no Remove cuts are unaffected (no parked snapshot to load).
+    const removeHint = buildRemovalSnapshotFromPayloads(operation.payloads, [])
+    if (removeHint.kind === 'none') return 'ok'
+    consola.warn(
+      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute:`,
+      error
+    )
+    const reason = 'parked-tasks queue unreachable for Remove revalidation'
+    if (!isDryRun)
+      await markTimelockOpFailed(
+        networkName,
+        operation.id,
+        reason,
+        networkPrefix
+      )
+    await notifyFailure(new Error(reason))
+    return 'failed'
+  }
+
+  const built = buildRemovalSnapshotFromPayloads(
+    operation.payloads,
+    parked.map((t) => ({
+      facetName: t.facetName,
+      facetAddress: t.facetAddress,
+    }))
+  )
+
+  if (built.kind === 'none') return 'ok'
+
+  if (built.kind === 'unvalidated') {
+    consola.warn(
+      `${networkPrefix} ⚠️ Timelock batch has ${built.removeCutCount} Remove diamondCut(s) but no parked tasks for safeTxHash ${operation.safeTxHash} — skipping pre-execute revalidation (legacy cleanup path; doomed addresses not recoverable from calldata)`
+    )
+    return 'ok'
+  }
+
+  if (built.kind === 'mismatch') {
+    consola.error(
+      `${networkPrefix} ❌ Folded-removal snapshot mismatch — aborting whole batch: ${built.reason}`
+    )
+    if (!isDryRun)
+      await markTimelockOpFailed(
+        networkName,
+        operation.id,
+        `folded-removal snapshot mismatch: ${built.reason}`,
+        networkPrefix
+      )
+    await notifyFailure(
+      new Error(`folded-removal snapshot mismatch: ${built.reason}`)
+    )
+    return 'failed'
+  }
+
+  const diamondAddress = parked[0]?.diamondAddress
+  if (!diamondAddress) {
+    consola.error(
+      `${networkPrefix} ❌ Parked tasks missing diamondAddress — aborting whole batch`
+    )
+    if (!isDryRun)
+      await markTimelockOpFailed(
+        networkName,
+        operation.id,
+        'parked tasks missing diamondAddress',
+        networkPrefix
+      )
+    await notifyFailure(new Error('parked tasks missing diamondAddress'))
+    return 'failed'
+  }
+
+  let stale: Awaited<ReturnType<typeof revalidateRemovalsOnChain>>['stale']
+  try {
+    ;({ stale } = await revalidateRemovalsOnChain(
+      networkName,
+      diamondAddress,
+      built.snapshot
+    ))
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} ❌ Pre-execute removal revalidation failed — aborting whole batch:`,
+      error
+    )
+    if (!isDryRun)
+      await markTimelockOpFailed(
+        networkName,
+        operation.id,
+        `removal revalidation error: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        networkPrefix
+      )
+    await notifyFailure(error)
+    return 'failed'
+  }
+
+  if (stale.length === 0) {
+    consola.info(
+      `${networkPrefix} ✅ Pre-execute removal revalidation OK (${built.snapshot.length} folded facet(s))`
+    )
+    return 'ok'
+  }
+
+  const detail = stale
+    .map(
+      (s) =>
+        `${s.facet}:${s.selector} (${s.reason}${
+          s.currentAddress ? `→${s.currentAddress}` : ''
+        })`
+    )
+    .join('; ')
+  consola.error(
+    `${networkPrefix} ❌ Stale folded removals — aborting whole batch (primary cut included). Cancel the timelock op and re-propose after a fresh loupe drain. Stale: ${detail}`
+  )
+  if (!isDryRun)
+    await markTimelockOpFailed(
+      networkName,
+      operation.id,
+      `stale folded removals: ${detail}`,
+      networkPrefix
+    )
+  await notifyFailure(new Error(`stale folded removals: ${detail}`))
+  return 'failed'
+}
+
 async function executeOperation(
   chainCaller: IChainCaller,
   publicClient: PublicClient,
@@ -1178,6 +1374,20 @@ async function executeOperation(
     }
 
     // If action === 'Execute', continue with execution below
+  }
+
+  // Pre-execute re-validation for folded parked removals (EXSC-721 / #2047).
+  // Under the fold a stale Remove would either silently delete a live selector
+  // (re-pointed) or revert the whole batch (already-gone) — refuse either way.
+  if (networkName) {
+    const guard = await revalidateFoldedRemovalsOrAbort(
+      operation,
+      networkName,
+      networkPrefix,
+      isDryRun,
+      notifyFailure
+    )
+    if (guard === 'failed') return 'failed'
   }
 
   try {

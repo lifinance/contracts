@@ -356,6 +356,25 @@ export async function listParkedTasks(
 }
 
 /**
+ * Lists parked tasks linked to a Safe proposal via {@link setSafeTxHash}.
+ * Sorted by `proposedAt` ascending so order matches the drain's claim/append
+ * order (folded Remove cuts are the trailing N payloads of the timelock batch).
+ *
+ * @param parkedTasks - The queue collection.
+ * @param safeTxHash - The primary proposal's Safe transaction hash.
+ * @returns Matching tasks (may be empty when the proposal had no folded removals).
+ */
+export async function listParkedTasksBySafeTxHash(
+  parkedTasks: Collection<IParkedTask>,
+  safeTxHash: string
+): Promise<WithId<IParkedTask>[]> {
+  return parkedTasks
+    .find({ safeTxHash: { $eq: safeTxHash } })
+    .sort({ proposedAt: 1 })
+    .toArray()
+}
+
+/**
  * Atomically transitions the single task matching `taskKey` whose current status
  * is in `allowedFrom`, applying `set` (and optionally unsetting `unset` fields).
  * Returns the updated document, or `null` if no task was in an allowed state —

@@ -19,7 +19,14 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
-import { createPublicClient, getAddress, http, parseAbi } from 'viem'
+import {
+  createPublicClient,
+  decodeFunctionData,
+  getAddress,
+  http,
+  parseAbi,
+  type Hex,
+} from 'viem'
 
 import type { EnvironmentEnum, SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
@@ -683,9 +690,9 @@ export interface IRevalidatedRemovals {
  * revert outright if a selector was already removed.
  *
  * This pure diff keeps only selectors that STILL route to the address they were
- * snapshotted at, and reports the rest as stale. The drain/execute consumer MUST
- * call {@link revalidateRemovalsOnChain} immediately before executing a queued
- * removal and abort (or re-propose from the filtered set) if anything is stale.
+ * snapshotted at, and reports the rest as stale. Wired into
+ * `execute-pending-timelock-tx` / `executeOperation`: under the fold any stale
+ * selector aborts the **entire** timelock batch (primary cut + removals).
  */
 export function filterRePointedRemovals(
   snapshot: IFacetRemoval[],
@@ -727,9 +734,9 @@ export function filterRePointedRemovals(
 
 /**
  * Re-reads the diamond's on-chain loupe and re-validates a removal snapshot via
- * {@link filterRePointedRemovals}. This is the pre-execute guard the deferred
- * drain consumer calls right before turning a parked/queued removal into (or
- * executing) its timelock op, closing the propose→execute race.
+ * {@link filterRePointedRemovals}. Called by `execute-pending-timelock-tx`
+ * immediately before `executeBatch` when the op carries folded parked removals
+ * (see {@link buildRemovalSnapshotFromPayloads}), closing the propose→execute race.
  *
  * @param io - Injectable I/O overrides for testing; defaults hit the real chain.
  */
@@ -742,4 +749,107 @@ export async function revalidateRemovalsOnChain(
   const getOnChainFacets = io.getOnChainFacets ?? fetchOnChainFacets
   const currentFacets = await getOnChainFacets(diamondAddress, network)
   return filterRePointedRemovals(snapshot, currentFacets)
+}
+
+/** EIP-2535 FacetCutAction.Remove */
+const FACET_CUT_REMOVE = 2
+
+const DIAMOND_CUT_ABI = parseAbi([
+  'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
+])
+
+/** One Remove facet-cut extracted from a `diamondCut` payload (address is always 0 on-wire). */
+export interface IRemoveFacetCut {
+  selectors: `0x${string}`[]
+}
+
+/**
+ * Walks timelock-batch payloads and returns every FacetCut with action=Remove,
+ * in appearance order (primary cuts first; drain-folded removals are the trailing
+ * suffix — see {@link buildRemovalSnapshotFromPayloads}).
+ */
+export function extractRemoveFacetCuts(
+  payloads: readonly Hex[]
+): IRemoveFacetCut[] {
+  const cuts: IRemoveFacetCut[] = []
+  for (const payload of payloads) {
+    let decoded: ReturnType<typeof decodeFunctionData>
+    try {
+      decoded = decodeFunctionData({ abi: DIAMOND_CUT_ABI, data: payload })
+    } catch {
+      continue
+    }
+    if (decoded.functionName !== 'diamondCut' || !decoded.args) continue
+    const facetCuts = decoded.args[0] as readonly {
+      action: number | bigint
+      functionSelectors: readonly `0x${string}`[]
+    }[]
+    for (const cut of facetCuts)
+      if (Number(cut.action) === FACET_CUT_REMOVE)
+        cuts.push({ selectors: [...cut.functionSelectors] })
+  }
+  return cuts
+}
+
+/** Parked-task fields needed to rebuild an {@link IFacetRemoval} snapshot at execute time. */
+export interface IParkedRemovalIdentity {
+  facetName: string
+  facetAddress: `0x${string}`
+}
+
+/**
+ * Result of zipping Remove cuts from a timelock batch with parked-task identities.
+ * - `none`: no Remove cuts (and no parked rows) — skip the pre-execute guard.
+ * - `snapshot`: zip succeeded; caller must run {@link revalidateRemovalsOnChain}.
+ * - `unvalidated`: Remove cuts present but no parked rows (legacy cleanup) — cannot
+ *   recover doomed addresses from calldata (always 0); caller warns and proceeds.
+ * - `mismatch`: parked/cut counts disagree — refuse to execute.
+ */
+export type IRemovalSnapshotBuild =
+  | { kind: 'none' }
+  | { kind: 'snapshot'; snapshot: IFacetRemoval[] }
+  | { kind: 'unvalidated'; removeCutCount: number }
+  | { kind: 'mismatch'; reason: string }
+
+/**
+ * Rebuilds the propose-time removal snapshot from immutable schedule payloads +
+ * parked-task doomed addresses. Drain appends one Remove call per claimed facet
+ * after the primary, so the trailing `parked.length` Remove cuts zip 1:1 with
+ * parked tasks sorted by `proposedAt` ascending.
+ */
+export function buildRemovalSnapshotFromPayloads(
+  payloads: readonly Hex[],
+  parked: readonly IParkedRemovalIdentity[]
+): IRemovalSnapshotBuild {
+  const removeCuts = extractRemoveFacetCuts(payloads)
+  if (removeCuts.length === 0) {
+    if (parked.length === 0) return { kind: 'none' }
+    return {
+      kind: 'mismatch',
+      reason: `parked tasks present (${parked.length}) but no Remove diamondCut payloads found in the timelock batch`,
+    }
+  }
+  if (parked.length === 0)
+    return { kind: 'unvalidated', removeCutCount: removeCuts.length }
+  if (removeCuts.length < parked.length)
+    return {
+      kind: 'mismatch',
+      reason: `Remove cuts (${removeCuts.length}) < parked tasks (${parked.length}) — cannot zip safely`,
+    }
+  const folded = removeCuts.slice(-parked.length)
+  return {
+    kind: 'snapshot',
+    snapshot: parked.map((task, i) => {
+      const cut = folded[i]
+      if (!cut)
+        throw new Error(
+          `internal error: missing Remove cut at index ${i} after length check`
+        )
+      return {
+        name: task.facetName,
+        address: getAddress(task.facetAddress),
+        selectors: cut.selectors,
+      }
+    }),
+  }
 }

@@ -156,14 +156,17 @@ export async function _runPropose(
   // Get the account address
   const senderAddress = safe.account.address
 
-  // Check if the current signer is an owner
+  // Check if the current signer is an owner. Throw (do not process.exit) so
+  // proposeWithDrain can catch this and revert claimed parked tasks to queued.
+  // citty's runMain still exits non-zero when the CLI path surfaces the throw.
   const existingOwners = await safe.getOwners()
   if (!isAddressASafeOwner(existingOwners, senderAddress)) {
     consola.error('The current signer is not an owner of this Safe')
     consola.error('Signer address:', senderAddress)
     consola.error('Current owners:', existingOwners)
-    consola.error('Cannot propose transactions - exiting')
-    process.exit(1)
+    throw new Error(
+      `Cannot propose transactions: signer ${senderAddress} is not an owner of Safe ${safeAddress}`
+    )
   }
 
   let finalTo: Address

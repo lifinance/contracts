@@ -287,10 +287,14 @@ The engine ships the guard for this in #2047:
 `revalidateRemovalsOnChain(network, diamondAddress, snapshot, io?)` (pure core
 `filterRePointedRemovals`) re-reads the loupe and returns `{ stillRemovable, stale }`,
 dropping any selector that no longer routes to the doomed facet address (`re-pointed`
-or `already-gone`). **The drain/execute consumer MUST call it immediately before
-executing a queued removal op** and abort (or re-propose from `stillRemovable`) if
-`stale` is non-empty. This is a first-class acceptance criterion for the drain-hook
-follow-up, not an optional hardening step.
+or `already-gone`). **Wired into `execute-pending-timelock-tx` / `executeOperation`:**
+immediately before `executeBatch`, the runner rebuilds the propose-time snapshot from
+Remove payloads + parked tasks (`listParkedTasksBySafeTxHash` +
+`buildRemovalSnapshotFromPayloads`) and aborts if `stale` is non-empty. Under the fold
+that aborts the **entire** timelock batch (primary cut + removals) — the schedule is
+immutable, so "re-propose from `stillRemovable`" means cancel the op and drain again.
+Legacy Remove cuts with no parked rows (e.g. `cleanUpProdDiamond`) cannot recover
+doomed addresses from calldata (`facetAddress = 0`) and warn-then-proceed.
 
 ---
 
@@ -508,18 +512,17 @@ already carries its origin-PR link for review, and the `DRAIN_PARKED_TASKS`-off 
 keeps emergency / break-glass proposals a single clean upgrade with nothing folded in.
 
 **Accepted tradeoff — execution-time atomicity (TOCTOU).** Because the removals share the
-upgrade's `scheduleBatch`, on-chain execution is atomic: if a folded facet is removed by
-another path during the timelock delay (between `prepareDrainNetwork`'s loupe read and
-execution), its `diamondCut` Remove reverts (`FunctionDoesNotExist`) **and the whole
-batch — including the primary rollout cut — reverts.** The prepare-time partition
-(supersede-if-gone / cancel-if-protected / keep-if-pruned) shrinks but cannot close this
-window, since a `scheduleBatch` is immutable once scheduled. The exposure is low in
-practice — parked removals target already-deprecated facets that nothing else is racing to
-remove — but it is strictly larger than the old separate-proposal design, where a bad
-removal reverted only its own batch. Mitigations if this ever bites: keep removals in a
-separate `scheduleBatch`/MultiSend (one signature, two ops — the middle option), or gate the
-drain off for the rollout. Flagged for governance review; the default-off flag remains the
-break-glass escape hatch.
+upgrade's `scheduleBatch`, on-chain execution is atomic: a bad folded Remove would take
+the primary cut with it. Two failure modes in the delay window: (1) selector already
+gone → on-chain `FunctionDoesNotExist` revert of the whole batch; (2) selector
+**re-pointed** to a live facet → the Remove (`facetAddress = 0`) would *succeed* and
+silently delete the live selector. The pre-execute guard in `execute-pending-timelock-tx`
+(§4) refuses both before `executeBatch`, marking the queue row `failed` so the cron does
+not retry. The prepare-time partition still shrinks the window; the schedule remains
+immutable once queued. Exposure is low in practice (parked removals target already-
+deprecated facets), but larger than the old separate-proposal design. Mitigations if the
+guard ever false-positives a rollout: cancel the op, or gate `DRAIN_PARKED_TASKS` off.
+Flagged for governance review; the default-off flag remains the break-glass escape hatch.
 
 ### How the PR link reaches the reviewer — the acceptance criterion (visibility decided)
 

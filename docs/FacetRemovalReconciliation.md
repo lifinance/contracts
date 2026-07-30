@@ -232,10 +232,10 @@ Pure, side-effect-free, unit-tested. Exposes both selection functions
 (`computeFacetRemovalDiff` for the backstop, `computeNamedFacetRemovals` for the
 primary named path), the pure cores (`diffFacets`, `diffNamedFacets`), and the
 pre-execute re-validation guard `revalidateRemovalsOnChain` / pure core
-`filterRePointedRemovals` — which the deferred-cleanup drain/execute consumer
-calls right before executing a queued removal to drop any selector re-pointed to a
-live facet (or already gone) during the timelock delay window
-(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
+`filterRePointedRemovals` — wired into `execute-pending-timelock-tx` immediately
+before `executeBatch`; under the fold any stale selector aborts the **entire**
+timelock batch (primary cut + removals)
+(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §4).
 Signature (illustrative):
 
 ```ts
