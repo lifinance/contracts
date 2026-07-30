@@ -23,6 +23,15 @@ inputs:
       empty for workflows that produce a single, consistent out/.
     required: false
     default: ""
+  rpc-cache-refresh:
+    description: >-
+      Set to "true" for workflows whose fork-RPC state is worth accumulating —
+      in practice the forge test suites. It makes the RPC cache key unhittable
+      so each green run saves a warmer entry (see the RPC cache step). Leave at
+      the default for workflows that barely fork: they would each add a cache
+      entry per run for no gain, and crowd out the entries that matter.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -39,17 +48,30 @@ runs:
         fi
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    - name: Compute fork block pin hash
+    - name: Compute RPC cache key segments
       id: fork_blocks
       shell: bash
+      env:
+        RPC_CACHE_REFRESH: ${{ inputs.rpc-cache-refresh }}
+        WORKFLOW_RUN_ID: ${{ github.run_id }}
+        WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
       run: |
         set -euo pipefail
         hash="$(bash script/utils/hashForkBlockPins.sh)"
-        if [ -z "$hash" ]; then
+        if [[ -z "$hash" ]]; then
           echo "::error::hashForkBlockPins.sh returned empty hash"
           exit 1
         fi
         echo "hash=${hash}" >> "$GITHUB_OUTPUT"
+
+        # A per-run segment makes the primary key unhittable: actions/cache skips its
+        # post-run save on an exact hit, so a key that always matches can never be
+        # refreshed once a cold entry lands.
+        if [[ "$RPC_CACHE_REFRESH" == "true" ]]; then
+          echo "refresh=-${WORKFLOW_RUN_ID}-${WORKFLOW_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        else
+          echo "refresh=" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Cache Foundry RPC state
       # Fork tests pin deterministic blocks, so the fetched state stays valid until a pin moves.
@@ -59,11 +81,10 @@ runs:
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ~/.foundry/cache/rpc
-        # run_id/run_attempt make the primary key unhittable on purpose: actions/cache skips
-        # its post-run save on an exact hit, so a stable key can never be refreshed once a
-        # cold entry lands. Unhittable means every green run saves a warmer entry, and the
-        # restore-keys below pick up the newest matching one.
-        key: foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-${{ steps.fork_blocks.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+        # `refresh` is empty unless rpc-cache-refresh is on, in which case it makes this key
+        # unhittable so every green run saves a warmer entry and the restore-keys below pick
+        # up the newest match.
+        key: foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-${{ steps.fork_blocks.outputs.hash }}${{ steps.fork_blocks.outputs.refresh }}
         restore-keys: |
           foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-${{ steps.fork_blocks.outputs.hash }}-
           foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-

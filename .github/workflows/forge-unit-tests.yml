@@ -93,6 +93,8 @@ jobs:
           # different partial out/ and forks a different set of chains; key the
           # build and RPC caches per shard so they do not poison one another's.
           cache-key-suffix: ${{ matrix.shard }}
+          # This is the fork-RPC-heavy workflow, so it is worth accumulating state here.
+          rpc-cache-refresh: 'true'
 
       - name: Install forge Dependencies
         run: forge install
