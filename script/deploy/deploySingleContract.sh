@@ -311,11 +311,14 @@ deploySingleContract() {
     # The zkEVM command pins --skip-simulation and --gas-limit; appending customDeployFlags
     # verbatim would pass either flag twice, so drop the redundant --skip-simulation and let a
     # custom --gas-limit replace the pinned default.
-    local ZK_ADDITIONAL_FLAGS="${ADDITIONAL_FLAGS//--skip-simulation/}"
+    local ZK_ADDITIONAL_FLAGS=""
     local ZK_GAS_LIMIT_FLAG="--gas-limit 50000000"
-    if [[ "$ZK_ADDITIONAL_FLAGS" == *"--gas-limit"* ]]; then
-      ZK_GAS_LIMIT_FLAG=""
-      echoDebug "customDeployFlags specify --gas-limit; not applying the zkEVM default of 50000000"
+    if isZkEvmNetwork "$NETWORK"; then
+      ZK_ADDITIONAL_FLAGS="${ADDITIONAL_FLAGS//--skip-simulation/}"
+      if [[ "$ZK_ADDITIONAL_FLAGS" == *"--gas-limit"* ]]; then
+        ZK_GAS_LIMIT_FLAG=""
+        echoDebug "customDeployFlags specify --gas-limit; not applying the zkEVM default of 50000000"
+      fi
     fi
 
     # Use a local effective multiplier so per-network overrides don't leak into subsequent calls.
