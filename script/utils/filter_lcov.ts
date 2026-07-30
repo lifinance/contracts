@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as path from 'path'
 import * as readline from 'readline'
 
 // this script helps to produce a clean (test) coverage report for our Solidity contracts
@@ -9,6 +10,12 @@ async function filterLcov(
   outputFile: string,
   excludePatterns: string[]
 ) {
+  const base = process.cwd()
+  for (const file of [inputFile, outputFile]) {
+    const relativePath = path.relative(base, path.resolve(file))
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+      throw new Error(`Invalid file path: ${file}`)
+  }
   const fileStream = fs.createReadStream(inputFile)
   const rl = readline.createInterface({
     input: fileStream,
