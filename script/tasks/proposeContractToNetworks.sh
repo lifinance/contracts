@@ -19,7 +19,9 @@ Usage: ./script/tasks/proposeContractToNetworks.sh CONTRACT NETWORK [NETWORK...]
        ./script/tasks/proposeContractToNetworks.sh CONTRACT --all-where-deployed [OPTIONS]
 
 Propose Safe registration for CONTRACT using the address already in
-deployments/<NETWORK>.json. Does not deploy bytecode.
+deployments/<NETWORK>.json. Does not deploy bytecode. In production the
+registration is proposed to each chain's Safe (timelock-wrapped); in staging
+it is sent directly to the diamond.
 
 Arguments:
   CONTRACT               contract name (e.g. MayanFacet, FeeCollector)
@@ -71,7 +73,7 @@ function isAddressRegisteredOnDiamond() {
   fi
 
   local PERIPHERY_ADDRESS
-  PERIPHERY_ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT_NAME" 2>/dev/null) || return 1
+  PERIPHERY_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT_NAME" 2>/dev/null) || return 1
   local PERIPHERY_LOWER
   PERIPHERY_LOWER=$(echo "$PERIPHERY_ADDRESS" | tr '[:upper:]' '[:lower:]')
   [[ "$PERIPHERY_LOWER" == "$LOG_LOWER" ]]
@@ -294,7 +296,7 @@ function proposeContractToNetworks() {
     TARGET_ENVIRONMENT="staging"
   fi
 
-  if [[ "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
+  if [[ "$TARGET_ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" == "true" ]]; then
     error "SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true would bypass the Safe — aborting propose-only run"
     exit 1
   fi
@@ -332,11 +334,19 @@ function proposeContractToNetworks() {
       exit 1
     fi
     if isTronNetwork "$TARGET_NETWORK"; then
+      if [[ "$ALL_WHERE_DEPLOYED" == "true" ]]; then
+        warning "skipping Tron network '$TARGET_NETWORK' — use the Tron propose path instead"
+        continue
+      fi
       error "network '$TARGET_NETWORK' is Tron — use the Tron propose path instead"
       exit 1
     fi
     DEDUPED_NETWORKS+=("$TARGET_NETWORK")
   done
+  if [[ ${#DEDUPED_NETWORKS[@]} -eq 0 ]]; then
+    error "no eligible networks remain after filtering"
+    exit 1
+  fi
   TARGET_NETWORKS=("${DEDUPED_NETWORKS[@]}")
 
   local TARGET_VERSION
