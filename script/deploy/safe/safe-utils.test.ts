@@ -40,6 +40,8 @@ import {
   OperationTypeEnum,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type NonceExecutionDecision,
+  type SafeNonceStatus,
 } from './safe-utils'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
@@ -549,38 +551,21 @@ describe('safeTxStatusConsumedNonce', () => {
 })
 
 describe('canExecuteWithNonceStatus', () => {
-  it('refuses a stale nonce — the nonce was already consumed on-chain', () => {
-    expect(
-      canExecuteWithNonceStatus('stale', { allowFutureNonce: false })
-    ).toEqual({ canExecute: false, reason: 'stale-nonce' })
-  })
-
-  it('refuses a stale nonce even with the future-nonce override', () => {
-    expect(
-      canExecuteWithNonceStatus('stale', { allowFutureNonce: true })
-    ).toEqual({ canExecute: false, reason: 'stale-nonce' })
-  })
-
-  it('refuses a future nonce by default — execTransaction would revert with GS026', () => {
-    expect(
-      canExecuteWithNonceStatus('future', { allowFutureNonce: false })
-    ).toEqual({ canExecute: false, reason: 'future-nonce' })
-  })
-
-  it('allows a future nonce when the override is enabled', () => {
-    expect(
-      canExecuteWithNonceStatus('future', { allowFutureNonce: true })
-    ).toEqual({ canExecute: true, reason: 'future-nonce-override' })
-  })
-
-  it('allows the current nonce regardless of the override', () => {
-    expect(
-      canExecuteWithNonceStatus('current', { allowFutureNonce: false })
-    ).toEqual({ canExecute: true, reason: 'nonce-current' })
-    expect(
-      canExecuteWithNonceStatus('current', { allowFutureNonce: true })
-    ).toEqual({ canExecute: true, reason: 'nonce-current' })
-  })
+  it.each([
+    ['stale', false, { canExecute: false, reason: 'stale-nonce' }],
+    ['stale', true, { canExecute: false, reason: 'stale-nonce' }],
+    ['future', false, { canExecute: false, reason: 'future-nonce' }],
+    ['future', true, { canExecute: true, reason: 'future-nonce-override' }],
+    ['current', false, { canExecute: true, reason: 'nonce-current' }],
+    ['current', true, { canExecute: true, reason: 'nonce-current' }],
+  ] as [SafeNonceStatus, boolean, NonceExecutionDecision][])(
+    '%s nonce with allowFutureNonce=%j => %j',
+    (status, allowFutureNonce, expected) => {
+      expect(canExecuteWithNonceStatus(status, { allowFutureNonce })).toEqual(
+        expected
+      )
+    }
+  )
 })
 
 describe('isFutureNonceExecutionAllowed', () => {

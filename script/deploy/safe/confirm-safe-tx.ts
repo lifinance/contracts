@@ -661,46 +661,49 @@ const processTxs = async (
     }
 
     if (nonceDecision && nonceDecision.reason !== 'nonce-current') {
-      // Check if there is actually a pending proposal for the blocking nonce in the DB
-      const blockingPendingTx = await pendingTransactions.findOne({
-        safeAddress: txSafeAddress,
-        network: network.toLowerCase(),
-        chainId: chain.id,
-        status: 'pending',
-        'safeTx.data.nonce': Number(expectedNonce),
-      })
-
-      consola.warn('')
-      consola.warn('='.repeat(80))
-      consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
-      consola.warn('='.repeat(80))
-      consola.warn(
-        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
-      )
-      consola.warn(
-        `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
-      )
-      if (blockingPendingTx) {
-        consola.warn(
-          `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
-        )
-      } else {
-        consola.warn(
-          `  There is no pending proposal for nonce ${expectedNonce} in the database.`
-        )
-        consola.warn(
-          `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
-        )
-      }
-      consola.warn('='.repeat(80))
-      consola.warn('')
-
       if (!nonceDecision.canExecute) {
+        // Check if there is actually a pending proposal for the blocking nonce in the DB
+        const blockingPendingTx = await pendingTransactions.findOne({
+          safeAddress: txSafeAddress,
+          network: network.toLowerCase(),
+          chainId: chain.id,
+          status: 'pending',
+          'safeTx.data.nonce': Number(expectedNonce),
+        })
+
+        consola.warn('')
+        consola.warn('='.repeat(80))
+        consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
+        consola.warn('='.repeat(80))
+        consola.warn(
+          `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+        )
+        consola.warn(
+          `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
+        )
+        if (blockingPendingTx) {
+          consola.warn(
+            `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
+          )
+        } else {
+          consola.warn(
+            `  There is no pending proposal for nonce ${expectedNonce} in the database.`
+          )
+          consola.warn(
+            `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
+          )
+        }
+        consola.warn('='.repeat(80))
+        consola.warn('')
+
         consola.error(
           '  Execution refused — broadcasting would spend gas on a guaranteed revert.'
         )
         consola.info(
           '  Signing is still available: re-run and choose "Sign" to add your signature now.'
+        )
+        consola.info(
+          '  If the blocking proposal was just executed elsewhere, re-run this script to refresh the on-chain nonce.'
         )
         consola.info(
           '  If the configured RPC is known to report an out-of-date on-chain nonce, re-run with ALLOW_FUTURE_NONCE_EXECUTION=true.'
@@ -709,9 +712,21 @@ const processTxs = async (
         continue
       }
 
+      consola.warn('')
+      consola.warn('='.repeat(80))
+      consola.warn('⚠  NONCE GAP — EXECUTING BY OPERATOR OVERRIDE')
+      consola.warn('='.repeat(80))
       consola.warn(
-        '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding despite the nonce gap.'
+        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
       )
+      consola.warn(
+        '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding on the assumption that the RPC nonce is out of date.'
+      )
+      consola.warn(
+        '  If the RPC nonce is accurate, this execution will revert with GS026.'
+      )
+      consola.warn('='.repeat(80))
+      consola.warn('')
     }
 
     // eslint-disable-next-line require-atomic-updates
