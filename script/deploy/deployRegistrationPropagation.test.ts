@@ -70,6 +70,7 @@ beforeAll(() => {
     JSON.stringify({
       LiFiDiamond: '0x1111111111111111111111111111111111111111',
       OutputValidator: '0x2222222222222222222222222222222222222222',
+      TokenWrapper: '0x3333333333333333333333333333333333333333',
     })
   )
 })
@@ -96,6 +97,24 @@ describe('diamondUpdatePeriphery', () => {
 
   it('returns zero when the contract is registered', () => {
     expect(runHarness(harness('0'))).toBe('rc=0')
+  })
+
+  // batch mode (UPDATE_ALL=true): LAST_CALL is sticky, so a later contract's
+  // successful registration must not mask an earlier contract's failure
+  const batchHarness = `
+    source "$REPO_ROOT/script/tasks/diamondUpdatePeriphery.sh"
+    ${STUB_PRELUDE}
+    isTestnetNetwork() { return 1; }
+    getIncludedPeripheryContractsArray() { echo "OutputValidator TokenWrapper"; }
+    getPeripheryAddressFromDiamond() { echo "0x0000000000000000000000000000000000000000"; }
+    saveDiamondPeriphery() { return 0; }
+    register() { [ "$3" != "OutputValidator" ]; }
+    diamondUpdatePeriphery testnet production LiFiDiamond true false "" >/dev/null
+    echo "rc=$?"
+  `
+
+  it('stays failed when an earlier contract fails and a later one succeeds', () => {
+    expect(runHarness(batchHarness)).toBe('rc=1')
   })
 })
 
