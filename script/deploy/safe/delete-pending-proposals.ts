@@ -57,7 +57,10 @@ export async function deletePendingProposals(
 ): Promise<IDeleteResult[]> {
   const results: IDeleteResult[] = []
   for (const h of hashes) {
-    const doc = await pendingTransactions.findOne({ network, safeTxHash: h })
+    const doc = await pendingTransactions.findOne({
+      network: { $eq: network },
+      safeTxHash: { $eq: h },
+    })
     if (!doc) {
       consola.warn(`[${network}] not found: ${h}`)
       results.push({ hash: h, outcome: 'not-found', sigCount: 0 })
@@ -72,7 +75,10 @@ export async function deletePendingProposals(
       results.push({ hash: h, outcome: 'skipped-signed', sigCount })
       continue
     }
-    const res = await pendingTransactions.deleteOne({ network, safeTxHash: h })
+    const res = await pendingTransactions.deleteOne({
+      network: { $eq: network },
+      safeTxHash: { $eq: h },
+    })
     consola.success(
       `[${network}] deleted ${h} (nonce=${String(
         nonce

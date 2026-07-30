@@ -85,9 +85,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
+      "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",

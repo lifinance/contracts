@@ -240,6 +240,14 @@
       "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
+      },
+      "0x9923249c1f14E4BB68F71C689C3fCC323E5410aC": {
+        "Name": "MayanFacet",
+        "Version": "2.0.0"
+      },
+      "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.2.0"
       }
     },
     "Periphery": {
