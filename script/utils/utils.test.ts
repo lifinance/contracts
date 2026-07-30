@@ -1,9 +1,10 @@
 /**
- * Unit tests for `script/utils/utils.ts` helpers that read `foundry.toml`.
+ * Unit tests for `script/utils/utils.ts` helpers.
  *
- * `readFileSync` is mocked (transparent passthrough unless a test sets
- * `mockedFoundryToml`) so tests control the TOML content instead of being
- * coupled to the repo's live `foundry.toml`.
+ * For the `foundry.toml` helpers, `readFileSync` is mocked (transparent
+ * passthrough unless a test sets `mockedFoundryToml`) so tests control the
+ * TOML content instead of being coupled to the repo's live `foundry.toml`.
+ * The path-guard tests pin behavior against real `deployments/` files.
  */
 import * as fs from 'fs'
 
@@ -39,7 +40,13 @@ mock.module('fs', () => ({
   default: { ...realFs, readFileSync: patchedReadFileSync },
 }))
 
-const { getFoundryDefaultOptimizerRuns } = await import('./utils')
+const {
+  getContractAddress,
+  getFacetSelectors,
+  getFoundryDefaultOptimizerRuns,
+} = await import('./utils')
+
+type NetworkArg = Parameters<typeof getContractAddress>[0]
 
 afterEach(() => {
   mockedFoundryToml = undefined
@@ -113,5 +120,42 @@ optimizer_runs = 200
     const value = getFoundryDefaultOptimizerRuns()
     expect(Number.isSafeInteger(value)).toBe(true)
     expect(value).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('getContractAddress path guard', () => {
+  it('throws on a network name with parent-directory traversal', async () => {
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+    await expect(
+      getContractAddress('../../evil' as NetworkArg, 'LiFiDiamond')
+    ).rejects.toThrow(/Invalid network name/)
+  })
+
+  it('throws on a network name escaping deployments/ into the repo root', async () => {
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+    await expect(
+      getContractAddress('../foundry' as NetworkArg, 'LiFiDiamond')
+    ).rejects.toThrow(/Invalid network name/)
+  })
+
+  it('resolves a real network from the live deployments file', async () => {
+    const address = await getContractAddress('mainnet', 'LiFiDiamond')
+    expect(address).toMatch(/^0x[0-9a-fA-F]{40}$/)
+  })
+})
+
+describe('getFacetSelectors path guard', () => {
+  it('throws on a facet name with parent-directory traversal', async () => {
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+    await expect(getFacetSelectors('../../evil')).rejects.toThrow(
+      /Invalid facet name/
+    )
+  })
+
+  it('throws on an absolute-path facet name', async () => {
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+    await expect(getFacetSelectors('/etc/passwd')).rejects.toThrow(
+      /Invalid facet name/
+    )
   })
 })
