@@ -1030,7 +1030,19 @@ async function resolvePeripheryAddress(
     )
   }
   const logged = ctx.deployedContracts[name]
-  return logged ? getAddress(logged as Address) : undefined
+  if (!logged) return undefined
+  try {
+    return getAddress(logged as Address)
+  } catch {
+    // A malformed deploy-log entry must not throw past the per-receiver guards of the callers'
+    // loops and abort the receivers not yet checked.
+    ctx.logWarn(
+      `Deploy log entry for ${name} is not a valid address (${String(
+        logged
+      )}) - skipping`
+    )
+    return undefined
+  }
 }
 
 /**
@@ -1534,6 +1546,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       if (!ctx.publicClient) return
 
+      // Without the diamond's facet list, facet-typed entries would silently resolve through the
+      // deploy-log fallback and could verify a stale (deployed-but-not-cut) facet as a false
+      // pass. Skip with a warning instead - facets-registered already warned about the failed
+      // facets() read that left this list empty.
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - immutable-binding checks skipped'
+        )
+        return
+      }
+
       // Facet-typed entries (DeBridgeDlnFacet, EcoFacet, MayanFacet) are not in the
       // PeripheryRegistry; resolving them through it wastes a read and falls back to the deploy
       // log's latest-deployed address, which between a facet deploy and its diamondUpdate is not
@@ -1580,9 +1603,18 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
                 check.keyInConfigFile
               } expects ${getAddress(check.expectedAddress)}`
             )
+          // Name the resolution path: a green line for a fallback-resolved facet verified the
+          // latest-DEPLOYED contract, which during a deploy->diamondCut window is not the live
+          // one - the reader must be able to tell the two apart.
           else
             consola.success(
-              `${check.contractName}.${check.getter}() matches ${check.configFileName}`
+              `${check.contractName}.${check.getter}() matches ${
+                check.configFileName
+              }${
+                facetAddress
+                  ? ' (live diamond facet)'
+                  : ' (registry/deploy-log address)'
+              }`
             )
         } catch (error: unknown) {
           const errorMessage =
@@ -1674,13 +1706,32 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       } else if (ctx.publicClient) {
         const publicClient = ctx.publicClient
-        const addresses = await Promise.all(
+        const results = await Promise.allSettled(
           contractsToCheck.map((c) =>
             readPeripheryRegistryCached(c, ctx, publicClient)
           )
         )
+        const addresses: Address[] = []
+        // A name whose own registry read failed cannot be judged: its registered address may be
+        // missing from `addresses`, so flagging it "not registered" would be a false positive.
+        const unresolved = new Set<string>()
+        contractsToCheck.forEach((periphery, index) => {
+          const result = results[index]
+          if (result?.status === 'fulfilled') addresses.push(result.value)
+          else {
+            const reason =
+              result?.status === 'rejected'
+                ? String(result.reason)
+                : 'no result'
+            ctx.logWarn(
+              `Could not read periphery registration for ${periphery}: ${reason}`
+            )
+            unresolved.add(periphery)
+          }
+        })
 
         for (const periphery of contractsToCheck) {
+          if (unresolved.has(periphery)) continue
           const peripheryAddress = ctx.deployedContracts[periphery]
           if (!peripheryAddress)
             ctx.logError(`Periphery contract ${periphery} not deployed `)
@@ -1723,12 +1774,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // dependency by name-resolving through the log alone, or a coupled facet that is live on
       // chain but missing from the log would be dropped and its coupling never evaluated.
       const couplings = getFacetPeripheryCouplings()
-      const { liveFacets, blindSpotWarning } = resolveLiveFacets(
-        ctx.onChainFacets,
-        ctx.deployedContracts as Record<string, string>,
-        Object.keys(couplings)
-      )
+      const { liveFacets, blindSpotWarning, versionDriftNotes } =
+        resolveLiveFacets(
+          ctx.onChainFacets,
+          ctx.deployedContracts as Record<string, string>,
+          Object.keys(couplings)
+        )
       if (blindSpotWarning) ctx.logWarn(blindSpotWarning)
+      // Info, not warn: the facet IS covered (deploy log); this only flags that the selector
+      // identity source is inactive for it until the deployed build catches up with HEAD.
+      for (const note of versionDriftNotes) consola.info(note)
 
       const { required, skipped } = evaluateFacetPeripheryCouplings(
         liveFacets,
@@ -2421,6 +2476,10 @@ async function executeInvariant(
   if (invariant.severity === 'error' && errors.length > 0) {
     errors.length = 0
     warnings.length = 0
+    // A lagging RPC node can return stale registry state as a SUCCESS, which the cache would
+    // replay here and defeat the whole point of re-verifying. Drop it so this pass reads fresh;
+    // invariants still running only pay an extra read.
+    baseCtx.peripheryRegistryCache.clear()
     await runOnce()
     if (errors.length === 0)
       consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)

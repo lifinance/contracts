@@ -504,10 +504,34 @@ describe('resolveLiveFacets', () => {
     )
 
     expect(liveFacets).toEqual([])
-    expect(blindSpotWarning).toContain('could not be identified from selectors')
+    expect(blindSpotWarning).toContain('could not be determined')
+    expect(blindSpotWarning).toContain('AcrossFacetV4')
+  })
+
+  it('warns even when only ONE candidate is unresolved (per-facet blind spot, not just no-build)', () => {
+    // Unresolvability is per-facet since excludes parsing: one unparseable update script must
+    // not hide behind the other candidates resolving fine.
+    const oneUnresolved = (name: string) =>
+      name === 'AcrossFacetV4' ? ['0xaaaa0001'] : null
+    const { blindSpotWarning } = resolveLiveFacets(
+      [
+        { address: FACET, selectors: ['0xaaaa0001'] },
+        {
+          address: '0x2222222222222222222222222222222222222222',
+          selectors: ['0xdddd0001'],
+        },
+      ],
+      { AcrossFacetV4: FACET },
+      ['AcrossFacetV4', 'ChainflipFacet'],
+      oneUnresolved
+    )
+
+    expect(blindSpotWarning).toContain('ChainflipFacet')
+    expect(blindSpotWarning).not.toContain('AcrossFacetV4,')
   })
 
   it('does not warn about a fully deploy-log-resolved facet even when artifacts are unavailable', () => {
+    // No on-chain facet is unaccounted for, so an unresolved candidate cannot be hiding.
     const noArtifacts = () => null
     const { blindSpotWarning } = resolveLiveFacets(
       [{ address: FACET, selectors: ['0xaaaa0001'] }],
@@ -517,5 +541,35 @@ describe('resolveLiveFacets', () => {
     )
 
     expect(blindSpotWarning).toBeNull()
+  })
+
+  it('reports version drift for a log-identified facet whose current selectors match nothing', () => {
+    // Deployed build older than HEAD: registered set resolved from the artifact, but the
+    // on-chain facet serves different selectors. Coverage rests on the deploy log alone and
+    // that must be visible.
+    const { liveFacets, versionDriftNotes } = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xbbbb9999'] }],
+      { AcrossFacetV4: FACET },
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(liveFacets).toEqual(['AcrossFacetV4'])
+    expect(versionDriftNotes).toHaveLength(1)
+    expect(versionDriftNotes[0]).toContain('AcrossFacetV4')
+    expect(versionDriftNotes[0]).toContain('do not match the current artifact')
+  })
+
+  it('reports no version drift when the facet matches or is simply absent', () => {
+    const matched = resolveLiveFacets(
+      [{ address: FACET, selectors: ['0xaaaa0001'] }],
+      { AcrossFacetV4: FACET },
+      ['AcrossFacetV4'],
+      load
+    )
+    const absent = resolveLiveFacets([], {}, ['AcrossFacetV4'], load)
+
+    expect(matched.versionDriftNotes).toEqual([])
+    expect(absent.versionDriftNotes).toEqual([])
   })
 })

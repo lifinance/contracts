@@ -121,11 +121,17 @@ export interface IResolvedLiveFacets {
   /** Facet names live on the chain: the deploy log and on-chain selectors, unioned. */
   liveFacets: string[]
   /**
-   * Non-null when a facet is registered on chain, absent from the deploy log, and could not be
-   * identified from selectors either — so a coupled facet could be missed and the gate must not
+   * Non-null when a facet is registered on chain, absent from the deploy log, and some candidate's
+   * selectors could not be determined — so a coupled facet could be missed and the gate must not
    * pass silently.
    */
   blindSpotWarning: string | null
+  /**
+   * One note per candidate the deploy log identifies whose current-artifact selectors match no
+   * on-chain facet (deployed build older than HEAD): selector identity is inactive for it, so its
+   * coverage rests on the deploy log alone.
+   */
+  versionDriftNotes: string[]
 }
 
 /**
@@ -262,8 +268,10 @@ export function parseUpdateScriptExcludes(
  * nothing. `UpdateAcrossFacetV4.s.sol` alone excludes `SPOKEPOOL()` and `WRAPPED_NATIVE()`.
  *
  * @returns the registered selectors (lowercased, `0x`-prefixed), or null when the identity cannot
- *   be established: artifact missing, excludes unparseable, or an excluded name absent from the
- *   artifact (script and build drifted apart)
+ *   be established: artifact missing, excludes unparseable, an excluded name absent from the
+ *   artifact (script and build drifted apart), or the zksync update script declaring different
+ *   excludes than the canonical one (this loader is network-agnostic, so a divergence means the
+ *   registered set is ambiguous)
  */
 export function loadFacetRegisteredSelectors(
   facetName: string
@@ -271,25 +279,41 @@ export function loadFacetRegisteredSelectors(
   const methodIdentifiers = loadFacetMethodIdentifiers(facetName)
   if (!methodIdentifiers) return null
 
-  const scriptsDir = resolve(process.cwd(), 'script', 'deploy', 'facets')
-  const scriptPath = resolve(scriptsDir, `Update${facetName}.s.sol`)
-  // Belt-and-braces on top of the name check: the resolved path must stay inside the scripts dir.
-  const relativeToDir = relative(scriptsDir, scriptPath)
-  if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
+  const parsed = parseExcludesFromScript(
+    resolve(process.cwd(), 'script', 'deploy', 'facets'),
+    `Update${facetName}.s.sol`
+  )
+  if (parsed === null) return null
+
+  // zksync diamonds are cut by their own update script; if its excludes diverge from the
+  // canonical one, a single network-agnostic registered set does not exist.
+  const zksyncParsed = parseExcludesFromScript(
+    resolve(process.cwd(), 'script', 'deploy', 'zksync'),
+    `Update${facetName}.zksync.s.sol`
+  )
+  if (zksyncParsed === null) return null
+  if (zksyncParsed !== 'absent' && parsed !== 'absent') {
+    const canonical = JSON.stringify({
+      names: [...parsed.functionNames].sort(),
+      literals: [...parsed.literalSelectors].sort(),
+    })
+    const zksync = JSON.stringify({
+      names: [...zksyncParsed.functionNames].sort(),
+      literals: [...zksyncParsed.literalSelectors].sort(),
+    })
+    if (canonical !== zksync) return null
+  }
 
   const excluded = new Set<string>()
-  // No update script means the standard tooling never cut this facet with exclusions.
-  if (existsSync(scriptPath)) {
-    let parsed: IParsedUpdateScriptExcludes | null
-    try {
-      parsed = parseUpdateScriptExcludes(readFileSync(scriptPath, 'utf8'))
-    } catch {
-      return null
-    }
-    if (!parsed) return null
-
-    for (const literal of parsed.literalSelectors) excluded.add(literal)
-    for (const name of parsed.functionNames) {
+  const effective =
+    parsed !== 'absent'
+      ? parsed
+      : zksyncParsed !== 'absent'
+      ? zksyncParsed
+      : null
+  if (effective) {
+    for (const literal of effective.literalSelectors) excluded.add(literal)
+    for (const name of effective.functionNames) {
       const selectors = Object.entries(methodIdentifiers)
         .filter(([signature]) => signature.startsWith(`${name}(`))
         .map(([, selector]) => '0x' + selector.toLowerCase())
@@ -301,6 +325,30 @@ export function loadFacetRegisteredSelectors(
   return Object.values(methodIdentifiers)
     .map((selector) => '0x' + selector.toLowerCase())
     .filter((selector) => !excluded.has(selector))
+}
+
+/**
+ * Read and parse one update script's excludes, with path containment.
+ *
+ * @returns the parsed excludes; `'absent'` when the script does not exist (the standard tooling
+ *   never cut this facet with exclusions from that script); null when it exists but cannot be
+ *   parsed or the path escapes the scripts dir
+ */
+function parseExcludesFromScript(
+  scriptsDir: string,
+  fileName: string
+): IParsedUpdateScriptExcludes | 'absent' | null {
+  const scriptPath = resolve(scriptsDir, fileName)
+  // Belt-and-braces on top of the name check: the resolved path must stay inside the scripts dir.
+  const relativeToDir = relative(scriptsDir, scriptPath)
+  if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
+
+  if (!existsSync(scriptPath)) return 'absent'
+  try {
+    return parseUpdateScriptExcludes(readFileSync(scriptPath, 'utf8'))
+  } catch {
+    return null
+  }
 }
 
 /** Selector-based facet identity for one chain. */
@@ -325,7 +373,8 @@ export interface ICoupledFacetIdentity {
  * because facets are cut with exclusions and the full artifact set never appears on chain for them.
  *
  * @param onChainFacets - the diamond's registered facets (address + selectors), from `facets()`
- * @param facetNames - candidate facet names to test for (the coupling registry keys)
+ * @param facetNames - candidate facet names to test for (coupling registry keys, or any other
+ *   facet names a caller needs to locate on chain)
  * @param loadRegisteredSelectors - registered-selector loader; injectable for tests, defaults to
  *   reading `out/` + the facet's update script
  */
@@ -372,8 +421,14 @@ export function identifyCoupledFacetsOnChain(
  *
  * Relying on the deploy log alone lets a facet that is live on chain but missing from the log fall
  * through — silently, on an error gate. The selector source does not depend on the log, so such a
- * facet is still caught. When neither source can identify an on-chain facet that is absent from the
- * log (e.g. `out/` was not built), `blindSpotWarning` is set so the reduced coverage stays visible.
+ * facet is still caught. When a candidate's registered selectors could not be determined
+ * (`unresolved`: `out/` not built, unparseable excludes) AND an on-chain facet is absent from the
+ * deploy log, `blindSpotWarning` is set so the reduced coverage stays visible — per candidate, not
+ * only when identity failed wholesale, because unresolvability is a per-facet condition.
+ *
+ * A candidate the deploy log names but whose current-artifact selectors match nothing on chain is
+ * reported in `versionDriftNotes`: the deployed build predates the artifact, so selector identity
+ * is inactive for it and only the deploy log covers it.
  *
  * @param onChainFacets - the diamond's registered facets (address + selectors), from `facets()`
  * @param deployedContracts - the deploy log for this chain (`deployments/<network>.json`)
@@ -409,19 +464,33 @@ export function resolveLiveFacets(
   const unidentifiedOnChain = onChainFacets.filter(
     (facet) => !nameByAddress[facet.address.toLowerCase()]
   )
-  // Warn only when selector identity could not run at all (every candidate unresolved => no
-  // artifacts, or no parseable update-script excludes) AND there is an on-chain facet the deploy
-  // log does not name: that is the one case where a coupled facet could genuinely slip through
-  // unseen.
+  // Warn when ANY candidate's selectors could not be determined while an on-chain facet is
+  // unaccounted for in the deploy log: that unresolved candidate could be exactly that facet,
+  // and it would slip through the coupling gate unseen.
   const blindSpotWarning =
-    candidateFacetNames.length > 0 &&
-    unresolved.length === candidateFacetNames.length &&
-    unidentifiedOnChain.length > 0
-      ? `${unidentifiedOnChain.length} on-chain facet(s) absent from the deploy log could not be identified from selectors either (run 'forge build') - a coupled facet among them could be missed`
+    unresolved.length > 0 && unidentifiedOnChain.length > 0
+      ? `${
+          unidentifiedOnChain.length
+        } on-chain facet(s) absent from the deploy log while the registered selectors of ${unresolved.join(
+          ', '
+        )} could not be determined (run 'forge build'; check the update script's getExcludes shape) - a coupled facet could be missed`
       : null
+
+  const versionDriftNotes = candidateFacetNames
+    .filter(
+      (name) =>
+        fromDeployLog.includes(name) &&
+        !fromSelectors.includes(name) &&
+        !unresolved.includes(name)
+    )
+    .map(
+      (name) =>
+        `${name} is on chain (deploy log) but its registered selectors do not match the current artifact - deployed build predates HEAD, selector identity inactive for it`
+    )
 
   return {
     liveFacets: [...new Set([...fromDeployLog, ...fromSelectors])],
     blindSpotWarning,
+    versionDriftNotes,
   }
 }
