@@ -85,9 +85,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
+      "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
@@ -101,9 +101,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
         "Name": "LayerSwapFacet",
@@ -116,8 +116,8 @@
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
