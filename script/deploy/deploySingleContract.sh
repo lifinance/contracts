@@ -308,6 +308,16 @@ deploySingleContract() {
       SKIP_SIMULATION_FLAG=""
     fi
 
+    # The zkEVM command pins --skip-simulation and --gas-limit; appending customDeployFlags
+    # verbatim would pass either flag twice, so drop the redundant --skip-simulation and let a
+    # custom --gas-limit replace the pinned default.
+    local ZK_ADDITIONAL_FLAGS="${ADDITIONAL_FLAGS//--skip-simulation/}"
+    local ZK_GAS_LIMIT_FLAG="--gas-limit 50000000"
+    if [[ "$ZK_ADDITIONAL_FLAGS" == *"--gas-limit"* ]]; then
+      ZK_GAS_LIMIT_FLAG=""
+      echoDebug "customDeployFlags specify --gas-limit; not applying the zkEVM default of 50000000"
+    fi
+
     # Use a local effective multiplier so per-network overrides don't leak into subsequent calls.
     local NETWORK_GAS_MULTIPLIER
     NETWORK_GAS_MULTIPLIER=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasEstimateMultiplier // empty' "$NETWORKS_JSON" 2>/dev/null || true)
@@ -334,7 +344,7 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\" $ZK_GAS_LIMIT_FLAG $ZK_ADDITIONAL_FLAGS" \
         "true"
     else
       # try to execute call
