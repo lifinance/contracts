@@ -501,11 +501,25 @@ Every removal call is captured by the same `list-pending-proposals.ts` sweep, la
 same rollout PR, and — carrying its origin PR via `parkedTaskRefs` — is reviewed inline in
 the one proposal.
 
-**Accepted tradeoff.** Folding into one timelock operation couples the removals to the
-upgrade: a reviewer who objects to a removal must reject the whole proposal (upgrade
-included), not just the removal. That is acceptable because each removal already carries
-its origin-PR link for review, and the `DRAIN_PARKED_TASKS`-off default keeps emergency /
-break-glass proposals a single clean upgrade with nothing folded in.
+**Accepted tradeoff — review-time coupling.** Folding into one timelock operation couples
+the removals to the upgrade: a reviewer who objects to a removal must reject the whole
+proposal (upgrade included), not just the removal. That is acceptable because each removal
+already carries its origin-PR link for review, and the `DRAIN_PARKED_TASKS`-off default
+keeps emergency / break-glass proposals a single clean upgrade with nothing folded in.
+
+**Accepted tradeoff — execution-time atomicity (TOCTOU).** Because the removals share the
+upgrade's `scheduleBatch`, on-chain execution is atomic: if a folded facet is removed by
+another path during the timelock delay (between `prepareDrainNetwork`'s loupe read and
+execution), its `diamondCut` Remove reverts (`CannotRemoveFunctionThatDoesNotExist`) **and
+the whole batch — including the primary rollout cut — reverts.** The prepare-time partition
+(supersede-if-gone / cancel-if-protected / keep-if-pruned) shrinks but cannot close this
+window, since a `scheduleBatch` is immutable once scheduled. The exposure is low in
+practice — parked removals target already-deprecated facets that nothing else is racing to
+remove — but it is strictly larger than the old separate-proposal design, where a bad
+removal reverted only its own batch. Mitigations if this ever bites: keep removals in a
+separate `scheduleBatch`/MultiSend (one signature, two ops — the middle option), or gate the
+drain off for the rollout. Flagged for governance review; the default-off flag remains the
+break-glass escape hatch.
 
 ### How the PR link reaches the reviewer — the acceptance criterion (visibility decided)
 

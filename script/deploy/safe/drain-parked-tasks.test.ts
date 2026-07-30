@@ -581,6 +581,36 @@ describe('proposeWithDrain', () => {
     expect(opener.closeCount()).toBe(1)
   })
 
+  it('never fails the process when linking a claimed task throws — the primary is already stored', async () => {
+    const a = task('FacetA')
+    const b = task('FacetBB')
+    const deps = makeDeps({
+      queued: [a, b],
+      result: namedResult({
+        removals: [removal('FacetA'), removal('FacetBB')],
+      }),
+    })
+    const linkOk = deps.linkProposal
+    deps.linkProposal = async (key, hash) => {
+      if (key === a.taskKey) throw new Error('mongo link failed')
+      return linkOk(key, hash)
+    }
+    const opener = makeOpener(deps)
+    const spy = primarySpy()
+    // Must NOT throw even though linking task A fails after the primary was stored.
+    const result = await proposeWithDrain(options, spy.fn, opener.open)
+
+    expect(result).toEqual({ safeTxHash: HASH, stored: true })
+    // Per-key resilient: B is still linked despite A failing; A is left 'proposed'
+    // (NOT reverted — its removal already rode the stored proposal) and alerted.
+    expect(deps.calls.link).toEqual([{ taskKey: b.taskKey, safeTxHash: HASH }])
+    expect(deps.calls.revert).toHaveLength(0)
+    expect(deps.calls.alerts.some((m) => m.includes('could not link'))).toBe(
+      true
+    )
+    expect(opener.closeCount()).toBe(1)
+  })
+
   it('falls back to a primary-only proposal (never breaks the primary) when preparation fails', async () => {
     const deps = makeDeps({ queued: [], result: namedResult() })
     deps.listQueued = async () => {

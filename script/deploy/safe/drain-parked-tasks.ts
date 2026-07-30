@@ -1,32 +1,17 @@
 /**
- * Deferred diamond-cleanup queue — drain layer.
+ * Deferred diamond-cleanup queue — drain layer (design: docs/DeferredDiamondCleanupQueue.md §6).
  *
- * Opportunistically folds parked facet-removal tasks into the governance proposal
- * that is already being created on a network, so removals ride along at ~zero
- * marginal signing cost instead of firing a dedicated fleet-wide event (design:
- * docs/DeferredDiamondCleanupQueue.md §6). The removals are appended as extra
- * inner calls of the primary proposal's timelock `scheduleBatch` — one
- * `diamondCut` Remove element per parked facet — so a rollout that already signs
- * one proposal keeps signing exactly one, now carrying the cleanups too. Hooked
- * into the `runPropose` funnel (propose-to-safe.ts): the drain prepares its calls
- * before the primary is signed, and a preparation failure must never affect the
+ * Folds parked facet-removal tasks into the primary Safe proposal being created on
+ * a network — appended as extra inner calls of its timelock `scheduleBatch`, one
+ * `diamondCut` Remove per facet — so removals ride along in the same single
+ * signature. Hooked into `runPropose` (propose-to-safe.ts) and gated on
+ * `DRAIN_PARKED_TASKS` (default off); it no-ops on direct-send / testnet and only
+ * folds into a timelock proposal. A drain-only failure must never affect the
  * primary proposal or the process exit code.
  *
- * The pure {@link prepareDrainNetwork} orchestration takes every dependency
- * injected (queue reads/transitions and alert/log sinks) so it is fully
- * unit-testable without Mongo, chain, or a Safe client. Only the live adapter
- * ({@link proposeWithDrain}'s default opener) touches out-of-process state,
- * exactly like the store's `getParkedTasksCollection()`.
- *
- * Guardrails (spec §6/§11/§12): flag-gated on `DRAIN_PARKED_TASKS` (default off —
- * ON for rollouts, OFF for emergencies so a break-glass proposal never drags
- * unrelated removals into its signing set), reentrancy-guarded, timelock-only
- * (removals need `scheduleBatch` to batch), and a no-op on direct-send
- * environments (staging / testnet / `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND`). The
- * appended removal calls are the byte-for-byte same governed objects
- * `cleanUpProdDiamond` produces (diamond `diamondCut` Remove → timelock
- * `scheduleBatch` → Safe quorum); the queue changes only WHEN removals are
- * proposed and WHAT annotation the proposal carries, never HOW it is authorized.
+ * `prepareDrainNetwork` takes every dependency injected so it is unit-testable
+ * without Mongo, chain, or a Safe client; only {@link proposeWithDrain}'s default
+ * opener touches out-of-process state.
  */
 
 import 'dotenv/config'
@@ -278,7 +263,8 @@ export function isDrainEligible(options: IProposeToSafeOptions): boolean {
   )
 }
 
-/** Reentrancy guard: a drain's own primary proposal must never re-trigger a drain. */
+/** Reentrancy guard against a `runPropose` that re-enters `runPropose` while a
+ * drain is in flight — defensive; the live wiring has no such recursion. */
 let draining = false
 
 /** Signs + stores the primary proposal, optionally with appended removal calls. */
@@ -313,6 +299,8 @@ export type DrainOpener = () => Promise<{
  * @param open - Opens the queue collection and builds the live deps (injected for
  *   tests; defaults to the live Mongo adapter).
  * @returns The primary proposal's result.
+ * @throws Re-throws a genuine primary-proposal failure (after releasing any
+ *   claimed tasks). Drain-only failures are swallowed, never rethrown.
  */
 export async function proposeWithDrain(
   options: IProposeToSafeOptions,
@@ -360,12 +348,25 @@ export async function proposeWithDrain(
       try {
         result = await proposePrimary(prep.calls, refs)
       } catch (error) {
-        for (const key of prep.claimedTaskKeys) await queue.deps.revert(key)
+        // The primary itself failed — surface it, but first release the claims we
+        // took. Per-key so one failed revert can't drop the primary's error.
+        for (const key of prep.claimedTaskKeys)
+          await revertQuietly(queue.deps, key)
         throw error
       }
 
-      await finalizeClaimed(prep, result, queue.deps)
-      logDrainSummary(prep.outcome)
+      // The primary is signed and stored; linking the claimed tasks is bookkeeping
+      // that must never fail the process (spec §6 best-effort). A link failure
+      // leaves the task `proposed` for the reconcile backlog / loupe self-heal.
+      try {
+        await finalizeClaimed(prep, result, queue.deps)
+        logDrainSummary(prep.outcome)
+      } catch (error) {
+        consola.warn(
+          'parked-task drain: linking claimed tasks failed (primary proposal already stored — unaffected):',
+          error
+        )
+      }
       return result
     } finally {
       await queue.close()
@@ -389,7 +390,7 @@ async function finalizeClaimed(
   if (prep.claimedTaskKeys.length === 0) return
 
   if (!result.stored) {
-    for (const key of prep.claimedTaskKeys) await deps.revert(key)
+    for (const key of prep.claimedTaskKeys) await revertQuietly(deps, key)
     deps.log(
       `[${prep.outcome.network}] primary proposal already existed (duplicate) — ` +
         `returned ${prep.claimedTaskKeys.length} parked removal(s) to queued`
@@ -397,8 +398,20 @@ async function finalizeClaimed(
     return
   }
 
+  // Link per-key: one failed link must not skip the rest, and a claimed task
+  // must NOT be reverted here — its removal is already in the stored proposal, so
+  // re-queuing it would double-fold it into a future proposal.
   for (const key of prep.claimedTaskKeys)
-    await deps.linkProposal(key, result.safeTxHash)
+    try {
+      await deps.linkProposal(key, result.safeTxHash)
+    } catch (error) {
+      deps.alert(
+        `[${prep.outcome.network}] could not link parked task ${key} to ${result.safeTxHash} ` +
+          `(proposal already stored) — leaving it 'proposed' for reconcile: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+      )
+    }
   prep.outcome.safeTxHash = result.safeTxHash
   prep.outcome.proposed = prep.parkedTaskRefs
   for (const ref of prep.parkedTaskRefs)
@@ -406,6 +419,20 @@ async function finalizeClaimed(
       `[${prep.outcome.network}] parked cleanup: removing ${ref.facet} ` +
         `(origin PR ${ref.prUrl}) → ${result.safeTxHash}`
     )
+}
+
+/** Reverts a claimed task to queued, swallowing errors so one failure never
+ * aborts a cleanup loop or masks a more important error. */
+async function revertQuietly(deps: IDrainDeps, taskKey: string): Promise<void> {
+  try {
+    await deps.revert(taskKey)
+  } catch (error) {
+    deps.alert(
+      `could not revert parked task ${taskKey} to queued: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+  }
 }
 
 /** Builds the live opener: the real queue collection + Mongo-backed deps. */

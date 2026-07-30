@@ -83,6 +83,8 @@ export async function runPropose(options: IProposeToSafeOptions) {
  * @param parkedTaskRefs - Origin-PR links to store on the proposal for the signer
  * @returns The proposal's Safe tx hash and whether a new record was stored
  *   (`false` = a duplicate pending intent already existed)
+ * @throws If `extraTimelockCalls` are given without `timelock`, if the signer is
+ *   not a Safe owner, on an invalid nonce override, or on a MongoDB store failure.
  */
 export async function _runPropose(
   options: IProposeToSafeOptions,
