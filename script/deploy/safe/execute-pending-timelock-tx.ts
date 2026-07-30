@@ -35,6 +35,7 @@ import {
 import { confirmTimelockExecution } from './confirm-timelock-execution'
 import {
   buildRemovalSnapshotFromPayloads,
+  mapLoupeResult,
   revalidateRemovalsOnChain,
 } from './diamondRemovalDiff'
 import { createChainCaller } from './executors/create-chain-caller'
@@ -1132,12 +1133,21 @@ async function markTimelockOpFailed(
   }
 }
 
+/** Loupe ABI for the pre-execute revalidation read (same shape as diamondRemovalDiff). */
+const FACETS_LOUPE_ABI = parseAbi([
+  'function facets() view returns ((address facetAddress, bytes4[] functionSelectors)[])',
+])
+
 /**
  * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
  * snapshot from Remove payloads + parked tasks (doomed addresses), re-reads the
- * loupe, and aborts the whole batch if any selector is stale. Legacy Remove cuts
- * with no parked rows (e.g. cleanUpProdDiamond) cannot recover doomed addresses
- * from calldata — those warn and proceed.
+ * loupe via the runner's `publicClient` (honours `--rpcUrl`), and aborts the
+ * whole batch if any selector is stale. Legacy Remove cuts with no parked rows
+ * (e.g. cleanUpProdDiamond) cannot recover doomed addresses from calldata —
+ * those warn and proceed.
+ *
+ * Transient Mongo/RPC failures refuse the run but leave the queue row `queued`
+ * for retry. Only durable snapshot/stale failures mark the row `failed`.
  *
  * @returns `'ok'` to continue execution, `'failed'` when the op must not run.
  */
@@ -1146,9 +1156,14 @@ async function revalidateFoldedRemovalsOrAbort(
   networkName: string,
   networkPrefix: string,
   isDryRun: boolean,
-  notifyFailure: (error: unknown) => Promise<void>
+  notifyFailure: (error: unknown) => Promise<void>,
+  publicClient: PublicClient
 ): Promise<'ok' | 'failed'> {
   if (!operation.safeTxHash) return 'ok'
+
+  const alertFailure = async (error: unknown): Promise<void> => {
+    if (!isDryRun) await notifyFailure(error)
+  }
 
   let parked: Awaited<ReturnType<typeof listParkedTasksBySafeTxHash>>
   try {
@@ -1163,22 +1178,16 @@ async function revalidateFoldedRemovalsOrAbort(
     }
   } catch (error) {
     // Queue unreachable — refuse Remove cuts rather than execute them blind.
-    // Ops with no Remove cuts are unaffected (no parked snapshot to load).
+    // Leave the row queued so a transient outage can retry (do not mark failed).
     const removeHint = buildRemovalSnapshotFromPayloads(operation.payloads, [])
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
-      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute:`,
+      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (left queued for retry):`,
       error
     )
-    const reason = 'parked-tasks queue unreachable for Remove revalidation'
-    if (!isDryRun)
-      await markTimelockOpFailed(
-        networkName,
-        operation.id,
-        reason,
-        networkPrefix
-      )
-    await notifyFailure(new Error(reason))
+    await alertFailure(
+      new Error('parked-tasks queue unreachable for Remove revalidation')
+    )
     return 'failed'
   }
 
@@ -1210,7 +1219,7 @@ async function revalidateFoldedRemovalsOrAbort(
         `folded-removal snapshot mismatch: ${built.reason}`,
         networkPrefix
       )
-    await notifyFailure(
+    await alertFailure(
       new Error(`folded-removal snapshot mismatch: ${built.reason}`)
     )
     return 'failed'
@@ -1228,7 +1237,7 @@ async function revalidateFoldedRemovalsOrAbort(
         'parked tasks missing diamondAddress',
         networkPrefix
       )
-    await notifyFailure(new Error('parked tasks missing diamondAddress'))
+    await alertFailure(new Error('parked tasks missing diamondAddress'))
     return 'failed'
   }
 
@@ -1237,23 +1246,25 @@ async function revalidateFoldedRemovalsOrAbort(
     ;({ stale } = await revalidateRemovalsOnChain(
       networkName,
       diamondAddress,
-      built.snapshot
+      built.snapshot,
+      {
+        getOnChainFacets: async (diamond) => {
+          const raw = await publicClient.readContract({
+            address: diamond,
+            abi: FACETS_LOUPE_ABI,
+            functionName: 'facets',
+          })
+          return mapLoupeResult(raw)
+        },
+      }
     ))
   } catch (error) {
+    // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
-      `${networkPrefix} ❌ Pre-execute removal revalidation failed — aborting whole batch:`,
+      `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (left queued for retry):`,
       error
     )
-    if (!isDryRun)
-      await markTimelockOpFailed(
-        networkName,
-        operation.id,
-        `removal revalidation error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        networkPrefix
-      )
-    await notifyFailure(error)
+    await alertFailure(error)
     return 'failed'
   }
 
@@ -1282,7 +1293,7 @@ async function revalidateFoldedRemovalsOrAbort(
       `stale folded removals: ${detail}`,
       networkPrefix
     )
-  await notifyFailure(new Error(`stale folded removals: ${detail}`))
+  await alertFailure(new Error(`stale folded removals: ${detail}`))
   return 'failed'
 }
 
@@ -1376,16 +1387,17 @@ async function executeOperation(
     // If action === 'Execute', continue with execution below
   }
 
-  // Pre-execute re-validation for folded parked removals (EXSC-721 / #2047).
-  // Under the fold a stale Remove would either silently delete a live selector
-  // (re-pointed) or revert the whole batch (already-gone) — refuse either way.
+  // Pre-execute re-validation for folded parked removals. Under the fold a
+  // stale Remove would either silently delete a live selector (re-pointed) or
+  // revert the whole batch (already-gone) — refuse either way.
   if (networkName) {
     const guard = await revalidateFoldedRemovalsOrAbort(
       operation,
       networkName,
       networkPrefix,
       isDryRun,
-      notifyFailure
+      notifyFailure,
+      publicClient
     )
     if (guard === 'failed') return 'failed'
   }

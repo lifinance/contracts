@@ -767,6 +767,9 @@ export interface IRemoveFacetCut {
  * Walks timelock-batch payloads and returns every FacetCut with action=Remove,
  * in appearance order (primary cuts first; drain-folded removals are the trailing
  * suffix — see {@link buildRemovalSnapshotFromPayloads}).
+ *
+ * @param payloads - Inner call payloads from a timelock `scheduleBatch` / `executeBatch`.
+ * @returns Remove cuts in appearance order (non-`diamondCut` payloads are skipped).
  */
 export function extractRemoveFacetCuts(
   payloads: readonly Hex[]
@@ -805,7 +808,7 @@ export interface IParkedRemovalIdentity {
  *   recover doomed addresses from calldata (always 0); caller warns and proceeds.
  * - `mismatch`: parked/cut counts disagree — refuse to execute.
  */
-export type IRemovalSnapshotBuild =
+export type RemovalSnapshotBuild =
   | { kind: 'none' }
   | { kind: 'snapshot'; snapshot: IFacetRemoval[] }
   | { kind: 'unvalidated'; removeCutCount: number }
@@ -815,12 +818,16 @@ export type IRemovalSnapshotBuild =
  * Rebuilds the propose-time removal snapshot from immutable schedule payloads +
  * parked-task doomed addresses. Drain appends one Remove call per claimed facet
  * after the primary, so the trailing `parked.length` Remove cuts zip 1:1 with
- * parked tasks sorted by `proposedAt` ascending.
+ * parked tasks sorted by `proposedAt` ascending (then `taskKey` for ties).
+ *
+ * @param payloads - Inner call payloads from the timelock batch.
+ * @param parked - Parked-task identities for this Safe tx, claim/append order.
+ * @returns A {@link RemovalSnapshotBuild} discriminant for the execute guard.
  */
 export function buildRemovalSnapshotFromPayloads(
   payloads: readonly Hex[],
   parked: readonly IParkedRemovalIdentity[]
-): IRemovalSnapshotBuild {
+): RemovalSnapshotBuild {
   const removeCuts = extractRemoveFacetCuts(payloads)
   if (removeCuts.length === 0) {
     if (parked.length === 0) return { kind: 'none' }

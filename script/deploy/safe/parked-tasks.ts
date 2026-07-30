@@ -370,7 +370,7 @@ export async function listParkedTasksBySafeTxHash(
 ): Promise<WithId<IParkedTask>[]> {
   return parkedTasks
     .find({ safeTxHash: { $eq: safeTxHash } })
-    .sort({ proposedAt: 1 })
+    .sort({ proposedAt: 1, taskKey: 1 })
     .toArray()
 }
 

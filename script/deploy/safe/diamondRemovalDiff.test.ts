@@ -616,4 +616,12 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
     )
     expect(built.kind).toBe('mismatch')
   })
+
+  it('signals mismatch when parked rows exist but payloads have no Remove cuts', () => {
+    const built = buildRemovalSnapshotFromPayloads(
+      [],
+      [{ facetName: 'A', facetAddress: addr(2) }]
+    )
+    expect(built.kind).toBe('mismatch')
+  })
 })
