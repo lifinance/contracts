@@ -792,6 +792,23 @@ const main = defineCommand({
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
 
+      // Refresh the deployment-log cache concurrently with the reconcile sweep
+      // and ownership filtering below. It depends only on MONGODB_URI, so
+      // starting it here overlaps the on-chain setup steps instead of following
+      // them; the first network's prepare joins on it at the Promise.all below.
+      const deploymentCacheWarm = process.env.MONGODB_URI
+        ? createDefaultCache({
+            mongoUri: process.env.MONGODB_URI,
+            databaseName: 'contract-deployments',
+            batchSize: 100,
+          })
+            .get('production')
+            .then(() => undefined)
+            .catch((error) => {
+              consola.debug(`Deployment cache load skipped: ${error}`)
+            })
+        : Promise.resolve()
+
       // Resolve in-flight `submitted` rows across all networks before the
       // pending-only selection runs. A network whose only row is `submitted`
       // (no sibling `pending` proposal) is otherwise never reconciled, so its
@@ -910,18 +927,7 @@ const main = defineCommand({
 
       const [txsByNetwork] = await Promise.all([
         getPendingTransactionsByNetwork(pendingTransactions, networks),
-        process.env.MONGODB_URI
-          ? createDefaultCache({
-              mongoUri: process.env.MONGODB_URI,
-              databaseName: 'contract-deployments',
-              batchSize: 100,
-            })
-              .get('production')
-              .then(() => undefined)
-              .catch((error) => {
-                consola.debug(`Deployment cache load skipped: ${error}`)
-              })
-          : Promise.resolve(),
+        deploymentCacheWarm,
       ])
 
       const prefetchQueue = new ConfirmSafeTxPrefetchQueue()
