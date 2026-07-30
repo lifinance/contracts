@@ -36,6 +36,7 @@ import { SAFE_THRESHOLD, ZERO_ADDRESS } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
+  identifyCoupledFacetsOnChain,
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
@@ -108,6 +109,8 @@ export interface IHealthCheckContext {
   pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
+  /** Run-wide memo of PeripheryRegistry reads (name → address promise); see the cached reader. */
+  peripheryRegistryCache: Map<string, Promise<Address>>
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -964,6 +967,41 @@ export const RECEIVER_EXECUTOR_GETTERS: Array<{
 /** Receivers exempt from the coupling↔binding drift test because they are deprecated. */
 export const DEPRECATED_RECEIVERS = ['ReceiverAcrossV3']
 
+const PERIPHERY_REGISTRY_ABI = parseAbi([
+  'function getPeripheryContract(string) external view returns (address)',
+])
+
+/**
+ * Read one PeripheryRegistry entry through the run-wide cache on `ctx`. Registry state does not
+ * change during a health-check run, but four invariants probe overlapping name sets — uncached
+ * that is 3-4x duplicate RPC reads per name per network, and the duplicates feed the rate limits
+ * that degrade other checks. The promise is cached before it settles so concurrent invariants
+ * share one in-flight read; a failed read is evicted, so retries (and the re-verify pass) hit the
+ * RPC fresh rather than replaying the failure.
+ */
+function readPeripheryRegistryCached(
+  name: string,
+  ctx: IHealthCheckContext,
+  publicClient: PublicClient
+): Promise<Address> {
+  const cached = ctx.peripheryRegistryCache.get(name)
+  if (cached) return cached
+
+  const pending = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: PERIPHERY_REGISTRY_ABI,
+    client: publicClient,
+  })
+    .read.getPeripheryContract([name])
+    .then((value) => getAddress(value as Address))
+    .catch((error: unknown) => {
+      ctx.peripheryRegistryCache.delete(name)
+      throw error
+    })
+  ctx.peripheryRegistryCache.set(name, pending)
+  return pending
+}
+
 /**
  * Resolve a periphery contract's address from the on-chain PeripheryRegistry first, falling back
  * to the deploy log. The deploy log can be incomplete — ReceiverOIF is live on mainnet and base
@@ -979,14 +1017,12 @@ async function resolvePeripheryAddress(
   publicClient: PublicClient
 ): Promise<Address | undefined> {
   try {
-    const registered = await getContract({
-      address: ctx.diamondAddress as Address,
-      abi: parseAbi([
-        'function getPeripheryContract(string) external view returns (address)',
-      ]),
-      client: publicClient,
-    }).read.getPeripheryContract([name])
-    if (getAddress(registered) !== ZERO_ADDRESS) return getAddress(registered)
+    const registered = await readPeripheryRegistryCached(
+      name,
+      ctx,
+      publicClient
+    )
+    if (registered !== ZERO_ADDRESS) return registered
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     ctx.logWarn(
@@ -1301,7 +1337,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           receiver.read as Record<string, (() => Promise<Address>) | undefined>
         )[getter]
         if (!readExecutor) continue
-        const boundExecutor = getAddress(await readExecutor())
+        let boundExecutor: Address
+        try {
+          boundExecutor = getAddress(await readExecutor())
+        } catch (error: unknown) {
+          // One flaky read must not abandon the receivers not yet checked.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name}.${getter}(): ${errorMessage}`)
+          continue
+        }
 
         if (boundExecutor !== expectedExecutor)
           ctx.logError(
@@ -1382,16 +1427,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      const peripheryRegistry = getContract({
-        address: ctx.diamondAddress as Address,
-        abi: parseAbi([
-          'function getPeripheryContract(string) external view returns (address)',
-        ]),
-        client: ctx.publicClient,
-      })
+      const publicClient = ctx.publicClient
       const results = await Promise.allSettled(
         candidates.map((name) =>
-          peripheryRegistry.read.getPeripheryContract([name])
+          readPeripheryRegistryCached(name, ctx, publicClient)
         )
       )
 
@@ -1404,7 +1443,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ctx.logWarn(`Could not read registry entry for ${name}: ${reason}`)
           return
         }
-        const onChain = getAddress(result.value as Address)
+        const onChain = result.value
         // Not registered on this chain: presence is owned by periphery-registered /
         // facet-required-periphery, not by this sync check.
         if (onChain === ZERO_ADDRESS) return
@@ -1434,6 +1473,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       'Immutable constructor bindings match the config files (getter-annotated entries in deployRequirements.json)',
     severity: 'error',
     scope: { environments: ['production'] },
+    readsOnChainFacets: true,
     remediation:
       'The live contract binds a stale address: redeploy it against the current config value and re-register it (diamondUpdatePeriphery), or fix the config entry if this chain genuinely still uses the old address.',
     run: async (ctx) => {
@@ -1494,12 +1534,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       if (!ctx.publicClient) return
 
+      // Facet-typed entries (DeBridgeDlnFacet, EcoFacet, MayanFacet) are not in the
+      // PeripheryRegistry; resolving them through it wastes a read and falls back to the deploy
+      // log's latest-deployed address, which between a facet deploy and its diamondUpdate is not
+      // the live facet. Identify them from the diamond's own selector map instead - their
+      // immutable getters stay callable on the facet address even when excluded from the cut.
+      const { addressByName: facetAddressByName } =
+        identifyCoupledFacetsOnChain(ctx.onChainFacets, [
+          ...new Set(checks.map((check) => check.contractName)),
+        ])
+
       for (const check of checks) {
-        const address = await resolvePeripheryAddress(
-          check.contractName,
-          ctx,
-          ctx.publicClient
-        )
+        const facetAddress = facetAddressByName[check.contractName]
+        const address = facetAddress
+          ? getAddress(facetAddress as Address)
+          : await resolvePeripheryAddress(
+              check.contractName,
+              ctx,
+              ctx.publicClient
+            )
         // Contract not present on this chain - nothing to compare.
         if (!address) continue
 
@@ -1620,17 +1673,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           }
         }
       } else if (ctx.publicClient) {
-        const peripheryRegistry = getContract({
-          address: ctx.diamondAddress as Address,
-          abi: parseAbi([
-            'function getPeripheryContract(string) external view returns (address)',
-          ]),
-          client: ctx.publicClient,
-        })
-
+        const publicClient = ctx.publicClient
         const addresses = await Promise.all(
           contractsToCheck.map((c) =>
-            peripheryRegistry.read.getPeripheryContract([c])
+            readPeripheryRegistryCached(c, ctx, publicClient)
           )
         )
 
@@ -1729,16 +1775,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             unresolved.add(periphery)
           }
       else if (ctx.publicClient) {
-        const peripheryRegistry = getContract({
-          address: ctx.diamondAddress as Address,
-          abi: parseAbi([
-            'function getPeripheryContract(string) external view returns (address)',
-          ]),
-          client: ctx.publicClient,
-        })
+        const publicClient = ctx.publicClient
         const results = await Promise.allSettled(
           wanted.map((periphery) =>
-            peripheryRegistry.read.getPeripheryContract([periphery])
+            readPeripheryRegistryCached(periphery, ctx, publicClient)
           )
         )
         wanted.forEach((periphery, index) => {
@@ -1754,10 +1794,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             unresolved.add(periphery)
             return
           }
-          registered.set(
-            periphery,
-            getAddress(result.value as Address) !== ZERO_ADDRESS
-          )
+          registered.set(periphery, result.value !== ZERO_ADDRESS)
         })
       } else {
         ctx.logWarn(
@@ -2011,10 +2048,19 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         if (!address) continue
 
-        const owner = await getOwnableContract(
-          address,
-          ctx.publicClient
-        ).read.owner()
+        let owner: Address
+        try {
+          owner = await getOwnableContract(
+            address,
+            ctx.publicClient
+          ).read.owner()
+        } catch (error: unknown) {
+          // One flaky read must not abandon the receivers not yet checked.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name} owner: ${errorMessage}`)
+          continue
+        }
         if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))
           ctx.logError(
             `${name} owner is ${getAddress(owner)}, expected ${getAddress(

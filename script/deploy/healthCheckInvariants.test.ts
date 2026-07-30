@@ -1,3 +1,6 @@
+import { existsSync } from 'fs'
+import { resolve } from 'path'
+
 import {
   describe,
   expect,
@@ -28,7 +31,10 @@ import {
   type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
-import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
+import {
+  getFacetPeripheryCouplings,
+  loadFacetRegisteredSelectors,
+} from './shared/facetPeripheryCouplings'
 import { collectImmutableBindingChecks } from './shared/immutableBindings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
@@ -42,6 +48,7 @@ function makeCtx(): IHealthCheckContext {
     isTestnet: false,
     supportsGasZip: true,
     onChainFacets: [],
+    peripheryRegistryCache: new Map(),
     errors,
     warnings,
     logError: (msg: string) => {
@@ -991,5 +998,220 @@ describe('immutable-bindings-match-config invariant', () => {
 
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.some((w) => w.includes('cannot verify'))).toBe(true)
+  })
+
+  it('runs in the on-chain-facets phase (facet-typed entries resolve from the diamond)', () => {
+    expect(invariant.readsOnChainFacets).toBe(true)
+  })
+
+  const artifactsBuilt = existsSync(
+    resolve(process.cwd(), 'out', 'MayanFacet.sol', 'MayanFacet.json')
+  )
+
+  it.skipIf(!artifactsBuilt)(
+    'resolves a facet-typed entry from the diamond selector map, not the periphery registry',
+    async () => {
+      const FACET = '0x7777777777777777777777777777777777777777'
+      const expectedMayan = collectImmutableBindingChecks(
+        'mainnet',
+        'production'
+      ).find((c) => c.contractName === 'MayanFacet')?.expectedAddress
+      expect(expectedMayan).toBeTruthy()
+
+      const registryQueries: string[] = []
+      const ctx = makeCtx()
+      Object.assign(ctx, {
+        networkLower: 'mainnet',
+        diamondAddress: DIAMOND,
+        // Deploy log deliberately points the facet name at a WRONG address: registry-first
+        // resolution through the log would read the getter there and pass on OTHER.
+        deployedContracts: { MayanFacet: OTHER },
+        onChainFacets: [
+          {
+            address: FACET,
+            selectors: loadFacetRegisteredSelectors('MayanFacet'),
+          },
+        ],
+        publicClient: {
+          readContract: async ({
+            address,
+            functionName,
+            args,
+          }: {
+            address: string
+            functionName: string
+            args?: [string]
+          }) => {
+            if (functionName === 'getPeripheryContract') {
+              registryQueries.push(args?.[0] as string)
+              return ZERO
+            }
+            if (functionName === 'MAYAN')
+              return address === FACET ? expectedMayan : OTHER
+            return OTHER
+          },
+        },
+      } as unknown as IHealthCheckContext)
+
+      await invariant.run(ctx)
+
+      expect(ctx.errors.filter((e) => e.includes('MayanFacet'))).toEqual([])
+      expect(registryQueries).not.toContain('MayanFacet')
+    }
+  )
+})
+
+describe('receiver checks continue past a single failing read', () => {
+  const RECEIVER_A = '0x2222222222222222222222222222222222222222'
+  const RECEIVER_B = '0x6666666666666666666666666666666666666666'
+  const REFUND = '0x4444444444444444444444444444444444444444'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  /**
+   * ReceiverOIF and ReceiverStargateV2 both registered; every non-registry read against
+   * ReceiverOIF's address throws (a flaky RPC), reads against ReceiverStargateV2 return `value`.
+   */
+  function makeFlakyCtx(value: string): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: REFUND,
+      deployedContracts: { Executor: EXECUTOR },
+      publicClient: {
+        readContract: async ({
+          address,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            if (args?.[0] === 'ReceiverOIF') return RECEIVER_A
+            if (args?.[0] === 'ReceiverStargateV2') return RECEIVER_B
+            return ZERO
+          }
+          if (address === RECEIVER_A) throw new Error('rpc boom')
+          return value
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('receiver-owner warns on the failing receiver and still checks the rest', async () => {
+    const invariant = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    const ctx = makeFlakyCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('ReceiverOIF') && w.includes('rpc boom')
+      )
+    ).toBe(true)
+    // ReceiverStargateV2 comes AFTER the failing receiver: an error for it proves the loop
+    // survived the throw instead of abandoning the remaining receivers.
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+
+  it('receiver-executor-binding warns on the failing receiver and still checks the rest', async () => {
+    const invariant = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-executor-binding'
+    ) as IHealthCheckInvariant
+    const ctx = makeFlakyCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('ReceiverOIF') && w.includes('rpc boom')
+      )
+    ).toBe(true)
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+})
+
+describe('periphery registry read cache', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  it('reads each registry name at most once across invariants sharing a ctx', async () => {
+    const registryQueries: string[] = []
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: { Executor: EXECUTOR },
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            registryQueries.push(args?.[0] as string)
+            return args?.[0] === 'ReceiverOIF' ? RECEIVER : ZERO
+          }
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const binding = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-executor-binding'
+    ) as IHealthCheckInvariant
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+
+    await binding.run(ctx)
+    await owner.run(ctx)
+
+    const counts = registryQueries.reduce<Record<string, number>>(
+      (acc, name) => ({ ...acc, [name]: (acc[name] ?? 0) + 1 }),
+      {}
+    )
+    for (const [name, count] of Object.entries(counts))
+      expect({ name, count }).toEqual({ name, count: 1 })
+  })
+
+  it('does not cache a failed read (the retry hits the RPC again)', async () => {
+    let calls = 0
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') {
+            calls++
+            if (calls === 1) throw new Error('transient')
+            return ZERO
+          }
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+
+    await owner.run(ctx)
+    const callsAfterFirst = calls
+    await owner.run(ctx)
+
+    expect(calls).toBeGreaterThan(callsAfterFirst)
   })
 })

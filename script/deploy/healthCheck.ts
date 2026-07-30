@@ -239,6 +239,7 @@ export async function runHealthCheckForNetwork(
       refundWallet,
       pauserWallet,
       onChainFacets: [],
+      peripheryRegistryCache: new Map(),
       errors,
       warnings,
       logError: (msg: string) => {
