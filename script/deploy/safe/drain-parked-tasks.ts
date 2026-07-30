@@ -1,27 +1,32 @@
 /**
  * Deferred diamond-cleanup queue — drain layer.
  *
- * Opportunistically turns parked facet-removal tasks into a governance proposal
- * the next time any facet cut is proposed on a network, so removals ride along at
- * ~zero marginal signing cost instead of firing a dedicated fleet-wide event
- * (design: docs/DeferredDiamondCleanupQueue.md §6). Hooked into the `runPropose`
- * funnel (propose-to-safe.ts) as a best-effort tail: a drain failure must never
- * affect the primary proposal or the process exit code.
+ * Opportunistically folds parked facet-removal tasks into the governance proposal
+ * that is already being created on a network, so removals ride along at ~zero
+ * marginal signing cost instead of firing a dedicated fleet-wide event (design:
+ * docs/DeferredDiamondCleanupQueue.md §6). The removals are appended as extra
+ * inner calls of the primary proposal's timelock `scheduleBatch` — one
+ * `diamondCut` Remove element per parked facet — so a rollout that already signs
+ * one proposal keeps signing exactly one, now carrying the cleanups too. Hooked
+ * into the `runPropose` funnel (propose-to-safe.ts): the drain prepares its calls
+ * before the primary is signed, and a preparation failure must never affect the
+ * primary proposal or the process exit code.
  *
- * The pure {@link drainNetwork} orchestration takes every dependency injected
- * (queue reads/transitions, the #2047 removal engine, the proposal mint, and
- * alert/log sinks) so it is fully unit-testable without Mongo, chain, or a Safe
- * client. Only the live adapter ({@link drainParkedTasks} plus its Mongo/Safe
- * wiring) touches out-of-process state, exactly like the store's
- * `getParkedTasksCollection()`.
+ * The pure {@link prepareDrainNetwork} orchestration takes every dependency
+ * injected (queue reads/transitions and alert/log sinks) so it is fully
+ * unit-testable without Mongo, chain, or a Safe client. Only the live adapter
+ * ({@link proposeWithDrain}'s default opener) touches out-of-process state,
+ * exactly like the store's `getParkedTasksCollection()`.
  *
  * Guardrails (spec §6/§11/§12): flag-gated on `DRAIN_PARKED_TASKS` (default off —
  * ON for rollouts, OFF for emergencies so a break-glass proposal never drags
- * unrelated removals into its signing set), reentrancy-guarded, and a no-op on
- * direct-send environments (staging / testnet / `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND`).
- * The minted removal is byte-for-byte the same governed object `cleanUpProdDiamond`
- * produces (Safe → timelock `scheduleBatch` → quorum); the queue changes only WHEN
- * a proposal is created and WHAT annotation it carries, never HOW it is authorized.
+ * unrelated removals into its signing set), reentrancy-guarded, timelock-only
+ * (removals need `scheduleBatch` to batch), and a no-op on direct-send
+ * environments (staging / testnet / `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND`). The
+ * appended removal calls are the byte-for-byte same governed objects
+ * `cleanUpProdDiamond` produces (diamond `diamondCut` Remove → timelock
+ * `scheduleBatch` → Safe quorum); the queue changes only WHEN removals are
+ * proposed and WHAT annotation the proposal carries, never HOW it is authorized.
  */
 
 import 'dotenv/config'
@@ -30,15 +35,10 @@ import { consola } from 'consola'
 import { type WithId } from 'mongodb'
 import { getAddress, type Address, type Hex } from 'viem'
 
-import {
-  EnvironmentEnum,
-  type IProposeToSafeOptions,
-  type SupportedChain,
-} from '../../common/types'
+import { EnvironmentEnum, type IProposeToSafeOptions } from '../../common/types'
 import { SlackNotifier } from '../../utils/slack-notifier'
 import {
   buildDiamondCutRemoveCalldata,
-  getContractAddressForNetwork,
   isTestnetNetwork,
 } from '../../utils/viemScriptHelpers'
 
@@ -57,22 +57,19 @@ import {
   setSafeTxHash,
   type IParkedTask,
 } from './parked-tasks'
-import {
-  getNextNonce,
-  getPrivateKey,
-  getSafeMongoCollection,
-  initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
-  wrapWithTimelockSchedule,
-  type IParkedTaskRef,
-} from './safe-utils'
+import { type IParkedTaskRef } from './safe-utils'
+
+/** A single timelock inner-call to append to the primary `scheduleBatch`. */
+export interface ITimelockCall {
+  to: Address
+  calldata: Hex
+}
 
 /** What a drain did on one network, for logging and assertions. */
 export interface IDrainOutcome {
   network: string
   environment: EnvironmentEnum
-  /** Facets claimed and carried into the minted removal proposal. */
+  /** Facets claimed and folded into the primary proposal's removal calls. */
   proposed: IParkedTaskRef[]
   /** Facets already absent on-chain → marked superseded. */
   superseded: string[]
@@ -82,14 +79,30 @@ export interface IDrainOutcome {
   protectedCancelled: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
   skippedAlreadyClaimed: string[]
-  /** The minted proposal's Safe tx hash, when a proposal was created. */
+  /** The primary proposal's Safe tx hash, once claimed tasks are linked to it. */
   safeTxHash?: string
 }
 
 /**
- * Injected dependencies for {@link drainNetwork}. The live adapter wires these to
- * the queue collection, the removal engine, the Safe mint, and the log/alert
- * sinks; tests pass fakes.
+ * The result of {@link prepareDrainNetwork}: the removal calls to append to the
+ * primary proposal, the PR links to annotate it with, and the claimed task keys
+ * the caller must resolve — link on proposal success, revert on failure.
+ */
+export interface IDrainPreparation {
+  /** One `diamondCut` Remove call per claimed facet (diamond as target). */
+  calls: ITimelockCall[]
+  /** Origin-PR links carried onto the primary proposal for the signer to see. */
+  parkedTaskRefs: IParkedTaskRef[]
+  /** Claimed (`queued → proposed`) task keys — link on success, revert on failure. */
+  claimedTaskKeys: string[]
+  /** Partition side-effects already applied (superseded / cancelled / pruned / skipped). */
+  outcome: IDrainOutcome
+}
+
+/**
+ * Injected dependencies for {@link prepareDrainNetwork}. The live adapter wires
+ * these to the queue collection, the removal engine and the log/alert sinks;
+ * tests pass fakes.
  */
 export interface IDrainDeps {
   /** Queued tasks for this network/environment. */
@@ -105,15 +118,10 @@ export interface IDrainDeps {
   supersede: (taskKey: string) => Promise<unknown>
   /** Cancel a task (protected facet parked in error). */
   cancel: (taskKey: string) => Promise<unknown>
-  /** Revert a claimed task to queued (mint failed). */
+  /** Revert a claimed task to queued (proposal failed or was a duplicate). */
   revert: (taskKey: string) => Promise<unknown>
-  /** Link a claimed task to its minted proposal. */
+  /** Link a claimed task to the primary proposal it rode along in. */
   linkProposal: (taskKey: string, safeTxHash: string) => Promise<unknown>
-  /** Mint ONE consolidated per-network removal proposal; returns its Safe tx hash. */
-  mint: (params: {
-    removals: IFacetRemoval[]
-    parkedTaskRefs: IParkedTaskRef[]
-  }) => Promise<string>
   /** Loud, human-visible warning (consola + best-effort Slack). */
   alert: (message: string) => void
   /** Ordinary progress log. */
@@ -121,25 +129,30 @@ export interface IDrainDeps {
 }
 
 /**
- * Drains one network's queued facet-removal tasks into a single consolidated
- * removal proposal (spec §6 drain algorithm). Pure orchestration over injected
- * I/O: partition against the live loupe (gone → supersede, pruned-but-routed →
- * keep + alert, protected → cancel + alert, removable → claim), then mint ONE
- * per-network `scheduleBatch` Remove carrying every claimed facet's origin PR and
- * link each claimed task to it. On mint failure every claimed task is reverted to
- * `queued` and the error is rethrown for the caller's best-effort handler.
+ * Prepares one network's queued facet-removal tasks for folding into the primary
+ * proposal (spec §6 drain algorithm). Pure orchestration over injected I/O:
+ * partition against the live loupe (gone → supersede, pruned-but-routed → keep +
+ * alert, protected → cancel + alert, removable → claim), then build one
+ * `diamondCut` Remove call per claimed facet for the caller to append to the
+ * primary's `scheduleBatch`. Claiming and calldata-building are wrapped so a
+ * mid-preparation failure reverts every task this run already claimed before
+ * rethrowing — the caller then proceeds primary-only.
+ *
+ * Does NOT sign or store anything: the claimed tasks are linked to (or reverted
+ * from) the primary proposal by {@link proposeWithDrain} once its Safe tx hash is
+ * known.
  *
  * @param network - Network being drained (lowercased upstream).
  * @param environment - Deployment environment (production in v1).
- * @param deps - Injected queue/engine/mint/log dependencies.
- * @returns A structured record of what was proposed, superseded, cancelled, etc.
- * @throws Re-throws a mint failure after reverting all claimed tasks.
+ * @param deps - Injected queue/engine/log dependencies.
+ * @returns The removal calls, PR links, claimed task keys and partition outcome.
+ * @throws Re-throws a preparation failure after reverting all claimed tasks.
  */
-export async function drainNetwork(
+export async function prepareDrainNetwork(
   network: string,
   environment: EnvironmentEnum,
   deps: IDrainDeps
-): Promise<IDrainOutcome> {
+): Promise<IDrainPreparation> {
   const outcome: IDrainOutcome = {
     network,
     environment,
@@ -149,9 +162,15 @@ export async function drainNetwork(
     protectedCancelled: [],
     skippedAlreadyClaimed: [],
   }
+  const empty: IDrainPreparation = {
+    calls: [],
+    parkedTaskRefs: [],
+    claimedTaskKeys: [],
+    outcome,
+  }
 
   const tasks = await deps.listQueued()
-  if (tasks.length === 0) return outcome
+  if (tasks.length === 0) return empty
 
   const names = tasks.map((t) => t.facetName)
   const nameToAddress: Record<string, Address> = {}
@@ -166,69 +185,67 @@ export async function drainNetwork(
 
   const claimed: { task: WithId<IParkedTask>; removal: IFacetRemoval }[] = []
 
-  for (const task of tasks) {
-    const name = task.facetName
-    const removal = removalByName.get(name)
-    if (removal) {
-      const won = await deps.claim(task.taskKey)
-      if (!won) {
-        outcome.skippedAlreadyClaimed.push(name)
-        deps.log(
-          `[${network}] ${name}: claim lost to a concurrent drain — skipping`
-        )
-        continue
-      }
-      claimed.push({ task, removal })
-    } else if (notFound.has(name)) {
-      await deps.supersede(task.taskKey)
-      outcome.superseded.push(name)
-      deps.log(`[${network}] ${name}: already absent on-chain — superseded`)
-    } else if (prunedNames.has(name)) {
-      outcome.prunedButRouted.push({ facet: name, prUrl: task.prUrl })
-      deps.alert(
-        `[${network}] ${name}: deploy-log entry pruned but address ${task.facetAddress} is still routed — NOT removing. Restore the deploy-log entry, then re-drain. Origin PR: ${task.prUrl}`
-      )
-    } else if (protectedNames.has(name)) {
-      await deps.cancel(task.taskKey)
-      outcome.protectedCancelled.push(name)
-      deps.alert(
-        `[${network}] ${name}: a PROTECTED facet was parked for removal — cancelling (enqueue bug). Origin PR: ${task.prUrl}`
-      )
-    }
-  }
-
-  if (claimed.length === 0) return outcome
-
-  const parkedTaskRefs: IParkedTaskRef[] = claimed.map(({ task }) => ({
-    facet: task.facetName,
-    prUrl: task.prUrl,
-  }))
-  const removals = claimed.map(({ removal }) => removal)
-
-  let safeTxHash: string
   try {
-    safeTxHash = await deps.mint({ removals, parkedTaskRefs })
+    for (const task of tasks) {
+      const name = task.facetName
+      const removal = removalByName.get(name)
+      if (removal) {
+        const won = await deps.claim(task.taskKey)
+        if (!won) {
+          outcome.skippedAlreadyClaimed.push(name)
+          deps.log(
+            `[${network}] ${name}: claim lost to a concurrent drain — skipping`
+          )
+          continue
+        }
+        claimed.push({ task, removal })
+      } else if (notFound.has(name)) {
+        await deps.supersede(task.taskKey)
+        outcome.superseded.push(name)
+        deps.log(`[${network}] ${name}: already absent on-chain — superseded`)
+      } else if (prunedNames.has(name)) {
+        outcome.prunedButRouted.push({ facet: name, prUrl: task.prUrl })
+        deps.alert(
+          `[${network}] ${name}: deploy-log entry pruned but address ${task.facetAddress} is still routed — NOT removing. Restore the deploy-log entry, then re-drain. Origin PR: ${task.prUrl}`
+        )
+      } else if (protectedNames.has(name)) {
+        await deps.cancel(task.taskKey)
+        outcome.protectedCancelled.push(name)
+        deps.alert(
+          `[${network}] ${name}: a PROTECTED facet was parked for removal — cancelling (enqueue bug). Origin PR: ${task.prUrl}`
+        )
+      }
+    }
+
+    if (claimed.length === 0) return empty
+
+    // Guaranteed present once there are removals: computeNamedFacetRemovals only
+    // omits diamondAddress on the no-diamond early return, which yields no removals.
+    const diamondAddress = getAddress(result.diamondAddress as Address)
+    const calls: ITimelockCall[] = claimed.map(({ removal }) => ({
+      to: diamondAddress,
+      calldata: buildDiamondCutRemoveCalldata([
+        { name: removal.name, selectors: removal.selectors },
+      ]) as Hex,
+    }))
+    const parkedTaskRefs: IParkedTaskRef[] = claimed.map(({ task }) => ({
+      facet: task.facetName,
+      prUrl: task.prUrl,
+    }))
+    const claimedTaskKeys = claimed.map(({ task }) => task.taskKey)
+
+    return { calls, parkedTaskRefs, claimedTaskKeys, outcome }
   } catch (error) {
     for (const { task } of claimed) await deps.revert(task.taskKey)
     deps.alert(
-      `[${network}] parked-task drain mint failed — reverted ${
+      `[${network}] parked-task drain preparation failed — reverted ${
         claimed.length
-      } task(s) to queued: ${
+      } claimed task(s) to queued: ${
         error instanceof Error ? error.message : String(error)
       }`
     )
     throw error
   }
-
-  outcome.safeTxHash = safeTxHash
-  for (const { task } of claimed) {
-    await deps.linkProposal(task.taskKey, safeTxHash)
-    outcome.proposed.push({ facet: task.facetName, prUrl: task.prUrl })
-    deps.log(
-      `[${network}] parked cleanup: removing ${task.facetName} (origin PR ${task.prUrl}) → ${safeTxHash}`
-    )
-  }
-  return outcome
 }
 
 /** Whether the opportunistic drain is enabled (spec §6: default OFF, ON for rollouts). */
@@ -248,8 +265,27 @@ export function isDirectSendEnv(network: string): boolean {
   )
 }
 
-/** Reentrancy guard: the drain's own mint must never re-trigger a drain. */
+/**
+ * Whether an opportunistic drain should fold into this proposal: the flag is on,
+ * the proposal is timelocked (removals need `scheduleBatch` to batch), and the
+ * network is a production Safe (not direct-send / testnet).
+ */
+export function isDrainEligible(options: IProposeToSafeOptions): boolean {
+  return (
+    isDrainEnabled() &&
+    options.timelock === true &&
+    !isDirectSendEnv(options.network)
+  )
+}
+
+/** Reentrancy guard: a drain's own primary proposal must never re-trigger a drain. */
 let draining = false
+
+/** Signs + stores the primary proposal, optionally with appended removal calls. */
+export type ProposePrimary = (
+  extraTimelockCalls: ITimelockCall[],
+  parkedTaskRefs?: IParkedTaskRef[]
+) => Promise<{ safeTxHash: Hex; stored: boolean }>
 
 /** Opens the queue + wires deps; returned `close` releases the connection. */
 export type DrainOpener = () => Promise<{
@@ -258,32 +294,81 @@ export type DrainOpener = () => Promise<{
 }>
 
 /**
- * Gate → open → drain → close, with the flag / reentrancy / direct-send guards.
- * The queue open is injected ({@link DrainOpener}) so the guards, the drain flow,
- * and the always-close `finally` are unit-testable without Mongo; the live entry
- * {@link drainParkedTasks} supplies the real opener.
+ * Runs the primary proposal, folding any parked facet-removal tasks into its
+ * `scheduleBatch` so removals ride along in the same single signature (spec §6).
  *
- * @param options - The primary proposal's options (network + signing).
- * @param environment - Deployment environment (production in v1).
- * @param open - Opens the queue collection and builds the live deps.
+ * Flow: gate (flag / timelock / direct-send / reentrancy) → open the queue →
+ * {@link prepareDrainNetwork} (partition + claim + build removal calls) → hand
+ * those calls to `proposePrimary` → link each claimed task to the resulting Safe
+ * tx hash (or revert them if the primary threw, or was a duplicate that created
+ * no new proposal). Best-effort by construction: if the gate is closed, the queue
+ * cannot be opened, or preparation fails, the primary is proposed alone and its
+ * result returned unchanged — a drain problem never blocks the primary. A genuine
+ * primary failure is surfaced (rethrown) after the claimed tasks are reverted.
+ *
+ * @param options - The primary proposal's options (network + signing + timelock).
+ * @param proposePrimary - Signs + stores the primary proposal with the given
+ *   appended removal calls and PR links; returns its Safe tx hash and whether a
+ *   new proposal was stored (false = duplicate pending intent).
+ * @param open - Opens the queue collection and builds the live deps (injected for
+ *   tests; defaults to the live Mongo adapter).
+ * @returns The primary proposal's result.
  */
-export async function runDrain(
+export async function proposeWithDrain(
   options: IProposeToSafeOptions,
-  environment: EnvironmentEnum,
-  open: DrainOpener
-): Promise<void> {
-  if (!isDrainEnabled()) return
-  if (draining) return
-  if (isDirectSendEnv(options.network)) return
+  proposePrimary: ProposePrimary,
+  open?: DrainOpener
+): Promise<{ safeTxHash: Hex; stored: boolean }> {
+  const environment = EnvironmentEnum.production
+  if (!isDrainEligible(options)) return proposePrimary([])
+  if (draining) return proposePrimary([])
 
   draining = true
   try {
-    const { close, deps } = await open()
+    const opener = open ?? liveOpener(options, environment)
+    let queue: Awaited<ReturnType<DrainOpener>>
     try {
-      const outcome = await drainNetwork(options.network, environment, deps)
-      logDrainSummary(outcome)
+      queue = await opener()
+    } catch (error) {
+      consola.warn(
+        'parked-task drain: could not open the queue (primary proposal unaffected):',
+        error
+      )
+      return proposePrimary([])
+    }
+
+    try {
+      let prep: IDrainPreparation
+      try {
+        prep = await prepareDrainNetwork(
+          options.network,
+          environment,
+          queue.deps
+        )
+      } catch (error) {
+        consola.warn(
+          'parked-task drain: preparation failed (primary proposal unaffected):',
+          error
+        )
+        return proposePrimary([])
+      }
+
+      const refs =
+        prep.parkedTaskRefs.length > 0 ? prep.parkedTaskRefs : undefined
+
+      let result: { safeTxHash: Hex; stored: boolean }
+      try {
+        result = await proposePrimary(prep.calls, refs)
+      } catch (error) {
+        for (const key of prep.claimedTaskKeys) await queue.deps.revert(key)
+        throw error
+      }
+
+      await finalizeClaimed(prep, result, queue.deps)
+      logDrainSummary(prep.outcome)
+      return result
     } finally {
-      await close()
+      await queue.close()
     }
   } finally {
     draining = false
@@ -291,28 +376,53 @@ export async function runDrain(
 }
 
 /**
- * Live entry point hooked into `runPropose` after the primary proposal. Opens the
- * (ungated) queue, wires the live dependencies and runs {@link runDrain}.
- * Best-effort: callers invoke it as `drainParkedTasks(options).catch(warn)`, and
- * it never rethrows a drain failure (only {@link drainNetwork} does, which the
- * live deps here contain).
- *
- * @param options - The same options the primary proposal used (network + signing).
+ * Resolves the claimed tasks against the primary proposal's outcome: on a freshly
+ * stored proposal, link each to its Safe tx hash and record it as proposed; on a
+ * duplicate (no new proposal), revert them to queued so the next drain re-folds
+ * them cleanly.
  */
-export async function drainParkedTasks(
-  options: IProposeToSafeOptions
+async function finalizeClaimed(
+  prep: IDrainPreparation,
+  result: { safeTxHash: Hex; stored: boolean },
+  deps: IDrainDeps
 ): Promise<void> {
-  const environment = EnvironmentEnum.production
-  await runDrain(options, environment, async () => {
+  if (prep.claimedTaskKeys.length === 0) return
+
+  if (!result.stored) {
+    for (const key of prep.claimedTaskKeys) await deps.revert(key)
+    deps.log(
+      `[${prep.outcome.network}] primary proposal already existed (duplicate) — ` +
+        `returned ${prep.claimedTaskKeys.length} parked removal(s) to queued`
+    )
+    return
+  }
+
+  for (const key of prep.claimedTaskKeys)
+    await deps.linkProposal(key, result.safeTxHash)
+  prep.outcome.safeTxHash = result.safeTxHash
+  prep.outcome.proposed = prep.parkedTaskRefs
+  for (const ref of prep.parkedTaskRefs)
+    deps.log(
+      `[${prep.outcome.network}] parked cleanup: removing ${ref.facet} ` +
+        `(origin PR ${ref.prUrl}) → ${result.safeTxHash}`
+    )
+}
+
+/** Builds the live opener: the real queue collection + Mongo-backed deps. */
+function liveOpener(
+  options: IProposeToSafeOptions,
+  environment: EnvironmentEnum
+): DrainOpener {
+  return async () => {
     const { client, parkedTasks } = await getParkedTasksCollection()
     return {
       close: () => client.close(),
       deps: buildLiveDeps(options, environment, parkedTasks),
     }
-  })
+  }
 }
 
-/** Wires {@link IDrainDeps} to the live queue collection, engine, mint and sinks. */
+/** Wires {@link IDrainDeps} to the live queue collection, engine and sinks. */
 function buildLiveDeps(
   options: IProposeToSafeOptions,
   environment: EnvironmentEnum,
@@ -338,116 +448,11 @@ function buildLiveDeps(
     revert: (taskKey) => revertToQueued(parkedTasks, taskKey),
     linkProposal: (taskKey, safeTxHash) =>
       setSafeTxHash(parkedTasks, taskKey, safeTxHash),
-    mint: (params) => mintRemovalProposal(options, environment, params),
     alert: (message) => {
       consola.warn(message)
       void sendDrainSlackAlert(message)
     },
     log: (message) => consola.info(message),
-  }
-}
-
-/**
- * Mints ONE consolidated per-network timelock-wrapped removal proposal via the
- * low-level store (NOT by recursing through `runPropose`), annotated with the
- * origin-PR links. Same signing context as the primary proposal.
- */
-async function mintRemovalProposal(
-  options: IProposeToSafeOptions,
-  environment: EnvironmentEnum,
-  {
-    removals,
-    parkedTaskRefs,
-  }: {
-    removals: IFacetRemoval[]
-    parkedTaskRefs: IParkedTaskRef[]
-  }
-): Promise<string> {
-  const useLedger = options.ledger || false
-  const privateKey = useLedger
-    ? undefined
-    : getPrivateKey('PRIVATE_KEY_PRODUCTION', options.privateKey)
-  const ledgerOptions = {
-    ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
-    derivationPath: options.derivationPath,
-  }
-
-  const { safe, chain, safeAddress } = await initializeSafeClient(
-    options.network,
-    privateKey,
-    options.rpcUrl,
-    useLedger,
-    ledgerOptions
-  )
-  const senderAddress = safe.account.address
-
-  const diamondAddress = getAddress(
-    await getContractAddressForNetwork(
-      'LiFiDiamond',
-      options.network as SupportedChain,
-      environment
-    )
-  )
-  const timelockAddress = getAddress(
-    await getContractAddressForNetwork(
-      'LiFiTimelockController',
-      options.network as SupportedChain,
-      environment
-    )
-  )
-
-  const removalCalldata = buildDiamondCutRemoveCalldata(
-    removals.map((r) => ({ name: r.name, selectors: r.selectors }))
-  )
-  const { calldata, targetAddress } = await wrapWithTimelockSchedule(
-    options.network,
-    options.rpcUrl || '',
-    timelockAddress,
-    [diamondAddress],
-    [removalCalldata]
-  )
-
-  const { client, pendingTransactions } = await getSafeMongoCollection()
-  try {
-    const nextNonce = await getNextNonce(
-      pendingTransactions,
-      safeAddress,
-      options.network,
-      chain.id,
-      await safe.getNonce()
-    )
-    const safeTransaction = await safe.createTransaction({
-      transactions: [
-        {
-          to: targetAddress,
-          value: 0n,
-          data: calldata as Hex,
-          operation: OperationTypeEnum.Call,
-          nonce: nextNonce,
-        },
-      ],
-    })
-    const signedTx = await safe.signTransaction(safeTransaction)
-    const safeTxHash = await safe.getTransactionHash(signedTx)
-
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      options.network,
-      chain.id,
-      signedTx,
-      safeTxHash as Hex,
-      senderAddress as Address,
-      parkedTaskRefs
-    )
-    if (result === null)
-      throw new Error(
-        'drain removal proposal was not stored (duplicate pending intent) — leaving tasks to retry'
-      )
-    return safeTxHash
-  } finally {
-    await client.close()
   }
 }
 
@@ -477,7 +482,7 @@ function logDrainSummary(outcome: IDrainOutcome): void {
     return
   }
   consola.success(
-    `[${outcome.network}] parked-task drain: ${proposed.length} proposed, ` +
+    `[${outcome.network}] parked-task drain: ${proposed.length} folded in, ` +
       `${superseded.length} superseded, ${protectedCancelled.length} cancelled, ` +
       `${prunedButRouted.length} pruned-but-routed (kept)` +
       (outcome.safeTxHash ? ` → ${outcome.safeTxHash}` : '')
