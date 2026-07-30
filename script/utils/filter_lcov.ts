@@ -1,6 +1,6 @@
 import * as fs from 'fs'
-import * as readline from 'readline'
 import * as path from 'path'
+import * as readline from 'readline'
 
 // this script helps to produce a clean (test) coverage report for our Solidity contracts
 // forge coverage usually checks coverage for all contracts (including test and script contracts)
@@ -10,8 +10,11 @@ async function filterLcov(
   outputFile: string,
   excludePatterns: string[]
 ) {
-  if (inputFile.includes('..') || path.isAbsolute(inputFile)) {
-    throw new Error('Invalid input file path')
+  const base = process.cwd()
+  for (const file of [inputFile, outputFile]) {
+    const relativePath = path.relative(base, path.resolve(file))
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+      throw new Error(`Invalid file path: ${file}`)
   }
   const fileStream = fs.createReadStream(inputFile)
   const rl = readline.createInterface({

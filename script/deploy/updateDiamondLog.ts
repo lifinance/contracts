@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 
@@ -78,15 +79,14 @@ const updateDiamond = function (
     ? `deployments/${network}.diamond.json`
     : `deployments/${network}.diamond.staging.json`
 
+  const base = path.resolve('deployments')
+  const diamondFilePath = path.resolve(diamondFile)
+  const relativePath = path.relative(base, diamondFilePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Invalid network name: ${network}`)
+
   try {
-    const path = require('path')
-    const base = path.resolve('deployments')
-    const target = path.resolve(base, path.basename(diamondFile))
-    const relative = path.relative(base, target)
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error('Invalid file path')
-    }
-    data = JSON.parse(fs.readFileSync(target, 'utf8')) as IDiamondFile
+    data = JSON.parse(fs.readFileSync(diamondFilePath, 'utf8')) as IDiamondFile
   } catch {}
 
   if (!data[diamondContractName])
@@ -114,7 +114,7 @@ const updateDiamond = function (
     }
   }
 
-  fs.writeFileSync(diamondFile, JSON.stringify(data, null, 2))
+  fs.writeFileSync(diamondFilePath, JSON.stringify(data, null, 2))
 }
 
 runMain(main)

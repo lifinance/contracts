@@ -406,7 +406,7 @@ export function getDeployLogFile(
   const filePath = path.resolve(base, `${network}${suffix}.json`)
   const relative = path.relative(base, filePath)
   if (relative.startsWith('..') || path.isAbsolute(relative))
-    throw new Error(`Invalid path`)
+    throw new Error(`Invalid network name: ${network}`)
 
   if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)
