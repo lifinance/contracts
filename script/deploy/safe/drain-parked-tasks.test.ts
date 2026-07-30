@@ -658,4 +658,67 @@ describe('proposeWithDrain', () => {
     expect(opener.openCount()).toBe(1)
     expect(inner.received).toEqual([{ calls: [], refs: undefined }])
   })
+
+  it('never fails the process when closing the queue connection throws — the primary is already stored', async () => {
+    const a = task('FacetA')
+    const deps = makeDeps({
+      queued: [a],
+      result: namedResult({ removals: [removal('FacetA')] }),
+    })
+    const open: DrainOpener = async () => ({
+      close: async () => {
+        throw new Error('connection reset during close')
+      },
+      deps,
+    })
+    const spy = primarySpy()
+    const result = await proposeWithDrain(options, spy.fn, open)
+
+    expect(result).toEqual({ safeTxHash: HASH, stored: true })
+    expect(deps.calls.link).toEqual([{ taskKey: a.taskKey, safeTxHash: HASH }])
+  })
+
+  it('surfaces the primary failure even when reverting a claimed task also throws (alerted, not masked)', async () => {
+    const a = task('FacetA')
+    const deps = makeDeps({
+      queued: [a],
+      result: namedResult({ removals: [removal('FacetA')] }),
+    })
+    deps.revert = async () => {
+      throw new Error('mongo revert failed')
+    }
+    const opener = makeOpener(deps)
+    const spy = primarySpy(() => {
+      throw new Error('primary sign failed')
+    })
+    let thrown: Error | undefined
+    try {
+      await proposeWithDrain(options, spy.fn, opener.open)
+    } catch (e) {
+      thrown = e as Error
+    }
+    expect(thrown?.message).toBe('primary sign failed')
+    expect(deps.calls.alerts.some((m) => m.includes('could not revert'))).toBe(
+      true
+    )
+    expect(opener.closeCount()).toBe(1)
+  })
+
+  it('never fails the process when post-store bookkeeping throws after linking — the primary is already stored', async () => {
+    const a = task('FacetA')
+    const deps = makeDeps({
+      queued: [a],
+      result: namedResult({ removals: [removal('FacetA')] }),
+    })
+    deps.log = () => {
+      throw new Error('log sink blew up')
+    }
+    const opener = makeOpener(deps)
+    const spy = primarySpy()
+    const result = await proposeWithDrain(options, spy.fn, opener.open)
+
+    expect(result).toEqual({ safeTxHash: HASH, stored: true })
+    expect(deps.calls.link).toEqual([{ taskKey: a.taskKey, safeTxHash: HASH }])
+    expect(opener.closeCount()).toBe(1)
+  })
 })
