@@ -273,6 +273,54 @@ describe('verifyApprovals', () => {
     ).toEqual(['No approvals', 'Missing required approvals'])
   })
 
+  it('discounts an approval that the same user later superseded with CHANGES_REQUESTED', async () => {
+    expect(
+      await verifyApprovals(
+        stubOctokit({
+          ...approvedRepo,
+          reviews: [
+            ...(approvedRepo.reviews ?? []),
+            { state: 'CHANGES_REQUESTED', user: { login: 'auditor-one' } },
+          ],
+        }),
+        'feature/across',
+        ['AcrossFacet']
+      )
+    ).toEqual(['Missing required approvals'])
+  })
+
+  it('discounts a dismissed approval', async () => {
+    expect(
+      await verifyApprovals(
+        stubOctokit({
+          ...approvedRepo,
+          reviews: [
+            { state: 'DISMISSED', user: { login: 'dev-one' } },
+            { state: 'APPROVED', user: { login: 'auditor-one' } },
+          ],
+        }),
+        'feature/across',
+        ['AcrossFacet']
+      )
+    ).toEqual(['Missing required approvals'])
+  })
+
+  it('keeps an approval standing when the same user later merely comments', async () => {
+    expect(
+      await verifyApprovals(
+        stubOctokit({
+          ...approvedRepo,
+          reviews: [
+            ...(approvedRepo.reviews ?? []),
+            { state: 'COMMENTED', user: { login: 'auditor-one' } },
+          ],
+        }),
+        'feature/across',
+        ['AcrossFacet']
+      )
+    ).toEqual([])
+  })
+
   it('fails when no open PR exists for the branch', async () => {
     expect(
       await verifyApprovals(stubOctokit({ pulls: [] }), 'feature/orphan', [

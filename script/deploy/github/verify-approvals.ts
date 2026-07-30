@@ -131,10 +131,10 @@ export const getFilesInPR = async (
 }
 
 /**
- * Lists the logins that approved a pull request.
+ * Lists the logins whose current review state approves the pull request.
  * @param octokit - authenticated GitHub client
  * @param pullNumber - pull request number
- * @returns the approving logins across all review pages
+ * @returns the logins whose latest state-changing review is an approval
  * @throws If the GitHub API call fails.
  */
 const getPRApprovers = async (
@@ -148,10 +148,20 @@ const getPRApprovers = async (
     per_page: PER_PAGE,
   })
 
-  return reviews
-    .filter((review) => review.state === 'APPROVED')
-    .map((review) => review.user?.login)
-    .filter((login): login is string => Boolean(login))
+  // Reviews arrive oldest-first and include every historical submission, so keep only
+  // each user's latest state-changing review: a later CHANGES_REQUESTED (or a dismissal)
+  // supersedes that user's earlier approval, while COMMENTED reviews leave it standing.
+  const stateChangingReviews = ['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']
+  const latestStateByLogin = new Map<string, string>()
+  for (const review of reviews) {
+    const login = review.user?.login
+    if (login && stateChangingReviews.includes(review.state))
+      latestStateByLogin.set(login, review.state)
+  }
+
+  return [...latestStateByLogin.entries()]
+    .filter(([, state]) => state === 'APPROVED')
+    .map(([login]) => login)
 }
 
 /**
