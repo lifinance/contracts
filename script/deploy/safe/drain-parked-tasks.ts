@@ -7,7 +7,10 @@
  * signature. Hooked into `runPropose` (propose-to-safe.ts) and gated on
  * `DRAIN_PARKED_TASKS` (default off); it no-ops on direct-send / testnet and only
  * folds into a timelock proposal. A drain-only failure must never affect the
- * primary proposal or the process exit code.
+ * primary proposal or the process exit code — but that isolation holds only until
+ * the proposal is stored: once folded, the removals execute atomically inside the
+ * primary's `scheduleBatch`, so a removal that reverts on-chain during the timelock
+ * window reverts the primary cut too (§6 TOCTOU tradeoff).
  *
  * `prepareDrainNetwork` takes every dependency injected so it is unit-testable
  * without Mongo, chain, or a Safe client; only {@link proposeWithDrain}'s default

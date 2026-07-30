@@ -123,8 +123,13 @@ proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design
   PR(s) (`parkedTaskRefs`) on the facet-cut proposal, shown at signing in
   `confirm-safe-tx`, in `list-pending-proposals`, and in the Phase 8 Slack post —
   so the signer sees **why** each facet is being removed.
-- **Best-effort**: a drain failure never blocks the primary proposal or the exit
-  code (the removals simply don't fold in).
+- **Best-effort (at propose time only)**: a drain *preparation* failure never
+  blocks the primary proposal or the exit code — the removals simply don't fold in.
+  But once folded, the removals execute atomically inside the primary's
+  `scheduleBatch`: if a folded facet is removed by another path during the timelock
+  delay, its `diamondCut` Remove reverts at execution and **the whole batch — incl.
+  the primary rollout cut — reverts** (docs/DeferredDiamondCleanupQueue.md §6). Keep
+  `DRAIN_PARKED_TASKS` off for time-critical rollouts if that risk is unacceptable.
 - **MongoDB privilege caveat**: the queue lives on the un-gated `MONGODB_URI`
   cluster (DB `deferred-cleanup`), so the drain needs no tunnel — but it does need
   the role to have `readWrite` **including index creation** on that DB. If the
