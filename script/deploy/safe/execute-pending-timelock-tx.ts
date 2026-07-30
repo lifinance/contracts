@@ -1142,12 +1142,15 @@ const FACETS_LOUPE_ABI = parseAbi([
  * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
  * snapshot from Remove payloads + parked tasks (doomed addresses), re-reads the
  * loupe via the runner's `publicClient` (honours `--rpcUrl`), and aborts the
- * whole batch if any selector is stale. Legacy Remove cuts with no parked rows
- * (e.g. cleanUpProdDiamond) cannot recover doomed addresses from calldata —
- * those warn and proceed.
+ * whole batch if any selector is stale. Remove cuts with no parked rows for the
+ * Safe tx hash also abort — doomed addresses are not recoverable from calldata
+ * (`facetAddress = 0`), so executing blind would reopen the silent-delete hole
+ * (covers unlink after a best-effort drain link failure, and legacy
+ * `cleanUpProdDiamond` until those removals park too).
  *
  * Transient Mongo/RPC failures refuse the run but leave the queue row `queued`
- * for retry. Only durable snapshot/stale failures mark the row `failed`.
+ * for retry. Only durable snapshot/stale/unvalidated failures mark the row
+ * `failed`.
  *
  * @returns `'ok'` to continue execution, `'failed'` when the op must not run.
  */
@@ -1202,10 +1205,21 @@ async function revalidateFoldedRemovalsOrAbort(
   if (built.kind === 'none') return 'ok'
 
   if (built.kind === 'unvalidated') {
-    consola.warn(
-      `${networkPrefix} ⚠️ Timelock batch has ${built.removeCutCount} Remove diamondCut(s) but no parked tasks for safeTxHash ${operation.safeTxHash} — skipping pre-execute revalidation (legacy cleanup path; doomed addresses not recoverable from calldata)`
-    )
-    return 'ok'
+    // Fail closed: without parked doomed addresses we cannot revalidate, and
+    // warn-then-proceed would reopen silent live-selector deletion on unlink /
+    // legacy cleanup. Cancel the op and re-propose via the parked drain (or
+    // park the facets first for cleanUpProdDiamond).
+    const reason = `Remove diamondCut(s) present (${built.removeCutCount}) but no parked tasks for safeTxHash ${operation.safeTxHash} — cannot revalidate; aborting whole batch`
+    consola.error(`${networkPrefix} ❌ ${reason}`)
+    if (!isDryRun)
+      await markTimelockOpFailed(
+        networkName,
+        operation.id,
+        'Remove cuts without parked-task snapshot — cannot revalidate',
+        networkPrefix
+      )
+    await alertFailure(new Error(reason))
+    return 'failed'
   }
 
   if (built.kind === 'mismatch') {

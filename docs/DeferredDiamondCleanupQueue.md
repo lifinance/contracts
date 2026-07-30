@@ -293,8 +293,11 @@ Remove payloads + parked tasks (`listParkedTasksBySafeTxHash` +
 `buildRemovalSnapshotFromPayloads`) and aborts if `stale` is non-empty. Under the fold
 that aborts the **entire** timelock batch (primary cut + removals) — the schedule is
 immutable, so "re-propose from `stillRemovable`" means cancel the op and drain again.
-Legacy Remove cuts with no parked rows (e.g. `cleanUpProdDiamond`) cannot recover
-doomed addresses from calldata (`facetAddress = 0`) and warn-then-proceed.
+Remove cuts with no parked rows for the Safe tx hash also abort (fail closed) —
+doomed addresses are not recoverable from calldata (`facetAddress = 0`), so
+executing blind would reopen silent live-selector deletion. That covers drain
+unlink (best-effort `setSafeTxHash` never stamped) and legacy
+`cleanUpProdDiamond` until those removals park too.
 
 ---
 
@@ -522,7 +525,10 @@ not retry. The prepare-time partition still shrinks the window; the schedule rem
 immutable once queued. Exposure is low in practice (parked removals target already-
 deprecated facets), but larger than the old separate-proposal design. Mitigations if the
 guard ever false-positives a rollout: cancel the op, or gate `DRAIN_PARKED_TASKS` off.
-Flagged for governance review; the default-off flag remains the break-glass escape hatch.
+A rare false abort can also come from same-ms `proposedAt` ties mis-ordering the
+trailing-N Remove zip (fail-safe, not silent delete) — accepted until claim-time
+append indexing ships. Flagged for governance review; the default-off flag remains
+the break-glass escape hatch.
 
 ### How the PR link reaches the reviewer — the acceptance criterion (visibility decided)
 

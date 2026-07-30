@@ -804,8 +804,8 @@ export interface IParkedRemovalIdentity {
  * Result of zipping Remove cuts from a timelock batch with parked-task identities.
  * - `none`: no Remove cuts (and no parked rows) — skip the pre-execute guard.
  * - `snapshot`: zip succeeded; caller must run {@link revalidateRemovalsOnChain}.
- * - `unvalidated`: Remove cuts present but no parked rows (legacy cleanup) — cannot
- *   recover doomed addresses from calldata (always 0); caller warns and proceeds.
+ * - `unvalidated`: Remove cuts present but no parked rows — cannot recover doomed
+ *   addresses from calldata (always 0); caller MUST abort (fail closed).
  * - `mismatch`: parked/cut counts disagree — refuse to execute.
  */
 export type RemovalSnapshotBuild =
@@ -819,6 +819,9 @@ export type RemovalSnapshotBuild =
  * parked-task doomed addresses. Drain appends one Remove call per claimed facet
  * after the primary, so the trailing `parked.length` Remove cuts zip 1:1 with
  * parked tasks sorted by `proposedAt` ascending (then `taskKey` for ties).
+ * Same-ms `proposedAt` ties can theoretically mis-label cuts → a false
+ * `re-pointed` abort (fail-safe, not silent delete); accepted until an explicit
+ * append index is stamped at claim time.
  *
  * @param payloads - Inner call payloads from the timelock batch.
  * @param parked - Parked-task identities for this Safe tx, claim/append order.

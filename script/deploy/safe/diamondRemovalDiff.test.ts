@@ -593,7 +593,7 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
     })
   })
 
-  it('signals unvalidated when Remove cuts exist without parked rows', () => {
+  it('signals unvalidated when Remove cuts exist without parked rows (execute aborts)', () => {
     const remove = buildDiamondCutRemoveCalldata([
       { name: 'Legacy', selectors: [sel(1)] },
     ])
