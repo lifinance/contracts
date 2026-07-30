@@ -230,18 +230,26 @@ export class SafeClient {
    */
   private chainExecutor?: IChainExecutor
 
+  /**
+   * Chain id resolved from config at init time. Lets the signing path build
+   * the EIP-712 domain without an RPC round trip.
+   */
+  private knownChainId?: number
+
   public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
     account: Account,
-    chainExecutor?: IChainExecutor
+    chainExecutor?: IChainExecutor,
+    knownChainId?: number
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
     this.safeAddress = safeAddress
     this.account = account
     this.chainExecutor = chainExecutor
+    this.knownChainId = knownChainId
   }
 
   /**
@@ -251,6 +259,7 @@ export class SafeClient {
    * @param account - Account used for signing and broadcasting
    * @param tronWalletClient - Optional Tron signer required for TVM execution
    * @param networkName - Network name used to construct explorer URLs in results
+   * @param configChainId - Chain id resolved from config, skips the RPC lookup
    * @returns Executor implementation matching the connected chain
    * @throws Error if a Tron executor is required but no Tron signer is available
    */
@@ -259,16 +268,9 @@ export class SafeClient {
     walletClient: WalletClient,
     account: Account,
     tronWalletClient?: TronWalletClient,
-    networkName?: string
+    networkName?: string,
+    configChainId?: number
   ): Promise<IChainExecutor | undefined> {
-    let configChainId: number | undefined
-    if (networkName) {
-      try {
-        configChainId = getViemChainForNetworkName(networkName).id
-      } catch {
-        configChainId = undefined
-      }
-    }
     const chainId = configChainId ?? (await publicClient.getChainId())
 
     if (isTronTvmChainId(chainId)) {
@@ -395,12 +397,22 @@ export class SafeClient {
       transport: walletTransport,
     })
 
+    let configChainId: number | undefined = chain?.id
+    if (configChainId === undefined && networkName) {
+      try {
+        configChainId = getViemChainForNetworkName(networkName).id
+      } catch {
+        configChainId = undefined
+      }
+    }
+
     const chainExecutor = await SafeClient.createChainExecutor(
       publicClient,
       walletClient,
       account,
       tronWalletClient,
-      networkName
+      networkName,
+      configChainId
     )
 
     return new SafeClient(
@@ -408,7 +420,8 @@ export class SafeClient {
       walletClient,
       safeAddress,
       account,
-      chainExecutor
+      chainExecutor,
+      configChainId
     )
   }
 
@@ -681,8 +694,11 @@ export class SafeClient {
     }
 
     try {
-      // Get chain ID for domain
-      const chainId = await this.publicClient.getChainId()
+      // Get chain ID for domain — prefer the config-resolved id so the hot
+      // path between the operator's "Sign" selection and the Ledger prompt
+      // makes no RPC call (a cold connection here delays the device display)
+      const chainId =
+        this.knownChainId ?? (await this.publicClient.getChainId())
 
       // Define EIP-712 domain and types
       const domain = {

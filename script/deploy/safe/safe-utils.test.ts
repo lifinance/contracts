@@ -734,3 +734,55 @@ describe('releaseAllPooledSafeClients', () => {
     expect(pool.size).toBe(0)
   })
 })
+
+describe('SafeClient.signTransaction chain id source', () => {
+  const makeClient = async (knownChainId?: number) => {
+    const { SafeClient } = await import('./safe-utils')
+    const { privateKeyToAccount } = await import('viem/accounts')
+    const account = privateKeyToAccount(
+      '0x0000000000000000000000000000000000000000000000000000000000000001'
+    )
+    let rpcChainIdCalls = 0
+    const domains: { chainId: number }[] = []
+    const publicClient = {
+      getChainId: async () => {
+        rpcChainIdCalls++
+        return 999
+      },
+    }
+    const walletClient = {
+      signTypedData: async (params: { domain: { chainId: number } }) => {
+        domains.push(params.domain)
+        return `0x${'ab'.repeat(65)}`
+      },
+    }
+    const client = new SafeClient(
+      publicClient as never,
+      walletClient as never,
+      SAFE_ADDR,
+      account,
+      undefined,
+      knownChainId
+    )
+    return {
+      client,
+      domains,
+      rpcChainIdCalls: () => rpcChainIdCalls,
+    }
+  }
+
+  it('uses the config-resolved chain id without an RPC round trip', async () => {
+    const { client, domains, rpcChainIdCalls } = await makeClient(42161)
+    const signed = await client.signTransaction(buildSafeTx())
+    expect(rpcChainIdCalls()).toBe(0)
+    expect(domains[0]?.chainId).toBe(42161)
+    expect(signed.signatures.size).toBe(1)
+  })
+
+  it('falls back to the RPC chain id when no config id is known', async () => {
+    const { client, domains, rpcChainIdCalls } = await makeClient(undefined)
+    await client.signTransaction(buildSafeTx())
+    expect(rpcChainIdCalls()).toBe(1)
+    expect(domains[0]?.chainId).toBe(999)
+  })
+})
