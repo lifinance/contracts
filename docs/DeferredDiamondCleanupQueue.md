@@ -828,7 +828,7 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    │ (removes F from codebase)              │
    │ opens deprecation PR #P                │ proposeWithDrain(X)  ◄── the ONE hook (§6)
    ▼                                        ▼  (DRAIN_PARKED_TASKS on; timelock; try/catch)
- enqueue parkedTask{                       │ 1. read status:queued for X
+ enqueue parkedTask{                        │ 1. read status:queued for X
    kind: facet-removal,                     │ 2. computeNamedFacetRemovals (live loupe)
    network: X, facetName: F,                │ 3. claimForProposal flip queued→proposed  (dedup gate)
    prUrl: #P, status: queued }              │ 4. build one Remove call per facet, carrying #P link

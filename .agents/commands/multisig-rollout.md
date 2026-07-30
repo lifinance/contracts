@@ -121,8 +121,8 @@ proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design
   rollouts so unrelated removals never join an urgent signing set.
 - **PR-link surfacing**: the folded removals carry the originating deprecation
   PR(s) (`parkedTaskRefs`) on the facet-cut proposal, shown at signing in
-  `confirm-safe-tx`, in `list-pending-proposals`, and in the Phase 8 Slack post —
-  so the signer sees **why** each facet is being removed.
+  `confirm-safe-tx` and in `list-pending-proposals` — so the signer sees **why**
+  each facet is being removed.
 - **Best-effort (at propose time only)**: a drain *preparation* failure never
   blocks the primary proposal or the exit code — the removals simply don't fold in.
   But once folded, the removals execute atomically inside the primary's

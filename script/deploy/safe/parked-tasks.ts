@@ -25,9 +25,9 @@
  * `intentHash` non-deterministic, so it cannot dedup a re-proposed removal
  * (spec Fact 9); the queue-layer flip is the guarantee instead.
  *
- * The drain (out of scope here) sets `safeTxHash` on a claimed record to link it
- * to the minted `pendingTransactions` proposal (spec §6.3 step 4); that setter
- * lands with the drain PR, so no `safeTxHash` writer is exposed yet by design.
+ * The drain (out of scope here) sets `safeTxHash` on a claimed record via
+ * {@link setSafeTxHash} to link it to the primary `pendingTransactions` proposal
+ * its removal was folded into (spec §6).
  */
 
 import { consola } from 'consola'
@@ -457,15 +457,15 @@ export async function markCancelled(
 }
 
 /**
- * Links a claimed (`proposed`) task to the `pendingTransactions` proposal the
- * drain just minted, by stamping its `safeTxHash` (spec §6.3 step 4). Restricted
+ * Links a claimed (`proposed`) task to the primary `pendingTransactions` proposal
+ * its removal was folded into, by stamping its `safeTxHash` (spec §6). Restricted
  * to `proposed`: the task must have been claimed via {@link claimForProposal}
  * before a proposal exists to link. A later reconcile reads this hash to resolve
  * the task once the proposal executes.
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The claimed task to link.
- * @param safeTxHash - The minted proposal's Safe transaction hash.
+ * @param safeTxHash - The linked primary proposal's Safe transaction hash.
  * @returns The updated task, or `null` if it was not `proposed`.
  */
 export async function setSafeTxHash(
@@ -477,9 +477,10 @@ export async function setSafeTxHash(
 }
 
 /**
- * Reverts a claimed (`proposed`) task back to `queued` when its minted proposal
- * failed or was reverted, clearing the stale `proposedAt`/`safeTxHash` so the next
- * drain re-proposes cleanly.
+ * Reverts a claimed (`proposed`) task back to `queued` when no stored proposal
+ * carries its removal (preparation failure, primary-proposal failure, or duplicate
+ * primary), clearing the stale `proposedAt`/`safeTxHash` so the next drain
+ * re-folds cleanly.
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The task to re-open.
