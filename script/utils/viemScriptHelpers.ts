@@ -395,6 +395,7 @@ export function getFunctionSelectors(
  * @param network Name of the network
  * @param environment the production environment (production/staging)
  * @returns Parsed deploy log mapping contract names to their deployed addresses
+ * @throws If the network name resolves outside the deployments directory or no deploy log exists for the network/environment.
  */
 export function getDeployLogFile(
   network: string,
