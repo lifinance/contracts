@@ -1308,6 +1308,35 @@ describe('re-verify uses a private cache without disturbing concurrent invariant
 
     expect(sharedCache.get('SentinelContract')).toBe(sentinel)
   })
+
+  it('re-reads every name on the re-verify instead of replaying the shared cache', async () => {
+    // The other half of the contract: a stale cached SUCCESS must not survive into the retry,
+    // or re-verification cannot clear a transient wrong read.
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: { readContract: async () => ZERO },
+    } as unknown as IHealthCheckContext)
+    // Seed a stale success: the RPC truth is ZERO, the cache claims a live receiver.
+    ctx.peripheryRegistryCache.set(
+      'ReceiverOIF',
+      Promise.resolve(EXECUTOR as `0x${string}`)
+    )
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    await runHealthCheckInvariants(ctx, [
+      owner,
+      inv('force-reverify', async (c) => c.logError('drift')),
+    ])
+
+    // The retry re-read ReceiverOIF from the RPC (ZERO => absent), so the seeded stale address
+    // produced no owner error.
+    expect(ctx.errors.filter((e) => e.includes('ReceiverOIF'))).toEqual([])
+  })
 })
 
 describe('periphery-registered survives a single failing registry read', () => {

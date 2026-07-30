@@ -151,12 +151,11 @@ export function isValidFacetName(name: string): boolean {
  *   Foundry build, so `out/` is legitimately missing there).
  */
 function loadFacetMethodIdentifiers(
-  facetName: string,
-  repoRoot: string = process.cwd()
+  facetName: string
 ): Record<string, string> | null {
   if (!isValidFacetName(facetName)) return null
 
-  const outDir = resolve(repoRoot, 'out')
+  const outDir = resolve(process.cwd(), 'out')
   const artifactPath = resolve(outDir, `${facetName}.sol`, `${facetName}.json`)
   // Belt-and-braces on top of the name check: the resolved path must stay inside out/, so no
   // combination of inputs can make this read an arbitrary file.
@@ -268,8 +267,6 @@ export function parseUpdateScriptExcludes(
  * set never appears on chain for such facets — matching against it would silently identify
  * nothing. `UpdateAcrossFacetV4.s.sol` alone excludes `SPOKEPOOL()` and `WRAPPED_NATIVE()`.
  *
- * @param facetName - facet whose registration set to compute
- * @param repoRoot - repo root the artifact and update scripts are read from; injectable for tests
  * @returns the registered selectors (lowercased, `0x`-prefixed), or null when the identity cannot
  *   be established: artifact missing, excludes unparseable, an excluded name absent from the
  *   artifact (script and build drifted apart), or the zksync update script declaring different
@@ -277,14 +274,13 @@ export function parseUpdateScriptExcludes(
  *   registered set is ambiguous)
  */
 export function loadFacetRegisteredSelectors(
-  facetName: string,
-  repoRoot: string = process.cwd()
+  facetName: string
 ): string[] | null {
-  const methodIdentifiers = loadFacetMethodIdentifiers(facetName, repoRoot)
+  const methodIdentifiers = loadFacetMethodIdentifiers(facetName)
   if (!methodIdentifiers) return null
 
   const parsed = parseExcludesFromScript(
-    resolve(repoRoot, 'script', 'deploy', 'facets'),
+    resolve(process.cwd(), 'script', 'deploy', 'facets'),
     `Update${facetName}.s.sol`
   )
   if (parsed === null) return null
@@ -294,7 +290,7 @@ export function loadFacetRegisteredSelectors(
   // on the parsed shape (names/literals), so a semantically equal rewrite from one form to the
   // other reads as divergent — that fails conservative (unresolved), never as a false pass.
   const zksyncParsed = parseExcludesFromScript(
-    resolve(repoRoot, 'script', 'deploy', 'zksync'),
+    resolve(process.cwd(), 'script', 'deploy', 'zksync'),
     `Update${facetName}.zksync.s.sol`
   )
   if (zksyncParsed === null) return null
