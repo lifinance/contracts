@@ -78,7 +78,7 @@ jobs:
           echo "old_prs=$OLD_PRS" >> $GITHUB_ENV
 
       - name: Send Reminder to Slack PR Review Channel
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_SC_REVIEW }}
           webhook-type: incoming-webhook
