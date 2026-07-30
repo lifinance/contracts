@@ -221,7 +221,9 @@ export async function prepareDrainNetwork(
 
     return { calls, parkedTaskRefs, claimedTaskKeys, outcome }
   } catch (error) {
-    for (const { task } of claimed) await deps.revert(task.taskKey)
+    // Per-key so one failed revert neither strands the other claims nor masks
+    // the original preparation error we're about to rethrow.
+    for (const { task } of claimed) await revertQuietly(deps, task.taskKey)
     deps.alert(
       `[${network}] parked-task drain preparation failed — reverted ${
         claimed.length
