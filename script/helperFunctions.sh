@@ -3250,7 +3250,8 @@ function checkFailure() {
 
   # check RESULT code and display error message if code != 0
   if [[ $RESULT -ne 0 ]]; then
-    echo "Failed to $ERROR_MESSAGE"
+    # stderr, not stdout: this can fire inside a $(...) capture, which swallows stdout
+    echo "Failed to $ERROR_MESSAGE" >&2
     exit 1
   fi
 }
@@ -3265,11 +3266,14 @@ function echoDebug() {
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
+# error/warning must write to stderr: many value-returning helpers are captured via
+# $(...), and a stdout message would be swallowed into the captured value instead of
+# reaching the console (making `-z` guards on the result unreachable)
 function error() {
-  printf '\033[31m[error] %s\033[0m\n' "$1"
+  printf '\033[31m[error] %s\033[0m\n' "$1" >&2
 }
 function warning() {
-  printf '\033[33m[warning] %s\033[0m\n' "$1"
+  printf '\033[33m[warning] %s\033[0m\n' "$1" >&2
 }
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
@@ -3452,7 +3456,8 @@ function findContractVersionInTargetState() {
     return 0
   else
     # entry not found - issue error message and return error code
-    echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
+    # stderr, not stdout: callers capture this function's stdout via $(...)
+    echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT" >&2
     return 1
   fi
 }
@@ -3694,7 +3699,7 @@ function doesAddressContainBytecode() {
 
   # check address value
   if [[ "$ADDRESS" == "null" || "$ADDRESS" == "" ]]; then
-    echo "[warning]: trying to verify deployment at invalid address: ($ADDRESS)"
+    warning "trying to verify deployment at invalid address: ($ADDRESS)"
     return 1
   fi
 
