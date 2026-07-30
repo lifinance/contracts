@@ -125,6 +125,7 @@ export type IParkedTaskInput = Omit<
 /** Filters accepted by {@link listParkedTasks}. */
 export interface IListParkedTasksFilter {
   network?: string
+  environment?: EnvironmentEnum
   prUrl?: string
   status?: ParkedTaskStatus
 }
@@ -338,10 +339,10 @@ export async function enqueueParkedTask(
 }
 
 /**
- * Reads parked tasks, optionally filtered by network / prUrl / status.
+ * Reads parked tasks, optionally filtered by network / environment / prUrl / status.
  *
  * @param parkedTasks - The queue collection.
- * @param filter - Optional network (lowercased), prUrl, and status filters.
+ * @param filter - Optional network (lowercased), environment, prUrl, and status filters.
  * @returns The matching tasks.
  */
 export async function listParkedTasks(
@@ -350,6 +351,7 @@ export async function listParkedTasks(
 ): Promise<WithId<IParkedTask>[]> {
   const query: Filter<IParkedTask> = {}
   if (filter.network) query.network = { $eq: filter.network.toLowerCase() }
+  if (filter.environment) query.environment = { $eq: filter.environment }
   if (filter.prUrl) query.prUrl = { $eq: filter.prUrl }
   if (filter.status) query.status = { $eq: filter.status }
   return parkedTasks.find(query).toArray()
