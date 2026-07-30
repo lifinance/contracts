@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'fs'
+import { resolve } from 'path'
+
 import {
   describe,
   expect,
@@ -10,7 +13,9 @@ import {
   getFacetPeripheryCouplings,
   identifyCoupledFacetsOnChain,
   isValidFacetName,
+  loadFacetRegisteredSelectors,
   loadFacetSelectorsFromArtifact,
+  parseUpdateScriptExcludes,
   resolveLiveFacets,
   type TFacetPeripheryCouplings,
 } from './facetPeripheryCouplings'
@@ -191,38 +196,87 @@ describe('facetPeripheryCouplings registry in config/global.json', () => {
   })
 })
 
+// Real selector values from the compiled Across V4 artifacts (out/<Facet>.sol/<Facet>.json,
+// methodIdentifiers). Snapshotted here so the suite stays hermetic (the TS test job has no
+// Foundry build) while still exercising the shape production data actually has: registration
+// EXCLUDES shared selectors (SPOKEPOOL(), WRAPPED_NATIVE(), ownership functions), so the
+// on-chain set is a strict subset of the artifact.
+const ACROSS_V4_ARTIFACT = [
+  '0xe796cd98', // ACROSS_CHAIN_ID_SOLANA()
+  '0xf97136af', // MULTIPLIER_BASE()
+  '0xf6503992', // SPOKEPOOL()            — excluded by UpdateAcrossFacetV4.s.sol
+  '0xd999984d', // WRAPPED_NATIVE()       — excluded by UpdateAcrossFacetV4.s.sol
+  '0xa1f1ce43', // startBridgeTokensViaAcrossV4(...)
+  '0x1794958f', // swapAndStartBridgeTokensViaAcrossV4(...)
+]
+const ACROSS_V4_REGISTERED = [
+  '0xe796cd98',
+  '0xf97136af',
+  '0xa1f1ce43',
+  '0x1794958f',
+]
+const ACROSS_V4_SWAP_REGISTERED = [
+  '0x6a90d66e', // startBridgeTokensViaAcrossV4Swap(...)
+  '0x9b054bc4', // swapAndStartBridgeTokensViaAcrossV4Swap(...)
+]
+
 describe('identifyCoupledFacetsOnChain', () => {
-  // Injected loader — the suite never touches out/, so it is hermetic (the TS test job has no build).
-  const SELECTORS: Record<string, string[]> = {
-    AcrossFacetV4: ['0xaaaa0001', '0xaaaa0002'],
+  // Injected loader with REGISTERED (post-exclusion) selector sets — what
+  // loadFacetRegisteredSelectors returns in production.
+  const REGISTERED: Record<string, string[]> = {
+    AcrossFacetV4: ACROSS_V4_REGISTERED,
+    AcrossV4SwapFacet: ACROSS_V4_SWAP_REGISTERED,
     StargateFacetV2: ['0xbbbb0001'],
   }
-  const load = (name: string) => SELECTORS[name] ?? null
+  const load = (name: string) => REGISTERED[name] ?? null
 
-  it('identifies a facet whose full selector set is registered on chain, ignoring the deploy log', () => {
-    const { live, unresolved } = identifyCoupledFacetsOnChain(
+  it('identifies a facet from its post-exclusion on-chain set, ignoring the deploy log', () => {
+    // The on-chain set is what UpdateAcrossFacetV4.s.sol actually cuts: the artifact minus
+    // SPOKEPOOL()/WRAPPED_NATIVE(). Matching must succeed on exactly this shape (EXSC-684
+    // round 3: full-artifact matching could never fire for any facet cut with excludes).
+    const { live, unresolved, addressByName } = identifyCoupledFacetsOnChain(
       [
-        {
-          address: '0xdead',
-          selectors: ['0xAAAA0001', '0xaaaa0002', '0x99999999'],
-        },
+        { address: '0xAcrossV4', selectors: ACROSS_V4_REGISTERED },
+        { address: '0xSwap', selectors: ACROSS_V4_SWAP_REGISTERED },
       ],
-      ['AcrossFacetV4', 'StargateFacetV2'],
+      ['AcrossFacetV4', 'AcrossV4SwapFacet', 'StargateFacetV2'],
       load
     )
 
-    expect(live).toEqual(['AcrossFacetV4'])
+    expect(live).toEqual(['AcrossFacetV4', 'AcrossV4SwapFacet'])
     expect(unresolved).toEqual([])
+    expect(addressByName).toEqual({
+      AcrossFacetV4: '0xAcrossV4',
+      AcrossV4SwapFacet: '0xSwap',
+    })
   })
 
-  it('does not identify a facet when only part of its selector set is present', () => {
+  it('does not identify a facet from selectors it shares with a sibling', () => {
+    // ACROSS_CHAIN_ID_SOLANA()/MULTIPLIER_BASE() exist in both AcrossFacetV4 and
+    // AcrossV4SwapFacet. An on-chain facet registering only those two must not be claimed by
+    // either candidate (their registered sets contain selectors this facet lacks).
     const { live } = identifyCoupledFacetsOnChain(
-      [{ address: '0xdead', selectors: ['0xaaaa0001'] }],
-      ['AcrossFacetV4'],
+      [{ address: '0xdead', selectors: ['0xe796cd98', '0xf97136af'] }],
+      ['AcrossFacetV4', 'AcrossV4SwapFacet'],
       load
     )
 
     expect(live).toEqual([])
+  })
+
+  it('is case-insensitive on both selector sides', () => {
+    const { live } = identifyCoupledFacetsOnChain(
+      [
+        {
+          address: '0xdead',
+          selectors: ACROSS_V4_REGISTERED.map((s) => s.toUpperCase()),
+        },
+      ],
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(live).toEqual(['AcrossFacetV4'])
   })
 
   it('refuses a path-traversal facet name rather than reading outside out/', () => {
@@ -230,9 +284,10 @@ describe('identifyCoupledFacetsOnChain', () => {
     expect(isValidFacetName('AcrossFacetV4')).toBe(true)
     expect(isValidFacetName('../../.env')).toBe(false)
     expect(loadFacetSelectorsFromArtifact('../../../etc/passwd')).toBeNull()
+    expect(loadFacetRegisteredSelectors('../../../etc/passwd')).toBeNull()
   })
 
-  it('reports a facet whose artifact cannot be loaded as unresolved, not absent', () => {
+  it('reports a facet whose registered selectors cannot be determined as unresolved, not absent', () => {
     const { live, unresolved } = identifyCoupledFacetsOnChain(
       [{ address: '0xdead', selectors: ['0xffffffff'] }],
       ['UnknownFacet'],
@@ -242,6 +297,169 @@ describe('identifyCoupledFacetsOnChain', () => {
     expect(live).toEqual([])
     expect(unresolved).toEqual(['UnknownFacet'])
   })
+
+  it('treats an empty registered set as unresolved, never as a vacuous match-all', () => {
+    const { live, unresolved } = identifyCoupledFacetsOnChain(
+      [{ address: '0xdead', selectors: ['0xffffffff'] }],
+      ['EmptyFacet'],
+      () => []
+    )
+
+    expect(live).toEqual([])
+    expect(unresolved).toEqual(['EmptyFacet'])
+  })
+})
+
+describe('parseUpdateScriptExcludes', () => {
+  // Real update scripts, read from the repo — the parser must handle every exclude shape that
+  // actually exists, not a synthetic idealization of them.
+  const readScript = (name: string) =>
+    readFileSync(
+      resolve(process.cwd(), 'script', 'deploy', 'facets', name),
+      'utf8'
+    )
+
+  it('parses name-based excludes from the real UpdateAcrossFacetV4.s.sol', () => {
+    const parsed = parseUpdateScriptExcludes(
+      readScript('UpdateAcrossFacetV4.s.sol')
+    )
+
+    expect(parsed).toEqual({
+      functionNames: ['SPOKEPOOL', 'WRAPPED_NATIVE'],
+      literalSelectors: [],
+    })
+  })
+
+  it('parses all 9 excludes from the real UpdateAcrossFacetPackedV4.s.sol', () => {
+    const parsed = parseUpdateScriptExcludes(
+      readScript('UpdateAcrossFacetPackedV4.s.sol')
+    )
+
+    expect(parsed?.functionNames).toEqual([
+      'cancelOwnershipTransfer',
+      'transferOwnership',
+      'confirmOwnershipTransfer',
+      'owner',
+      'pendingOwner',
+      'setApprovalForBridge',
+      'executeCallAndWithdraw',
+      'SPOKEPOOL',
+      'WRAPPED_NATIVE',
+    ])
+  })
+
+  it('parses literal-selector excludes from the real UpdateHopFacetPacked.s.sol', () => {
+    const parsed = parseUpdateScriptExcludes(
+      readScript('UpdateHopFacetPacked.s.sol')
+    )
+
+    expect(parsed).toEqual({
+      functionNames: [],
+      literalSelectors: [
+        '0x23452b9c',
+        '0x7200b829',
+        '0x8da5cb5b',
+        '0xe30c3978',
+        '0xf2fde38b',
+      ],
+    })
+  })
+
+  it('parses the empty-excludes shape from the real UpdateChainflipFacet.s.sol', () => {
+    const parsed = parseUpdateScriptExcludes(
+      readScript('UpdateChainflipFacet.s.sol')
+    )
+
+    expect(parsed).toEqual({ functionNames: [], literalSelectors: [] })
+  })
+
+  it('returns empty excludes when the script has no getExcludes override', () => {
+    expect(
+      parseUpdateScriptExcludes('contract DeployScript { function run() {} }')
+    ).toEqual({ functionNames: [], literalSelectors: [] })
+  })
+
+  it('returns null when assignments do not add up to the declared array size', () => {
+    // An unrecognized assignment shape must poison the whole parse: a silently incomplete
+    // exclude list would produce a registered set that never matches on chain.
+    const source = `
+      function getExcludes() internal pure override returns (bytes4[] memory) {
+        bytes4[] memory excludes = new bytes4[](2);
+        excludes[0] = facet.SPOKEPOOL.selector;
+        excludes[1] = computeSelector("WRAPPED_NATIVE()");
+        return excludes;
+      }`
+
+    expect(parseUpdateScriptExcludes(source)).toBeNull()
+  })
+
+  it('ignores .selector references outside getExcludes (init calldata)', () => {
+    const source = `
+      contract DeployScript {
+        function getExcludes() internal pure override returns (bytes4[] memory) {
+          bytes4[] memory excludes = new bytes4[](1);
+          excludes[0] = HopFacet.initHop.selector;
+          return excludes;
+        }
+        function run() public {
+          bytes memory callData = abi.encodeWithSelector(
+            HopFacet.someOtherInit.selector, cfg
+          );
+        }
+      }`
+
+    expect(parseUpdateScriptExcludes(source)).toEqual({
+      functionNames: ['initHop'],
+      literalSelectors: [],
+    })
+  })
+})
+
+describe('loadFacetRegisteredSelectors (real artifacts)', () => {
+  // Full-stack identity check against the real build outputs. Runs only where out/ exists —
+  // locally and in jobs that ran forge build; the TS-only CI job skips it.
+  const artifactsBuilt = existsSync(
+    resolve(process.cwd(), 'out', 'AcrossFacetV4.sol', 'AcrossFacetV4.json')
+  )
+
+  it.skipIf(!artifactsBuilt)(
+    'computes the exact post-exclusion set for AcrossFacetV4 from the real artifact + script',
+    () => {
+      const registered = loadFacetRegisteredSelectors('AcrossFacetV4')
+
+      expect(registered?.sort()).toEqual([...ACROSS_V4_REGISTERED].sort())
+    }
+  )
+
+  it.skipIf(!artifactsBuilt)(
+    'identifies every coupled Across V4 facet from realistic on-chain sets with the default loader',
+    () => {
+      // The fire-drill for the whole identity source: real artifacts, real update-script
+      // excludes, on-chain sets shaped exactly like a production diamond registration.
+      const { live, unresolved } = identifyCoupledFacetsOnChain(
+        [
+          { address: '0x1', selectors: ACROSS_V4_REGISTERED },
+          { address: '0x2', selectors: ACROSS_V4_SWAP_REGISTERED },
+        ],
+        ['AcrossFacetV4', 'AcrossV4SwapFacet']
+      )
+
+      expect(live).toEqual(['AcrossFacetV4', 'AcrossV4SwapFacet'])
+      expect(unresolved).toEqual([])
+    }
+  )
+
+  it.skipIf(!artifactsBuilt)(
+    'never returns the full artifact set for a facet whose update script has excludes',
+    () => {
+      const registered = loadFacetRegisteredSelectors('AcrossFacetV4')
+
+      expect(registered).not.toBeNull()
+      expect(registered?.length).toBeLessThan(ACROSS_V4_ARTIFACT.length)
+      expect(registered).not.toContain('0xf6503992') // SPOKEPOOL()
+      expect(registered).not.toContain('0xd999984d') // WRAPPED_NATIVE()
+    }
+  )
 })
 
 describe('resolveLiveFacets', () => {
