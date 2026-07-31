@@ -91,8 +91,9 @@ audit — **no product features**.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
-- **Config (1)** — `config/networks.json`: `somnia.skipHealthcheck = true`
-  (see the sync-pain section below).
+- **Config (1)** — `config/healthCheckExclusions.json`: `invariantExclusions`
+  entries for `somnia` (the fork's replacement for the retired
+  `networks.json` `skipHealthcheck` flag; see the sync-pain section below).
 - **Audit (2)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
   `WithdrawablePeriphery 1.0.0-tron`, plus the
   `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report.
@@ -177,9 +178,11 @@ Concrete example that blocked sync PR #13: an unrelated upstream commit
 changed the _expected_ `ERC20Proxy` owner across networks from the Safe to
 the `refundWallet`. On `somnia` (newly added via that sync) the on-chain
 owner was still the Safe, so the healthcheck failed — on a PR that
-introduced **zero** fork-authored code. Short-term fix: set the existing
-`skipHealthcheck` flag for `somnia` in `config/networks.json` on the fork
-(temporary).
+introduced **zero** fork-authored code. Short-term fix: add an
+`invariantExclusions` entry for the failing invariant on `somnia` in
+`config/healthCheckExclusions.json` on the fork (temporary; the former
+network-wide `skipHealthcheck` flag in `networks.json` no longer exists —
+the fork must carry the per-invariant entry instead).
 
 **General class:** any required check keyed to on-chain / production state
 will fire on sync PRs. A new dev should expect this and **verify the real

@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+
 import {
   describe,
   expect,
@@ -191,5 +193,35 @@ describe('deployRequirements.json getter annotations', () => {
         `${check.contractName}: getter ${check.getter}() must exist on the contract`
       ).toContain(`${check.getter}()`)
     }
+  })
+
+  it('every annotated keyInConfigFile resolves on at least one production network', () => {
+    // resolveConfigValue only walks plain dot paths - a jq-quoted segment (e.g.
+    // `."my-chain".x`) resolves to null everywhere and the invariant degrades to a warning,
+    // silently shrinking coverage. An annotation that resolves nowhere is a broken annotation.
+    const networks = Object.keys(
+      JSON.parse(readFileSync('config/networks.json', 'utf8')) as Record<
+        string,
+        unknown
+      >
+    )
+
+    const annotated = new Map<string, boolean>()
+    for (const network of networks)
+      for (const check of collectImmutableBindingChecks(
+        network,
+        'production'
+      )) {
+        const key = `${check.contractName}.${check.argName}`
+        annotated.set(
+          key,
+          (annotated.get(key) ?? false) || check.expectedAddress !== null
+        )
+      }
+
+    const dead = [...annotated.entries()]
+      .filter(([, resolves]) => !resolves)
+      .map(([key]) => key)
+    expect(dead).toEqual([])
   })
 })

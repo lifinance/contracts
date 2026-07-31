@@ -763,48 +763,59 @@ describe('periphery-registry-log-sync invariant', () => {
     (i) => i.name === 'periphery-registry-log-sync'
   ) as IHealthCheckInvariant
 
-  /** Context whose registry has only ReceiverOIF registered (at RECEIVER). */
+  /**
+   * Context whose registry has only ReceiverOIF registered (at RECEIVER). The diamond log
+   * defaults to agreeing with the registry so flat-log cases stay isolated; pass
+   * `diamondLogPeriphery` explicitly (or null) to exercise the diamond-log comparisons.
+   */
   function makeSyncCtx(
-    deployedContracts: Record<string, string>
+    deployedContracts: Record<string, string>,
+    diamondLogPeriphery: Record<string, string> | null = {
+      ReceiverOIF: RECEIVER,
+    },
+    registered: Record<string, string> = { ReceiverOIF: RECEIVER }
   ): IHealthCheckContext {
     const ctx = makeCtx()
     return Object.assign(ctx, {
       diamondAddress: DIAMOND,
       deployedContracts,
+      diamondLogPeriphery,
       globalConfig: { whitelistPeripheryFunctions: {} },
       publicClient: {
         readContract: async ({ args }: { args: [string] }) =>
-          args[0] === 'ReceiverOIF' ? RECEIVER : ZERO,
+          registered[args[0]] ?? ZERO,
       },
     } as unknown as IHealthCheckContext)
   }
 
-  it('is registered as a production-scoped error', () => {
+  it('is registered as a production-scoped warning (warning-first rollout)', () => {
     expect(invariant).toBeDefined()
-    expect(invariant.severity).toBe('error')
+    expect(invariant.severity).toBe('warning')
     expect(invariant.scope.environments).toEqual(['production'])
   })
 
-  it('errors when a registered contract is missing from the deploy log', async () => {
+  it('flags a registered contract missing from the deploy log', async () => {
     const ctx = makeSyncCtx({})
 
     await invariant.run(ctx)
 
-    expect(ctx.errors).toHaveLength(1)
-    expect(ctx.errors[0]).toContain('ReceiverOIF')
-    expect(ctx.errors[0]).toContain('missing from the deploy log')
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverOIF')
+    expect(ctx.warnings[0]).toContain('missing from the deploy log')
   })
 
-  it('errors when the deploy log has a different address than the registry', async () => {
+  it('flags a deploy log address that differs from the registry', async () => {
     const ctx = makeSyncCtx({ ReceiverOIF: OTHER })
 
     await invariant.run(ctx)
 
-    expect(ctx.errors).toHaveLength(1)
-    expect(ctx.errors[0]).toContain('on-chain registry has')
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('on-chain registry has')
   })
 
-  it('passes when log and registry agree', async () => {
+  it('passes when both logs and the registry agree', async () => {
     const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER })
 
     await invariant.run(ctx)
@@ -825,6 +836,83 @@ describe('periphery-registry-log-sync invariant', () => {
 
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.length).toBeGreaterThan(0)
+  })
+
+  it('probes names known only to the flat deploy log (not any hand-maintained list)', async () => {
+    // FeeCollector is in no coupling/getter/core list here, but the registry has it and the
+    // flat log disagrees - the pre-widening candidate set would never have probed it.
+    const ctx = makeSyncCtx(
+      { FeeCollector: OTHER, ReceiverOIF: RECEIVER },
+      { ReceiverOIF: RECEIVER, FeeCollector: RECEIVER },
+      { ReceiverOIF: RECEIVER, FeeCollector: RECEIVER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('FeeCollector')
+    expect(ctx.warnings[0]).toContain('on-chain registry has')
+  })
+
+  it('flags a registered contract with an empty diamond log entry (the robinhood ReceiverOIF case)', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, { ReceiverOIF: '' })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverOIF')
+    expect(ctx.warnings[0]).toContain('.diamond.json')
+  })
+
+  it('flags a diamond log address that differs from the registry', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, { ReceiverOIF: OTHER })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('diamond log has')
+  })
+
+  it('probes names known only to the diamond log and flags the missing flat-log entry', async () => {
+    const ctx = makeSyncCtx(
+      {},
+      { ReceiverOIF: RECEIVER, Composer: RECEIVER },
+      { ReceiverOIF: RECEIVER, Composer: RECEIVER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.filter((e) => e.includes('missing from the deploy log'))
+    ).toHaveLength(2)
+    expect(ctx.warnings.join('\n')).toContain('Composer')
+  })
+
+  it('warns (not errors) on a diamond log entry that is not registered on chain', async () => {
+    const ctx = makeSyncCtx(
+      { ReceiverOIF: RECEIVER },
+      { ReceiverOIF: RECEIVER, Patcher: OTHER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Patcher')
+    expect(ctx.warnings[0]).toContain('not registered on chain')
+  })
+
+  it('warns about reduced coverage when the diamond log is unreadable', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, null)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('diamond-log sync coverage skipped')
   })
 })
 

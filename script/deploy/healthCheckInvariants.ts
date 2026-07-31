@@ -15,7 +15,6 @@
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-import { TRON_ZERO_ADDRESS } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
@@ -107,6 +106,12 @@ export interface IHealthCheckContext {
   deployerWallet: string
   refundWallet: string
   pauserWallet: string
+  /**
+   * Periphery section of `deployments/<network>.diamond.json`. Undefined = read from disk
+   * (the default); null = explicitly absent. Injectable so the sync invariant is testable
+   * without fixture files.
+   */
+  diamondLogPeriphery?: Record<string, string> | null
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
   /** Run-wide memo of PeripheryRegistry reads (name → address promise); see the cached reader. */
@@ -392,8 +397,8 @@ export function isInvariantApplicable(
 }
 
 /**
- * Base58 encoding of the Tron zero address. `TRON_ZERO_ADDRESS` from the devkit is the hex
- * (`41...`) form, and `callTronContract` returns base58, so both spellings must be checked.
+ * Base58 encoding of the Tron zero address. `callTronContract` returns base58, so this is the
+ * only spelling an unset slot can take here (the devkit's hex `41...` form never appears).
  */
 const TRON_ZERO_ADDRESS_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
 
@@ -409,8 +414,7 @@ export function isNonZeroTronAddress(value: string): boolean {
   return (
     value.startsWith('T') &&
     value.length === 34 &&
-    value !== TRON_ZERO_ADDRESS_BASE58 &&
-    value !== TRON_ZERO_ADDRESS
+    value !== TRON_ZERO_ADDRESS_BASE58
   )
 }
 
@@ -979,6 +983,31 @@ function tryGetAddress(value: unknown): Address | null {
 }
 
 /**
+ * Periphery section of `deployments/<network>.diamond.json` — the second, diamond-scoped
+ * deploy log (`script/helperFunctions.sh` resolves periphery versions from it, so an entry
+ * missing there breaks deploy tooling even when the flat log is correct). Returns null when
+ * the file is missing or unparseable; the caller surfaces that as reduced coverage.
+ */
+export function loadDiamondLogPeriphery(
+  networkLower: string
+): Record<string, string> | null {
+  const diamondLogPath = path.join(
+    process.cwd(),
+    'deployments',
+    `${networkLower}.diamond.json`
+  )
+  if (!existsSync(diamondLogPath)) return null
+  try {
+    const parsed = JSON.parse(readFileSync(diamondLogPath, 'utf8')) as {
+      LiFiDiamond?: { Periphery?: Record<string, string> }
+    }
+    return parsed.LiFiDiamond?.Periphery ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Read one PeripheryRegistry entry through the run-wide cache on `ctx`. On-chain registry state
  * does not change during a health-check run, but four invariants probe overlapping name sets —
  * uncached that is 3-4x duplicate RPC reads per name per network, and the duplicates feed the
@@ -1379,16 +1408,35 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'periphery-registry-log-sync',
     description:
-      'On-chain PeripheryRegistry and the deploy log agree for every known periphery contract',
-    severity: 'error',
+      'On-chain PeripheryRegistry, the flat deploy log and the diamond log agree for every known periphery contract',
+    // Warning (not error) for the initial rollout: the 2026-07-31 fleet dry-run found 114
+    // log/registry inconsistencies across 38 production networks (stale registrations of
+    // retired contracts, diamond-log gaps). An error gate would turn the whole sweep red and
+    // train people to ignore it. Promote to error once the fleet is clean;
+    // facet-required-periphery stays the error-severity functional gate.
+    severity: 'warning',
     scope: { environments: ['production'] },
     remediation:
-      'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain registry.',
+      'Add the missing entry to deployments/<network>.json and deployments/<network>.diamond.json (or correct the stale address) so both deploy logs match the on-chain registry.',
     run: async (ctx) => {
-      // The deploy log is the identity source for most checks, so an entry missing from it is
-      // not cosmetic: it silently exempts that contract from every log-resolved check (how
+      // The deploy logs are the identity source for most checks, so an entry missing from them
+      // is not cosmetic: it silently exempts that contract from every log-resolved check (how
       // ReceiverOIF on mainnet/base escaped binding and ownership coverage). Names must be
-      // probed explicitly because the registry mapping has no enumerator.
+      // probed explicitly because the registry mapping has no enumerator, so the candidate set
+      // is every name either log or any hand-maintained periphery list knows about.
+      //
+      // Every drift finding reports through this alias. When promoting the invariant to error
+      // severity, flip the alias to ctx.logError together with `severity` above.
+      const flagDrift = ctx.logWarn
+      const diamondLogPeriphery =
+        ctx.diamondLogPeriphery !== undefined
+          ? ctx.diamondLogPeriphery
+          : loadDiamondLogPeriphery(ctx.networkLower)
+      if (diamondLogPeriphery === null)
+        ctx.logWarn(
+          `deployments/${ctx.networkLower}.diamond.json has no readable Periphery section - diamond-log sync coverage skipped`
+        )
+
       const candidates = [
         ...new Set([
           ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
@@ -1397,12 +1445,46 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             (coupling) => coupling.requiresAnyOf
           ),
           ...RECEIVER_EXECUTOR_GETTERS.map((entry) => entry.name),
+          ...Object.keys(ctx.deployedContracts),
+          ...Object.keys(diamondLogPeriphery ?? {}),
         ]),
       ].sort()
 
+      // The diamond log must mirror the on-chain registry exactly: an empty/missing entry for
+      // a registered contract breaks version resolution in deploy tooling, a populated entry
+      // for an unregistered name is stale (or a proposal not yet executed - hence warning).
+      const checkDiamondLogEntry = (name: string, onChain: string): void => {
+        if (!diamondLogPeriphery) return
+        const logged = diamondLogPeriphery[name]
+        if (!logged) {
+          flagDrift(
+            `${name} is registered on chain (${onChain}) but ${
+              logged === undefined ? 'missing from' : 'empty in'
+            } deployments/${
+              ctx.networkLower
+            }.diamond.json - sync the diamond log`
+          )
+          return
+        }
+        const loggedNormalized = ctx.isTron
+          ? logged
+          : tryGetAddress(logged) ?? logged
+        if (loggedNormalized !== onChain)
+          flagDrift(
+            `${name}: diamond log has ${logged} but the on-chain registry has ${onChain}`
+          )
+      }
+      const warnStaleDiamondLogEntry = (name: string): void => {
+        const logged = diamondLogPeriphery?.[name]
+        if (logged)
+          ctx.logWarn(
+            `${name} has address ${logged} in deployments/${ctx.networkLower}.diamond.json but is not registered on chain - stale entry or unexecuted registration proposal`
+          )
+      }
+
       if (ctx.isTron && ctx.tronRpcUrl) {
         // Tron: registry output and deploy log are both base58 (T...), so compare directly;
-        // isNonZeroTronAddress guards both encodings of the zero address.
+        // isNonZeroTronAddress screens out the base58 zero address.
         let inSync = 0
         for (const name of candidates)
           try {
@@ -1414,15 +1496,20 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               ctx.tronRpcUrl
             )
             const onChain = parseTronAddressOutput(raw)
-            if (!isNonZeroTronAddress(onChain)) continue
+            if (!isNonZeroTronAddress(onChain)) {
+              warnStaleDiamondLogEntry(name)
+              continue
+            }
+
+            checkDiamondLogEntry(name, onChain)
 
             const logged = ctx.deployedContracts[name]
             if (!logged)
-              ctx.logError(
+              flagDrift(
                 `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
               )
             else if (String(logged) !== onChain)
-              ctx.logError(
+              flagDrift(
                 `${name}: deploy log has ${logged} but the on-chain registry has ${onChain}`
               )
             else inSync++
@@ -1466,24 +1553,29 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         const onChain = result.value
         // Not registered on this chain: presence is owned by periphery-registered /
         // facet-required-periphery, not by this sync check.
-        if (onChain === ZERO_ADDRESS) return
+        if (onChain === ZERO_ADDRESS) {
+          warnStaleDiamondLogEntry(name)
+          return
+        }
+
+        checkDiamondLogEntry(name, onChain)
 
         const logged = ctx.deployedContracts[name]
         if (!logged) {
-          ctx.logError(
+          flagDrift(
             `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
           )
           return
         }
         const loggedAddress = tryGetAddress(logged)
         if (!loggedAddress)
-          ctx.logError(
+          flagDrift(
             `${name}: deploy log entry ${String(
               logged
             )} is not a valid address (on chain: ${onChain})`
           )
         else if (loggedAddress !== onChain)
-          ctx.logError(
+          flagDrift(
             `${name}: deploy log has ${loggedAddress} but the on-chain registry has ${onChain}`
           )
         else inSync++
@@ -2120,7 +2212,20 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
       if (!ctx.publicClient) return
 
-      await checkOwnership('Receiver', ctx.refundWallet, ctx, ctx.publicClient)
+      try {
+        await checkOwnership(
+          'Receiver',
+          ctx.refundWallet,
+          ctx,
+          ctx.publicClient
+        )
+      } catch (error: unknown) {
+        // Same policy as the per-receiver loop below: one flaky read must not abandon the
+        // receivers not yet checked (or red-flag the network on a transient RPC error).
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        ctx.logWarn(`Could not read Receiver owner: ${errorMessage}`)
+      }
 
       // The bridge-specific receivers were previously owner-checked nowhere. Resolve them
       // registry-first so one missing from the deploy log is still covered (ReceiverOIF on

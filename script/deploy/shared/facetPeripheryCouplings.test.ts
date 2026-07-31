@@ -273,6 +273,49 @@ describe('identifyCoupledFacetsOnChain', () => {
     expect(live).toEqual([])
   })
 
+  it('does not let a strict-subset candidate claim a facet an exact match owns', () => {
+    // SubsetFacet's registered set is a strict subset of the on-chain SuperFacet's selectors.
+    // SuperFacet exact-matches and owns the address; SubsetFacet must not resolve to it (in
+    // immutable-bindings-match-config that would mean reading a getter on the wrong contract).
+    const subsetLoad = (name: string) =>
+      name === 'SuperFacet'
+        ? ['0xaaaa0001', '0xaaaa0002', '0xaaaa0003']
+        : name === 'SubsetFacet'
+        ? ['0xaaaa0001', '0xaaaa0002']
+        : null
+    const { live, addressByName } = identifyCoupledFacetsOnChain(
+      [
+        {
+          address: '0xsuper',
+          selectors: ['0xaaaa0001', '0xaaaa0002', '0xaaaa0003'],
+        },
+      ],
+      ['SubsetFacet', 'SuperFacet'],
+      subsetLoad
+    )
+
+    expect(live).toEqual(['SuperFacet'])
+    expect(addressByName).toEqual({ SuperFacet: '0xsuper' })
+  })
+
+  it('still matches a drifted deployed build by subset when no exact match claims it', () => {
+    // The deployed build registers one selector the current artifact no longer has - subset
+    // matching is what keeps such a facet identified (version-drift tolerance).
+    const { live, addressByName } = identifyCoupledFacetsOnChain(
+      [
+        {
+          address: '0xAcrossV4',
+          selectors: [...ACROSS_V4_REGISTERED, '0xdddd0001'],
+        },
+      ],
+      ['AcrossFacetV4'],
+      load
+    )
+
+    expect(live).toEqual(['AcrossFacetV4'])
+    expect(addressByName).toEqual({ AcrossFacetV4: '0xAcrossV4' })
+  })
+
   it('is case-insensitive on both selector sides', () => {
     const { live } = identifyCoupledFacetsOnChain(
       [

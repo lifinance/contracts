@@ -20,8 +20,9 @@
 import { realpathSync } from 'fs'
 import { fileURLToPath } from 'url'
 
+import { isValidNetworkName, readDeployLog } from '../shared/deployLog'
+
 import deployRequirementsJson from './deployRequirements.json'
-import { isValidNetworkName, readDeployLog } from './facetCompanionReminder'
 
 /** The subset of a `deployRequirements.json` entry this module consumes. */
 export interface IDependencyEntry {

@@ -9,13 +9,10 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { isValidNetworkName, readDeployLog } from '../shared/deployLog'
 import type { TFacetPeripheryCouplings } from '../shared/facetPeripheryCouplings'
 
-import {
-  buildCompanionReminder,
-  isValidNetworkName,
-  readDeployLog,
-} from './facetCompanionReminder'
+import { buildCompanionReminder } from './facetCompanionReminder'
 
 const COUPLINGS: TFacetPeripheryCouplings = {
   AcrossFacetV4: {
@@ -157,5 +154,34 @@ describe('readDeployLog', () => {
     expect(readDeployLog('mixed', 'production', root)).toEqual({
       LiFiDiamond: '0xabc',
     })
+  })
+})
+
+describe('CLI smoke test', () => {
+  // deploySingleContract.sh runs this CLI behind `2>/dev/null || true`, so a crash (bad import,
+  // syntax error) would silently disable the reminder forever. Spawning the real entry point
+  // proves it executes and prints for a known-missing companion.
+  const cliPath = join(import.meta.dir, 'facetCompanionReminder.ts')
+
+  it('exits 0 and prints the reminder when the companion is missing from the log', () => {
+    const root = mkdtempSync(join(tmpdir(), 'companion-cli-'))
+    mkdirSync(join(root, 'deployments'))
+    writeFileSync(join(root, 'deployments', 'smokenet.json'), '{}')
+
+    const result = Bun.spawnSync(
+      [process.execPath, cliPath, 'AcrossFacetV4', 'smokenet', 'production'],
+      { cwd: root }
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString()).toContain('AcrossFacetV4')
+    expect(result.stdout.toString()).toContain('ReceiverAcrossV4')
+  })
+
+  it('exits 0 and prints nothing without arguments', () => {
+    const result = Bun.spawnSync([process.execPath, cliPath])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('')
   })
 })

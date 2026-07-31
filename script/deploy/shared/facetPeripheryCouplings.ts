@@ -393,9 +393,9 @@ export function identifyCoupledFacetsOnChain(
       facet.selectors.map((selector) => selector.toLowerCase())
     ),
   }))
-  const live: string[] = []
   const unresolved: string[] = []
   const addressByName: Record<string, string> = {}
+  const wantedByName = new Map<string, string[]>()
 
   for (const name of facetNames) {
     const selectors = loadRegisteredSelectors(name)
@@ -404,15 +404,44 @@ export function identifyCoupledFacetsOnChain(
       unresolved.push(name)
       continue
     }
-    const wanted = selectors.map((selector) => selector.toLowerCase())
-    const match = candidates.find((candidate) =>
-      wanted.every((selector) => candidate.selectorSet.has(selector))
+    wantedByName.set(
+      name,
+      selectors.map((selector) => selector.toLowerCase())
+    )
+  }
+
+  // Exact set matches claim their facet first, so a name whose registered set is a strict
+  // subset of another live facet's selectors (e.g. superseded by a combined facet) cannot
+  // steal that facet's address in the subset pass below.
+  const claimed = new Set<string>()
+  for (const [name, wanted] of wantedByName) {
+    const match = candidates.find(
+      (candidate) =>
+        candidate.selectorSet.size === wanted.length &&
+        wanted.every((selector) => candidate.selectorSet.has(selector))
     )
     if (match) {
-      live.push(name)
       addressByName[name] = match.address
+      claimed.add(match.address)
     }
   }
+
+  // Subset matches tolerate version drift (a deployed build registering selectors the current
+  // artifact no longer has), but only against facets no exact match already owns.
+  for (const [name, wanted] of wantedByName) {
+    if (addressByName[name]) continue
+    const match = candidates.find(
+      (candidate) =>
+        !claimed.has(candidate.address) &&
+        wanted.every((selector) => candidate.selectorSet.has(selector))
+    )
+    if (match) {
+      addressByName[name] = match.address
+      claimed.add(match.address)
+    }
+  }
+
+  const live = facetNames.filter((name) => addressByName[name] !== undefined)
 
   return { live, unresolved, addressByName }
 }
@@ -446,6 +475,9 @@ export function resolveLiveFacets(
     facetName: string
   ) => string[] | null = loadFacetRegisteredSelectors
 ): IResolvedLiveFacets {
+  // Lowercasing also hits base58 (Tron) addresses, which are case-sensitive - safe here only
+  // because BOTH sides of every lookup are lowercased. Never reuse this map for display or
+  // compare it against a non-lowercased source.
   const nameByAddress = Object.fromEntries(
     Object.entries(deployedContracts).map(([name, address]) => [
       String(address).toLowerCase(),

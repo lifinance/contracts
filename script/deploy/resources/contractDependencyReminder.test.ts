@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
   describe,
   expect,
@@ -120,5 +124,38 @@ describe('real deployRequirements.json reverse graph', () => {
 
     expect(dependents.map((d) => d.contract)).toContain('Executor')
     expect(receiver?.via).toEqual(['Executor'])
+  })
+})
+
+describe('CLI smoke test', () => {
+  // deploySingleContract.sh runs this CLI behind `2>/dev/null || true`, so a crash (bad import,
+  // syntax error) would silently disable the reminder forever. Spawning the real entry point
+  // proves it executes and prints for a known dependent in the deploy log.
+  const cliPath = join(import.meta.dir, 'contractDependencyReminder.ts')
+
+  it('exits 0 and prints the reminder when a deployed dependent exists', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dependency-cli-'))
+    mkdirSync(join(root, 'deployments'))
+    writeFileSync(
+      join(root, 'deployments', 'smokenet.json'),
+      JSON.stringify({
+        ReceiverAcrossV4: '0x1111111111111111111111111111111111111111',
+      })
+    )
+
+    const result = Bun.spawnSync(
+      [process.execPath, cliPath, 'Executor', 'smokenet', 'production'],
+      { cwd: root }
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString()).toContain('ReceiverAcrossV4')
+  })
+
+  it('exits 0 and prints nothing without arguments', () => {
+    const result = Bun.spawnSync([process.execPath, cliPath])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('')
   })
 })
