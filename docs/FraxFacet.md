@@ -235,12 +235,13 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter carries both analytics metadata and enforced fields. The metadata
-(`transactionId`, `integrator`, `referrer`, and — for FraxFacet — `destinationChainId`)
-is used to emit events that we can later track and index in our subgraphs. The
-remaining fields are load-bearing: FraxFacet validates and acts on `sendingAssetId`
-(the OFT token pulled and bridged), `receiver` (encoded as the destination recipient),
-and `minAmount` (the amount deposited and bridged). `BridgeData` and the events we can
-emit can be found [here](../src/Interfaces/ILiFi.sol).
+(`transactionId`, `integrator`, `referrer`) is used to emit events that we can later
+track and index in our subgraphs. The remaining fields are load-bearing: FraxFacet
+validates and acts on `sendingAssetId` (the OFT token pulled and bridged), `receiver`
+(encoded as the destination recipient), `minAmount` (the amount deposited and bridged),
+and `destinationChainId` (cross-checked against `fraxData.dstEid` via the seeded
+chainId → EID mapping). `BridgeData` and the events we can emit can be found
+[here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

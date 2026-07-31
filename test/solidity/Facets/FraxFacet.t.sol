@@ -515,6 +515,23 @@ contract FraxFacetTest is TestBaseFacet {
         );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
+        // pin the recipient actually forwarded to the hop: the raw pubkey verbatim, not a
+        // padded EVM address (the emitted event reads fraxData directly and cannot catch a
+        // mis-wired recipient)
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_SOLANA,
+                    SOLANA_RECEIVER,
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -551,11 +568,56 @@ contract FraxFacetTest is TestBaseFacet {
             LIFI_CHAIN_ID_SOLANA,
             SOLANA_RECEIVER
         );
+        // the mock DEX swaps to exactly defaultFrxAmount (a clean dust-rate multiple), so
+        // the emitted minAmount equals the pre-set bridgeData.minAmount
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_SOLANA,
+                    SOLANA_RECEIVER,
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
 
         assertEq(frxUSD.balanceOf(_facetTestContractAddress), 0);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    /// @dev The EVM branch of the recipient selection: a plain EVM route must forward the
+    ///      left-padded 20-byte receiver to the hop (a mis-wired ternary that always picked
+    ///      nonEVMReceiver would send bytes32(0) here and no other assertion would notice).
+    function test_EvmDestinationForwardsLeftPaddedReceiverToHop() public {
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_FRAXTAL,
+                    bytes32(uint256(uint160(USER_RECEIVER))),
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
     }
 
     function testRevert_WhenNonEVMDestinationHasZeroNonEVMReceiver() public {
