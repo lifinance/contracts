@@ -1,3 +1,6 @@
+import { existsSync } from 'fs'
+import { resolve } from 'path'
+
 import {
   describe,
   expect,
@@ -10,12 +13,17 @@ import networksConfig from '../../config/networks.json'
 
 import {
   CORE_FACET_EXEMPTIONS,
+  CORE_PERIPHERY_EXEMPTIONS,
+  DEPRECATED_RECEIVERS,
+  filterExemptCorePeriphery,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  RECEIVER_EXECUTOR_GETTERS,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
   getInvariantExclusion,
+  isNonZeroTronAddress,
   isInvariantApplicable,
   runHealthCheckInvariants,
   type IHealthCheckContext,
@@ -23,6 +31,11 @@ import {
   type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import {
+  getFacetPeripheryCouplings,
+  loadFacetRegisteredSelectors,
+} from './shared/facetPeripheryCouplings'
+import { collectImmutableBindingChecks } from './shared/immutableBindings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -35,6 +48,7 @@ function makeCtx(): IHealthCheckContext {
     isTestnet: false,
     supportsGasZip: true,
     onChainFacets: [],
+    peripheryRegistryCache: new Map(),
     errors,
     warnings,
     logError: (msg: string) => {
@@ -229,6 +243,173 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
   })
 })
 
+describe('isNonZeroTronAddress', () => {
+  it('accepts a real Tron contract address', () => {
+    expect(isNonZeroTronAddress('TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt')).toBe(
+      true
+    )
+  })
+
+  it('rejects the Tron zero address (a well-formed T... string that means "unset")', () => {
+    expect(isNonZeroTronAddress('T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb')).toBe(
+      false
+    )
+  })
+
+  it('rejects malformed output', () => {
+    expect(isNonZeroTronAddress('')).toBe(false)
+    expect(
+      isNonZeroTronAddress('0x0000000000000000000000000000000000000000')
+    ).toBe(false)
+    expect(isNonZeroTronAddress('TooShort')).toBe(false)
+  })
+})
+
+describe('facet-required-periphery invariant', () => {
+  const FACET_ADDRESS = '0x1111111111111111111111111111111111111111'
+  const RECEIVER_ADDRESS = '0x2222222222222222222222222222222222222222'
+  const DIAMOND_ADDRESS = '0x3333333333333333333333333333333333333333'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'facet-required-periphery'
+  ) as IHealthCheckInvariant
+
+  /**
+   * Context with `AcrossFacetV4` registered on chain, and a stub client that resolves
+   * `getPeripheryContract(name)` from `registryEntries` (absent name => zero address).
+   */
+  function makeCouplingCtx(
+    registryEntries: Record<string, string>,
+    { liveFacets = true }: { liveFacets?: boolean } = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND_ADDRESS,
+      deployedContracts: {
+        AcrossFacetV4: FACET_ADDRESS,
+        ReceiverAcrossV4: RECEIVER_ADDRESS,
+      },
+      onChainFacets: liveFacets
+        ? [{ address: FACET_ADDRESS, selectors: ['0xaaaaaaaa'] }]
+        : [],
+      publicClient: {
+        readContract: async ({ args }: { args: [string] }) =>
+          registryEntries[args[0]] ??
+          '0x0000000000000000000000000000000000000000',
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('is registered as a production-scoped error that reads on-chain facets', () => {
+    expect(invariant).toBeDefined()
+    expect(invariant.severity).toBe('error')
+    expect(invariant.readsOnChainFacets).toBe(true)
+    expect(invariant.scope.environments).toEqual(['production'])
+  })
+
+  it('passes when the companion receiver is registered in the diamond', async () => {
+    const ctx = makeCouplingCtx({ ReceiverAcrossV4: RECEIVER_ADDRESS })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('fails when a live facet has no companion registered', async () => {
+    const ctx = makeCouplingCtx({})
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('AcrossFacetV4')
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4')
+    expect(ctx.errors[0]).toContain('destination calls')
+  })
+
+  it('does not accept the deprecated V3 receiver in place of ReceiverAcrossV4', async () => {
+    const ctx = makeCouplingCtx({ ReceiverAcrossV3: RECEIVER_ADDRESS })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4')
+  })
+
+  it('warns instead of silently passing when the on-chain facet list is unavailable', async () => {
+    const ctx = makeCouplingCtx({}, { liveFacets: false })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('coupling check skipped')
+  })
+
+  it('warns instead of erroring when every companion lookup fails (a failed read is not absence)', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = {
+      readContract: async () => {
+        throw new Error('RPC 429')
+      },
+    } as unknown as IHealthCheckContext['publicClient']
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('could not determine'))).toBe(
+      true
+    )
+  })
+
+  it('still evaluates the remaining companions when only one lookup fails', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = {
+      readContract: async ({ args }: { args: [string] }) => {
+        if (args[0] === 'ReceiverAcrossV4') throw new Error('RPC 429')
+        return RECEIVER_ADDRESS
+      },
+    } as unknown as IHealthCheckContext['publicClient']
+
+    await invariant.run(ctx)
+
+    // ReceiverAcrossV3 resolved and is registered, so the coupling is satisfied despite the
+    // failed V4 lookup.
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('warns instead of silently returning when no chain client is available', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.publicClient = undefined
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('coupling check skipped'))).toBe(
+      true
+    )
+  })
+
+  it('does not require a companion for a facet without a declared coupling', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.deployedContracts = { GenericSwapFacetV3: FACET_ADDRESS }
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('requires ReceiverOIF wherever an intent-escrow facet is live', async () => {
+    const ctx = makeCouplingCtx({})
+    ctx.deployedContracts = { LiFiIntentEscrowFacetV2: FACET_ADDRESS }
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+  })
+})
+
 describe('getInvariantExclusion', () => {
   const sample: IInvariantExclusion[] = [
     {
@@ -280,6 +461,46 @@ describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
   it('every exclusion carries a non-empty reason', () => {
     for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
       expect(exclusion.reason.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
+  const corePeriphery = new Set(
+    (globalConfig as { corePeriphery: string[] }).corePeriphery
+  )
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a real core periphery contract', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(corePeriphery).toContain(exemption.contract)
+  })
+
+  it('every exemption targets a known network with a non-empty reason', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS) {
+      expect(knownNetworks).toContain(exemption.network.toLowerCase())
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+    }
+  })
+
+  it('filterExemptCorePeriphery drops only the exempt contract on the exempt network', () => {
+    const exemptions = [
+      { contract: 'TokenWrapper', network: 'somechain', reason: 'no native' },
+    ]
+
+    expect(
+      filterExemptCorePeriphery(
+        ['TokenWrapper', 'Executor'],
+        'somechain',
+        exemptions
+      )
+    ).toEqual(['Executor'])
+    expect(
+      filterExemptCorePeriphery(
+        ['TokenWrapper', 'Executor'],
+        'otherchain',
+        exemptions
+      )
+    ).toEqual(['TokenWrapper', 'Executor'])
   })
 })
 
@@ -505,5 +726,846 @@ describe('runHealthCheckInvariants (runner)', () => {
       ),
     ])
     expect(ran).toBe(false)
+  })
+})
+
+describe('coupling ↔ executor-binding registry drift', () => {
+  it('every Receiver companion in facetPeripheryCouplings has an executor-binding check', () => {
+    // Two parallel hand-maintained lists: the coupling registry (presence) and
+    // RECEIVER_EXECUTOR_GETTERS (binding). A new Receiver added to one but not the other would
+    // be presence-checked yet never binding-checked - silently. This ties them together.
+    const companions = new Set(
+      Object.values(getFacetPeripheryCouplings()).flatMap(
+        (coupling) => coupling.requiresAnyOf
+      )
+    )
+    const bindingChecked = new Set(
+      RECEIVER_EXECUTOR_GETTERS.map((entry) => entry.name)
+    )
+    const missing = [...companions].filter(
+      (name) =>
+        name.startsWith('Receiver') &&
+        !bindingChecked.has(name) &&
+        !DEPRECATED_RECEIVERS.includes(name)
+    )
+
+    expect(missing).toEqual([])
+  })
+})
+
+describe('periphery-registry-log-sync invariant', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'periphery-registry-log-sync'
+  ) as IHealthCheckInvariant
+
+  /**
+   * Context whose registry has only ReceiverOIF registered (at RECEIVER). The diamond log
+   * defaults to agreeing with the registry so flat-log cases stay isolated; pass
+   * `diamondLogPeriphery` explicitly (or null) to exercise the diamond-log comparisons.
+   */
+  function makeSyncCtx(
+    deployedContracts: Record<string, string>,
+    diamondLogPeriphery: Record<string, string> | null = {
+      ReceiverOIF: RECEIVER,
+    },
+    registered: Record<string, string> = { ReceiverOIF: RECEIVER }
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      deployedContracts,
+      diamondLogPeriphery,
+      globalConfig: { whitelistPeripheryFunctions: {} },
+      publicClient: {
+        readContract: async ({ args }: { args: [string] }) =>
+          registered[args[0]] ?? ZERO,
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('is registered as a production-scoped warning (warning-first rollout)', () => {
+    expect(invariant).toBeDefined()
+    expect(invariant.severity).toBe('warning')
+    expect(invariant.scope.environments).toEqual(['production'])
+  })
+
+  it('flags a registered contract missing from the deploy log', async () => {
+    const ctx = makeSyncCtx({})
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverOIF')
+    expect(ctx.warnings[0]).toContain('missing from the deploy log')
+  })
+
+  it('flags a deploy log address that differs from the registry', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: OTHER })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('on-chain registry has')
+  })
+
+  it('passes when both logs and the registry agree', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('warns instead of erroring when a registry read fails', async () => {
+    const ctx = makeSyncCtx({})
+    ctx.publicClient = {
+      readContract: async () => {
+        throw new Error('RPC 429')
+      },
+    } as unknown as IHealthCheckContext['publicClient']
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.length).toBeGreaterThan(0)
+  })
+
+  it('probes names known only to the flat deploy log (not any hand-maintained list)', async () => {
+    // FeeCollector is in no coupling/getter/core list here, but the registry has it and the
+    // flat log disagrees - the pre-widening candidate set would never have probed it.
+    const ctx = makeSyncCtx(
+      { FeeCollector: OTHER, ReceiverOIF: RECEIVER },
+      { ReceiverOIF: RECEIVER, FeeCollector: RECEIVER },
+      { ReceiverOIF: RECEIVER, FeeCollector: RECEIVER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('FeeCollector')
+    expect(ctx.warnings[0]).toContain('on-chain registry has')
+  })
+
+  it('flags a registered contract with an empty diamond log entry (the robinhood ReceiverOIF case)', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, { ReceiverOIF: '' })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverOIF')
+    expect(ctx.warnings[0]).toContain('.diamond.json')
+  })
+
+  it('flags a diamond log address that differs from the registry', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, { ReceiverOIF: OTHER })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('diamond log has')
+  })
+
+  it('probes names known only to the diamond log and flags the missing flat-log entry', async () => {
+    const ctx = makeSyncCtx(
+      {},
+      { ReceiverOIF: RECEIVER, Composer: RECEIVER },
+      { ReceiverOIF: RECEIVER, Composer: RECEIVER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.filter((e) => e.includes('missing from the deploy log'))
+    ).toHaveLength(2)
+    expect(ctx.warnings.join('\n')).toContain('Composer')
+  })
+
+  it('warns (not errors) on a diamond log entry that is not registered on chain', async () => {
+    const ctx = makeSyncCtx(
+      { ReceiverOIF: RECEIVER },
+      { ReceiverOIF: RECEIVER, Patcher: OTHER }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Patcher')
+    expect(ctx.warnings[0]).toContain('not registered on chain')
+  })
+
+  it('warns about reduced coverage when the diamond log is unreadable', async () => {
+    const ctx = makeSyncCtx({ ReceiverOIF: RECEIVER }, null)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('diamond-log sync coverage skipped')
+  })
+})
+
+describe('receiver-executor-binding registry-first resolution', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'receiver-executor-binding'
+  ) as IHealthCheckInvariant
+
+  /**
+   * ReceiverOIF is registered on chain but ABSENT from the deploy log (the mainnet/base state);
+   * its EXECUTOR() getter returns `boundExecutor`.
+   */
+  function makeBindingCtx(boundExecutor: string): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      deployedContracts: { Executor: EXECUTOR },
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract')
+            return args?.[0] === 'ReceiverOIF' ? RECEIVER : ZERO
+          return boundExecutor
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('checks a receiver that the deploy log does not know about', async () => {
+    const ctx = makeBindingCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+    expect(ctx.errors[0]).toContain('expected deployed Executor')
+  })
+
+  it('passes when the registry-resolved receiver is bound to the deployed Executor', async () => {
+    const ctx = makeBindingCtx(EXECUTOR)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+})
+
+describe('receiver-owner covers bridge-specific receivers', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const REFUND = '0x4444444444444444444444444444444444444444'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'receiver-owner'
+  ) as IHealthCheckInvariant
+
+  /** ReceiverOIF registered on chain only (not in the deploy log); owner() returns `owner`. */
+  function makeOwnerCtx(owner: string): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: REFUND,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract')
+            return args?.[0] === 'ReceiverOIF' ? RECEIVER : ZERO
+          return owner
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('errors when a registry-resolved receiver has the wrong owner', async () => {
+    const ctx = makeOwnerCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+  })
+
+  it('passes when the owner is the refund wallet', async () => {
+    const ctx = makeOwnerCtx(REFUND)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+})
+
+describe('immutable-bindings-match-config invariant', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  // The real expected value for mainnet from config/across.json, via the same collector the
+  // invariant uses - so the test asserts the wiring, not a copy of the config.
+  const expectedSpokepool = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).find((c) => c.contractName === 'ReceiverAcrossV4')?.expectedAddress
+
+  /** Only ReceiverAcrossV4 present (via deploy log); SPOKEPOOL() returns `spokepool`. */
+  function makeBindingsCtx(spokepool: string): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: { ReceiverAcrossV4: RECEIVER },
+      // Non-empty so the missing-facet-list guard does not skip the invariant.
+      onChainFacets: [{ address: '0x9999', selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          return spokepool
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('skips with a warning (never the deploy-log fallback) when the facet list is unavailable', async () => {
+    const reads: string[] = []
+    const ctx = makeBindingsCtx(OTHER)
+    Object.assign(ctx, {
+      onChainFacets: [],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          reads.push(functionName)
+          return ZERO
+        },
+      },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('facet list unavailable'))).toBe(
+      true
+    )
+    expect(reads).toEqual([])
+  })
+
+  it('mainnet has an across.json spokepool entry (test precondition)', () => {
+    expect(expectedSpokepool).toBeTruthy()
+  })
+
+  it('passes when the on-chain binding matches config', async () => {
+    const ctx = makeBindingsCtx(expectedSpokepool as string)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('errors when the on-chain binding differs from config', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4.SPOKEPOOL()')
+    expect(ctx.errors[0]).toContain('across.json')
+  })
+
+  it('warns (not errors) when config has no value for the network', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+    Object.assign(ctx, { networkLower: 'nonexistentchain' })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('cannot verify'))).toBe(true)
+  })
+
+  it('runs in the on-chain-facets phase (facet-typed entries resolve from the diamond)', () => {
+    expect(invariant.readsOnChainFacets).toBe(true)
+  })
+
+  const artifactsBuilt = existsSync(
+    resolve(process.cwd(), 'out', 'MayanFacet.sol', 'MayanFacet.json')
+  )
+
+  it.skipIf(!artifactsBuilt)(
+    'resolves a facet-typed entry from the diamond selector map, not the periphery registry',
+    async () => {
+      const FACET = '0x7777777777777777777777777777777777777777'
+      const expectedMayan = collectImmutableBindingChecks(
+        'mainnet',
+        'production'
+      ).find((c) => c.contractName === 'MayanFacet')?.expectedAddress
+      expect(expectedMayan).toBeTruthy()
+
+      // Assert the loader worked before using its result: a failed excludes parse returns
+      // null, and a null selector list would fail inside identifyCoupledFacetsOnChain with
+      // a message that hides the real cause.
+      const mayanSelectors = loadFacetRegisteredSelectors('MayanFacet')
+      expect(mayanSelectors).not.toBeNull()
+
+      const registryQueries: string[] = []
+      const ctx = makeCtx()
+      Object.assign(ctx, {
+        networkLower: 'mainnet',
+        diamondAddress: DIAMOND,
+        // Deploy log deliberately points the facet name at a WRONG address: registry-first
+        // resolution through the log would read the getter there and pass on OTHER.
+        deployedContracts: { MayanFacet: OTHER },
+        onChainFacets: [
+          {
+            address: FACET,
+            selectors: mayanSelectors,
+          },
+        ],
+        publicClient: {
+          readContract: async ({
+            address,
+            functionName,
+            args,
+          }: {
+            address: string
+            functionName: string
+            args?: [string]
+          }) => {
+            if (functionName === 'getPeripheryContract') {
+              registryQueries.push(args?.[0] as string)
+              return ZERO
+            }
+            if (functionName === 'MAYAN')
+              return address === FACET ? expectedMayan : OTHER
+            return OTHER
+          },
+        },
+      } as unknown as IHealthCheckContext)
+
+      await invariant.run(ctx)
+
+      expect(ctx.errors.filter((e) => e.includes('MayanFacet'))).toEqual([])
+      expect(registryQueries).not.toContain('MayanFacet')
+    }
+  )
+})
+
+describe('receiver checks continue past a single failing read', () => {
+  const RECEIVER_A = '0x2222222222222222222222222222222222222222'
+  const RECEIVER_B = '0x6666666666666666666666666666666666666666'
+  const REFUND = '0x4444444444444444444444444444444444444444'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  /**
+   * ReceiverOIF and ReceiverStargateV2 both registered; every non-registry read against
+   * ReceiverOIF's address throws (a flaky RPC), reads against ReceiverStargateV2 return `value`.
+   */
+  function makeFlakyCtx(value: string): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: REFUND,
+      deployedContracts: { Executor: EXECUTOR },
+      publicClient: {
+        readContract: async ({
+          address,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            if (args?.[0] === 'ReceiverOIF') return RECEIVER_A
+            if (args?.[0] === 'ReceiverStargateV2') return RECEIVER_B
+            return ZERO
+          }
+          if (address === RECEIVER_A) throw new Error('rpc boom')
+          return value
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('receiver-owner warns on the failing receiver and still checks the rest', async () => {
+    const invariant = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    const ctx = makeFlakyCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('ReceiverOIF') && w.includes('rpc boom')
+      )
+    ).toBe(true)
+    // ReceiverStargateV2 comes AFTER the failing receiver: an error for it proves the loop
+    // survived the throw instead of abandoning the remaining receivers.
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+
+  it('receiver-executor-binding warns on the failing receiver and still checks the rest', async () => {
+    const invariant = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-executor-binding'
+    ) as IHealthCheckInvariant
+    const ctx = makeFlakyCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('ReceiverOIF') && w.includes('rpc boom')
+      )
+    ).toBe(true)
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+})
+
+describe('periphery registry read cache', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  it('reads each registry name at most once across invariants sharing a ctx', async () => {
+    const registryQueries: string[] = []
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: { Executor: EXECUTOR },
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            registryQueries.push(args?.[0] as string)
+            return args?.[0] === 'ReceiverOIF' ? RECEIVER : ZERO
+          }
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const binding = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-executor-binding'
+    ) as IHealthCheckInvariant
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+
+    await binding.run(ctx)
+    await owner.run(ctx)
+
+    const counts = registryQueries.reduce<Record<string, number>>(
+      (acc, name) => ({ ...acc, [name]: (acc[name] ?? 0) + 1 }),
+      {}
+    )
+    for (const [name, count] of Object.entries(counts))
+      expect({ name, count }).toEqual({ name, count: 1 })
+  })
+
+  it('re-verify clears the cache so a successful-but-stale read is not replayed', async () => {
+    const RECEIVER = '0x2222222222222222222222222222222222222222'
+    const OTHER = '0x5555555555555555555555555555555555555555'
+    let oifReads = 0
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            if (args?.[0] === 'ReceiverOIF') {
+              oifReads++
+              // A lagging node serves a stale registration once; a fresh read sees reality.
+              return oifReads === 1 ? RECEIVER : ZERO
+            }
+            return ZERO
+          }
+          return OTHER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    await runHealthCheckInvariants(ctx, [owner])
+
+    expect(oifReads).toBe(2)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('does not cache a failed read (the retry hits the RPC again)', async () => {
+    let calls = 0
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') {
+            calls++
+            if (calls === 1) throw new Error('transient')
+            return ZERO
+          }
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+
+    await owner.run(ctx)
+    const callsAfterFirst = calls
+    await owner.run(ctx)
+
+    expect(calls).toBeGreaterThan(callsAfterFirst)
+  })
+})
+
+describe('re-verify uses a private cache without disturbing concurrent invariants', () => {
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  it('leaves a sibling invariant cache entry intact while it re-verifies', async () => {
+    // The failing invariant's re-verify must not evict entries a concurrently running invariant
+    // already holds: clearing the SHARED map would make siblings re-read during the very RPC
+    // degradation that triggered the retry.
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: {
+        readContract: async () => ZERO,
+      },
+    } as unknown as IHealthCheckContext)
+
+    const sharedCache = ctx.peripheryRegistryCache
+    const sentinel = Promise.resolve(EXECUTOR as `0x${string}`)
+    sharedCache.set('SentinelContract', sentinel)
+
+    await runHealthCheckInvariants(ctx, [
+      inv('always-fails', async (c) => c.logError('persistent drift')),
+    ])
+
+    expect(sharedCache.get('SentinelContract')).toBe(sentinel)
+  })
+
+  it('re-reads every name on the re-verify instead of replaying the shared cache', async () => {
+    // The other half of the contract: a stale cached SUCCESS must not survive into the retry,
+    // or re-verification cannot clear a transient wrong read.
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: EXECUTOR,
+      deployedContracts: {},
+      publicClient: { readContract: async () => ZERO },
+    } as unknown as IHealthCheckContext)
+    // Seed a stale success: the RPC truth is ZERO, the cache claims a live receiver.
+    ctx.peripheryRegistryCache.set(
+      'ReceiverOIF',
+      Promise.resolve(EXECUTOR as `0x${string}`)
+    )
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    await runHealthCheckInvariants(ctx, [
+      owner,
+      inv('force-reverify', async (c) => c.logError('drift')),
+    ])
+
+    // The retry re-read ReceiverOIF from the RPC (ZERO => absent), so the seeded stale address
+    // produced no owner error.
+    expect(ctx.errors.filter((e) => e.includes('ReceiverOIF'))).toEqual([])
+  })
+})
+
+describe('periphery-registered survives a single failing registry read', () => {
+  const EXECUTOR = '0x4444444444444444444444444444444444444444'
+  const TOKEN_WRAPPER = '0x6666666666666666666666666666666666666666'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+
+  /** Executor registered + logged; TokenWrapper's own registry read fails. */
+  function makeCtxWith(
+    deployedContracts: Record<string, string>
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    return Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      targetState: {
+        testnet1: {
+          production: { LiFiDiamond: { Executor: {}, TokenWrapper: {} } },
+        },
+      },
+      globalConfig: { whitelistPeripheryFunctions: {} },
+      deployedContracts,
+      publicClient: {
+        readContract: async ({ args }: { args?: [string] }) => {
+          if (args?.[0] === 'TokenWrapper') throw new Error('rpc boom')
+          return EXECUTOR
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'periphery-registered'
+  ) as IHealthCheckInvariant
+
+  it('still errors on a not-deployed contract whose registry read failed', async () => {
+    // "Not deployed" is decidable from the deploy log alone, so a flaky read must not mask it.
+    const ctx = makeCtxWith({ Executor: EXECUTOR })
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.errors.some(
+        (e) => e.includes('TokenWrapper') && e.includes('not deployed')
+      )
+    ).toBe(true)
+  })
+
+  it('warns instead of throwing on a malformed deploy-log address', async () => {
+    // Malformed entry on the name whose read SUCCEEDS, so the code reaches the address parse
+    // rather than skipping it as unresolved.
+    const ctx = makeCtxWith({
+      Executor: '0x12NOT_AN_ADDRESS',
+      TokenWrapper: TOKEN_WRAPPER,
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('Executor') && w.includes('not a valid address')
+      )
+    ).toBe(true)
+  })
+
+  it('warns on the failing name, judges the rest, and never flags the failed one unregistered', async () => {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      targetState: {
+        testnet1: {
+          production: { LiFiDiamond: { Executor: {}, TokenWrapper: {} } },
+        },
+      },
+      globalConfig: { whitelistPeripheryFunctions: {} },
+      deployedContracts: { Executor: EXECUTOR, TokenWrapper: TOKEN_WRAPPER },
+      publicClient: {
+        readContract: async ({ args }: { args?: [string] }) => {
+          if (args?.[0] === 'Executor') throw new Error('rpc boom')
+          return TOKEN_WRAPPER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const invariant = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'periphery-registered'
+    ) as IHealthCheckInvariant
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some((w) => w.includes('Executor') && w.includes('rpc boom'))
+    ).toBe(true)
+    expect(ctx.errors).toEqual([])
+  })
+})
+
+describe('receiver loops survive a malformed deploy-log address', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const REFUND = '0x4444444444444444444444444444444444444444'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  it('warns on the invalid entry and still checks the remaining receivers', async () => {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      refundWallet: REFUND,
+      // Registry misses ReceiverAcrossV4 -> fallback hits this truncated hand-edited entry.
+      deployedContracts: { ReceiverAcrossV4: '0x1234NOT_AN_ADDRESS' },
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract')
+            return args?.[0] === 'ReceiverOIF' ? RECEIVER : ZERO
+          return OTHER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    const owner = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'receiver-owner'
+    ) as IHealthCheckInvariant
+    await owner.run(ctx)
+
+    expect(ctx.warnings.some((w) => w.includes('not a valid address'))).toBe(
+      true
+    )
+    // ReceiverOIF comes after ReceiverAcrossV4 in the getter list: its error proves the loop
+    // survived the malformed entry.
+    expect(ctx.errors.some((e) => e.includes('ReceiverOIF'))).toBe(true)
   })
 })

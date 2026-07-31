@@ -27,11 +27,20 @@ import {
   type PublicClient,
 } from 'viem'
 
+import healthCheckExclusionsConfig from '../../config/healthCheckExclusions.json'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
-import { SAFE_THRESHOLD } from './shared/constants'
+import { SAFE_THRESHOLD, ZERO_ADDRESS } from './shared/constants'
+import { isValidNetworkName } from './shared/deployLog'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  identifyCoupledFacetsOnChain,
+  resolveLiveFacets,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
+import { collectImmutableBindingChecks } from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -98,8 +107,16 @@ export interface IHealthCheckContext {
   deployerWallet: string
   refundWallet: string
   pauserWallet: string
+  /**
+   * Periphery section of `deployments/<network>.diamond.json`. Undefined = read from disk
+   * (the default); null = explicitly absent. Injectable so the sync invariant is testable
+   * without fixture files.
+   */
+  diamondLogPeriphery?: Record<string, string> | null
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
+  /** Run-wide memo of PeripheryRegistry reads (name → address promise); see the cached reader. */
+  peripheryRegistryCache: Map<string, Promise<Address>>
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -141,19 +158,82 @@ export interface IInvariantExclusion {
 }
 
 /**
- * Per-network invariant carve-outs. Empty by default — the correct response to a failing
- * invariant is almost always to fix the on-chain/config drift, not to exclude the check.
- * Add an entry only for a genuine, permanent non-applicability, and link the ticket that
- * documents the decision in `reason`.
- *
- * Example (do not uncomment without a real case):
- *   {
- *     invariant: 'executor-erc20proxy-binding',
- *     network: 'somechain',
- *     reason: 'ERC20Proxy path deprecated on somechain; token pulls route via Permit2 (EXSC-000)',
- *   },
+ * A per-contract, per-network core-periphery carve-out: this contract is INTENTIONALLY not
+ * deployed on this network (e.g. TokenWrapper on chains with no native/wrap path). Finer-grained
+ * than an invariant exclusion — the rest of the core periphery stays fully enforced there.
+ * The skip is printed with its reason whenever it applies, so it is never invisible.
  */
-export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] = []
+export interface ICorePeripheryExemption {
+  /** Contract name as in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Network key to exempt it on (as in config/networks.json; compared case-insensitively). */
+  network: string
+  /** Why this contract genuinely does not apply on this network. Shown in the run output. */
+  reason: string
+}
+
+/**
+ * Per-network carve-outs, loaded from `config/healthCheckExclusions.json` so ops can add one
+ * without editing TypeScript. Both lists are empty-by-default instruments: the correct response
+ * to a failing invariant is almost always to fix the on-chain/config drift, not to exclude the
+ * check. Add an entry only for a genuine, permanent non-applicability, and link the ticket or
+ * devNotes that documents the decision in `reason`.
+ *
+ * - `invariantExclusions`: skip one whole invariant on one network.
+ * - `corePeripheryExemptions`: exempt one core periphery CONTRACT on one network (finer-grained;
+ *   used where a whole-invariant skip would hide unrelated coverage, e.g. TokenWrapper on arc).
+ *
+ * Every entry is validated in tests: names must reference a real invariant / core periphery
+ * contract, the network must exist in config/networks.json, and the reason must be non-empty.
+ */
+export const HEALTH_CHECK_EXCLUSIONS: IInvariantExclusion[] =
+  (
+    healthCheckExclusionsConfig as {
+      invariantExclusions?: IInvariantExclusion[]
+    }
+  ).invariantExclusions ?? []
+
+/** Core-periphery contracts intentionally absent on specific networks (see above). */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] =
+  (
+    healthCheckExclusionsConfig as {
+      corePeripheryExemptions?: ICorePeripheryExemption[]
+    }
+  ).corePeripheryExemptions ?? []
+
+/**
+ * Return the exemption for a core periphery contract on a network, or undefined when the
+ * contract is expected there. Pure; network match is case-insensitive.
+ */
+export function getCorePeripheryExemption(
+  contract: string,
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): ICorePeripheryExemption | undefined {
+  const networkLower = network.toLowerCase()
+  return exemptions.find(
+    (e) => e.contract === contract && e.network.toLowerCase() === networkLower
+  )
+}
+
+/**
+ * Drop exempt core-periphery contracts from a check list, printing each skip with its reason
+ * so the carve-out is visible in the run output.
+ */
+export function filterExemptCorePeriphery(
+  contracts: string[],
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): string[] {
+  return contracts.filter((contract) => {
+    const exemption = getCorePeripheryExemption(contract, network, exemptions)
+    if (!exemption) return true
+    consola.info(
+      `⏭  Not requiring core periphery [${contract}] on ${network} — exempt: ${exemption.reason}`
+    )
+    return false
+  })
+}
 
 /**
  * Return the carve-out for a given invariant on a given network, or undefined if the
@@ -315,6 +395,28 @@ export function isInvariantApplicable(
   if (scope.requiresGasZip && !ctx.supportsGasZip) return false
 
   return true
+}
+
+/**
+ * Base58 encoding of the Tron zero address. `callTronContract` returns base58, so this is the
+ * only spelling an unset slot can take here (the devkit's hex `41...` form never appears).
+ */
+const TRON_ZERO_ADDRESS_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Whether a parsed Tron address names a real contract rather than an unset slot.
+ *
+ * The zero address is itself a well-formed 34-character base58 `T...` string, so a shape check
+ * alone reads an unregistered periphery slot as registered. Pure.
+ *
+ * @param value - output of {@link parseTronAddressOutput}
+ */
+export function isNonZeroTronAddress(value: string): boolean {
+  return (
+    value.startsWith('T') &&
+    value.length === 34 &&
+    value !== TRON_ZERO_ADDRESS_BASE58
+  )
 }
 
 /**
@@ -844,7 +946,16 @@ async function checkWhitelistIntegrity(
 }
 
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
-const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
+/**
+ * Receivers whose Executor binding is asserted by `receiver-executor-binding`, with the getter
+ * each exposes. Every `Receiver*` companion in `config/global.json` → `facetPeripheryCouplings`
+ * must appear here (or be explicitly deprecated) — a colocated test enforces it, so a new
+ * coupling cannot ship presence-checked but binding-unchecked.
+ */
+export const RECEIVER_EXECUTOR_GETTERS: Array<{
+  name: string
+  getter: string
+}> = [
   // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
   // binding is no longer kept current, so it is intentionally not checked here.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
@@ -852,6 +963,131 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
+
+/** Receivers exempt from the coupling↔binding drift test because they are deprecated. */
+export const DEPRECATED_RECEIVERS = ['ReceiverAcrossV3']
+
+const PERIPHERY_REGISTRY_ABI = parseAbi([
+  'function getPeripheryContract(string) external view returns (address)',
+])
+
+/**
+ * `getAddress` that returns null for a malformed value instead of throwing — deploy-log entries
+ * are hand-editable, and one bad entry must never abort a whole per-contract check loop.
+ */
+function tryGetAddress(value: unknown): Address | null {
+  try {
+    return getAddress(String(value) as Address)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Periphery section of `deployments/<network>.diamond.json` — the second, diamond-scoped
+ * deploy log (`script/helperFunctions.sh` resolves periphery versions from it, so an entry
+ * missing there breaks deploy tooling even when the flat log is correct). Returns null when
+ * the file is missing or unparseable; the caller surfaces that as reduced coverage.
+ */
+export function loadDiamondLogPeriphery(
+  networkLower: string
+): Record<string, string> | null {
+  // Same containment policy as shared/deployLog.ts readDeployLog: a caller-supplied network
+  // name must never compose into a path outside deployments/.
+  if (!isValidNetworkName(networkLower)) return null
+  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
+  const diamondLogPath = path.resolve(
+    deploymentsDir,
+    `${networkLower}.diamond.json`
+  )
+  const relativeToDir = path.relative(deploymentsDir, diamondLogPath)
+  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
+    return null
+  if (!existsSync(diamondLogPath)) return null
+  try {
+    const parsed = JSON.parse(readFileSync(diamondLogPath, 'utf8')) as {
+      LiFiDiamond?: { Periphery?: Record<string, string> }
+    }
+    return parsed.LiFiDiamond?.Periphery ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Read one PeripheryRegistry entry through the run-wide cache on `ctx`. On-chain registry state
+ * does not change during a health-check run, but four invariants probe overlapping name sets —
+ * uncached that is 3-4x duplicate RPC reads per name per network, and the duplicates feed the
+ * rate limits that degrade other checks. The promise is cached before it settles so concurrent
+ * invariants share one in-flight read; a failed read is evicted, so retries hit the RPC fresh.
+ * One caveat: an individual RPC RESPONSE can still be wrong (a lagging load-balanced node), and
+ * a wrong success is sticky here — which is why `executeInvariant` gives its re-verify pass a
+ * fresh private cache instead of trusting this one.
+ */
+function readPeripheryRegistryCached(
+  name: string,
+  ctx: IHealthCheckContext,
+  publicClient: PublicClient
+): Promise<Address> {
+  const cached = ctx.peripheryRegistryCache.get(name)
+  if (cached) return cached
+
+  const pending = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: PERIPHERY_REGISTRY_ABI,
+    client: publicClient,
+  })
+    .read.getPeripheryContract([name])
+    .then((value) => getAddress(value as Address))
+    .catch((error: unknown) => {
+      // Evict only our own entry: the key may have been re-populated with a fresh healthy
+      // promise in the meantime, and a stale rejection must not tear that one down.
+      if (ctx.peripheryRegistryCache.get(name) === pending)
+        ctx.peripheryRegistryCache.delete(name)
+      throw error
+    })
+  ctx.peripheryRegistryCache.set(name, pending)
+  return pending
+}
+
+/**
+ * Resolve a periphery contract's address from the on-chain PeripheryRegistry first, falling back
+ * to the deploy log. The deploy log can be incomplete — ReceiverOIF is live on mainnet and base
+ * with no `deployments/*.json` entry — and resolving through the log alone silently exempts such
+ * contracts from binding/ownership checks (the blind spot behind EXSC-682/-684). A failed registry
+ * read falls back to the log rather than aborting: a read failure is not evidence of absence.
+ *
+ * @returns the address, or undefined when the contract is genuinely absent from both sources
+ */
+async function resolvePeripheryAddress(
+  name: string,
+  ctx: IHealthCheckContext,
+  publicClient: PublicClient
+): Promise<Address | undefined> {
+  try {
+    const registered = await readPeripheryRegistryCached(
+      name,
+      ctx,
+      publicClient
+    )
+    if (registered !== ZERO_ADDRESS) return registered
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ctx.logWarn(
+      `Could not read PeripheryRegistry for ${name} (falling back to deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[name]
+  if (!logged) return undefined
+  const checksummed = tryGetAddress(logged)
+  if (!checksummed)
+    ctx.logWarn(
+      `Deploy log entry for ${name} is not a valid address (${String(
+        logged
+      )}) - skipping`
+    )
+  return checksummed ?? undefined
+}
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1004,6 +1240,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      peripheryToCheck = filterExemptCorePeriphery(
+        peripheryToCheck,
+        ctx.networkLower
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1118,6 +1358,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     name: 'receiver-executor-binding',
     description: 'Every deployed Receiver is bound to the deployed Executor',
     severity: 'error',
+    // evm-only: none of the coupled receivers exist on Tron (tron.json has only core
+    // periphery). Grow a Tron branch (callTronContract + base58 compare) with the first one.
     scope: { environments: ['production'], chains: 'evm-only' },
     run: async (ctx) => {
       if (!ctx.publicClient) return
@@ -1131,7 +1373,13 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const expectedExecutor = getAddress(executorAddress as Address)
 
       for (const { name, getter } of RECEIVER_EXECUTOR_GETTERS) {
-        const receiverAddress = ctx.deployedContracts[name]
+        // Registry-first resolution: a receiver live on chain but missing from the deploy log
+        // must not silently escape the binding check (ReceiverOIF on mainnet/base).
+        const receiverAddress = await resolvePeripheryAddress(
+          name,
+          ctx,
+          ctx.publicClient
+        )
         if (!receiverAddress) continue
 
         const receiver = getContract({
@@ -1145,13 +1393,351 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           receiver.read as Record<string, (() => Promise<Address>) | undefined>
         )[getter]
         if (!readExecutor) continue
-        const boundExecutor = getAddress(await readExecutor())
+        let boundExecutor: Address
+        try {
+          boundExecutor = getAddress(await readExecutor())
+        } catch (error: unknown) {
+          // One flaky read must not abandon the receivers not yet checked.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name}.${getter}(): ${errorMessage}`)
+          continue
+        }
 
         if (boundExecutor !== expectedExecutor)
           ctx.logError(
             `${name}.${getter}() is ${boundExecutor}, expected deployed Executor ${expectedExecutor}`
           )
         else consola.success(`${name} is bound to the deployed Executor`)
+      }
+    },
+  },
+  {
+    name: 'periphery-registry-log-sync',
+    description:
+      'On-chain PeripheryRegistry, the flat deploy log and the diamond log agree for every known periphery contract',
+    // Warning (not error) for the initial rollout: the 2026-07-31 fleet dry-run found 114
+    // log/registry inconsistencies across 38 production networks (stale registrations of
+    // retired contracts, diamond-log gaps). An error gate would turn the whole sweep red and
+    // train people to ignore it. Promote to error once the fleet is clean;
+    // facet-required-periphery stays the error-severity functional gate.
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    remediation:
+      'Add the missing entry to deployments/<network>.json and deployments/<network>.diamond.json (or correct the stale address) so both deploy logs match the on-chain registry.',
+    run: async (ctx) => {
+      // The deploy logs are the identity source for most checks, so an entry missing from them
+      // is not cosmetic: it silently exempts that contract from every log-resolved check (how
+      // ReceiverOIF on mainnet/base escaped binding and ownership coverage). Names must be
+      // probed explicitly because the registry mapping has no enumerator, so the candidate set
+      // is every name either log or any hand-maintained periphery list knows about.
+      //
+      // Every drift finding reports through this alias. When promoting the invariant to error
+      // severity, flip the alias to ctx.logError together with `severity` above.
+      const flagDrift = ctx.logWarn
+      const diamondLogPeriphery =
+        ctx.diamondLogPeriphery !== undefined
+          ? ctx.diamondLogPeriphery
+          : loadDiamondLogPeriphery(ctx.networkLower)
+      if (diamondLogPeriphery === null)
+        ctx.logWarn(
+          `deployments/${ctx.networkLower}.diamond.json has no readable Periphery section - diamond-log sync coverage skipped`
+        )
+
+      const candidates = [
+        ...new Set([
+          ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
+          ...Object.keys(ctx.globalConfig.whitelistPeripheryFunctions),
+          ...Object.values(getFacetPeripheryCouplings()).flatMap(
+            (coupling) => coupling.requiresAnyOf
+          ),
+          ...RECEIVER_EXECUTOR_GETTERS.map((entry) => entry.name),
+          ...Object.keys(ctx.deployedContracts),
+          ...Object.keys(diamondLogPeriphery ?? {}),
+        ]),
+      ].sort()
+
+      // The diamond log must mirror the on-chain registry exactly: an empty/missing entry for
+      // a registered contract breaks version resolution in deploy tooling, a populated entry
+      // for an unregistered name is stale (or a proposal not yet executed - hence warning).
+      const checkDiamondLogEntry = (name: string, onChain: string): void => {
+        if (!diamondLogPeriphery) return
+        const logged = diamondLogPeriphery[name]
+        if (!logged) {
+          flagDrift(
+            `${name} is registered on chain (${onChain}) but ${
+              logged === undefined ? 'missing from' : 'empty in'
+            } deployments/${
+              ctx.networkLower
+            }.diamond.json - sync the diamond log`
+          )
+          return
+        }
+        const loggedNormalized = ctx.isTron
+          ? logged
+          : tryGetAddress(logged) ?? logged
+        if (loggedNormalized !== onChain)
+          flagDrift(
+            `${name}: diamond log has ${logged} but the on-chain registry has ${onChain}`
+          )
+      }
+      const warnStaleDiamondLogEntry = (name: string): void => {
+        const logged = diamondLogPeriphery?.[name]
+        if (logged)
+          ctx.logWarn(
+            `${name} has address ${logged} in deployments/${ctx.networkLower}.diamond.json but is not registered on chain - stale entry or unexecuted registration proposal`
+          )
+      }
+
+      if (ctx.isTron && ctx.tronRpcUrl) {
+        // Tron: registry output and deploy log are both base58 (T...), so compare directly;
+        // isNonZeroTronAddress screens out the base58 zero address.
+        let inSync = 0
+        for (const name of candidates)
+          try {
+            const raw = await callTronContract(
+              ctx.diamondAddress,
+              'getPeripheryContract(string)',
+              [name],
+              'address',
+              ctx.tronRpcUrl
+            )
+            const onChain = parseTronAddressOutput(raw)
+            if (!isNonZeroTronAddress(onChain)) {
+              warnStaleDiamondLogEntry(name)
+              continue
+            }
+
+            checkDiamondLogEntry(name, onChain)
+
+            const logged = ctx.deployedContracts[name]
+            if (!logged)
+              flagDrift(
+                `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+              )
+            else if (String(logged) !== onChain)
+              flagDrift(
+                `${name}: deploy log has ${logged} but the on-chain registry has ${onChain}`
+              )
+            else inSync++
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Could not read registry entry for ${name}: ${errorMessage}`
+            )
+          }
+        if (inSync > 0)
+          consola.success(
+            `${inSync} registered periphery contract(s) match the deploy log`
+          )
+        return
+      }
+
+      if (!ctx.publicClient) {
+        ctx.logWarn(
+          'Neither a Tron RPC URL nor an EVM client is available - registry/log sync check skipped'
+        )
+        return
+      }
+
+      const publicClient = ctx.publicClient
+      const results = await Promise.allSettled(
+        candidates.map((name) =>
+          readPeripheryRegistryCached(name, ctx, publicClient)
+        )
+      )
+
+      let inSync = 0
+      candidates.forEach((name, index) => {
+        const result = results[index]
+        if (result?.status !== 'fulfilled') {
+          const reason =
+            result?.status === 'rejected' ? String(result.reason) : 'no result'
+          ctx.logWarn(`Could not read registry entry for ${name}: ${reason}`)
+          return
+        }
+        const onChain = result.value
+        // Not registered on this chain: presence is owned by periphery-registered /
+        // facet-required-periphery, not by this sync check.
+        if (onChain === ZERO_ADDRESS) {
+          warnStaleDiamondLogEntry(name)
+          return
+        }
+
+        checkDiamondLogEntry(name, onChain)
+
+        const logged = ctx.deployedContracts[name]
+        if (!logged) {
+          flagDrift(
+            `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+          )
+          return
+        }
+        const loggedAddress = tryGetAddress(logged)
+        if (!loggedAddress)
+          flagDrift(
+            `${name}: deploy log entry ${String(
+              logged
+            )} is not a valid address (on chain: ${onChain})`
+          )
+        else if (loggedAddress !== onChain)
+          flagDrift(
+            `${name}: deploy log has ${loggedAddress} but the on-chain registry has ${onChain}`
+          )
+        else inSync++
+      })
+      if (inSync > 0)
+        consola.success(
+          `${inSync} registered periphery contract(s) match the deploy log`
+        )
+    },
+  },
+  {
+    name: 'immutable-bindings-match-config',
+    description:
+      'Immutable constructor bindings match the config files (getter-annotated entries in deployRequirements.json)',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'The live contract binds a stale address: redeploy it against the current config value and re-register it (diamondUpdatePeriphery), or fix the config entry if this chain genuinely still uses the old address.',
+    run: async (ctx) => {
+      // A contract like ReceiverAcrossV4 binds its counterparty (SPOKEPOOL) immutably at
+      // construction. If the integration migrates and config moves on, presence and
+      // executor-binding checks stay green while destination calls fail against a dead
+      // counterparty - so compare every annotated binding against config explicitly.
+      const checks = collectImmutableBindingChecks(
+        ctx.networkLower,
+        ctx.environment
+      )
+
+      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
+        // Tron: contracts live in the deploy log as base58; config values may be 0x (EVM hex)
+        // or base58, so normalize the expected side via ensureTronAddress before comparing.
+        for (const check of checks) {
+          const address = ctx.deployedContracts[check.contractName]
+          if (!address) continue
+
+          if (!check.expectedAddress) {
+            ctx.logWarn(
+              `${check.contractName} is deployed but ${check.configFileName} has no ${check.keyInConfigFile} value for this network - cannot verify ${check.getter}()`
+            )
+            continue
+          }
+
+          try {
+            const raw = await callTronContract(
+              String(address),
+              `${check.getter}()`,
+              [],
+              'address',
+              ctx.tronRpcUrl
+            )
+            const onChainValue = parseTronAddressOutput(raw)
+            const expected = ensureTronAddress(
+              check.expectedAddress,
+              ctx.tronWeb
+            )
+            if (onChainValue !== expected)
+              ctx.logError(
+                `${check.contractName}.${check.getter}() is ${onChainValue} but ${check.configFileName} ${check.keyInConfigFile} expects ${expected}`
+              )
+            else
+              consola.success(
+                `${check.contractName}.${check.getter}() matches ${check.configFileName}`
+              )
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Could not read ${check.contractName}.${check.getter}(): ${errorMessage}`
+            )
+          }
+        }
+        return
+      }
+
+      if (!ctx.publicClient) return
+
+      // Without the diamond's facet list, facet-typed entries would silently resolve through the
+      // deploy-log fallback and could verify a stale (deployed-but-not-cut) facet as a false
+      // pass. Skip with a warning instead - facets-registered already warned about the failed
+      // facets() read that left this list empty.
+      if (ctx.onChainFacets.length === 0) {
+        if (checks.length > 0)
+          ctx.logWarn(
+            'On-chain facet list unavailable - immutable-binding checks skipped'
+          )
+        return
+      }
+
+      // Facet-typed entries (DeBridgeDlnFacet, EcoFacet, MayanFacet) are not in the
+      // PeripheryRegistry; resolving them through it wastes a read and falls back to the deploy
+      // log's latest-deployed address, which between a facet deploy and its diamondUpdate is not
+      // the live facet. Identify them from the diamond's own selector map instead - their
+      // immutable getters stay callable on the facet address even when excluded from the cut.
+      const { addressByName: facetAddressByName } =
+        identifyCoupledFacetsOnChain(ctx.onChainFacets, [
+          ...new Set(checks.map((check) => check.contractName)),
+        ])
+
+      for (const check of checks) {
+        const facetAddress = facetAddressByName[check.contractName]
+        const address = facetAddress
+          ? getAddress(facetAddress as Address)
+          : await resolvePeripheryAddress(
+              check.contractName,
+              ctx,
+              ctx.publicClient
+            )
+        // Contract not present on this chain - nothing to compare.
+        if (!address) continue
+
+        if (!check.expectedAddress) {
+          ctx.logWarn(
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.keyInConfigFile} value for this network - cannot verify ${check.getter}()`
+          )
+          continue
+        }
+
+        try {
+          const onChainValue = (await ctx.publicClient.readContract({
+            address,
+            abi: parseAbi([
+              `function ${check.getter}() external view returns (address)`,
+            ]),
+            functionName: check.getter,
+          })) as Address
+
+          if (getAddress(onChainValue) !== getAddress(check.expectedAddress))
+            ctx.logError(
+              `${check.contractName}.${check.getter}() is ${getAddress(
+                onChainValue
+              )} but ${check.configFileName} ${
+                check.keyInConfigFile
+              } expects ${getAddress(check.expectedAddress)}`
+            )
+          // Name the resolution path: a green line for a fallback-resolved facet verified the
+          // latest-DEPLOYED contract, which during a deploy->diamondCut window is not the live
+          // one - the reader must be able to tell the two apart.
+          else
+            consola.success(
+              `${check.contractName}.${check.getter}() matches ${
+                check.configFileName
+              }${
+                facetAddress
+                  ? ' (live diamond facet)'
+                  : ' (registry/deploy-log address)'
+              }`
+            )
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(
+            `Could not read ${check.contractName}.${check.getter}(): ${errorMessage}`
+          )
+        }
       }
     },
   },
@@ -1176,6 +1762,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      contractsToCheck = filterExemptCorePeriphery(
+        contractsToCheck,
+        ctx.networkLower
+      )
 
       if (contractsToCheck.length === 0) return
 
@@ -1230,25 +1820,51 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           }
         }
       } else if (ctx.publicClient) {
-        const peripheryRegistry = getContract({
-          address: ctx.diamondAddress as Address,
-          abi: parseAbi([
-            'function getPeripheryContract(string) external view returns (address)',
-          ]),
-          client: ctx.publicClient,
-        })
-
-        const addresses = await Promise.all(
+        const publicClient = ctx.publicClient
+        const results = await Promise.allSettled(
           contractsToCheck.map((c) =>
-            peripheryRegistry.read.getPeripheryContract([c])
+            readPeripheryRegistryCached(c, ctx, publicClient)
           )
         )
+        const addresses: Address[] = []
+        // A name whose own registry read failed cannot be judged: its registered address may be
+        // missing from `addresses`, so flagging it "not registered" would be a false positive.
+        const unresolved = new Set<string>()
+        contractsToCheck.forEach((periphery, index) => {
+          const result = results[index]
+          if (result?.status === 'fulfilled') addresses.push(result.value)
+          else {
+            const reason =
+              result?.status === 'rejected'
+                ? String(result.reason)
+                : 'no result'
+            ctx.logWarn(
+              `Could not read periphery registration for ${periphery}: ${reason}`
+            )
+            unresolved.add(periphery)
+          }
+        })
 
         for (const periphery of contractsToCheck) {
+          // Deploy-log presence is decidable without any registry read, so judge it BEFORE the
+          // unresolved skip - otherwise an unrelated flaky read downgrades a real "not deployed"
+          // error to a warning and the gate goes green on it.
           const peripheryAddress = ctx.deployedContracts[periphery]
-          if (!peripheryAddress)
+          if (!peripheryAddress) {
             ctx.logError(`Periphery contract ${periphery} not deployed `)
-          else if (!addresses.includes(getAddress(peripheryAddress))) {
+            continue
+          }
+          if (unresolved.has(periphery)) continue
+          const loggedAddress = tryGetAddress(peripheryAddress)
+          if (!loggedAddress) {
+            ctx.logWarn(
+              `Deploy log entry for ${periphery} is not a valid address (${String(
+                peripheryAddress
+              )}) - skipping`
+            )
+            continue
+          }
+          if (!addresses.includes(loggedAddress)) {
             if (periphery === 'LiFiTimelockController') continue
             ctx.logError(
               `Periphery contract ${periphery} not registered in Diamond`
@@ -1258,6 +1874,153 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `Periphery contract ${periphery} registered in Diamond`
             )
         }
+      }
+    },
+  },
+  {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets REGISTERED ON CHAIN, not on target state: the failure this guards
+      // against is a facet being live while its companion is absent, and target state was itself
+      // missing the receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      // Identify live facets from the deploy log AND on-chain selectors, unioned. The periphery
+      // side of this check already reads on-chain truth (getPeripheryContract) rather than the
+      // deploy log because the log can be incomplete; the facet side must not reintroduce that
+      // dependency by name-resolving through the log alone, or a coupled facet that is live on
+      // chain but missing from the log would be dropped and its coupling never evaluated.
+      const couplings = getFacetPeripheryCouplings()
+      const { liveFacets, blindSpotWarning, versionDriftNotes } =
+        resolveLiveFacets(
+          ctx.onChainFacets,
+          ctx.deployedContracts as Record<string, string>,
+          Object.keys(couplings)
+        )
+      if (blindSpotWarning) ctx.logWarn(blindSpotWarning)
+      // Info, not warn: the facet IS covered (deploy log); this only flags that the selector
+      // identity source is inactive for it until the deployed build catches up with HEAD.
+      for (const note of versionDriftNotes) consola.info(note)
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower,
+        couplings
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${carveOut.facet}: ${carveOut.requiresAnyOf.join(
+            ' / '
+          )} not required here — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = [...new Set(required.flatMap((r) => r.requiresAnyOf))]
+      const registered = new Map<string, boolean>()
+      // Lookups that never resolved. A failed read is not evidence of absence, so a coupling
+      // whose companions all failed is reported as undetermined rather than as a violation.
+      const unresolved = new Set<string>()
+
+      if (ctx.isTron && ctx.tronRpcUrl)
+        for (const periphery of wanted)
+          try {
+            const output = await callTronContract(
+              ctx.diamondAddress,
+              'getPeripheryContract(string)',
+              [periphery],
+              'address',
+              ctx.tronRpcUrl
+            )
+            registered.set(
+              periphery,
+              isNonZeroTronAddress(parseTronAddressOutput(output))
+            )
+          } catch (error: unknown) {
+            // Keep going: one flaky read must not abandon the couplings not yet checked.
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Failed to read periphery registration for ${periphery}: ${errorMessage}`
+            )
+            unresolved.add(periphery)
+          }
+      else if (ctx.publicClient) {
+        const publicClient = ctx.publicClient
+        const results = await Promise.allSettled(
+          wanted.map((periphery) =>
+            readPeripheryRegistryCached(periphery, ctx, publicClient)
+          )
+        )
+        wanted.forEach((periphery, index) => {
+          const result = results[index]
+          if (result?.status !== 'fulfilled') {
+            const reason =
+              result?.status === 'rejected'
+                ? String(result.reason)
+                : 'no result'
+            ctx.logWarn(
+              `Failed to read periphery registration for ${periphery}: ${reason}`
+            )
+            unresolved.add(periphery)
+            return
+          }
+          registered.set(periphery, result.value !== ZERO_ADDRESS)
+        })
+      } else {
+        ctx.logWarn(
+          'Neither a Tron RPC URL nor an EVM client is available - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      for (const requirement of required) {
+        const satisfiedBy = requirement.requiresAnyOf.filter((periphery) =>
+          registered.get(periphery)
+        )
+        if (satisfiedBy.length > 0) {
+          consola.success(
+            `${satisfiedBy.join(
+              ' / '
+            )} registered for ${requirement.triggeredBy.join(', ')}`
+          )
+          continue
+        }
+
+        const undetermined = requirement.requiresAnyOf.filter((periphery) =>
+          unresolved.has(periphery)
+        )
+        if (undetermined.length === requirement.requiresAnyOf.length) {
+          ctx.logWarn(
+            `${requirement.triggeredBy.join(
+              ', '
+            )}: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
+              ', '
+            )})`
+          )
+          continue
+        }
+
+        ctx.logError(
+          `${requirement.triggeredBy.join(
+            ', '
+          )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
+            ', '
+          )}) - destination calls for this integration are disabled on this network`
+        )
       }
     },
   },
@@ -1439,11 +2202,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
-    description: 'Receiver owner is the refund wallet',
+    description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
     scope: {},
     run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
+      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         await checkOwnershipTron(
           'Receiver',
           ctx.refundWallet,
@@ -1452,13 +2215,57 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ctx.tronWeb,
           ctx.logError
         )
-      else if (ctx.publicClient)
+        return
+      }
+      if (!ctx.publicClient) return
+
+      try {
         await checkOwnership(
           'Receiver',
           ctx.refundWallet,
           ctx,
           ctx.publicClient
         )
+      } catch (error: unknown) {
+        // Same policy as the per-receiver loop below: one flaky read must not abandon the
+        // receivers not yet checked (or red-flag the network on a transient RPC error).
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        ctx.logWarn(`Could not read Receiver owner: ${errorMessage}`)
+      }
+
+      // The bridge-specific receivers were previously owner-checked nowhere. Resolve them
+      // registry-first so one missing from the deploy log is still covered (ReceiverOIF on
+      // mainnet/base); absent from both sources means genuinely not present on this chain.
+      for (const { name } of RECEIVER_EXECUTOR_GETTERS) {
+        const address = await resolvePeripheryAddress(
+          name,
+          ctx,
+          ctx.publicClient
+        )
+        if (!address) continue
+
+        let owner: Address
+        try {
+          owner = await getOwnableContract(
+            address,
+            ctx.publicClient
+          ).read.owner()
+        } catch (error: unknown) {
+          // One flaky read must not abandon the receivers not yet checked.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name} owner: ${errorMessage}`)
+          continue
+        }
+        if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))
+          ctx.logError(
+            `${name} owner is ${getAddress(owner)}, expected ${getAddress(
+              ctx.refundWallet as Address
+            )}`
+          )
+        else consola.success(`${name} owner is correct`)
+      }
     },
   },
   {
@@ -1811,6 +2618,11 @@ async function executeInvariant(
   if (invariant.severity === 'error' && errors.length > 0) {
     errors.length = 0
     warnings.length = 0
+    // A lagging RPC node can return stale registry state as a SUCCESS, which the cache would
+    // replay here and defeat the whole point of re-verifying. Give ONLY this pass a fresh
+    // private cache: it re-reads everything it touches, while sibling invariants still running
+    // concurrently keep their shared entries untouched.
+    localCtx.peripheryRegistryCache = new Map()
     await runOnce()
     if (errors.length === 0)
       consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)

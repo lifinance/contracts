@@ -1,0 +1,15 @@
+{
+  "invariantExclusions": [],
+  "corePeripheryExemptions": [
+    {
+      "contract": "TokenWrapper",
+      "network": "arc",
+      "reason": "Native gas asset is USDC via the ERC20 predeploy; the native/wrap path is not activated, so TokenWrapper is intentionally not deployed (see networks.json devNotes)"
+    },
+    {
+      "contract": "TokenWrapper",
+      "network": "tempo",
+      "reason": "No native asset (gas is paid in TIP-20 stablecoins); wrappedNativeAddress is a dummy and the native/wrap path is not activated, so TokenWrapper is intentionally not deployed (see networks.json devNotes)"
+    }
+  ]
+}

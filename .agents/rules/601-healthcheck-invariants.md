@@ -33,8 +33,22 @@ invariant must be added, adjusted, or removed. Use this checklist:
   new proxy, etc.) → add a binding invariant mirroring `executor-erc20proxy-binding` /
   `receiver-executor-binding`: register the contract and its getter (for Receivers, extend
   the `RECEIVER_EXECUTOR_GETTERS` list) and assert it points at the deployed counterpart.
+- **Facet added whose feature needs a companion periphery contract on the same chain** (a
+  bridge facet that handles the source side while a Receiver handles destination calls) →
+  add an entry to `config/global.json` → `facetPeripheryCouplings`, **keyed by the facet
+  name**, instead of relying on anyone remembering it. The `facet-required-periphery`
+  invariant then fails on any chain where that facet is registered on chain and none of its
+  `requiresAnyOf` contracts is registered in the PeripheryRegistry. Add one entry per facet:
+  variants of the same family (`AcrossFacetV4`, `AcrossFacetPackedV4`, `AcrossV4SwapFacet`)
+  each get their own key pointing at the same companion, and the invariant merges them into
+  one requirement. Because the registry is an allowlist matched on the exact facet name, a
+  **new family variant is unchecked until its key exists** — the colocated test asserts every
+  facet sharing a coupled family's prefix is covered, so add the key when you add the facet.
+  Never suppress a real gap: `notRequiredOn` is for chains where the destination side
+  genuinely does not apply, and every entry needs a reason.
 - **Contract removed / deprecated** → remove its registry entry and any hardcoded name
-  lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`).
+  lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`, and its
+  coupling from `facetPeripheryCouplings`).
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter).

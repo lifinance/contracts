@@ -106,6 +106,28 @@ deploySingleContract() {
     warning "$REFUND_REMINDER"
   fi
 
+  # Non-fatal reminder: warn if this facet needs a companion periphery contract (e.g. a Receiver
+  # for destination calls) that is not in this network's deploy log yet - the failure mode behind
+  # the missing ReceiverAcrossV4 on Robinhood (EXSC-682). Deploying the facet first is legitimate,
+  # so this only nudges; the health check enforces on-chain registration afterwards.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local COMPANION_REMINDER
+  COMPANION_REMINDER=$(bunx tsx script/deploy/resources/facetCompanionReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$COMPANION_REMINDER" ]]; then
+    warning "$COMPANION_REMINDER"
+  fi
+
+  # Non-fatal reminder: warn when redeploying a contract that other deployed contracts bind
+  # immutably at construction (deployRequirements.json contractAddresses, walked in reverse) -
+  # e.g. redeploying the Executor invalidates every deployed Receiver's binding. The binding
+  # health-check invariants enforce this after the fact; this surfaces the cascade up front.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local DEPENDENCY_REMINDER
+  DEPENDENCY_REMINDER=$(bunx tsx script/deploy/resources/contractDependencyReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$DEPENDENCY_REMINDER" ]]; then
+    warning "$DEPENDENCY_REMINDER"
+  fi
+
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.

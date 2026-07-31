@@ -109,14 +109,6 @@ export interface INetwork {
    */
   gasPrice?: number
   /**
-   * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
-   * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
-   * such as GasZipPeriphery or TokenWrapper are intentionally not deployed on that network).
-   * Before merging: still run the healthcheck manually for that network and verify all addresses and configuration
-   * are correct; this flag only allows CI to pass.
-   */
-  skipHealthcheck?: boolean
-  /**
    * Chains with no native currency (`nativeCurrency: "N/A"`, e.g. tempo): the ERC20 token gas is
    * paid in by default (tempo: the pathUSD TIP-20 predeploy). Funding audits read this token's
    * balance instead of eth_getBalance, which returns a meaningless sentinel on such chains.

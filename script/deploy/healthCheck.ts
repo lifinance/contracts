@@ -109,21 +109,9 @@ export async function runHealthCheckForNetwork(
       '../../config/networks.json'
     )
 
-    // Optional bypass: config/networks.json skipHealthcheck (see INetwork.skipHealthcheck in script/common/types.ts).
-    const networkEntry = (
-      networksConfig as Record<
-        string,
-        { skipHealthcheck?: boolean } | undefined
-      >
-    )[networkLower]
-    if (networkEntry?.skipHealthcheck === true)
-      return {
-        network: networkStr,
-        status: 'skipped',
-        errors: [],
-        warnings: [],
-        skipReason: 'skipHealthcheck: true in config/networks.json',
-      }
+    // No network-level bypass exists (the former skipHealthcheck flag was removed): every chain
+    // runs every applicable invariant, and genuine per-network specialties are carved out
+    // per-invariant with a mandatory reason in config/healthCheckExclusions.json.
 
     // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (
@@ -251,6 +239,7 @@ export async function runHealthCheckForNetwork(
       refundWallet,
       pauserWallet,
       onChainFacets: [],
+      peripheryRegistryCache: new Map(),
       errors,
       warnings,
       logError: (msg: string) => {

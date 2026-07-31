@@ -70,6 +70,38 @@
     "Permit2Proxy",
     "TokenWrapper"
   ],
+  "facetPeripheryCouplings": {
+    "AcrossFacetPackedV4": {
+      "requiresAnyOf": [
+        "ReceiverAcrossV4"
+      ]
+    },
+    "AcrossFacetV4": {
+      "requiresAnyOf": [
+        "ReceiverAcrossV4"
+      ]
+    },
+    "AcrossV4SwapFacet": {
+      "requiresAnyOf": [
+        "ReceiverAcrossV4"
+      ]
+    },
+    "ChainflipFacet": {
+      "requiresAnyOf": [
+        "ReceiverChainflip"
+      ]
+    },
+    "LiFiIntentEscrowFacetV2": {
+      "requiresAnyOf": [
+        "ReceiverOIF"
+      ]
+    },
+    "StargateFacetV2": {
+      "requiresAnyOf": [
+        "ReceiverStargateV2"
+      ]
+    }
+  },
   "blacklistedFunctionSelectors": ["0x23b872dd"],
   "whitelistPeripheryFunctions": {
     "FeeForwarder": [
