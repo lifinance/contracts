@@ -14,6 +14,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { INetwork } from '../common/types'
+import { mapWithConcurrency } from '../utils/mapWithConcurrency'
 import { getAllActiveNetworks } from '../utils/viemScriptHelpers'
 
 import { runHealthCheckForNetwork } from './healthCheck'
@@ -85,35 +86,6 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
       .map((r) => r.network)
       .sort(),
   }
-}
-
-/**
- * Run `mapper` over `items` with at most `limit` in flight at once. Preserves input
- * order in the returned results. Used to bound RPC pressure across many networks.
- */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  mapper: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  const results = new Array<R>(items.length)
-  let next = 0
-
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      const current = next++
-      const item = items[current]
-      if (item === undefined) continue
-      results[current] = await mapper(item, current)
-    }
-  }
-
-  const workers = Array.from(
-    { length: Math.max(1, Math.min(limit, items.length)) },
-    () => worker()
-  )
-  await Promise.all(workers)
-  return results
 }
 
 /** Run one network's health check in-process, bounded by a deadline; never throws. */

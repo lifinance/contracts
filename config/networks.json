@@ -576,8 +576,7 @@
     "safeAddress": "0xA14dD3d7CA72aE2d08055813a2DEa4CaC40910B6",
     "gasZipChainId": 527,
     "isZkEVM": false,
-    "deployedWithEvmVersion": "cancun",
-    "deployedWithSolcVersion": "0.8.28",
+    "targetEvmVersion": "cancun",
     "create3Factory": "0x68b068F7869CCE4FB95E0504096Ae336dd4ae7F6"
   },
   "ink": {
