@@ -3,6 +3,19 @@
 deployAllContracts() {
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> start deployAllContracts"
 
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported VERIFY_CONTRACTS_OVERRIDE
+  # BEFORE anything re-sources .env — including `source script/helperFunctions.sh` below,
+  # which sources .env at file level and would reset VERIFY_CONTRACTS to its .env value
+  # before a later promotion could capture the caller's. This override — never set by .env —
+  # is what the verify gate in deploySingleContract actually consults. Restoring
+  # VERIFY_CONTRACTS itself is not enough: every deploy stage calls same-shell functions
+  # (deployCoreFacets, deploySingleContract, deployFacetAndAddToDiamond) that each
+  # re-`source .env` and reset VERIFY_CONTRACTS back to its .env value before the gate runs.
+  # The `:-` guard captures the caller value exactly once (outermost entry wins), so a
+  # `VERIFY_CONTRACTS=false` from the deploy-network Phase-1 command genuinely disables
+  # inline verification even when .env sets VERIFY_CONTRACTS=true.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load required resources
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
@@ -19,16 +32,6 @@ deployAllContracts() {
   # read function arguments into variables
   local NETWORK="$1"
   local ENVIRONMENT="$2"
-
-  # Promote a caller-provided VERIFY_CONTRACTS into an exported VERIFY_CONTRACTS_OVERRIDE
-  # BEFORE sourcing .env. This override — never set by .env — is what the verify gate in
-  # deploySingleContract actually consults. Restoring VERIFY_CONTRACTS itself is not enough:
-  # every deploy stage calls same-shell functions (deployCoreFacets, deploySingleContract,
-  # deployFacetAndAddToDiamond) that each re-`source .env` and reset VERIFY_CONTRACTS back to
-  # its .env value before the gate runs. The `:-` guard captures the caller value exactly
-  # once (outermost entry wins), so a `VERIFY_CONTRACTS=false` from the deploy-network Phase-1
-  # command genuinely disables inline verification even when .env sets VERIFY_CONTRACTS=true.
-  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
 
   # load env variables
   source .env

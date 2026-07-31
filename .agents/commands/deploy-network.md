@@ -140,7 +140,8 @@ contract" races). The master log is in **MongoDB** — `bun mongo-logs:sync` ref
 cache (`_deployments_log_file.json`) so logged `constructorArgs`/`solc`/`evm` are available.
 
 Use `verifyNetworkContractsParallel <network> <environment>` (ships with this skill): verifies all
-unverified contracts for the network concurrently (capped at `MAX_CONCURRENT_JOBS`), with
+unverified contracts for the network concurrently (`VERIFICATION_MAX_CONCURRENT_JOBS`, default 4,
+never above `MAX_CONCURRENT_JOBS`), with
 **Blockscout rate-limit backoff** (429/gateway → exponential retry), then pushes `verified:true`
 back to MongoDB. Confirm with `bun mongo-logs:query`. Re-run to mop up any left by rate limits.
 

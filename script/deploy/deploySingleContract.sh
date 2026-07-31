@@ -4,6 +4,14 @@
 # should be called like this:
 # $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
 deploySingleContract() {
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported override BEFORE any sourcing —
+  # helperFunctions.sh below re-sources .env at file level, so promoting later would capture
+  # the .env value instead of the caller's (see deployAllContracts). The verify gate below
+  # consults VERIFY_CONTRACTS_OVERRIDE, which .env never sets, so an inline
+  # `VERIFY_CONTRACTS=false` survives this (and any parent's) re-source. The `:-` guard
+  # preserves a value already promoted by an outer caller.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
@@ -14,12 +22,6 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
-
-  # Promote a caller-provided VERIFY_CONTRACTS into an exported override BEFORE sourcing .env
-  # (see deployAllContracts). The verify gate below consults VERIFY_CONTRACTS_OVERRIDE, which
-  # .env never sets, so an inline `VERIFY_CONTRACTS=false` survives this (and any parent's)
-  # re-source. The `:-` guard preserves a value already promoted by an outer caller.
-  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
 
   # load env variables
   source .env
@@ -140,6 +142,14 @@ deploySingleContract() {
   echoDebug "DIAMOND_TYPE=$DIAMOND_TYPE"
   echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""
+
+  # Reset before the CREATE3/zkEVM split: NEW_DEPLOYMENT and CONTRACT_ADDRESS are globals set
+  # only on the non-zkEVM path below. Without this reset, values leaked from a previous
+  # deploySingleContract call in the same shell (e.g. a multi-network loop mixing zkEVM and
+  # non-zkEVM targets) could wrongly trigger the already-deployed short-circuit further down —
+  # reusing another network's address.
+  NEW_DEPLOYMENT=""
+  CONTRACT_ADDRESS=""
 
   # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
   if ! isZkEvmNetwork "$NETWORK"; then

@@ -2617,7 +2617,15 @@ function verifyNetworkContractsParallel() {
   while IFS=$'\t' read -r CONTRACT VERSION ADDRESS ARGS; do
     while [[ $(jobs -r | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do sleep 1; done
     (
-      if verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS" >/dev/null 2>&1; then
+      # Pass the logged toolchain (solc/EVM version, optimizer runs) so verification compiles
+      # with what the contract was BUILT with, not whatever foundry.toml currently pins —
+      # matching the sequential sweep (verifyAllUnverifiedContractsInLogFile). Read-only jq
+      # lookups are parallel-safe. Empty values leave verifyContract's default behavior intact.
+      JOB_ENTRY=$(jq -r --arg c "$CONTRACT" --arg n "$NETWORK" --arg e "$ENVIRONMENT" --arg v "$VERSION" '.[$c][$n][$e][$v][0]' "$LOG_FILE_PATH")
+      JOB_SOLC_VERSION=$(echo "$JOB_ENTRY" | jq -r '.SOLC_VERSION // empty')
+      JOB_EVM_VERSION=$(echo "$JOB_ENTRY" | jq -r '.EVM_VERSION // empty')
+      JOB_OPTIMIZER_RUNS=$(echo "$JOB_ENTRY" | jq -r '.OPTIMIZER_RUNS // empty')
+      if verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$ARGS" "$JOB_SOLC_VERSION" "$JOB_EVM_VERSION" "$JOB_OPTIMIZER_RUNS" >/dev/null 2>&1; then
         echo "ok" >"$WORK_DIR/$CONTRACT.$VERSION.result"
       else
         echo "fail" >"$WORK_DIR/$CONTRACT.$VERSION.result"
