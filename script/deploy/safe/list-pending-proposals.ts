@@ -184,8 +184,8 @@ const main = defineCommand({
             p.timestamp
           } | safeTxHash ${p.safeTxHash}`
         )
-        // Deferred diamond-cleanup: surface the origin deprecation PR(s) for a
-        // drain-minted removal proposal (DeferredDiamondCleanupQueue.md §6).
+        // Deferred diamond-cleanup: surface the origin deprecation PR(s) for
+        // parked removals folded into a proposal (DeferredDiamondCleanupQueue.md §6).
         if (p.parkedTaskRefs?.length)
           consola.info(
             `  parked cleanup: ${p.parkedTaskRefs

@@ -109,21 +109,27 @@ Ends with a per-network summary and exits `1` if any network failed. Failures do
 
 Facet removals are **no longer proposed by hand here.** When
 `DRAIN_PARKED_TASKS=true`, every production facet cut's `runPropose` call
-automatically drains that network's **parked** facet-removal tasks (the deferred
-diamond-cleanup queue) into **one** extra timelock `scheduleBatch` Remove per
-network, riding this rollout's signing session. No `cleanUpProdDiamond --auto`
-step is needed (design:
+automatically **folds** that network's **parked** facet-removal tasks (the
+deferred diamond-cleanup queue) into that network's facet-cut proposal — one extra
+`diamondCut` Remove element per parked facet, appended to the same timelock
+`scheduleBatch`. This adds **no** extra proposal: the removals ride the facet-cut
+proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design:
 [docs/DeferredDiamondCleanupQueue.md](../../docs/DeferredDiamondCleanupQueue.md) §6).
 
 - **Enable it for the rollout**: set `DRAIN_PARKED_TASKS=true` in the environment
   before Phase 2. Default **off** — keep it off for emergency / break-glass
   rollouts so unrelated removals never join an urgent signing set.
-- **PR-link surfacing**: each drained removal proposal carries the originating
-  deprecation PR(s) (`parkedTaskRefs`), shown at signing in `confirm-safe-tx`, in
-  `list-pending-proposals`, and in the Phase 8 Slack post — so the signer sees
-  **why** each facet is being removed.
-- **Best-effort**: a drain failure never blocks the primary proposal or the exit
-  code.
+- **PR-link surfacing**: the folded removals carry the originating deprecation
+  PR(s) (`parkedTaskRefs`) on the facet-cut proposal, shown at signing in
+  `confirm-safe-tx` and in `list-pending-proposals` — so the signer sees **why**
+  each facet is being removed.
+- **Best-effort (at propose time only)**: a drain *preparation* failure never
+  blocks the primary proposal or the exit code — the removals simply don't fold in.
+  But once folded, the removals execute atomically inside the primary's
+  `scheduleBatch`: if a folded facet is removed by another path during the timelock
+  delay, its `diamondCut` Remove reverts at execution and **the whole batch — incl.
+  the primary rollout cut — reverts** (docs/DeferredDiamondCleanupQueue.md §6). Keep
+  `DRAIN_PARKED_TASKS` off for time-critical rollouts if that risk is unacceptable.
 - **MongoDB privilege caveat**: the queue lives on the un-gated `MONGODB_URI`
   cluster (DB `deferred-cleanup`), so the drain needs no tunnel — but it does need
   the role to have `readWrite` **including index creation** on that DB. If the
@@ -165,7 +171,7 @@ Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSO
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) and **one more** when the Phase 3.5 deferred-cleanup drain proposed a removal (a single per-network `scheduleBatch` Remove carrying the origin-PR links). These are additive, not mutually exclusive: a network that did a periphery allowlist sync **and** a drain removal shows **three** proposals — so expect **two or three** per network when either or both apply. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) — so **one or two** per network. The Phase 3.5 deferred-cleanup drain adds **no** extra proposal: its removals are folded into the network's facet-cut proposal as extra `scheduleBatch` elements (visible via that proposal's `parkedTaskRefs`), so do **not** wait for or count a separate removal proposal. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
 ## Phase 5 — Draft PR (deploy mode only)
 
