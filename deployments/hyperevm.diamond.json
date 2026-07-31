@@ -61,9 +61,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xfA7182a7274156bc5DD3f489689Fc4d44aF51Da9": {
+      "0x20A7ea2d139fCBCB01C021e58FEC16583137D9b5": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
         "Name": "RelayDepositoryFacet",
@@ -100,8 +100,8 @@
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
       "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
       "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
+      "LidoWrapper": "",
       "OutputValidator": "0x905F229f14Ec9e7Dd7428417CfBe7DBf1e1FD386",
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",

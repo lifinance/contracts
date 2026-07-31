@@ -33,8 +33,8 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.2"
       },
-      "0xD79087Bfc48506f4B4d0B82547d708051af0f513": {
-        "Name": "GenericSwapFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xf7D902116142c74b064864F170B8e7d4D8eCCa84": {
@@ -89,8 +89,8 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
-        "Name": "AcrossFacetPacked",
+      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
+        "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
       "0xB7237563c604EE305FeAB6F275AFDe628354198A": {
@@ -113,20 +113,20 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
+      "0x3556edeCDd99D567641F796cB2ac648006f4E257": {
+        "Name": "SupersetFacet",
         "Version": "1.1.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
@@ -152,22 +152,6 @@
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
-      },
-      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
-      "0x0d0684aB8aBcA9da852630638462bf1F94e3828c": {
-        "Name": "SupersetFacet",
-        "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -176,8 +160,8 @@
       "FeeCollector": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
