@@ -39,7 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
-import { drainParkedTasks } from './drain-parked-tasks'
+import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
 import { normalizeProposeCalls } from './propose-calls'
 import {
   OperationTypeEnum,
@@ -50,36 +50,63 @@ import {
   isAddressASafeOwner,
   storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
+  type IParkedTaskRef,
 } from './safe-utils'
 
 /**
- * Proposes the primary transaction, then opportunistically drains any parked
- * facet-removal tasks for the network so deferred cleanups ride along in the same
- * signing session (deferred diamond-cleanup queue, DeferredDiamondCleanupQueue.md
- * §6). The drain is best-effort and flag-gated (`DRAIN_PARKED_TASKS`, default
- * off): it runs AFTER the primary proposal and can never affect it or the process
- * exit code — a drain failure is caught and logged, nothing more.
+ * Proposes the primary transaction, folding any parked facet-removal tasks for
+ * the network into its timelock `scheduleBatch` so deferred cleanups ride along
+ * in the same single signature (deferred diamond-cleanup queue,
+ * DeferredDiamondCleanupQueue.md §6). The drain is best-effort and flag-gated
+ * (`DRAIN_PARKED_TASKS`, default off): it prepares its removal calls before the
+ * primary is signed and can never block the primary proposal — a drain problem
+ * falls back to proposing the primary alone.
  *
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
-  await _runPropose(options)
-  await drainParkedTasks(options).catch((error) =>
-    consola.warn(
-      'parked-task drain failed (primary proposal unaffected):',
-      error
-    )
+  await proposeWithDrain(options, (extraTimelockCalls, parkedTaskRefs) =>
+    _runPropose(options, extraTimelockCalls, parkedTaskRefs)
   )
 }
 
 /**
- * Executes the propose-to-safe command (the primary proposal only). Extracted
- * verbatim from `runPropose` so the drain hook can wrap it without altering the
- * signing path; call this directly to propose WITHOUT triggering a drain.
+ * Executes the propose-to-safe command: signs and stores a single Safe proposal.
+ * Optionally appends `extraTimelockCalls` as additional inner calls of the
+ * timelock `scheduleBatch` (used by the drain to fold parked facet removals into
+ * the same proposal) and annotates the stored record with `parkedTaskRefs`.
+ * Call this directly (with no extra calls) to propose WITHOUT triggering a drain.
+ *
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
+ * @param extraTimelockCalls - Extra inner calls to append to the scheduleBatch
+ *   (only valid with `timelock`; empty for a plain primary proposal)
+ * @param parkedTaskRefs - Origin-PR links to store on the proposal for the signer
+ * @returns The proposal's Safe tx hash and whether a new record was stored
+ *   (`false` = a duplicate pending intent already existed)
+ * @throws If `extraTimelockCalls` are given without `timelock`, if the signer is
+ *   not a Safe owner, on an invalid nonce override, or on a MongoDB store failure.
  */
-export async function _runPropose(options: IProposeToSafeOptions) {
-  const { targets, calldatas } = normalizeProposeCalls(options)
+export async function _runPropose(
+  options: IProposeToSafeOptions,
+  extraTimelockCalls: ITimelockCall[] = [],
+  parkedTaskRefs?: IParkedTaskRef[]
+): Promise<{ safeTxHash: Hex; stored: boolean }> {
+  const normalized = normalizeProposeCalls(options)
+  // Copy, never mutate: normalizeProposeCalls may alias options.to/options.calldata
+  // when they are already arrays, so pushing here would corrupt the caller's input.
+  const targets = [...normalized.targets]
+  const calldatas = [...normalized.calldatas]
+
+  if (extraTimelockCalls.length > 0) {
+    if (!options.timelock)
+      throw new Error(
+        'parked-task removals can only be appended to a timelock (scheduleBatch) proposal'
+      )
+    for (const call of extraTimelockCalls) {
+      targets.push(call.to)
+      calldatas.push(call.calldata)
+    }
+  }
 
   // Set up signing options
   const useLedger = options.ledger || false
@@ -129,14 +156,17 @@ export async function _runPropose(options: IProposeToSafeOptions) {
   // Get the account address
   const senderAddress = safe.account.address
 
-  // Check if the current signer is an owner
+  // Check if the current signer is an owner. Throw (do not process.exit) so
+  // proposeWithDrain can catch this and revert claimed parked tasks to queued.
+  // citty's runMain still exits non-zero when the CLI path surfaces the throw.
   const existingOwners = await safe.getOwners()
   if (!isAddressASafeOwner(existingOwners, senderAddress)) {
     consola.error('The current signer is not an owner of this Safe')
     consola.error('Signer address:', senderAddress)
     consola.error('Current owners:', existingOwners)
-    consola.error('Cannot propose transactions - exiting')
-    process.exit(1)
+    throw new Error(
+      `Cannot propose transactions: signer ${senderAddress} is not an owner of Safe ${safeAddress}`
+    )
   }
 
   let finalTo: Address
@@ -252,12 +282,13 @@ export async function _runPropose(options: IProposeToSafeOptions) {
       chain.id,
       signedTx,
       safeTxHash,
-      senderAddress
+      senderAddress,
+      parkedTaskRefs
     )
 
     if (result === null) {
       consola.info('Proposal already exists - no new proposal created')
-      return
+      return { safeTxHash, stored: false }
     }
 
     if (!result.acknowledged)
@@ -272,6 +303,7 @@ export async function _runPropose(options: IProposeToSafeOptions) {
   }
 
   consola.info('Transaction proposed')
+  return { safeTxHash, stored: true }
 }
 
 /**

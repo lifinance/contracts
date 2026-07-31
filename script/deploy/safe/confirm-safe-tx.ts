@@ -378,8 +378,8 @@ const processTxs = async (
       `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
     ]
 
-    // Deferred diamond-cleanup: if this removal was drained from the parked-tasks
-    // queue, show the originating deprecation PR(s) so the signer sees WHY the
+    // Deferred diamond-cleanup: if parked facet removals were folded into this
+    // proposal, show the originating deprecation PR(s) so the signer sees WHY each
     // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
     // outside the shared decode formatter (rule 201 untouched).
     if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {

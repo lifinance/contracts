@@ -114,9 +114,9 @@ export interface ISafeSignature {
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
 /**
- * Link from a drained facet-removal proposal back to the deprecation PR that
- * parked it (deferred diamond-cleanup queue, DeferredDiamondCleanupQueue.md §6).
- * An array so one batched per-network removal carries every origin PR.
+ * Link from a parked facet removal folded into a proposal back to the deprecation
+ * PR that parked it (deferred diamond-cleanup queue, DeferredDiamondCleanupQueue.md §6).
+ * An array so a primary proposal carrying several folded removals lists every origin PR.
  */
 export interface IParkedTaskRef {
   facet: string
@@ -136,9 +136,9 @@ export interface ISafeTxDocument {
   submittedAt?: Date
   intentHash?: string // Optional for backwards compatibility with existing documents
   /**
-   * Origin-PR links for a drain-minted facet-removal proposal, surfaced to the
-   * signer at signing time. Optional and backward-compatible: only present on
-   * proposals the deferred-cleanup drain created.
+   * Origin-PR links for the parked facet removals folded into this proposal,
+   * surfaced to the signer at signing time. Optional and backward-compatible:
+   * only present on proposals the deferred-cleanup drain folded removals into.
    */
   parkedTaskRefs?: IParkedTaskRef[]
 }
@@ -170,7 +170,7 @@ export interface IProposalSummary {
   safeTxHash: string
   timestamp: string
   executionHash?: string
-  /** Origin-PR links when this is a drain-minted facet-removal proposal (§6). */
+  /** Origin-PR links for parked facet removals folded into this proposal (§6). */
   parkedTaskRefs?: IParkedTaskRef[]
 }
 
