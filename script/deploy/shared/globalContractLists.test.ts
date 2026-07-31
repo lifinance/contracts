@@ -8,7 +8,7 @@ import {
 import { deriveNonCoreFacets } from './globalContractLists'
 
 describe('deriveNonCoreFacets', () => {
-  const CORE = ['OwnershipFacet', 'GasZipFacet', 'LiFiIntentEscrowFacet']
+  const CORE = ['OwnershipFacet', 'GasZipFacet', 'LiFiIntentEscrowFacetV2']
   const PERIPHERY = ['Executor', 'ERC20Proxy']
 
   const derive = (targetStateContracts: string[], coreFacets = CORE) =>
@@ -46,7 +46,7 @@ describe('deriveNonCoreFacets', () => {
   // failed anyway — silently defeating the exclusion (GasZip-unsupported networks and
   // CORE_FACET_EXEMPTIONS grandfathering both hit this).
   it('still treats an excluded core facet as core when given the full core list', () => {
-    const targetState = ['LiFiIntentEscrowFacet', 'GasZipFacet', 'SquidFacet']
+    const targetState = ['LiFiIntentEscrowFacetV2', 'GasZipFacet', 'SquidFacet']
     expect(derive(targetState, CORE)).toEqual(['SquidFacet'])
   })
 
@@ -54,9 +54,9 @@ describe('deriveNonCoreFacets', () => {
     // Documents WHY callers must pass the full list: with the exclusions already applied,
     // the excluded facets leak back in as non-core.
     const preExcluded = CORE.filter(
-      (f) => f !== 'GasZipFacet' && f !== 'LiFiIntentEscrowFacet'
+      (f) => f !== 'GasZipFacet' && f !== 'LiFiIntentEscrowFacetV2'
     )
-    const targetState = ['LiFiIntentEscrowFacet', 'GasZipFacet', 'SquidFacet']
+    const targetState = ['LiFiIntentEscrowFacetV2', 'GasZipFacet', 'SquidFacet']
     expect(derive(targetState, preExcluded)).toEqual(targetState)
   })
 

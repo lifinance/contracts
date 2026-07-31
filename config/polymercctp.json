@@ -27,6 +27,7 @@
     { "chainId": 98866, "domainId": 22 },
     { "chainId": 5042, "domainId": 26 },
     { "chainId": 1201081091099710, "domainId": 27 },
+    { "chainId": 1776, "domainId": 29 },
     { "chainId": 2818, "domainId": 30 },
     { "chainId": 1672, "domainId": 31 },
     { "chainId": 25, "domainId": 32 }
@@ -69,6 +70,11 @@
   "hyperevm": {
     "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
     "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
+    "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
+  },
+  "injective": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xa00C59fF5a080D2b954d0c75e46E22a0c371235a",
     "polymerFeeReceiver": "0x64ED4dE33769349F8C4bD6e8d1866f19D29bef79"
   },
   "ink": {
