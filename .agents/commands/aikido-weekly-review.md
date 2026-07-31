@@ -14,9 +14,9 @@ action list, then offers to schedule the next run. Deep SAST triage mechanics li
 
 ## Preflight
 
-- Needs the Aikido MCP (`aikido_issues_list`). Verify exactly as described in the
-  Preflight section of `.agents/commands/aikido-address-findings.md` (including the
-  `/aikido:setup` fallback message). `aikido_login` should report already-signed-in.
+- Needs the Aikido MCP (`aikido_issues_list`). Verify availability exactly as described
+  in the Preflight section of `.agents/commands/aikido-address-findings.md` (the
+  `aikido_full_scan` test call, and its `/aikido:setup` fallback message on failure).
 - Derive the repo name from `gh repo view --json name -q .name` unless overridden by the
   argument. Never hardcode: forks share code under different Aikido repo names
   (`contracts` vs `contracts-tron`).
@@ -24,8 +24,9 @@ action list, then offers to schedule the next run. Deep SAST triage mechanics li
 ## Step 1 — Pull the full feed
 
 Call `aikido_issues_list` with `repo_name` and NO `issue_types` filter, paginating
-(`page: 0, 1, …`) until a page returns fewer than 25 issues. Then two cheap extra calls
-with `out_of_sla: true` and `sla_due_soon: true` to mark SLA state per issue.
+(`page: 0, 1, …`) until a page returns fewer than 25 issues. Then two extra calls with
+`out_of_sla: true` and `sla_due_soon: true` to mark SLA state per issue — paginated the
+same way (the 25/page limit applies to every variant of this call).
 
 `issue_id` values are numbers in the feed but must be passed back as **strings** to
 `aikido_ignore_issue`.
@@ -57,10 +58,12 @@ and everything out-of-SLA regardless of severity.
   auto-ignore anything — report with a recommendation instead.
 - **open_source (dependency CVEs)** — group by package; for each, report installed vs
   recommended version and whether it is a direct or transitive dep (check
-  `package.json`). Offer a bump PR (`vulnerable_dependency` recipe in
-  `/aikido-address-findings`). Check open PRs first — a bump may already be in flight.
+  `package.json`). Offer a bump PR following the `vulnerable_dependency` recipe written
+  in `/aikido-address-findings` Phase 4 (apply the recipe directly — that command's
+  feed mode queries SAST only, so don't invoke it for these buckets). Check open PRs
+  first — a bump may already be in flight.
 - **iac / scm_security / actions findings** — unpinned actions and template injection
-  are always real (fix recipes in `/aikido-address-findings`); `persist-credentials`
+  are always real (apply the Phase 4 fix recipes, same note as above); `persist-credentials`
   and broad-permissions findings need the workflow's push/trigger context before
   deciding fix vs ignore.
 - Anything the user decides to accept: ignore via `aikido_ignore_issue` with a reason
