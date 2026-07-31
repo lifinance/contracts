@@ -1130,6 +1130,12 @@ describe('immutable-bindings-match-config invariant', () => {
       ).find((c) => c.contractName === 'MayanFacet')?.expectedAddress
       expect(expectedMayan).toBeTruthy()
 
+      // Assert the loader worked before using its result: a failed excludes parse returns
+      // null, and a null selector list would fail inside identifyCoupledFacetsOnChain with
+      // a message that hides the real cause.
+      const mayanSelectors = loadFacetRegisteredSelectors('MayanFacet')
+      expect(mayanSelectors).not.toBeNull()
+
       const registryQueries: string[] = []
       const ctx = makeCtx()
       Object.assign(ctx, {
@@ -1141,7 +1147,7 @@ describe('immutable-bindings-match-config invariant', () => {
         onChainFacets: [
           {
             address: FACET,
-            selectors: loadFacetRegisteredSelectors('MayanFacet'),
+            selectors: mayanSelectors,
           },
         ],
         publicClient: {
