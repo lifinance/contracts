@@ -363,7 +363,8 @@ function findContractInMasterLogByAddress() {
     done
   done
 
-  echo "[info] address not found in MongoDB"
+  # stderr, not stdout: callers capture this function's stdout via $(...)
+  echo "[info] address not found in MongoDB" >&2
   return 1
 }
 function getContractVersionFromMasterLog() {
@@ -4370,7 +4371,7 @@ function getCreate3FactoryAddress() {
   CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [ -z "$CREATE3_FACTORY" ]; then
-    echo "Error: create3Factory address not found for network '$NETWORK'"
+    error "create3Factory address not found for network '$NETWORK'"
     return 1
   fi
 
