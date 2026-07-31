@@ -359,6 +359,7 @@ contract AcrossV4SwapFacet is
 
         // Validate asset matches for ERC20 flows
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        // TODO(EXSC-626): migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
         address decodedInputToken = address(
             uint160(uint256(params.inputToken))
         );
@@ -609,6 +610,7 @@ contract AcrossV4SwapFacet is
         _validateAmount(quote.amount, _bridgeData.minAmount);
 
         // Validate burnToken matches bridgeData asset (native is already excluded by msg.value check above)
+        // TODO(EXSC-626): migrate to LibBytes.toAddress (checked) — see LibBytes v1.1.0
         address burnToken = address(uint160(uint256(quote.burnToken)));
         if (burnToken != _bridgeData.sendingAssetId) {
             revert InformationMismatch();
@@ -799,6 +801,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 8453) return 30184; // Base
         if (_chainId == 81224) return 30323; // Codex
         if (_chainId == 98866) return 30370; // Plume
+        // Taiko is no longer supported by LI.FI (deprecated in EXP-577); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 167000) return 30290; // Taiko
         if (_chainId == LIFI_CHAIN_ID_SOLANA) return 30168; // Solana
         revert InvalidCallData();
@@ -826,6 +830,7 @@ contract AcrossV4SwapFacet is
     function _convertAddressToBytes32(
         address _address
     ) internal pure returns (bytes32) {
+        // TODO(EXSC-626): migrate to LibBytes.toBytes32 — see LibBytes v1.1.0
         return bytes32(uint256(uint160(_address)));
     }
 }

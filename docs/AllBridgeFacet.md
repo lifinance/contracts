@@ -30,6 +30,36 @@ graph LR;
   - Simply bridges tokens using bridgeFacet
 - `function swapAndStartBridgeTokensViaAllBridge(BridgeData memory _bridgeData, SwapData[] calldata _swapData, AllBridgeData calldata _allBridgeData)`
   - Performs swap(s) before bridging tokens using bridgeFacet
+- `function initAllBridge(ChainIdConfig[] calldata chainIdConfigs)`
+  - Owner-only. Seeds the LI.FI chain ID → AllBridge chain ID mapping. Must be called (via the diamond cut) before the facet can bridge.
+- `function setChainIdToAllBridgeChainId(ChainIdConfig[] calldata chainIdConfigs)`
+  - Owner-only. Adds or overwrites one or more chain ID mappings after initialization.
+- `function unsetChainIdToAllBridgeChainId(uint256 _chainId)`
+  - Owner-only. Removes a chain ID mapping.
+- `function getChainIdToAllBridgeChainId(uint256 _chainId) returns (uint256)`
+  - Returns the AllBridge chain ID for a given LI.FI chain ID; reverts `UnsupportedAllBridgeChainId` if unmapped.
+
+## Chain ID Mappings
+
+AllBridge identifies destination chains by its own internal chain IDs (Ethereum = 1,
+BSC = 2, Stellar = 7, …), which differ from LI.FI chain IDs. The facet translates
+`BridgeData.destinationChainId` to the AllBridge chain ID through a mapping held in
+diamond storage. The mapping is owner-updatable (`initAllBridge` /
+`setChainIdToAllBridgeChainId` / `unsetChainIdToAllBridgeChainId`), so new destinations
+— for example non-EVM chains such as Stellar (`LIFI_CHAIN_ID_STELLAR` →
+`allBridgeChainId 7`) — can be added without redeploying the facet.
+
+The mapping values live in `config/allbridge.json` under `mappings`. AllBridge chain IDs
+start at 1, so a stored `0` unambiguously means "unmapped" and any unmapped destination
+reverts `UnsupportedAllBridgeChainId`. The authoritative source for each network's
+`allBridgeChainId` is the AllBridge `token-info` endpoint
+(`https://core.api.allbridgecoreapi.net/token-info`). After changing the config, run
+`script/tasks/proposeAllBridgeChainIdMappings.ts` to propose the equivalent on-chain
+mapping updates on every network where the facet is deployed.
+
+Bridging to a non-EVM destination (e.g. Stellar) follows the standard non-EVM flow:
+`BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the real recipient travels as
+a 32-byte value in `AllBridgeData.recipient`, which the facet only checks to be non-zero.
 
 ## Bridge Specific Parameters
 

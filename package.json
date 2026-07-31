@@ -18,7 +18,7 @@
     "solidity"
   ],
   "devDependencies": {
-    "@mayanfinance/swap-sdk": "^8.5.0",
+    "@mayanfinance/swap-sdk": "15.0.0",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.4",
     "@typechain/ethers-v5": "^10.2.0",
@@ -61,7 +61,8 @@
     "web3": "4.16.0",
     "handlebars": "4.7.9",
     "protobufjs": "7.5.5",
-    "google-gax": "3.1.4"
+    "google-gax": "3.1.4",
+    "socks": "2.8.9"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",

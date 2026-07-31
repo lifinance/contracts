@@ -24,16 +24,16 @@ export type NetworkKey = SupportedChain | TronNetworkKey
 type NetworkRow = (typeof networks)[keyof typeof networks]
 
 /**
- * Every distinct `deployedWithEvmVersion` value in `config/networks.json`.
+ * Every distinct `targetEvmVersion` value in `config/networks.json`.
  */
-export type DeployedEvmVersionLabel = NetworkRow['deployedWithEvmVersion']
+export type TargetEvmVersionLabel = NetworkRow['targetEvmVersion']
 
 /**
- * EVM hardfork labels used across scripts and config (e.g. `networks.json` → `deployedWithEvmVersion`,
+ * EVM hardfork labels used across scripts and config (e.g. `networks.json` → `targetEvmVersion`,
  * validated fork names for deploy tooling, artifact paths such as `safe/<fork>/`).
  * Union is derived from `networks.json`, excluding placeholders (`n/a`, empty).
  */
-export type EVMVersion = Exclude<Lowercase<DeployedEvmVersionLabel>, 'n/a' | ''>
+export type EVMVersion = Exclude<Lowercase<TargetEvmVersionLabel>, 'n/a' | ''>
 
 /** Map of network name → network config (without the runtime-derived `id` field). */
 export interface INetworksObject {
@@ -66,8 +66,7 @@ export interface INetwork {
   explorerApiUrl: string
   multicallAddress: string
   safeAddress: string
-  deployedWithEvmVersion: DeployedEvmVersionLabel
-  deployedWithSolcVersion: string
+  targetEvmVersion: TargetEvmVersionLabel
   gasZipChainId: number
   id: string
   isZkEVM: boolean
@@ -87,6 +86,28 @@ export interface INetwork {
    * These flags are appended to the verification command in the order specified.
    */
   customVerificationFlags?: Record<string, string | null>
+  /**
+   * Per-network override for forge's --gas-estimate-multiplier flag (a percent value; forge's
+   * default is 130). When set, deploys (script/deploy/deploySingleContract.sh) use this value and
+   * ignore the GAS_ESTIMATE_MULTIPLIER env var; diamond-cut/update scripts still read the env var.
+   * Use it where the env-var default cannot work for the chain, e.g. a chain whose transaction gas
+   * cap rejects a high multiplier, or one whose estimates are far below actual usage.
+   */
+  gasEstimateMultiplier?: number
+  /**
+   * Extra forge script flags appended verbatim to the deploy command in
+   * script/deploy/deploySingleContract.sh (e.g. tempo's "--gas-limit 40000000").
+   * If the flags include --skip-simulation, simulation is skipped regardless of env-based flags.
+   * Only applied on the standard deploy path; the zkEVM path builds its own command and ignores
+   * this field.
+   */
+  customDeployFlags?: string
+  /**
+   * Fixed gas price in wei for deploys on chains where the RPC's suggested price is unusable.
+   * script/deploy/deploySingleContract.sh passes it via the ETH_GAS_PRICE env var, since forge's
+   * --gas-price flag only affects simulation and not the broadcast.
+   */
+  gasPrice?: number
   /**
    * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
    * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts

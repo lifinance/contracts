@@ -390,11 +390,12 @@ export function getFunctionSelectors(
 }
 
 /**
- * Retrieves a contract address from a (prod or staging) deploy log file
+ * Reads and parses a (prod or staging) deploy log file
  *
  * @param network Name of the network
  * @param environment the production environment (production/staging)
- * @returns Hex-encoded calldata array like cast abi-encode would produce
+ * @returns Parsed deploy log mapping contract names to their deployed addresses
+ * @throws If the network name resolves outside the deployments directory or no deploy log exists for the network/environment.
  */
 export function getDeployLogFile(
   network: string,
@@ -402,7 +403,11 @@ export function getDeployLogFile(
 ): Record<string, string> {
   const suffix =
     environment === EnvironmentEnum.production ? '' : `.${environment}`
-  const filePath = path.resolve(`deployments/${network}${suffix}.json`)
+  const base = path.resolve('deployments')
+  const filePath = path.resolve(base, `${network}${suffix}.json`)
+  const relative = path.relative(base, filePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative))
+    throw new Error(`Invalid network name: ${network}`)
 
   if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)

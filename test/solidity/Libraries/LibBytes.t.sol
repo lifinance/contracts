@@ -28,6 +28,20 @@ contract LibBytesHarness {
     ) external pure returns (string memory) {
         return LibBytes.toHexString(_value, _length);
     }
+
+    function toBytes32(address _addr) external pure returns (bytes32) {
+        return LibBytes.toBytes32(_addr);
+    }
+
+    function toAddress(bytes32 _value) external pure returns (address) {
+        return LibBytes.toAddress(_value);
+    }
+
+    function toAddressUnchecked(
+        bytes32 _value
+    ) external pure returns (address) {
+        return LibBytes.toAddressUnchecked(_value);
+    }
 }
 
 contract LibBytesTest is Test {
@@ -90,8 +104,44 @@ contract LibBytesTest is Test {
     }
 
     function testRevert_toHexString_LengthInsufficient() public {
-        vm.expectRevert("Strings: hex length insufficient");
+        vm.expectRevert(LibBytes.HexLengthInsufficient.selector);
 
         harness.toHexString(uint256(0x1234), 1);
+    }
+
+    function test_toBytes32_LeftZeroPadsAddress() public {
+        address addr = address(0x1234567890AbcdEF1234567890aBcdef12345678);
+
+        assertEq(harness.toBytes32(addr), bytes32(uint256(uint160(addr))));
+    }
+
+    function test_toAddress_bytes32_RoundTrips() public {
+        address addr = address(0x1234567890AbcdEF1234567890aBcdef12345678);
+
+        assertEq(harness.toAddress(harness.toBytes32(addr)), addr);
+    }
+
+    function test_toAddress_bytes32_ZeroValue() public {
+        assertEq(harness.toAddress(bytes32(0)), address(0));
+    }
+
+    function testRevert_toAddress_bytes32_HighBitsSet() public {
+        bytes32 dirty = bytes32(
+            (uint256(1) << 160) |
+                uint160(0x1234567890AbcdEF1234567890aBcdef12345678)
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LibBytes.NotAnAddress.selector, dirty)
+        );
+
+        harness.toAddress(dirty);
+    }
+
+    function test_toAddressUnchecked_TruncatesHighBits() public {
+        address addr = address(0x1234567890AbcdEF1234567890aBcdef12345678);
+        bytes32 dirty = bytes32((uint256(1) << 160) | uint160(addr));
+
+        assertEq(harness.toAddressUnchecked(dirty), addr);
     }
 }

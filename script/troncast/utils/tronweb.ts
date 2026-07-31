@@ -17,6 +17,7 @@ if (
 )
   globalThis.proto = {}
 
+import { isTronGridRpcUrl, TRON_PRO_API_KEY_HEADER } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
@@ -49,9 +50,25 @@ export function initTronWeb(
 
   consola.debug(`Initializing TronWeb with ${env} network: ${rpcUrl}`)
 
+  // TronGrid rate-limits anonymous traffic hard enough that read-heavy scripts (the health
+  // check's refund-wallet-access in particular) fail with 429 before finishing. Send
+  // TRON-PRO-API-KEY when we have one. The viem path already gets this via
+  // applyTronGridViemTransportExtras, but troncast talks to TronWeb directly, so it needs
+  // wiring here too. Same env var (TRONGRID_API_KEY) and header constant as the devkit.
+  const apiKey = process.env.TRONGRID_API_KEY?.trim()
+  const headers =
+    apiKey && isTronGridRpcUrl(rpcUrl)
+      ? { [TRON_PRO_API_KEY_HEADER]: apiKey }
+      : undefined
+  if (apiKey && !headers)
+    consola.debug(
+      'TRONGRID_API_KEY is set but the RPC host is not TronGrid; sending no API key header'
+    )
+
   const tronWeb = new TronWeb({
     fullHost: rpcUrl,
     privateKey: privateKey || undefined,
+    ...(headers ? { headers } : {}),
   })
 
   // TronWeb requires an address to be set even for read-only calls

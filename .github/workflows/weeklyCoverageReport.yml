@@ -1,0 +1,198 @@
+# Weekly Test Coverage Report
+# - Runs the (Foundry) test-coverage measurement on a weekly schedule instead of on every PR and
+#   posts the result to the SC-general Slack channel.
+# - Replaces the per-commit coverage gate (enforceTestCoverage.yml, removed in EXSC-675): coverage
+#   is slow, non-parallelizable, and flaky on live-RPC fork tests, and never fails for low coverage
+#   since we sit well above target — so it belongs on a low-frequency reporting cadence, not the
+#   PR critical path.
+# - Triggers: weekly cron (Tue 06:41 UTC) + workflow_dispatch (manual). Upstream-only (skips forks,
+#   which lack the MongoDB/Slack secrets).
+# - Informational: always posts the measured line/function/branch coverage plus the target
+#   threshold. A run that fails to produce a report (e.g. RPC outage after retries) posts a failure
+#   notice rather than silently going dark — but never gates any merge.
+
+on:
+  schedule:
+    - cron: '41 6 * * 2' # 06:41 UTC every Tuesday (off-minute to avoid the fleet-wide :00 spike; a clear day from the Mon/Thu weekly jobs)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: weekly-coverage-report-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  coverage-report:
+    # Upstream-only: the coverage run needs lifinance/contracts' MongoDB RPCs and the SC-general
+    # Slack webhook, which forks (e.g. contracts-tron, which syncs workflows) do not have.
+    if: ${{ github.repository == 'lifinance/contracts' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required to fetch repository contents
+      actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
+    env:
+      MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+          persist-credentials: false # no later step needs git creds; the gh api call uses GH_TOKEN
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Fetch RPC endpoints from MongoDB
+        run: |
+          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
+          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
+          bun fetch-rpcs
+          # Only inject RPC endpoint variables into the GitHub Actions environment.
+          # Mask the URL (which may carry an API key) before forwarding so it is
+          # redacted from all subsequent log output for the rest of the run.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
+              name="${line%%=*}"
+              value="${line#*=}"
+              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+              echo "::add-mask::$value"
+              # Write the quote-stripped value: GITHUB_ENV does not strip quotes, so
+              # appending the raw line would leak literal quotes into the RPC URL.
+              echo "${name}=${value}" >> "$GITHUB_ENV"
+            fi
+          done < ".env"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Install forge Dependencies
+        run: forge install
+
+      - name: Generate coverage report
+        id: coverage
+        continue-on-error: true # informational job: a failed report posts a notice, never aborts the Slack step
+        env:
+          FOUNDRY_PROFILE: ci
+        run: |
+          set -euo pipefail
+          # forge coverage hits live RPCs for fork tests and has no built-in
+          # retry, so a single transient RPC blip sinks the whole report. Retry
+          # the full command (--rerun can't be used — coverage needs the complete
+          # run). Off the merge path and weekly, so retries are generous (10) to
+          # ride out RPC flakiness even though --ir-minimum coverage is slow (~8 min/run).
+          for i in $(seq 1 10); do
+            echo "::group::forge coverage (attempt $i/10)"
+            if forge coverage --report lcov --force --ir-minimum; then
+              echo "::endgroup::"
+              break
+            fi
+            echo "::endgroup::"
+            if [[ "$i" -eq 10 ]]; then
+              echo "forge coverage failed after 10 attempts" >&2
+              exit 1
+            fi
+            sleep 15
+          done
+
+          echo "Filtering coverage report to only contain coverage info for 'src/' folder now"
+          bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          echo "Coverage report successfully filtered"
+
+          # Aggregate the filtered lcov counters into line/function/branch percentages.
+          LCOV_FILE="lcov-filtered.info"
+          TOTAL_LINES_FOUND=0
+          TOTAL_LINES_HIT=0
+          TOTAL_FUNCTIONS_FOUND=0
+          TOTAL_FUNCTIONS_HIT=0
+          TOTAL_BRANCHES_FOUND=0
+          TOTAL_BRANCHES_HIT=0
+          while IFS= read -r line; do
+            case $line in
+              LF:*) TOTAL_LINES_FOUND=$((TOTAL_LINES_FOUND + ${line#LF:})) ;;
+              LH:*) TOTAL_LINES_HIT=$((TOTAL_LINES_HIT + ${line#LH:})) ;;
+              FNF:*) TOTAL_FUNCTIONS_FOUND=$((TOTAL_FUNCTIONS_FOUND + ${line#FNF:})) ;;
+              FNH:*) TOTAL_FUNCTIONS_HIT=$((TOTAL_FUNCTIONS_HIT + ${line#FNH:})) ;;
+              BRF:*) TOTAL_BRANCHES_FOUND=$((TOTAL_BRANCHES_FOUND + ${line#BRF:})) ;;
+              BRH:*) TOTAL_BRANCHES_HIT=$((TOTAL_BRANCHES_HIT + ${line#BRH:})) ;;
+            esac
+          done < "$LCOV_FILE"
+
+          LINE_COVERAGE=$(printf "%.2f" "$(echo "scale=4; $TOTAL_LINES_HIT / $TOTAL_LINES_FOUND * 100" | bc)")
+          FUNCTION_COVERAGE=$(printf "%.2f" "$(echo "scale=4; $TOTAL_FUNCTIONS_HIT / $TOTAL_FUNCTIONS_FOUND * 100" | bc)")
+          BRANCH_COVERAGE=$(printf "%.2f" "$(echo "scale=4; $TOTAL_BRANCHES_HIT / $TOTAL_BRANCHES_FOUND * 100" | bc)")
+
+          {
+            echo "line_coverage=$LINE_COVERAGE"
+            echo "function_coverage=$FUNCTION_COVERAGE"
+            echo "branch_coverage=$BRANCH_COVERAGE"
+            echo "lines_hit=$TOTAL_LINES_HIT"
+            echo "lines_found=$TOTAL_LINES_FOUND"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Compose coverage report message
+        id: status_msg
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }} # scopes the gh api jobs lookup (needs actions: read)
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          JOB_NAME: ${{ github.job }}
+          OUTCOME: ${{ steps.coverage.outcome }}
+          LINE_COVERAGE: ${{ steps.coverage.outputs.line_coverage }}
+          FUNCTION_COVERAGE: ${{ steps.coverage.outputs.function_coverage }}
+          BRANCH_COVERAGE: ${{ steps.coverage.outputs.branch_coverage }}
+          LINES_HIT: ${{ steps.coverage.outputs.lines_hit }}
+          LINES_FOUND: ${{ steps.coverage.outputs.lines_found }}
+          TARGET: ${{ secrets.MIN_TEST_COVERAGE }}
+        run: |
+          set -euo pipefail
+          # Deep-link straight to THIS job so the Slack link lands on the report; fall back to the
+          # run overview if the jobs API can't be read. `set -e` is on, so guard the gh api call.
+          RUN_OVERVIEW="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}"
+          if ! RUN_URL=$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs" \
+            --jq "[.jobs[] | select(.name == \"${JOB_NAME}\") | .html_url][0] // .jobs[0].html_url" 2>/dev/null); then
+            RUN_URL=""
+          fi
+          RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
+
+          if [[ "$OUTCOME" != "success" ]]; then
+            HEADER=":rotating_light: *Weekly test coverage report — run failed*"
+            BODY=$(printf 'forge coverage did not produce a report (likely a transient RPC failure after retries).\n<%s|View workflow run>' "$RUN_URL")
+          else
+            if (( $(echo "${LINE_COVERAGE} >= ${TARGET}" | bc -l) )); then
+              STATUS=":white_check_mark: above target"
+            else
+              STATUS=":warning: below target"
+            fi
+            HEADER=":bar_chart: *Weekly test coverage report*"
+            BODY=$(printf 'Line coverage: *%s%%* (target %s%%) — %s\nFunction coverage: %s%%\nBranch coverage: %s%%\n(%s / %s lines)\n<%s|View workflow run>' \
+              "${LINE_COVERAGE}" "${TARGET}" "$STATUS" \
+              "${FUNCTION_COVERAGE}" "${BRANCH_COVERAGE}" \
+              "${LINES_HIT}" "${LINES_FOUND}" "$RUN_URL")
+          fi
+          TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
+          {
+            echo "text<<SLACK_EOF"
+            echo "$TEXT"
+            echo "SLACK_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack with coverage report
+        if: ${{ !cancelled() }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+            }

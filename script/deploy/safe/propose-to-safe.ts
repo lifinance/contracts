@@ -39,6 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { drainParkedTasks } from './drain-parked-tasks'
 import { normalizeProposeCalls } from './propose-calls'
 import {
   OperationTypeEnum,
@@ -52,10 +53,32 @@ import {
 } from './safe-utils'
 
 /**
- * Executes the propose-to-safe command
+ * Proposes the primary transaction, then opportunistically drains any parked
+ * facet-removal tasks for the network so deferred cleanups ride along in the same
+ * signing session (deferred diamond-cleanup queue, DeferredDiamondCleanupQueue.md
+ * §6). The drain is best-effort and flag-gated (`DRAIN_PARKED_TASKS`, default
+ * off): it runs AFTER the primary proposal and can never affect it or the process
+ * exit code — a drain failure is caught and logged, nothing more.
+ *
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
+  await _runPropose(options)
+  await drainParkedTasks(options).catch((error) =>
+    consola.warn(
+      'parked-task drain failed (primary proposal unaffected):',
+      error
+    )
+  )
+}
+
+/**
+ * Executes the propose-to-safe command (the primary proposal only). Extracted
+ * verbatim from `runPropose` so the drain hook can wrap it without altering the
+ * signing path; call this directly to propose WITHOUT triggering a drain.
+ * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
+ */
+export async function _runPropose(options: IProposeToSafeOptions) {
   const { targets, calldatas } = normalizeProposeCalls(options)
 
   // Set up signing options

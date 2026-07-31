@@ -510,6 +510,14 @@ export interface INamedRemovalResult {
    * the deprecated facet was actually removed.
    */
   unresolved: `0x${string}`[]
+  /**
+   * Requested names whose deploy-log entry was pruned (so the loupe address no
+   * longer resolves to the name) but whose stored `facetAddress` hint is still
+   * routed on-chain. NOT gone — the log was pruned prematurely. Surfaced (never
+   * removed, never superseded) so a human restores the log entry; empty unless a
+   * `nameToAddress` hint is supplied (spec §8 deploy-log longevity hazard).
+   */
+  prunedButRouted: { name: string; address: `0x${string}` }[]
 }
 
 /**
@@ -528,6 +536,13 @@ export function diffNamedFacets(params: {
   onChainFacets: IOnChainFacet[]
   addressToName: Record<string, string>
   protectedNames: Set<string>
+  /**
+   * Optional `name → stored facetAddress` hint (e.g. a parked task's snapshot).
+   * A requested name that resolves via neither the log nor this hint stays in
+   * `notFoundOnChain`; one whose hinted address is still routed on-chain but is
+   * no longer in the log is moved to `prunedButRouted` instead (spec §8).
+   */
+  nameToAddress?: Record<string, `0x${string}`>
 }): INamedRemovalResult {
   const {
     network,
@@ -537,6 +552,7 @@ export function diffNamedFacets(params: {
     onChainFacets,
     addressToName,
     protectedNames,
+    nameToAddress,
   } = params
 
   const result: INamedRemovalResult = {
@@ -547,6 +563,7 @@ export function diffNamedFacets(params: {
     notFoundOnChain: [],
     protectedSkipped: [],
     unresolved: [],
+    prunedButRouted: [],
   }
 
   const foundOnChain = new Set<string>()
@@ -574,9 +591,18 @@ export function diffNamedFacets(params: {
     })
   }
 
-  result.notFoundOnChain = [...requestedNames].filter(
-    (name) => !foundOnChain.has(name)
-  )
+  // A name absent from the log is normally "gone", but if its stored address
+  // hint is still routed on-chain the log was pruned prematurely — keep it out
+  // of `notFoundOnChain` so the drain never false-supersedes a live facet.
+  const onChainAddresses = new Set(onChainFacets.map((f) => lower(f.address)))
+  for (const name of requestedNames) {
+    if (foundOnChain.has(name)) continue
+    const hinted = nameToAddress?.[name]
+    if (hinted && onChainAddresses.has(lower(hinted)))
+      result.prunedButRouted.push({ name, address: getAddress(lower(hinted)) })
+    else result.notFoundOnChain.push(name)
+  }
+
   return result
 }
 
@@ -588,12 +614,15 @@ export function diffNamedFacets(params: {
  * facet-name set comes from the deprecation, not from a target-state diff.
  *
  * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
+ * @param nameToAddress - Optional `name → stored facetAddress` hint (e.g. a parked
+ *   task's snapshot) used to detect deploy-log-pruned-but-still-routed facets (spec §8).
  */
 export async function computeNamedFacetRemovals(
   network: string,
   environment: EnvironmentEnum,
   names: string[],
-  io: Partial<IRemovalDiffIO> = {}
+  io: Partial<IRemovalDiffIO> = {},
+  nameToAddress?: Record<string, `0x${string}`>
 ): Promise<INamedRemovalResult> {
   const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
 
@@ -606,6 +635,7 @@ export async function computeNamedFacetRemovals(
       notFoundOnChain: names,
       protectedSkipped: [],
       unresolved: [],
+      prunedButRouted: [],
     }
 
   const [onChainFacets, addressToName] = await Promise.all([
@@ -621,6 +651,7 @@ export async function computeNamedFacetRemovals(
     onChainFacets,
     addressToName,
     protectedNames: getProtectedNames(),
+    nameToAddress,
   })
 }
 
