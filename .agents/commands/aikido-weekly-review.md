@@ -71,10 +71,10 @@ human can accept or reject as a whole:
 
 For each group output: findings covered (ids + count), severity range, SLA state, a
 one-line **suggested action** (Fix via the relevant `/aikido-address-findings` Phase 4
-recipe or a full `/aikido-address-findings all <repo>` triage for SAST / Ignore with the
-catalog reason / Discuss), and a one-line why. Then STOP and ask the user to decide per
-group (accept the suggestion, pick a different action, or defer) — a numbered list they
-can answer compactly ("1,3 fix; 2 ignore; rest defer") or the harness's question UI.
+recipe / Ignore with the catalog reason / Discuss), and a one-line why. Then STOP and
+ask the user to decide per group (accept the suggestion, pick a different action, or
+defer) — a numbered list they can answer compactly ("1,3 fix; 2 ignore; rest defer") or
+the harness's question UI.
 
 ## Step 4 — Execute only the accepted groups
 
@@ -86,6 +86,11 @@ can answer compactly ("1,3 fix; 2 ignore; rest defer") or the harness's question
 - Fixes follow the `/aikido-address-findings` Phase 4 recipes (that command's feed mode
   queries SAST only, so apply dependency/actions recipes directly rather than invoking
   it for those buckets). Check open PRs first — a bump may already be in flight.
+- Keep SAST execution scoped to the accepted group: run
+  `/aikido-address-findings <issue-id> <repo>` per finding in the group. The whole-repo
+  `/aikido-address-findings all <repo>` hand-off is allowed only when the user accepted
+  every SAST group — it re-triages the full SAST feed and would otherwise touch
+  deferred/rejected groups.
 - Accepted ignores go through `aikido_ignore_issue` with a reason naming the
   call-site/context justification, not a generic dismissal.
 - Deferred/rejected groups are left untouched and listed as such in the report.
@@ -93,8 +98,8 @@ can answer compactly ("1,3 fix; 2 ignore; rest defer") or the harness's question
 ## Step 5 — Report
 
 End with four lists: **fixed/PR'd** (links), **ignored with reason** (id + reason),
-**deferred by user**, and **escalated** (secrets, no-catalog-match items). If nothing is
-open: say so — that IS the weekly report.
+**deferred by user**, and **escalated** (secrets, plus any group the user routed to
+Discuss or left undecided). If nothing is open: say so — that IS the weekly report.
 
 ## Step 6 — Offer the next run (scheduling)
 
