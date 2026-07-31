@@ -1,13 +1,15 @@
 ---
 name: aikido-weekly-review
-description: Recurring (weekly) Aikido security-feed review for a repo — pulls all open findings via the Aikido MCP, builds a severity/type dashboard with SLA status, routes each bucket (SAST triage via /aikido-address-findings, dependency CVEs, leaked secrets, IaC/actions), and ends by offering to schedule the next run. For tech leads reviewing their repo's security posture on a cadence, not for triaging a single PR. Use when asked to "review aikido findings", "weekly aikido review", "aikido security review", "what's open in aikido", or when a scheduled task fires with /aikido-weekly-review.
+description: Recurring (weekly) Aikido security-feed review for a repo — pulls all open findings via the Aikido MCP, builds a severity/type dashboard with SLA status, groups findings into action groups with a recommendation each, and lets the USER decide per group (nothing is fixed or ignored without their pick); ends by offering to schedule the next run. For tech leads reviewing their repo's security posture on a cadence, not for triaging a single PR. Use when asked to "review aikido findings", "weekly aikido review", "aikido security review", "what's open in aikido", or when a scheduled task fires with /aikido-weekly-review.
 usage: /aikido-weekly-review [repo-name] — repo defaults to the current git repo
 ---
 
 # Aikido Weekly Review
 
-Cadence review of the whole Aikido feed for one repo. Produces a dashboard + routed
-action list, then offers to schedule the next run. Deep SAST triage mechanics live in
+Cadence review of the whole Aikido feed for one repo. Produces a dashboard + grouped
+suggestions, waits for the user's per-group decisions, executes only those, then offers
+to schedule the next run. **Suggest-first is the contract: this command never fixes or
+ignores anything the user hasn't picked.** Deep SAST triage mechanics live in
 `/aikido-address-findings` — this command orchestrates, it does not duplicate them.
 
 ---
@@ -47,35 +49,54 @@ Group by `issue_type` × `issue_severity_label` and render:
 Follow with the top items: every critical/high by name (CVE/package or rule/file:line),
 and everything out-of-SLA regardless of severity.
 
-## Step 3 — Route each bucket
+## Step 3 — Group into action groups and suggest (do not act)
 
-- **leaked_secret** — never auto-handle. Escalate immediately to the user with the file
-  and secret type; a value that reached a commit is compromised and needs rotation, not
-  ignoring.
-- **sast** — hand off to `/aikido-address-findings all <repo>` for the full
-  fix-vs-ignore triage. In repos without a false-positive catalog
-  (`.agents/references/aikido-false-positive-catalog.md` is contracts-only), do not
-  auto-ignore anything — report with a recommendation instead.
-- **open_source (dependency CVEs)** — group by package; for each, report installed vs
-  recommended version and whether it is a direct or transitive dep (check
-  `package.json`). Offer a bump PR following the `vulnerable_dependency` recipe written
-  in `/aikido-address-findings` Phase 4 (apply the recipe directly — that command's
-  feed mode queries SAST only, so don't invoke it for these buckets). Check open PRs
-  first — a bump may already be in flight.
-- **iac / scm_security / actions findings** — unpinned actions and template injection
-  are always real (apply the Phase 4 fix recipes, same note as above); `persist-credentials`
-  and broad-permissions findings need the workflow's push/trigger context before
-  deciding fix vs ignore.
-- Anything the user decides to accept: ignore via `aikido_ignore_issue` with a reason
-  that names the call-site/context justification, not a generic dismissal.
+Exception first: **leaked_secret** findings are surfaced immediately and individually
+(file + secret type + rotation note) at the top of the output — a value that reached a
+commit is compromised and needs rotation; never fold these into a group or suggest
+ignoring them.
 
-## Step 4 — Report
+Group everything else into decision-sized units — one group = one coherent action a
+human can accept or reject as a whole:
 
-End with three lists: **fixed/PR'd now** (with PR links), **needs a human decision**
-(each with a one-line recommendation), and **ignored with reason** (id + reason). If
-nothing is open: say so — that IS the weekly report.
+- **open_source** → by package (one version bump resolves all its CVEs). Note installed
+  vs recommended version and direct-vs-transitive (check `package.json`).
+- **sast** → by rule × file-family (e.g. "path traversal × script/tasks propose*
+  scripts"). Where a false-positive catalog exists
+  (`.agents/references/aikido-false-positive-catalog.md`, contracts-only), name the
+  matching pattern; without a catalog match, the only suggestions allowed are Fix or
+  Discuss — never Ignore.
+- **iac / scm_security / actions** → by rule (all unpinned actions together, all
+  persist-credentials together, …).
 
-## Step 5 — Offer the next run (scheduling)
+For each group output: findings covered (ids + count), severity range, SLA state, a
+one-line **suggested action** (Fix via the relevant `/aikido-address-findings` Phase 4
+recipe or a full `/aikido-address-findings all <repo>` triage for SAST / Ignore with the
+catalog reason / Discuss), and a one-line why. Then STOP and ask the user to decide per
+group (accept the suggestion, pick a different action, or defer) — a numbered list they
+can answer compactly ("1,3 fix; 2 ignore; rest defer") or the harness's question UI.
+
+## Step 4 — Execute only the accepted groups
+
+- Per accepted group, offer two execution modes where the harness supports background
+  task chips: **do it in this session now**, or **spawn a task chip per group** (a
+  self-contained prompt naming the repo, finding ids, and chosen action) so each fix
+  becomes its own session/PR the user starts with one click. Default to in-session when
+  chips are unavailable.
+- Fixes follow the `/aikido-address-findings` Phase 4 recipes (that command's feed mode
+  queries SAST only, so apply dependency/actions recipes directly rather than invoking
+  it for those buckets). Check open PRs first — a bump may already be in flight.
+- Accepted ignores go through `aikido_ignore_issue` with a reason naming the
+  call-site/context justification, not a generic dismissal.
+- Deferred/rejected groups are left untouched and listed as such in the report.
+
+## Step 5 — Report
+
+End with four lists: **fixed/PR'd** (links), **ignored with reason** (id + reason),
+**deferred by user**, and **escalated** (secrets, no-catalog-match items). If nothing is
+open: say so — that IS the weekly report.
+
+## Step 6 — Offer the next run (scheduling)
 
 Ask which the user wants (skip if this run was itself triggered by a schedule):
 
