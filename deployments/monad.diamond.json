@@ -57,9 +57,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x10dcB9fC2A7523f189Cb584B6723BFfa2a67C2Aa": {
+      "0x7AFB92A206d1774AE015D620fcb3328b253a3E5d": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x960B7a177dAaD7D1beA69354d023984Af6b75847": {
         "Name": "AcrossFacetV4",
@@ -96,8 +96,8 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
+      "LidoWrapper": "",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",

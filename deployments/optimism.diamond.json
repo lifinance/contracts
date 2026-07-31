@@ -13,8 +13,8 @@
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
       },
-      "0x756Be848a6636D618B94f3196CBD89645eBa71c2": {
-        "Name": "PioneerFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
@@ -85,9 +85,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0xA4E107e0C31EF3fF390BD6AaaaDDe0a929ca9645": {
         "Name": "CBridgeFacetPacked",
@@ -148,10 +148,6 @@
       "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -168,7 +164,7 @@
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
       "ReceiverAcrossV4": "0xe417AD5eb9e919567620A48B3757cc182cCdf9e4",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xf6eB75d27ef8eAE08A5917fB3E1C35E2c64398c6",
       "ReceiverStargateV2": "0x556701899905f2f83AcA2977D3202Ee3a80f37b7",
       "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
     }
