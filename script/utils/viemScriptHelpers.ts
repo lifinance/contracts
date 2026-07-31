@@ -353,6 +353,7 @@ export const getContractAddressForNetwork = async (
  * @param contractName - Name of the contract (used to locate the compiled JSON)
  * @param excludes - Optional list of function selectors (with or without '0x') to exclude
  * @returns An array of function selectors as strings prefixed with '0x'
+ * @throws If the contract name resolves outside the build output directory, the compiled JSON is missing, or it contains no methodIdentifiers
  */
 export function getFunctionSelectors(
   contractName: string,
