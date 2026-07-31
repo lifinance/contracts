@@ -685,6 +685,20 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.07.22_MayanFacet(v2.0.0).pdf",
       "auditCommitHash": "37c13a2afb9986422a7b2f88c16702f7975c5a05"
+    },
+    "audit20260727": {
+      "auditCompletedOn": "27.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.27_AllBridgeFacet(v2.2.0).pdf",
+      "auditCommitHash": "3961b3cddd256f8d10756575b99efe0f323b5204"
+    },
+    "audit20260729": {
+      "auditCompletedOn": "29.07.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.07.29_SupersetFacet(v1.1.0).pdf",
+      "auditCommitHash": "75d072b66bdc613eb2218a88186b05b766c9010e"
     }
   },
   "auditedContracts": {
@@ -718,7 +732,8 @@
       "2.0.0": ["audit20250508"],
       "2.1.0": ["audit20250718"],
       "2.1.1": ["audit20250921"],
-      "2.1.2": ["audit20251219"]
+      "2.1.2": ["audit20251219"],
+      "2.2.0": ["audit20260727"]
     },
     "AmarokFacet": {
       "3.0.0": ["audit20250508"]
@@ -859,6 +874,12 @@
     },
     "IPaxosTransit": {
       "1.0.0": ["audit20260708"]
+    },
+    "ISupersetHubPoolManager": {
+      "1.1.0": ["audit20260729"]
+    },
+    "ISupersetSpokePoolManager": {
+      "1.1.0": ["audit20260729"]
     },
     "LayerSwapFacet": {
       "1.0.0": ["audit20260715_1"]
@@ -1056,7 +1077,8 @@
       "1.0.1": ["audit20240814", "audit20250508"]
     },
     "SupersetFacet": {
-      "1.0.0": ["audit20260701"]
+      "1.0.0": ["audit20260701"],
+      "1.1.0": ["audit20260729"]
     },
     "SwapperV2": {
       "1.0.0": ["audit20250508"],

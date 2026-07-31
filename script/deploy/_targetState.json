@@ -28,7 +28,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "ArbitrumBridgeFacet": "1.0.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
@@ -117,7 +117,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -168,7 +168,7 @@
         "Patcher": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -242,7 +242,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -422,7 +422,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "EcoFacet": "1.1.0",
@@ -465,7 +465,7 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "EcoFacet": "1.1.0",
         "GlacisFacet": "1.2.0",
         "LayerSwapFacet": "1.0.0",
@@ -848,7 +848,7 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "DeBridgeDlnFacet": "1.0.1",
@@ -1109,7 +1109,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -1185,7 +1185,7 @@
         "AcrossFacetV4": "1.0.0",
         "AcrossFacetPackedV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "CBridgeFacet": "1.0.0",
         "CBridgeFacetPacked": "1.0.3",
         "CelerCircleBridgeFacet": "1.0.1",
@@ -1369,102 +1369,11 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "EcoFacet": "1.1.0",
         "GlacisFacet": "1.2.0",
         "LayerSwapFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
-      }
-    }
-  },
-  "swellchain": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "GlacisFacet": "1.2.0",
-        "RelayDepositoryFacet": "1.0.0"
-      }
-    }
-  },
-  "superposition": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "LayerSwapFacet": "1.0.0",
-        "RelayDepositoryFacet": "1.0.0",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
-      }
-    }
-  },
-  "taiko": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "LayerSwapFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0"
@@ -1507,7 +1416,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "SupersetFacet": "1.0.0"
+        "SupersetFacet": "1.0.0",
+        "AllBridgeFacet": "2.2.0"
       }
     }
   },
@@ -1911,35 +1821,6 @@
       }
     }
   },
-  "sophon": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
-      }
-    }
-  },
   "tron": {
     "production": {
       "LiFiDiamond": {
@@ -1962,7 +1843,7 @@
         "GasZipPeriphery": "1.0.2",
         "OutputValidator": "1.0.0",
         "TokenWrapper": "1.2.1",
-        "AllBridgeFacet": "2.1.2",
+        "AllBridgeFacet": "2.2.0",
         "EcoFacet": "1.1.0",
         "NEARIntentsFacet": "1.0.0",
         "SymbiosisFacet": "2.0.0"
@@ -2033,35 +1914,6 @@
         "NEARIntentsFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0"
-      }
-    }
-  },
-  "botanix": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacetV2": "1.1.2",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
       }
     }
   },
