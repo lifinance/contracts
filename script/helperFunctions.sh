@@ -363,8 +363,7 @@ function findContractInMasterLogByAddress() {
     done
   done
 
-  # stderr, not stdout: callers capture this function's stdout via $(...)
-  echo "[info] address not found in MongoDB" >&2
+  info "address not found in MongoDB"
   return 1
 }
 function getContractVersionFromMasterLog() {
@@ -3267,14 +3266,18 @@ function echoDebug() {
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
-# error/warning must write to stderr: many value-returning helpers are captured via
-# $(...), and a stdout message would be swallowed into the captured value instead of
-# reaching the console (making `-z` guards on the result unreachable)
+# error/warning/info must write to stderr: many value-returning helpers are captured
+# via $(...), and a stdout message would be swallowed into the captured value instead
+# of reaching the console (making `-z` guards on the result unreachable). Progress
+# output that is not a diagnostic still uses plain echo so it stays on stdout.
 function error() {
   printf '\033[31m[error] %s\033[0m\n' "$1" >&2
 }
 function warning() {
   printf '\033[33m[warning] %s\033[0m\n' "$1" >&2
+}
+function info() {
+  printf '[info] %s\n' "$1" >&2
 }
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
@@ -3457,8 +3460,7 @@ function findContractVersionInTargetState() {
     return 0
   else
     # entry not found - issue error message and return error code
-    # stderr, not stdout: callers capture this function's stdout via $(...)
-    echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT" >&2
+    info "No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
     return 1
   fi
 }
