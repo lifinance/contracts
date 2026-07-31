@@ -58,7 +58,7 @@ jobs:
         if: steps.get-changes.outputs.has_changes == 'true'
         run: |
           # Initialize variables to store contract changes
-          SLACK_MESSAGE="📋 Contract Deployment Update\n\n"
+          SLACK_MESSAGE="<@U0BHHK4F4TU> 📋 Contract Deployment Update\n\n"
           CONTRACTS_FOUND=false
 
           # Create associative array to group contracts across networks

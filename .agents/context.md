@@ -7,8 +7,8 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 
 ```
 .agents/
-  rules/*.md      25 rule files (source of truth, symlinked to .cursor/ as .mdc and .claude/ as .md)
-  commands/*.md   13 command files (source of truth, symlinked to .cursor/ and .claude/)
+  rules/*.md      28 rule files (source of truth, symlinked to .cursor/ as .mdc and .claude/ as .md)
+  commands/*.md   32 command files (source of truth, symlinked to .cursor/ and .claude/)
   hooks/*.sh       post-edit hooks (auto-format + lint feedback)
 ```
 
@@ -39,6 +39,14 @@ Okta SSO, 1Password credentials, opening a production tunnel). Before doing
 Safe/deploy work that touches these, read `docs/Setup-agents.md` — what an agent
 must not do and how commands differ in a non-interactive shell. Full setup
 (human path) is in `docs/Setup.md`.
+
+## SC feature-PR lifecycle
+
+Feature PRs go: self-test → PR ready + bot comments resolved → peer review
+(`#dev-sc-review`) → BE integration → audit → audit-log commit → final review →
+merge. **The audit is the last gate before merge, not a prerequisite for peer
+review.** Full stage list and automation mapping:
+`.agents/rules/503-sc-feature-pr-lifecycle.md`.
 
 ## Ticket linkage
 
