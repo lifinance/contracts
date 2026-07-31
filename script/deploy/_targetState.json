@@ -2145,7 +2145,6 @@
         "LiFiDEXAggregator": "1.12.0",
         "TokenWrapper": "1.2.1",
         "Permit2Proxy": "1.0.4",
-        "LiFiIntentEscrowFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
         "PolymerCCTPFacet": "2.0.1"
       }
