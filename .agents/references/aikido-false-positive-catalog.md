@@ -109,7 +109,7 @@ Each pattern has:
 
 ## `gha_persist_credentials_push_checkout`
 
-**Matches when**: issue title contains "persist Git credentials"; the flagged `actions/checkout` step configures an explicit scoped credential (`token:` or `ssh-key:`), AND a later step in the same job performs `git push` / `git commit` against that checkout using the persisted credential.
+**Matches when**: issue title contains "persist Git credentials"; the flagged `actions/checkout` step configures a dedicated credential (`token:` backed by a dedicated secret or `ssh-key:`, never the ambient `GITHUB_TOKEN`), AND a later step in the same job performs an authenticated `git push` against that checkout using the persisted credential, AND the workflow uses only trusted triggers (`push`, `schedule`, `workflow_dispatch`, or same-repository `pull_request`).
 
 **Does NOT match** (these are REAL — fix with `persist-credentials: false`): checkouts of jobs that never push with the persisted git credential afterwards. `gh`/API calls authenticate via `env:` tokens, not the persisted git `extraheader`, so they do not justify keeping it.
 
