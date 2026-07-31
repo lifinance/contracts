@@ -107,6 +107,20 @@ Each pattern has:
 
 ---
 
+## `gha_persist_credentials_push_checkout`
+
+**Matches when**: issue title contains "persist Git credentials"; the flagged `actions/checkout` step configures an explicit scoped credential (`token:` or `ssh-key:`), AND a later step in the same job performs `git push` / `git commit` against that checkout using the persisted credential.
+
+**Does NOT match** (these are REAL — fix with `persist-credentials: false`): checkouts of jobs that never push with the persisted git credential afterwards. `gh`/API calls authenticate via `env:` tokens, not the persisted git `extraheader`, so they do not justify keeping it.
+
+**ignore_reason**:
+> Intended behavior, risk accepted — this checkout deliberately persists an explicitly scoped credential (dedicated PAT, sync token, or deploy ssh-key, not the ambient runner token) because a later step in the same job pushes to that repository with it. Setting persist-credentials: false would break the push. The workflow runs only on trusted triggers (push / schedule / workflow_dispatch).
+
+**sast_context** (UI: persist Git credentials rule → Custom Code Context):
+> Checkouts in this repo default to persist-credentials: false. The exceptions each configure an explicitly scoped credential (a dedicated PAT or deploy ssh-key passed via `token:`/`ssh-key:`, never the ambient runner GITHUB_TOKEN) because a later step in the same job performs a git push to that repository using the persisted credential (e.g. registry sync, type-bindings publish, dependency-bump branches). These are intentional and required; only flag checkouts that persist credentials without a subsequent authenticated git push in the same job.
+
+---
+
 ## Patterns NOT auto-ignored (require manual review or a real fix)
 
 | Pattern | Why | Action |
