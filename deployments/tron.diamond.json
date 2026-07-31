@@ -68,6 +68,10 @@
       "TQC7Upeh5DNcR2eZoYXpSok57FiJXCdNpp": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "TBFPs7mxPN3nCrnmbjrJh6BS48VpGbu6oQ": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
