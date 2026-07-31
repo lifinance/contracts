@@ -32,6 +32,7 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD, ZERO_ADDRESS } from './shared/constants'
+import { isValidNetworkName } from './shared/deployLog'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
@@ -991,11 +992,17 @@ function tryGetAddress(value: unknown): Address | null {
 export function loadDiamondLogPeriphery(
   networkLower: string
 ): Record<string, string> | null {
-  const diamondLogPath = path.join(
-    process.cwd(),
-    'deployments',
+  // Same containment policy as shared/deployLog.ts readDeployLog: a caller-supplied network
+  // name must never compose into a path outside deployments/.
+  if (!isValidNetworkName(networkLower)) return null
+  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
+  const diamondLogPath = path.resolve(
+    deploymentsDir,
     `${networkLower}.diamond.json`
   )
+  const relativeToDir = path.relative(deploymentsDir, diamondLogPath)
+  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
+    return null
   if (!existsSync(diamondLogPath)) return null
   try {
     const parsed = JSON.parse(readFileSync(diamondLogPath, 'utf8')) as {
