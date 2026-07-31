@@ -271,6 +271,12 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'zksync',
     ],
   },
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'Intent escrow settlers are not deployed on Jovay and BE confirmed the chain is not supported for intents — do not require LiFiIntentEscrowFacetV2 until product enables it.',
+    networks: ['jovay'],
+  },
 ]
 
 /**
