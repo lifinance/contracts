@@ -5,17 +5,22 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 
 import {
+  CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   findDuplicateSelectors,
+  getExemptCoreFacets,
+  getExpectedPairs,
   getInvariantExclusion,
   isInvariantApplicable,
   runHealthCheckInvariants,
   type IHealthCheckContext,
   type IHealthCheckInvariant,
+  type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
 
@@ -275,6 +280,134 @@ describe('HEALTH_CHECK_EXCLUSIONS table integrity', () => {
   it('every exclusion carries a non-empty reason', () => {
     for (const exclusion of HEALTH_CHECK_EXCLUSIONS)
       expect(exclusion.reason.trim().length).toBeGreaterThan(0)
+  })
+})
+
+describe('getExpectedPairs — periphery address resolution', () => {
+  const SEL = '0x00a32e6c'
+  const A = '0x9706b69De23Fe0B471Addd642175126B3A8BF071'
+  const B = '0xE69b860Fb5F12552b9C7675966Ef9522fB734232'
+
+  /** Build a whitelist config with only PERIPHERY entries for network 'somechain'. */
+  const cfg = (entries: Array<{ name: string; address: string }>) =>
+    ({
+      DEXS: [],
+      PERIPHERY: {
+        somechain: entries.map((e) => ({
+          ...e,
+          selectors: [{ selector: SEL, signature: 'runVM()' }],
+        })),
+      },
+    } as unknown as Parameters<typeof getExpectedPairs>[2])
+
+  const run = async (
+    entries: Array<{ name: string; address: string }>,
+    deployed: Record<string, string> = {}
+  ) => {
+    const errors: string[] = []
+    const warns: string[] = []
+    const pairs = await getExpectedPairs(
+      'somechain',
+      deployed,
+      cfg(entries),
+      (m) => errors.push(m),
+      (m) => warns.push(m)
+    )
+    return { pairs, errors, warns }
+  }
+
+  it('uses the config address even when the contract is not in deployments', async () => {
+    // Regression: a name-keyed lookup dropped these entries, so their on-chain pairs were
+    // then reported as stale. Composer is whitelisted but never deployed by this repo.
+    const { pairs, warns } = await run([{ name: 'Composer', address: A }])
+    expect(pairs).toEqual([{ contract: A.toLowerCase(), selector: SEL }])
+    expect(warns).toEqual([])
+  })
+
+  it('keeps every entry when several share one name', async () => {
+    const { pairs } = await run([
+      { name: 'Composer', address: A },
+      { name: 'Composer', address: B },
+    ])
+    expect(pairs.map((p) => p.contract)).toEqual([
+      A.toLowerCase(),
+      B.toLowerCase(),
+    ])
+  })
+
+  it('does not warn about staleness when the name is not unique', async () => {
+    // deployedContracts holds one address per name, so it cannot disambiguate these.
+    const { warns } = await run(
+      [
+        { name: 'Composer', address: A },
+        { name: 'Composer', address: B },
+      ],
+      { Composer: A }
+    )
+    expect(warns).toEqual([])
+  })
+
+  it('warns when a unique name disagrees with the deployed address', async () => {
+    const { warns } = await run([{ name: 'Executor', address: A }], {
+      Executor: B,
+    })
+    expect(warns).toHaveLength(1)
+    expect(warns[0]).toContain('may be stale')
+  })
+
+  it('warns, rather than silently skipping, when nothing resolves', async () => {
+    const { pairs, warns } = await run([{ name: 'Ghost', address: '' }])
+    expect(pairs).toEqual([])
+    expect(warns).toHaveLength(1)
+    expect(warns[0]).toContain('reduced coverage')
+  })
+})
+
+describe('getExemptCoreFacets', () => {
+  const sample: ICoreFacetExemption[] = [
+    { facet: 'SomeFacet', reason: 'because', networks: ['somechain'] },
+  ]
+
+  it('returns the facet and reason for an exempt network', () => {
+    expect(getExemptCoreFacets('somechain', sample)).toEqual([
+      { facet: 'SomeFacet', reason: 'because' },
+    ])
+  })
+
+  it('matches the network case-insensitively', () => {
+    expect(getExemptCoreFacets('SomeChain', sample)).toHaveLength(1)
+  })
+
+  it('returns nothing for a network that is not listed, so new chains stay enforced', () => {
+    expect(getExemptCoreFacets('brandnewchain', sample)).toEqual([])
+  })
+})
+
+describe('CORE_FACET_EXEMPTIONS table integrity', () => {
+  const coreFacets = new Set<string>(globalConfig.coreFacets)
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a facet that is actually core (guards stale grandfathering)', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      expect(coreFacets).toContain(exemption.facet)
+  })
+
+  it('every exempt network is a known network', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      for (const network of exemption.networks)
+        expect(knownNetworks).toContain(network.toLowerCase())
+  })
+
+  it('every exemption carries a non-empty reason', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS)
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+  })
+
+  it('lists no network twice per facet', () => {
+    for (const exemption of CORE_FACET_EXEMPTIONS) {
+      const lower = exemption.networks.map((n) => n.toLowerCase())
+      expect(new Set(lower).size).toBe(lower.length)
+    }
   })
 })
 

@@ -29,8 +29,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xfBf7cc8792C5b6AE4fE2ff68F064c7A4F476F9a2": {
@@ -45,17 +45,17 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xcBF3F53186B858C9Fe508a77dCD71Cb564510C45": {
-        "Name": "AcrossFacetV3",
+      "0x72af161B03073541535d49Df626eE15e3abA5FF0": {
+        "Name": "SupersetFacet",
         "Version": "1.1.0"
       },
       "0x920616F16A55B86Edf39A70217bDB45900cC328f": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
       },
-      "0xC15121CdbC053D94F27D67459f307Ec1cdd71453": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+        "Name": "WhitelistManagerFacet",
+        "Version": "1.0.0"
       },
       "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
         "Name": "GasZipFacet",
@@ -65,9 +65,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x10dcB9fC2A7523f189Cb584B6723BFfa2a67C2Aa": {
+      "0x7AFB92A206d1774AE015D620fcb3328b253a3E5d": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
         "Name": "PolymerCCTPFacet",
@@ -93,25 +93,13 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x5BE5EA0CAA51314160015F9fbD51A737D034527f": {
+      "0xDBd01ACafc8bffFeffC6ceF285FdC50D895c4761": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0xA338ac518a0aE28d75e0610BD78329241984d49A": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
-      },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0xC19B1ea2c3238b8a06E4ea11aB9574a9B12FF1B2": {
-        "Name": "SupersetFacet",
-        "Version": "1.0.0"
-      },
-      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
