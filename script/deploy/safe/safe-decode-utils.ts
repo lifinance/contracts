@@ -25,12 +25,15 @@ import {
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { decodeDiamondCut } from './safe-utils'
+import {
+  getLocalSelectorInfo,
+  resolveSelectorsViaFourByte,
+} from './selector-registry'
 
 export interface IFormatDecodedTxContext {
   chainId: number
@@ -577,7 +580,10 @@ export function getRoleName(roleHash: string): string {
 }
 
 /**
- * Decodes a transaction's function call using diamond ABI
+ * Decodes a transaction's function call using the local selector registry
+ * (diamond.json, clearSigningProposal.json, whitelist.json, well-known
+ * signatures), falling back to the disk-cached, batched 4byte lookup only for
+ * selectors we don't ship ourselves.
  * @param data - Transaction data
  * @param options - Optional indent for log lines (e.g. when nested under scheduleBatch [00])
  * @returns Decoded function name and data if available
@@ -595,80 +601,40 @@ export async function decodeTransactionData(
   try {
     const selector = data.substring(0, 10)
 
-    // First try to find function in diamond ABI
-    try {
-      const projectRoot = process.cwd()
-      const diamondPath = path.join(projectRoot, 'diamond.json')
-
-      if (fs.existsSync(diamondPath)) {
-        const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-        if (Array.isArray(abiData))
-          // Search for matching function selector in diamond ABI
-          for (const abiItem of abiData)
-            if (abiItem.type === 'function')
-              try {
-                const calculatedSelector = toFunctionSelector(abiItem)
-                if (calculatedSelector === selector) {
-                  consola.info(
-                    `${pre}Using diamond ABI for function: ${abiItem.name}`
-                  )
-                  return {
-                    functionName: abiItem.name,
-                    decodedData: {
-                      functionName: abiItem.name,
-                      contractName: 'Diamond',
-                    },
-                  }
-                }
-              } catch (error) {
-                // Skip invalid ABI items
-                continue
-              }
-      }
-    } catch (error) {
-      consola.warn(`Error reading diamond ABI: ${error}`)
-    }
-
-    // Fallback to external API (Sourcify 4byte; same response shape as openchain.xyz)
-    consola.info(
-      `${pre}No local ABI found, fetching from 4byte.sourcify.dev...`
-    )
-    const url = `https://api.4byte.sourcify.dev/signature-database/v1/lookup?function=${selector}&filter=true`
-    const response = await fetchWithTimeout(url)
-    const responseData = (await response.json()) as unknown
-
-    const resultFn = (
-      responseData as {
-        result?: {
-          function?: Record<string, { name: string; args?: unknown }[]>
-        }
-      } | null
-    )?.result?.function?.[selector]
-    const fn = Array.isArray(resultFn) ? resultFn[0] : undefined
-    if (
-      typeof responseData === 'object' &&
-      responseData !== null &&
-      (responseData as { ok?: boolean }).ok &&
-      fn?.name
-    ) {
-      const functionName = fn.name
-
-      try {
-        const decodedData = {
-          functionName,
-          args: fn.args,
-        }
-
+    const local = getLocalSelectorInfo(selector)
+    if (local) {
+      // Diamond hits keep the historical bare-name shape; other local sources
+      // return the full signature so the generic decoder can also decode args.
+      if (local.source === 'diamond.json') {
+        consola.info(`${pre}Using diamond ABI for function: ${local.name}`)
         return {
-          functionName,
-          decodedData,
+          functionName: local.name,
+          decodedData: {
+            functionName: local.name,
+            contractName: 'Diamond',
+          },
         }
-      } catch (error) {
-        consola.warn(`Could not decode function data: ${error}`)
-        return { functionName }
+      }
+      consola.info(
+        `${pre}Using local ABI (${local.source}) for function: ${local.name}`
+      )
+      return {
+        functionName: local.signature,
+        decodedData: { functionName: local.signature },
       }
     }
 
+    // Fallback: disk-cached, batched Sourcify 4byte lookup
+    consola.info(
+      `${pre}No local ABI found, resolving via 4byte.sourcify.dev (disk-cached)...`
+    )
+    const resolved = await resolveSelectorsViaFourByte([selector])
+    const signature = resolved.get(selector)
+    if (signature)
+      return {
+        functionName: signature,
+        decodedData: { functionName: signature },
+      }
     return {}
   } catch (error) {
     consola.warn(`Error decoding transaction data: ${error}`)

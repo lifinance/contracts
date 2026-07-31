@@ -24,20 +24,26 @@ import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 import {
-  createPublicClient,
   decodeEventLog,
-  http,
   TransactionReceiptNotFoundError,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
 
-import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 
 import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { NONCE_CONSUMING_STATUSES, type ISafeTxDocument } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
+
+/**
+ * Default cap on how many networks reconcile in parallel at startup — one live
+ * RPC connection per network, so left unbounded a signer on many chains would
+ * open dozens at once.
+ */
+export const DEFAULT_RECONCILE_CONCURRENCY = 8
 
 /** Grace period before a `submitted` row with no receipt is sent back to `pending`. */
 export const SUBMITTED_GRACE_MS = 10 * 60 * 1000 // 10 minutes
@@ -178,14 +184,12 @@ export interface IReconcileAllOptions extends IReconcileOptions {
     client: PublicClient,
     safeAddress: Address
   ) => Promise<bigint>
-}
-
-/** Builds a read-only viem client for a network, honoring an optional RPC override. */
-function buildReadOnlyClient(network: string, rpcUrl?: string): PublicClient {
-  return createPublicClient({
-    chain: getViemChainForNetworkName(network),
-    transport: http(rpcUrl),
-  }) as PublicClient
+  /**
+   * Max networks reconciled in parallel. Defaults to
+   * {@link DEFAULT_RECONCILE_CONCURRENCY}; each network holds one live RPC
+   * connection for the duration of its sweep.
+   */
+  concurrency?: number
 }
 
 /** Reads a Safe's current on-chain nonce via the standard `nonce()` view. */
@@ -267,24 +271,39 @@ export async function reconcileAllSubmittedSafeTxs(
   }
 
   const covered = new Set<string>()
-  for (const [key, { network, chainId, safeAddress }] of groups)
-    try {
-      const client = clientFactory(network)
-      const onChainNonce = await nonceReader(client, safeAddress)
-      await reconcileSubmittedSafeTxs(
-        pendingTransactions,
-        client,
-        network,
-        chainId,
-        safeAddress,
-        onChainNonce,
-        options
-      )
-      covered.add(key)
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+  const groupEntries = [...groups.entries()]
+  const concurrency = options?.concurrency ?? DEFAULT_RECONCILE_CONCURRENCY
+
+  // Bounded parallelism: one live RPC connection per in-flight network, so an
+  // unbounded fan-out would open one per group at once. The mapper never throws
+  // (a failed group is logged and skipped), keeping Promise.allSettled's
+  // one-failure-doesn't-abort-the-batch semantics.
+  const results = await mapWithConcurrency(
+    groupEntries,
+    concurrency,
+    async ([key, { network, chainId, safeAddress }]) => {
+      try {
+        const client = clientFactory(network)
+        const onChainNonce = await nonceReader(client, safeAddress)
+        await reconcileSubmittedSafeTxs(
+          pendingTransactions,
+          client,
+          network,
+          chainId,
+          safeAddress,
+          onChainNonce,
+          options
+        )
+        return key
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+        return null
+      }
     }
+  )
+
+  for (const key of results) if (key !== null) covered.add(key)
 
   return covered
 }

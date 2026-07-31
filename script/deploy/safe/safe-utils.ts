@@ -43,10 +43,6 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
-import {
-  DEFAULT_FETCH_TIMEOUT_MS,
-  fetchWithTimeout,
-} from '../../utils/fetchWithTimeout'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
   buildExplorerContractPageUrl,
@@ -59,11 +55,19 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import { buildReadOnlyClient } from './read-only-safe-client'
+import {
+  getLocalSelectorInfo,
+  resolveSelectorsViaFourByte,
+} from './selector-registry'
 import { encodeTimelockScheduleBatch } from './timelock-abi'
 
 config()
 
-const networks: Record<string, { safeAddress: string; status: string }> = data
+const networks: Record<
+  string,
+  { safeAddress: string; status: string; chainId: number }
+> = data
 
 // Types for Safe transactions
 export enum OperationTypeEnum {
@@ -229,18 +233,26 @@ export class SafeClient {
    */
   private chainExecutor?: IChainExecutor
 
+  /**
+   * Chain id resolved from config at init time. Lets the signing path build
+   * the EIP-712 domain without an RPC round trip.
+   */
+  private knownChainId?: number
+
   public constructor(
     publicClient: PublicClient,
     walletClient: WalletClient,
     safeAddress: Address,
     account: Account,
-    chainExecutor?: IChainExecutor
+    chainExecutor?: IChainExecutor,
+    knownChainId?: number
   ) {
     this.publicClient = publicClient
     this.walletClient = walletClient
     this.safeAddress = safeAddress
     this.account = account
     this.chainExecutor = chainExecutor
+    this.knownChainId = knownChainId
   }
 
   /**
@@ -250,6 +262,8 @@ export class SafeClient {
    * @param account - Account used for signing and broadcasting
    * @param tronWalletClient - Optional Tron signer required for TVM execution
    * @param networkName - Network name used to construct explorer URLs in results
+   * @param configChainId - Chain id resolved from config; used as the source
+   * of truth for executor selection and verified against the live RPC
    * @returns Executor implementation matching the connected chain
    * @throws Error if a Tron executor is required but no Tron signer is available
    */
@@ -258,9 +272,31 @@ export class SafeClient {
     walletClient: WalletClient,
     account: Account,
     tronWalletClient?: TronWalletClient,
-    networkName?: string
+    networkName?: string,
+    configChainId?: number
   ): Promise<IChainExecutor | undefined> {
-    const chainId = await publicClient.getChainId()
+    const chainId = configChainId ?? (await publicClient.getChainId())
+
+    // When the chain id came from config, a single global --rpc-url override
+    // (or a wrong RPC env var) can still point this network at another chain's
+    // endpoint. That is never survivable: a Safe tx hash read from the wrong
+    // chain's Safe (deterministic deployments share addresses) would be signed
+    // for the wrong domain, so a proven mismatch aborts instead of warning.
+    // An unreachable RPC stays non-fatal — reads fail loudly later anyway.
+    if (configChainId !== undefined) {
+      let liveChainId: number | undefined
+      try {
+        liveChainId = await publicClient.getChainId()
+      } catch {
+        consola.warn(
+          `[${networkName}] Could not verify the RPC's chain id against config — proceeding unverified`
+        )
+      }
+      if (liveChainId !== undefined && liveChainId !== configChainId)
+        throw new Error(
+          `[${networkName}] RPC reports chain id ${liveChainId} but config expects ${configChainId} — check the --rpc-url override / RPC env var`
+        )
+    }
 
     if (isTronTvmChainId(chainId)) {
       // No tronWalletClient means Ledger/signing-only mode — defer executor creation to execution time.
@@ -370,12 +406,21 @@ export class SafeClient {
       transport: walletTransport,
     })
 
+    // Read the chain id straight from networks.json — unlike
+    // getViemChainForNetworkName this needs no RPC env var, so the optimization
+    // (and the mismatch check above it) survives an explicit provider URL. An
+    // unknown network yields undefined and falls back to the live RPC lookup.
+    let configChainId: number | undefined = chain?.id
+    if (configChainId === undefined && networkName)
+      configChainId = networks[networkName.toLowerCase()]?.chainId
+
     const chainExecutor = await SafeClient.createChainExecutor(
       publicClient,
       walletClient,
       account,
       tronWalletClient,
-      networkName
+      networkName,
+      configChainId
     )
 
     return new SafeClient(
@@ -383,7 +428,8 @@ export class SafeClient {
       walletClient,
       safeAddress,
       account,
-      chainExecutor
+      chainExecutor,
+      configChainId
     )
   }
 
@@ -656,8 +702,11 @@ export class SafeClient {
     }
 
     try {
-      // Get chain ID for domain
-      const chainId = await this.publicClient.getChainId()
+      // Get chain ID for domain — prefer the config-resolved id so the hot
+      // path between the operator's "Sign" selection and the Ledger prompt
+      // makes no RPC call (a cold connection here delays the device display)
+      const chainId =
+        this.knownChainId ?? (await this.publicClient.getChainId())
 
       // Define EIP-712 domain and types
       const domain = {
@@ -1036,6 +1085,27 @@ export function getSigners(doc: ISafeTxDocument): string[] {
       signers.push((entry as { signer: string }).signer.toLowerCase())
 
   return signers
+}
+
+/** Returns the number of signatures stored on a MongoDB Safe tx document. */
+export function getSignatureCountFromDoc(doc: ISafeTxDocument): number {
+  return getSigners(doc).length
+}
+
+/** Whether `signerAddress` appears in a MongoDB Safe tx document's signatures. */
+export function isDocSignedBySigner(
+  doc: ISafeTxDocument,
+  signerAddress: Address
+): boolean {
+  return getSigners(doc).includes(signerAddress.toLowerCase())
+}
+
+/** Whether a MongoDB Safe tx document has enough signatures to execute. */
+export function hasEnoughSignaturesInDoc(
+  doc: ISafeTxDocument,
+  threshold: number
+): boolean {
+  return getSignatureCountFromDoc(doc) >= threshold
 }
 
 /**
@@ -1563,6 +1633,139 @@ export async function initializeSafeClient(
   }
 }
 
+interface ISafeClientBundle {
+  safe: SafeClient
+  chain: Chain
+  safeAddress: Address
+}
+
+const safeClientPool = new Map<string, Promise<ISafeClientBundle>>()
+
+/**
+ * Builds the pool key identifying one Safe client: network + Safe address +
+ * signer identity.
+ * @param network - Network name
+ * @param safeAddress - Normalized Safe address
+ * @param account - Pre-created signer account, when available
+ * @param privateKey - Raw private key; only its derived address enters the key
+ * @returns Pool key string
+ */
+export function safeClientPoolKey(
+  network: string,
+  safeAddress: Address,
+  account?: Account,
+  privateKey?: string
+): string {
+  // Never key on raw private-key material: derive the (non-secret) address,
+  // which is also collision-free where a key prefix is not.
+  const accountPart =
+    account?.address.toLowerCase() ??
+    (privateKey
+      ? privateKeyToAccount(
+          (privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as Hex
+        ).address.toLowerCase()
+      : 'ledger')
+  return `${network.toLowerCase()}:${safeAddress.toLowerCase()}:${accountPart}`
+}
+
+/**
+ * Returns a pooled Safe client for the run, reusing an existing init when possible.
+ */
+export async function getOrInitializeSafeClient(
+  network: string,
+  privateKey?: string,
+  rpcUrl?: string,
+  useLedger?: boolean,
+  ledgerOptions?: {
+    derivationPath?: string
+    ledgerLive?: boolean
+    accountIndex?: number
+  },
+  safeAddress?: Address,
+  account?: Account
+): Promise<ISafeClientBundle> {
+  const rawSafeAddress =
+    safeAddress ?? networks[network.toLowerCase()]?.safeAddress
+  if (!rawSafeAddress)
+    throw new Error(`No Safe address configured for network ${network}`)
+
+  const finalSafeAddress = normalizeAddressForNetwork(network, rawSafeAddress)
+  const key = safeClientPoolKey(network, finalSafeAddress, account, privateKey)
+  return getOrCreatePooledPromise(safeClientPool, key, () =>
+    initializeSafeClient(
+      network,
+      privateKey,
+      rpcUrl,
+      useLedger,
+      ledgerOptions,
+      safeAddress,
+      account
+    )
+  )
+}
+
+/**
+ * Returns the pooled promise for `key`, creating it via `factory` on a miss.
+ * A rejected promise evicts itself (guarded against replacing a newer entry)
+ * so a transient failure never poisons later calls for the same key.
+ */
+export function getOrCreatePooledPromise<T>(
+  pool: Map<string, Promise<T>>,
+  key: string,
+  factory: () => Promise<T>
+): Promise<T> {
+  const cached = pool.get(key)
+  if (cached) return cached
+
+  const promise = factory().catch((error: unknown) => {
+    if (pool.get(key) === promise) pool.delete(key)
+    throw error
+  })
+  pool.set(key, promise)
+  return promise
+}
+
+/** Upper bound on how long pooled-client cleanup may run before it is abandoned. */
+export const POOL_CLEANUP_TIMEOUT_MS = 5_000 // 5 seconds
+
+/**
+ * Closes all pooled Safe clients. Call once at the end of a confirm-safe-tx run.
+ * @param pool - Pool to drain; defaults to the module-level pool
+ * @param timeoutMs - Cleanup deadline; a slow/hung in-flight init must not stall exit
+ */
+export async function releaseAllPooledSafeClients(
+  pool: Map<string, Promise<ISafeClientBundle>> = safeClientPool,
+  timeoutMs: number = POOL_CLEANUP_TIMEOUT_MS
+): Promise<void> {
+  const closes = [...pool.values()].map(async (promise) => {
+    try {
+      const { safe } = await promise
+      await safe.cleanup()
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      consola.warn(`Warning during pooled SafeClient cleanup: ${errorMsg}`)
+    }
+  })
+
+  // An in-flight prefetch init against a slow/hung RPC would otherwise block
+  // shutdown (and, on error paths, the operator's exit) indefinitely.
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      consola.warn(
+        `Pooled SafeClient cleanup timed out after ${timeoutMs}ms; abandoning remaining closes`
+      )
+      resolve()
+    }, timeoutMs)
+  })
+  try {
+    await Promise.race([Promise.allSettled(closes), deadline])
+  } finally {
+    if (timer) clearTimeout(timer)
+    pool.clear()
+  }
+}
+
 /**
  * Gets the private key from environment or argument
  * @param privateKeyArg - Private key argument from command line
@@ -1624,27 +1827,16 @@ export async function getNetworksWithPendingTransactions(
 }
 
 /**
- * Gets networks where the user can take action (is a Safe owner AND has actionable transactions)
+ * Gets networks where the user can take action (is a Safe owner AND has actionable transactions).
+ * Ownership is read from the chain with a read-only client, so no signer material is needed here.
  * @param pendingTransactions - MongoDB collection
  * @param signerAddress - Address of the signer to check ownership for
- * @param privateKey - Private key for signing (optional if useLedger is true)
- * @param useLedger - Whether to use a Ledger device for signing
- * @param ledgerOptions - Options for Ledger connection
- * @param account - Pre-created account (for Ledger)
  * @param rpcUrl - Optional RPC URL override
  * @returns List of network names where the signer can take action
  */
 export async function getNetworksWithActionableTransactions(
   pendingTransactions: Collection<ISafeTxDocument>,
   signerAddress: Address,
-  privateKey?: string,
-  useLedger?: boolean,
-  ledgerOptions?: {
-    derivationPath?: string
-    ledgerLive?: boolean
-    accountIndex?: number
-  },
-  account?: Account,
   rpcUrl?: string
 ): Promise<string[]> {
   // First, get all networks with pending transactions
@@ -1679,82 +1871,63 @@ export async function getNetworksWithActionableTransactions(
         return { network, actionable: false, reason: 'no_safe_address_in_tx' }
       }
 
-      // Initialize a Safe client to check ownership and transaction status
-      // Use the Safe address from the transaction, not from networks.json
-      const { safe } = await initializeSafeClient(
+      const publicClient = buildReadOnlyClient(network, rpcUrl)
+      const normalizedSafeAddress = normalizeAddressForNetwork(
         network,
-        privateKey,
-        rpcUrl,
-        useLedger,
-        ledgerOptions,
-        txSafeAddress,
-        account
+        txSafeAddress
       )
 
+      let owners: Address[]
+      let threshold: number
       try {
-        // Check if the signer is an owner
-        const owners = await safe.getOwners()
-        const isOwner = isAddressASafeOwner(owners, signerAddress)
+        ;[owners, threshold] = await Promise.all([
+          publicClient.readContract({
+            address: normalizedSafeAddress,
+            abi: SAFE_SINGLETON_ABI,
+            functionName: 'getOwners',
+          }) as Promise<Address[]>,
+          publicClient
+            .readContract({
+              address: normalizedSafeAddress,
+              abi: SAFE_SINGLETON_ABI,
+              functionName: 'getThreshold',
+            })
+            .then(Number),
+        ])
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to read Safe state on ${network}: ${errorMsg}`)
+      }
 
-        // Log detailed ownership check
-        if (!isOwner) {
-          consola.warn(
-            `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
-          )
-          consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
-          return { network, actionable: false, reason: 'not_owner' }
+      const isOwner = isAddressASafeOwner(owners, signerAddress)
+      if (!isOwner) {
+        consola.warn(
+          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
+        )
+        consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
+        return { network, actionable: false, reason: 'not_owner' }
+      }
+
+      let hasActionableTx = false
+      for (const tx of networkTxs) {
+        const hasSignedAlready = isDocSignedBySigner(tx, signerAddress)
+        const canExecute = hasEnoughSignaturesInDoc(tx, threshold)
+
+        if (canExecute) {
+          hasActionableTx = true
+          break
         }
 
-        // Get threshold to check if transactions are actionable
-        const threshold = Number(await safe.getThreshold())
-
-        // Check if there are any actionable transactions
-        // A transaction is actionable if:
-        // 1. It has enough signatures to execute (user can execute it), OR
-        // 2. User hasn't signed it yet AND it needs more signatures
-        let hasActionableTx = false
-        for (const tx of networkTxs) {
-          try {
-            const safeTransaction = await initializeSafeTransaction(tx, safe)
-            const hasSignedAlready = isSignedByCurrentSigner(
-              safeTransaction,
-              signerAddress
-            )
-            const canExecute = hasEnoughSignatures(safeTransaction, threshold)
-
-            // If it can be executed, it's actionable
-            if (canExecute) {
-              hasActionableTx = true
-              break
-            }
-
-            // If user hasn't signed and it needs more signatures, it's actionable
-            if (
-              !hasSignedAlready &&
-              safeTransaction.signatures.size < threshold
-            ) {
-              hasActionableTx = true
-              break
-            }
-          } catch (error: unknown) {
-            // Skip transactions that can't be initialized
-            const errorMsg =
-              error instanceof Error ? error.message : String(error)
-            consola.debug(
-              `Failed to check transaction ${tx.safeTxHash} on ${network}: ${errorMsg}`
-            )
-            continue
-          }
+        if (!hasSignedAlready && getSignatureCountFromDoc(tx) < threshold) {
+          hasActionableTx = true
+          break
         }
+      }
 
-        return {
-          network,
-          actionable: hasActionableTx,
-          reason: hasActionableTx ? 'has_actionable_tx' : 'no_actionable_tx',
-        }
-      } finally {
-        // Always cleanup the Safe client
-        await safe.cleanup()
+      return {
+        network,
+        actionable: hasActionableTx,
+        reason: hasActionableTx ? 'has_actionable_tx' : 'no_actionable_tx',
       }
     })
   )
@@ -1990,60 +2163,24 @@ function getContractNameFromSelectorsInOut(
   }
 }
 
-/** Base URL for 4byte signature lookup (Sourcify; openchain.xyz-compatible API). */
-const FOURBYTE_LOOKUP_BASE =
-  'https://api.4byte.sourcify.dev/signature-database/v1/lookup'
-
-/** Item from 4byte/Sourcify signature lookup result (function name) */
-interface IFourByteLookupResultItem {
-  name: string
-}
-
-/** 4byte lookup API response shape for type-safe parsing (same as openchain.xyz) */
-interface IFourByteLookupResponse {
-  ok?: boolean
-  result?: {
-    function?: Record<string, IFourByteLookupResultItem[]>
-  }
-}
-
-function isFourByteLookupResponse(
-  value: unknown
-): value is IFourByteLookupResponse {
-  if (value === null || typeof value !== 'object') return false
-  const o = value as Record<string, unknown>
-  if (!o.result || typeof o.result !== 'object') return false
-  const result = o.result as Record<string, unknown>
-  if (!result.function || typeof result.function !== 'object') return false
-  return true
-}
-
 /**
- * Looks up a function selector via Sourcify 4byte signature database (api.4byte.sourcify.dev).
- * Use when the selector is not in diamond.json (e.g. different ABI encoding for same function).
- * @returns Function signature string if found, null otherwise
+ * Normalizes a diamondCut selector entry (hex string or byte array) to a
+ * lowercase 0x-prefixed string for map lookups.
  */
-async function lookupSelectorFromFourByte(
-  selector: string
-): Promise<string | null> {
-  try {
-    const normalized = selector.startsWith('0x') ? selector : `0x${selector}`
-    const url = `${FOURBYTE_LOOKUP_BASE}?function=${normalized}&filter=true`
-    const response = await fetchWithTimeout(
-      url,
-      undefined,
-      DEFAULT_FETCH_TIMEOUT_MS
-    )
-    if (!response.ok) return null
-    const raw: unknown = await response.json()
-    if (!isFourByteLookupResponse(raw)) return null
-    const first = raw.result?.function?.[normalized]?.[0]
-    if (first?.name && typeof first.name === 'string') return first.name
-    return null
-  } catch {
-    return null
-  }
+function normalizeDiamondCutSelector(selector: unknown): string {
+  if (typeof selector === 'string')
+    return (
+      selector.startsWith('0x') ? selector : `0x${selector}`
+    ).toLowerCase()
+  return `0x${Buffer.from(selector as Uint8Array).toString(
+    'hex'
+  )}`.toLowerCase()
 }
+
+let cachedDiamondSelectorMap:
+  | Map<string, { name: string; signature: string }>
+  | null
+  | undefined
 
 /**
  * Creates a mapping of function selectors to function names from diamond ABI
@@ -2053,14 +2190,22 @@ async function createSelectorMap(): Promise<Map<
   string,
   { name: string; signature: string }
 > | null> {
+  if (cachedDiamondSelectorMap !== undefined) return cachedDiamondSelectorMap
+
   try {
     const projectRoot = process.cwd()
     const diamondPath = path.join(projectRoot, 'diamond.json')
 
-    if (!fs.existsSync(diamondPath)) return null
+    if (!fs.existsSync(diamondPath)) {
+      cachedDiamondSelectorMap = null
+      return null
+    }
 
     const abiData = JSON.parse(fs.readFileSync(diamondPath, 'utf8'))
-    if (!Array.isArray(abiData)) return null
+    if (!Array.isArray(abiData)) {
+      cachedDiamondSelectorMap = null
+      return null
+    }
 
     const selectorMap = new Map<string, { name: string; signature: string }>()
 
@@ -2083,8 +2228,12 @@ async function createSelectorMap(): Promise<Map<
           continue
         }
 
+    cachedDiamondSelectorMap = selectorMap
     return selectorMap
   } catch (error) {
+    // Transient IO faults (EMFILE, partially-written diamond.json) must not
+    // permanently disable selector decoding — only missing-file/invalid-shape
+    // paths memoize null.
     consola.warn(`Error creating selector map: ${error}`)
     return null
   }
@@ -2196,6 +2345,24 @@ export async function decodeDiamondCut(
     return (actionA <= 2 ? actionA : 99) - (actionB <= 2 ? actionB : 99)
   })
 
+  // Resolve every selector that neither diamond.json nor the local registry
+  // knows in batched, disk-cached 4byte requests up front — instead of one
+  // sequential HTTP round trip per unknown selector inside the display loop.
+  const unknownSelectors: string[] = []
+  for (const mod of sortedModifications) {
+    const modSelectors = mod[2]
+    if (!Array.isArray(modSelectors)) continue
+    for (const selector of modSelectors) {
+      const normalized = normalizeDiamondCutSelector(selector)
+      if (!selectorMap?.get(normalized) && !getLocalSelectorInfo(normalized))
+        unknownSelectors.push(normalized)
+    }
+  }
+  const fourByteResolved =
+    unknownSelectors.length > 0
+      ? await resolveSelectorsViaFourByte(unknownSelectors)
+      : new Map<string, string>()
+
   for (const mod of sortedModifications) {
     // Each mod is [facetAddress, action, selectors]
     const [facetAddress, actionValue, selectors] = mod
@@ -2235,18 +2402,13 @@ export async function decodeDiamondCut(
           facetDisplay,
         ])
 
-      // Resolve each selector's name from the local diamond ABI first, then the
-      // 4byte/Sourcify signature DB. The facet ABI is never fetched by address:
-      // Remove uses the zero address, and per-selector lookup covers every action
-      // without depending on a live facet contract.
+      // Resolve each selector's name from the local diamond ABI first, then
+      // the local selector registry, then the pre-fetched batch of 4byte
+      // results. The facet ABI is never fetched by address: Remove uses the
+      // zero address, and per-selector lookup covers every action without
+      // depending on a live facet contract.
       for (const selector of selectors) {
-        const normalizedSelector =
-          typeof selector === 'string'
-            ? (selector.startsWith('0x')
-                ? selector
-                : `0x${selector}`
-              ).toLowerCase()
-            : `0x${Buffer.from(selector).toString('hex')}`.toLowerCase()
+        const normalizedSelector = normalizeDiamondCutSelector(selector)
         const functionInfo = selectorMap?.get(normalizedSelector)
         if (functionInfo) {
           consola.info(
@@ -2254,9 +2416,14 @@ export async function decodeDiamondCut(
           )
           continue
         }
-        const fourByteName = await lookupSelectorFromFourByte(
-          normalizedSelector
-        )
+        const localInfo = getLocalSelectorInfo(normalizedSelector)
+        if (localInfo) {
+          consola.info(
+            `${pre}Function: \u001b[34m${localInfo.name}\u001b[0m [${selector}] - ${localInfo.signature} \u001b[90m(${localInfo.source})\u001b[0m`
+          )
+          continue
+        }
+        const fourByteName = fourByteResolved.get(normalizedSelector)
         if (fourByteName)
           consola.info(
             `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
