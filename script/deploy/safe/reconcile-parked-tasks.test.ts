@@ -1,11 +1,13 @@
 /**
  * Tests for the deferred diamond-cleanup reconcile job (reconcile-parked-tasks.ts).
  *
- * The two pure decisions are exercised directly: {@link reconcileDecision} maps a
- * task's status + on-chain/proposal truth to a lifecycle transition, and
+ * The pure decisions are exercised directly: {@link reconcileDecision} maps a
+ * task's status + on-chain/proposal truth to a lifecycle transition,
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
- * have aged past the TTL. The live CLI (Mongo/loupe/Slack wiring) is unit-test
- * exempt, mirroring the store's `getParkedTasksCollection()` carve-out.
+ * have aged past the TTL, and {@link computeSafeToPrune} /
+ * {@link formatSafeToPruneReport} name the deploy-log entries whose removal work
+ * is terminal. The live CLI (Mongo/loupe/Slack wiring) is unit-test exempt,
+ * mirroring the store's `getParkedTasksCollection()` carve-out.
  */
 
 import {
@@ -20,7 +22,9 @@ import { EnvironmentEnum } from '../../common/types'
 
 import { type IParkedTask } from './parked-tasks'
 import {
+  computeSafeToPrune,
   computeTtlAlerts,
+  formatSafeToPruneReport,
   formatTtlAlertMessage,
   reconcileDecision,
 } from './reconcile-parked-tasks'
@@ -183,5 +187,101 @@ describe('formatTtlAlertMessage', () => {
     expect(msg).toContain('65d')
     expect(msg).toContain('https://gh/pull/1')
     expect(msg).toContain('https://gh/pull/2')
+  })
+})
+
+describe('computeSafeToPrune', () => {
+  const always = () => true
+
+  it('reports a (network, facet) whose only task executed', () => {
+    const r = computeSafeToPrune([parked({ status: 'executed' })], always)
+    expect(r).toEqual([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'F',
+      },
+    ])
+  })
+
+  it('reports a superseded task (facet gone via another route)', () => {
+    const r = computeSafeToPrune([parked({ status: 'superseded' })], always)
+    expect(r).toHaveLength(1)
+  })
+
+  it('never reports while any task for the pair is still open', () => {
+    const r = computeSafeToPrune(
+      [
+        parked({ status: 'executed' }),
+        parked({ status: 'queued' }), // re-park of the same facet
+      ],
+      always
+    )
+    expect(r).toHaveLength(0)
+  })
+
+  it('never reports a cancelled-only group (intent abandoned, facet may be live)', () => {
+    const r = computeSafeToPrune([parked({ status: 'cancelled' })], always)
+    expect(r).toHaveLength(0)
+  })
+
+  it('filters entries whose deploy-log row is already gone', () => {
+    const r = computeSafeToPrune([parked({ status: 'executed' })], () => false)
+    expect(r).toHaveLength(0)
+  })
+
+  it('groups by network AND facet independently', () => {
+    const r = computeSafeToPrune(
+      [
+        parked({ status: 'executed', facetName: 'A' }),
+        parked({ status: 'queued', facetName: 'B' }),
+        parked({ status: 'superseded', facetName: 'A', network: 'optimism' }),
+      ],
+      always
+    )
+    expect(r).toEqual([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+      {
+        network: 'optimism',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+    ])
+  })
+})
+
+describe('formatSafeToPruneReport', () => {
+  it('returns empty string when nothing is prunable', () => {
+    expect(formatSafeToPruneReport([])).toBe('')
+  })
+
+  it('groups the report by network and names every facet', () => {
+    const msg = formatSafeToPruneReport([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'B',
+      },
+      {
+        network: 'optimism',
+        environment: EnvironmentEnum.production,
+        facet: 'C',
+      },
+    ])
+    expect(msg).toContain('3')
+    expect(msg).toContain('[arbitrum]')
+    expect(msg).toContain('[optimism]')
+    expect(msg).toContain('- A')
+    expect(msg).toContain('- B')
+    expect(msg).toContain('- C')
   })
 })

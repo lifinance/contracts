@@ -12,6 +12,7 @@ import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  computeStaleRegisteredFacets,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -226,6 +227,81 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     const names = HEALTH_CHECK_INVARIANTS.map((i) => i.name)
     expect(names).toContain('executor-erc20proxy-binding')
     expect(names).toContain('receiver-executor-binding')
+  })
+
+  it('includes the queue-aware stale-facet invariant as a production warning', () => {
+    const inv = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'no-stale-registered-facets'
+    )
+    expect(inv).toBeDefined()
+    expect(inv?.severity).toBe('warning')
+    expect(inv?.scope.environments).toEqual(['production'])
+    expect(inv?.readsOnChainFacets).toBe(true)
+  })
+})
+
+describe('computeStaleRegisteredFacets', () => {
+  const facet = (
+    address: string,
+    n = 1
+  ): { address: string; selectors: string[] } => ({
+    address,
+    selectors: [`0x${n.toString(16).padStart(8, '0')}`],
+  })
+
+  it('classifies a deprecated facet with no parked task as unparked', () => {
+    const r = computeStaleRegisteredFacets({
+      onChainFacets: [facet('0xAAA'), facet('0xBBB')],
+      deployedContracts: { OldFacet: '0xaaa', CurrentFacet: '0xbbb' },
+      expectedFacetNames: new Set(['CurrentFacet']),
+      openParkedFacetNames: new Set(),
+    })
+    expect(r.unparked).toEqual(['OldFacet'])
+    expect(r.parked).toHaveLength(0)
+  })
+
+  it('classifies a deprecated facet with an open parked task as parked (expected-pending)', () => {
+    const r = computeStaleRegisteredFacets({
+      onChainFacets: [facet('0xaaa')],
+      deployedContracts: { OldFacet: '0xAAA' },
+      expectedFacetNames: new Set(),
+      openParkedFacetNames: new Set(['OldFacet']),
+    })
+    expect(r.parked).toEqual(['OldFacet'])
+    expect(r.unparked).toHaveLength(0)
+  })
+
+  it('skips on-chain addresses the deploy log cannot map (no-unexpected-facets owns those)', () => {
+    const r = computeStaleRegisteredFacets({
+      onChainFacets: [facet('0x999')],
+      deployedContracts: { OldFacet: '0xaaa' },
+      expectedFacetNames: new Set(),
+      openParkedFacetNames: new Set(),
+    })
+    expect(r.parked).toHaveLength(0)
+    expect(r.unparked).toHaveLength(0)
+  })
+
+  it('never flags a facet the target state still expects', () => {
+    const r = computeStaleRegisteredFacets({
+      onChainFacets: [facet('0xaaa')],
+      deployedContracts: { CurrentFacet: '0xaaa' },
+      expectedFacetNames: new Set(['CurrentFacet']),
+      openParkedFacetNames: new Set(),
+    })
+    expect(r.parked).toHaveLength(0)
+    expect(r.unparked).toHaveLength(0)
+  })
+
+  it('sorts and de-duplicates stale names across buckets', () => {
+    const r = computeStaleRegisteredFacets({
+      onChainFacets: [facet('0xaaa', 1), facet('0xbbb', 2), facet('0xaaa', 3)],
+      deployedContracts: { ZFacet: '0xbbb', AFacet: '0xaaa' },
+      expectedFacetNames: new Set(),
+      openParkedFacetNames: new Set(['ZFacet']),
+    })
+    expect(r.unparked).toEqual(['AFacet'])
+    expect(r.parked).toEqual(['ZFacet'])
   })
 })
 
