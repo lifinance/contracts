@@ -42,6 +42,8 @@ jobs:
       forge: ${{ steps.filter.outputs.forge }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
       - name: Detect relevant changes
         id: filter
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2

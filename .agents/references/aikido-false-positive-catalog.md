@@ -117,7 +117,7 @@ Each pattern has:
 > Intended behavior, risk accepted — this checkout deliberately persists an explicitly scoped credential (dedicated PAT, sync token, or deploy ssh-key, not the ambient runner token) because a later step in the same job pushes to that repository with it. Setting persist-credentials: false would break the push. The workflow runs only on trusted triggers (push / schedule / workflow_dispatch).
 
 **sast_context** (UI: persist Git credentials rule → Custom Code Context):
-> Checkouts in this repo default to persist-credentials: false. The exceptions each configure an explicitly scoped credential (a dedicated PAT or deploy ssh-key passed via `token:`/`ssh-key:`, never the ambient runner GITHUB_TOKEN) because a later step in the same job performs a git push to that repository using the persisted credential (e.g. registry sync, type-bindings publish, dependency-bump branches). These are intentional and required; only flag checkouts that persist credentials without a subsequent authenticated git push in the same job.
+> Read-only checkouts in this repo set persist-credentials: false. The exceptions each configure an explicitly scoped credential (a dedicated PAT or deploy ssh-key passed via `token:`/`ssh-key:`, never the ambient runner GITHUB_TOKEN) because a later step in the same job performs a git push to that repository using the persisted credential (e.g. registry sync, type-bindings publish, dependency-bump branches). These are intentional and required; only flag checkouts that persist credentials without a subsequent authenticated git push in the same job.
 
 ---
 
