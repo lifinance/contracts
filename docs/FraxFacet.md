@@ -47,18 +47,34 @@ specific to Frax HopV2 and is represented as the following struct type:
 /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
 ///        remainder that HopV2 does not bridge, and any excess native that HopV2 refunds
 ///        to the diamond mid-call. Must accept plain native transfers.
+/// @param nonEVMReceiver The bytes32 recipient on a non-EVM destination (e.g. a Solana
+///        pubkey). Required when bridgeData.receiver is NON_EVM_ADDRESS; must be
+///        bytes32(0) for EVM destinations.
 struct FraxData {
     address oft;
     uint32 dstEid;
     uint256 nativeFee;
     address refundRecipient;
+    bytes32 nonEVMReceiver;
 }
 ```
 
-Both entrypoints validate `_fraxData` up front (reverting `InvalidCallData` on a
-zero `refundRecipient`, `oft`, or `dstEid`) and verify that the OFT's underlying
-token matches `bridgeData.sendingAssetId` (reverting `InformationMismatch`
-otherwise).
+Both entrypoints validate `_fraxData` up front — **before any deposit or swap** — so an
+invalid route costs the caller nothing but gas:
+
+- `InvalidCallData` on a zero `refundRecipient`, `oft`, or `dstEid` — or on a non-zero
+  `nonEVMReceiver` for an EVM destination.
+- `InvalidReceiver` when the `NON_EVM_ADDRESS` sentinel and the destination kind disagree
+  (sentinel on an EVM destination, or a 20-byte receiver on a non-EVM one).
+- `InvalidNonEVMReceiver` when a non-EVM destination has a zero `nonEVMReceiver`.
+- `UnsupportedChainId` / `InformationMismatch` on the `destinationChainId` ↔ `dstEid`
+  cross-check.
+- `TokenNotSupported` when `HOP.approvedOft(oft)` is `false`.
+- `InformationMismatch` when the OFT's underlying `token()` is not
+  `bridgeData.sendingAssetId`.
+
+The `approvedOft` check runs **before** `oft.token()` deliberately: `oft` is caller-supplied,
+so the only external call this facet makes into it happens after the hop has allowlisted it.
 
 - `nativeFee` is the native LayerZero messaging fee. It is `0` on Tempo, where the
   fee is charged in an ERC20 gas token instead (see below).
@@ -92,10 +108,45 @@ otherwise).
   every destination a route targets before that route can be used. This is stricter
   than the pure analytics-only model of `AcrossFacetV4` / `PaxosTransitFacet`, and
   mirrors `SupersetFacet`.
-- **HopV2 trust surface.** The HopV2 contract is an **upgradeable proxy** with an
-  admin `recover()` function. The facet grants it an ERC20 allowance via the
-  standard LI.FI `maxApproveERC20` pattern (scoped to the bridged amount). This is
-  a trust surface worth noting.
+- **HopV2 trust surface / standing approval (explicit trust assumption).** The HopV2
+  contract is an **upgradeable proxy** with an admin `recover()` function, and the facet
+  approves it via the standard LI.FI `LibAsset.maxApproveERC20` pattern. Note what that
+  pattern actually does: the `amount` argument is only the *required-allowance
+  threshold* — when the current allowance is insufficient the allowance is set to
+  **`type(uint256).max`**. So after the first bridge of a given token, the Diamond
+  carries a **standing unlimited allowance** to HopV2 for that token, and HopV2 can be
+  upgraded by its admin to arbitrary logic. This is identical to how every other LI.FI
+  facet approves its bridge, and the residual risk is bounded by the "Diamond holds
+  nothing between transactions" invariant above (tokens are pulled, forwarded, and any
+  remainder refunded within the same call), but the trust assumption is explicit:
+  **an upgraded, malicious HopV2 could spend any balance the Diamond happens to hold in
+  an approved token at that moment.**
+- **OFT support pre-check.** HopV2 only routes OFTs it has been configured with
+  (`HOP.approvedOft(oft)`). The facet checks this **before** any deposit or swap, so an
+  unapproved OFT reverts `TokenNotSupported` up front instead of failing deep inside
+  `sendOFT` after `_depositAndSwap` has already executed the caller's swap. The whole
+  transaction reverts either way, so this is a gas / error-clarity guarantee rather than a
+  fund-safety one.
+- **Non-EVM destinations (Solana).** HopV2's recipient is a `bytes32`, and Frax routes to
+  Solana (LayerZero EID `30168`) via the Fraxtal hub, so the facet supports both address
+  formats:
+  - **EVM destination** — recipient is the left-padded `bridgeData.receiver`;
+    `nonEVMReceiver` must be `bytes32(0)`.
+  - **Non-EVM destination** — `bridgeData.receiver` must be the `NON_EVM_ADDRESS` sentinel
+    and the real recipient travels as `fraxData.nonEVMReceiver`, which is passed to
+    `sendOFT` verbatim. The facet emits `BridgeToNonEVMChainBytes32` alongside
+    `LiFiTransferStarted`.
+
+  The two are cross-checked **in both directions**, because each mismatch loses funds: a
+  20-byte receiver on a non-EVM route would be left-padded into an unspendable Solana
+  account, and the sentinel on an EVM route would deliver the funds to `NON_EVM_ADDRESS`
+  itself. A non-EVM `nonEVMReceiver` is only checked for non-zero — a Solana pubkey cannot
+  be validated further on-chain.
+
+  Which destinations are non-EVM is decided by `_isNonEVMDestination`, currently
+  `LIFI_CHAIN_ID_SOLANA` (Frax's only non-EVM spoke). **Add further LI.FI non-EVM chain IDs
+  there as Frax adds spokes** — seeding a non-EVM chain ID in `mappings` without listing it
+  in `_isNonEVMDestination` would let an EVM-shaped receiver through.
 
 ## ChainId → LayerZero EID mapping
 
@@ -111,6 +162,9 @@ above). This follows the `SupersetFacet` pattern.
   it is **not** registered as a diamond method.
 - `setFraxChainIdToEid(ChainIdConfig[])` — **owner-only**, add/update entries after the
   initial seeding (requires a prior `initFrax`, else reverts `NotInitialized`).
+- `unsetFraxChainIdToEid(uint256[])` — **owner-only**, deletes entries so those
+  destinations revert `UnsupportedChainId` again. Reverts `UnsupportedChainId` on a chain ID
+  that is not set, so a mistyped removal fails loudly instead of silently doing nothing.
 - `getFraxChainIdToEid(uint256 chainId)` — returns the configured EID, reverting
   `UnsupportedChainId` when unset. `chainId == 0` and `lzEid == 0` are rejected on
   write (EID `0` is the "unset" sentinel).
@@ -121,6 +175,26 @@ on first deploy, or `setFraxChainIdToEid` for later additions) before that route
 usable — an unseeded destination reverts `UnsupportedChainId`. LayerZero EIDs are
 sourced from
 [the LayerZero deployments list](https://docs.layerzero.network/v2/deployments/deployed-contracts).
+
+**Deprecated spokes.** `berachain`, `mode` and `scroll` are deliberately absent from both
+the `hop` address map and `mappings` in `config/frax.json`: Frax is removing them from the
+hop mesh (confirmed by the Frax team on PR #2048). Do not re-add them.
+
+> **Removing a chain from config is not enough.** `initFrax` copies `mappings` into diamond
+> storage, so any diamond **already seeded** with a chain keeps routing to it regardless of
+> what the config file says. Retiring a spoke is a two-step operation: drop it from
+> `config/frax.json` (so future deployments never seed it) **and** call
+> `unsetFraxChainIdToEid([chainId])` on every diamond that already has it. As of this
+> change the Arbitrum staging diamond still has `mode` (34443) and `scroll` (534352) seeded
+> from the pre-deprecation config and needs the removal call.
+
+**Source-only chains.** Some networks have a live HopV2 spoke (so FraxFacet can be
+deployed there and bridge **out**) but no `mappings` entry, which makes them unusable as a
+**destination** — currently `katana`, `somnia`, `stable` and `tempo`. Tempo is the notable
+one: the full TIP20 source path is implemented, yet `destinationChainId == 4217` reverts
+`UnsupportedChainId` until a mapping is added. This is launch scoping, resolved together
+with the BE integration (EXP-514); add the entries with `setFraxChainIdToEid` when those
+destinations go live.
 
 ## Tempo (EndpointV2Alt) special case
 
@@ -161,12 +235,13 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 Some methods accept a `BridgeData _bridgeData` parameter.
 
 This parameter carries both analytics metadata and enforced fields. The metadata
-(`transactionId`, `integrator`, `referrer`, and — for FraxFacet — `destinationChainId`)
-is used to emit events that we can later track and index in our subgraphs. The
-remaining fields are load-bearing: FraxFacet validates and acts on `sendingAssetId`
-(the OFT token pulled and bridged), `receiver` (encoded as the destination recipient),
-and `minAmount` (the amount deposited and bridged). `BridgeData` and the events we can
-emit can be found [here](../src/Interfaces/ILiFi.sol).
+(`transactionId`, `integrator`, `referrer`) is used to emit events that we can later
+track and index in our subgraphs. The remaining fields are load-bearing: FraxFacet
+validates and acts on `sendingAssetId` (the OFT token pulled and bridged), `receiver`
+(encoded as the destination recipient), `minAmount` (the amount deposited and bridged),
+and `destinationChainId` (cross-checked against `fraxData.dstEid` via the seeded
+chainId → EID mapping). `BridgeData` and the events we can emit can be found
+[here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

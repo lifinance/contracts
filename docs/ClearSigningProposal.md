@@ -48,7 +48,7 @@ The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a So
 Two shapes, keyed by `bridgeFacetName()`:
 
 - **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrow`(+`V2`), `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
-- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
+- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`, `Frax`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
 
 > **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
 
