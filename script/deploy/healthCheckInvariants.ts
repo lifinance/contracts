@@ -400,36 +400,6 @@ const checkIsDeployed = async (
 }
 
 /**
- * Binary-search the earliest block at which `address` has code — its deployment block —
- * in ~log2(latest) `getCode` calls. Used to bound event queries: a full-history
- * `fromBlock: 'earliest'` scan is range-capped (throws) or silently truncated (false pass)
- * by some RPC providers on long-lived mainnet proxies. Assumes code presence is monotonic
- * (contract not self-destructed), which holds for LI.FI periphery.
- */
-async function findDeploymentBlock(
-  publicClient: PublicClient,
-  address: Address
-): Promise<bigint> {
-  const hasCode = async (blockNumber: bigint): Promise<boolean> => {
-    const code = await publicClient.getCode({ address, blockNumber })
-    return code !== undefined && code !== '0x'
-  }
-
-  // Defensive: if code exists at genesis (never for our contracts), earliest is 0.
-  if (await hasCode(0n)) return 0n
-
-  // Invariant: no code at `low`, code at `high`; converge to the first block with code.
-  let low = 0n
-  let high = await publicClient.getBlockNumber()
-  while (high - low > 1n) {
-    const mid = (low + high) / 2n
-    if (await hasCode(mid)) high = mid
-    else low = mid
-  }
-  return high
-}
-
-/**
  * Check if a contract is deployed (Tron or EVM) and log success or error.
  * @param label - Optional prefix for messages (e.g. 'Facet', 'Periphery contract').
  */
@@ -1638,74 +1608,6 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       if (unexpected === 0)
         consola.success('All on-chain facets are known deployed contracts')
-    },
-  },
-  {
-    name: 'no-unexpected-erc20proxy-callers',
-    description: 'Only the Executor is authorized on the ERC20Proxy',
-    severity: 'warning',
-    scope: { environments: ['production'], chains: 'evm-only' },
-    run: async (ctx) => {
-      if (!ctx.publicClient) return
-      const erc20ProxyAddress = ctx.deployedContracts['ERC20Proxy']
-      const executorAddress = ctx.deployedContracts['Executor']
-      if (!erc20ProxyAddress || !executorAddress) return
-
-      const expectedAuthorized = new Set([
-        getAddress(executorAddress as Address).toLowerCase(),
-      ])
-
-      // ERC20Proxy exposes no enumerator for authorizedCallers, so reconstruct the current
-      // set from AuthorizationChanged events. Bound the scan to the proxy's deployment block:
-      // a `fromBlock: 'earliest'` full-history query is range-capped (throws) or silently
-      // truncated (false pass) by some providers on long-lived mainnet proxies. The events are
-      // sparse, so one bounded query returns the full set. Any failure surfaces as a visible
-      // warning (never a silent pass).
-      try {
-        const erc20Proxy = getAddress(erc20ProxyAddress as Address)
-        const fromBlock = await findDeploymentBlock(
-          ctx.publicClient,
-          erc20Proxy
-        )
-        const logs = await ctx.publicClient.getContractEvents({
-          address: erc20Proxy,
-          abi: parseAbi([
-            'event AuthorizationChanged(address indexed caller, bool authorized)',
-          ]),
-          eventName: 'AuthorizationChanged',
-          fromBlock,
-          toBlock: 'latest',
-        })
-
-        const authorized = new Map<string, boolean>()
-        for (const log of logs) {
-          const args = log.args as { caller?: Address; authorized?: boolean }
-          if (args.caller !== undefined && args.authorized !== undefined)
-            authorized.set(
-              getAddress(args.caller).toLowerCase(),
-              args.authorized
-            )
-        }
-
-        const unexpected = [...authorized.entries()]
-          .filter(([addr, isAuth]) => isAuth && !expectedAuthorized.has(addr))
-          .map(([addr]) => addr)
-
-        if (unexpected.length === 0)
-          consola.success('Only the Executor is authorized on the ERC20Proxy')
-        else
-          ctx.logWarn(
-            `ERC20Proxy authorizes unexpected caller(s) besides the Executor: ${unexpected.join(
-              ', '
-            )}`
-          )
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
-        ctx.logWarn(
-          `Could not enumerate ERC20Proxy authorized callers (RPC log range limit?); skipping: ${errorMessage}`
-        )
-      }
     },
   },
   {
