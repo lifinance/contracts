@@ -136,6 +136,10 @@
       "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xdDD06Fc81cbDd2eAd260Dfb6670bEaE5B2c0B2DF": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
