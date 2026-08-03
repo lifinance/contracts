@@ -76,6 +76,10 @@
       "0x58EBB75C51da4e2d19329B571dC75d815cd59915": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
+      },
+      "0x6E3D79b7C48A86f6be1EFffe9665916Cd33e73e9": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

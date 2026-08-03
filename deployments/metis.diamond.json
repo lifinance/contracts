@@ -64,6 +64,10 @@
       "0x7865919678265435472756b59D5141D0F76312E1": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
+      },
+      "0x7f8ba758F626d711C249e20383D5f1E5632e964d": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
