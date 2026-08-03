@@ -148,6 +148,10 @@
       "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0xa0353221443CA4E2e6A040F30A57B47F5A6d479D": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

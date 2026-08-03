@@ -100,6 +100,10 @@
       "0xA338ac518a0aE28d75e0610BD78329241984d49A": {
         "Name": "EcoFacet",
         "Version": "1.1.0"
+      },
+      "0xf62aA4583bD1F0c0fBbd99D333C5F96030a1ab3F": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

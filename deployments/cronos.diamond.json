@@ -60,6 +60,10 @@
       "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
+      },
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -68,8 +72,8 @@
       "FeeCollector": "0x11d40Dc8Ff0CE92F54A315aD8e674a55a866cBEe",
       "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
