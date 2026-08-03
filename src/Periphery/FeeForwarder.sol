@@ -8,7 +8,10 @@ import { InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
 /// @notice Forwards various fee amounts to designated recipients
-/// @custom:version 1.0.0
+/// @dev This contract is not intended to custody funds; any native balance is transient
+///      within a single call. Stray balances remain recoverable by the owner via
+///      WithdrawablePeriphery and are never paid out as a caller refund.
+/// @custom:version 2.0.0
 contract FeeForwarder is WithdrawablePeriphery {
     /// Types ///
 
@@ -73,7 +76,7 @@ contract FeeForwarder is WithdrawablePeriphery {
     }
 
     /// @notice Forwards native token fees to the specified recipients
-    /// @dev Any excess native tokens sent will be refunded to the caller. Transaction will revert if insufficient funds.
+    /// @dev The unspent part of msg.value will be refunded to the caller. Transaction will revert if insufficient funds.
     ///      The tx will not revert if the array is empty, but will still emit the FeesForwarded event.
     /// @param _distributions Array of fee distributions containing recipients and amounts
     function forwardNativeFees(
@@ -85,11 +88,14 @@ contract FeeForwarder is WithdrawablePeriphery {
         // the tx will revert anyway in this case
 
         // forward all native fee amounts to the recipients
+        uint256 totalDistributed;
         FeeDistribution calldata distribution;
         for (uint256 i; i < _distributions.length; ++i) {
             distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
+
+            totalDistributed += distribution.amount;
 
             LibAsset.transferNativeAsset(
                 payable(distribution.recipient),
@@ -97,15 +103,15 @@ contract FeeForwarder is WithdrawablePeriphery {
             );
         }
 
-        // return any remaining native tokens to the caller
-        // since the contract is designed to not hold any funds and does not collect any dust
-        // we can safely return the remaining native balance to the caller
-        uint256 remainingNativeBalance = address(this).balance;
-        if (remainingNativeBalance != 0) {
-            LibAsset.transferNativeAsset(
-                payable(msg.sender),
-                remainingNativeBalance
-            );
+        // refund the unspent part of msg.value, not the contract's balance:
+        // recipients receive native funds with all gas forwarded and can call back into
+        // this function, so a balance-based refund would let them claim value that belongs
+        // to another (possibly still executing) invocation. The checked subtraction also
+        // rejects distributing more than the caller funded, which would otherwise draw on
+        // a stray balance or on a parent call's undistributed funds.
+        uint256 refundAmount = msg.value - totalDistributed;
+        if (refundAmount != 0) {
+            LibAsset.transferNativeAsset(payable(msg.sender), refundAmount);
         }
 
         emit FeesForwarded(LibAsset.NULL_ADDRESS, _distributions);

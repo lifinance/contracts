@@ -14,7 +14,8 @@ The contract implements several gas optimizations to minimize transaction costs:
 - **No Balance/Approval Checks**: The contract relies on natural failures when insufficient balance or approvals exist (saves ~2,000-3,000 gas)
 - **No Zero Amount Validation**: Zero amounts are allowed and will succeed but transfer nothing (saves ~1,000-2,000 gas)
 - **Single Loop for Native Fees**: Uses one optimized loop instead of separate validation and transfer loops (saves ~5,000-10,000 gas)
-- **Unchecked Loop Increments**: Loop counters use `unchecked` arithmetic for gas efficiency
+
+The native refund is derived from `msg.value` minus the sum of the distributed amounts rather than from the contract's balance. Summing the distributions inside the existing loop costs roughly 170 gas for one distribution and 340 gas for three — accepted deliberately, see [Security Considerations](#security-considerations).
 
 ## How To Use
 
@@ -52,10 +53,11 @@ function forwardNativeFees(
 **Important Notes:**
 
 - Provide at least the sum of all fee amounts via `msg.value`
-- Any excess value is automatically returned to the caller
+- The unspent part of `msg.value` is automatically returned to the caller
 - Empty arrays will succeed, emit the FeesForwarded event, and refund all sent value
 - Zero amounts will succeed but transfer nothing
 - Transaction will revert if insufficient funds are provided
+- A balance already sitting in the contract is never paid out as a refund; only the owner can recover it
 
 ## Data Structures
 
@@ -88,13 +90,15 @@ The contract uses minimal error checking for gas optimization:
 - **InvalidConfig**: Thrown when constructor receives zero address as owner
 - **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset)
 - **Natural Failures**: Insufficient balance, approvals, or native value will cause natural reverts
+- **Arithmetic Panic (0x11)**: Thrown by `forwardNativeFees` when the distributions sum to more than `msg.value`, which would otherwise draw on funds the caller did not provide
 
 ## Security Considerations
 
 - **Owner Recovery**: The contract inherits from `WithdrawablePeriphery`, enabling the owner to recover stray funds
 - **No Fund Accumulation**: The contract is designed to not hold any funds and does not collect dust
-- **Automatic Refunds**: All excess native tokens are automatically returned to the caller
+- **Automatic Refunds**: The unspent part of `msg.value` is automatically returned to the caller
 - **Zero Address Protection**: Zero recipient addresses are validated and will revert
+- **Reentrancy**: Native fees are paid out with all gas forwarded, so a recipient can call back into `forwardNativeFees` while the outer call is still running. Because each invocation refunds `msg.value` minus its own distributions, a nested call can never be paid from the outer call's undistributed funds or from a stray balance — the checked subtraction reverts instead. This makes a `nonReentrant` guard unnecessary and keeps the function at a single storage-free execution path.
 
 ## Gas Usage Estimates
 
