@@ -436,7 +436,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -1123,7 +1124,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -1201,7 +1203,8 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -1689,7 +1692,8 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "LayerSwapFacet": "1.0.0"
+        "LayerSwapFacet": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -1940,7 +1944,8 @@
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
         "GlacisFacet": "1.2.0",
-        "LayerSwapFacet": "1.0.0"
+        "LayerSwapFacet": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -2172,7 +2177,8 @@
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
         "GlacisFacet": "1.2.0",
-        "PolymerCCTPFacet": "3.0.0"
+        "PolymerCCTPFacet": "3.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -2272,7 +2278,8 @@
         "TokenWrapper": "1.2.1",
         "AcrossFacetV4": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -2330,7 +2337,8 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "PolymerCCTPFacet": "3.0.0"
+        "PolymerCCTPFacet": "3.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
