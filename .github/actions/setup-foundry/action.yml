@@ -1,26 +1,37 @@
 # Composite action: install pinned foundry + verify (with caching)
 # - Reads .foundry-version from the checked-out repo
 # - Installs foundry at that version via foundry-rs/foundry-toolchain
-# - Restores ~/.foundry / ~/.svm (solc downloads) and cache/ + out/ (forge build artifacts)
-#   between runs to skip redundant downloads and recompilation.
+# - Restores three disjoint caches between runs to skip redundant work: foundry/solc binaries
+#   (~/.foundry/bin + share + versions, ~/.svm), forge build artifacts (cache/ + out/), and
+#   forked-chain state (~/.foundry/cache/rpc). Disjoint is load-bearing — see the RPC step.
 # - Verifies the installed binary matches the pin (catches action regressions or input typos)
 # Used by every workflow that needs forge/cast/anvil so a single pin source
 # (.foundry-version) flows everywhere.
 name: Setup Foundry
-description: Install pinned foundry from .foundry-version, restore solc + forge build caches, and verify the installed binary matches.
+description: Install pinned foundry from .foundry-version, restore the solc, forge-build and fork-RPC caches, and verify the installed binary matches.
 
 inputs:
   cache-key-suffix:
     description: >-
-      Extra segment folded into the forge-build cache key. Required whenever a
-      single workflow runs more than one build SCOPE in parallel — e.g. matrix
-      shards that each `forge test --match-path <subset>` and therefore compile
-      a different partial out/. Pass the shard id (e.g. matrix.shard) so each
-      scope owns its own cache; otherwise the shards share one key and the first
-      to finish poisons the rest with its partial out/. Leave empty for
-      workflows that produce a single, consistent out/.
+      Extra segment folded into the forge-build AND foundry-rpc cache keys.
+      Required whenever a single workflow runs more than one SCOPE in parallel —
+      e.g. matrix shards that each `forge test --match-path <subset>` and
+      therefore compile a different partial out/ and touch a different set of
+      forked chains. Pass the shard id (e.g. matrix.shard) so each scope owns its
+      own caches; otherwise the shards share one key and the first to finish
+      poisons the rest with its partial out/ and its partial RPC state. Leave
+      empty for workflows that produce a single, consistent out/.
     required: false
     default: ""
+  rpc-cache-refresh:
+    description: >-
+      Set to "true" for workflows whose fork-RPC state is worth accumulating —
+      in practice the forge test suites. It makes the RPC cache key unhittable
+      so each green run saves a warmer entry (see the RPC cache step). Leave at
+      the default for workflows that barely fork: they would each add a cache
+      entry per run for no gain, and crowd out the entries that matter.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -37,26 +48,46 @@ runs:
         fi
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    - name: Compute fork block pin hash
+    - name: Compute RPC cache key segments
       id: fork_blocks
       shell: bash
+      env:
+        RPC_CACHE_REFRESH: ${{ inputs.rpc-cache-refresh }}
+        WORKFLOW_RUN_ID: ${{ github.run_id }}
+        WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
       run: |
         set -euo pipefail
         hash="$(bash script/utils/hashForkBlockPins.sh)"
-        if [ -z "$hash" ]; then
+        if [[ -z "$hash" ]]; then
           echo "::error::hashForkBlockPins.sh returned empty hash"
           exit 1
         fi
         echo "hash=${hash}" >> "$GITHUB_OUTPUT"
 
+        # A per-run segment makes the primary key unhittable: actions/cache skips its
+        # post-run save on an exact hit, so a key that always matches can never be
+        # refreshed once a cold entry lands.
+        if [[ "$RPC_CACHE_REFRESH" == "true" ]]; then
+          echo "refresh=-${WORKFLOW_RUN_ID}-${WORKFLOW_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        else
+          echo "refresh=" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Cache Foundry RPC state
-      # Fork tests pin deterministic blocks; RPC cache is stable across runs until pins change.
+      # Fork tests pin deterministic blocks, so the fetched state stays valid until a pin moves.
+      # This step is the SOLE owner of ~/.foundry/cache/rpc — the toolchain cache below does not
+      # cover it and foundry-toolchain's own caching is off. When two actions cache overlapping
+      # paths the one restoring last wins, so a staler superset silently discards fresher state.
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: ~/.foundry/cache/rpc
-        key: foundry-rpc-${{ runner.os }}-${{ steps.fork_blocks.outputs.hash }}
+        # `refresh` is empty unless rpc-cache-refresh is on, in which case it makes this key
+        # unhittable so every green run saves a warmer entry and the restore-keys below pick
+        # up the newest match.
+        key: foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-${{ steps.fork_blocks.outputs.hash }}${{ steps.fork_blocks.outputs.refresh }}
         restore-keys: |
-          foundry-rpc-${{ runner.os }}-
+          foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-${{ steps.fork_blocks.outputs.hash }}-
+          foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-
 
     - name: Cache Foundry toolchain state (svm + foundryup)
       # Restored before the install step so foundry-toolchain can detect an existing
@@ -65,8 +96,12 @@ runs:
       # never mix solc binaries across foundry versions.
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
+        # Enumerated rather than all of ~/.foundry, which also holds cache/rpc: a
+        # superset path would make this the last writer over the RPC state above.
         path: |
-          ~/.foundry
+          ~/.foundry/bin
+          ~/.foundry/share
+          ~/.foundry/versions
           ~/.svm
         key: foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml') }}
         restore-keys: |
@@ -76,6 +111,10 @@ runs:
       uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
       with:
         version: ${{ steps.pin.outputs.version }}
+        # Its built-in cache covers ~/.foundry/cache with a key of
+        # <job>-<sha> — shared by every matrix shard, and its save is
+        # post-if: success(), so a failing shard never contributes state.
+        cache: false
 
     - name: Cache forge build artifacts (cache/, out/)
       uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

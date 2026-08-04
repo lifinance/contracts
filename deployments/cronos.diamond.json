@@ -25,9 +25,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x51F82dB191b8A486b89336950D6bAF2d323b9585": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -57,9 +57,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
+      "0x5E79e8C67CC7FEd03b283E84A5e16500f094B6b5": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       }
     },
     "Periphery": {

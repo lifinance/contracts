@@ -353,15 +353,22 @@ export const getContractAddressForNetwork = async (
  * @param contractName - Name of the contract (used to locate the compiled JSON)
  * @param excludes - Optional list of function selectors (with or without '0x') to exclude
  * @returns An array of function selectors as strings prefixed with '0x'
+ * @throws If the contract name resolves outside the build output directory, the compiled JSON is missing, or it contains no methodIdentifiers
  */
 export function getFunctionSelectors(
   contractName: string,
   excludes: string[] = []
 ): `0x${string}`[] {
   // Build the file path to the contract's compiled JSON file
+  const base = path.resolve('out')
   const filePath = path.resolve(
-    `./out/${contractName}.sol/${contractName}.json`
+    base,
+    `${contractName}.sol`,
+    `${contractName}.json`
   )
+  const relativePath = path.relative(base, filePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Invalid contract name: ${contractName}`)
 
   // Ensure the contract file exists
   if (!fs.existsSync(filePath))

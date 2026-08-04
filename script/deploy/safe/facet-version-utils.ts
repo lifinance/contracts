@@ -15,6 +15,50 @@ interface ICacheRecord {
   address?: string
 }
 
+const cachedProductionDeploymentRecordsByRoot = new Map<
+  string,
+  ICacheRecord[] | null
+>()
+
+function loadProductionDeploymentRecords(
+  rootDir: string = process.cwd()
+): ICacheRecord[] | null {
+  const base = path.resolve(rootDir)
+  const cached = cachedProductionDeploymentRecordsByRoot.get(base)
+  if (cached !== undefined) return cached
+
+  try {
+    const cachePath = path.resolve(
+      base,
+      '.cache',
+      'deployments_production.json'
+    )
+    const relative = path.relative(base, cachePath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      cachedProductionDeploymentRecordsByRoot.set(base, null)
+      return null
+    }
+    if (!fs.existsSync(cachePath)) {
+      cachedProductionDeploymentRecordsByRoot.set(base, null)
+      return null
+    }
+    const records: unknown = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
+    if (!Array.isArray(records)) {
+      cachedProductionDeploymentRecordsByRoot.set(base, null)
+      return null
+    }
+    const typedRecords = records as ICacheRecord[]
+    cachedProductionDeploymentRecordsByRoot.set(base, typedRecords)
+    return typedRecords
+  } catch {
+    // Transient read/parse faults (e.g. a partially-written cache during a
+    // concurrent refresh) must not permanently disable facet-version display —
+    // only the deterministic paths above (path escape, missing file, invalid
+    // shape) memoize null.
+    return null
+  }
+}
+
 /**
  * Resolves the version of a deployed contract from the deployment cache
  * (`.cache/deployments_production.json`) by matching its address.
@@ -33,24 +77,14 @@ export function getDeployedFacetVersionFromLog(
   rootDir: string = process.cwd()
 ): string | null {
   try {
-    const base = path.resolve(rootDir)
-    const cachePath = path.resolve(
-      base,
-      '.cache',
-      'deployments_production.json'
-    )
-    const relative = path.relative(base, cachePath)
-    if (relative.startsWith('..') || path.isAbsolute(relative)) return null
-    if (!fs.existsSync(cachePath)) return null
-    const records: unknown = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
-    if (!Array.isArray(records)) return null
+    const records = loadProductionDeploymentRecords(rootDir)
+    if (!records) return null
 
     const normalizedCandidates = addressCandidates
       .filter((a) => typeof a === 'string' && a.length > 0)
       .map((a) => a.toLowerCase())
     if (normalizedCandidates.length === 0) return null
 
-    const typedRecords = records as ICacheRecord[]
     const networkLower = network.toLowerCase()
 
     const matches = (r: ICacheRecord): boolean =>
@@ -59,14 +93,14 @@ export function getDeployedFacetVersionFromLog(
       normalizedCandidates.includes(r.address.toLowerCase())
 
     if (contractName) {
-      const named = typedRecords.find(
+      const named = records.find(
         (r) => r.contractName === contractName && matches(r)
       )
       if (named?.version) return named.version
     }
 
     // Address-based fallback: scan all records on this network
-    const found = typedRecords.find(matches)
+    const found = records.find(matches)
     return found?.version ?? null
   } catch {
     return null
