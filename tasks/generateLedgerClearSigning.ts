@@ -131,6 +131,17 @@ function readJsonFile<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, 'utf8')) as T
 }
 
+// All path args must stay inside the working directory (the repo checkout in
+// local runs; the workspace containing the ledger-registry clone in CI).
+function resolveWithinCwd(inputPath: string): string {
+  const base = process.cwd()
+  const absPath = path.resolve(base, inputPath)
+  const relativePath = path.relative(base, absPath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Path escapes the working directory: ${inputPath}`)
+  return absPath
+}
+
 function writePrettyJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
@@ -155,7 +166,7 @@ function mergeDisplayFormats(
   const next: ILedgerDisplay = { ...(existing ?? {}) }
   if (!proposalFilePath) return next
 
-  const absPath = path.resolve(process.cwd(), proposalFilePath)
+  const absPath = resolveWithinCwd(proposalFilePath)
   if (!fs.existsSync(absPath)) {
     console.warn(
       `Proposal file not found at ${absPath}; preserving display.* unchanged.`
@@ -540,22 +551,22 @@ const main = defineCommand({
           const filePath = args.ledgerFilePath
           if (!filePath) throw new Error('ledgerFilePath missing')
           return normalizeLedgerFile(
-            readJsonFile<unknown>(path.resolve(process.cwd(), filePath))
+            readJsonFile<unknown>(resolveWithinCwd(filePath))
           )
         })()
 
     const nextAbi = args.skipAbi
       ? undefined
       : buildDiamondAbiFromFacets(
-          path.resolve(process.cwd(), args.facetsDir),
-          path.resolve(process.cwd(), args.foundryOutDir)
+          resolveWithinCwd(args.facetsDir),
+          resolveWithinCwd(args.foundryOutDir)
         )
 
     const nextDeployments = args.skipDeployments
       ? undefined
       : buildDeploymentsFromRepo(
-          path.resolve(process.cwd(), args.deploymentsDir),
-          path.resolve(process.cwd(), args.networksJson)
+          resolveWithinCwd(args.deploymentsDir),
+          resolveWithinCwd(args.networksJson)
         )
 
     if (args.printDiff) {
@@ -658,9 +669,9 @@ const main = defineCommand({
     }
 
     const outputPath = args.outputFilePath
-      ? path.resolve(process.cwd(), args.outputFilePath)
+      ? resolveWithinCwd(args.outputFilePath)
       : args.ledgerFilePath
-      ? path.resolve(process.cwd(), args.ledgerFilePath)
+      ? resolveWithinCwd(args.ledgerFilePath)
       : undefined
 
     if (!outputPath) {
