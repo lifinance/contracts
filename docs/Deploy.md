@@ -92,7 +92,7 @@ When bytecode is already in `deployments/<network>.json` (deferred diamond cuts,
 ./script/tasks/proposeContractToNetworks.sh MayanFacet --all-where-deployed --production
 ```
 
-Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`. Design: [docs/superpowers/specs/2026-07-30-propose-contract-to-networks-design.md](superpowers/specs/2026-07-30-propose-contract-to-networks-design.md).
+Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 
