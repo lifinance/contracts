@@ -539,3 +539,257 @@ describe('safeTxStatusConsumedNonce', () => {
     expect(safeTxStatusConsumedNonce('pending')).toBe(false)
   })
 })
+
+describe('decodeDiamondCut selector resolution', () => {
+  it('resolves all unknown selectors in a single batched 4byte request', async () => {
+    const { decodeDiamondCut } = await import('./safe-utils')
+    const originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    const testCachePath = `${
+      process.env.TMPDIR ?? '/tmp'
+    }/selector-cache-test-${Date.now()}.json`
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = testCachePath
+    const originalFetch = globalThis.fetch
+    let fetchCalls = 0
+    globalThis.fetch = (async () => {
+      fetchCalls++
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            function: {
+              '0xdeadbe01': [{ name: 'unknownFn1()' }],
+              '0xdeadbe02': [{ name: 'unknownFn2()' }],
+              '0xdeadbe03': [{ name: 'unknownFn3()' }],
+            },
+            event: {},
+          },
+        })
+      )
+    }) as unknown as typeof fetch
+    try {
+      await decodeDiamondCut(
+        {
+          functionName: 'diamondCut',
+          args: [
+            [
+              [
+                '0x0000000000000000000000000000000000000000',
+                2, // Remove
+                ['0xdeadbe01', '0xdeadbe02', '0xdeadbe03'],
+              ],
+            ],
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+          ],
+        },
+        1
+      )
+      expect(fetchCalls).toBeLessThanOrEqual(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      if (originalCachePath === undefined)
+        delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+      else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+      const { unlinkSync } = await import('fs')
+      try {
+        unlinkSync(testCachePath)
+      } catch {
+        // never written — nothing to clean up
+      }
+    }
+  })
+})
+
+describe('safeClientPoolKey', () => {
+  it('derives the address from a private key — no key material in the key', async () => {
+    const { safeClientPoolKey } = await import('./safe-utils')
+    // Well-known anvil test key #0 (public), address 0xf39F...2266
+    const anvilKey =
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' // pre-commit-checker: not a secret — public anvil dev key
+    const key = safeClientPoolKey(
+      'mainnet',
+      '0x0000000000000000000000000000000000000abc' as Address,
+      undefined,
+      anvilKey
+    )
+    expect(key).toContain('0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266')
+    expect(key).not.toContain(anvilKey.slice(2, 10))
+  })
+
+  it('prefers the account address and lowercases all parts', async () => {
+    const { safeClientPoolKey } = await import('./safe-utils')
+    const key = safeClientPoolKey(
+      'MAINNET',
+      '0x0000000000000000000000000000000000000ABC' as Address,
+      { address: '0x1111111111111111111111111111111111111111' } as never,
+      undefined
+    )
+    expect(key).toBe(
+      'mainnet:0x0000000000000000000000000000000000000abc:0x1111111111111111111111111111111111111111'
+    )
+  })
+
+  it('falls back to a ledger marker without key material', async () => {
+    const { safeClientPoolKey } = await import('./safe-utils')
+    const key = safeClientPoolKey(
+      'mainnet',
+      '0x0000000000000000000000000000000000000abc' as Address,
+      undefined,
+      undefined
+    )
+    expect(key.endsWith(':ledger')).toBe(true)
+  })
+})
+
+describe('getOrCreatePooledPromise', () => {
+  it('dedups concurrent callers onto the same promise', async () => {
+    const { getOrCreatePooledPromise } = await import('./safe-utils')
+    const pool = new Map<string, Promise<string>>()
+    let factoryCalls = 0
+    const factory = async () => {
+      factoryCalls++
+      return 'client'
+    }
+    const p1 = getOrCreatePooledPromise(pool, 'k', factory)
+    const p2 = getOrCreatePooledPromise(pool, 'k', factory)
+    expect(p1).toBe(p2)
+    expect(await p1).toBe('client')
+    expect(factoryCalls).toBe(1)
+  })
+
+  it('evicts a rejected promise so the next call retries', async () => {
+    const { getOrCreatePooledPromise } = await import('./safe-utils')
+    const pool = new Map<string, Promise<string>>()
+    let factoryCalls = 0
+    const factory = async () => {
+      factoryCalls++
+      if (factoryCalls === 1) throw new Error('transient RPC blip')
+      return 'client'
+    }
+    let firstError: unknown
+    try {
+      await getOrCreatePooledPromise(pool, 'k', factory)
+    } catch (error) {
+      firstError = error
+    }
+    expect((firstError as Error).message).toBe('transient RPC blip')
+    expect(pool.has('k')).toBe(false)
+    expect(await getOrCreatePooledPromise(pool, 'k', factory)).toBe('client')
+    expect(factoryCalls).toBe(2)
+  })
+
+  it('does not evict a newer replacement entry on stale rejection', async () => {
+    const { getOrCreatePooledPromise } = await import('./safe-utils')
+    const pool = new Map<string, Promise<string>>()
+    let rejectFirst: ((e: Error) => void) | undefined
+    const first = getOrCreatePooledPromise(
+      pool,
+      'k',
+      () =>
+        new Promise<string>((_, reject) => {
+          rejectFirst = reject
+        })
+    )
+    // Simulate an out-of-band replacement (e.g. manual eviction + re-init)
+    const replacement = Promise.resolve('replacement')
+    pool.set('k', replacement)
+    rejectFirst?.(new Error('stale failure'))
+    let staleError: unknown
+    try {
+      await first
+    } catch (error) {
+      staleError = error
+    }
+    expect((staleError as Error).message).toBe('stale failure')
+    expect(pool.get('k')).toBe(replacement)
+  })
+})
+
+describe('releaseAllPooledSafeClients', () => {
+  it('cleans up every pooled client, tolerates failures, and clears the pool', async () => {
+    const { releaseAllPooledSafeClients } = await import('./safe-utils')
+    const cleaned: string[] = []
+    const makeBundle = (name: string, failCleanup = false) =>
+      Promise.resolve({
+        safe: {
+          cleanup: async () => {
+            if (failCleanup) throw new Error(`cleanup failed for ${name}`)
+            cleaned.push(name)
+          },
+        },
+        chain: undefined,
+        safeAddress: '0x0' as Address,
+      }) as never
+    const pool = new Map([
+      ['a', makeBundle('a')],
+      ['b', makeBundle('b', true)],
+      ['c', makeBundle('c')],
+    ])
+    await releaseAllPooledSafeClients(pool as never)
+    expect(cleaned.sort()).toEqual(['a', 'c'])
+    expect(pool.size).toBe(0)
+  })
+
+  it('does not hang on a never-settling in-flight client and still clears the pool', async () => {
+    const { releaseAllPooledSafeClients } = await import('./safe-utils')
+    // A pooled promise that never resolves (e.g. a prefetch init against a hung
+    // RPC) must not stall shutdown past the timeout.
+    const pool = new Map([['stuck', new Promise(() => undefined)]])
+    const startedAt = Date.now()
+    await releaseAllPooledSafeClients(pool as never, 20) // 20ms deadline
+    expect(Date.now() - startedAt).toBeLessThan(1000)
+    expect(pool.size).toBe(0)
+  })
+})
+
+describe('SafeClient.signTransaction chain id source', () => {
+  const makeClient = async (knownChainId?: number) => {
+    const { SafeClient } = await import('./safe-utils')
+    const { privateKeyToAccount } = await import('viem/accounts')
+    const account = privateKeyToAccount(
+      '0x0000000000000000000000000000000000000000000000000000000000000001'
+    )
+    let rpcChainIdCalls = 0
+    const domains: { chainId: number }[] = []
+    const publicClient = {
+      getChainId: async () => {
+        rpcChainIdCalls++
+        return 999
+      },
+    }
+    const walletClient = {
+      signTypedData: async (params: { domain: { chainId: number } }) => {
+        domains.push(params.domain)
+        return `0x${'ab'.repeat(65)}`
+      },
+    }
+    const client = new SafeClient(
+      publicClient as never,
+      walletClient as never,
+      SAFE_ADDR,
+      account,
+      undefined,
+      knownChainId
+    )
+    return {
+      client,
+      domains,
+      rpcChainIdCalls: () => rpcChainIdCalls,
+    }
+  }
+
+  it('uses the config-resolved chain id without an RPC round trip', async () => {
+    const { client, domains, rpcChainIdCalls } = await makeClient(42161)
+    const signed = await client.signTransaction(buildSafeTx())
+    expect(rpcChainIdCalls()).toBe(0)
+    expect(domains[0]?.chainId).toBe(42161)
+    expect(signed.signatures.size).toBe(1)
+  })
+
+  it('falls back to the RPC chain id when no config id is known', async () => {
+    const { client, domains, rpcChainIdCalls } = await makeClient(undefined)
+    await client.signTransaction(buildSafeTx())
+    expect(rpcChainIdCalls()).toBe(1)
+    expect(domains[0]?.chainId).toBe(999)
+  })
+})

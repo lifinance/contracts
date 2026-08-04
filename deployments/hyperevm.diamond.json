@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xf4B09365c10cCD3def7C215c5533904EA7526Ab5": {
+      "0xb672927122660a0B89faA3af30d13609174D9Df4": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0xbA1201E531C11DEfB602B35398e753f148A762f1": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xF3B43c21A8423E45C2dd3321ce067F5603bC9369": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x2B47C16Cd8B53a4f502580A030de1E83dDCB677d": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xa12D48dBf4248d702D5b41e271742914D7d8A321": {
         "Name": "GenericSwapFacetV3",
@@ -61,9 +61,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xfA7182a7274156bc5DD3f489689Fc4d44aF51Da9": {
+      "0x20A7ea2d139fCBCB01C021e58FEC16583137D9b5": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
         "Name": "RelayDepositoryFacet",

@@ -44,6 +44,21 @@ Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM: `BridgeData.rece
 - **Unvalidated receiver.** Unlike HyperCore, the strkey is not a 20-byte EVM address, so the facet cannot validate it against `BridgeData.receiver`, and it is not cross-checked against the `nonEVMReceiver` emitted in `BridgeToNonEVMChainBytes32`. Correct routing relies entirely on trusted (LI.FI API) calldata generation; integrators MUST treat the Stellar receiver as not enforced on-chain.
 - **Version byte.** The hook version bytes `[24:28]` are intentionally not validated on-chain, matching the HyperCore corridor: the facet trusts the calldata source and relies on Circle's Stellar forwarder to reject a wrong-version hook (which would otherwise leave the transfer burned-but-unmintable). An on-chain version check is a possible future hardening, not a current guarantee.
 
+## Solana deposits
+
+Solana (`LIFI_CHAIN_ID_SOLANA`, CCTP domain `5`) is non-EVM and carries **no** forwarder hook: `BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the recipient travels in two separate `PolymerCCTPData` fields.
+
+- `solanaReceiverATA` — the recipient's USDC Associated Token Account. This is the CCTP `mintRecipient`, because CCTP mints SPL tokens into a token account, not into a wallet.
+- `nonEVMReceiver` — the recipient **owner wallet**. This is what the facet emits as the `receiver` of `BridgeToNonEVMChainBytes32`.
+
+Both are required to be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `InvalidConfig` for a zero `solanaReceiverATA`), and `hookData` must be empty.
+
+Emitting the **wallet** rather than the ATA is deliberate: the off-chain relayer derives the ATA from the emitted receiver. If the event carried a token account, the relayer would derive an ATA _of_ a token account — a junk address that leaks rent in SOL and can make the mint revert. This is the fix in [EXP-612](https://linear.app/lifi-linear/issue/EXP-612); the LI.FI API is responsible for resolving a user-pasted token account back to its owner wallet and deriving the real ATA.
+
+### Trust assumptions
+
+- **Unvalidated receiver.** Neither field is a 20-byte EVM address, so — as with Stellar — the facet cannot validate them against `BridgeData.receiver`, and it cannot check on-chain that `solanaReceiverATA` really is the USDC ATA of `nonEVMReceiver`. A mismatch would mint to one account while the event advertises an unrelated wallet. Consistency rests entirely on trusted (LI.FI API) calldata generation; integrators MUST treat the Solana receiver as not enforced on-chain.
+
 ## Public Methods
 
 - `function startBridgeTokensViaPolymerCCTP(BridgeData memory _bridgeData, PolymerCCTPData calldata _polymerData)`
@@ -78,9 +93,12 @@ struct PolymerCCTPData {
   uint256 polymerTokenFee;
   // maximum fee to paid on the destination domain through the difference between burned tokens on src chain and minted token on dest chain, specified in units of burnToken
   uint256 maxCCTPFee;
-  // Should only be nonzero if submitting to a nonEVM chain
+  // The non-EVM recipient emitted in BridgeToNonEVMChainBytes32. Should only be nonzero
+  // if submitting to a nonEVM chain; required for Stellar and Solana. For Solana this is
+  // the recipient's owner wallet (NOT a token account) — the relayer derives the ATA from it.
   bytes32 nonEVMReceiver;
-  // For Solana: the receiver's Associated Token Account (ATA) for USDC
+  // For Solana: the receiver's Associated Token Account (ATA) for USDC. Used as the
+  // CCTP mintRecipient; must be the USDC ATA of nonEVMReceiver.
   bytes32 solanaReceiverATA;
   // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
   // 1000 = fast path, 2000 = standard path
