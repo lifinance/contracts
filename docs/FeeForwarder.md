@@ -15,7 +15,7 @@ The contract implements several gas optimizations to minimize transaction costs:
 - **No Zero Amount Validation**: Zero amounts are allowed and will succeed but transfer nothing (saves ~1,000-2,000 gas)
 - **Single Loop for Native Fees**: Uses one optimized loop instead of separate validation and transfer loops (saves ~5,000-10,000 gas)
 
-The native refund is derived from `msg.value` minus the sum of the distributed amounts rather than from the contract's balance. Summing the distributions inside the existing loop costs roughly 170 gas for one distribution and 340 gas for three — accepted deliberately, see [Security Considerations](#security-considerations).
+The native refund is derived from `msg.value` minus the sum of the distributed amounts rather than from the contract's balance. Summing the distributions inside the existing loop costs a measured +166 gas for one distribution, +252 for two and +338 for three — accepted deliberately, see [Security Considerations](#security-considerations).
 
 ## How To Use
 
@@ -98,7 +98,7 @@ The contract uses minimal error checking for gas optimization:
 - **No Fund Accumulation**: The contract is designed to not hold any funds and does not collect dust
 - **Automatic Refunds**: The unspent part of `msg.value` is automatically returned to the caller
 - **Zero Address Protection**: Zero recipient addresses are validated and will revert
-- **Reentrancy**: Native fees are paid out with all gas forwarded, so a recipient can call back into `forwardNativeFees` while the outer call is still running. Because each invocation refunds `msg.value` minus its own distributions, a nested call can never be paid from the outer call's undistributed funds or from a stray balance — the checked subtraction reverts instead. This makes a `nonReentrant` guard unnecessary and keeps the function at a single storage-free execution path.
+- **Reentrancy**: Native fees are paid out with all gas forwarded, so a recipient can call back into `forwardNativeFees` while the outer call is still running. Re-entry is not blocked; it is made unprofitable. Because each invocation refunds `msg.value` minus its own distributions, a nested call can never be paid from the outer call's undistributed funds or from a stray balance — the checked subtraction reverts instead. The outer call then completes normally, so a malicious recipient cannot use this to grief the surrounding route either. A `nonReentrant` guard would produce the same outcome but costs a measured +7,266 gas per call on this contract (a quarter of a single native distribution), because the repo's guard writes a storage slot and Solidity 0.8.17 has no transient storage.
 
 ## Gas Usage Estimates
 

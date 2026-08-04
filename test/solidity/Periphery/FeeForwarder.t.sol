@@ -685,6 +685,38 @@ contract FeeForwarderTest is TestBase {
         assertEq(address(feeForwarder).balance, 0);
     }
 
+    function test_ForwardNativeFeesReentrancyWithNoRefundOutstandingGainsNothing()
+        public
+    {
+        // Arrange - exact value, so the outer invocation owes no refund at all
+        ReentrantFeeRecipient attacker = new ReentrantFeeRecipient(
+            feeForwarder
+        );
+
+        attacker.arm({ _reentryAmount: 0, _reentryValue: 0 });
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: address(attacker),
+            amount: AMOUNT_NATIVE_SMALL
+        }); // 0.1 ether
+
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // Act
+        vm.prank(USER_SENDER);
+        feeForwarder.forwardNativeFees{ value: AMOUNT_NATIVE_SMALL }(
+            distributions
+        );
+
+        // Assert - nested call refunded zero, recipient kept only its authorized fee
+        assertTrue(attacker.reentrySucceeded());
+        assertEq(address(attacker).balance, AMOUNT_NATIVE_SMALL); // 0.1 ether
+        assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
+        assertEq(address(feeForwarder).balance, 0);
+    }
+
     function test_ForwardNativeFeesAllowsReentrantRecipientToForwardOwnValue()
         public
     {
