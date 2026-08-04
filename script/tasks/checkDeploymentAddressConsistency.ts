@@ -24,7 +24,12 @@ export interface INetworkSources {
   whitelistPeriphery: Record<string, string>
   deploymentFlat: Record<string, string>
   diamondPeriphery: Record<string, string>
-  diamondFacets: Record<string, string>
+  /**
+   * Facet name to every address registered under that name in the diamond. A
+   * name maps to more than one address whenever an older version still serves
+   * selectors the newer one did not take over.
+   */
+  diamondFacets: Record<string, string[]>
 }
 
 export interface IMismatch {
@@ -70,6 +75,8 @@ function checkContract(
  * present" semantics). For facets, the cross-check is driven by the set of facets
  * installed in the diamond (`diamondFacets`); a facet that appears only in the flat
  * deployment log but has not yet been cut into the diamond will not be cross-checked.
+ * A facet registered at several addresses at once agrees as long as the deployment
+ * log matches any one of them.
  */
 export function findMismatches(sources: INetworkSources[]): IMismatch[] {
   const mismatches: IMismatch[] = []
@@ -95,18 +102,33 @@ export function findMismatches(sources: INetworkSources[]): IMismatch[] {
       ])
       if (m) mismatches.push(m)
     }
-    for (const name of Object.keys(s.diamondFacets)) {
-      const m = checkContract(s.network, 'facet', name, [
-        {
-          source: `deployments/${s.network}.json`,
-          address: s.deploymentFlat[name],
-        },
-        {
-          source: `deployments/${s.network}.diamond.json`,
-          address: s.diamondFacets[name],
-        },
-      ])
-      if (m) mismatches.push(m)
+    for (const [name, registered] of Object.entries(s.diamondFacets)) {
+      const flat = s.deploymentFlat[name]
+      const present = registered.filter((a) => !isEmpty(a))
+      if (isEmpty(flat) || present.length === 0) continue
+
+      // The deploy log records a single address per facet name while the diamond
+      // may have several registered at once, so agreement means matching any one
+      // of them. Comparing against just one would make the verdict depend on
+      // object key order.
+      if (present.some((a) => normalize(a) === normalize(flat as string)))
+        continue
+
+      mismatches.push({
+        network: s.network,
+        kind: 'facet',
+        contract: name,
+        addresses: [
+          {
+            source: `deployments/${s.network}.json`,
+            address: flat as string,
+          },
+          ...present.map((address) => ({
+            source: `deployments/${s.network}.diamond.json`,
+            address,
+          })),
+        ],
+      })
     }
   }
   return mismatches
@@ -240,7 +262,7 @@ export function loadSources(
 
     const diamondPath = `${deploymentsDir}/${network}.diamond.json`
     let diamondPeriphery: Record<string, string> = {}
-    const diamondFacets: Record<string, string> = {}
+    const diamondFacets: Record<string, string[]> = {}
     if (existsSync(diamondPath)) {
       const diamond =
         readJson<{
@@ -251,7 +273,7 @@ export function loadSources(
         }>(diamondPath).LiFiDiamond ?? {}
       diamondPeriphery = diamond.Periphery ?? {}
       for (const [address, info] of Object.entries(diamond.Facets ?? {}))
-        if (info?.Name) diamondFacets[info.Name] = address
+        if (info?.Name) (diamondFacets[info.Name] ??= []).push(address)
     }
 
     sources.push({
