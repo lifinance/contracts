@@ -33,9 +33,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x340E2d16cb0DE6F4a8bF2B8905cBA287cEE718A3": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xdDD06Fc81cbDd2eAd260Dfb6670bEaE5B2c0B2DF": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0x1bdAcD14BD00861EA4042d4bF151731F1b239f4a": {
         "Name": "CBridgeFacet",
@@ -89,9 +89,9 @@
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
-      "0x29f9a4741EC691AE54068De461Ca291794aa1D05": {
-        "Name": "AcrossFacetPacked",
-        "Version": "1.0.0"
+      "0x1a9eAdc142Fc447FcE6Da00D23B0691c74B8916B": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.1.0"
       },
       "0xEa8EF3E532db49915FDbDdB29244a83E76768111": {
         "Name": "SquidFacet",
@@ -105,13 +105,13 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x3fa3d268F979D5969C8B64beF9Ef3CBFdaf48535": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
-      "0x60b6710c04D44273F6F5C2F1c871Aa9e856bED12": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x27abe9B161B37c79dF9d2DB96Da4Ca8640318E19": {
+        "Name": "MayanFacet",
+        "Version": "2.0.0"
       },
       "0x184D1d43E73A002B45f9056770fD8d463c6b9388": {
         "Name": "EmergencyPauseFacet",
@@ -123,18 +123,6 @@
       },
       "0xfac73BA460aa736bf7173359dD1E077e629B85eB": {
         "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.0"
-      },
-      "0xC590d9684736F4Ac81c5D506F9704f13Ee16AffB": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
-      "0x0B1dcD1e7BA87E3ab9315f33b7661648b6669C7f": {
-        "Name": "MayanFacet",
-        "Version": "1.3.0"
-      },
-      "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
-        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       }
     },

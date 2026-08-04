@@ -636,15 +636,6 @@
       }
     }
   },
-  "PioneerFacet": {
-    "configData": {
-      "_pioneerAddress": {
-        "configFileName": "pioneer.json",
-        "keyInConfigFile": ".pioneerEOAProduction",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "PaxosTransitFacet": {
     "configData": {
       "_transitStation": {
@@ -696,11 +687,6 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    },
-    "contractAddresses": {
-      "LiFiDEXAggregator": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

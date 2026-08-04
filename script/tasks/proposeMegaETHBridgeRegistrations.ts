@@ -70,7 +70,12 @@ function getDeploymentsFilePath(
     environment === EnvironmentEnum.production
       ? `${network}.json`
       : `${network}.staging.json`
-  return path.join(process.cwd(), 'deployments', fileName)
+  const base = path.join(process.cwd(), 'deployments')
+  const filePath = path.join(base, fileName)
+  const relativePath = path.relative(base, filePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Invalid network name: ${network}`)
+  return filePath
 }
 
 function readDeploymentsFile(
