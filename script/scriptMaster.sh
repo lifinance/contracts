@@ -510,7 +510,7 @@ scriptMaster() {
 
     if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
       # call parse target state function for all networks
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" || checkFailure $? "update target state from the Google sheet"
     else
       checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
       # get user-selected network from list
@@ -519,7 +519,7 @@ scriptMaster() {
       echo "[info] selected network: $NETWORK"
 
       # call parse target state function for specific network
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK"
+      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK" || checkFailure $? "update target state from the Google sheet"
     fi
 
   #---------------------------------------------------------------------------------------------------------------------
