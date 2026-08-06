@@ -165,6 +165,11 @@ function diamondUpdatePeriphery() {
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
+
+  # Propagate the registration outcome. With EXIT_ON_ERROR=false the failure path
+  # above does not exit, so without this the final echo's 0 would mask a failed
+  # registration and callers checking $? would treat it as success.
+  return "$LAST_CALL"
 }
 
 register() {

@@ -3978,7 +3978,12 @@ function deployAndAddContractToDiamond() {
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
     RETURN_CODE2=$?
 
-    if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then
+    # Both must succeed: a failed deploy (RETURN_CODE1) whose old contract is still
+    # registered makes diamondUpdatePeriphery report "no action needed" (RETURN_CODE2=0),
+    # and a successful deploy that fails to register leaves the diamond pointed at the
+    # old address - neither is a success, so an OR here would report a stale/broken state
+    # as OK (EXSC-741).
+    if [[ "$RETURN_CODE1" -eq 0 && "$RETURN_CODE2" -eq 0 ]]; then
       return 0
     else
       return 1
