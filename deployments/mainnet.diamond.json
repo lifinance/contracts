@@ -169,7 +169,7 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
@@ -196,7 +196,7 @@
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
       "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",
-      "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
+      "ReceiverOIF": "0xe6ee2a573047598B2452a879F2188B31d0442dbF",
       "ReceiverStargateV2": "0xB539B40793171211DCA8834da044fC14bCe64BDC",
       "TokenWrapper": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6"
     }
