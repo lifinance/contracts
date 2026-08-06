@@ -131,10 +131,13 @@ function diamondUpdatePeriphery() {
       if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
         # register contract
         register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
-        LAST_CALL=$?
+        local REGISTER_RC=$?
 
-        if [ $LAST_CALL -eq 0 ]; then
+        if [ $REGISTER_RC -eq 0 ]; then
           echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+        else
+          # latch: a failure must not be reset to 0 by a later successful iteration
+          LAST_CALL=1
         fi
       else
         echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
