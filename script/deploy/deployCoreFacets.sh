@@ -7,6 +7,13 @@ deployCoreFacets() {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deploying core facets now...."
 
+  # Promote a caller-provided VERIFY_CONTRACTS into an exported override before any sourcing:
+  # helperFunctions.sh below re-sources .env at file level, so a later promotion would capture
+  # the .env value instead of the caller's (see deployAllContracts). The override survives all
+  # same-shell re-sources and reaches deploySingleContract's verify gate. The `:-` guard
+  # preserves a value already set by an outer caller.
+  export VERIFY_CONTRACTS_OVERRIDE="${VERIFY_CONTRACTS_OVERRIDE:-${VERIFY_CONTRACTS:-}}"
+
   # load helper functions
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
