@@ -3912,6 +3912,73 @@ function getRpcUrlFromNetworksJson() {
   echo "$RPC_URL"
 }
 
+# castRead: Run a read-only `cast` call with a hard timeout and RPC fallback, so a dead or
+# blocked endpoint fails fast instead of hanging the caller. Tries the env RPC (getRPCUrl)
+# first, then the public rpcUrl from networks.json, returning the first that answers.
+# ETH_RPC_TIMEOUT caps each request inside cast; a coreutils timeout/gtimeout wrapper (when
+# present) is an additional hard kill. Read-only only — never use for `cast send`.
+#
+# Usage: castRead NETWORK CAST_ARG [CAST_ARG...]
+#   NETWORK  - network name as keyed in networks.json
+#   CAST_ARG - the cast subcommand and its args, WITHOUT --rpc-url (appended per candidate)
+#
+# Returns: prints cast stdout and returns 0 on the first endpoint that succeeds; returns 1
+#          if every candidate endpoint fails or none is configured.
+# Example: castRead bsc call "$DIAMOND" "owner()(address)"
+# Example: CODE=$(castRead katana code "$ADDRESS")
+function castRead() {
+  local NETWORK="$1"
+  shift || true
+
+  if [[ -z "$NETWORK" || $# -eq 0 ]]; then
+    echo "Error: castRead usage: castRead NETWORK CAST_ARG [CAST_ARG...] (no --rpc-url)." >&2
+    return 1
+  fi
+
+  local HARD_TIMEOUT="${CAST_READ_TIMEOUT:-15}"
+  local REQ_TIMEOUT="${ETH_RPC_TIMEOUT:-12}"
+
+  # resolve an optional hard-kill wrapper (coreutils, may be absent on stock macOS)
+  local TIMEOUT_BIN=""
+  if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="gtimeout"
+  fi
+
+  # build ordered, de-duplicated candidate list: env RPC, then networks.json public RPC
+  local RPC_URLS=()
+  local CANDIDATE
+  CANDIDATE=$(getRPCUrl "$NETWORK" 2>/dev/null) && [[ -n "$CANDIDATE" ]] && RPC_URLS+=("$CANDIDATE")
+  CANDIDATE=$(getRpcUrlFromNetworksJson "$NETWORK" 2>/dev/null) || CANDIDATE=""
+  if [[ -n "$CANDIDATE" && ( ${#RPC_URLS[@]} -eq 0 || "$CANDIDATE" != "${RPC_URLS[0]}" ) ]]; then
+    RPC_URLS+=("$CANDIDATE")
+  fi
+
+  if [[ ${#RPC_URLS[@]} -eq 0 ]]; then
+    echo "Error: castRead found no RPC URL for network '$NETWORK'." >&2
+    return 1
+  fi
+
+  local OUT RC URL
+  for URL in "${RPC_URLS[@]}"; do
+    if [[ -n "$TIMEOUT_BIN" ]]; then
+      OUT=$(ETH_RPC_TIMEOUT="$REQ_TIMEOUT" "$TIMEOUT_BIN" "$HARD_TIMEOUT" cast "$@" --rpc-url "$URL" 2>/dev/null)
+      RC=$?
+    else
+      OUT=$(ETH_RPC_TIMEOUT="$REQ_TIMEOUT" cast "$@" --rpc-url "$URL" 2>/dev/null)
+      RC=$?
+    fi
+    if [[ $RC -eq 0 ]]; then
+      echo "$OUT"
+      return 0
+    fi
+  done
+
+  echo "Error: castRead failed on all ${#RPC_URLS[@]} RPC endpoint(s) for network '$NETWORK'." >&2
+  return 1
+}
+
 # getCastSendAsync: Return "true" if cast send should use --async for this network (avoids receipt
 # deserialization errors when RPC returns receipts missing fields like feePayer). Used by universalSendRaw.
 # Usage: getCastSendAsync NETWORK
