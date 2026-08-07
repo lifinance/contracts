@@ -314,6 +314,7 @@ export function parseFourByteBatchResponse(
 function readDiskCache(cachePath: string): Record<string, string> {
   try {
     if (!fs.existsSync(cachePath)) return {}
+    if (cachePath.includes('..') || path.isAbsolute(cachePath)) return {}
     const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'))
     if (!isRecord(parsed)) return {}
     const out: Record<string, string> = {}
