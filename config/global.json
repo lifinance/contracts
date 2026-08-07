@@ -54,7 +54,6 @@
     "EmergencyPauseFacet",
     "GasZipFacet",
     "GenericSwapFacetV3",
-    "LiFiIntentEscrowFacetV2",
     "OwnershipFacet",
     "PeripheryRegistryFacet",
     "WhitelistManagerFacet",
