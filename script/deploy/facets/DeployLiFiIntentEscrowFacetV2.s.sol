@@ -29,7 +29,7 @@ contract DeployScript is DeployScriptBase {
 
         address lifiIntentEscrowSettler = _getConfigContractAddress(
             path,
-            ".lifiEscrowInputSettler"
+            string.concat(".lifiEscrowInputSettler.", network)
         );
 
         return abi.encode(lifiIntentEscrowSettler);

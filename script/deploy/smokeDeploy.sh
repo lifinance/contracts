@@ -36,17 +36,7 @@ PAUSER=$(jq -r '.pauserWallet // empty' config/global.json)
 [[ -n "$PAUSER" ]] || { echo "pauserWallet missing in config/global.json" >&2; exit 1; }
 cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY_ANVIL" --value 1ether "$PAUSER" >/dev/null
 
-# 2. Etch a stub at the LiFiIntentEscrowFacetV2 settler address.
-# The facet is a core facet (config/global.json coreFacets), so it deploys on
-# every network including this bare anvil, and its DeployLiFiIntentEscrowFacetV2
-# script now asserts the settler holds code (EXSC-740). That external settler
-# only exists on real chains, so give its address dummy bytecode here to mirror
-# a real chain and let the deploy proceed.
-SETTLER=$(jq -r '.lifiEscrowInputSettler // empty' config/lifiintentescrow.json)
-[[ -n "$SETTLER" ]] || { echo "lifiEscrowInputSettler missing in config/lifiintentescrow.json" >&2; exit 1; }
-cast rpc --rpc-url "$RPC_URL" anvil_setCode "$SETTLER" 0x60006000fd >/dev/null
-
-# 3. Mock gum so the stage-selection prompt auto-picks "1)"
+# 2. Mock gum so the stage-selection prompt auto-picks "1)"
 gum() {
 if [[ "${1:-}" == "choose" ]]; then
     echo "1) Initial setup and CREATE3Factory deployment"
@@ -56,7 +46,7 @@ fi
 }
 export -f gum
 
-# 4. Drive the real deploy script.
+# 3. Drive the real deploy script.
 # deployAllContracts and its helpers handle errors via explicit checkFailure
 # and depend on `VAR=$(fn)` returning non-zero without aborting (e.g. the
 # benign "no Mongo record" path in findContractInMasterLog). Disable -e/-u
