@@ -135,6 +135,7 @@ function diamondUpdatePeriphery() {
         if register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"; then
           echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
         else
+          # latch: a failure must not be reset to 0 by a later successful iteration
           LAST_CALL=1
         fi
       else
@@ -307,6 +308,4 @@ register() {
     printf '\033[0;33m%s\033[0m\n' "   Run Stage 3 (Deploy diamond and update with core facets) or run the UpdatePeripheryRegistryFacet script, then retry Stage 7."
     return 1
   fi
-
-  return 0
 }

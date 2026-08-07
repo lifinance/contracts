@@ -2,8 +2,8 @@
   "LiFiDiamond": {
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
-        "Name": "",
-        "Version": ""
+        "Name": "DiamondCutFacet",
+        "Version": "1.0.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
+      "0x5E79e8C67CC7FEd03b283E84A5e16500f094B6b5": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -33,9 +33,9 @@
         "Name": "CBridgeFacet",
         "Version": "1.0.0"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xB815B47ad429436892Fc3C6ed1D401F515C7F763": {
         "Name": "CelerCircleBridgeFacet",
@@ -85,9 +85,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xA31E7B9715c1950B669Dbb9084B7e4D89186DA9f": {
+      "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.2"
+        "Version": "2.2.0"
       },
       "0x376f99f7EADE8A17f036fCff9eBA978E66e5fd28": {
         "Name": "ThorSwapFacet",
@@ -101,9 +101,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
         "Name": "LayerSwapFacet",

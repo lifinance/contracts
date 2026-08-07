@@ -636,15 +636,6 @@
       }
     }
   },
-  "PioneerFacet": {
-    "configData": {
-      "_pioneerAddress": {
-        "configFileName": "pioneer.json",
-        "keyInConfigFile": ".pioneerEOAProduction",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "PaxosTransitFacet": {
     "configData": {
       "_transitStation": {
@@ -696,11 +687,6 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    },
-    "contractAddresses": {
-      "LiFiDEXAggregator": {
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -798,6 +784,25 @@
       "_inputSettler": {
         "configFileName": "lifiintentescrow.json",
         "keyInConfigFile": ".lifiEscrowInputSettler",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ReceiverOIF": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_outputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".OIFOutputSettlerSimple",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

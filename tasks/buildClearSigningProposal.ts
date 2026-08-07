@@ -317,7 +317,7 @@ function bridgeFacetName(fnName: string): string {
 //   always populated. AcrossV4/DeBridgeDln can even differ from
 //   `_bridgeData.receiver` on EVM (destination call → our Receiver contract;
 //   DeBridgeDln never cross-checks), so the field adds signal on EVM too. Glacis/
-//   AllBridge/LiFiIntentEscrow/GasZip enforce equality on plain EVM transfers, so
+//   AllBridge/LiFiIntentEscrowV2/GasZip enforce equality on plain EVM transfers, so
 //   there the field just re-shows the recipient and carries the real value on
 //   non-EVM.
 //
@@ -363,12 +363,6 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     component: 'recipient',
     type: 'bytes32',
     label: 'AllBridge Recipient',
-  },
-  LiFiIntentEscrow: {
-    paramName: '_lifiIntentData',
-    component: 'recipient',
-    type: 'bytes32',
-    label: 'Intent Recipient',
   },
   LiFiIntentEscrowV2: {
     paramName: '_lifiIntentData',
