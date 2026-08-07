@@ -2,12 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
-import { stdJson } from "forge-std/Script.sol";
 import { LiFiIntentEscrowFacetV2 } from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
 
 contract DeployScript is DeployScriptBase {
-    using stdJson for string;
-
     constructor() DeployScriptBase("LiFiIntentEscrowFacetV2") {}
 
     function run()
@@ -29,9 +26,9 @@ contract DeployScript is DeployScriptBase {
             root,
             "/config/lifiintentescrow.json"
         );
-        string memory json = vm.readFile(path);
 
-        address lifiIntentEscrowSettler = json.readAddress(
+        address lifiIntentEscrowSettler = _getConfigContractAddress(
+            path,
             ".lifiEscrowInputSettler"
         );
 
