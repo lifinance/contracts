@@ -191,6 +191,7 @@ export function affectedNetworks(
 }
 
 function readJson<T>(path: string): T {
+  if (path.includes('..') || require('path').isAbsolute(path)) throw new Error('Invalid path');
   return JSON.parse(readFileSync(path, 'utf8')) as T
 }
 
