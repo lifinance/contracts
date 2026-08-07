@@ -656,8 +656,8 @@
     "isZkEVM": false,
     "targetEvmVersion": "cancun",
     "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
-    "gasPrice": 3000000000,
-    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast"
+    "gasPrice": 500000000,
+    "devNotes": "eth_gasPrice RPC now returns ~0.002 gwei (it previously over-reported ~20 gwei, which is why this pin exists). deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE for forge broadcast; combined with GAS_ESTIMATE_MULTIPLIER the old 3 gwei pin made forge's balance pre-check demand ~0.0176 ETH for a ~0.0000118 ETH deployment and fail with insufficient funds. 0.5 gwei keeps a wide margin over the live price without blocking on balance."
   },
   "lens": {
     "name": "lens",

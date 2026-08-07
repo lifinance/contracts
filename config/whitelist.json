@@ -2643,6 +2643,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x8feab81d36e7576107d5de0758c1b839be31b4f6",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "optimism": [
@@ -2707,6 +2719,18 @@
           },
           {
             "address": "0xdd5e9b947c99aa60bab00ca4631dce63b49983e7",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x1f5b43127414e36c31ecb5ff5567262997cd24d0",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -2789,6 +2813,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0xc86fb5bf6bfde081fd627c639c05e70d23cf7717",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "bsc": [
@@ -2843,6 +2879,18 @@
           },
           {
             "address": "0x62ccef0b4545166f721caa9fee13c1d3767e27dc",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x5994814f2c4040b863a0125a45de152a8c2a4dec",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -2925,6 +2973,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x3c4829196bfadff4394726b45159aeaac6fcd41c",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "zksync": [
@@ -2989,6 +3049,18 @@
           },
           {
             "address": "0x6f7c20464258c732577c87a9b467619e03e5c158",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x46edecea0228f04ab88dc34be98314863ba40be0",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3071,6 +3143,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x472fc4f7fd3c9f06f0b8637c5505815ac80938ad",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "base": [
@@ -3144,6 +3228,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x67d03631fe51b741c0c00c4e16eb662ac84381df",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "arbitrum": [
@@ -3198,6 +3294,18 @@
           },
           {
             "address": "0x7cf6b330b437e9fb432b1400de17b03357cf049a",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x09f94b5fc68e227c323a6fbae3bd98c97fd8c849",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3280,6 +3388,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0xab96dcfa7a7d669d9bf5918fab8641479973dd0a",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "linea": [
@@ -3344,6 +3464,18 @@
           },
           {
             "address": "0x2e1dee213ba8d7af0934c49a23187babeaca8764",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0xdfcb0cecc10e78f3f3749f3f3d3ee4047b2c9829",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3438,6 +3570,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x472fc4f7fd3c9f06f0b8637c5505815ac80938ad",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "scroll": [
@@ -3502,6 +3646,18 @@
           },
           {
             "address": "0x5e2f47bd7d4b357fcfd0bb224eb665773b1b9801",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x6148d68ec192df0a7d36d97bdabbebb014c69938",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -4501,7 +4657,7 @@
       "contracts": {
         "mainnet": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
@@ -4509,7 +4665,7 @@
         ],
         "base": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
@@ -4517,7 +4673,7 @@
         ],
         "arbitrum": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }

@@ -53,9 +53,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xc9F61AD990f4Ede27fB5573ACb5a28bb2A49B8C8": {
+      "0x31519e31d9FC662F68A26855A6CF889e22A41045": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0x7bA264eDA8c49e96555321BCA1fE72efBb95b33D": {
         "Name": "GasZipFacet",
@@ -68,8 +68,8 @@
       "FeeCollector": "",
       "FeeForwarder": "0x2C7475cBe7A9813dbe93C94297491ED7bD86cFab",
       "GasZipPeriphery": "0x1Bad89ee4cA153C4E592e0Bf2f2A256fa9beDC42",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "OutputValidator": "0x1299f7F941745377a2091AF51557e8De04B96B10",
       "Patcher": "",
       "Permit2Proxy": "0x263c63c1D8901c14520474110CE88CfADae0CfE9",

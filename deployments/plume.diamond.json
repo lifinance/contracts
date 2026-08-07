@@ -29,8 +29,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xEf4b4D6D9b2ed87fcF8161879014807d874d5025": {
-        "Name": "GenericSwapFacet",
+      "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0x74eF1eD21C988373Cc1E42620E5febB0a680ec97": {
@@ -45,9 +45,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x806F111f6Ce0ACA234B431229c31EeBcb62b0998": {
+      "0x36CD2A9c5876705ddFBb62158460BE44792aeF05": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0xD535675089ECD285815595476A33bFcb608f8476": {
         "Name": "StargateFacetV2",
@@ -59,10 +59,6 @@
       },
       "0x136928f3d4251840FbF44ce42ffe9D5928a812AF": {
         "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2": {
-        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
     },

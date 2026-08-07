@@ -787,5 +787,24 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "ReceiverOIF": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_outputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".OIFOutputSettlerSimple",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
   }
 }
