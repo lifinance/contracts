@@ -130,11 +130,11 @@ function diamondUpdatePeriphery() {
 
       if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
         # register contract
-        register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"
-        LAST_CALL=$?
-
-        if [ $LAST_CALL -eq 0 ]; then
+        if register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"; then
           echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+        else
+          # latch: a failure must not be reset to 0 by a later successful iteration
+          LAST_CALL=1
         fi
       else
         echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
@@ -165,6 +165,11 @@ function diamondUpdatePeriphery() {
   fi
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
+
+  # Propagate the registration outcome. With EXIT_ON_ERROR=false the failure path
+  # above does not exit, so without this the final echo's 0 would mask a failed
+  # registration and callers checking $? would treat it as success.
+  return "$LAST_CALL"
 }
 
 register() {
