@@ -21,7 +21,7 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x99ddF64f20d229a3281E32191C29D85ea2e6E9c4": {
+      "0xe45163d84952c381c5899C426cCEBAC5B1636108": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
@@ -72,7 +72,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "0xEbf54fFDdAF89518DF79EC2F6b786a21b502Db4A",
+      "ReceiverOIF": "0x3Ae6D86812cFe41686DbFEceDa22782855134e01",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x1dE7889C440d4fefA0e5F4F83A021f6F41cDf26b"
     }
