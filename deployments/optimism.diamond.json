@@ -45,7 +45,7 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
+      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
@@ -152,7 +152,7 @@
       "ReceiverAcrossV3": "0x28C7ef3789cF91C918cf86e5eF4b40FEBE24dAD3",
       "ReceiverAcrossV4": "0xe417AD5eb9e919567620A48B3757cc182cCdf9e4",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "0xf6eB75d27ef8eAE08A5917fB3E1C35E2c64398c6",
+      "ReceiverOIF": "0xe6ee2a573047598B2452a879F2188B31d0442dbF",
       "ReceiverStargateV2": "0x556701899905f2f83AcA2977D3202Ee3a80f37b7",
       "TokenWrapper": "0x6A300c0974212D8074f7ff20C6859623D8B7bce6"
     }
