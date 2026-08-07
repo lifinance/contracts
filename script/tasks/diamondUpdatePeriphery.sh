@@ -166,7 +166,7 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  if [ $LAST_CALL -ne 0 ]; then
+  if [[ "$LAST_CALL" -ne 0 ]]; then
     error "diamondUpdatePeriphery failed to register at least one contract on network $NETWORK"
     return 1
   fi
