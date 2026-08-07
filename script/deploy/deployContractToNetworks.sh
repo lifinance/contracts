@@ -422,8 +422,19 @@ function deployContractToNetworks() {
       success "$TARGET_NETWORK: OK ($DEPLOYED_ADDRESS)"
     fi
   done
+  # A failed network can still have a log entry, either from this run (deployed, then the
+  # diamond registration failed) or from an earlier one (this run's deploy failed). The two
+  # are indistinguishable here, so surface the address to check without calling it deployed.
+  local LOGGED_ADDRESS
   for TARGET_NETWORK in "${FAILED_NETWORKS[@]:-}"; do
-    [[ -n "$TARGET_NETWORK" ]] && error "$TARGET_NETWORK: FAILED"
+    if [[ -n "$TARGET_NETWORK" ]]; then
+      LOGGED_ADDRESS=$(getContractAddressFromDeploymentLogs "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT") || LOGGED_ADDRESS=""
+      if [[ -n "$LOGGED_ADDRESS" ]]; then
+        error "$TARGET_NETWORK: FAILED (deployment log points at $LOGGED_ADDRESS - verify on-chain and registration state before re-running)"
+      else
+        error "$TARGET_NETWORK: FAILED (no address in deployment log)"
+      fi
+    fi
   done
   echo ""
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
