@@ -49,6 +49,7 @@ import {
   getAddress,
   parseUnits,
   zeroAddress,
+  zeroHash,
   type Abi,
   type Address,
   type Hex,
@@ -334,6 +335,9 @@ async function bridgeViaFrax(routeKey: string): Promise<void> {
     dstEid,
     nativeFee,
     refundRecipient: devWallet,
+    // both demo routes target EVM chains, so the bytes32 non-EVM recipient must be zero
+    // (the facet reverts InvalidCallData if it is set on an EVM destination)
+    nonEVMReceiver: zeroHash,
   }
 
   consola.info('BridgeData:', bridgeData)

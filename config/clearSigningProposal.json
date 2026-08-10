@@ -734,7 +734,7 @@
         }
       ]
     },
-    "startBridgeTokensViaFrax((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address oft, uint32 dstEid, uint256 nativeFee, address refundRecipient) _fraxData)": {
+    "startBridgeTokensViaFrax((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address oft, uint32 dstEid, uint256 nativeFee, address refundRecipient, bytes32 nonEVMReceiver) _fraxData)": {
       "intent": "Bridge via Frax",
       "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Frax to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -767,6 +767,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_fraxData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3747,7 +3753,7 @@
         }
       ]
     },
-    "swapAndStartBridgeTokensViaFrax((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address oft, uint32 dstEid, uint256 nativeFee, address refundRecipient) _fraxData)": {
+    "swapAndStartBridgeTokensViaFrax((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address oft, uint32 dstEid, uint256 nativeFee, address refundRecipient, bytes32 nonEVMReceiver) _fraxData)": {
       "intent": "Swap & Bridge via Frax",
       "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Frax to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
@@ -3789,6 +3795,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_fraxData.nonEVMReceiver",
+          "label": "Non-EVM Recipient",
+          "format": "raw",
           "visible": "always"
         },
         {

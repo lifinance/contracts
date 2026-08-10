@@ -59,6 +59,11 @@ interface IFraxHopV2 {
         address userToken
     ) external view returns (uint256 fee);
 
+    /// @notice Whether the hop is configured to route this OFT
+    /// @param oft Address of the OFT messenger on the source chain
+    /// @return approved True if the hop accepts sends for this OFT
+    function approvedOft(address oft) external view returns (bool approved);
+
     /// @notice Floors an amount to the OFT's dust-free granularity
     /// @param oft Address of the OFT messenger
     /// @param amountLD Amount in local decimals

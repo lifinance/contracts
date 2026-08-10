@@ -17,8 +17,9 @@ interface IERC20Like {
 
 /// @title MockFraxOFT
 /// @notice Mock OFT messenger exposing a configurable underlying token()
-/// @dev Used both to simulate a Tempo OFT adapter and to force the
-///      FraxFacet oft.token() != sendingAssetId mismatch on a live fork
+/// @dev Simulates a Tempo OFT adapter for the non-forkable Tempo suite only. The
+///      oft.token() != sendingAssetId branch is exercised against a real hop-approved OFT
+///      (sfrxUSD) on the Arbitrum fork, not with this mock.
 contract MockFraxOFT is IFraxOFT {
     address public token;
 
@@ -65,6 +66,14 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
 
     constructor(uint256 _dustRate) {
         DUST_RATE = _dustRate;
+    }
+
+    /// @notice Mirrors HopV2.approvedOft, which allowlists routable OFTs.
+    /// @dev Always true here: the facet's unapproved-OFT rejection is covered against the
+    ///      real hop on the Arbitrum fork (FraxFacetTest), so this mock only needs to let
+    ///      the Tempo fee-path tests through.
+    function approvedOft(address) external pure returns (bool) {
+        return true;
     }
 
     /// @notice Configures the fee token, the amount reported by quoteStatic, and the

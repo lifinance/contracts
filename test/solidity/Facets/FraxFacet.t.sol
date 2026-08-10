@@ -8,8 +8,8 @@ import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { TestToken } from "../utils/TestToken.sol";
 import { MockFraxHopV2Tempo, MockFraxOFT, MockTipFeeManager } from "../utils/MockFraxHopV2Tempo.sol";
 import { FraxFacet } from "lifi/Facets/FraxFacet.sol";
-import { IFraxHopV2 } from "lifi/Interfaces/IFraxHopV2.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, NotInitialized, OnlyContractOwner, TransferFromFailed, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import { IFraxHopV2, IFraxOFT } from "lifi/Interfaces/IFraxHopV2.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NotInitialized, OnlyContractOwner, TokenNotSupported, TransferFromFailed, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
 
 // Stub FraxFacet: adds the whitelist-manager selectors so pre-bridge swaps can be tested
 contract TestFraxFacet is FraxFacet, TestWhitelistManagerBase {
@@ -29,14 +29,23 @@ contract FraxFacetTest is TestBaseFacet {
     // frxUSD self-OFT (bridgeData.sendingAssetId == fraxData.oft == this)
     address internal constant FRXUSD =
         0x80Eede496655FB9047dd39d9f418d5483ED600df;
+    // sfrxUSD self-OFT: a SECOND real hop-approved OFT. Used to exercise the
+    // oft.token() != sendingAssetId branch with a real contract (it clears
+    // HOP.approvedOft but its token() is sfrxUSD, not frxUSD) instead of a mock OFT.
+    address internal constant SFRXUSD =
+        0x5Bff88cA1442c2496f7E475E9e7786383Bc070c0;
     uint32 internal constant DST_EID_FRAXTAL = 30255; // hub
     uint256 internal constant DST_CHAINID_FRAXTAL = 252; // Fraxtal chainId
+    uint32 internal constant DST_EID_SOLANA = 30168; // non-EVM spoke via the hub
     uint256 internal constant DUST_RATE = 1e12; // frxUSD decimalConversionRate
+    // an arbitrary non-zero 32-byte Solana pubkey (cannot be validated on-chain)
+    bytes32 internal constant SOLANA_RECEIVER = bytes32(uint256(0x5011a9a));
 
     event FraxChainMappingsInitialized(
         FraxFacet.ChainIdConfig[] chainIdConfigs
     );
     event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
+    event FraxChainIdToEidUnset(uint256 indexed chainId);
 
     TestFraxFacet internal fraxFacet;
     FraxFacet.FraxData internal fraxData;
@@ -45,24 +54,31 @@ contract FraxFacetTest is TestBaseFacet {
 
     uint256 internal defaultFrxAmount;
 
-    /// @dev Minimal chainId -> EID seeding for the fork tests (bridge to Fraxtal).
+    /// @dev Minimal chainId -> EID seeding for the fork tests (Fraxtal hub, Base spoke and
+    ///      Solana, the non-EVM spoke reached via the hub).
     function _defaultChainIdConfigs()
         internal
         pure
         returns (FraxFacet.ChainIdConfig[] memory configs)
     {
-        configs = new FraxFacet.ChainIdConfig[](2);
+        configs = new FraxFacet.ChainIdConfig[](3);
         configs[0] = FraxFacet.ChainIdConfig({
             chainId: DST_CHAINID_FRAXTAL,
             lzEid: DST_EID_FRAXTAL
         }); // Fraxtal
         configs[1] = FraxFacet.ChainIdConfig({ chainId: 8453, lzEid: 30184 }); // Base
+        configs[2] = FraxFacet.ChainIdConfig({
+            chainId: LIFI_CHAIN_ID_SOLANA,
+            lzEid: DST_EID_SOLANA
+        }); // Solana (non-EVM)
     }
 
     function setUp() public {
-        // Arbitrum fork pinned to a block where frxUSD is an approvedOft on the hop
+        // Arbitrum fork pinned to a block where frxUSD is an approvedOft on the hop.
+        // Re-pinned after Frax upgraded the RemoteHopV2 implementation (flagged on PR #2048)
+        // so these fork tests run against the current hop bytecode, not the pre-upgrade one.
         customRpcUrlForForking = "ETH_NODE_URI_ARBITRUM";
-        customBlockNumberForForking = 483300000;
+        customBlockNumberForForking = 488500000;
         initTestBase();
 
         frxUSD = ERC20(FRXUSD);
@@ -74,7 +90,7 @@ contract FraxFacetTest is TestBaseFacet {
         // deploy facet in standard (non-Tempo) configuration
         fraxFacet = new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
 
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = fraxFacet.startBridgeTokensViaFrax.selector;
         functionSelectors[1] = fraxFacet
             .swapAndStartBridgeTokensViaFrax
@@ -86,6 +102,7 @@ contract FraxFacetTest is TestBaseFacet {
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
+        functionSelectors[7] = fraxFacet.unsetFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
@@ -122,7 +139,8 @@ contract FraxFacetTest is TestBaseFacet {
             oft: FRXUSD,
             dstEid: DST_EID_FRAXTAL,
             nativeFee: _quote(defaultFrxAmount),
-            refundRecipient: USER_REFUND
+            refundRecipient: USER_REFUND,
+            nonEVMReceiver: bytes32(0)
         });
 
         vm.label(HOP, "FraxHopV2");
@@ -133,14 +151,20 @@ contract FraxFacetTest is TestBaseFacet {
     /// @dev Live native LZ fee for bridging `amount` of frxUSD to Fraxtal
     function _quote(uint256 amount) internal view returns (uint256) {
         return
-            IFraxHopV2(HOP).quote(
-                FRXUSD,
+            _quoteTo(
                 DST_EID_FRAXTAL,
                 bytes32(uint256(uint160(USER_RECEIVER))),
-                amount,
-                0,
-                ""
+                amount
             );
+    }
+
+    /// @dev Live native LZ fee for bridging `amount` of frxUSD to an arbitrary EID/recipient
+    function _quoteTo(
+        uint32 dstEid,
+        bytes32 recipient,
+        uint256 amount
+    ) internal view returns (uint256) {
+        return IFraxHopV2(HOP).quote(FRXUSD, dstEid, recipient, amount, 0, "");
     }
 
     /// @dev Build a USDC -> frxUSD swap through the mock DEX (receivingAssetId == frxUSD)
@@ -379,9 +403,11 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenOftTokenMismatchesSendingAsset() public {
-        // an OFT whose token() != sendingAssetId must be rejected
-        MockFraxOFT wrongOft = new MockFraxOFT(ADDRESS_USDC);
-        fraxData.oft = address(wrongOft);
+        // sfrxUSD is a real hop-approved OFT, so it clears HOP.approvedOft and reaches the
+        // token() cross-check - where its underlying (sfrxUSD) mismatches the bridged frxUSD
+        assertTrue(IFraxHopV2(HOP).approvedOft(SFRXUSD));
+        assertTrue(IFraxOFT(SFRXUSD).token() != FRXUSD);
+        fraxData.oft = SFRXUSD;
 
         vm.startPrank(USER_SENDER);
         frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -455,6 +481,250 @@ contract FraxFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// non-EVM (Solana) destinations ///
+
+    /// @dev Bridges frxUSD to Solana through the real hop: the recipient sent to sendOFT is
+    ///      fraxData.nonEVMReceiver verbatim (not a padded EVM address) and the transfer is
+    ///      announced with BridgeToNonEVMChainBytes32.
+    function test_CanBridgeToSolanaWithBytes32Receiver() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        fraxData.dstEid = DST_EID_SOLANA;
+        fraxData.nonEVMReceiver = SOLANA_RECEIVER;
+        fraxData.nativeFee = _quoteTo(
+            DST_EID_SOLANA,
+            SOLANA_RECEIVER,
+            defaultFrxAmount
+        );
+
+        uint256 senderBefore = frxUSD.balanceOf(USER_SENDER);
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            SOLANA_RECEIVER
+        );
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+        // pin the recipient actually forwarded to the hop: the raw pubkey verbatim, not a
+        // padded EVM address (the emitted event reads fraxData directly and cannot catch a
+        // mis-wired recipient)
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_SOLANA,
+                    SOLANA_RECEIVER,
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        // the real hop accepted the Solana route end-to-end (frxUSD is a self-OFT, so the
+        // bridged amount is burned from the diamond rather than transferred to the hop)
+        assertEq(
+            frxUSD.balanceOf(USER_SENDER),
+            senderBefore - defaultFrxAmount
+        );
+        assertEq(frxUSD.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_CanSwapAndBridgeToSolanaWithBytes32Receiver() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.hasSourceSwaps = true;
+        fraxData.dstEid = DST_EID_SOLANA;
+        fraxData.nonEVMReceiver = SOLANA_RECEIVER;
+        fraxData.nativeFee = _quoteTo(
+            DST_EID_SOLANA,
+            SOLANA_RECEIVER,
+            defaultFrxAmount
+        );
+
+        vm.startPrank(USER_SENDER);
+        setDefaultSwapDataSingleDAItoUSDC();
+        usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            SOLANA_RECEIVER
+        );
+        // the mock DEX swaps to exactly defaultFrxAmount (a clean dust-rate multiple), so
+        // the emitted minAmount equals the pre-set bridgeData.minAmount
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_SOLANA,
+                    SOLANA_RECEIVER,
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(frxUSD.balanceOf(_facetTestContractAddress), 0);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    /// @dev The EVM branch of the recipient selection: a plain EVM route must forward the
+    ///      left-padded 20-byte receiver to the hop (a mis-wired ternary that always picked
+    ///      nonEVMReceiver would send bytes32(0) here and no other assertion would notice).
+    function test_EvmDestinationForwardsLeftPaddedReceiverToHop() public {
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            HOP,
+            abi.encodeCall(
+                IFraxHopV2.sendOFT,
+                (
+                    FRXUSD,
+                    DST_EID_FRAXTAL,
+                    bytes32(uint256(uint160(USER_RECEIVER))),
+                    defaultFrxAmount,
+                    0,
+                    ""
+                )
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenNonEVMDestinationHasZeroNonEVMReceiver() public {
+        // the pubkey cannot be validated on-chain beyond rejecting zero
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        fraxData.dstEid = DST_EID_SOLANA;
+        fraxData.nonEVMReceiver = bytes32(0);
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidNonEVMReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenNonEVMDestinationHasEvmReceiver() public {
+        // a 20-byte receiver would be left-padded into an unspendable Solana account
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = USER_RECEIVER;
+        fraxData.dstEid = DST_EID_SOLANA;
+        fraxData.nonEVMReceiver = SOLANA_RECEIVER;
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenEvmDestinationUsesNonEvmSentinel() public {
+        // the sentinel on an EVM route would deliver the funds to NON_EVM_ADDRESS itself
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeEvmDestinationUsesNonEvmSentinel()
+        public
+    {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenEvmDestinationHasNonZeroNonEVMReceiver() public {
+        // both receiver fields populated = the caller disagrees with itself about the
+        // recipient; the facet must not silently pick one
+        fraxData.nonEVMReceiver = SOLANA_RECEIVER;
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// HOP.approvedOft pre-check ///
+
+    /// @dev Uses real Arbitrum USDC as the bogus OFT. It is not an approvedOft AND has no
+    ///      token() function, so reverting with TokenNotSupported (rather than a failed
+    ///      token() decode) also proves approvedOft is evaluated first - i.e. the facet never
+    ///      calls into a caller-supplied oft the hop has not allowlisted.
+    function testRevert_WhenOftIsNotApprovedByHop() public {
+        assertFalse(IFraxHopV2(HOP).approvedOft(ADDRESS_USDC));
+        fraxData.oft = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(TokenNotSupported.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeOftIsNotApprovedByHop() public {
+        // the swap path must reject the unapproved OFT in _validateFraxData, i.e. before
+        // _depositAndSwap runs the user's swap - not inside HopV2.sendOFT afterwards
+        fraxData.oft = ADDRESS_USDC;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        usdc.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(TokenNotSupported.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -588,6 +858,130 @@ contract FraxFacetTest is TestBaseFacet {
         vm.prank(address(0));
         vm.expectRevert(NotInitialized.selector);
         fresh.setFraxChainIdToEid(configs);
+    }
+
+    /// unsetFraxChainIdToEid — retiring a deprecated spoke ///
+
+    /// @dev A destination stays routable on an already-seeded diamond until it is removed
+    ///      on-chain; deleting it from config/frax.json alone does nothing.
+    function test_CanRemoveChainIdToEid() public {
+        // Base is seeded by _defaultChainIdConfigs and routable to begin with
+        assertEq(fraxFacet.getFraxChainIdToEid(8453), 30184);
+
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = 8453;
+
+        vm.prank(USER_DIAMOND_OWNER);
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit FraxChainIdToEidUnset(8453);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 8453)
+        );
+        fraxFacet.getFraxChainIdToEid(8453);
+    }
+
+    function test_RemovedChainIdIsNoLongerBridgeable() public {
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = DST_CHAINID_FRAXTAL;
+
+        vm.prank(USER_DIAMOND_OWNER);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+
+        vm.startPrank(USER_SENDER);
+        frxUSD.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UnsupportedChainId.selector,
+                DST_CHAINID_FRAXTAL
+            )
+        );
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanRemoveMultipleChainIdsInOneCall() public {
+        uint256[] memory chainIds = new uint256[](2);
+        chainIds[0] = 8453;
+        chainIds[1] = DST_CHAINID_FRAXTAL;
+
+        vm.prank(USER_DIAMOND_OWNER);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 8453)
+        );
+        fraxFacet.getFraxChainIdToEid(8453);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UnsupportedChainId.selector,
+                DST_CHAINID_FRAXTAL
+            )
+        );
+        fraxFacet.getFraxChainIdToEid(DST_CHAINID_FRAXTAL);
+    }
+
+    function test_CanReAddARemovedChainId() public {
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = 8453;
+
+        vm.prank(USER_DIAMOND_OWNER);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+
+        FraxFacet.ChainIdConfig[]
+            memory configs = new FraxFacet.ChainIdConfig[](1);
+        configs[0] = FraxFacet.ChainIdConfig({ chainId: 8453, lzEid: 30184 });
+
+        vm.prank(USER_DIAMOND_OWNER);
+        fraxFacet.setFraxChainIdToEid(configs);
+
+        assertEq(fraxFacet.getFraxChainIdToEid(8453), 30184);
+    }
+
+    function testRevert_RemoveChainIdToEidFromNonOwner() public {
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = 8453;
+
+        vm.prank(USER_SENDER);
+        vm.expectRevert(OnlyContractOwner.selector);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+    }
+
+    function testRevert_RemoveChainIdToEidEmpty() public {
+        uint256[] memory chainIds = new uint256[](0);
+
+        vm.prank(USER_DIAMOND_OWNER);
+        vm.expectRevert(InvalidConfig.selector);
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+    }
+
+    function testRevert_RemoveChainIdToEidNotSet() public {
+        // a mistyped chain ID must fail loudly rather than silently no-op
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = 999999;
+
+        vm.prank(USER_DIAMOND_OWNER);
+        vm.expectRevert(
+            abi.encodeWithSelector(UnsupportedChainId.selector, 999999)
+        );
+        fraxFacet.unsetFraxChainIdToEid(chainIds);
+    }
+
+    function testRevert_RemoveChainIdToEidBeforeInit() public {
+        TestFraxFacet fresh = new TestFraxFacet(
+            IFraxHopV2(HOP),
+            address(0),
+            address(0)
+        );
+
+        uint256[] memory chainIds = new uint256[](1);
+        chainIds[0] = 8453;
+
+        vm.prank(address(0));
+        vm.expectRevert(NotInitialized.selector);
+        fresh.unsetFraxChainIdToEid(chainIds);
     }
 
     function test_InitFraxEmitsAndSetsMappings() public {
@@ -730,7 +1124,7 @@ contract FraxFacetTempoTest is TestBase {
             address(pathUsd)
         );
 
-        bytes4[] memory functionSelectors = new bytes4[](7);
+        bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = fraxFacet.startBridgeTokensViaFrax.selector;
         functionSelectors[1] = fraxFacet
             .swapAndStartBridgeTokensViaFrax
@@ -742,6 +1136,7 @@ contract FraxFacetTempoTest is TestBase {
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
+        functionSelectors[7] = fraxFacet.unsetFraxChainIdToEid.selector;
 
         addFacet(diamond, address(fraxFacet), functionSelectors);
         fraxFacet = TestFraxFacet(payable(address(diamond)));
@@ -774,7 +1169,8 @@ contract FraxFacetTempoTest is TestBase {
             oft: address(oft),
             dstEid: 30255,
             nativeFee: 0,
-            refundRecipient: USER_REFUND
+            refundRecipient: USER_REFUND,
+            nonEVMReceiver: bytes32(0)
         });
 
         vm.label(address(hop), "MockFraxHopV2Tempo");
@@ -1025,5 +1421,54 @@ contract FraxFacetTempoTest is TestBase {
             preExisting - (feePull - FEE_QUOTE)
         );
         assertEq(bridgedToken.balanceOf(address(hop)), BRIDGE_AMOUNT);
+    }
+
+    function testRevert_Tempo_WhenEvmDestinationUsesNonEvmSentinel() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
+        vm.stopPrank();
+    }
+
+    /// @dev Tempo -> Solana: the ERC20-fee path combined with a bytes32 recipient. Only
+    ///      reachable in this suite because Tempo itself is not forkable (see suite header);
+    ///      the EVM-fee path's Solana coverage runs against the real hop in FraxFacetTest.
+    function test_Tempo_CanBridgeToSolanaWithBytes32Receiver() public {
+        FraxFacet.ChainIdConfig[]
+            memory configs = new FraxFacet.ChainIdConfig[](1);
+        configs[0] = FraxFacet.ChainIdConfig({
+            chainId: LIFI_CHAIN_ID_SOLANA,
+            lzEid: 30168
+        });
+        vm.prank(USER_DIAMOND_OWNER);
+        fraxFacet.setFraxChainIdToEid(configs);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        fraxData.dstEid = 30168;
+        fraxData.nonEVMReceiver = bytes32(uint256(0x5011a9a));
+
+        vm.startPrank(USER_SENDER);
+        bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
+        pathUsd.approve(address(fraxFacet), FEE_QUOTE);
+
+        vm.expectEmit(true, true, true, true, address(fraxFacet));
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            LIFI_CHAIN_ID_SOLANA,
+            bytes32(uint256(0x5011a9a))
+        );
+
+        fraxFacet.startBridgeTokensViaFrax{ value: 0 }(bridgeData, fraxData);
+        vm.stopPrank();
+
+        // the fee was still charged in the TIP20 token, and nothing was retained
+        assertEq(bridgedToken.balanceOf(address(hop)), BRIDGE_AMOUNT);
+        assertEq(pathUsd.balanceOf(address(fraxFacet)), 0);
+        assertEq(bridgedToken.balanceOf(address(fraxFacet)), 0);
     }
 }
