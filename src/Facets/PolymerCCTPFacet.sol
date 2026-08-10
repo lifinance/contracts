@@ -11,7 +11,7 @@ import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, InvalidSendingToken, NotInitialized, UnsupportedChainId } from "../Errors/GenericErrors.sol";
 
 /// @title PolymerCCTPFacet
 /// @author LI.FI (https://li.fi)
@@ -36,7 +36,17 @@ import { CannotBridgeToSameNetwork, InvalidAmount, InvalidCallData, InvalidConfi
 ///      for off-chain tracking can therefore diverge. Correct routing relies entirely on trusted
 ///      (LI.FI API) calldata generation — integrators MUST treat the Stellar receiver as NOT
 ///      enforced on-chain.
-/// @custom:version 3.0.0
+/// @dev Solana deposits (BridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) are non-EVM:
+///      BridgeData.receiver is the NON_EVM_ADDRESS sentinel, the CCTP mintRecipient is the
+///      recipient's USDC Associated Token Account (solanaReceiverATA), and the event receiver
+///      emitted in BridgeToNonEVMChainBytes32 is the recipient owner wallet (nonEVMReceiver).
+///      The relayer derives the ATA from the emitted wallet; emitting the token account instead
+///      would make it derive an ATA of a token account (junk account, leaked rent, and a mint
+///      that can revert). Both fields are required to be non-zero, but neither is 20-byte
+///      EVM-shaped, so — as with Stellar — the facet CANNOT verify them against each other or
+///      against BridgeData.receiver on-chain. Their consistency (ATA == the wallet's USDC ATA)
+///      relies entirely on trusted (LI.FI API) calldata generation.
+/// @custom:version 3.1.0
 contract PolymerCCTPFacet is
     ILiFi,
     ReentrancyGuard,
@@ -83,9 +93,13 @@ contract PolymerCCTPFacet is
         uint256 polymerTokenFee;
         // maximum fee to pay on the destination domain, specified in units of burnToken
         uint256 maxCCTPFee;
-        // Should only be nonzero if submitting to a nonEVM chain
+        // The non-EVM recipient emitted in BridgeToNonEVMChainBytes32. Should only be nonzero
+        // if submitting to a nonEVM chain; required for Stellar and Solana. For Solana this is
+        // the recipient's owner wallet (NOT a token account) — the relayer derives the ATA
+        // from it.
         bytes32 nonEVMReceiver;
-        // For Solana: the receiver's Associated Token Account (ATA) for USDC
+        // For Solana: the receiver's Associated Token Account (ATA) for USDC. Used as the
+        // CCTP mintRecipient; must be the USDC ATA of nonEVMReceiver.
         bytes32 solanaReceiverATA;
         // the minimum finality at which a burn message will be attested to, will be passed directly to tokenMessenger.depositForBurn method.
         // 1000 = fast path, 2000 = standard path
@@ -400,6 +414,16 @@ contract PolymerCCTPFacet is
                 if (!isSolanaDestination) {
                     revert InvalidReceiver();
                 }
+
+                // The Solana event receiver is the recipient owner wallet, so it must be
+                // present: a zero nonEVMReceiver would burn the USDC to the ATA while
+                // emitting an unusable recipient the relayer cannot act on. The matching
+                // mintRecipient guard on solanaReceiverATA lives in the burn branch below.
+                // (The Stellar arm folds the same condition into a compound InvalidCallData
+                // check; that shipped selector is left untouched here.)
+                if (_polymerData.nonEVMReceiver == bytes32(0)) {
+                    revert InvalidNonEVMReceiver();
+                }
             } else if (isSolanaDestination) {
                 revert InvalidReceiver();
             }
@@ -478,8 +502,10 @@ contract PolymerCCTPFacet is
         } else {
             // Only Solana reaches this branch: Stellar and HyperCore are handled above, and
             // the dispatch guard rejects the sentinel for any other destination. CCTP expects
-            // the receiver's USDC ATA as mintRecipient, and that same ATA is emitted so the
-            // event can never diverge from the actual mint target.
+            // the receiver's USDC ATA as mintRecipient, while the event carries the recipient
+            // owner wallet (nonEVMReceiver, already checked non-zero in the dispatch guard) so
+            // the relayer can derive the ATA itself instead of deriving one from a token
+            // account.
             if (_polymerData.solanaReceiverATA == bytes32(0)) {
                 revert InvalidConfig();
             }
@@ -497,7 +523,7 @@ contract PolymerCCTPFacet is
             emit BridgeToNonEVMChainBytes32(
                 _bridgeData.transactionId,
                 destinationChainId,
-                _polymerData.solanaReceiverATA
+                _polymerData.nonEVMReceiver
             );
         }
 

@@ -56,6 +56,10 @@
       "0x972b6ACdb7b29E27df309a36faB1c4153a8ab0ff": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x9CD34602F46B80ae8400e83fDD0c4e947AB45BF0": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

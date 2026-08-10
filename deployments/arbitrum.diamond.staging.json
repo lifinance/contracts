@@ -256,6 +256,10 @@
       "0xD04A7f8EdB8F4C1dB851bCc919e71dB5E5093fc8": {
         "Name": "SupersetFacet",
         "Version": "1.1.0"
+      },
+      "0x1aAADa7ab2BD56de2482d46213AB0994a0C7ff9b": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -264,15 +268,15 @@
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
       "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
       "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "0x55C74AdB64A9C11EFA5637dF58AC17Bc77D5c911",
+      "ReceiverOIF": "0x6c75016288d838ED1a34BDc9bf84f24d5dd88363",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF63b27AE2Dc887b88f82E2Cc597d07fBB2E78E70"
     }

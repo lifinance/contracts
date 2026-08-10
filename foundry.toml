@@ -21,10 +21,15 @@ cache = true
 runs = 256
 
 [profile.ci]
-# Inherits [profile.default]; only fuzz runs differ for faster CI.
+# Inherits [profile.default]; only fuzz settings differ for faster CI.
 
 [profile.ci.fuzz]
 runs = 32
+# Pinned so a fuzz run over a forked chain reads the same state on every run and can be
+# served from ~/.foundry/cache/rpc. Unseeded, each `--rerun` draws fresh inputs that miss
+# the cache, which makes a fork-RPC timeout unretryable. The local default profile stays
+# unseeded, so a wider input space is still explored outside CI.
+seed = '0x1'
 
 # Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
 # Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that
@@ -95,6 +100,7 @@ gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
+injective = "${ETH_NODE_URI_INJECTIVE}"
 jovay = "${ETH_NODE_URI_JOVAY}"
 ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
@@ -172,6 +178,7 @@ hemi = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.hemi.
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
+injective = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://blockscout-api.injective.network/api", verifier = "blockscout", chain = "1776"}
 jovay = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.jovay.io/api", chain = "5734951"}
 immutablezkevm = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/kaia", chain = "8217", verifier = "oklink" }

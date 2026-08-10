@@ -65,13 +65,17 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x1aCec6E64f3A337ab0BDd7629E1170dD5081A0e9": {
+      "0x8A0Ca1F897F4a48ee54B5842f6861A21FA162AD1": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x828Cc8Dc04e22B63DFB7764cFb58Ddbc4C2A07c7": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xeB9668A98c4EE3E37A30f413663Fe9525BE03B54": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -88,7 +92,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "0xd47D8866848bcb6eE610E5f24f9d4Af48d6CbDcE",
+      "ReceiverOIF": "0xF57475939184DD15C73Bb97cbaa649517695d983",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xF4841e27093bdE680962e5f4541e22d86AC4F538"
     }
