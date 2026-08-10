@@ -1319,4 +1319,29 @@ describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () =>
     expect([...covered]).toEqual([])
     expect(factoryCalls).toEqual([])
   })
+
+  it('never runs more networks in parallel than the concurrency cap', async () => {
+    const rows = ['base', 'optimism', 'arbitrum', 'polygon'].map((n, i) =>
+      submittedRow(n, 100 + i, ('0x' + `a${i}`.repeat(32)) as Hex)
+    )
+    const collection = createFakeCollection(rows)
+
+    let inFlight = 0
+    let peak = 0
+    const covered = await reconcileAllSubmittedSafeTxs(collection, {
+      concurrency: 2,
+      publicClientFactory: () => createFakeClient(),
+      readSafeNonce: async () => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        await new Promise((r) => setTimeout(r, 5))
+        inFlight--
+        return 0n
+      },
+      enqueueTimelockOpFn: mock(noopEnqueueImpl),
+    })
+
+    expect(peak).toBe(2)
+    expect(covered.size).toBe(4)
+  })
 })

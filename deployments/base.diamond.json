@@ -29,12 +29,12 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
-      "0xD79087Bfc48506f4B4d0B82547d708051af0f513": {
-        "Name": "GenericSwapFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xf7D902116142c74b064864F170B8e7d4D8eCCa84": {
@@ -89,8 +89,8 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xE397c4883ec89ed4Fc9D258F00C689708b2799c9": {
-        "Name": "AcrossFacetPacked",
+      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
+        "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
       "0xB7237563c604EE305FeAB6F275AFDe628354198A": {
@@ -113,20 +113,20 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0xaC5Ad28A8FA95ABD6eA3D9c82c931C87ae413e6A": {
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
+      "0x3556edeCDd99D567641F796cB2ac648006f4E257": {
+        "Name": "SupersetFacet",
         "Version": "1.1.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
@@ -145,28 +145,12 @@
         "Name": "ThorSwapFacet",
         "Version": "1.2.1"
       },
-      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
+      "0x5E79e8C67CC7FEd03b283E84A5e16500f094B6b5": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x87E5b78C70989FC0Cb8a1B6777c2CE18BC8Fa3F4": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
-      "0x0d0684aB8aBcA9da852630638462bf1F94e3828c": {
-        "Name": "SupersetFacet",
-        "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       }
     },
@@ -184,7 +168,7 @@
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "0x761B0e8f6e80BBd23F3886663Cc071a554be37A3",
+      "ReceiverOIF": "0xe6ee2a573047598B2452a879F2188B31d0442dbF",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }

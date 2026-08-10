@@ -9,7 +9,7 @@ hub chain (Arbitrum) using Uniswap-V3 math against mirror tokens.
 Same-chain swaps are also supported (DEX mode): set
 `bridgeData.destinationChainId` to the source chain id. The facet intentionally
 does **not** apply `Validatable.validateBridgeData`'s
-`CannotBridgeToSameNetwork` guard (same pattern as `LiFiIntentEscrowFacet`).
+`CannotBridgeToSameNetwork` guard (same pattern as `LiFiIntentEscrowFacetV2`).
 Superset's `multiHopSwapWithOutputChain` **rejects** a local `toEid`
 (`"cannot target local chain"`), so same-chain routes use different entrypoints.
 

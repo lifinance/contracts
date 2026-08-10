@@ -14,23 +14,23 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { type Account, type Address, type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  ConfirmSafeTxPrefetchQueue,
+  type IConfirmSafeTxNetworkContext,
+} from './confirm-safe-tx-prefetch'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
-import {
-  reconcileAllSubmittedSafeTxs,
-  reconcileCoverageKey,
-  reconcileSubmittedSafeTxs,
-} from './reconcile'
+import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -41,19 +41,16 @@ import {
   getPendingTransactionsByNetwork,
   getPrivateKey,
   getSafeMongoCollection,
+  getOrInitializeSafeClient,
   hasEnoughSignatures,
-  initializeSafeClient,
-  initializeSafeTransaction,
-  isAddressASafeOwner,
-  isSignedByCurrentSigner,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
+  releaseAllPooledSafeClients,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   shouldShowSignAndExecuteWithDeployer,
   wouldMeetThreshold,
-  type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
   type ISafeTxMongoDocument,
@@ -79,8 +76,9 @@ const globalTimeoutExecutions: Array<{
 }> = []
 
 // `reconcileCoverageKey` values for each Safe whose `submitted` rows were
-// resolved by the startup reconcile sweep. Used to skip the redundant in-loop
-// reconcile inside processTxs — per Safe, not per network.
+// resolved by the startup reconcile sweep. Used to skip the redundant
+// per-network reconcile inside prepareConfirmSafeTxNetwork — per Safe, not
+// per network.
 const startupReconciledKeys = new Set<string>()
 
 // Quickfix to allow BigInt printing https://stackoverflow.com/a/70315718
@@ -90,68 +88,33 @@ const startupReconciledKeys = new Set<string>()
 
 /**
  * Main function to process Safe transactions for a given network
- * @param network - Network name
- * @param privateKey - Private key of the signer (optional if useLedger is true)
  * @param privKeyType - Type of private key (SAFE_SIGNER or DEPLOYER)
- * @param pendingTxs - Pending transactions to process
  * @param pendingTransactions - MongoDB collection
  * @param rpcUrl - Optional RPC URL override
- * @param useLedger - Whether to use a Ledger device for signing
- * @param ledgerOptions - Options for Ledger connection
+ * @param prepared - Network context prepared (or prefetched) before the interactive loop
  */
 const processTxs = async (
-  network: string,
-  privateKey: string | undefined,
   privKeyType: PrivateKeyTypeEnum,
-  pendingTxs: ISafeTxDocument[],
   pendingTransactions: Collection<ISafeTxDocument>,
-  rpcUrl?: string,
-  useLedger?: boolean,
-  ledgerOptions?: {
-    derivationPath?: string
-    ledgerLive?: boolean
-    accountIndex?: number
-  },
-  account?: Account
+  rpcUrl: string | undefined,
+  prepared: IConfirmSafeTxNetworkContext
 ) => {
+  const {
+    network,
+    networkKey,
+    safe,
+    chain,
+    safeAddress,
+    txSafeAddress,
+    signerAddress,
+    txs: initialTxs,
+    onChainNonce,
+  } = prepared
+
   consola.info(' ')
   consola.info('-'.repeat(80))
-
-  // Initialize Safe client using safeAddress from first transaction
-  const txSafeAddress = pendingTxs[0]?.safeAddress as Address
-  const { safe, chain, safeAddress } = await initializeSafeClient(
-    network,
-    privateKey,
-    rpcUrl,
-    useLedger,
-    ledgerOptions,
-    txSafeAddress,
-    account
-  )
-
-  // Get signer address
-  const signerAddress = safe.account.address
-  const networkKey = network.toLowerCase()
-
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
-
-  // Check if the current signer is an owner
-  try {
-    const existingOwners = await safe.getOwners()
-    if (!isAddressASafeOwner(existingOwners, signerAddress)) {
-      consola.error('The current signer is not an owner of this Safe')
-      consola.error('Signer address:', signerAddress)
-      consola.error('Current owners:', existingOwners)
-      consola.error('Cannot sign or execute transactions - exiting')
-      return
-    }
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.error(`Failed to check if signer is an owner: ${errorMsg}`)
-    consola.error('Skipping this network and moving to the next one')
-    return
-  }
 
   /**
    * Signs a SafeTransaction
@@ -342,104 +305,10 @@ const processTxs = async (
     }
   }
 
-  // Get current threshold and on-chain nonce
-  let threshold
-  let onChainNonce: bigint
-  try {
-    ;[threshold, onChainNonce] = await Promise.all([
-      safe.getThreshold().then(Number),
-      safe.getNonce(),
-    ])
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    consola.error(`Failed to get threshold/nonce: ${errorMsg}`)
-    throw new Error(
-      `Could not get threshold/nonce for Safe ${safeAddress} on ${network}`
-    )
-  }
-
-  // Reconcile in-flight Safe tx rows against on-chain state before reading
-  // the pending queue. A 'submitted' row from a prior run is promoted to
-  // 'executed'/'reverted' or sent back to 'pending' depending on the
-  // receipt; on-chain executions we missed entirely are back-filled from
-  // the Safe's ExecutionSuccess/ExecutionFailure logs when a nonce gap is
-  // detected. Read-only on-chain — failures are warnings, not throws.
-  if (
-    !isTronNetworkKey(network) &&
-    !startupReconciledKeys.has(
-      reconcileCoverageKey(networkKey, chain.id, safeAddress)
-    )
-  ) {
-    try {
-      await reconcileSubmittedSafeTxs(
-        pendingTransactions,
-        safe.getPublicClient(),
-        network,
-        chain.id,
-        safeAddress,
-        onChainNonce
-      )
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
-    }
-
-    // Refresh from MongoDB: Sweep A may have demoted 'submitted' rows back
-    // to 'pending' (those should be processed this run), and Sweep B may
-    // have back-filled 'pending' rows to 'executed'/'reverted' (those
-    // should not be shown to the operator anymore).
-    pendingTxs = await pendingTransactions
-      .find<ISafeTxDocument>({
-        network: { $eq: networkKey },
-        status: { $eq: 'pending' },
-      })
-      .toArray()
-  }
-
-  // Filter and augment transactions with signature status and nonce validation
-  const txs = await Promise.all(
-    pendingTxs.map(
-      async (tx: ISafeTxDocument): Promise<IAugmentedSafeTxDocument> => {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
-        const hasSignedAlready = isSignedByCurrentSigner(
-          safeTransaction,
-          signerAddress
-        )
-        const canExecute = hasEnoughSignatures(safeTransaction, threshold)
-
-        return {
-          ...tx,
-          safeTransaction,
-          hasSignedAlready,
-          canExecute,
-          threshold,
-        }
-      }
-    )
-  ).then((txs: IAugmentedSafeTxDocument[]) =>
-    txs.filter((tx) => {
-      // If the transaction has enough signatures to execute AND the current signer has signed,
-      // still show it so they can execute it
-      if (tx.canExecute) return true
-
-      // Otherwise, don't show transactions that have already been signed by the current signer
-      if (tx.hasSignedAlready) return false
-
-      // Show transactions that need more signatures
-      return tx.safeTransaction.signatures.size < tx.threshold
-    })
-  )
-
-  if (!txs.length) {
-    consola.success('No pending transactions')
-    return
-  }
-
   // Sort transactions by nonce in ascending order to process them in sequence
-  // This ensures we handle transactions in the correct order as required by the Safe
   // Track expected nonce so sequential executions within a single run work correctly
   let expectedNonce = onChainNonce
-  for (const tx of txs.sort((a, b) => {
+  for (const tx of initialTxs.sort((a, b) => {
     if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
     return 0
@@ -509,8 +378,8 @@ const processTxs = async (
       `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
     ]
 
-    // Deferred diamond-cleanup: if this removal was drained from the parked-tasks
-    // queue, show the originating deprecation PR(s) so the signer sees WHY the
+    // Deferred diamond-cleanup: if parked facet removals were folded into this
+    // proposal, show the originating deprecation PR(s) so the signer sees WHY each
     // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
     // outside the shared decode formatter (rule 201 untouched).
     if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {
@@ -701,7 +570,7 @@ const processTxs = async (
 
     if (action === 'Sign')
       try {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const safeTransaction = tx.safeTransaction
         const signedTx = await signTransaction(safeTransaction)
         await persistSignedSafeTx(tx, signedTx)
       } catch (error) {
@@ -710,7 +579,7 @@ const processTxs = async (
 
     if (action === 'Sign & Execute')
       try {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const safeTransaction = tx.safeTransaction
         const signedTx = await signTransaction(safeTransaction)
         await persistSignedSafeTx(tx, signedTx)
         if (await executeTransaction(signedTx, tx)) expectedNonce++
@@ -721,7 +590,7 @@ const processTxs = async (
     if (action === 'Sign and Execute With Deployer')
       try {
         // Step 1: Sign with current user
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const safeTransaction = tx.safeTransaction
         const signedTx = await signTransaction(safeTransaction)
 
         // Step 2: Update MongoDB with current user's signature
@@ -730,7 +599,7 @@ const processTxs = async (
         // Step 3: Initialize deployer Safe client
         consola.info('Initializing deployer wallet...')
         const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-        const { safe: deployerSafe } = await initializeSafeClient(
+        const { safe: deployerSafe } = await getOrInitializeSafeClient(
           network,
           deployerPrivateKey,
           rpcUrl,
@@ -768,18 +637,17 @@ const processTxs = async (
 
     if (action === 'Execute')
       try {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
-        if (await executeTransaction(safeTransaction, tx)) expectedNonce++
+        if (await executeTransaction(tx.safeTransaction, tx)) expectedNonce++
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
 
     if (action === 'Execute with Deployer')
       try {
-        const safeTransaction = await initializeSafeTransaction(tx, safe)
+        const safeTransaction = tx.safeTransaction
         consola.info('Initializing deployer wallet...')
         const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-        const { safe: deployerSafe } = await initializeSafeClient(
+        const { safe: deployerSafe } = await getOrInitializeSafeClient(
           network,
           deployerPrivateKey,
           rpcUrl,
@@ -793,11 +661,6 @@ const processTxs = async (
       } catch (error) {
         consola.error('Error executing with deployer:', error)
       }
-  }
-  try {
-    await safe.cleanup()
-  } catch (e) {
-    consola.error('Error:', e)
   }
 }
 
@@ -925,6 +788,26 @@ const main = defineCommand({
       const { client: mongoClient, pendingTransactions } =
         await getSafeMongoCollection()
 
+      // Refresh .cache/deployments_production.json from MongoDB so every
+      // signer (not just the deployer's machine) sees up-to-date facet
+      // versions in the signing UI — unconditionally, since a facet deployed
+      // minutes ago must show up even when the local cache is younger than
+      // its TTL. Runs concurrently with the reconcile sweep and ownership
+      // filtering below (it depends only on MONGODB_URI); the flow joins on
+      // it at the Promise.all before the first network's prefetch starts.
+      const deploymentCacheWarm = process.env.MONGODB_URI
+        ? createDefaultCache({
+            mongoUri: process.env.MONGODB_URI,
+            databaseName: 'contract-deployments',
+            batchSize: 100,
+          })
+            .refresh('production')
+            .then(() => undefined)
+            .catch((error) => {
+              consola.debug(`Deployment cache refresh skipped: ${error}`)
+            })
+        : Promise.resolve()
+
       // Resolve in-flight `submitted` rows across all networks before the
       // pending-only selection runs. A network whose only row is `submitted`
       // (no sibling `pending` proposal) is otherwise never reconciled, so its
@@ -989,10 +872,6 @@ const main = defineCommand({
         networks = await getNetworksWithActionableTransactions(
           pendingTransactions,
           signerAddress,
-          privateKey,
-          useLedger,
-          ledgerOptions,
-          ledgerResult?.account,
           args.rpcUrl
         )
 
@@ -1029,44 +908,99 @@ const main = defineCommand({
         }
       }
 
-      // Refresh .cache/deployments_production.json from MongoDB so every signer
-      // (not just the deployer's machine) sees up-to-date facet versions in the
-      // signing UI. Requires MONGODB_URI; silently skipped when not set.
-      if (process.env.MONGODB_URI)
-        try {
-          await createDefaultCache({
-            mongoUri: process.env.MONGODB_URI,
-            databaseName: 'contract-deployments',
-            batchSize: 100,
-          }).refresh('production')
-        } catch (error) {
-          consola.debug(`Deployment cache refresh skipped: ${error}`)
+      // INVARIANT: `account` (the Ledger account created once at startup) MUST
+      // be part of these params. With a pre-created account, SafeClient.init
+      // skips getLedgerAccount(), so a background prefetch never opens a second
+      // Ledger transport while the operator is signing on the current network —
+      // hw-transport-node-hid does not support concurrent use. Removing it
+      // would silently reintroduce device contention.
+      const prefetchParamsBase = {
+        pendingTransactions,
+        privateKey,
+        rpcUrl: args.rpcUrl,
+        useLedger,
+        ledgerOptions,
+        account: ledgerResult?.account,
+        startupReconciledKeys,
+      }
+
+      const [txsByNetwork] = await Promise.all([
+        getPendingTransactionsByNetwork(pendingTransactions, networks),
+        deploymentCacheWarm,
+      ])
+
+      const prefetchQueue = new ConfirmSafeTxPrefetchQueue()
+      const firstNetwork = networks[0]
+      if (firstNetwork) {
+        const firstTxs = txsByNetwork[firstNetwork.toLowerCase()]
+        if (firstTxs && firstTxs.length > 0)
+          prefetchQueue.schedule(firstNetwork, {
+            ...prefetchParamsBase,
+            pendingTxs: firstTxs,
+          })
+      }
+
+      for (let i = 0; i < networks.length; i++) {
+        const network = networks[i]
+        if (!network) continue
+
+        const networkTxs = txsByNetwork[network.toLowerCase()]
+        if (!networkTxs || networkTxs.length === 0) continue
+
+        const nextNetwork = networks[i + 1]
+        if (nextNetwork) {
+          const nextTxs = txsByNetwork[nextNetwork.toLowerCase()]
+          if (nextTxs && nextTxs.length > 0)
+            prefetchQueue.schedule(nextNetwork, {
+              ...prefetchParamsBase,
+              pendingTxs: nextTxs,
+            })
         }
 
-      // Fetch all pending transactions for the networks we're processing
-      const txsByNetwork = await getPendingTransactionsByNetwork(
-        pendingTransactions,
-        networks
-      )
+        const prepared = await prefetchQueue.take(network, {
+          ...prefetchParamsBase,
+          pendingTxs: networkTxs,
+        })
 
-      // Process transactions for each network
-      for (const network of networks) {
-        const networkTxs = txsByNetwork[network.toLowerCase()]
-        if (!networkTxs || networkTxs.length === 0)
-          // This should not happen with our new approach, but keep as safety check
-          continue
-
-        await processTxs(
-          network,
-          privateKey,
-          keyType,
-          networkTxs,
-          pendingTransactions,
-          args.rpcUrl,
-          useLedger,
-          ledgerOptions,
-          ledgerResult?.account
-        )
+        switch (prepared.kind) {
+          case 'ready':
+            await processTxs(
+              keyType,
+              pendingTransactions,
+              args.rpcUrl,
+              prepared.context
+            )
+            break
+          case 'nothing-actionable':
+            consola.success(`No actionable pending transactions on ${network}`)
+            break
+          case 'not-owner':
+            consola.error(
+              `[${network}] The current signer is not an owner of this Safe — cannot sign or execute`
+            )
+            consola.error(`  Signer: ${prepared.signerAddress}`)
+            consola.error(`  Owners: ${prepared.owners.join(', ')}`)
+            break
+          case 'owner-check-failed':
+            consola.error(
+              `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
+            )
+            break
+          case 'read-failed':
+            // Unknown threshold/nonce state must abort rather than proceed —
+            // a signing/execution decision on stale state is unsafe.
+            throw new Error(
+              `Could not read threshold/nonce for the Safe on ${network}: ${prepared.error}`
+            )
+          case 'prepare-error':
+            throw new Error(`Failed to prepare ${network}: ${prepared.error}`)
+          default: {
+            const exhaustive: never = prepared
+            throw new Error(
+              `Unhandled prepare result: ${JSON.stringify(exhaustive)}`
+            )
+          }
+        }
       }
 
       // Close MongoDB connection
@@ -1095,6 +1029,7 @@ const main = defineCommand({
         }
       }
     } finally {
+      await releaseAllPooledSafeClients().catch(() => undefined)
       // Always close ledger connection if it was created
       if (ledgerResult) {
         const { closeLedgerConnection } = await import('./ledger')

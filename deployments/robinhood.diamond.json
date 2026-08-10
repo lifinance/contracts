@@ -57,7 +57,7 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x6E57b4d8e02D5aFD3EdD68C563691C9AA0436CE1": {
+      "0xF824feC6aCdD168C9Db95B1Eaed18bf3E8Aae0FF": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
@@ -80,6 +80,14 @@
       "0x19498b49FB4AA541fd208E4520a9Dc14a8A9d88E": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
+      },
+      "0x88545564793A470B511CC3E7e225a459bA29D291": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
+      },
+      "0x42caefaD13aD83ADCdd83c99Ae27058055CbF521": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -96,7 +104,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "0x90dd81bD07763f39dF31D0089B61520461557D71",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xc1DcE9F7F5a7477CaE473D262e47b05bF2E712a3",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x0d0E59aCdc126fA8791C00507b2Ce8DdB4036cbE"
     }

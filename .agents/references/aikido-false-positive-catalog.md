@@ -12,13 +12,15 @@ Each pattern has:
 
 ## `path_traversal_scripts`
 
-**Matches when**: issue title contains "path traversal" or "file inclusion"; file is under `script/`, `tasks/`, or `.claude/scripts/`
+**Matches when**: issue title contains "path traversal" or "file inclusion"; file is under `script/`, `tasks/`, or `.claude/scripts/`; AND the flagged path input is verifiably constrained at that call site — repo-derived (directory walks, hardcoded constants, deploy-log/artifact names), validated against `config/networks.json` before the read (e.g. `getViemChainForNetworkName`), sanitized (`assertSafePathSegment`, a `path.relative`-containment guard), or a pipeline-generated temp file (mktemp).
+
+**Does NOT match** (fix with a containment guard instead of ignoring — pattern: `getDeployLogFile` in `script/utils/viemScriptHelpers.ts`): a free-form CLI string interpolated into a path with NO upstream validation. A plain `string` network/contract/path parameter is not an allow-list — do not claim SupportedChain typing unless the parameter is actually typed and runtime-validated at that call site.
 
 **ignore_reason**:
-> False positive — internal developer CLI tool. File paths come from: SupportedChain enum restricted to ~50 network names in config/networks.json (version-controlled allow-list), contract name strings from the codebase itself, developer CLI args in local/CI context — never from untrusted external user input. No HTTP server; these scripts run locally or in CI. readJsonFile() in script/utils/utils.ts returns null on any error and never exposes file contents externally.
+> False positive — internal developer CLI tool. At this call site the path input is constrained: repo-derived names (directory walk / deploy log / hardcoded constant), a value validated against config/networks.json before the read, a sanitized segment (assertSafePathSegment or a path.relative containment guard), or a pipeline-generated temp file. No HTTP server; these scripts run locally or in CI, never with untrusted external user input. (State which of these applies for the specific call site.)
 
 **sast_context** (UI: Path Traversal rule → Custom Code Context):
-> All TypeScript scripts under script/, tasks/, and .claude/scripts/ are internal developer CLI tools and CI scripts. They are never deployed as network services and never receive input from untrusted external users. File path inputs come exclusively from: SupportedChain enum values derived from config/networks.json (version-controlled allow-list of ~50 network names); contract name strings from the codebase itself (e.g. "LiFiDiamond", "StargateFacet"); CLI args provided by developers or CI (not HTTP request parameters); git rev-parse output (trusted local git binary); hardcoded path constants. readJsonFile() in script/utils/utils.ts is a safe wrapper that returns null on any read error. getContractAddress() constructs paths by joining process.cwd() + "deployments/" + network + ".json" where network is constrained to the SupportedChain type.
+> All TypeScript scripts under script/, tasks/, and .claude/scripts/ are internal developer CLI tools and CI scripts. They are never deployed as network services and never receive input from untrusted external users. Constrained path inputs come from: network names validated against config/networks.json (a version-controlled allow-list, via helpers like getViemChainForNetworkName which throw for unknown networks); contract name strings from the codebase itself or from deploy logs (e.g. "LiFiDiamond", "StargateFacet"); git rev-parse output (trusted local git binary); hardcoded path constants; mkdtemp-generated temp files. Recognize these sanitizers: assertSafePathSegment in script/deploy/tron/helpers/tronscanVerify.ts (rejects path separators and ".." segments), and the containment-guard pattern `const rel = path.relative(base, resolvedPath); if (rel.startsWith('..') || path.isAbsolute(rel)) throw` used in getDeployLogFile/getFunctionSelectors (script/utils/viemScriptHelpers.ts), the propose*Mappings scripts, generateHexagateImportCsv.ts, filter_lcov.ts, and resolveWithinCwd in tasks/generateLedgerClearSigning.ts — any path flowing through one of these is contained. readJsonFile() in script/utils/utils.ts is a safe wrapper that returns null on any read error.
 
 ---
 
@@ -104,6 +106,20 @@ Each pattern has:
 
 **sast_context** (UI: Overly Broad Permissions rule → Custom Code Context):
 > GitHub Actions workflows in this repo follow a least-privilege convention: each workflow declares the minimal permission scopes it needs at the workflow or job level, with an inline comment explaining why (e.g. `contents: write # Needed to push new tags`). A workflow that grants only the specific scopes it uses, is triggered solely by trusted events (push, workflow_dispatch, schedule, or same-repo pull_request), and never checks out or executes untrusted fork input, is correctly hardened — not over-broad. Treat `write-all`/`read-all`, or any broad scope on pull_request_target / workflow_run / issue_comment workflows that handle fork input, as real findings requiring review.
+
+---
+
+## `gha_persist_credentials_push_checkout`
+
+**Matches when**: issue title contains "persist Git credentials"; the flagged `actions/checkout` step configures a dedicated credential (`token:` backed by a dedicated secret or `ssh-key:`, never the ambient `GITHUB_TOKEN`), AND a later step in the same job performs an authenticated `git push` against that checkout using the persisted credential, AND the workflow uses only trusted triggers (`push`, `schedule`, `workflow_dispatch`, or same-repository `pull_request`).
+
+**Does NOT match** (these are REAL — fix with `persist-credentials: false`): checkouts of jobs that never push with the persisted git credential afterwards. `gh`/API calls authenticate via `env:` tokens, not the persisted git `extraheader`, so they do not justify keeping it.
+
+**ignore_reason**:
+> Intended behavior, risk accepted — this checkout deliberately persists an explicitly scoped credential (dedicated PAT, sync token, or deploy ssh-key, not the ambient runner token) because a later step in the same job pushes to that repository with it. Setting persist-credentials: false would break the push. The workflow runs only on trusted triggers (push / schedule / workflow_dispatch).
+
+**sast_context** (UI: persist Git credentials rule → Custom Code Context):
+> Read-only checkouts in this repo set persist-credentials: false. The exceptions each configure an explicitly scoped credential (a dedicated PAT or deploy ssh-key passed via `token:`/`ssh-key:`, never the ambient runner GITHUB_TOKEN) because a later step in the same job performs a git push to that repository using the persisted credential (e.g. registry sync, type-bindings publish, dependency-bump branches). These are intentional and required; only flag checkouts that persist credentials without a subsequent authenticated git push in the same job.
 
 ---
 
