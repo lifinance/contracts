@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IFraxHopV2, IFraxOFT, ITipFeeManager } from "../Interfaces/IFraxHopV2.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
@@ -431,7 +432,7 @@ contract FraxFacet is
         bool isNonEVM = _bridgeData.receiver == NON_EVM_ADDRESS;
         bytes32 recipient = isNonEVM
             ? _fraxData.nonEVMReceiver
-            : bytes32(uint256(uint160(_bridgeData.receiver)));
+            : LibBytes.toBytes32(_bridgeData.receiver);
 
         if (isNonEVM) {
             emit BridgeToNonEVMChainBytes32(
