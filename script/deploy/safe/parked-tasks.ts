@@ -44,6 +44,7 @@ import { type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
 import { getEnvVar } from '../../utils/utils'
+import { networks } from '../../utils/viemScriptHelpers'
 
 /** Database for the deferred diamond-cleanup queue inside the non-sensitive `MONGODB_URI` cluster. */
 const PARKED_TASKS_DB_NAME = 'deferred-cleanup'
@@ -291,11 +292,19 @@ export async function getParkedTasksCollection(): Promise<{
  * because `taskKey` is built from `network`+`facetName` and a stray space would
  * silently mint a distinct, undeduplicated task for the same facet.
  *
+ * The network must be `active` in `config/networks.json`. Deploy logs outlive a
+ * network's removal from `networks.json` (deprecated networks keep their
+ * `deployments/<network>.json` snapshot), so a deploy-log-driven caller could
+ * otherwise park a task for a network the reconcile/drain resolves against
+ * `networks.json` and can never route — the failure mode that took down the
+ * scheduled reconcile.
+ *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
  * @returns The insert result, or `null` if a duplicate open task already exists.
  * @throws Error if `prUrl` or `facetName` is missing or blank (prUrl is the
- *   PR-link requirement, spec §6; facetName is the task identity).
+ *   PR-link requirement, spec §6; facetName is the task identity), or if
+ *   `network` is not an active network in `config/networks.json`.
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -309,6 +318,13 @@ export async function enqueueParkedTask(
     throw new Error('facetName is required to park a facet-removal task')
 
   const network = input.network.trim().toLowerCase()
+  if (networks[network]?.status !== 'active')
+    throw new Error(
+      `Network "${network}" is not an active network in config/networks.json — refusing to ` +
+        `park a facet-removal task the reconcile/drain can never resolve. A deprecated network's ` +
+        `deploy logs may still list the facet, but the network is gone; run /deprecate-network to ` +
+        `delete its deploy logs instead of parking a removal.`
+    )
   const facetName = input.facetName.trim()
   const doc: IParkedTask = {
     ...input,

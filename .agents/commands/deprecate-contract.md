@@ -106,10 +106,14 @@ The command performs these steps in order:
    and [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
 
    - **What to park**: for each deprecated facet, one parked task per PRODUCTION
-     network whose **deploy log** (`deployments/<network>.json`) lists it — that
-     log is the authoritative facet → address map. Read the diamond address and
-     the facet address from that log; do **not** delete those entries yet
-     (see step 7).
+     network that (a) is **active** in `config/networks.json` **and** (b) whose
+     **deploy log** (`deployments/<network>.json`) lists the facet — that log is
+     the authoritative facet → address map. Read the diamond address and the facet
+     address from that log; do **not** delete those entries yet (see step 7).
+     Skip any network absent from `networks.json`: deprecated networks keep their
+     deploy logs but are gone from `networks.json`, so a task parked for one can
+     never be resolved by the reconcile/drain (which route via `networks.json`).
+     The enqueue CLI enforces this too and rejects a non-active network.
    - **Park last, after the deprecation PR exists.** Each parked task **requires**
      the originating PR URL (`--prUrl`) so the reviewer sees it at signing, and
      that URL only exists once `gh pr create` has returned it. So the enqueue is

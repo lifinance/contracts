@@ -314,6 +314,24 @@ describe('enqueueParkedTask', () => {
     expect(coll.rows).toHaveLength(0)
   })
 
+  it('throws when the network is not in config/networks.json', async () => {
+    const coll = createFakeCollection()
+    await expectRejects(
+      enqueueParkedTask(coll, buildInput({ network: 'evmos' })),
+      /not an active network/
+    )
+    expect(coll.rows).toHaveLength(0)
+  })
+
+  it('throws when the network exists but is not active', async () => {
+    const coll = createFakeCollection()
+    await expectRejects(
+      enqueueParkedTask(coll, buildInput({ network: 'localanvil' })),
+      /not an active network/
+    )
+    expect(coll.rows).toHaveLength(0)
+  })
+
   it('trims network, facetName and prUrl before storing/keying', async () => {
     const coll = createFakeCollection()
     await enqueueParkedTask(
