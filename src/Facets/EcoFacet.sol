@@ -15,7 +15,7 @@ import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Eco Protocol
-/// @custom:version 1.1.0
+/// @custom:version 1.2.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 
@@ -239,6 +239,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.destinationChainId,
                 _ecoData.nonEVMReceiver
             );
+        } else if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_TRON) {
+            emit BridgeToNonEVMChainBytes32(
+                _bridgeData.transactionId,
+                _bridgeData.destinationChainId,
+                bytes32(_ecoData.nonEVMReceiver[0:32])
+            );
         }
 
         emit LiFiTransferStarted(_bridgeData);
@@ -254,51 +260,75 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidConfig();
         }
 
-        address receiver = _bridgeData.receiver;
         bool isSolanaDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_SOLANA;
+        bool isTronDestination = _bridgeData.destinationChainId ==
+            LIFI_CHAIN_ID_TRON;
 
-        if (receiver == NON_EVM_ADDRESS) {
-            if (!isSolanaDestination) {
+        if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (isSolanaDestination) {
+                if (_ecoData.nonEVMReceiver.length == 0)
+                    revert InvalidReceiver();
+                if (_ecoData.solanaATA == bytes32(0)) revert InvalidConfig();
+                if (
+                    _ecoData.encodedRoute.length != SOLANA_ENCODED_ROUTE_LENGTH
+                ) revert InvalidReceiver();
+                _validateSolanaReceiver(_ecoData);
+            } else if (isTronDestination) {
+                _validateTronReceiver(_ecoData);
+            } else {
                 revert InvalidConfig();
             }
-
-            if (_ecoData.nonEVMReceiver.length == 0) revert InvalidReceiver();
-            if (_ecoData.solanaATA == bytes32(0)) revert InvalidConfig();
-            if (_ecoData.encodedRoute.length != SOLANA_ENCODED_ROUTE_LENGTH)
-                revert InvalidReceiver();
-            _validateSolanaReceiver(_ecoData);
         } else {
             if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
 
-            // If receiver is not NON_EVM_ADDRESS but destination is Solana, reject
-            if (isSolanaDestination) {
+            // A concrete receiver is only valid for EVM destinations; non-EVM
+            // chains must use the NON_EVM_ADDRESS sentinel path above.
+            if (isSolanaDestination || isTronDestination) {
                 revert InvalidReceiver();
             }
 
-            // For EVM-compatible chains (includes TRON), decode the Route struct to get the last call
-            // Note: TRON is considered EVM-compatible here as it uses the same Route struct encoding
-            Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
-
-            // The last call should be the transfer to the receiver
-            // For ERC20 transfer, the calldata follows the pattern: transfer(address,uint256)
-            // We need to skip the function selector (4 bytes) and decode the address parameter
-            bytes memory lastCallData = route
-                .calls[route.calls.length - 1]
-                .callData;
-
-            // Extract the receiver address from the calldata
-            // Skip the 4-byte function selector and decode the address (first parameter)
-            // The address parameter starts at byte 4 (after the selector)
-            address routeReceiver;
-            assembly {
-                // Load the address from offset 36 (32 bytes length + 4 bytes selector)
-                routeReceiver := mload(add(lastCallData, 36))
-            }
-
-            if (routeReceiver != _bridgeData.receiver) {
+            if (
+                _decodeRouteReceiver(_ecoData.encodedRoute) !=
+                _bridgeData.receiver
+            ) {
                 revert InvalidReceiver();
             }
+        }
+    }
+
+    /// @dev Decodes the Route struct and returns the recipient of its final
+    ///      ERC20/TRC20 `transfer` call, the address the destination tokens are
+    ///      sent to. Used to cross-check the caller-supplied receiver.
+    function _decodeRouteReceiver(
+        bytes calldata encodedRoute
+    ) private pure returns (address routeReceiver) {
+        Route memory route = abi.decode(encodedRoute, (Route));
+
+        // The last call is the transfer to the receiver. The calldata follows
+        // the transfer(address,uint256) pattern, so the receiver address starts
+        // at byte 4 (after the 4-byte selector).
+        bytes memory lastCallData = route
+            .calls[route.calls.length - 1]
+            .callData;
+        assembly {
+            // Load the address from offset 36 (32 bytes length + 4 bytes selector)
+            routeReceiver := mload(add(lastCallData, 36))
+        }
+    }
+
+    /// @dev Tron uses the same Route struct encoding as EVM chains, so the real
+    ///      recipient lives in the route. nonEVMReceiver carries that recipient
+    ///      as a 32-byte left-padded address and is cross-checked against it.
+    function _validateTronReceiver(EcoData calldata _ecoData) private pure {
+        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+        if (_ecoData.nonEVMReceiver.length != 32) revert InvalidReceiver();
+
+        address nonEVMReceiver = address(
+            uint160(uint256(bytes32(_ecoData.nonEVMReceiver[0:32])))
+        );
+        if (nonEVMReceiver != _decodeRouteReceiver(_ecoData.encodedRoute)) {
+            revert InvalidReceiver();
         }
     }
 

@@ -356,11 +356,116 @@ contract EcoFacetTest is TestBaseFacet {
     function test_BridgeToTron() public {
         vm.startPrank(USER_SENDER);
 
-        // Set up bridge data for Tron
+        // Tron follows the non-EVM convention: sentinel receiver + the real
+        // recipient carried in nonEVMReceiver and cross-checked against the route
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = USER_RECEIVER; // Can use regular address for Tron
+        bridgeData.receiver = NON_EVM_ADDRESS;
 
-        // Tron is EVM-compatible, so use the same Route struct encoding
+        // Tron uses the same Route struct encoding as EVM chains
+        bytes memory tronEncodedRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: abi.encode(USER_RECEIVER),
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: tronEncodedRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit BridgeToNonEVMChainBytes32(
+            bridgeData.transactionId,
+            bridgeData.destinationChainId,
+            bytes32(uint256(uint160(USER_RECEIVER)))
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TronReceiverMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        // Route pays USER_RECEIVER but nonEVMReceiver points at a different address
+        bytes memory tronEncodedRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: abi.encode(address(0x9999)),
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: tronEncodedRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TronWithInvalidNonEVMReceiverLength() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        bytes memory tronEncodedRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: abi.encodePacked(USER_RECEIVER), // 20 bytes, not 32
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: tronEncodedRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TronWithEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // A concrete receiver is not allowed for Tron; it must use the sentinel
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = USER_RECEIVER;
+
         bytes memory tronEncodedRoute = _createEncodedRoute(
             USER_RECEIVER,
             bridgeData.sendingAssetId,
@@ -371,7 +476,7 @@ contract EcoFacetTest is TestBaseFacet {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: tronEncodedRoute, // Properly encoded Route struct
+            encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER
         });
@@ -380,11 +485,7 @@ contract EcoFacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        // Expect event
-        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
-        emit LiFiTransferStarted(bridgeData);
-
-        // Execute bridge - route validation will check the transfer
+        vm.expectRevert(InvalidReceiver.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -615,16 +716,15 @@ contract EcoFacetTest is TestBaseFacet {
     function testRevert_TronWithInvalidRoute() public {
         vm.startPrank(USER_SENDER);
 
-        // Set up bridge data for Tron (which is an EVM-compatible chain in this context)
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.receiver = NON_EVM_ADDRESS;
 
         // Create data that cannot be ABI decoded as a Route struct
         bytes
             memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
+            nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: invalidTronRoute,
