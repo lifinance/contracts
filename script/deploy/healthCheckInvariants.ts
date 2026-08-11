@@ -22,6 +22,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  zeroAddress,
   type Address,
   type Hex,
   type PublicClient,
@@ -31,6 +32,11 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD } from './shared/constants'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  resolveLiveFacetsFromLog,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -1234,6 +1240,157 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `Periphery contract ${periphery} registered in Diamond`
             )
         }
+      }
+    },
+  },
+  {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets live in the diamond, not on target state: the failure this guards against
+      // is a facet being live while its companion is absent, and target state itself was missing the
+      // receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
+      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
+      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
+      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      const couplings = getFacetPeripheryCouplings()
+      const liveFacets = resolveLiveFacetsFromLog(
+        ctx.onChainFacets.map((facet) => facet.address),
+        ctx.deployedContracts as Record<string, string>,
+        Object.keys(couplings)
+      )
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower,
+        couplings
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${carveOut.facet}: ${carveOut.requiresAnyOf.join(
+            ' / '
+          )} not required here — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = [...new Set(required.flatMap((r) => r.requiresAnyOf))]
+      // A companion is present iff getPeripheryContract returns a non-zero address. A read that
+      // fails is undetermined, never treated as absence - one flaky RPC must not raise a false gate.
+      const registered = new Map<string, boolean>()
+      const unresolved = new Set<string>()
+
+      if (ctx.isTron && ctx.tronRpcUrl) {
+        // Tron: getPeripheryContract returns base58; the zero address encodes to this fixed string.
+        const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+        for (const periphery of wanted)
+          try {
+            const output = await callTronContract(
+              ctx.diamondAddress,
+              'getPeripheryContract(string)',
+              [periphery],
+              'address',
+              ctx.tronRpcUrl
+            )
+            const parsed = parseTronAddressOutput(output)
+            registered.set(
+              periphery,
+              parsed.startsWith('T') &&
+                parsed.length === 34 &&
+                parsed !== TRON_ZERO_ADDRESS
+            )
+          } catch (error: unknown) {
+            const errorMessage =
+              error instanceof Error ? error.message : String(error)
+            ctx.logWarn(
+              `Failed to read periphery registration for ${periphery}: ${errorMessage}`
+            )
+            unresolved.add(periphery)
+          }
+      } else if (ctx.publicClient) {
+        const peripheryRegistry = getContract({
+          address: ctx.diamondAddress as Address,
+          abi: parseAbi([
+            'function getPeripheryContract(string) external view returns (address)',
+          ]),
+          client: ctx.publicClient,
+        })
+        const results = await Promise.allSettled(
+          wanted.map((periphery) =>
+            peripheryRegistry.read.getPeripheryContract([periphery])
+          )
+        )
+        wanted.forEach((periphery, index) => {
+          const result = results[index]
+          if (result?.status !== 'fulfilled') {
+            const reason =
+              result?.status === 'rejected'
+                ? String(result.reason)
+                : 'no result'
+            ctx.logWarn(
+              `Failed to read periphery registration for ${periphery}: ${reason}`
+            )
+            unresolved.add(periphery)
+            return
+          }
+          registered.set(periphery, result.value !== zeroAddress)
+        })
+      } else {
+        ctx.logWarn(
+          'Neither a Tron RPC URL nor an EVM client is available - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      for (const requirement of required) {
+        const satisfiedBy = requirement.requiresAnyOf.filter((periphery) =>
+          registered.get(periphery)
+        )
+        if (satisfiedBy.length > 0) {
+          consola.success(
+            `${satisfiedBy.join(
+              ' / '
+            )} registered for ${requirement.triggeredBy.join(', ')}`
+          )
+          continue
+        }
+
+        const undetermined = requirement.requiresAnyOf.filter((periphery) =>
+          unresolved.has(periphery)
+        )
+        if (undetermined.length === requirement.requiresAnyOf.length) {
+          ctx.logWarn(
+            `${requirement.triggeredBy.join(
+              ', '
+            )}: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
+              ', '
+            )})`
+          )
+          continue
+        }
+
+        ctx.logError(
+          `${requirement.triggeredBy.join(
+            ', '
+          )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
+            ', '
+          )}) - destination calls for this integration are disabled on this network`
+        )
       }
     },
   },
