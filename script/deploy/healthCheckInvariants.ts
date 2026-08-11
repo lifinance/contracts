@@ -1338,7 +1338,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // (or troncast output drift) must not raise a false "destination calls disabled" gate.
       const registered = new Map<string, boolean>()
       const unresolved = new Set<string>()
-      const markUnresolved = (companion: string, reason: unknown) => {
+      const markUnresolved = (companion: string, reason: unknown): void => {
         ctx.logWarn(
           `Failed to read periphery registration for ${companion}: ${String(
             reason
