@@ -835,6 +835,51 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
+/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
+const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
+ *
+ * @param name - the periphery contract name to look up
+ * @param ctx - the health-check context (supplies the diamond address and RPC client)
+ * @returns the registered address (checksummed hex on EVM, base58 on Tron), or null when the
+ *   registry holds the zero address — i.e. nothing is registered under that name
+ * @throws when the read fails, returns malformed output, or no client is configured, so callers
+ *   can tell "not registered" (null) apart from "could not determine" (throw)
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        ctx.diamondAddress,
+        'getPeripheryContract(string)',
+        [name],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    if (!parsed.startsWith('T') || parsed.length !== 34)
+      throw new Error(`malformed Tron address for ${name}: ${parsed}`)
+    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+  }
+
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const registry = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function getPeripheryContract(string) external view returns (address)',
+    ]),
+    client: ctx.publicClient,
+  })
+  const address = await registry.read.getPeripheryContract([name])
+  return address === zeroAddress ? null : getAddress(address)
+}
+
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
@@ -1288,71 +1333,42 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       if (required.length === 0) return
 
       const wanted = required.map((requirement) => requirement.companion)
-      // A companion is present iff getPeripheryContract returns a non-zero address. A read that
-      // fails is undetermined, never treated as absence - one flaky RPC must not raise a false gate.
+      // A companion is present iff the registry returns a non-null (non-zero) address. A read that
+      // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
+      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
       const registered = new Map<string, boolean>()
       const unresolved = new Set<string>()
+      const markUnresolved = (companion: string, reason: unknown) => {
+        ctx.logWarn(
+          `Failed to read periphery registration for ${companion}: ${String(
+            reason
+          )}`
+        )
+        unresolved.add(companion)
+      }
 
-      if (ctx.isTron && ctx.tronRpcUrl) {
-        // Tron: getPeripheryContract returns base58; the zero address encodes to this fixed string.
-        const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
-        for (const periphery of wanted)
+      // EVM reads fold into the batched multicall client (concurrent); Tron reads stay sequential
+      // to avoid spawning a troncast subprocess per companion at once.
+      if (ctx.isTron)
+        for (const companion of wanted)
           try {
-            const output = await callTronContract(
-              ctx.diamondAddress,
-              'getPeripheryContract(string)',
-              [periphery],
-              'address',
-              ctx.tronRpcUrl
-            )
-            const parsed = parseTronAddressOutput(output)
             registered.set(
-              periphery,
-              parsed.startsWith('T') &&
-                parsed.length === 34 &&
-                parsed !== TRON_ZERO_ADDRESS
+              companion,
+              (await readPeripheryRegistry(companion, ctx)) !== null
             )
           } catch (error: unknown) {
-            const errorMessage =
-              error instanceof Error ? error.message : String(error)
-            ctx.logWarn(
-              `Failed to read periphery registration for ${periphery}: ${errorMessage}`
-            )
-            unresolved.add(periphery)
+            markUnresolved(companion, error)
           }
-      } else if (ctx.publicClient) {
-        const peripheryRegistry = getContract({
-          address: ctx.diamondAddress as Address,
-          abi: parseAbi([
-            'function getPeripheryContract(string) external view returns (address)',
-          ]),
-          client: ctx.publicClient,
-        })
+      else {
         const results = await Promise.allSettled(
-          wanted.map((periphery) =>
-            peripheryRegistry.read.getPeripheryContract([periphery])
-          )
+          wanted.map((companion) => readPeripheryRegistry(companion, ctx))
         )
-        wanted.forEach((periphery, index) => {
+        wanted.forEach((companion, index) => {
           const result = results[index]
-          if (result?.status !== 'fulfilled') {
-            const reason =
-              result?.status === 'rejected'
-                ? String(result.reason)
-                : 'no result'
-            ctx.logWarn(
-              `Failed to read periphery registration for ${periphery}: ${reason}`
-            )
-            unresolved.add(periphery)
-            return
-          }
-          registered.set(periphery, result.value !== zeroAddress)
+          if (result?.status === 'fulfilled')
+            registered.set(companion, result.value !== null)
+          else markUnresolved(companion, result?.reason ?? 'no result')
         })
-      } else {
-        ctx.logWarn(
-          'Neither a Tron RPC URL nor an EVM client is available - facet/periphery coupling check skipped'
-        )
-        return
       }
 
       for (const { companion, triggeredBy } of required) {
