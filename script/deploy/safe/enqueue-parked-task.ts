@@ -20,9 +20,9 @@ import * as dotenv from 'dotenv'
 import { getAddress, type Address } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
-import { networks } from '../../utils/viemScriptHelpers'
 
 import {
+  assertActiveNetwork,
   enqueueParkedTask,
   getParkedTasksCollection,
   type IParkedTaskInput,
@@ -120,14 +120,11 @@ const main = defineCommand({
       process.exit(1)
     }
 
-    const network = args.network.trim().toLowerCase()
-    if (networks[network]?.status !== 'active') {
-      consola.error(
-        `Network "${network}" is not an active network in config/networks.json — refusing to ` +
-          `park a removal the reconcile/drain can never resolve. A deprecated network's deploy ` +
-          `logs may still list the facet, but the network is gone; run /deprecate-network to ` +
-          `delete its deploy logs instead of parking a task.`
-      )
+    let network: string
+    try {
+      network = assertActiveNetwork(args.network)
+    } catch (error: unknown) {
+      consola.error(error instanceof Error ? error.message : String(error))
       process.exit(1)
     }
 

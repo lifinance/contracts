@@ -29,6 +29,7 @@ import { type Address } from 'viem'
 import { EnvironmentEnum } from '../../common/types'
 
 import {
+  assertActiveNetwork,
   claimForProposal,
   computeTaskKey,
   enqueueParkedTask,
@@ -240,6 +241,22 @@ describe('computeTaskKey', () => {
   })
 })
 
+describe('assertActiveNetwork', () => {
+  it('returns the trimmed, lowercased key for an active network', () => {
+    expect(assertActiveNetwork('  Arbitrum ')).toBe('arbitrum')
+  })
+
+  it('throws "not in config" for a network absent from networks.json', () => {
+    expect(() => assertActiveNetwork('evmos')).toThrow(
+      /not in config\/networks\.json/
+    )
+  })
+
+  it('throws "not active" for a present-but-inactive network', () => {
+    expect(() => assertActiveNetwork('localanvil')).toThrow(/not active/)
+  })
+})
+
 describe('enqueueParkedTask', () => {
   it('inserts a queued task and stamps taskKey/status/createdAt', async () => {
     const coll = createFakeCollection()
@@ -314,11 +331,11 @@ describe('enqueueParkedTask', () => {
     expect(coll.rows).toHaveLength(0)
   })
 
-  it('throws when the network is not in config/networks.json', async () => {
+  it('throws when the network is absent from config/networks.json', async () => {
     const coll = createFakeCollection()
     await expectRejects(
       enqueueParkedTask(coll, buildInput({ network: 'evmos' })),
-      /not an active network/
+      /not in config\/networks\.json/
     )
     expect(coll.rows).toHaveLength(0)
   })
@@ -327,7 +344,7 @@ describe('enqueueParkedTask', () => {
     const coll = createFakeCollection()
     await expectRejects(
       enqueueParkedTask(coll, buildInput({ network: 'localanvil' })),
-      /not an active network/
+      /not active/
     )
     expect(coll.rows).toHaveLength(0)
   })

@@ -281,6 +281,39 @@ export async function getParkedTasksCollection(): Promise<{
 }
 
 /**
+ * Normalises `network` (trim + lowercase) and asserts it is an `active` network in
+ * `config/networks.json`, returning the normalised key. Both the enqueue chokepoint
+ * and the CLI validate through here so the rule and its message have one source.
+ *
+ * Deploy logs outlive a network's removal from `networks.json` (deprecated networks
+ * keep their `deployments/<network>.json` snapshot), so a deploy-log-driven caller
+ * could otherwise park a task the reconcile/drain — which routes via `networks.json`
+ * — can never resolve. The two rejections are distinct: an **absent** network is
+ * deprecated/gone (clean it up via `/deprecate-network`); a **present-but-inactive**
+ * one exists in config but is not parkable.
+ *
+ * @param network - Raw network slug (any case, untrimmed).
+ * @returns The normalised (trimmed, lowercased) network key.
+ * @throws Error if the network is absent from, or not `active` in, `config/networks.json`.
+ */
+export function assertActiveNetwork(network: string): string {
+  const normalized = network.trim().toLowerCase()
+  const status = networks[normalized]?.status
+  if (status === 'active') return normalized
+  if (status === undefined)
+    throw new Error(
+      `Network "${normalized}" is not in config/networks.json — refusing to park a ` +
+        `facet-removal task the reconcile/drain can never resolve. A deprecated network's ` +
+        `deploy logs may still list the facet, but the network is gone; run /deprecate-network ` +
+        `to delete its deploy logs instead of parking a removal.`
+    )
+  throw new Error(
+    `Network "${normalized}" is "${status}" (not active) in config/networks.json — refusing ` +
+      `to park a facet-removal task; only active networks are parkable.`
+  )
+}
+
+/**
  * Enqueues a parked task. Fills `taskKey`, `status: 'queued'` and `createdAt`,
  * then inserts. A duplicate open task (same `taskKey` while queued/proposed) hits
  * the partial unique index → E11000 → returns `null` (a repeat deprecation of the
@@ -292,12 +325,9 @@ export async function getParkedTasksCollection(): Promise<{
  * because `taskKey` is built from `network`+`facetName` and a stray space would
  * silently mint a distinct, undeduplicated task for the same facet.
  *
- * The network must be `active` in `config/networks.json`. Deploy logs outlive a
- * network's removal from `networks.json` (deprecated networks keep their
- * `deployments/<network>.json` snapshot), so a deploy-log-driven caller could
- * otherwise park a task for a network the reconcile/drain resolves against
- * `networks.json` and can never route — the failure mode that took down the
- * scheduled reconcile.
+ * The network is validated and normalised via {@link assertActiveNetwork} — it
+ * must be `active` in `config/networks.json`, else the reconcile/drain could never
+ * resolve the task (the failure mode that took down the scheduled reconcile).
  *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
@@ -317,14 +347,7 @@ export async function enqueueParkedTask(
   if (!input.facetName || input.facetName.trim() === '')
     throw new Error('facetName is required to park a facet-removal task')
 
-  const network = input.network.trim().toLowerCase()
-  if (networks[network]?.status !== 'active')
-    throw new Error(
-      `Network "${network}" is not an active network in config/networks.json — refusing to ` +
-        `park a facet-removal task the reconcile/drain can never resolve. A deprecated network's ` +
-        `deploy logs may still list the facet, but the network is gone; run /deprecate-network to ` +
-        `delete its deploy logs instead of parking a removal.`
-    )
+  const network = assertActiveNetwork(input.network)
   const facetName = input.facetName.trim()
   const doc: IParkedTask = {
     ...input,
