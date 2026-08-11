@@ -848,7 +848,6 @@ const NON_USER_FACING_NAMES = new Set([
   // Admin/relayer-only; users do not sign these directly. If a wallet integration
   // ever wants clear-signing for owner-side recovery flows, classify and remove.
   'withdraw', // WithdrawFacet — owner-only recovery
-  'triggerRefund', // CBridge refund — admin-side
   'executeCallAndWithdraw', // operator-only utility
 ])
 
