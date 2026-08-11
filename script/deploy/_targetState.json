@@ -1895,7 +1895,8 @@
         "TokenWrapper": "1.2.1",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "SymbiosisFacet": "2.0.0"
       }
     }
   },
