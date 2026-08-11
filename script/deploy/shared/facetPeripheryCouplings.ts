@@ -14,9 +14,12 @@ import globalConfig from '../../../config/global.json'
 
 /** What one facet requires on the same chain to be functionally complete. */
 export interface IFacetPeripheryCoupling {
-  /** Periphery contracts, ANY ONE of which satisfies the coupling. */
-  requiresAnyOf: string[]
-  /** Per-network carve-outs: network key → why the companion is genuinely not needed there. */
+  /** The companion periphery contract this facet needs. */
+  requires: string
+  /**
+   * Per-network carve-outs: network key → why the companion is genuinely not needed there. Keys
+   * must be the canonical lowercase network key (as in `config/networks.json`).
+   */
   notRequiredOn?: Record<string, string>
   /** Free-form context for humans reading the config. Never consumed by code. */
   devNotes?: string
@@ -25,18 +28,18 @@ export interface IFacetPeripheryCoupling {
 /** Map of facet name → what it requires. Lookup is a direct key hit on the facet name. */
 export type TFacetPeripheryCouplings = Record<string, IFacetPeripheryCoupling>
 
-/** An active requirement for one chain: these facets are live and need one of these contracts. */
+/** An active requirement for one chain: these facets are live and all need this companion. */
 export interface IActiveCouplingRequirement {
-  /** The facets present on this chain that require this companion set. */
+  /** The companion periphery contract that must be registered. */
+  companion: string
+  /** The facets present on this chain that require it. */
   triggeredBy: string[]
-  /** Periphery contracts, any one of which satisfies it. */
-  requiresAnyOf: string[]
 }
 
 /** A facet whose companion requirement is deliberately not enforced on this chain. */
 export interface ISkippedCouplingRequirement {
   facet: string
-  requiresAnyOf: string[]
+  companion: string
   /** Why it is not enforced — always printed so a carve-out is never invisible. */
   reason: string
 }
@@ -62,13 +65,13 @@ export function getFacetPeripheryCouplings(): TFacetPeripheryCouplings {
 /**
  * Work out which companion periphery contracts one chain must have, given the facets live there.
  *
- * Each present facet is looked up directly by name. Facets that require the same companion set are
- * merged into one requirement, so three Across V4 facets needing `ReceiverAcrossV4` produce a single
- * entry listing all three as `triggeredBy`. A facet is reported as `skipped` (with a reason) instead
- * when `notRequiredOn` names this network. Pure — callers do the on-chain lookup.
+ * Each present facet is looked up directly by name. Facets requiring the same companion are merged
+ * into one requirement, so three Across V4 facets needing `ReceiverAcrossV4` produce a single entry
+ * listing all three as `triggeredBy`. A facet is reported as `skipped` (with a reason) instead when
+ * `notRequiredOn` names this network. Pure — callers do the on-chain lookup.
  *
  * @param presentFacets - facet names live on the chain (registered in the diamond)
- * @param network - network key as in `config/networks.json`; matched case-insensitively
+ * @param network - network key as in `config/networks.json`
  * @param couplings - registry override, for tests
  * @returns active requirements plus the deliberately-skipped ones
  */
@@ -79,31 +82,31 @@ export function evaluateFacetPeripheryCouplings(
 ): ICouplingEvaluation {
   const networkLower = network.toLowerCase()
   const skipped: ISkippedCouplingRequirement[] = []
-  // Keyed by the companion set so facets of the same family collapse into one requirement.
-  const byCompanionSet = new Map<string, IActiveCouplingRequirement>()
+  // Keyed by companion so facets of the same family collapse into one requirement.
+  const byCompanion = new Map<string, string[]>()
 
   for (const facet of [...new Set(presentFacets)].sort()) {
     const declaration = couplings[facet]
-    if (!declaration) continue
+    if (!declaration?.requires) continue
 
-    const requiresAnyOf = declaration.requiresAnyOf ?? []
-    if (requiresAnyOf.length === 0) continue
-
-    const perNetworkReason = Object.entries(
-      declaration.notRequiredOn ?? {}
-    ).find(([key]) => key.toLowerCase() === networkLower)?.[1]
-    if (perNetworkReason) {
-      skipped.push({ facet, requiresAnyOf, reason: perNetworkReason })
+    const reason = declaration.notRequiredOn?.[networkLower]
+    if (reason) {
+      skipped.push({ facet, companion: declaration.requires, reason })
       continue
     }
 
-    const key = requiresAnyOf.join('|')
-    const existing = byCompanionSet.get(key)
-    if (existing) existing.triggeredBy.push(facet)
-    else byCompanionSet.set(key, { triggeredBy: [facet], requiresAnyOf })
+    const triggeredBy = byCompanion.get(declaration.requires) ?? []
+    triggeredBy.push(facet)
+    byCompanion.set(declaration.requires, triggeredBy)
   }
 
-  return { required: [...byCompanionSet.values()], skipped }
+  return {
+    required: [...byCompanion].map(([companion, triggeredBy]) => ({
+      companion,
+      triggeredBy,
+    })),
+    skipped,
+  }
 }
 
 /**

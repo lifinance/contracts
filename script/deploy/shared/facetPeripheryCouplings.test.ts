@@ -13,35 +13,34 @@ import {
 } from './facetPeripheryCouplings'
 
 const COUPLINGS: TFacetPeripheryCouplings = {
-  AcrossFacetV4: { requiresAnyOf: ['ReceiverAcrossV4'] },
-  AcrossFacetPackedV4: { requiresAnyOf: ['ReceiverAcrossV4'] },
+  AcrossFacetV4: { requires: 'ReceiverAcrossV4' },
+  AcrossFacetPackedV4: { requires: 'ReceiverAcrossV4' },
   ChainflipFacet: {
-    requiresAnyOf: ['ReceiverChainflip'],
+    requires: 'ReceiverChainflip',
     notRequiredOn: { somechain: 'destination calls not supported (EXSC-000)' },
   },
-  EmptyFacet: { requiresAnyOf: [] },
 }
 
 describe('getFacetPeripheryCouplings', () => {
   it('reads the coupling block declared in config/global.json', () => {
     const couplings = getFacetPeripheryCouplings()
-    expect(couplings.AcrossFacetV4?.requiresAnyOf).toContain('ReceiverAcrossV4')
+    expect(couplings.AcrossFacetV4?.requires).toBe('ReceiverAcrossV4')
   })
 })
 
 describe('evaluateFacetPeripheryCouplings', () => {
-  it('collapses facets sharing a companion set into one requirement', () => {
+  it('collapses facets sharing a companion into one requirement', () => {
     const { required } = evaluateFacetPeripheryCouplings(
       ['AcrossFacetV4', 'AcrossFacetPackedV4'],
       'mainnet',
       COUPLINGS
     )
     expect(required).toHaveLength(1)
+    expect(required[0]?.companion).toBe('ReceiverAcrossV4')
     expect(required[0]?.triggeredBy).toEqual([
       'AcrossFacetPackedV4',
       'AcrossFacetV4',
     ])
-    expect(required[0]?.requiresAnyOf).toEqual(['ReceiverAcrossV4'])
   })
 
   it('ignores facets that have no declared coupling', () => {
@@ -53,27 +52,17 @@ describe('evaluateFacetPeripheryCouplings', () => {
     expect(required).toHaveLength(0)
   })
 
-  it('drops a facet whose coupling declares an empty companion set', () => {
-    const { required, skipped } = evaluateFacetPeripheryCouplings(
-      ['EmptyFacet'],
-      'mainnet',
-      COUPLINGS
-    )
-    expect(required).toHaveLength(0)
-    expect(skipped).toHaveLength(0)
-  })
-
-  it('skips a facet carved out on the current network (case-insensitive)', () => {
+  it('skips a facet carved out on the current network', () => {
     const { required, skipped } = evaluateFacetPeripheryCouplings(
       ['ChainflipFacet'],
-      'SomeChain',
+      'somechain',
       COUPLINGS
     )
     expect(required).toHaveLength(0)
     expect(skipped).toEqual([
       {
         facet: 'ChainflipFacet',
-        requiresAnyOf: ['ReceiverChainflip'],
+        companion: 'ReceiverChainflip',
         reason: 'destination calls not supported (EXSC-000)',
       },
     ])
@@ -86,7 +75,7 @@ describe('evaluateFacetPeripheryCouplings', () => {
       COUPLINGS
     )
     expect(skipped).toHaveLength(0)
-    expect(required[0]?.requiresAnyOf).toEqual(['ReceiverChainflip'])
+    expect(required[0]?.companion).toBe('ReceiverChainflip')
   })
 
   it('deduplicates repeated facet names', () => {
@@ -103,7 +92,7 @@ describe('evaluateFacetPeripheryCouplings', () => {
       ['AcrossFacetV4'],
       'mainnet'
     )
-    expect(required[0]?.requiresAnyOf).toContain('ReceiverAcrossV4')
+    expect(required[0]?.companion).toBe('ReceiverAcrossV4')
   })
 })
 

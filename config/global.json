@@ -139,23 +139,23 @@
   },
   "facetPeripheryCouplings": {
     "AcrossFacetV4": {
-      "requiresAnyOf": ["ReceiverAcrossV4"],
+      "requires": "ReceiverAcrossV4",
       "devNotes": "Across V4 destination calls are completed by ReceiverAcrossV4 (EXSC-682, Robinhood)."
     },
     "AcrossFacetPackedV4": {
-      "requiresAnyOf": ["ReceiverAcrossV4"]
+      "requires": "ReceiverAcrossV4"
     },
     "AcrossV4SwapFacet": {
-      "requiresAnyOf": ["ReceiverAcrossV4"]
+      "requires": "ReceiverAcrossV4"
     },
     "ChainflipFacet": {
-      "requiresAnyOf": ["ReceiverChainflip"]
+      "requires": "ReceiverChainflip"
     },
     "LiFiIntentEscrowFacetV2": {
-      "requiresAnyOf": ["ReceiverOIF"]
+      "requires": "ReceiverOIF"
     },
     "StargateFacetV2": {
-      "requiresAnyOf": ["ReceiverStargateV2"]
+      "requires": "ReceiverStargateV2"
     }
   }
 }

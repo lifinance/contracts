@@ -1282,14 +1282,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       for (const carveOut of skipped)
         consola.info(
-          `⏭  ${carveOut.facet}: ${carveOut.requiresAnyOf.join(
-            ' / '
-          )} not required here — ${carveOut.reason}`
+          `⏭  ${carveOut.facet}: ${carveOut.companion} not required here — ${carveOut.reason}`
         )
 
       if (required.length === 0) return
 
-      const wanted = [...new Set(required.flatMap((r) => r.requiresAnyOf))]
+      const wanted = required.map((requirement) => requirement.companion)
       // A companion is present iff getPeripheryContract returns a non-zero address. A read that
       // fails is undetermined, never treated as absence - one flaky RPC must not raise a false gate.
       const registered = new Map<string, boolean>()
@@ -1357,39 +1355,27 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      for (const requirement of required) {
-        const satisfiedBy = requirement.requiresAnyOf.filter((periphery) =>
-          registered.get(periphery)
-        )
-        if (satisfiedBy.length > 0) {
-          consola.success(
-            `${satisfiedBy.join(
-              ' / '
-            )} registered for ${requirement.triggeredBy.join(', ')}`
+      for (const { companion, triggeredBy } of required) {
+        if (unresolved.has(companion)) {
+          ctx.logWarn(
+            `${triggeredBy.join(
+              ', '
+            )}: could not determine whether ${companion} is registered (lookup failed)`
           )
           continue
         }
 
-        const undetermined = requirement.requiresAnyOf.filter((periphery) =>
-          unresolved.has(periphery)
-        )
-        if (undetermined.length === requirement.requiresAnyOf.length) {
-          ctx.logWarn(
-            `${requirement.triggeredBy.join(
-              ', '
-            )}: could not determine whether a companion is registered (all lookups failed: ${undetermined.join(
-              ', '
-            )})`
+        if (registered.get(companion)) {
+          consola.success(
+            `${companion} registered for ${triggeredBy.join(', ')}`
           )
           continue
         }
 
         ctx.logError(
-          `${requirement.triggeredBy.join(
+          `${triggeredBy.join(
             ', '
-          )} live but no companion periphery registered in Diamond (need one of: ${requirement.requiresAnyOf.join(
-            ', '
-          )}) - destination calls for this integration are disabled on this network`
+          )} live but companion ${companion} not registered in Diamond - destination calls for this integration are disabled on this network`
         )
       }
     },
