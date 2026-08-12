@@ -58,6 +58,13 @@ The receiver address is specified differently depending on the destination chain
   - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
   - The contract validates that `solanaATA` matches the ATA encoded in the route
 
+- **For Tron destination chain**:
+  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
+  - Provide the Tron address in `nonEVMReceiver` as a 32-byte left-padded address (`abi.encode(address)`)
+  - Leave `solanaATA` as `bytes32(0)`
+  - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
+  - The contract validates that `nonEVMReceiver` matches the receiver decoded from the encoded route
+
 Examples:
 
 ```solidity
@@ -71,6 +78,12 @@ ecoData.refundRecipient = msg.sender; // User address for refunds
 bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
 ecoData.nonEVMReceiver = solanaAddressBytes;     // Solana address as bytes
 ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
+ecoData.refundRecipient = msg.sender;            // User address for refunds
+
+// EVM to Tron bridge
+bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
+ecoData.nonEVMReceiver = abi.encode(tronAddr);   // Tron address, 32-byte left-padded
+ecoData.solanaATA = bytes32(0);                  // Zero for Tron
 ecoData.refundRecipient = msg.sender;            // User address for refunds
 ```
 
@@ -106,7 +119,7 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
 
-- **TRON Compatibility**: TRON is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling with `nonEVMReceiver` and `solanaATA` parameters.
+- **TRON Handling**: Tron follows the non-EVM receiver convention (`bridgeData.receiver` set to `NON_EVM_ADDRESS`, real recipient in `nonEVMReceiver`), matching the backend's generic non-EVM bridge-data builder and the other non-EVM facets. Because Tron uses the same Route struct encoding as EVM chains, its recipient is decoded from the route's final `transfer` call and cross-checked against `nonEVMReceiver`; a `BridgeToNonEVMChainBytes32` event is emitted. Solana keeps its own handling via `nonEVMReceiver` (base58 bytes) and `solanaATA`.
 
 - **Solana ATA Validation**: For Solana bridges, the contract validates that the Associated Token Account (ATA) specified in `solanaATA` matches the ATA encoded in bytes 251-283 of the route. The ATA is derived from the user's wallet address and the SPL token mint address, not the user's wallet address directly.
 
