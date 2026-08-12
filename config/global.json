@@ -30,10 +30,6 @@
   },
   "approvedSelectorsForRefundWallet": [
     {
-      "selector": "0x0d19e519",
-      "name": "CBridgeFacet.triggerRefund"
-    },
-    {
       "selector": "0xd9caed12",
       "name": "WithdrawFacet.withdraw"
     }

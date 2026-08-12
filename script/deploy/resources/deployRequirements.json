@@ -144,24 +144,6 @@
       }
     }
   },
-  "CBridgeFacet": {
-    "configData": {
-      "_cBridge": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cBridge",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "CBridgeFacetPacked": {
-    "configData": {
-      "_cBridge": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cBridge",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "CelerCircleBridgeFacet": {
     "configData": {
       "_circleBridgeProxy": {
@@ -173,25 +155,6 @@
         "configFileName": "celerCircle.json",
         "keyInConfigFile": ".<NETWORK>.usdc",
         "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "CelerIMFacet": {
-    "configData": {
-      "_messageBus": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_relayerOwner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_cfUSDC": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cfUSDC",
-        "allowToDeployWithZeroAddress": "true"
       }
     }
   },
@@ -628,20 +591,6 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".withdrawWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "RelayerCelerIM": {
-    "configData": {
-      "_cBridgeMessageBusAddress": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
         "allowToDeployWithZeroAddress": "false"
       }
     }

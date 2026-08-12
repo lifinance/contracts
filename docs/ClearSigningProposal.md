@@ -72,7 +72,7 @@ The user sees both the swap input amount and the minimum bridge output. Intentio
 
 ### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin`
 
-Each facet's packed/min entry-point has a bespoke calldata layout (CBridge packed, Across packed, Hop L1/L2 packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via Across (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
+Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, Hop L1/L2 packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via Across (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
 
 Full interpolation for packed variants is deferred to a follow-up once we know which packed entry-points wallets actually want to surface to users.
 
@@ -118,11 +118,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `startBridgeTokensViaAcrossV4Swap` | Bridge via AcrossV4Swap | Bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaAllBridge` | Bridge via AllBridge | Bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaArbitrumBridge` | Bridge via ArbitrumBridge | Bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCBridge` | Bridge via CBridge | Bridge {_bridgeData.minAmount} via CBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCBridgeERC20Min` | Bridge via CBridge (ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeERC20Packed` | Bridge via CBridge (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeNativeMin` | Bridge via CBridge (native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeNativePacked` | Bridge via CBridge (native, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaCelerCircleBridge` | Bridge via CelerCircleBridge | Bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaChainflip` | Bridge via Chainflip | Bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaDeBridgeDln` | Bridge via DeBridgeDln | Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
@@ -165,7 +160,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `swapAndStartBridgeTokensViaAcrossV4Swap` | Swap & Bridge via AcrossV4Swap | Swap then bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaAllBridge` | Swap & Bridge via AllBridge | Swap then bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaArbitrumBridge` | Swap & Bridge via ArbitrumBridge | Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaCBridge` | Swap & Bridge via CBridge | Swap then bridge {_bridgeData.minAmount} via CBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaCelerCircleBridge` | Swap & Bridge via CelerCircleBridge | Swap then bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaChainflip` | Swap & Bridge via Chainflip | Swap then bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaDeBridgeDln` | Swap & Bridge via DeBridgeDln | Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
