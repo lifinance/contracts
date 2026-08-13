@@ -29,10 +29,15 @@ depth = 32
 fail_on_revert = true
 
 [profile.ci]
-# Inherits [profile.default]; only fuzz runs differ for faster CI.
+# Inherits [profile.default]; only fuzz settings differ for faster CI.
 
 [profile.ci.fuzz]
 runs = 32
+# Pinned so a fuzz run over a forked chain reads the same state on every run and can be
+# served from ~/.foundry/cache/rpc. Unseeded, each `--rerun` draws fresh inputs that miss
+# the cache, which makes a fork-RPC timeout unretryable. The local default profile stays
+# unseeded, so a wider input space is still explored outside CI.
+seed = '0x1'
 
 # Floor-compiler check (used by .github/workflows/solc-floor-build.yml).
 # Compiles the deployed contracts (src/) with the minimum pragma compiler so a PR that
@@ -94,7 +99,6 @@ berachain = "${ETH_NODE_URI_BERACHAIN}"
 blast = "${ETH_NODE_URI_BLAST}"
 boba = "${ETH_NODE_URI_BOBA}"
 bob = "${ETH_NODE_URI_BOB}"
-botanix = "${ETH_NODE_URI_BOTANIX}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
 cronos = "${ETH_NODE_URI_CRONOS}"
@@ -110,6 +114,7 @@ gnosis = "${ETH_NODE_URI_GNOSIS}"
 gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
+injective = "${ETH_NODE_URI_INJECTIVE}"
 jovay = "${ETH_NODE_URI_JOVAY}"
 ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
@@ -140,11 +145,7 @@ sei = "${ETH_NODE_URI_SEI}"
 somnia = "${ETH_NODE_URI_SOMNIA}"
 soneium = "${ETH_NODE_URI_SONEIUM}"
 sonic = "${ETH_NODE_URI_SONIC}"
-sophon = "${ETH_NODE_URI_SOPHON}"
 stable = "${ETH_NODE_URI_STABLE}"
-superposition = "${ETH_NODE_URI_SUPERPOSITION}"
-swellchain = "${ETH_NODE_URI_SWELLCHAIN}"
-taiko = "${ETH_NODE_URI_TAIKO}"
 telos = "${ETH_NODE_URI_TELOS}"
 tempo = "${ETH_NODE_URI_TEMPO}"
 velas = "${ETH_NODE_URI_VELAS}"
@@ -178,7 +179,6 @@ berachain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan
 blast = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=81457", chain = "81457" }
 bob = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.gobob.xyz/api", verifier = "blockscout", chain = "60808" }
 boba = { key = "${BOBA_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/288/etherscan/api", chain = "288" }
-botanix = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/3637/etherscan", chain = "3637" }
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 cronos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://cronos.org/explorer/api", verifier = "blockscout", chain = "25" }
@@ -192,6 +192,7 @@ hemi = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.hemi.
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
 ink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.inkonchain.com/api", verifier = "blockscout", chain = "57073"}
+injective = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://blockscout-api.injective.network/api", verifier = "blockscout", chain = "1776"}
 jovay = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.jovay.io/api", chain = "5734951"}
 immutablezkevm = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.immutable.com/api", chain = "13371", verifier = "blockscout" }
 kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/kaia", chain = "8217", verifier = "oklink" }
@@ -221,11 +222,7 @@ sei = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2
 somnia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://mainnet.somnia.w3us.site/api", chain = "5031", verifier = "blockscout" }
 soneium = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://soneium.blockscout.com/api", verifier = "blockscout", chain = "1868" }
 sonic = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=146", chain = "146" }
-sophon = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.sophon.xyz/contract_verification", chain = "50104", verifier = "zksync" }
 stable = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=988", chain = "988"}
-superposition = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-superposition-1v9rjalnat.t.conduit.xyz/api/", chain = "55244", verifier = "blockscout" }
-swellchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1923", chain = "1923" }
-taiko = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=167000", chain = "167000" }
 telos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://sourcify.dev/server", chain = "40", verifier = "sourcify"}
 tempo = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://contracts.tempo.xyz", verifier = "sourcify", chain = "4217" }
 unichain = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://unichain.blockscout.com/api?", chain = "130" , verifier = "blockscout" }

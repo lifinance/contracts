@@ -1,20 +1,31 @@
 # - Smart Contract Core Dev Approval checker
 # - makes sure that every pull_request is at least reviewed by one Smart Contract Core Developer
 #   (member of group https://github.com/orgs/lifinance/teams/smart-contract-core)
+# - re-evaluates on review submission/dismissal AND on PR lifecycle events (opened, reopened,
+#   ready_for_review, synchronize) so the verdict on the head commit is always current
+# - runs unconditionally (also on draft PRs): GitHub counts a "skipped" check run as passing
+#   a required status check, so this job must NEVER skip — a draft-time skip standing as the
+#   final verdict is exactly how an unapproved PR could reach main
 
 name: SC Core Dev Approval Check
 
 on:
   pull_request_review:
-    types: [submitted]
+    types: [submitted, dismissed]
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
   pull-requests: read # required to read PR reviews and metadata
   contents: read # required to read local workspace contents (e.g. access tmp file)
 
+concurrency:
+  group: core-dev-approval-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   core-dev-approval:
-    if: ${{ github.event.pull_request.draft == false }} # will only run once the PR is in "Ready for Review" state
+    # no draft condition on purpose — a skipped run counts as passing for branch protection
     runs-on: ubuntu-latest
     steps:
       - name: Get smart-contract-core Team Members

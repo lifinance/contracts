@@ -2115,6 +2115,13 @@ function verifyContract() {
   local CONTRACT=$2
   local ADDRESS=$3
   local ARGS=$4
+  # Optional toolchain overrides (positional $5-$7). When set (non-zkEVM only),
+  # they pin forge verify-contract to the toolchain a contract was BUILT with,
+  # so re-verifying an older contract does not recompile against the current
+  # foundry.toml (which may have moved to a different EVM-version group).
+  local SOLC_VERSION_OVERRIDE="${5:-}"
+  local EVM_VERSION_OVERRIDE="${6:-}"
+  local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
 
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
@@ -2141,6 +2148,9 @@ function verifyContract() {
   echoDebug "ARGS=$ARGS"
   echoDebug "FULL_PATH=$FULL_PATH"
   echoDebug "CHAIN_ID=$CHAIN_ID"
+  echoDebug "SOLC_VERSION_OVERRIDE=$SOLC_VERSION_OVERRIDE"
+  echoDebug "EVM_VERSION_OVERRIDE=$EVM_VERSION_OVERRIDE"
+  echoDebug "OPTIMIZER_RUNS_OVERRIDE=$OPTIMIZER_RUNS_OVERRIDE"
 
   # Build verification command as array for safe execution
   local VERIFY_CMD=()
@@ -2292,6 +2302,21 @@ function verifyContract() {
         fi
       fi
     done < <(echo "$CUSTOM_FLAGS" | jq -c 'to_entries[]')
+  fi
+
+  # Pin the recorded toolchain for non-zkEVM verification. zkEVM uses zksolc via
+  # the zksync profile and is out of scope here; leaving overrides off keeps the
+  # existing foundry.toml-derived behavior when values are empty.
+  if ! isZkEvmNetwork "$NETWORK"; then
+    if [[ -n "$SOLC_VERSION_OVERRIDE" ]]; then
+      VERIFY_CMD+=("--compiler-version" "$SOLC_VERSION_OVERRIDE")
+    fi
+    if [[ -n "$EVM_VERSION_OVERRIDE" ]]; then
+      VERIFY_CMD+=("--evm-version" "$EVM_VERSION_OVERRIDE")
+    fi
+    if [[ -n "$OPTIMIZER_RUNS_OVERRIDE" ]]; then
+      VERIFY_CMD+=("--num-of-optimizations" "$OPTIMIZER_RUNS_OVERRIDE")
+    fi
   fi
 
   # Always add verifier URL and chain ID so Foundry/verifier use the correct chain (avoids "deployed on mainnet" and 404s)
@@ -2523,9 +2548,9 @@ function verifyAllUnverifiedContractsInLogFile() {
             echo ""
             echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
             if [[ "$DEBUG" == *"true"* ]]; then
-              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
+              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS"
             else
-              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" 2>/dev/null
+              verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS" 2>/dev/null
             fi
 
             # check result
@@ -3022,7 +3047,7 @@ function getIncludedNetworksByEvmVersionArray() {
     fi
 
     # get the EVM version for this network
-    local network_evm_version=$(jq -r --arg network "$network" '.[$network].deployedWithEvmVersion // empty' "$FILE")
+    local network_evm_version=$(jq -r --arg network "$network" '.[$network].targetEvmVersion // empty' "$FILE")
 
     # check if the network's EVM version matches the requested version
     if [[ "$network_evm_version" == "$EVM_VERSION" ]]; then
@@ -3248,6 +3273,36 @@ function warning() {
 }
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
+}
+# logWithTimestamp: Print a message prefixed with the current timestamp.
+#
+# Usage: logWithTimestamp MESSAGE
+#   MESSAGE - Text to log
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] MESSAGE" to stdout.
+# Example: logWithTimestamp "Backed up foundry.toml"
+function logWithTimestamp() {
+  local MESSAGE="$1"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] %s\n' "$TIMESTAMP" "$MESSAGE"
+}
+# logNetworkResult: Print a per-network status line prefixed with a timestamp.
+#
+# Usage: logNetworkResult NETWORK STATUS MESSAGE
+#   NETWORK - Network name the result belongs to
+#   STATUS  - Short status token (e.g. SUCCESS, FAILED)
+#   MESSAGE - Result detail text
+#
+# Returns: Writes "[YYYY-MM-DD HH:MM:SS] [NETWORK] STATUS: MESSAGE" to stdout.
+# Example: logNetworkResult "arbitrum" "SUCCESS" "deployed FraxFacet"
+function logNetworkResult() {
+  local NETWORK="$1"
+  local STATUS="$2"
+  local MESSAGE="$3"
+  local TIMESTAMP
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
+  printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
 }
 # <<<<< output to console
 
@@ -3923,7 +3978,10 @@ function deployAndAddContractToDiamond() {
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
     RETURN_CODE2=$?
 
-    if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then
+    # Both must succeed: a failed deploy whose old contract is still registered makes
+    # diamondUpdatePeriphery report "no action needed" (RETURN_CODE2=0), and a deploy that
+    # fails to register leaves the diamond pointed at the old address - neither is a success.
+    if [[ "$RETURN_CODE1" -eq 0 && "$RETURN_CODE2" -eq 0 ]]; then
       return 0
     else
       return 1

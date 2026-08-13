@@ -7,7 +7,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, InvalidSendingToken } from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
@@ -97,6 +97,39 @@ contract TestMayanFacetExposed is MayanFacet {
     }
 }
 
+/// @notice Records the arguments the facet forwards to `swapAndForwardEth` so tests can assert
+///         amount handling and pass-through without depending on Mayan's real forwarder. Etched
+///         onto the forwarder address so the facet's live external call lands here.
+contract MockMayanSwapForwarder {
+    uint256 public lastValue;
+    uint256 public lastAmountIn;
+    address public lastSwapProtocol;
+    bytes public lastSwapData;
+    address public lastMiddleToken;
+    uint256 public lastMinMiddleAmount;
+    address public lastMayanProtocol;
+    bytes public lastMayanData;
+
+    function swapAndForwardEth(
+        uint256 amountIn,
+        address swapProtocol,
+        bytes calldata swapData,
+        address middleToken,
+        uint256 minMiddleAmount,
+        address mayanProtocol,
+        bytes calldata mayanData
+    ) external payable {
+        lastValue = msg.value;
+        lastAmountIn = amountIn;
+        lastSwapProtocol = swapProtocol;
+        lastSwapData = swapData;
+        lastMiddleToken = middleToken;
+        lastMinMiddleAmount = minMiddleAmount;
+        lastMayanProtocol = mayanProtocol;
+        lastMayanData = mayanData;
+    }
+}
+
 contract MayanFacetTest is TestBaseFacet {
     MayanFacet.MayanData internal validMayanData;
     MayanFacet.MayanData internal validMayanDataNative;
@@ -114,6 +147,12 @@ contract MayanFacetTest is TestBaseFacet {
     bytes32 internal constant EXPECTED_SOL_ADDR = bytes32("EXPECTED ADDRESS");
     address internal constant HYPERCORE_RECEIVER =
         0xd01e6A41E4DE4032830C99aa79c0206753De628A;
+    /// @dev Mayan's native-swap forwarder shape the swapAndForwardEth path targets.
+    address internal constant MAYAN_NATIVE_SWAP_PROTOCOL =
+        0x337685fdaB40D39bd02028545a4FfA7D287cC3E2;
+    /// @dev Arbitrum WETH; middleToken for Mayan's implicit 1:1 ETH->WETH conversion.
+    address internal constant ARBITRUM_WETH =
+        0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
 
     error InvalidReceiver(address expected, address actual);
     error ProtocolDataTooShort();
@@ -133,21 +172,39 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C, // mayanProtocol address
             // Calldata generated from Mayan SDK 100 USDC on Mainnet -> USDT on Polygon
-            hex"afd9b706000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000000000000000000005000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f0000000000000000000000000000000000000000000000000000000005aa76a8000000000000000000000000000000000000000000000000000000006655d64300000000000000000000000000000000000000000000000000000000001ff535000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c"
+            hex"afd9b706000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000000000000000000000000000005f5e10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abc6543210000000000000000000000000000000000000000000000000000000000000005000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f0000000000000000000000000000000000000000000000000000000005aa76a8000000000000000000000000000000000000000000000000000000006655d64300000000000000000000000000000000000000000000000000000000001ff535000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c000000000000000000000000f18f923480dc144326e6c65d4f3d47aa459bb41c",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            defaultUSDCAmount
         );
 
         validMayanDataNative = MayanFacet.MayanData(
             "",
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Calldata generated from Mayan SDK 1 ETH -> USDT on Polygon
-            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c390000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c390000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            defaultNativeAmount
         );
 
         invalidMayanDataEVM2Solana = MayanFacet.MayanData(
             EXPECTED_SOL_ADDR,
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Send tokens to Solana
-            hex"6111ad2500000000000000000000000000000000000000000000000000000000002fa3e500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010883f01f2183c5bf05d6756bf0b0aade846ff42b2bc9afe11e60e677d80270a38b3500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c394cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000098968000000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000006869570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+            hex"6111ad2500000000000000000000000000000000000000000000000000000000002fa3e500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010883f01f2183c5bf05d6756bf0b0aade846ff42b2bc9afe11e60e677d80270a38b3500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c394cb7c5f1632114c376c0e7a9a1fd1fbd562699fbd9a0c9f4f26ba8cf6e23df0d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7c6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000098968000000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000665e43ef00000000000000000000000000000000000000000000000000000000006869570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            0
         );
     }
 
@@ -286,9 +343,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -360,9 +417,9 @@ contract MayanFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        //@dev the bridged amount will be higher than bridgeData.minAmount since the code will
-        //     deposit all remaining ETH to the bridge. We cannot access that value (minAmount + remaining gas)
-        //     therefore the test is designed to only check if an event was emitted but not match the parameters
+        //@dev the swap output is bound to mayanAmountIn and any positive slippage is refunded to
+        //     refundRecipient rather than bridged, so this test only checks that the event was
+        //     emitted without matching the exact parameters
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
@@ -377,7 +434,17 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
-        amount = bound(amount, 150, 100_000);
+        amount = bound(amount, 150, 99_999);
+        // The direct-path bind (#7) requires the order's encoded amountIn to equal the amount
+        // Mayan pulls. The base test varies minAmount (amount * usdc.decimals) against a fixed
+        // fixture, so rewrite the encoded amount to match before delegating.
+        validMayanData.protocolData = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        ).testReplaceInputAmount(
+                validMayanData.protocolData,
+                amount * 10 ** usdc.decimals()
+            );
+
         super.testBase_CanBridgeTokens_fuzzed(amount);
     }
 
@@ -430,7 +497,13 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Calldata generated from Mayan SDK 4.12312312 USDC on Mainnet -> Arbitrum
-            hex"6111ad25000000000000000000000000000000000000000000000000000000000f52ae0e000000000000000000000000000000000000000000000000000000000000f2d000000000000000000000000000000000000000000000000000000000018eb30afc7fcf68097cd0584877939477347b5b8fa10efee2e29805370a35fd2a22ee9500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000000171e8c4fab8994494c8f1e5c1287445b2917d60c43c79aa959162f5d6000598d3200000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000000001700000000000000000000000000000000000000000000000000000000000001e00000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000000000000000000000000000393846a1e4cce00000000000000000000000000000000000000000000000000000000000667d7a7a00000000000000000000000000000000000000000000000000000000667d7a7a0000000000000000000000000000000000000000000000000000000000177f850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+            hex"6111ad25000000000000000000000000000000000000000000000000000000000f52ae0e000000000000000000000000000000000000000000000000000000000000f2d000000000000000000000000000000000000000000000000000000000018eb30afc7fcf68097cd0584877939477347b5b8fa10efee2e29805370a35fd2a22ee9500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000000171e8c4fab8994494c8f1e5c1287445b2917d60c43c79aa959162f5d6000598d3200000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000000001700000000000000000000000000000000000000000000000000000000000001e00000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000000000000000000000000000393846a1e4cce00000000000000000000000000000000000000000000000000000000000667d7a7a00000000000000000000000000000000000000000000000000000000667d7a7a0000000000000000000000000000000000000000000000000000000000177f850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            4123123123123000000
         );
 
         vm.startPrank(DEV_WALLET);
@@ -493,7 +566,13 @@ contract MayanFacetTest is TestBaseFacet {
             ),
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Calldata generated from Mayan SDK 1 ETH -> USDT on Polygon
-            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c390000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+            hex"1eb1cff00000000000000000000000000000000000000000000000000000000000013e0b0000000000000000000000000000000000000000000000000000000000004df200000000000000000000000000000000000000000000000000000000000a42dfcb617b639c537bd08846f61be4481c34f9391f1b8f53d082de024e232508113e00000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c390000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abC654321000000000000000000000000c2132d05d31c914a87c6611c10748aeb04b58e8f000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000006655d880000000000000000000000000000000000000000000000000000000006655d88000000000000000000000000000000000000000000000000000000000e16ffab40000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            0
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -508,6 +587,469 @@ contract MayanFacetTest is TestBaseFacet {
 
         // check balances after call
         assertEq(USER_SENDER.balance, initialBalance - 1 ether);
+    }
+
+    function test_CanBridgeNativeTokensViaMayanSwapAndForwardEth() public {
+        // End-to-end of the new native branch: swapProtocol != 0 routes the native input through
+        // MAYAN.swapAndForwardEth (Mayan's implicit ETH->WETH conversion) instead of forwardEth.
+        // Mayan's forwarder behavior is out of scope, so it is etched with a recorder to isolate
+        // the facet's branch selection, receiver validation and argument pass-through.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        // validMayanDataNative.protocolData (wrapAndSwapETH 0x1eb1cff0) parses to 0xabc654321 ==
+        // USER_RECEIVER, so the EVM receiver check passes on the swap path.
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        bytes memory swapCalldata = hex"c1c0e9c9";
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            swapCalldata,
+            ARBITRUM_WETH,
+            0.99 ether,
+            USER_RECEIVER,
+            0
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+        assertEq(
+            forwarder.lastValue(),
+            1 ether,
+            "swapAndForwardEth must receive minAmount as native value"
+        );
+        assertEq(
+            forwarder.lastAmountIn(),
+            1 ether,
+            "amountIn arg must equal minAmount"
+        );
+        assertEq(forwarder.lastSwapProtocol(), MAYAN_NATIVE_SWAP_PROTOCOL);
+        assertEq(forwarder.lastMiddleToken(), ARBITRUM_WETH);
+        assertEq(
+            forwarder.lastMinMiddleAmount(),
+            0.99 ether,
+            "minMiddleAmount must be forwarded"
+        );
+        assertEq(forwarder.lastSwapData(), swapCalldata);
+        assertEq(
+            forwarder.lastMayanData(),
+            validMayanDataNative.protocolData,
+            "protocolData must be forwarded unchanged"
+        );
+    }
+
+    function test_CanSwapAndBridgeNativeViaMayanSwapAndForwardEth() public {
+        // Double-swap edge: a LI.FI source swap (USDC -> native ETH) feeds the new native
+        // swapAndForwardEth branch (Mayan's implicit ETH->WETH). Asserts _replaceInputAmount stays
+        // skipped for native (protocolData unchanged) and minMiddleAmount is respected.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        vm.startPrank(USER_SENDER);
+        uint256 initialUSDCBalance = usdc.balanceOf(USER_SENDER);
+
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.destinationChainId = 137;
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = defaultNativeAmount;
+        uint256[] memory amounts = uniswap.getAmountsIn(amountOut, path);
+        uint256 amountIn = amounts[0];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
+
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        bytes memory swapCalldata = hex"a1b2c3d4";
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            swapCalldata,
+            ARBITRUM_WETH,
+            0.5 ether,
+            USER_RECEIVER,
+            amountOut
+        );
+
+        vm.expectEmit(false, false, false, false, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+        // The exact-out source swap yields 1 ETH == mayanAmountIn, so the raw committed amount is
+        // forwarded to swapAndForwardEth (native swap input is bound to swapData, never normalized).
+        assertEq(
+            forwarder.lastAmountIn(),
+            forwarder.lastValue(),
+            "amountIn arg must equal forwarded native value"
+        );
+        assertEq(
+            forwarder.lastValue(),
+            1 ether,
+            "normalized swap output must be forwarded as native value"
+        );
+        assertEq(
+            forwarder.lastMinMiddleAmount(),
+            0.5 ether,
+            "minMiddleAmount must be respected"
+        );
+        assertEq(forwarder.lastMiddleToken(), ARBITRUM_WETH);
+        // Native never runs _replaceInputAmount, so Mayan receives the original protocolData.
+        assertEq(
+            forwarder.lastMayanData(),
+            validMayanDataNative.protocolData,
+            "native path must not rewrite protocolData"
+        );
+        assertEq(usdc.balanceOf(USER_SENDER), initialUSDCBalance - amountIn);
+    }
+
+    // @dev Extracted from the test body so the SwapData construction does not share the test
+    //      function's stack frame — keeps `forge coverage --ir-minimum` under the stack limit.
+    function _pushExactOutNativeSwap(
+        address[] memory path,
+        uint256 amountOut,
+        uint256 amountIn
+    ) private {
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    amountOut,
+                    amountIn,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function test_BindsNativeSwapOutputToMayanAmountInAndRefundsSurplus()
+        public
+    {
+        // #1/#3: an exact-out source swap yields 1 ETH, but only mayanAmountIn (0.8 ETH) — the
+        // amount swapData/minMiddleAmount were quoted for — is forwarded to swapAndForwardEth;
+        // the 0.2 ETH positive slippage is refunded to refundRecipient, never bridged onward.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        address refundRecipient = address(0xD00D);
+        uint256 committed = 0.8 ether;
+
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.destinationChainId = 137;
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        uint256 amountOut = 1 ether;
+        uint256 amountIn = uniswap.getAmountsIn(amountOut, path)[0];
+        bridgeData.minAmount = amountOut;
+
+        delete swapData;
+        _pushExactOutNativeSwap(path, amountOut, amountIn);
+
+        usdc.approve(_facetTestContractAddress, amountIn);
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"a1b2c3d4",
+            ARBITRUM_WETH,
+            0.5 ether,
+            refundRecipient,
+            committed
+        );
+
+        uint256 refundBalanceBefore = refundRecipient.balance;
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+
+        assertEq(
+            forwarder.lastValue(),
+            committed,
+            "only the committed amount is forwarded to Mayan"
+        );
+        assertEq(
+            refundRecipient.balance - refundBalanceBefore,
+            amountOut - committed,
+            "positive native slippage is refunded to refundRecipient"
+        );
+    }
+
+    function test_RefundsErc20PositiveSlippageToRefundRecipient() public {
+        // #1: on the ERC20 swap path the realized output above mayanAmountIn is refunded to
+        // refundRecipient and only the committed amount is forwarded to Mayan.
+        vm.mockCall(
+            address(MAYAN_FORWARDER),
+            abi.encodeWithSelector(IMayan.forwardERC20.selector),
+            ""
+        );
+
+        address refundRecipient = address(0xD00D);
+
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC(); // realized output == defaultUSDCAmount (100e6)
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        uint256 committed = defaultUSDCAmount - 10 * 10 ** usdc.decimals();
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = refundRecipient;
+        data.mayanAmountIn = committed;
+
+        uint256 refundBalanceBefore = usdc.balanceOf(refundRecipient);
+
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(refundRecipient) - refundBalanceBefore,
+            defaultUSDCAmount - committed,
+            "positive ERC20 slippage is refunded to refundRecipient"
+        );
+    }
+
+    function testRevert_DirectErc20AmountDoesNotMatchOrderAmount() public {
+        // #7: on the direct entrypoint the amount Mayan pulls (minAmount) must equal the order's
+        // encoded input; a mismatch reverts instead of stranding the remainder in the Forwarder.
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        // validMayanData encodes 100e6; declare a different minAmount.
+        bridgeData.minAmount = 50 * 10 ** usdc.decimals();
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidAmount.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndForwardEthReceiverMismatch() public {
+        // Receiver validation guards the new path too: a protocolData whose parsed receiver differs
+        // from bridgeData.receiver reverts before any forwarding, even with swapProtocol set.
+        bridgeData.receiver = DEV_WALLET;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData, // parses to USER_RECEIVER, not DEV_WALLET
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            "",
+            ARBITRUM_WETH,
+            0,
+            USER_RECEIVER,
+            1 ether
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidReceiver.selector,
+                DEV_WALLET,
+                USER_RECEIVER
+            )
+        );
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndForwardEthWithZeroMinMiddleAmount() public {
+        // minMiddleAmount is the only slippage guard on the native ETH -> middleToken source swap.
+        // At zero the swap is fully sandwichable (order created for dust), so the facet must reject
+        // it before forwarding. Receiver validation passes first (parses to USER_RECEIVER), so this
+        // isolates the minMiddleAmount guard on the swapAndForwardEth branch.
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"c1c0e9c9",
+            ARBITRUM_WETH,
+            0,
+            USER_RECEIVER,
+            1 ether
+        );
+
+        vm.startPrank(USER_SENDER);
+        vm.expectRevert(InvalidAmount.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_StartBridgeWithZeroRefundRecipient() public {
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = address(0);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidCallData.selector);
+        mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, data);
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndStartBridgeWithZeroRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        MayanFacet.MayanData memory data = validMayanData;
+        data.refundRecipient = address(0);
+
+        vm.expectRevert(InvalidCallData.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            data
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapOutputAssetDoesNotMatchSendingAsset() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        // Last swap outputs USDC; declaring DAI as the bridge sending asset is the mismatch.
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        dai.approve(_facetTestContractAddress, type(uint256).max);
+
+        vm.expectRevert(InvalidSendingToken.selector);
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
+            bridgeData,
+            swapData,
+            validMayanData
+        );
+        vm.stopPrank();
+    }
+
+    function test_RefundsExcessNativeToRefundRecipient() public {
+        // The excess native value must be refunded to MayanData.refundRecipient (the user), not to
+        // msg.sender (which may be a relayer). Mayan's forwarder is out of scope, so it is etched
+        // with a recorder that keeps the forwarded value and leaves the excess in the facet.
+        MockMayanSwapForwarder mock = new MockMayanSwapForwarder();
+        vm.etch(address(MAYAN_FORWARDER), address(mock).code);
+
+        address refundRecipient = address(0xD00D);
+
+        // validMayanDataNative.protocolData parses to 0xabc654321 == USER_RECEIVER.
+        bridgeData.receiver = USER_RECEIVER;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1 ether;
+        bridgeData.destinationChainId = 137;
+
+        MayanFacet.MayanData memory data = MayanFacet.MayanData(
+            "",
+            0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4,
+            validMayanDataNative.protocolData,
+            MAYAN_NATIVE_SWAP_PROTOCOL,
+            hex"c1c0e9c9",
+            ARBITRUM_WETH,
+            0.99 ether,
+            refundRecipient,
+            0
+        );
+
+        uint256 excess = 0.5 ether;
+        uint256 refundRecipientBalanceBefore = refundRecipient.balance;
+
+        vm.startPrank(USER_SENDER);
+        mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether + excess }(
+            bridgeData,
+            data
+        );
+        vm.stopPrank();
+
+        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
+            address(MAYAN_FORWARDER)
+        );
+        assertEq(
+            forwarder.lastValue(),
+            1 ether,
+            "only minAmount must be forwarded to Mayan"
+        );
+        assertEq(
+            refundRecipient.balance - refundRecipientBalanceBefore,
+            excess,
+            "excess native must be refunded to refundRecipient"
+        );
     }
 
     function testRevert_FailsWhenNonEVMChainIntentionAndNonEVMReceiverIsEmpty()
@@ -541,7 +1083,13 @@ contract MayanFacetTest is TestBaseFacet {
             "",
             0xBF5f3f65102aE745A48BD521d10BaB5BF02A9eF4, // mayanProtocol address
             // Calldata generated from Mayan SDK 4.12312312 USDC on Mainnet -> Arbitrum
-            hex"6222ad25000000000000000000000000000000000000000000000000000000000f52ae0e000000000000000000000000000000000000000000000000000000000000f2d000000000000000000000000000000000000000000000000000000000018eb30afc7fcf68097cd0584877939477347b5b8fa10efee2e29805370a35fd2a22ee9500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000000171e8c4fab8994494c8f1e5c1287445b2917d60c43c79aa959162f5d6000598d3200000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000000001700000000000000000000000000000000000000000000000000000000000001e00000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000000000000000000000000000393846a1e4cce00000000000000000000000000000000000000000000000000000000000667d7a7a00000000000000000000000000000000000000000000000000000000667d7a7a0000000000000000000000000000000000000000000000000000000000177f850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000"
+            hex"6222ad25000000000000000000000000000000000000000000000000000000000f52ae0e000000000000000000000000000000000000000000000000000000000000f2d000000000000000000000000000000000000000000000000000000000018eb30afc7fcf68097cd0584877939477347b5b8fa10efee2e29805370a35fd2a22ee9500000000000000000000000000000000000000000000000000000000000000016dfa43f824c3b8b61e715fe8bf447f2aba63e59ab537f186cf665152c2114c3900000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed700000000000000000000000000000000000000000000000000000000000000171e8c4fab8994494c8f1e5c1287445b2917d60c43c79aa959162f5d6000598d3200000000000000000000000029dacdf7ccadf4ee67c923b4c22255a4b2494ed7000000000000000000000000af88d065e77c8cc2239327c5edb3a432268e5831000000000000000000000000000000000000000000000000000000000000001700000000000000000000000000000000000000000000000000000000000001e00000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000000000000000000000000000393846a1e4cce00000000000000000000000000000000000000000000000000000000000667d7a7a00000000000000000000000000000000000000000000000000000000667d7a7a0000000000000000000000000000000000000000000000000000000000177f850000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            100000000
         );
         // invalid protocolData that produces wrong receiver for payload
 
@@ -568,6 +1116,68 @@ contract MayanFacetTest is TestBaseFacet {
         vm.expectRevert(abi.encodeWithSelector(ProtocolDataTooShort.selector));
 
         testFacet.testReplaceInputAmount(shortData, newAmount);
+    }
+
+    /// @dev Regression for the MayanSwap.swap (0x6111ad25) amount rewrite: amountIn sits at a
+    ///      FIXED head offset (byte 452), so a non-empty customPayload in the tail must not shift
+    ///      which word gets overwritten. Builds otherwise-identical calldata with an empty and a
+    ///      non-empty payload and asserts only the amountIn word changes in both. The non-empty
+    ///      case is sized so the previous `length - 256` offset would have landed on the sentinel
+    ///      word (324) instead of amountIn, corrupting it.
+    function test_ReplaceInputAmountRewritesMayanSwapAmountRegardlessOfPayload()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+        uint256 newAmount = 999;
+
+        bytes memory emptyPayload = _buildMayanSwapProtocolData(111, 0);
+        bytes memory withPayload = _buildMayanSwapProtocolData(111, 96);
+
+        bytes memory outEmpty = testFacet.testReplaceInputAmount(
+            emptyPayload,
+            newAmount
+        );
+        bytes memory outWithPayload = testFacet.testReplaceInputAmount(
+            withPayload,
+            newAmount
+        );
+
+        assertEq(outEmpty.length, emptyPayload.length);
+        assertEq(outWithPayload.length, withPayload.length);
+        assertEq(_readWordAt(outEmpty, 452), newAmount);
+        assertEq(_readWordAt(outWithPayload, 452), newAmount);
+        assertEq(_readWordAt(outEmpty, 324), 0xDEAD);
+        assertEq(_readWordAt(outWithPayload, 324), 0xDEAD);
+    }
+
+    /// @dev Builds MayanSwap.swap-shaped calldata: selector + 14 head words + amountIn word, then
+    ///      `payloadLen` tail bytes. Word 10 (byte 324) holds a sentinel so tests can prove
+    ///      non-amount bytes survive the rewrite.
+    function _buildMayanSwapProtocolData(
+        uint256 amountIn,
+        uint256 payloadLen
+    ) internal pure returns (bytes memory) {
+        bytes memory head = abi.encodePacked(
+            bytes4(0x6111ad25),
+            new bytes(320), // words 0..9  -> bytes [4,324)
+            uint256(0xDEAD), // word 10 sentinel -> bytes [324,356)
+            new bytes(96), // words 11..13 -> bytes [356,452)
+            amountIn // word 14 amountIn -> bytes [452,484)
+        );
+
+        return abi.encodePacked(head, new bytes(payloadLen));
+    }
+
+    /// @dev Reads the 32-byte word at `byteOffset` within a bytes buffer.
+    function _readWordAt(
+        bytes memory data,
+        uint256 byteOffset
+    ) internal pure returns (uint256 word) {
+        assembly {
+            word := mload(add(add(data, 0x20), byteOffset))
+        }
     }
 
     // The HyperCore receiver-parsing coverage is split across the tests below. It was originally
@@ -696,6 +1306,32 @@ contract MayanFacetTest is TestBaseFacet {
             ),
             bytes32(0),
             "non-HyperEVM destChainId must yield zero receiver"
+        );
+    }
+
+    function test_ParseHypercoreReceiverReturnsZeroWhenPayloadTruncated()
+        public
+    {
+        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
+            IMayan(MAYAN_FORWARDER)
+        );
+
+        // A genuine handler order whose customPayload declares fewer than 20 bytes cannot hold
+        // the receiver. The bounds check must yield zero rather than a padded partial read that
+        // could be crafted to match _bridgeData.receiver.
+        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
+            HYPERCORE_RECEIVER
+        );
+        bytes memory shortPayload = abi.encodePacked(
+            bytes10(bytes20(uint160(HYPERCORE_RECEIVER)))
+        );
+
+        assertEq(
+            testFacet.testParseHypercoreReceiver(
+                _encodeHypercoreOrderWithSig(order, shortPayload)
+            ),
+            bytes32(0),
+            "truncated customPayload (<20 bytes) must yield zero receiver"
         );
     }
 
@@ -887,12 +1523,19 @@ contract MayanFacetTest is TestBaseFacet {
         bridgeData.receiver = HYPERCORE_RECEIVER;
         bridgeData.destinationChainId = 1337;
         bridgeData.sendingAssetId = ADDRESS_USDC;
-        bridgeData.minAmount = defaultUSDCAmount;
+        // Must equal the order's encoded amountIn (offset 36) under the direct-path bind (#7).
+        bridgeData.minAmount = 0x4c1a6c;
 
         MayanFacet.MayanData memory hyperCoreData = MayanFacet.MayanData(
             "",
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
-            _hyperCoreProtocolData()
+            _hyperCoreProtocolData(),
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            0
         );
 
         vm.mockCall(
@@ -926,7 +1569,13 @@ contract MayanFacetTest is TestBaseFacet {
         MayanFacet.MayanData memory hyperCoreData = MayanFacet.MayanData(
             "",
             0xF18f923480dC144326e6C65d4F3D47Aa459bb41C,
-            _hyperCoreProtocolData()
+            _hyperCoreProtocolData(),
+            address(0),
+            "",
+            address(0),
+            0,
+            USER_RECEIVER,
+            0
         );
 
         vm.startPrank(USER_SENDER);

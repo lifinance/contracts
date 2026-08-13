@@ -66,12 +66,17 @@ function createFakeCollection(
 } {
   const rows: ISafeTxDocument[] = [...initial]
   const deleteCalls: Record<string, unknown>[] = []
+  // the helper wraps filter values in { $eq: … } to neutralize operator injection
+  const unwrap = (v: unknown): unknown =>
+    v !== null && typeof v === 'object' && '$eq' in v
+      ? (v as { $eq: unknown }).$eq
+      : v
   const matches = (
     r: ISafeTxDocument,
     filter: Record<string, unknown>
   ): boolean =>
     Object.entries(filter).every(
-      ([k, v]) => (r as unknown as Record<string, unknown>)[k] === v
+      ([k, v]) => (r as unknown as Record<string, unknown>)[k] === unwrap(v)
     )
   const api = {
     rows,

@@ -356,6 +356,7 @@ contract CalldataVerificationFacet {
         }
 
         // Convert callToBytes32 to address type and compare them
+        // TODO(EXSC-626): migrate to LibBytes.toAddressUnchecked (intentional truncation) — see LibBytes v1.1.0
         address callToAddressFromBytes32 = address(
             uint160(uint256(callToBytes32))
         );

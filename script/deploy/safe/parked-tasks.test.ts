@@ -34,6 +34,7 @@ import {
   enqueueParkedTask,
   ensureParkedTasksIndexes,
   listParkedTasks,
+  listParkedTasksBySafeTxHash,
   markCancelled,
   markExecuted,
   markSuperseded,
@@ -111,6 +112,10 @@ function matchesFilter(row: IParkedTask, filter: Filter<IParkedTask>): boolean {
 
 interface IFakeOptions {
   createIndexError?: Error
+  /** Index descriptors `listIndexes().toArray()` returns (default: none). */
+  existingIndexes?: { name: string }[]
+  /** When set, `listIndexes().toArray()` rejects with this error. */
+  listIndexesError?: Error
 }
 
 type IFakeCollection = Collection<IParkedTask> & {
@@ -149,11 +154,30 @@ function createFakeCollection(
       } as unknown as InsertOneResult
     },
     find(filter: Filter<IParkedTask>) {
+      const matched = () =>
+        rows.filter((r) => matchesFilter(r, filter)) as WithId<IParkedTask>[]
       return {
+        sort(spec: Record<string, 1 | -1>) {
+          return {
+            async toArray(): Promise<WithId<IParkedTask>[]> {
+              const out = matched()
+              const entries = Object.entries(spec)
+              const first = entries[0]
+              if (!first) return out
+              const [field, dir] = first
+              return out.sort((a, b) => {
+                const av = (a as unknown as Record<string, unknown>)[field]
+                const bv = (b as unknown as Record<string, unknown>)[field]
+                if (av === bv) return 0
+                if (av === null || av === undefined) return -1 * dir
+                if (bv === null || bv === undefined) return 1 * dir
+                return (av < bv ? -1 : 1) * dir
+              })
+            },
+          }
+        },
         async toArray(): Promise<WithId<IParkedTask>[]> {
-          return rows.filter((r) =>
-            matchesFilter(r, filter)
-          ) as WithId<IParkedTask>[]
+          return matched()
         },
       }
     },
@@ -179,6 +203,14 @@ function createFakeCollection(
       createIndexCalls.push({ spec, options: opts })
       if (options.createIndexError) throw options.createIndexError
       return (opts as { name: string }).name
+    },
+    listIndexes() {
+      return {
+        async toArray(): Promise<{ name: string }[]> {
+          if (options.listIndexesError) throw options.listIndexesError
+          return options.existingIndexes ?? []
+        },
+      }
     },
   }
   return api as unknown as IFakeCollection
@@ -552,6 +584,68 @@ describe('setSafeTxHash', () => {
   })
 })
 
+describe('listParkedTasksBySafeTxHash', () => {
+  it('returns tasks for the hash sorted by proposedAt ascending', async () => {
+    const hash = '0xdeadbeef'
+    const earlier = new Date('2026-01-01T00:00:00Z')
+    const later = new Date('2026-01-02T00:00:00Z')
+    const coll = createFakeCollection([
+      {
+        taskKey: 'facet-removal|arbitrum|production|B',
+        kind: 'facet-removal',
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facetName: 'B',
+        diamondAddress: DIAMOND,
+        facetAddress: FACET,
+        prUrl: PR_URL,
+        status: 'proposed',
+        enqueuer: 'dev@li.finance',
+        createdAt: later,
+        proposedAt: later,
+        safeTxHash: hash,
+      },
+      {
+        taskKey: 'facet-removal|arbitrum|production|A',
+        kind: 'facet-removal',
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facetName: 'A',
+        diamondAddress: DIAMOND,
+        facetAddress: FACET,
+        prUrl: PR_URL,
+        status: 'proposed',
+        enqueuer: 'dev@li.finance',
+        createdAt: earlier,
+        proposedAt: earlier,
+        safeTxHash: hash,
+      },
+      {
+        taskKey: 'facet-removal|arbitrum|production|C',
+        kind: 'facet-removal',
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facetName: 'C',
+        diamondAddress: DIAMOND,
+        facetAddress: FACET,
+        prUrl: PR_URL,
+        status: 'proposed',
+        enqueuer: 'dev@li.finance',
+        createdAt: earlier,
+        proposedAt: earlier,
+        safeTxHash: '0xother',
+      },
+    ])
+    const rows = await listParkedTasksBySafeTxHash(coll, hash)
+    expect(rows.map((r) => r.facetName)).toEqual(['A', 'B'])
+  })
+
+  it('returns empty when no task carries the hash', async () => {
+    const coll = createFakeCollection()
+    expect(await listParkedTasksBySafeTxHash(coll, '0xmissing')).toEqual([])
+  })
+})
+
 describe('ensureParkedTasksIndexes', () => {
   it('creates the partial unique index on taskKey for open statuses', async () => {
     const coll = createFakeCollection()
@@ -582,5 +676,57 @@ describe('ensureParkedTasksIndexes', () => {
     const err = Object.assign(new Error('network down'), { code: 6 })
     const coll = createFakeCollection([], { createIndexError: err })
     await expectRejects(ensureParkedTasksIndexes(coll), 'network down')
+  })
+
+  it('tolerates a not-authorized createIndex (code 13) when the index already exists', async () => {
+    const err = Object.assign(
+      new Error('not authorized on deferred-cleanup to execute command'),
+      { code: 13 }
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }, { name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('tolerates a not-authorized createIndex matched by message when code is absent', async () => {
+    const err = new Error(
+      'not authorized on deferred-cleanup to execute command { createIndexes: ... }'
+    )
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: 'unique_open_task_key' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and the index is missing', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      existingIndexes: [{ name: '_id_' }],
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
+  })
+
+  it('proceeds non-fatally when not authorized and listIndexes also fails', async () => {
+    const err = Object.assign(new Error('not authorized on deferred-cleanup'), {
+      code: 13,
+    })
+    const listErr = Object.assign(new Error('not authorized to listIndexes'), {
+      code: 13,
+    })
+    const coll = createFakeCollection([], {
+      createIndexError: err,
+      listIndexesError: listErr,
+    })
+    await ensureParkedTasksIndexes(coll)
+    expect(coll.createIndexCalls).toHaveLength(1)
   })
 })

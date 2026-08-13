@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 2 # Need previous commit to compare changes
+          persist-credentials: false
 
       - name: Get Changed Deployment Files
         id: get-changes
@@ -58,7 +59,7 @@ jobs:
         if: steps.get-changes.outputs.has_changes == 'true'
         run: |
           # Initialize variables to store contract changes
-          SLACK_MESSAGE="📋 Contract Deployment Update\n\n"
+          SLACK_MESSAGE="<@U0BHHK4F4TU> 📋 Contract Deployment Update\n\n"
           CONTRACTS_FOUND=false
 
           # Create associative array to group contracts across networks

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 library LibBytes {
     // solhint-disable no-inline-assembly
 
@@ -9,6 +9,8 @@ library LibBytes {
     error SliceOverflow();
     error SliceOutOfBounds();
     error AddressOutOfBounds();
+    error HexLengthInsufficient();
+    error NotAnAddress(bytes32 value);
 
     bytes16 private constant _SYMBOLS = "0123456789abcdef";
 
@@ -121,8 +123,33 @@ library LibBytes {
             buffer[i] = _SYMBOLS[value & 0xf];
             value >>= 4;
         }
-        // solhint-disable-next-line gas-custom-errors
-        require(value == 0, "Strings: hex length insufficient");
+        if (value != 0) revert HexLengthInsufficient();
         return string(buffer);
+    }
+
+    /// @notice Left-zero-pads an address into bytes32. Widening — always lossless.
+    /// @param _addr The address to convert.
+    /// @return The bytes32 representation of the address.
+    function toBytes32(address _addr) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(_addr)));
+    }
+
+    /// @notice Narrows a left-zero-padded bytes32 to an address, reverting if the
+    ///         top 96 bits are set (checked downcast).
+    /// @param _value The bytes32 value to convert.
+    /// @return The address representation of the bytes32.
+    function toAddress(bytes32 _value) internal pure returns (address) {
+        if (uint256(_value) >> 160 != 0) revert NotAnAddress(_value);
+        return address(uint160(uint256(_value)));
+    }
+
+    /// @notice Narrows a bytes32 to an address by truncation, keeping only the low
+    ///         160 bits. Use ONLY where dropping the high bits is intentional.
+    /// @param _value The bytes32 value to convert.
+    /// @return The address representation of the low 160 bits.
+    function toAddressUnchecked(
+        bytes32 _value
+    ) internal pure returns (address) {
+        return address(uint160(uint256(_value)));
     }
 }
