@@ -11,7 +11,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -309,16 +309,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ) private pure returns (address routeReceiver) {
         Route memory route = abi.decode(encodedRoute, (Route));
 
-        // The last call is the transfer to the receiver. The calldata follows
-        // the transfer(address,uint256) pattern, so the receiver address starts
-        // at byte 4 (after the 4-byte selector).
+        // The last call must be a well-formed transfer(address,uint256): a
+        // 4-byte selector + two 32-byte words. Enforcing the length and selector
+        // before reading the address prevents a shorter or unrelated final call
+        // from yielding a bogus receiver that still satisfies the cross-check.
         bytes memory lastCallData = route
             .calls[route.calls.length - 1]
             .callData;
+        if (lastCallData.length < 68) revert InvalidReceiver();
+
+        bytes4 selector;
         assembly {
+            selector := mload(add(lastCallData, 32))
             // Load the address from offset 36 (32 bytes length + 4 bytes selector)
             routeReceiver := mload(add(lastCallData, 36))
         }
+        if (selector != IERC20.transfer.selector) revert InvalidReceiver();
     }
 
     /// @dev Tron uses the same Route struct encoding as EVM chains, so the real
@@ -328,6 +334,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         address nonEVMReceiver = LibBytes.toAddress(
             bytes32(_ecoData.nonEVMReceiver[0:32])
         );
+        if (nonEVMReceiver == address(0)) revert InvalidNonEVMReceiver();
         if (nonEVMReceiver != _decodeRouteReceiver(_ecoData.encodedRoute)) {
             revert InvalidReceiver();
         }
