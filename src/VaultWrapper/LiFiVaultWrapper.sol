@@ -785,12 +785,16 @@ contract LiFiVaultWrapper is
     ///      disabled-period growth to exclude, and the price per share at zero supply is
     ///      measured against the virtual offset alone, so a dust donation would otherwise
     ///      park the watermark permanently out of reach.
+    ///      `nonReentrant` because this is the only `_accrueFees` caller outside the entry/
+    ///      exit/`distributeFees` guard: without it, a payout hook fired during
+    ///      `distributeFees` could reenter here (owner-controlled receiver), book fresh fees,
+    ///      and have them erased by that call's post-transfer counter rewrite.
     /// @param _feeType The fee type to update.
     /// @param _newRateBps The new rate in basis points (0 disables the fee).
     function setFeeRate(
         FeeType _feeType,
         uint16 _newRateBps
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
         _accrueFees();
 
         uint8 idx = uint8(_feeType);
