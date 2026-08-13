@@ -308,6 +308,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bytes calldata encodedRoute
     ) private pure returns (address routeReceiver) {
         Route memory route = abi.decode(encodedRoute, (Route));
+        if (route.calls.length == 0) revert InvalidReceiver();
 
         // The last call must be a well-formed transfer(address,uint256): a
         // 4-byte selector + two 32-byte words. Enforcing the length and selector
@@ -319,12 +320,15 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (lastCallData.length < 68) revert InvalidReceiver();
 
         bytes4 selector;
+        bytes32 receiverWord;
         assembly {
             selector := mload(add(lastCallData, 32))
-            // Load the address from offset 36 (32 bytes length + 4 bytes selector)
-            routeReceiver := mload(add(lastCallData, 36))
+            // Load the address word from offset 36 (32-byte length + 4-byte selector)
+            receiverWord := mload(add(lastCallData, 36))
         }
         if (selector != IERC20.transfer.selector) revert InvalidReceiver();
+
+        routeReceiver = LibBytes.toAddressUnchecked(receiverWord);
     }
 
     /// @dev Tron uses the same Route struct encoding as EVM chains, so the real
