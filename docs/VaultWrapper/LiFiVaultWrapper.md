@@ -44,6 +44,27 @@ the initial fee configuration, receivers, and access gate; resolves the ERC-20
 asset via the adapter; derives the virtual-share offset from the asset decimals;
 and anchors the performance watermark at the empty-vault share price.
 
+## Upgradeability and the FACTORY binding
+
+Instances are `BeaconProxy` contracts; the `UpgradeableBeacon` is owned by the
+subsystem's 48h timelock, so a `upgradeTo` repoints every live instance to a new
+implementation at once. `FACTORY` is an **implementation immutable** (bytecode, not
+proxy storage), and it is the source every instance reads for the factory-level
+global circuit breaker (`globalPaused`), fee bounds, and `lifiFeeRecipient`, as well
+as the `initialize` caller check.
+
+Because that reference lives in implementation bytecode rather than per-instance
+storage, a beacon upgrade to an implementation constructed with a **different**
+factory address silently repoints all live instances' config authority — for
+example flipping `globalPaused` to `false` across every wrapper — with no
+per-instance migration or event beyond the beacon's generic `Upgraded`.
+
+Operational invariant: every implementation the beacon points to must be
+constructed with the same factory address. Upgrade tooling must assert
+`newImpl.FACTORY() == oldImpl.FACTORY()` before repointing the beacon (mirroring the
+deploy script's `_verifyWiring` check), and the change is only reachable through the
+48h timelock, which can already replace the implementation with arbitrary logic.
+
 ## Fee config getters
 
 ```solidity

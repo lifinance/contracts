@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
-import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { IAccessGate } from "lifi/VaultWrapper/interfaces/IAccessGate.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 /// @title ReferenceAccessGate
 /// @author LI.FI (https://li.fi)
@@ -23,7 +23,12 @@ import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 ///      live feed can instead back `isSanctioned` with a call to an external Chainalysis
 ///      `SanctionsList`, whose `isSanctioned(address)` signature is identical.
 /// @custom:version 1.0.0
-contract ReferenceAccessGate is TransferrableOwnership, IAccessGate {
+contract ReferenceAccessGate is Ownable2Step, IAccessGate {
+    /// Errors ///
+
+    /// @notice Thrown when `renounceOwnership` is called: the gate must never be ownerless.
+    error RenounceDisabled();
+
     /// Storage ///
 
     /// @notice Whether allowlisting is enforced; when false, every non-blocked account may enter.
@@ -49,13 +54,18 @@ contract ReferenceAccessGate is TransferrableOwnership, IAccessGate {
     /// @notice Initializes the gate with an owner and starting allowlist mode.
     /// @param _owner The address that manages the lists and configuration.
     /// @param _allowlistEnabled Whether allowlist enforcement starts on.
-    constructor(
-        address _owner,
-        bool _allowlistEnabled
-    ) TransferrableOwnership(_owner) {
-        if (_owner == address(0)) revert InvalidConfig();
-
+    constructor(address _owner, bool _allowlistEnabled) Ownable(_owner) {
         allowlistEnabled = _allowlistEnabled;
+    }
+
+    /// Ownership ///
+
+    /// @notice Disabled: the gate must never be left ownerless.
+    /// @dev Ownership rotates via OZ's two-step `transferOwnership`/`acceptOwnership`;
+    ///      `renounceOwnership` is the only OZ path to `owner == address(0)` and is
+    ///      overridden to always revert, mirroring the vault wrapper's admin role.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
     }
 
     /// Views ///

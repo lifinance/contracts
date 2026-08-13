@@ -2,9 +2,8 @@
 pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReferenceAccessGate } from "lifi/VaultWrapper/access/ReferenceAccessGate.sol";
-import { TransferrableOwnership } from "lifi/Helpers/TransferrableOwnership.sol";
-import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
 contract ReferenceAccessGateTest is Test {
     ReferenceAccessGate internal gate;
@@ -25,7 +24,12 @@ contract ReferenceAccessGateTest is Test {
     /// Construction ///
 
     function testRevert_ConstructedWithZeroOwner() public {
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableInvalidOwner.selector,
+                address(0)
+            )
+        );
         new ReferenceAccessGate(address(0), false);
     }
 
@@ -146,10 +150,21 @@ contract ReferenceAccessGateTest is Test {
 
     /// Ownership ///
 
-    function test_RevertWhen_NonOwnerConfigures() public {
+    function testRevert_NonOwnerConfigures() public {
         vm.prank(alice);
-        vm.expectRevert(TransferrableOwnership.UnAuthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                alice
+            )
+        );
         gate.setAllowlisted(bob, true);
+    }
+
+    function testRevert_RenounceOwnershipDisabled() public {
+        vm.prank(owner);
+        vm.expectRevert(ReferenceAccessGate.RenounceDisabled.selector);
+        gate.renounceOwnership();
     }
 
     /// Events ///

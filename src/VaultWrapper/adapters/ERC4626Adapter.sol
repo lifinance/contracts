@@ -5,7 +5,6 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
-import { LibAsset } from "../../Libraries/LibAsset.sol";
 
 /// @title ERC4626Adapter
 /// @author LI.FI (https://li.fi)
@@ -32,7 +31,7 @@ contract ERC4626Adapter is IYieldAdapter {
     function resolveAsset(
         address _underlying
     ) external view returns (address asset) {
-        if (!LibAsset.isContract(_underlying)) revert AssetResolutionFailed();
+        if (_underlying.code.length == 0) revert AssetResolutionFailed();
         asset = IERC4626(_underlying).asset();
         if (asset == address(0)) revert AssetResolutionFailed();
     }
