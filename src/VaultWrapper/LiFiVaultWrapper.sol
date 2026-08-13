@@ -804,22 +804,23 @@ contract LiFiVaultWrapper is
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
             if (
-                _feeType == FeeType.Performance &&
-                _feeConfig.rateBps[idx] == 0 &&
-                totalSupply() != 0
+                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
             ) {
-                uint192 currentPps = SafeCast.toUint192(
-                    LibVaultWrapperMath.pricePerShare(
-                        totalSupply(),
-                        totalAssets(),
-                        _decimalsOffset()
-                    )
-                );
-                // Up-only: anchoring below the stored watermark would let the owner
-                // toggle the fee off/on at a trough and charge the recovery back to
-                // the old peak — the double-charge the watermark exists to prevent.
-                if (currentPps > perfHighWaterMarkPps) {
-                    perfHighWaterMarkPps = currentPps;
+                uint256 supply = totalSupply();
+                if (supply != 0) {
+                    uint192 currentPps = SafeCast.toUint192(
+                        LibVaultWrapperMath.pricePerShare(
+                            supply,
+                            totalAssets(),
+                            _decimalsOffset()
+                        )
+                    );
+                    // Up-only: anchoring below the stored watermark would let the owner
+                    // toggle the fee off/on at a trough and charge the recovery back to
+                    // the old peak — the double-charge the watermark exists to prevent.
+                    if (currentPps > perfHighWaterMarkPps) {
+                        perfHighWaterMarkPps = currentPps;
+                    }
                 }
             }
         }
