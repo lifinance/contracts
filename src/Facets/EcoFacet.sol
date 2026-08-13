@@ -276,6 +276,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 ) revert InvalidReceiver();
                 _validateSolanaReceiver(_ecoData);
             } else if (isTronDestination) {
+                if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+                if (_ecoData.nonEVMReceiver.length != 32)
+                    revert InvalidReceiver();
                 _validateTronReceiver(_ecoData);
             } else {
                 revert InvalidConfig();
@@ -322,9 +325,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ///      recipient lives in the route. nonEVMReceiver carries that recipient
     ///      as a 32-byte left-padded address and is cross-checked against it.
     function _validateTronReceiver(EcoData calldata _ecoData) private pure {
-        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
-        if (_ecoData.nonEVMReceiver.length != 32) revert InvalidReceiver();
-
         address nonEVMReceiver = LibBytes.toAddress(
             bytes32(_ecoData.nonEVMReceiver[0:32])
         );
