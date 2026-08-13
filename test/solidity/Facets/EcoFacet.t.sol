@@ -9,6 +9,7 @@ import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { InvalidConfig, InvalidReceiver, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
+import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 
 contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
@@ -454,6 +455,49 @@ contract EcoFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_TronWithNonLeftPaddedNonEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        // Route pays USER_RECEIVER; nonEVMReceiver carries the same address in its
+        // low 20 bytes but with dirty high bytes. The receiver emitted on-chain
+        // must equal the validated one, so a non-left-padded value is rejected.
+        bytes memory tronEncodedRoute = _createEncodedRoute(
+            USER_RECEIVER,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+
+        bytes32 dirtyReceiver = bytes32(
+            (uint256(1) << 160) | uint256(uint160(USER_RECEIVER))
+        );
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: abi.encodePacked(dirtyReceiver),
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: tronEncodedRoute,
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBytes.NotAnAddress.selector,
+                dirtyReceiver
+            )
+        );
         ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
 
         vm.stopPrank();

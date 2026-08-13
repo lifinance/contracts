@@ -5,6 +5,7 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IEcoPortal } from "../Interfaces/IEcoPortal.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibBytes } from "../Libraries/LibBytes.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
@@ -324,8 +325,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
         if (_ecoData.nonEVMReceiver.length != 32) revert InvalidReceiver();
 
-        address nonEVMReceiver = address(
-            uint160(uint256(bytes32(_ecoData.nonEVMReceiver[0:32])))
+        address nonEVMReceiver = LibBytes.toAddress(
+            bytes32(_ecoData.nonEVMReceiver[0:32])
         );
         if (nonEVMReceiver != _decodeRouteReceiver(_ecoData.encodedRoute)) {
             revert InvalidReceiver();
