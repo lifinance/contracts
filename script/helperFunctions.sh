@@ -1258,8 +1258,8 @@ function saveDiamondPeriphery() {
 
     (
       ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
-      CALL_EXIT=$?
-      if [[ $CALL_EXIT -ne 0 ]]; then
+      local CALL_EXIT=$?
+      if [[ "$CALL_EXIT" -ne 0 ]]; then
         # lookup failed (RPC error etc.); universalCall merges stderr into stdout, so ADDRESS
         # may hold error text. Record a failure marker and emit no JSON so it cannot poison the merge.
         echo "$CONTRACT" >"$FAILURES_DIR/${CONTRACT}"
