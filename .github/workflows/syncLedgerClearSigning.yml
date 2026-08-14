@@ -39,12 +39,16 @@ permissions:
 jobs:
   sync-ledger:
     concurrency:
-      # Key by event so a manual workflow_dispatch (especially dry_run) can't
-      # cancel an in-progress scheduled or push-triggered production sync.
-      # cancel-in-progress is still per-group: multiple dry-runs cancel each
-      # other, multiple push-triggered runs cancel each other, but the two
-      # never cross-cancel.
-      group: sync-ledger-clear-signing-${{ github.event_name }}
+      # Collapse the two production triggers (schedule + push) into one group so
+      # they never force-push sync/lifi-erc7730 or update the upstream PR
+      # concurrently — a second concurrent run would break the
+      # `--force-with-lease` push or send a duplicate Slack ping.
+      # cancel-in-progress lets a newer production run supersede an in-flight
+      # one; force-push is atomic, so whichever wins leaves a consistent branch
+      # + PR. Manual workflow_dispatch keeps its own group so a dry_run can
+      # neither cancel nor be cancelled by a production sync (and repeated
+      # dispatches still cancel each other).
+      group: sync-ledger-clear-signing-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'production' }}
       cancel-in-progress: true
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
