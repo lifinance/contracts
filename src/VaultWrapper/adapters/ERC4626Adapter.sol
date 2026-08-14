@@ -83,28 +83,56 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Placeholder pending the exit-fee-aware implementation (returns the no-fee
-    ///      default, `_assets` unchanged); a follow-up task implements the real logic.
+    /// @dev Exact-out cost: source shares needed to deliver `_assets` (rounds up in the
+    ///      source's favor), valued back to assets. >= `_assets` on a fee-charging source.
     function previewWithdrawCost(
-        address,
+        address _underlying,
         uint256 _assets
-    ) external pure returns (uint256 cost) {
-        cost = _assets;
+    ) external view returns (uint256 cost) {
+        uint256 shares = IERC4626(_underlying).previewWithdraw(_assets);
+        cost = IERC4626(_underlying).convertToAssets(shares);
     }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Placeholder; a follow-up task implements the real logic.
+    /// @dev Exact-in realizable: the source-share slice worth `_assets` (capped at the
+    ///      holder's position; `type(uint256).max` = the whole position), priced through
+    ///      the source's own `previewRedeem` so previews match `withdrawUpTo`'s execution.
     function previewWithdrawUpTo(
-        address,
-        address,
-        uint256
-    ) external pure returns (uint256 delivered) {}
+        address _underlying,
+        address _holder,
+        uint256 _assets
+    ) external view returns (uint256 delivered) {
+        uint256 shares = _sliceShares(_underlying, _holder, _assets);
+        delivered = IERC4626(_underlying).previewRedeem(shares);
+    }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Placeholder; a follow-up task implements the real logic.
+    /// @dev DELEGATECALL: `address(this)` is the wrapper. Redeems the source-share slice
+    ///      worth `_assets` and returns the measured asset balance delta.
     function withdrawUpTo(
-        address,
-        address,
-        uint256
-    ) external pure returns (uint256 withdrawn) {}
+        address _asset,
+        address _underlying,
+        uint256 _assets
+    ) external returns (uint256 withdrawn) {
+        uint256 shares = _sliceShares(_underlying, address(this), _assets);
+        if (shares == 0) return 0;
+        uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
+        IERC4626(_underlying).redeem(shares, address(this), address(this));
+        withdrawn = IERC20(_asset).balanceOf(address(this)) - balanceBefore;
+    }
+
+    /// @dev Source-share slice worth `_assets` of `_holder`'s position, capped at the
+    ///      whole position. `type(uint256).max` selects the entire balance (drain), which
+    ///      also makes a full exit exact (no asset round-trip stranding).
+    function _sliceShares(
+        address _underlying,
+        address _holder,
+        uint256 _assets
+    ) private view returns (uint256 shares) {
+        uint256 position = IERC4626(_underlying).balanceOf(_holder);
+        shares = _assets == type(uint256).max
+            ? position
+            : IERC4626(_underlying).convertToShares(_assets);
+        if (shares > position) shares = position;
+    }
 }
