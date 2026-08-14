@@ -1,6 +1,6 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments AND with the `display.formats` proposal at `config/clearSigningProposal.json`.
-# - Triggers: manual only while frozen for EXSC-738 (monthly cron + push-to-main auto-triggers are commented out below; see the note in the `on:` block).
+# - Triggers: push-to-main on ABI/deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run).
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
@@ -16,27 +16,22 @@ on:
         type: boolean
         required: false
         default: false
-  # TEMPORARY FREEZE (EXSC-738): the schedule + push auto-triggers are disabled
-  # while the upstream PR (ethereum/clear-signing-erc7730-registry#2597) is being
-  # migrated to the v2 test format on the `sync/lifi-erc7730` branch. Both triggers
-  # force-push that branch and would clobber the hand-authored test files. Re-enable
-  # (uncomment both blocks) once #2597 is merged. Manual workflow_dispatch stays live.
-  # schedule:
-  #   # Monthly safety net at 03:00 UTC on the 1st. Push-based triggers below
-  #   # handle the fast path (new facet/deployment lands -> sync within minutes).
-  #   - cron: '0 3 1 * *'
-  # push:
-  #   branches:
-  #     - main # only sync on what's actually been merged
-  #   paths:
-  #     - 'src/Facets/**' # new/changed facets -> new/changed selectors
-  #     - 'src/Libraries/**' # struct definitions used by facets
-  #     - 'deployments/**' # new deployment addresses
-  #     - 'config/networks.json' # chain metadata used by deployments resolver
-  #     - 'config/clearSigningProposal.json' # the display.formats source of truth
-  #     - 'tasks/generateLedgerClearSigning.ts'
-  #     - 'tasks/buildClearSigningProposal.ts'
-  #     - '.github/workflows/syncLedgerClearSigning.yml'
+  schedule:
+    # Monthly safety net at 03:00 UTC on the 1st. Push-based triggers below
+    # handle the fast path (new facet/deployment lands -> sync within minutes).
+    - cron: '0 3 1 * *'
+  push:
+    branches:
+      - main # only sync on what's actually been merged
+    paths:
+      - 'src/Facets/**' # new/changed facets -> new/changed selectors
+      - 'src/Libraries/**' # struct definitions used by facets
+      - 'deployments/**' # new deployment addresses
+      - 'config/networks.json' # chain metadata used by deployments resolver
+      - 'config/clearSigningProposal.json' # the display.formats source of truth
+      - 'tasks/generateLedgerClearSigning.ts'
+      - 'tasks/buildClearSigningProposal.ts'
+      - '.github/workflows/syncLedgerClearSigning.yml'
 
 permissions:
   contents: read # required to fetch repository contents
@@ -69,7 +64,7 @@ jobs:
         run: bun install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
