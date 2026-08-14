@@ -81,4 +81,30 @@ contract ERC4626Adapter is IYieldAdapter {
         });
         withdrawn = IERC20(_asset).balanceOf(address(this)) - balanceBefore;
     }
+
+    /// @inheritdoc IYieldAdapter
+    /// @dev Placeholder pending the exit-fee-aware implementation (returns the no-fee
+    ///      default, `_assets` unchanged); a follow-up task implements the real logic.
+    function previewWithdrawCost(
+        address,
+        uint256 _assets
+    ) external pure returns (uint256 cost) {
+        cost = _assets;
+    }
+
+    /// @inheritdoc IYieldAdapter
+    /// @dev Placeholder; a follow-up task implements the real logic.
+    function previewWithdrawUpTo(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256 delivered) {}
+
+    /// @inheritdoc IYieldAdapter
+    /// @dev Placeholder; a follow-up task implements the real logic.
+    function withdrawUpTo(
+        address,
+        address,
+        uint256
+    ) external pure returns (uint256 withdrawn) {}
 }
