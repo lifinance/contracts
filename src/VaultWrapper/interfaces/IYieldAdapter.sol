@@ -116,4 +116,26 @@ interface IYieldAdapter {
         address _underlying,
         uint256 _assets
     ) external returns (uint256 withdrawn);
+
+    /// @notice Gross position value `_holder` may withdraw from `_underlying` right now, capped
+    ///         by the source's current withdrawal/redemption liquidity limits.
+    /// @dev Ordinary static call; runs in the adapter's context, so the holder is passed
+    ///      explicitly. Returns the source's floor valuation (`convertToAssets`) of
+    ///      `min(_holder's position, source maxRedeem)` — deliberately the GROSS valuation, not
+    ///      the fee-netted `previewRedeem` the sibling `previewWithdrawUpTo` uses, because the
+    ///      wrapper feeds this straight into its own gross-denominated share math
+    ///      (`_convertToShares`) to clamp `maxRedeem`/`maxWithdraw` to the shares the source can
+    ///      honor; any source exit fee is applied separately by the wrapper's realizable redeem
+    ///      path. This keeps the EIP-4626 guarantee that an exit within `maxRedeem` never
+    ///      reverts. Equals the full position value on a source with no active liquidity limit.
+    ///      Does NOT net the source's exit fee or the wrapper's own fees. MAY revert if the
+    ///      source's views revert (the wrapper treats a reverting source view as fail-closed,
+    ///      matching its existing preview posture).
+    /// @param _underlying The yield source identifier.
+    /// @param _holder The account whose position is valued (the wrapper).
+    /// @return assets The gross, source-liquidity-capped position value.
+    function maxWithdrawableValue(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 assets);
 }

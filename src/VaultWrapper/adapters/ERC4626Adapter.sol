@@ -122,6 +122,21 @@ contract ERC4626Adapter is IYieldAdapter {
         withdrawn = IERC20(_asset).balanceOf(address(this)) - balanceBefore;
     }
 
+    /// @inheritdoc IYieldAdapter
+    /// @dev Source floor valuation (`convertToAssets`) of the smaller of the holder's position
+    ///      and the source's current `maxRedeem`. Gross by design (not `previewRedeem`): the
+    ///      wrapper converts it back through its own gross share math to clamp exits to source
+    ///      liquidity. Equals the full position value when the source imposes no active limit.
+    function maxWithdrawableValue(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 assets) {
+        uint256 position = IERC4626(_underlying).balanceOf(_holder);
+        uint256 redeemable = IERC4626(_underlying).maxRedeem(_holder);
+        uint256 shares = redeemable < position ? redeemable : position;
+        assets = IERC4626(_underlying).convertToAssets(shares);
+    }
+
     /// @dev Source-share slice worth `_assets` of `_holder`'s position, capped at the
     ///      holder's whole position.
     function _sliceShares(

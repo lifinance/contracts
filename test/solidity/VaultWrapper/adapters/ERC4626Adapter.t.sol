@@ -74,4 +74,22 @@ contract ERC4626AdapterTest is Test {
             1_000e18
         );
     }
+
+    function test_MaxWithdrawableValueEqualsPositionWhenUnlimited() public {
+        asset.mint(address(this), 1_000e18);
+        asset.approve(address(vault), 1_000e18);
+        vault.deposit(1_000e18, address(this));
+
+        assertEq(
+            adapter.maxWithdrawableValue(address(vault), address(this)),
+            1_000e18
+        );
+    }
+
+    function test_MaxWithdrawableValueIsZeroForEmptyHolder() public {
+        assertEq(
+            adapter.maxWithdrawableValue(address(vault), makeAddr("nobody")),
+            0
+        );
+    }
 }
