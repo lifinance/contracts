@@ -94,9 +94,9 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Exact-in realizable: the source-share slice worth `_assets` (capped at the
-    ///      holder's position; `type(uint256).max` = the whole position), priced through
-    ///      the source's own `previewRedeem` so previews match `withdrawUpTo`'s execution.
+    /// @dev Exact-in realizable: the source-share slice worth `_assets`, capped at the
+    ///      holder's position, priced through the source's own `previewRedeem` so
+    ///      previews match `withdrawUpTo`'s execution.
     function previewWithdrawUpTo(
         address _underlying,
         address _holder,
@@ -108,7 +108,8 @@ contract ERC4626Adapter is IYieldAdapter {
 
     /// @inheritdoc IYieldAdapter
     /// @dev DELEGATECALL: `address(this)` is the wrapper. Redeems the source-share slice
-    ///      worth `_assets` and returns the measured asset balance delta.
+    ///      worth `_assets`, capped at the holder's position, and returns the measured
+    ///      asset balance delta.
     function withdrawUpTo(
         address _asset,
         address _underlying,
@@ -122,17 +123,14 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @dev Source-share slice worth `_assets` of `_holder`'s position, capped at the
-    ///      whole position. `type(uint256).max` selects the entire balance (drain), which
-    ///      also makes a full exit exact (no asset round-trip stranding).
+    ///      holder's whole position.
     function _sliceShares(
         address _underlying,
         address _holder,
         uint256 _assets
     ) private view returns (uint256 shares) {
         uint256 position = IERC4626(_underlying).balanceOf(_holder);
-        shares = _assets == type(uint256).max
-            ? position
-            : IERC4626(_underlying).convertToShares(_assets);
+        shares = IERC4626(_underlying).convertToShares(_assets);
         if (shares > position) shares = position;
     }
 }

@@ -59,18 +59,17 @@ contract ERC4626AdapterTest is Test {
         );
     }
 
-    function test_PreviewWithdrawUpToReturnsFullPositionOnDrainSentinel()
-        public
-    {
+    function test_PreviewWithdrawUpToCapsAtFullPosition() public {
         asset.mint(address(this), 1_000e18);
         asset.approve(address(vault), 1_000e18);
         vault.deposit(1_000e18, address(this));
 
+        // Asking for more position value than the holder owns caps at the full position.
         assertEq(
             adapter.previewWithdrawUpTo(
                 address(vault),
                 address(this),
-                type(uint256).max
+                5_000e18
             ),
             1_000e18
         );

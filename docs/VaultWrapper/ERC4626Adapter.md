@@ -32,10 +32,9 @@ assuming anything about the source beyond its own standard EIP-4626 previews:
   holder's share burn is priced off the source's true exit cost instead of
   diluting remaining holders.
 - `previewWithdrawUpTo` — the exact-in realizable amount: what the source would
-  deliver if the holder realizes up to `assets` of position value now, net of
-  any source exit fee. `type(uint256).max` means "the whole position" (the
-  drain affordance). It is the static mirror of `withdrawUpTo` and backs the
-  wrapper's realizable `previewRedeem`.
+  deliver if the holder realizes up to `assets` of position value now, capped
+  at the holder's position, net of any source exit fee. It is the static
+  mirror of `withdrawUpTo` and backs the wrapper's realizable `previewRedeem`.
 - `withdrawUpTo` — the exact-in execution. DELEGATECALL only; realizes up to
   `assets` of position value into the wrapper and returns the measured asset
   delta. Backs `redeem`.

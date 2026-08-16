@@ -89,12 +89,11 @@ interface IYieldAdapter {
     /// @notice Assets actually delivered if `_holder` realizes up to `_assets` of position
     ///         value right now (net of any source exit fee), capped at `_holder`'s position.
     /// @dev Ordinary static call; the static mirror of `withdrawUpTo` and MUST use the same
-    ///      share math so `previewRedeem` matches `redeem`. `_assets == type(uint256).max`
-    ///      means "the whole position" (the drain sentinel). Does NOT cap at source
+    ///      share math so `previewRedeem` matches `redeem`. Does NOT cap at source
     ///      liquidity limits (only at the position). MAY revert if the source preview reverts.
     /// @param _underlying The yield source identifier.
     /// @param _holder The account whose position is valued (the wrapper).
-    /// @param _assets The position value to realize, or `type(uint256).max` to drain.
+    /// @param _assets The position value to realize, capped at `_holder`'s position.
     /// @return delivered The assets the source would deliver.
     function previewWithdrawUpTo(
         address _underlying,
@@ -106,12 +105,11 @@ interface IYieldAdapter {
     ///         (exact-in), paying out whatever the source delivers rather than targeting an
     ///         exact asset amount.
     /// @dev DELEGATECALL ONLY — runs in the wrapper's context (see `withdraw`). Redeems the
-    ///      source-share slice worth `_assets`, capped at the wrapper's whole position;
-    ///      `_assets == type(uint256).max` drains the entire position. Reports the measured
-    ///      asset balance delta. MUST NOT touch adapter storage.
+    ///      source-share slice worth `_assets`, capped at the wrapper's whole position.
+    ///      Reports the measured asset balance delta. MUST NOT touch adapter storage.
     /// @param _asset The ERC20 asset withdrawn (lands on the wrapper).
     /// @param _underlying The yield source to realize from.
-    /// @param _assets The position value to realize, or `type(uint256).max` to drain.
+    /// @param _assets The position value to realize, capped at the wrapper's position.
     /// @return withdrawn The assets returned to the wrapper.
     function withdrawUpTo(
         address _asset,
