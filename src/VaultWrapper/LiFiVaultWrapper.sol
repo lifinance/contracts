@@ -567,15 +567,25 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Cost-aware exact-out preview: shares to burn are priced off the position value
+    ///      the source actually consumes to deliver `owed` (adapter `previewWithdrawCost`,
+    ///      >= `owed` when the source charges an exit fee), not off `owed` alone — so the
+    ///      exiting caller pays their own source-side exit cost instead of diluting the
+    ///      remaining holders. Equal to the plain valuation on a no-fee source.
     function previewWithdraw(
         uint256 assets
     ) public view override returns (uint256) {
-        uint256 withdrawalFee = LibVaultWrapperMath.feeOnRaw({
-            _assets: assets,
-            _feeBps: _rate(FeeType.Withdrawal)
-        });
+        uint256 owed = assets +
+            LibVaultWrapperMath.feeOnRaw({
+                _assets: assets,
+                _feeBps: _rate(FeeType.Withdrawal)
+            });
+        uint256 cost = IYieldAdapter(adapter).previewWithdrawCost(
+            underlying,
+            owed
+        );
 
-        return super.previewWithdraw(assets + withdrawalFee);
+        return _convertToShares(cost, Math.Rounding.Ceil);
     }
 
     /// @inheritdoc ERC4626Upgradeable

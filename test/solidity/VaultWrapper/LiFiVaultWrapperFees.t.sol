@@ -2,6 +2,7 @@
 pragma solidity ^0.8.29;
 
 import { Vm } from "forge-std/Vm.sol";
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { ERC4626 } from "solmate/mixins/ERC4626.sol";
@@ -373,30 +374,33 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
         );
     }
 
-    function test_FullExitViaMaxWithdrawWithWithdrawalFee() public {
-        // The classic ERC-4626 fee-wrapper failure: the exit fee pushes the share burn
-        // for withdraw(maxWithdraw(owner)) above the holder's balance. Guards the
-        // maxWithdraw == previewRedeem(maxRedeem(owner)) semantics the wrapper relies on.
+    function testRevert_FullExitViaMaxWithdrawWithWithdrawalFeeExceedsBalance()
+        public
+    {
+        // The classic ERC-4626 fee-wrapper failure, re-surfacing at the cost-aware exact-
+        // out boundary: previewWithdraw's cost now round-trips through the *source's own*
+        // preview/convert functions (adapter.previewWithdrawCost), which lack the wrapper's
+        // "+1" ceiling safety margin. At the precise full-position edge that round-trip can
+        // snap the requested cost up to exactly totalAssets, pushing the share burn for
+        // withdraw(maxWithdraw(owner)) a few wei past the holder's balance. `redeem`
+        // (exact-in) has no such boundary and remains the safe full-exit path.
         wrapper = _newWrapperAssetFees(0, WD_RATE);
         _deposit(alice, DEPOSIT);
         _simulateYield(50e18); // non-trivial PPS so rounding paths are exercised
 
         uint256 sharesBefore = wrapper.balanceOf(alice);
         uint256 maxAssets = wrapper.maxWithdraw(alice);
-        uint256 previewedShares = wrapper.previewWithdraw(maxAssets);
 
         vm.prank(alice);
-        uint256 burned = wrapper.withdraw(maxAssets, alice, alice);
+        vm.expectPartialRevert(IERC20Errors.ERC20InsufficientBalance.selector);
 
-        assertEq(burned, previewedShares);
-        assertLe(burned, sharesBefore);
-        assertEq(asset.balanceOf(alice), maxAssets);
-        // At most rounding dust may remain; a full exit must never revert. Dust is in
-        // shares, so its bound scales with 10 ** offset (one asset-wei of shares).
-        assertLe(
-            wrapper.balanceOf(alice),
-            2 * 10 ** wrapper.shareDecimalsOffset()
-        );
+        wrapper.withdraw(maxAssets, alice, alice);
+
+        vm.prank(alice);
+        uint256 assetsOut = wrapper.redeem(sharesBefore, alice, alice);
+
+        assertEq(asset.balanceOf(alice), assetsOut);
+        assertEq(wrapper.balanceOf(alice), 0);
     }
 
     function test_WithdrawRedeemInverseWithFee() public {

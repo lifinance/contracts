@@ -101,6 +101,13 @@ contract LossyVault {
     function convertToAssets(uint256 _shares) external pure returns (uint256) {
         return _shares;
     }
+
+    /// @dev 1:1 share/asset ratio (see `convertToAssets`), so previewing an exact-out
+    ///      withdrawal is the identity — needed since `ERC4626Adapter.previewWithdrawCost`
+    ///      now calls this as an ordinary IERC4626 preview.
+    function previewWithdraw(uint256 _assets) external pure returns (uint256) {
+        return _assets;
+    }
 }
 
 contract LiFiVaultWrapperTest is Test {
