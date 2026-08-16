@@ -584,6 +584,19 @@ contract LiFiVaultWrapper is
             underlying,
             owed
         );
+        // The adapter's cost round-trips through the source's OWN preview/convert
+        // functions, which lack this contract's ceiling safety margin (the "+1"
+        // virtual-share protection `_convertToShares`/`_convertToAssets` rely on). Near a
+        // full exit that round-trip can round `cost` up to (or past) `totalAssets()`,
+        // which would then overshoot `totalSupply()` once converted to shares. Cap `cost`
+        // at the largest value this contract can always safely convert back to at most
+        // `totalSupply()` shares — the same value a direct full redemption already relies
+        // on being safe.
+        uint256 maxSafeCost = _convertToAssets(
+            totalSupply(),
+            Math.Rounding.Floor
+        );
+        if (cost > maxSafeCost) cost = maxSafeCost;
 
         return _convertToShares(cost, Math.Rounding.Ceil);
     }
