@@ -683,13 +683,41 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
-    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned (mirroring `redeem`'s
+    ///      exit freeze). Otherwise clamps the owner's balance to what the source can currently
+    ///      honor: if the source can release the wrapper's whole position (the common case — a
+    ///      source with no active liquidity limit, where `maxWithdrawableValue == totalAssets()`),
+    ///      returns the plain balance unchanged; only when the source is liquidity-limited (an
+    ///      Aave-style utilization cap, a paused source) does it clamp to
+    ///      `_convertToShares(maxWithdrawableValue, Floor)`. The full-position short-circuit
+    ///      avoids the ~1-share under-report the virtual-offset share round-trip would otherwise
+    ///      introduce on a fully-liquid source, so `redeem` still empties a holder's balance in
+    ///      one call there. `maxWithdraw` inherits the clamp because OZ derives it as
+    ///      `previewRedeem(maxRedeem(owner))`, so the `withdraw` entrypoint's
+    ///      `ERC4626ExceededMaxWithdraw` guard is liquidity-aware too. This keeps the EIP-4626
+    ///      guarantee that a `redeem` within `maxRedeem` never reverts even under a source
+    ///      liquidity limit; when limited, the floor round-trip is conservative (may under-report
+    ///      by up to one source-share of value, never over-report). On a source whose own
+    ///      `maxRedeem` floors below `balanceOf` (OZ-derived vaults such as MetaMorpho), a
+    ///      one-call full exit via `redeem(balanceOf)` is therefore not guaranteed; callers
+    ///      should use `redeem(maxRedeem(owner))`, which may leave sub-1e-12-token dust that a
+    ///      follow-up call clears.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxRedeem(owner);
+        uint256 balance = super.maxRedeem(owner);
+        uint256 realizable = IYieldAdapter(adapter).maxWithdrawableValue(
+            underlying,
+            address(this)
+        );
+        if (realizable >= totalAssets()) return balance;
+
+        uint256 liquidityCap = _convertToShares(
+            realizable,
+            Math.Rounding.Floor
+        );
+
+        return balance < liquidityCap ? balance : liquidityCap;
     }
 
     /// Internal ///

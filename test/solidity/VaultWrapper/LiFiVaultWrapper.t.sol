@@ -125,6 +125,14 @@ contract LossyVault {
     function convertToShares(uint256 _assets) external pure returns (uint256) {
         return _assets;
     }
+
+    /// @dev Unlimited withdrawal liquidity: the whole balance is always redeemable, so the
+    ///      wrapper's liquidity clamp in `maxRedeem` is a no-op and the shortfall path under
+    ///      test is still reached. Needed since the wrapper's `maxRedeem` now reads the source
+    ///      liquidity via `ERC4626Adapter.maxWithdrawableValue`, which calls this.
+    function maxRedeem(address _owner) external view returns (uint256) {
+        return balanceOf[_owner];
+    }
 }
 
 contract LiFiVaultWrapperTest is Test {
