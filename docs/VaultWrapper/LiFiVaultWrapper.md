@@ -29,6 +29,32 @@ withdrawal.
 - A single pluggable `IAccessGate` (zero = permissionless) enforced fail-closed on
   entry, share transfers, and exits.
 - Pause is enforced on the deposit/mint path only; withdrawals stay open.
+- Exits are cost-aware: the exiting caller bears the yield source's exit cost
+  (fee or realized loss), never remaining holders — see
+  [Exit semantics](#exit-semantics).
+
+## Exit semantics
+
+- `withdraw` is **exact-out and cost-aware**: the exiter's share burn is priced
+  off the source's true exit cost (`previewWithdrawCost`), so a source exit fee
+  falls on the exiter rather than diluting remaining holders. On a fee source,
+  `maxWithdraw` reports the fee-adjusted net amount, so requesting the full
+  nominal deposit exceeds it and reverts `ERC4626ExceededMaxWithdraw` —
+  `redeem` is the guaranteed full exit.
+- `redeem` is **exact-in and loss-tolerant**: it realizes the burned shares'
+  proportional slice via the adapter's `withdrawUpTo` and pays out what the
+  source actually delivered, net of the wrapper's withdrawal fee (charged on
+  the actual proceeds). A source exit fee or a loss reduces the exiting
+  caller's payout — it never dilutes remaining holders and never bricks the
+  last exit. It always floor-values (`_convertToAssets(shares, Floor)`) and
+  never drains the raw source position, so a full exit leaves the tiny
+  virtual-offset residue behind — that residue is the inflation-attack buffer,
+  matching standard OZ behavior.
+- The `max*`/preview views: `maxWithdraw` and `maxRedeem` route through the
+  realizable, net-of-source-fee `previewRedeem`, so on a fee source
+  `maxWithdraw` reports the net amount. Neither reflects the source's own
+  liquidity/withdrawal limits (tracked separately as finding #4); deposits do
+  not reflect a source entry fee.
 
 ## Admin role
 

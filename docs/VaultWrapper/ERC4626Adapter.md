@@ -21,6 +21,30 @@ asked. It does **not** catch share-side dilution (a vault that consumes the full
 asset but credits fewer shares via an internal deposit fee); such non-standard
 sources are unsupported and require a dedicated adapter.
 
+## Exit cost views
+
+Three methods give the wrapper cost-aware and loss-tolerant exits without
+assuming anything about the source beyond its own standard EIP-4626 previews:
+
+- `previewWithdrawCost` — the exact-out cost: the position value the source
+  consumes to deliver exactly `assets` out (`>= assets` when the source charges
+  an exit fee). Backs the wrapper's cost-aware `previewWithdraw`, so an exiting
+  holder's share burn is priced off the source's true exit cost instead of
+  diluting remaining holders.
+- `previewWithdrawUpTo` — the exact-in realizable amount: what the source would
+  deliver if the holder realizes up to `assets` of position value now, net of
+  any source exit fee. `type(uint256).max` means "the whole position" (the
+  drain affordance). It is the static mirror of `withdrawUpTo` and backs the
+  wrapper's realizable `previewRedeem`.
+- `withdrawUpTo` — the exact-in execution. DELEGATECALL only; realizes up to
+  `assets` of position value into the wrapper and returns the measured asset
+  delta. Backs `redeem`.
+
+These views read cost/realizable amounts straight from the source's own
+EIP-4626 `previewWithdraw`/`previewRedeem`, so they carry the same
+standard-source assumption as the rest of the adapter: a non-compliant or
+fee-on-transfer source is unsupported and needs a dedicated adapter.
+
 ## Functions
 
 ```solidity
@@ -35,6 +59,15 @@ function deposit(address _asset, address _underlying, uint256 _assets) external 
 
 /// Redeem `_assets` from the yield source; returns the asset amount received.
 function withdraw(address _asset, address _underlying, uint256 _assets) external returns (uint256 withdrawn)
+
+/// Position value the source consumes to deliver exactly `_assets` out (exact-out cost).
+function previewWithdrawCost(address _underlying, uint256 _assets) external view returns (uint256 cost)
+
+/// Assets delivered if `_holder` realizes up to `_assets` of position value now (exact-in preview).
+function previewWithdrawUpTo(address _underlying, address _holder, uint256 _assets) external view returns (uint256 delivered)
+
+/// Realizes up to `_assets` of position value from the source; returns the measured asset delta.
+function withdrawUpTo(address _asset, address _underlying, uint256 _assets) external returns (uint256 withdrawn)
 ```
 
 ## Related contracts
