@@ -6,19 +6,22 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { VaultWrapperFactoryStackBase } from "test/solidity/VaultWrapper/VaultWrapperFactoryStackBase.sol";
 import { VaultWrapperInvariantHandler } from "test/solidity/VaultWrapper/invariant/VaultWrapperInvariantHandler.sol";
+import { MockFeeERC4626 } from "test/solidity/VaultWrapper/mocks/MockFeeERC4626.sol";
 
-/// @notice Stateful invariant suite for the assembled vault wrapper (EXSC-421 / S12). A handler
-///         drives randomized multi-actor sequences — deposits, mints, withdrawals, redeems,
-///         fee distributions, fee retunes, pause toggles, and injected yield/loss/time — against one
-///         wrapper charging all four fee types over an inflatable mock underlying. The math
-///         library is already property-fuzzed in isolation; this suite proves the stateful
-///         composition holds under arbitrary interleavings: idle assets and the wrapper's own
-///         share balance always exactly back the booked fee counters, the performance
-///         high-water mark never regresses (asserted in the handler), depositors can never
-///         extract more than was deposited plus injected yield, and no shares are minted or
-///         burned outside the tracked holder set. The suite runs `fail-on-revert = true`, so a
-///         pause that ever blocked an exit — or any other unexpected revert — fails a run.
-contract VaultWrapperInvariantTest is VaultWrapperFactoryStackBase {
+/// @notice Shared stateful invariant suite for the assembled vault wrapper (EXSC-421 / S12). A
+///         handler drives randomized multi-actor sequences — deposits, mints, withdrawals,
+///         redeems, fee distributions, fee retunes, pause toggles, and injected yield/loss/time
+///         — against one wrapper charging all four fee types over an underlying source. The
+///         underlying source is a virtual seam (`_deployUnderlying`) so the exact same suite runs
+///         over both a plain no-fee source and a source charging its own exit fee (EXSC-421 /
+///         S12 exit-cost-awareness): idle assets and the wrapper's own share balance always
+///         exactly back the booked fee counters, the performance high-water mark never regresses
+///         (asserted in the handler), depositors can never extract more than was deposited plus
+///         injected yield, exits never pay out more than the burned shares were worth at exit,
+///         and no shares are minted or burned outside the tracked holder set. The suite runs
+///         `fail-on-revert = true`, so a pause that ever blocked an exit — or any other
+///         unexpected revert — fails a run.
+abstract contract VaultWrapperInvariantBase is VaultWrapperFactoryStackBase {
     // Governance-set bounds equal to the immutable bytecode caps, so the handler can retune
     // each fee across its whole legal range.
     uint16 internal constant PERF_CAP = 5000;
@@ -36,6 +39,9 @@ contract VaultWrapperInvariantTest is VaultWrapperFactoryStackBase {
     uint16 internal constant RECEIVER_1_BPS = 6000;
     uint16 internal constant RECEIVER_2_BPS = 4000;
 
+    // 1% exit fee, used only by the fee-charging-source subclass.
+    uint16 internal constant SOURCE_FEE_BPS = 100;
+
     MockERC20 internal asset;
     MockERC4626 internal underlying;
     VaultWrapperInvariantHandler internal handler;
@@ -43,10 +49,18 @@ contract VaultWrapperInvariantTest is VaultWrapperFactoryStackBase {
     address internal vaultAdmin = makeAddr("vaultAdmin");
     address internal integrator1 = makeAddr("integrator1");
     address internal integrator2 = makeAddr("integrator2");
+    address internal sourceFeeSink = makeAddr("sourceFeeSink");
+
+    /// @dev Subclass seam: the underlying source under test. Base = plain no-fee mock.
+    function _deployUnderlying(
+        MockERC20 _asset
+    ) internal virtual returns (MockERC4626) {
+        return new MockERC4626(_asset, "Yield Token", "yTKN");
+    }
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
-        underlying = new MockERC4626(asset, "Yield Token", "yTKN");
+        underlying = _deployUnderlying(asset);
 
         _bringUpFactory(
             address(underlying),
@@ -119,6 +133,19 @@ contract VaultWrapperInvariantTest is VaultWrapperFactoryStackBase {
         );
     }
 
+    /// @dev An exit can lose value to a source exit fee or a loss, but can NEVER pay the
+    ///      exiter more than their burned shares were worth at exit — otherwise the exit
+    ///      created value at the remaining holders' expense (dilution). Cost-aware
+    ///      previewWithdraw and realizable redeem both enforce this per-exit; the ghost
+    ///      totals prove it holds cumulatively under arbitrary interleavings.
+    function invariant_ExitsNeverCreateValueForExiter() public view {
+        assertLe(
+            handler.cumulativePaidOut(),
+            handler.cumulativeSliceValue(),
+            "an exit paid out more than the burned shares were worth"
+        );
+    }
+
     function _deployParams() private view returns (DeployParams memory) {
         uint16[4] memory rates = [
             PERF_RATE,
@@ -163,5 +190,26 @@ contract VaultWrapperInvariantTest is VaultWrapperFactoryStackBase {
         selectors[7] = VaultWrapperInvariantHandler.warp.selector;
         selectors[8] = VaultWrapperInvariantHandler.setFee.selector;
         selectors[9] = VaultWrapperInvariantHandler.togglePause.selector;
+    }
+}
+
+/// @notice Invariant suite over a plain, no-fee ERC-4626 source.
+contract VaultWrapperInvariantTest is VaultWrapperInvariantBase {}
+
+/// @notice Same invariant suite over a compliant source charging a 1% exit fee that
+///         leaves the source vault — proving cost-aware exits never dilute stayers even
+///         when the source imposes an exit cost.
+contract VaultWrapperFeeSourceInvariantTest is VaultWrapperInvariantBase {
+    function _deployUnderlying(
+        MockERC20 _asset
+    ) internal override returns (MockERC4626) {
+        return
+            new MockFeeERC4626(
+                _asset,
+                "Yield Token",
+                "yTKN",
+                SOURCE_FEE_BPS,
+                sourceFeeSink
+            );
     }
 }

@@ -51,6 +51,12 @@ contract VaultWrapperInvariantHandler is Test {
     uint256 public ghostYield;
     /// @notice Highest high-water mark observed; the ratchet asserts it never regresses.
     uint256 public hwmFloor;
+    /// @notice Assets ever paid out to exiters across all exits.
+    uint256 public cumulativePaidOut;
+    /// @notice Value the exiters' burned shares were worth at exit (pre-exit, accrual-aware
+    ///         convertToAssets). The new invariant asserts paid-out never exceeds this — an
+    ///         exit can lose value to a source fee/loss but never GAIN at the stayers' expense.
+    uint256 public cumulativeSliceValue;
 
     constructor(
         LiFiVaultWrapper _wrapper,
@@ -123,10 +129,16 @@ contract VaultWrapperInvariantHandler is Test {
         if (ceiling == 0) return;
 
         uint256 assets = bound(_assets, 1, ceiling);
+        // Value the shares the exit will burn, at the pre-exit (accrual-aware) price.
+        uint256 sliceValue = WRAPPER.convertToAssets(
+            WRAPPER.previewWithdraw(assets)
+        );
 
         vm.prank(actor);
         try WRAPPER.withdraw(assets, actor, actor) returns (uint256) {
             ghostAssetsOut += assets;
+            cumulativePaidOut += assets;
+            cumulativeSliceValue += sliceValue;
             _ratchetHwm();
         } catch {
             // The ONLY accepted revert is the exact-out boundary (finding #4, out of
@@ -147,11 +159,14 @@ contract VaultWrapperInvariantHandler is Test {
         if (balance == 0) return;
 
         uint256 shares = bound(_shares, 1, balance);
+        uint256 sliceValue = WRAPPER.convertToAssets(shares);
 
         vm.prank(actor);
         uint256 received = WRAPPER.redeem(shares, actor, actor);
 
         ghostAssetsOut += received;
+        cumulativePaidOut += received;
+        cumulativeSliceValue += sliceValue;
         _ratchetHwm();
     }
 
