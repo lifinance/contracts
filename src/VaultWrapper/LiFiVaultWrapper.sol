@@ -448,8 +448,13 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
-    ///      are exempt): an exit must always be able to empty the caller's position.
+    /// @dev Exact-in and loss-tolerant: realizes the burned shares' proportional slice of
+    ///      the source position via the adapter's `withdrawUpTo` and pays out what the
+    ///      source actually delivered (net of the withdrawal fee, charged on ACTUAL
+    ///      proceeds). A source that pays under valuation — an exit fee, a post-deployment
+    ///      change — reduces THIS caller's payout instead of diluting the remaining
+    ///      holders or bricking the last exit. The exact-out counterpart `withdraw` stays
+    ///      strict. Deliberately NOT floor-checked (exits are exempt — `_enforceSupplyFloor`).
     function redeem(
         uint256 shares,
         address receiver,
@@ -458,7 +463,11 @@ contract LiFiVaultWrapper is
         _checkExitAccess(owner, receiver);
         _accrueFees();
 
-        return super.redeem(shares, receiver, owner);
+        uint256 maxShares = maxRedeem(owner);
+        if (shares > maxShares)
+            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+
+        return _redeemExactIn(_msgSender(), receiver, owner, shares);
     }
 
     /// EIP-5143 slippage-guarded entrypoints ///
@@ -602,15 +611,37 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
+    /// @dev Realizable-value preview: mirrors `redeem` — the shares' floor valuation is
+    ///      pushed through the adapter's `previewWithdrawUpTo` (the same source math
+    ///      `withdrawUpTo` executes), then the withdrawal fee is carved out of the
+    ///      realizable amount. Equals the plain valuation on a no-fee source. Always uses
+    ///      the floor valuation (never the adapter's full-position drain sentinel, even on
+    ///      a full-supply redeem): the wrapper cannot distinguish an honest last holder
+    ///      from a donation-inflation attacker at redeem time, and draining the raw
+    ///      position would hand the attacker the virtual-offset residue the inflation
+    ///      protection is supposed to keep unredeemable. Standard OZ ERC-4626 behavior. A
+    ///      zero-valuation gross (e.g. a total-loss source, `totalAssets() == 0` with
+    ///      `totalSupply() > 0`) short-circuits before the adapter call — mirroring
+    ///      `_redeemExactIn` exactly — instead of forwarding a 0 into the adapter's
+    ///      `previewWithdrawUpTo`, which round-trips through the source's own
+    ///      `convertToShares` and can divide by a zero `totalAssets` there.
     function previewRedeem(
         uint256 shares
     ) public view override returns (uint256) {
-        uint256 assets = super.previewRedeem(shares);
+        uint256 gross = _convertToAssets(shares, Math.Rounding.Floor);
+        uint256 realizable = gross == 0
+            ? 0
+            : IYieldAdapter(adapter).previewWithdrawUpTo(
+                underlying,
+                address(this),
+                gross
+            );
+        if (realizable == 0) return 0;
 
         return
-            assets -
+            realizable -
             LibVaultWrapperMath.feeOnTotal({
-                _assets: assets,
+                _assets: realizable,
                 _feeBps: _rate(FeeType.Withdrawal)
             });
     }
@@ -769,6 +800,71 @@ contract LiFiVaultWrapper is
         // untracked dust that silently left AUM.
         _routeFee(FeeType.Withdrawal, withdrawalFee + (withdrawn - owed));
         SafeERC20.safeTransfer(IERC20(assetToken), _to, _assets);
+    }
+
+    /// @dev Exact-in redeem: OZ's allowance-spend + burn + `Withdraw` event, with a
+    ///      loss-tolerant realization instead of the strict `_transferOut`. The slice
+    ///      valuation is computed BEFORE the burn (the burn changes the supply the
+    ///      valuation divides by), post-accrual so pending fee-shares are already minted.
+    ///      Always floor-values the burned shares (never the adapter's full-position drain
+    ///      sentinel, even on a full-supply redeem): the wrapper cannot tell an honest last
+    ///      holder from a donation-inflation attacker at redeem time, and draining the raw
+    ///      source position would hand either of them the virtual-offset residue the
+    ///      inflation protection is supposed to keep unredeemable. A full exit therefore
+    ///      leaves that tiny residue in the source by design (standard OZ ERC-4626
+    ///      behavior) rather than stranding it as a bug. The withdrawal fee is charged on
+    ///      ACTUAL proceeds via `feeOnTotal`, so fee and payout sum to what the source
+    ///      paid. A dust redeem — either `gross` itself is 0, or the adapter's own
+    ///      `previewWithdrawUpTo` reports 0 (the source's floor-rounded conversion of a
+    ///      tiny `gross` back to assets can floor to 0 even when the corresponding source
+    ///      share count is nonzero) — skips the adapter's mutating round-trip entirely
+    ///      (mirrors `_transferOut`'s zero short-circuit and matches what `previewRedeem`
+    ///      already predicts). This is required, not just an optimization: some ERC-4626
+    ///      sources (e.g. solmate's) hard-revert their own `redeem` when their own preview
+    ///      is 0, which would otherwise make `redeem` revert for a `_shares` amount within
+    ///      `maxRedeem` — an exit must always succeed.
+    /// @param _caller The account spending the allowance (msg.sender in `redeem`).
+    /// @param _receiver The asset receiver.
+    /// @param _owner The share owner being exited.
+    /// @param _shares The exact share amount to burn.
+    /// @return assets The assets actually paid out (net of the withdrawal fee).
+    function _redeemExactIn(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _shares
+    ) private returns (uint256 assets) {
+        uint256 gross = _convertToAssets(_shares, Math.Rounding.Floor);
+        uint256 realizable = gross == 0
+            ? 0
+            : IYieldAdapter(adapter).previewWithdrawUpTo(
+                underlying,
+                address(this),
+                gross
+            );
+
+        if (_caller != _owner) _spendAllowance(_owner, _caller, _shares);
+        _burn(_owner, _shares);
+
+        uint256 withdrawn;
+        if (realizable != 0) {
+            withdrawn = _routeThroughAdapter(
+                abi.encodeCall(
+                    IYieldAdapter.withdrawUpTo,
+                    (asset(), underlying, gross)
+                )
+            );
+        }
+
+        uint256 fee = LibVaultWrapperMath.feeOnTotal({
+            _assets: withdrawn,
+            _feeBps: _rate(FeeType.Withdrawal)
+        });
+        _routeFee(FeeType.Withdrawal, fee);
+        assets = withdrawn - fee;
+
+        SafeERC20.safeTransfer(IERC20(asset()), _receiver, assets);
+        emit Withdraw(_caller, _receiver, _owner, assets, _shares);
     }
 
     /// @dev Delegatecalls the adapter so its deposit/withdraw logic runs in this wrapper's

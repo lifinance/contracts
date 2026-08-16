@@ -108,6 +108,23 @@ contract LossyVault {
     function previewWithdraw(uint256 _assets) external pure returns (uint256) {
         return _assets;
     }
+
+    /// @dev 1:1 share/asset ratio (see `convertToAssets`), so previewing an exact-in
+    ///      redemption is the identity — needed since `ERC4626Adapter.previewWithdrawUpTo`
+    ///      now calls this as an ordinary IERC4626 preview (reached via the wrapper's
+    ///      `maxWithdraw`, which previews a full redeem of the owner's balance).
+    function previewRedeem(uint256 _shares) external pure returns (uint256) {
+        return _shares;
+    }
+
+    /// @dev 1:1 share/asset ratio (see `convertToAssets`), so converting a finite asset
+    ///      amount to shares is the identity — needed since `ERC4626Adapter._sliceShares`
+    ///      (reached via `previewWithdrawUpTo`) now calls this whenever the wrapper passes
+    ///      a floor-valued (non-sentinel) amount, which the wrapper's `redeem`/
+    ///      `previewRedeem` always do since the drain sentinel was removed.
+    function convertToShares(uint256 _assets) external pure returns (uint256) {
+        return _assets;
+    }
 }
 
 contract LiFiVaultWrapperTest is Test {
@@ -437,7 +454,12 @@ contract LiFiVaultWrapperTest is Test {
         vm.prank(alice);
         uint256 assetsOut = wrapper.redeem(shares, alice, alice);
 
-        assertApproxEqAbs(assetsOut, DEPOSIT + yield, 1);
+        // Exact-in redeem always floor-values the burned shares (never the adapter's
+        // full-position drain sentinel — see LiFiVaultWrapper.previewRedeem/_redeemExactIn),
+        // so on top of the wrapper's own floor rounding the underlying vault's OWN
+        // convertToShares/redeem rounding adds up to one more wei; tolerance widened from 1
+        // to 2 to account for that extra adapter round-trip.
+        assertApproxEqAbs(assetsOut, DEPOSIT + yield, 2);
     }
 
     function test_TwoDepositorsShareProportionally() public {

@@ -72,6 +72,97 @@ contract LiFiVaultWrapperExitCostTest is Test {
         assertApproxEqAbs(bobClaimAfter, bobClaimBefore, 2);
     }
 
+    function test_RedeemDoesNotDiluteRemainingHolder() public {
+        _deposit(alice, DEPOSIT);
+        _deposit(bob, DEPOSIT);
+
+        uint256 bobClaimBefore = wrapper.convertToAssets(
+            wrapper.balanceOf(bob)
+        );
+
+        uint256 aliceShares = wrapper.balanceOf(alice);
+        vm.prank(alice);
+        wrapper.redeem(aliceShares, alice, alice);
+
+        uint256 bobClaimAfter = wrapper.convertToAssets(
+            wrapper.balanceOf(bob)
+        );
+
+        assertApproxEqAbs(bobClaimAfter, bobClaimBefore, 2);
+    }
+
+    function test_RedeemExiterBearsSourceFee() public {
+        _deposit(alice, DEPOSIT);
+        _deposit(bob, DEPOSIT);
+
+        uint256 aliceShares = wrapper.balanceOf(alice);
+        vm.prank(alice);
+        uint256 out = wrapper.redeem(aliceShares, alice, alice);
+
+        assertApproxEqAbs(
+            out,
+            (DEPOSIT * (10_000 - SOURCE_FEE_BPS)) / 10_000,
+            2
+        );
+        assertEq(asset.balanceOf(alice), out);
+    }
+
+    function test_PreviewRedeemMatchesRedeem() public {
+        _deposit(alice, DEPOSIT);
+        _deposit(bob, DEPOSIT);
+
+        uint256 aliceShares = wrapper.balanceOf(alice);
+        uint256 previewed = wrapper.previewRedeem(aliceShares);
+        vm.prank(alice);
+        uint256 out = wrapper.redeem(aliceShares, alice, alice);
+
+        assertEq(out, previewed);
+    }
+
+    function test_RedeemLastHolderDrainsCleanly() public {
+        _deposit(alice, DEPOSIT);
+
+        uint256 aliceShares = wrapper.balanceOf(alice);
+        vm.prank(alice);
+        uint256 out = wrapper.redeem(aliceShares, alice, alice);
+
+        assertApproxEqAbs(
+            out,
+            (DEPOSIT * (10_000 - SOURCE_FEE_BPS)) / 10_000,
+            2
+        );
+        assertEq(wrapper.totalSupply(), 0);
+        // Virtual-offset residue stays in the source by design (inflation buffer), so the
+        // vault does not necessarily drain to exactly zero. Measured residue for this
+        // single-depositor, no-donation scenario is 0 (the wrapper's virtual-share math
+        // and the source's own conversion cancel exactly here); bound kept well above that
+        // at 1e6 wei so the assertion stays robust to sub-wei accounting drift without
+        // masking a real, large residue.
+        assertApproxEqAbs(wrapper.totalAssets(), 0, 1e6);
+    }
+
+    function test_PreviewRedeemMatchesRedeemInTotalLossState() public {
+        _deposit(alice, DEPOSIT);
+
+        // Force the source into total loss: totalAssets()==0 while the wrapper still
+        // holds shares. previewRedeem's floor-valued `gross` is then 0, and must
+        // short-circuit before the adapter call instead of forwarding a 0 into the
+        // source's own convertToShares (which divides by totalAssets and would revert).
+        // The balance is read BEFORE the prank: an inline argument call would itself
+        // consume vm.prank's next-call scope before transfer() runs.
+        uint256 underlyingBalance = asset.balanceOf(address(underlying));
+        vm.prank(address(underlying));
+        asset.transfer(address(0xdead), underlyingBalance);
+
+        uint256 shares = wrapper.maxRedeem(alice);
+        uint256 previewed = wrapper.previewRedeem(shares);
+        vm.prank(alice);
+        uint256 out = wrapper.redeem(shares, alice, alice);
+
+        assertEq(previewed, out);
+        assertEq(out, 0);
+    }
+
     /// Helpers ///
 
     function _splits8000() internal pure returns (uint16[4] memory) {
