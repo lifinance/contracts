@@ -198,4 +198,18 @@ contract LiFiVaultWrapperExitCostTest is Test {
         wrapper.deposit(_amount, _from);
         vm.stopPrank();
     }
+
+    function testRevert_WithdrawByLastHolderOnFeeSource() public {
+        _deposit(alice, DEPOSIT); // sole holder
+
+        // On a fee-charging source, maxWithdraw is fee-aware (previewRedeem(maxRedeem),
+        // with the realizable, net-of-source-fee previewRedeem), so it reports ~990e18 net
+        // for a 1000e18 deposit. A holder trying to withdraw their full NOMINAL deposit
+        // (1000e18) therefore exceeds maxWithdraw and reverts ERC4626ExceededMaxWithdraw.
+        // redeem is the guaranteed exit for the full position (see
+        // test_RedeemLastHolderDrainsCleanly).
+        vm.prank(alice);
+        vm.expectRevert();
+        wrapper.withdraw(DEPOSIT, alice, alice);
+    }
 }
