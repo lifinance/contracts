@@ -7,6 +7,7 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { MockERC4626Underlying } from "../mocks/MockERC4626Underlying.sol";
+import { MockLiquidityCappedERC4626 } from "../mocks/MockLiquidityCappedERC4626.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC4626Adapter internal adapter;
@@ -90,6 +91,24 @@ contract ERC4626AdapterTest is Test {
         assertEq(
             adapter.maxWithdrawableValue(address(vault), makeAddr("nobody")),
             0
+        );
+    }
+
+    function test_MaxWithdrawableValueCapsAtSourceLiquidity() public {
+        MockLiquidityCappedERC4626 capped = new MockLiquidityCappedERC4626(
+            asset,
+            "Capped",
+            "cTKN"
+        );
+        asset.mint(address(this), 1_000e18);
+        asset.approve(address(capped), 1_000e18);
+        capped.deposit(1_000e18, address(this));
+        capped.setWithdrawable(300e18);
+
+        // Position is worth 1_000e18 but only 300e18 is currently withdrawable.
+        assertEq(
+            adapter.maxWithdrawableValue(address(capped), address(this)),
+            300e18
         );
     }
 }
