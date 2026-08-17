@@ -80,7 +80,9 @@ function diamondUpdatePeriphery() {
     ADDRS="deployments/$NETWORK.$FILE_SUFFIX""json"
   fi
 
-  # initialize LAST_CALL variable that will be used to exit the script (only when ERROR_ON_EXIT flag is true)
+  # Sticky failure flag: only ever set to 1, never reset, so a later contract's success
+  # cannot mask an earlier one's failure. Drives the EXIT_ON_ERROR exit below and this
+  # function's return code.
   local LAST_CALL=0
 
   # Single predicate for "Safe-propose vs direct broadcast", used by saveDiamondPeriphery below.
@@ -164,12 +166,13 @@ function diamondUpdatePeriphery() {
     fi
   fi
 
-  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
+  if [[ "$LAST_CALL" -ne 0 ]]; then
+    error "diamondUpdatePeriphery failed to register at least one contract on network $NETWORK"
+    return 1
+  fi
 
-  # Propagate the registration outcome. With EXIT_ON_ERROR=false the failure path
-  # above does not exit, so without this the final echo's 0 would mask a failed
-  # registration and callers checking $? would treat it as success.
-  return "$LAST_CALL"
+  echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
+  return 0
 }
 
 register() {
