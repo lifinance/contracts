@@ -616,9 +616,12 @@ All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   must be `revertToQueued` first, then cancelled.
 - **queued → cancelled (deprecated network)**: the reconcile evaluates network status
   *before* on-chain truth (`partitionByNetworkStatus` → `deprecatedNetworkDecision`),
-  because a network absent from `config/networks.json` — or present with
-  `status ≠ 'active'` — has no chain the loupe can read, so the removal can never be
-  verified and abandoning the intent is the only terminal answer available.
+  because a network that is not in the active set has no resolvable chain for the
+  reconcile to read: `getViemChainForNetworkName` throws for an absent key, and no
+  `ETH_NODE_URI_<NETWORK>` is configured for one that is not active. So the task is
+  out of scope for on-chain reconciliation either way, and abandoning the intent is
+  the only terminal answer available — but *being out of the active set is not proof
+  the network was deprecated*.
   **Applying that cancellation is opt-in and single-network**
   (`--network <x> --cancel-deprecated --yes`): a non-active config entry is *not* proof
   of deprecation — `config/networks.json` is deliberately narrowed to a handful of

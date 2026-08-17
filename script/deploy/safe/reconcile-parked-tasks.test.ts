@@ -27,6 +27,7 @@ import {
   deprecatedNetworkDecision,
   formatTtlAlertMessage,
   partitionByNetworkStatus,
+  parseTtlDays,
   reconcileDecision,
   shouldCancelDeprecated,
 } from './reconcile-parked-tasks'
@@ -206,6 +207,30 @@ describe('shouldCancelDeprecated', () => {
         networkFilter: 'harmony',
       })
     ).toBe(false)
+  })
+})
+
+describe('parseTtlDays', () => {
+  it('accepts a positive integer', () => {
+    expect(parseTtlDays('30')).toBe(30)
+  })
+
+  it('falls back to the default when the flag is absent', () => {
+    expect(parseTtlDays(undefined)).toBe(60)
+  })
+
+  it('rejects a non-numeric value rather than flagging every open task', () => {
+    // NaN makes `ageDays < ttlDays` false for every task, which would alert on the
+    // whole fleet instead of the stale ones.
+    expect(() => parseTtlDays('soon')).toThrow(/positive integer/)
+  })
+
+  it('rejects a negative value', () => {
+    expect(() => parseTtlDays('-1')).toThrow(/positive integer/)
+  })
+
+  it('rejects a fractional value', () => {
+    expect(() => parseTtlDays('1.5')).toThrow(/positive integer/)
   })
 })
 

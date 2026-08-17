@@ -1480,8 +1480,15 @@ export async function getSafeMongoCollection(): Promise<{
     'pendingTransactions'
   )
 
-  // Ensure the partial unique index exists for duplicate prevention
-  await ensurePendingProposalIndex(pendingTransactions)
+  // Ensure the partial unique index exists for duplicate prevention. The client is
+  // already connected here, so a failure must close it before rethrowing — an
+  // orphaned client is unreachable to the caller and keeps the process alive.
+  try {
+    await ensurePendingProposalIndex(pendingTransactions)
+  } catch (error) {
+    await client.close().catch(() => undefined)
+    throw error
+  }
 
   return { client, pendingTransactions }
 }

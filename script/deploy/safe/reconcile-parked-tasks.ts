@@ -185,6 +185,23 @@ export function partitionByNetworkStatus<
   return { live, deprecated }
 }
 
+/**
+ * Parses the `--ttlDays` flag. `Number()` alone would accept `NaN`, negatives and
+ * fractions, and a `NaN` threshold makes `ageDays < ttlDays` false for EVERY task —
+ * turning the cold-network alert into a fleet-wide one.
+ *
+ * @param raw - The raw flag value, or `undefined` when it was not passed.
+ * @returns The threshold in days.
+ * @throws If the value is not a positive integer.
+ */
+export function parseTtlDays(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_TTL_DAYS
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed <= 0)
+    throw new Error(`--ttlDays must be a positive integer (got "${raw}")`)
+  return parsed
+}
+
 /** An open task that has aged past the TTL, for the cold-network alert. */
 export interface IStaleParkedTask {
   network: string
@@ -483,7 +500,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const ttlDays = args.ttlDays ? Number(args.ttlDays) : DEFAULT_TTL_DAYS
+    const ttlDays = parseTtlDays(args.ttlDays)
     const apply = args.yes ?? false
     const cancelDeprecated = args.cancelDeprecated ?? false
     if (!apply) consola.info('Dry-run — pass --yes to apply transitions/alert')
@@ -498,12 +515,24 @@ const main = defineCommand({
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      const failures = await reconcileAll(
-        parkedTasks,
-        args.network,
-        apply,
-        cancelDeprecated
-      )
+      // The TTL alert is the cold-network backstop, so it must run even when the
+      // reconcile could not start (e.g. the queue read or the network config threw).
+      let failures = 0
+      try {
+        failures = await reconcileAll(
+          parkedTasks,
+          args.network,
+          apply,
+          cancelDeprecated
+        )
+      } catch (error: unknown) {
+        failures++
+        consola.error(
+          `reconcile aborted — running the TTL alert anyway: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
       if (failures > 0) {
         consola.error(
