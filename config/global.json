@@ -136,5 +136,26 @@
         "signature": "validateNativeOutput(uint256,address)"
       }
     ]
+  },
+  "facetPeripheryCouplings": {
+    "AcrossFacetV4": {
+      "requires": "ReceiverAcrossV4",
+      "devNotes": "Across V4 destination calls are completed by ReceiverAcrossV4 (EXSC-682, Robinhood)."
+    },
+    "AcrossFacetPackedV4": {
+      "requires": "ReceiverAcrossV4"
+    },
+    "AcrossV4SwapFacet": {
+      "requires": "ReceiverAcrossV4"
+    },
+    "ChainflipFacet": {
+      "requires": "ReceiverChainflip"
+    },
+    "LiFiIntentEscrowFacetV2": {
+      "requires": "ReceiverOIF"
+    },
+    "StargateFacetV2": {
+      "requires": "ReceiverStargateV2"
+    }
   }
 }
