@@ -484,9 +484,8 @@ contract FraxFacet is
     ///      FRAX_TIP_FEE_MANAGER, else FRAX_PATH_USD; its amount is quoted in-token by
     ///      HopV2.quoteStatic. msg.value is 0.
     /// @dev BE-integration note (EXP-514): the effective caller must hold the fee token and
-    ///      approve it to the diamond for the transferFrom pull to succeed, and must NOT
-    ///      pre-transfer it to the diamond (a pre-transfer double-funds the caller and is
-    ///      stranded) - see docs/FraxFacet.md.
+    ///      approve the fee amount to the diamond for the transferFrom pull to succeed - see
+    ///      docs/FraxFacet.md.
     /// @param _fraxData Data specific to Frax HopV2
     /// @param _sendingAssetId The bridged ERC20 (bridgeData.sendingAssetId)
     /// @param _recipient bytes32-encoded destination recipient
