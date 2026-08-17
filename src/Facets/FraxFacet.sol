@@ -477,13 +477,16 @@ contract FraxFacet is
     }
 
     /// @dev Tempo (EndpointV2Alt) send path. Tempo rejects native msg.value and charges the
-    ///      LayerZero fee in a TIP20 ERC20 gas token, which HopV2 pulls from the diamond
-    ///      (msg.sender) via transferFrom. So the diamond must (1) hold that fee token and
-    ///      (2) approve it to HopV2, in addition to the bridged-token approval above. The fee
-    ///      token is the one the diamond opted into via FRAX_TIP_FEE_MANAGER, else FRAX_PATH_USD; its
-    ///      amount is quoted in-token by HopV2.quoteStatic. msg.value is 0.
-    /// @dev BE-integration note (EXP-514): the fee token must be made available to the diamond
-    ///      by the caller for the transferFrom pull to succeed - see docs/FraxFacet.md.
+    ///      LayerZero fee in a TIP20 ERC20 gas token. The facet pulls the quoted fee from the
+    ///      effective caller (msg.sender) into the diamond via depositAsset, then approves it to
+    ///      HopV2, which pulls it from the diamond on sendOFT - in addition to the bridged-token
+    ///      approval above. The fee token is the one the diamond opted into via
+    ///      FRAX_TIP_FEE_MANAGER, else FRAX_PATH_USD; its amount is quoted in-token by
+    ///      HopV2.quoteStatic. msg.value is 0.
+    /// @dev BE-integration note (EXP-514): the effective caller must hold the fee token and
+    ///      approve it to the diamond for the transferFrom pull to succeed, and must NOT
+    ///      pre-transfer it to the diamond (a pre-transfer double-funds the caller and is
+    ///      stranded) - see docs/FraxFacet.md.
     /// @param _fraxData Data specific to Frax HopV2
     /// @param _sendingAssetId The bridged ERC20 (bridgeData.sendingAssetId)
     /// @param _recipient bytes32-encoded destination recipient
