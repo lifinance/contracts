@@ -7,6 +7,8 @@ import { FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaul
 import { VaultWrapperFactoryStackBase } from "test/solidity/VaultWrapper/VaultWrapperFactoryStackBase.sol";
 import { VaultWrapperInvariantHandler } from "test/solidity/VaultWrapper/invariant/VaultWrapperInvariantHandler.sol";
 import { MockFeeERC4626 } from "test/solidity/VaultWrapper/mocks/MockFeeERC4626.sol";
+import { MockLiquidityCappedERC4626 } from "test/solidity/VaultWrapper/mocks/MockLiquidityCappedERC4626.sol";
+import { VaultWrapperCappedSourceInvariantHandler } from "test/solidity/VaultWrapper/invariant/VaultWrapperInvariantHandler.sol";
 
 /// @notice Shared stateful invariant suite for the assembled vault wrapper (EXSC-421 / S12). A
 ///         handler drives randomized multi-actor sequences — deposits, mints, withdrawals,
@@ -68,18 +70,28 @@ abstract contract VaultWrapperInvariantBase is VaultWrapperFactoryStackBase {
         );
         _deployWrapper(_deployParams());
 
-        handler = new VaultWrapperInvariantHandler(
-            wrapper,
-            asset,
-            underlying,
-            factory,
-            vaultAdmin
-        );
+        handler = _deployHandler();
 
         targetContract(address(handler));
         targetSelector(
             FuzzSelector({ addr: address(handler), selectors: _actions() })
         );
+    }
+
+    /// @dev Subclass seam: the handler under test. Base = plain handler.
+    function _deployHandler()
+        internal
+        virtual
+        returns (VaultWrapperInvariantHandler)
+    {
+        return
+            new VaultWrapperInvariantHandler(
+                wrapper,
+                asset,
+                underlying,
+                factory,
+                vaultAdmin
+            );
     }
 
     /// @dev The idle asset balance is exactly the deposit/withdrawal fees booked but not yet
@@ -146,6 +158,24 @@ abstract contract VaultWrapperInvariantBase is VaultWrapperFactoryStackBase {
         );
     }
 
+    /// @dev The value of each actor's `maxRedeem` never exceeds what the source can currently
+    ///      pay the wrapper — the liquidity clamp is honored. On an unlimited source this is
+    ///      the full position; on a capped source it tracks the cap. Complements the
+    ///      fail-on-revert proof that a `redeem` bounded to `maxRedeem` never reverts.
+    function invariant_MaxRedeemWithinSourceLiquidity() public view {
+        uint256 realizable = adapter.maxWithdrawableValue(
+            address(underlying),
+            address(wrapper)
+        );
+        for (uint256 i; i < 3; ++i) {
+            assertLe(
+                wrapper.convertToAssets(wrapper.maxRedeem(handler.actors(i))),
+                realizable,
+                "maxRedeem value exceeds source liquidity"
+            );
+        }
+    }
+
     function _deployParams() private view returns (DeployParams memory) {
         uint16[4] memory rates = [
             PERF_RATE,
@@ -178,7 +208,12 @@ abstract contract VaultWrapperInvariantBase is VaultWrapperFactoryStackBase {
     }
 
     /// @dev The handler entrypoints the fuzzer may call; the ghost/actor getters are excluded.
-    function _actions() private pure returns (bytes4[] memory selectors) {
+    function _actions()
+        internal
+        pure
+        virtual
+        returns (bytes4[] memory selectors)
+    {
         selectors = new bytes4[](10);
         selectors[0] = VaultWrapperInvariantHandler.deposit.selector;
         selectors[1] = VaultWrapperInvariantHandler.mint.selector;
@@ -211,5 +246,58 @@ contract VaultWrapperFeeSourceInvariantTest is VaultWrapperInvariantBase {
                 SOURCE_FEE_BPS,
                 sourceFeeSink
             );
+    }
+}
+
+/// @notice Same invariant suite over a source whose withdrawal liquidity is fuzzed up and
+///         down — proving the wrapper's liquidity-aware `max*` never over-report and a redeem
+///         within `maxRedeem` never reverts even as source liquidity shifts.
+contract VaultWrapperCappedSourceInvariantTest is VaultWrapperInvariantBase {
+    function _deployUnderlying(
+        MockERC20 _asset
+    ) internal override returns (MockERC4626) {
+        return new MockLiquidityCappedERC4626(_asset, "Yield Token", "yTKN");
+    }
+
+    function _deployHandler()
+        internal
+        override
+        returns (VaultWrapperInvariantHandler)
+    {
+        return
+            new VaultWrapperCappedSourceInvariantHandler(
+                wrapper,
+                asset,
+                underlying,
+                factory,
+                vaultAdmin
+            );
+    }
+
+    // `withdraw` is deliberately omitted: on a liquidity-capped source the exact-out withdraw
+    // path can revert at EITHER the share-rounding boundary OR a source-liquidity boundary, and
+    // it is not the guaranteed exit. Its boundary behavior is covered by the no-fee/fee-source
+    // suites (share-rounding) and the wrapper unit tests (liquidity clamp + ExceededMaxWithdraw).
+    // This suite exercises the guaranteed `redeem` path and the max-view clamp under shifting
+    // liquidity.
+    function _actions()
+        internal
+        pure
+        override
+        returns (bytes4[] memory selectors)
+    {
+        selectors = new bytes4[](10);
+        selectors[0] = VaultWrapperInvariantHandler.deposit.selector;
+        selectors[1] = VaultWrapperInvariantHandler.mint.selector;
+        selectors[2] = VaultWrapperInvariantHandler.redeem.selector;
+        selectors[3] = VaultWrapperInvariantHandler.distributeFees.selector;
+        selectors[4] = VaultWrapperInvariantHandler.injectYield.selector;
+        selectors[5] = VaultWrapperInvariantHandler.injectLoss.selector;
+        selectors[6] = VaultWrapperInvariantHandler.warp.selector;
+        selectors[7] = VaultWrapperInvariantHandler.setFee.selector;
+        selectors[8] = VaultWrapperInvariantHandler.togglePause.selector;
+        selectors[9] = VaultWrapperCappedSourceInvariantHandler
+            .setLiquidity
+            .selector;
     }
 }
