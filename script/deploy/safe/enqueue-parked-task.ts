@@ -4,8 +4,8 @@
  * Parks a single facet-removal task in the deferred diamond-cleanup queue
  * (`deferred-cleanup.parkedTasks`, design: PR #2049) instead of proposing the removal
  * eagerly. Called by `/deprecate-contract` (once the deprecation PR URL is known)
- * per (facet, network); the removal rides along the next time the network is
- * touched. Refuses to enqueue without the originating PR URL — the reviewer must
+ * per (facet address, network); the removal rides along the next time the network
+ * is touched. Refuses to enqueue without the originating PR URL — the reviewer must
  * be able to see which PR a deferred removal belongs to at signing time (spec §6).
  *
  * Exit codes: 0 enqueued (or a harmless duplicate no-op), 1 invalid input / real
@@ -72,7 +72,7 @@ const main = defineCommand({
     facetName: {
       type: 'string',
       description:
-        'Facet to park for removal (identity; selectors resolved at drain)',
+        'Facet name, used as the display label in logs and proposals',
       required: true,
     },
     diamondAddress: {
@@ -82,7 +82,8 @@ const main = defineCommand({
     },
     facetAddress: {
       type: 'string',
-      description: 'Facet address snapshot from the deploy log',
+      description:
+        'Address of the facet to remove (the task identity; selectors resolved from the loupe at drain)',
       required: true,
     },
     prUrl: {
@@ -149,12 +150,12 @@ const main = defineCommand({
       const result = await enqueueParkedTask(parkedTasks, input)
       if (result === null) {
         consola.info(
-          `${input.facetName} on ${input.network} is already parked (queued/proposed) — no-op`
+          `${input.facetName} @ ${input.facetAddress} on ${input.network} is already parked (queued/proposed) — no-op`
         )
         return
       }
       consola.success(
-        `Parked ${input.facetName} removal on ${input.network} (origin PR ${input.prUrl})`
+        `Parked ${input.facetName} @ ${input.facetAddress} removal on ${input.network} (origin PR ${input.prUrl})`
       )
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)

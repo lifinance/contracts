@@ -9,9 +9,10 @@ import {
   buildRemovalSnapshotFromPayloads,
   collectActiveSelectors,
   computeFacetRemovalDiff,
-  computeNamedFacetRemovals,
+  computeFacetRemovalsByName,
+  computeTargetedFacetRemovals,
   diffFacets,
-  diffNamedFacets,
+  diffTargetedFacets,
   extractRemoveFacetCuts,
   fetchOnChainFacets,
   filterRePointedRemovals,
@@ -350,90 +351,260 @@ describe('computeFacetRemovalDiff', () => {
   })
 })
 
-describe('diffNamedFacets', () => {
+describe('diffTargetedFacets', () => {
   const base = {
     network: 'net',
     environment: PROD,
     diamondAddress: addr(0xd),
+    protectedNames: new Set<string>(),
+    protectedSelectors: new Set<string>(),
   }
 
-  it('removes a requested facet that is registered on-chain', () => {
-    const r = diffNamedFacets({
+  it('removes a targeted address that is registered on-chain', () => {
+    const r = diffTargetedFacets({
       ...base,
-      requestedNames: new Set(['OldFacet']),
+      targets: [{ address: addr(1) }],
       onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
       addressToName: { [addr(1)]: 'OldFacet' },
-      protectedNames: new Set(),
     })
     expect(r.removals).toEqual([
       { name: 'OldFacet', address: addr(1), selectors: [sel(1)] },
     ])
     expect(r.notFoundOnChain).toHaveLength(0)
+    expect(r.prunedButRouted).toHaveLength(0)
   })
 
-  it('refuses a requested facet on the never-remove allowlist', () => {
-    const r = diffNamedFacets({
+  it('removes the OLD of two co-registered versions and leaves the live one routed', () => {
+    // The deploy log points at v2, so only the loupe knows about v1's address.
+    const r = diffTargetedFacets({
       ...base,
-      requestedNames: new Set(['DiamondCutFacet']),
+      targets: [{ address: addr(1), label: 'SymbiosisFacet v1.0.0' }],
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(0xa1)] }, // v1 — doomed
+        { address: addr(2), selectors: [sel(0xa2)] }, // v2 — live
+      ],
+      addressToName: { [addr(2)]: 'SymbiosisFacet' },
+      expectedNames: new Set(['SymbiosisFacet']),
+    })
+    expect(r.removals).toEqual([
+      {
+        name: 'SymbiosisFacet v1.0.0',
+        address: addr(1),
+        selectors: [sel(0xa1)],
+      },
+    ])
+    expect(r.liveInTargetState).toHaveLength(0)
+    // v1 is not in the log any more: removable, but the log drift is surfaced.
+    expect(r.prunedButRouted).toEqual([
+      { name: 'SymbiosisFacet v1.0.0', address: addr(1) },
+    ])
+    expect(r.unresolved).toEqual([addr(1)])
+  })
+
+  it('labels an unlogged target "unknown" when no label was supplied', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [{ address: addr(1) }],
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+    })
+    expect(r.removals[0]?.name).toBe('unknown')
+  })
+
+  it('refuses a target whose logged name is on the never-remove allowlist', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [{ address: addr(1) }],
       onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
       addressToName: { [addr(1)]: 'DiamondCutFacet' },
       protectedNames: new Set(['DiamondCutFacet']),
     })
-    expect(r.protectedSkipped).toEqual(['DiamondCutFacet'])
+    expect(r.protectedSkipped).toEqual([
+      {
+        address: addr(1),
+        name: 'DiamondCutFacet',
+        reason: 'allowlisted-name',
+      },
+    ])
     expect(r.removals).toHaveLength(0)
   })
 
-  it('reports requested names that are not on-chain', () => {
-    const r = diffNamedFacets({
+  it('refuses an unlogged target that owns diamond-machinery selectors', () => {
+    // The name-based allowlist cannot see an address the deploy log omits, so the
+    // selector guard is what stops a machinery facet from being removed by address.
+    const r = diffTargetedFacets({
       ...base,
-      requestedNames: new Set(['Absent']),
+      targets: [{ address: addr(1) }],
+      onChainFacets: [{ address: addr(1), selectors: [sel(2), sel(0xcc)] }],
+      addressToName: {},
+      protectedSelectors: new Set([sel(0xcc)]),
+    })
+    expect(r.protectedSkipped).toEqual([
+      { address: addr(1), name: 'unknown', reason: 'machinery-selectors' },
+    ])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('refuses a target whose logged name target state still expects (live facet)', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [{ address: addr(1) }],
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'LiveFacet' },
+      expectedNames: new Set(['LiveFacet']),
+    })
+    expect(r.liveInTargetState).toEqual([
+      { name: 'LiveFacet', address: addr(1) },
+    ])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('skips the live-facet guard when the network has no target-state entry', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [{ address: addr(1) }],
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'SomeFacet' },
+      expectedNames: undefined,
+    })
+    expect(r.liveInTargetState).toHaveLength(0)
+    expect(r.removals).toHaveLength(1)
+  })
+
+  it('reports targets that route no selectors on this diamond', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [{ address: addr(7), label: 'Absent' }],
       onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
       addressToName: { [addr(1)]: 'SomethingElse' },
-      protectedNames: new Set(),
     })
-    expect(r.notFoundOnChain).toEqual(['Absent'])
+    expect(r.notFoundOnChain).toEqual([{ address: addr(7), label: 'Absent' }])
     expect(r.removals).toHaveLength(0)
   })
 
-  it('surfaces on-chain-but-unmapped addresses as unresolved (not silently dropped)', () => {
-    const r = diffNamedFacets({
+  it('deduplicates repeated targets, ignoring address casing', () => {
+    const r = diffTargetedFacets({
       ...base,
-      requestedNames: new Set(['OldFacet']),
-      onChainFacets: [
-        { address: addr(1), selectors: [sel(1)] }, // in log → mapped
-        { address: addr(9), selectors: [sel(9)] }, // NOT in deploy log
+      targets: [
+        { address: addr(1) },
+        { address: addr(1).toUpperCase().replace('0X', '0x') as `0x${string}` },
       ],
-      addressToName: { [addr(1)]: 'SomethingElse' },
-      protectedNames: new Set(),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
     })
-    expect(r.unresolved).toEqual([addr(9)])
-    // OldFacet may be the unlogged address — must not be flatly "not on chain"
-    expect(r.notFoundOnChain).toEqual(['OldFacet'])
-    expect(r.removals).toHaveLength(0)
+    expect(r.removals).toHaveLength(1)
+  })
+
+  it('passes through unresolved names supplied by the name-keyed entrypoint', () => {
+    const r = diffTargetedFacets({
+      ...base,
+      targets: [],
+      onChainFacets: [],
+      addressToName: {},
+      unresolvedNames: ['NeverDeployedFacet'],
+    })
+    expect(r.unresolvedNames).toEqual(['NeverDeployedFacet'])
   })
 })
 
-describe('computeNamedFacetRemovals', () => {
-  it('returns all names as notFoundOnChain when the diamond is absent', async () => {
-    const r = await computeNamedFacetRemovals('net', PROD, ['A', 'B'], {
-      getDiamondAddress: async () => undefined,
-    })
-    expect(r.notFoundOnChain).toEqual(['A', 'B'])
+describe('computeTargetedFacetRemovals', () => {
+  it('returns all targets as notFoundOnChain when the diamond is absent', async () => {
+    const r = await computeTargetedFacetRemovals(
+      'net',
+      PROD,
+      [{ address: addr(1) }],
+      { getDiamondAddress: async () => undefined }
+    )
+    expect(r.notFoundOnChain).toEqual([{ address: addr(1) }])
     expect(r.removals).toHaveLength(0)
+    expect(r.unresolvedNames).toHaveLength(0)
   })
 
-  it('resolves named removals against the loupe', async () => {
-    const r = await computeNamedFacetRemovals('net', PROD, ['OldFacet'], {
-      getDiamondAddress: async () => addr(0xd),
-      getOnChainFacets: async () => [
-        { address: addr(1), selectors: [sel(1), sel(2)] },
-      ],
-      getAddressToName: async () => ({ [addr(1)]: 'OldFacet' }),
-    })
+  it('resolves targeted removals against the loupe', async () => {
+    const r = await computeTargetedFacetRemovals(
+      'net',
+      PROD,
+      [{ address: addr(1) }],
+      {
+        getDiamondAddress: async () => addr(0xd),
+        getOnChainFacets: async () => [
+          { address: addr(1), selectors: [sel(1), sel(2)] },
+        ],
+        getAddressToName: async () => ({ [addr(1)]: 'OldFacet' }),
+        getExpectedNames: () => new Set(),
+        getProtectedSelectors: () => new Set(),
+      }
+    )
     expect(r.diamondAddress).toBe(addr(0xd))
     expect(r.removals).toEqual([
       { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
     ])
+  })
+})
+
+describe('computeFacetRemovalsByName', () => {
+  const io: Partial<IRemovalDiffIO> = {
+    getDiamondAddress: async () => addr(0xd),
+    getOnChainFacets: async () => [
+      { address: addr(1), selectors: [sel(1)] },
+      { address: addr(2), selectors: [sel(2)] },
+    ],
+    getAddressToName: async () => ({
+      [addr(1)]: 'OldFacet',
+      [addr(2)]: 'LiveFacet',
+    }),
+    getExpectedNames: () => new Set(['LiveFacet']),
+    getProtectedSelectors: () => new Set(),
+  }
+
+  it('returns the names as unresolved when the diamond is absent', async () => {
+    const r = await computeFacetRemovalsByName('net', PROD, ['A', 'B'], {
+      getDiamondAddress: async () => undefined,
+    })
+    expect(r.unresolvedNames).toEqual(['A', 'B'])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('resolves a name to the address the deploy log lists for it', async () => {
+    const r = await computeFacetRemovalsByName('net', PROD, ['OldFacet'], io)
+    expect(r.removals).toEqual([
+      { name: 'OldFacet', address: addr(1), selectors: [sel(1)] },
+    ])
+  })
+
+  it('reports a name with no deploy-log entry instead of throwing', async () => {
+    const r = await computeFacetRemovalsByName('net', PROD, ['GhostFacet'], io)
+    expect(r.unresolvedNames).toEqual(['GhostFacet'])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('skips the live-facet guard on staging (direct-send, remove-and-re-add is routine)', async () => {
+    let expectedNamesRead = false
+    const r = await computeFacetRemovalsByName(
+      'net',
+      EnvironmentEnum.staging,
+      ['LiveFacet'],
+      {
+        ...io,
+        getExpectedNames: () => {
+          expectedNamesRead = true
+          return new Set(['LiveFacet'])
+        },
+      }
+    )
+    expect(expectedNamesRead).toBe(false)
+    expect(r.liveInTargetState).toHaveLength(0)
+    expect(r.removals).toHaveLength(1)
+  })
+
+  it('refuses a name whose logged address is the live deployment', async () => {
+    // The log points a co-registered facet's name at the NEW version, so removing
+    // "by name" would delete the live facet — the live guard blocks it instead.
+    const r = await computeFacetRemovalsByName('net', PROD, ['LiveFacet'], io)
+    expect(r.liveInTargetState).toEqual([
+      { name: 'LiveFacet', address: addr(2) },
+    ])
+    expect(r.removals).toHaveLength(0)
   })
 })
 

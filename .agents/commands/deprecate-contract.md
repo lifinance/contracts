@@ -106,10 +106,12 @@ The command performs these steps in order:
    and [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
 
    - **What to park**: for each deprecated facet, one parked task per PRODUCTION
-     network whose **deploy log** (`deployments/<network>.json`) lists it — that
-     log is the authoritative facet → address map. Read the diamond address and
-     the facet address from that log; do **not** delete those entries yet
-     (see step 7).
+     network whose **deploy log** (`deployments/<network>.json`) lists it. Read the
+     diamond address and the facet address from that log; do **not** delete those
+     entries yet (see step 7). The **facet address is the task identity** — the
+     name is only a label — so if an older version of the facet is still
+     registered on that diamond (the log names only the newest), check the loupe
+     and park one task per registered address.
    - **Park last, after the deprecation PR exists.** Each parked task **requires**
      the originating PR URL (`--prUrl`) so the reviewer sees it at signing, and
      that URL only exists once `gh pr create` has returned it. So the enqueue is
@@ -129,20 +131,21 @@ The command performs these steps in order:
 
      `--environment` defaults to `production` and v1 parks production removals
      only (the CLI rejects any other environment). Re-running for an
-     already-parked (facet, network) is a safe no-op.
+     already-parked (facet address, network) is a safe no-op.
    - **No Safe proposal is created at deprecation time.** The parked task is later
      drained into the removal proposal; the governance flow (on-chain loupe →
      `buildDiamondCutRemoveCalldata` → timelock `scheduleBatch` → Safe → quorum)
-     is unchanged, and core/machinery facets are refused by the queue's
-     protected-name guard. Periphery is out of scope here (de-register via the
-     periphery flow).
+     is unchanged, and core/machinery facets are refused by the drain's
+     never-remove guards (allowlisted deploy-log name, or diamond-machinery
+     selectors). Periphery is out of scope here (de-register via the periphery
+     flow).
 
 7. **Remaining Occurrences Review**
 
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
-   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network — they are the address snapshot the drain relies on and the record of on-chain state.
+   - **⚠️ Deploy-log entries**: Keep the `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network — they are the record of on-chain state, and the drain reads them to resolve a target's name for its never-remove and live-facet guards. Pruning one early no longer breaks the removal (the drain matches the parked task's stored address against the loupe), but it does downgrade those guards to the selector-based check and raises a `prunedButRouted` alert.
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 

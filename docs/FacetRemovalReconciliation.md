@@ -132,12 +132,14 @@ remove are selected*:
 
 The deprecation **names** the facet. So the removal is explicit: for each named
 facet, find the PROD diamonds whose deployment log lists it and **park** a
-removal task per (facet, network) into the deferred diamond-cleanup queue. No
-diff, no target-state dependency, no source/drift gate needed — the operator has
-stated intent. At **drain** time the engine reads the facet's current selectors
-from the on-chain loupe and proposes the removal, with the same guardrails
-(never-remove allowlist, immutable diamond, on-chain verification). The engine is
-`computeNamedFacetRemovals` + `cleanUpProdDiamond.ts --facets '[...]'`, consumed
+removal task per (facet address, network) into the deferred diamond-cleanup
+queue — the address, because two versions of a facet can be co-registered and the
+log names only the live one. No diff, no target-state dependency, no source/drift
+gate needed — the operator has stated intent. At **drain** time the engine reads
+that address's current selectors from the on-chain loupe and proposes the removal,
+with the same guardrails (never-remove allowlist, immutable diamond, on-chain
+verification). The engine is `computeTargetedFacetRemovals` +
+`cleanUpProdDiamond.ts --facetAddresses '[...]'`, consumed
 by the drain; `/deprecate-contract` step 6 **parks** via
 `script/deploy/safe/enqueue-parked-task.ts`
 (see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -229,8 +231,8 @@ queue (primary), the diff backstop as `--auto`
 ### 5.1 Engine — `script/deploy/safe/diamondRemovalDiff.ts` (new)
 
 Pure, side-effect-free, unit-tested. Exposes both selection functions
-(`computeFacetRemovalDiff` for the backstop, `computeNamedFacetRemovals` for the
-primary named path), the pure cores (`diffFacets`, `diffNamedFacets`), and the
+(`computeFacetRemovalDiff` for the backstop, `computeTargetedFacetRemovals` for the
+primary explicit path), the pure cores (`diffFacets`, `diffTargetedFacets`), and the
 pre-execute re-validation guard `revalidateRemovalsOnChain` / pure core
 `filterRePointedRemovals` — wired into `execute-pending-timelock-tx` immediately
 before `executeBatch`; under the fold any stale selector aborts the **entire**
@@ -265,14 +267,29 @@ export async function computeFacetRemovalDiff(
   io?: Partial<IRemovalDiffIO>, // all I/O injectable for tests
 ): Promise<IRemovalDiff>
 
-// Primary path: explicit names (from /deprecate-contract). No diff, no source
-// gate — just "is it on this diamond" + never-remove allowlist.
-export async function computeNamedFacetRemovals(
+// Primary path: explicit targets (from /deprecate-contract). No diff, no source
+// gate — just "does this address route selectors here" + the never-remove guards.
+// Keyed by ADDRESS: the deploy log maps one address per name, so a name cannot
+// distinguish two co-registered versions of the same facet.
+export interface IRemovalTarget {
+  address: `0x${string}`
+  label?: string // display only, never matched against
+}
+export async function computeTargetedFacetRemovals(
+  network: string,
+  environment: EnvironmentEnum,
+  targets: IRemovalTarget[],
+  io?: Partial<IRemovalDiffIO>,
+): Promise<ITargetedRemovalResult>
+
+// Convenience wrapper: maps each name to the address the deploy log lists, then
+// delegates. Names with no log entry come back in `unresolvedNames`.
+export async function computeFacetRemovalsByName(
   network: string,
   environment: EnvironmentEnum,
   names: string[],
   io?: Partial<IRemovalDiffIO>,
-): Promise<INamedRemovalResult>
+): Promise<ITargetedRemovalResult>
 ```
 
 **Algorithm**
@@ -331,12 +348,25 @@ export async function computeNamedFacetRemovals(
    fleet sweep. (Guardrail: "handle selectors shared/re-registered across facets.")
 8. Return the diff. Empty `removals` ⇒ nothing to propose for this network.
 
-The **named** path (`computeNamedFacetRemovals` / `diffNamedFacets`) additionally
-returns `unresolved: 0x…[]` — on-chain facet addresses absent from the deploy log.
-A requested facet registered at an unlogged address (redeploy drift, pruned/stale
-log entry, name mismatch) lands there rather than being silently reported as
-`notFoundOnChain`, so the operator investigates instead of believing cleanup
-succeeded.
+The **explicit** path (`computeTargetedFacetRemovals` / `diffTargetedFacets`) resolves
+each requested **address** against the loupe, so neither a stale nor a pruned deploy-log
+entry can misdirect it. It reports:
+
+- `unresolved: 0x…[]` — on-chain facet addresses absent from the deploy log
+  (informational: the log has drifted from chain).
+- `prunedButRouted` — targeted addresses the log no longer lists. Still removed (the
+  loupe is authoritative for what the address owns), but surfaced so the log is
+  reconciled. Under the earlier name-keyed resolution this state made a live facet look
+  "already gone" instead.
+- `liveInTargetState` — targets whose deploy-log name is still listed in target state,
+  i.e. the LIVE deployment. **Refused**, so a mistyped address — or a name-keyed request
+  for a facet whose old version is co-registered — cannot delete the live facet.
+  Production only: staging diamonds are direct-send and routinely have a facet removed
+  to be re-added, so the guard would block a normal workflow there.
+- `protectedSkipped` — refused by the never-remove allowlist (matched on the resolved
+  deploy-log name) **or** because the target owns diamond-machinery selectors. The
+  selector guard is what protects an address the log does not list, since the
+  name-based allowlist cannot see it.
 
 ### 5.2 CLI — extend `script/tasks/cleanUpProdDiamond.ts`
 
@@ -348,14 +378,17 @@ removal from a cron/runbook that expected the old auto-submitting `--facets`
 path), it now **exits non-zero** with a message telling the operator to re-run
 with `--yes` or in an interactive terminal.
 
-- `--facets '[...]'` — **named (primary)**. Resolves the named facets on the
-  diamond via `computeNamedFacetRemovals` (loupe selectors — works after source
-  deletion) and proposes their removal. With `--network` for one network, or
-  `--all-networks` to hit every network whose PROD log lists them. This is what
-  the **drain** invokes (and what a manual on-demand removal uses);
-  `/deprecate-contract` step 6 no longer calls it directly — it **parks** the
-  (facet, network) tasks, which the drain later feeds through this same
-  `--facets` path. (This also replaces the old `out/`-based `--facets` selector
+- `--facetAddresses '[...]'` — **explicit (primary)**. Resolves each address on the
+  diamond via `computeTargetedFacetRemovals` (loupe selectors — works after source
+  deletion) and proposes its removal. The only mode that can target one of two
+  co-registered versions of a facet. The **drain** uses this engine path, with the
+  addresses its parked tasks stored; `/deprecate-contract` step 6 doesn't call the CLI
+  at all — it **parks** the (facet address, network) tasks.
+- `--facets '[...]'` — **name convenience**. Maps each name to the address its PROD
+  deploy log lists (`computeFacetRemovalsByName`), then runs the same engine. A name
+  whose logged address is a live facet is refused (`liveInTargetState`) — use
+  `--facetAddresses`. With `--network` for one network, or `--all-networks` to hit every
+  network whose PROD log lists them. (This also replaces the old `out/`-based selector
   derivation, which threw for already-deprecated facets.)
 - `--auto` — **diff backstop**. Runs `computeFacetRemovalDiff` for
   `--network`, prints the conspicuous diff (§6), proposes the stale set. This is

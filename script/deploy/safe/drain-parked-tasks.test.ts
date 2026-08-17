@@ -28,7 +28,10 @@ import { buildDiamondCutRemoveCalldata } from '../../utils/viemScriptHelpers'
 
 import {
   type IFacetRemoval,
-  type INamedRemovalResult,
+  type INamedAddress,
+  type IProtectedTarget,
+  type IRemovalTarget,
+  type ITargetedRemovalResult,
 } from './diamondRemovalDiff'
 import {
   isDirectSendEnv,
@@ -50,18 +53,30 @@ const addr = (n: number): Address =>
 const sel = (n: number): `0x${string}` =>
   `0x${n.toString(16).padStart(8, '0')}` as `0x${string}`
 
+/**
+ * Deterministic per-name facet address. Removals are keyed by address, so a fake
+ * task and the fake engine result for it must agree on one; deriving both from the
+ * facet name keeps the fixtures readable.
+ */
+const facetAddr = (name: string): Address =>
+  `0x${[...name]
+    .reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 0xffffffff, 7)
+    .toString(16)
+    .padStart(40, '0')}` as Address
+
 function task(
   facetName: string,
   overrides: Partial<IParkedTask> = {}
 ): WithId<IParkedTask> {
+  const facetAddress = overrides.facetAddress ?? facetAddr(facetName)
   return {
-    taskKey: `facet-removal|${NETWORK}|production|${facetName}`,
+    taskKey: `facet-removal|${NETWORK}|production|${facetAddress.toLowerCase()}`,
     kind: 'facet-removal',
     network: NETWORK,
     environment: PROD,
     facetName,
     diamondAddress: DIAMOND,
-    facetAddress: addr(0xf),
+    facetAddress,
     prUrl: `https://github.com/lifinance/contracts/pull/${facetName.length}`,
     status: 'queued',
     enqueuer: 'dev@li.finance',
@@ -71,21 +86,42 @@ function task(
 }
 
 function removal(name: string, selectors = [sel(1)]): IFacetRemoval {
-  return { name, address: addr(0xf), selectors }
+  return { name, address: facetAddr(name), selectors }
 }
 
-function namedResult(
-  over: Partial<INamedRemovalResult> = {}
-): INamedRemovalResult {
+/** A `notFoundOnChain` entry for the facet `name`'s address. */
+const missingTarget = (name: string): IRemovalTarget => ({
+  address: facetAddr(name),
+  label: name,
+})
+
+/** A `protectedSkipped` entry for the facet `name`'s address. */
+const protectedTarget = (name: string): IProtectedTarget => ({
+  address: facetAddr(name),
+  name,
+  reason: 'allowlisted-name',
+})
+
+/** A `prunedButRouted` / `liveInTargetState` entry for the facet `name`'s address. */
+const namedAddress = (name: string): INamedAddress => ({
+  name,
+  address: facetAddr(name),
+})
+
+function targetedResult(
+  over: Partial<ITargetedRemovalResult> = {}
+): ITargetedRemovalResult {
   return {
     network: NETWORK,
     environment: PROD,
     diamondAddress: DIAMOND,
     removals: [],
     notFoundOnChain: [],
+    unresolvedNames: [],
     protectedSkipped: [],
     unresolved: [],
     prunedButRouted: [],
+    liveInTargetState: [],
     ...over,
   }
 }
@@ -104,7 +140,7 @@ interface ISpyDeps extends IDrainDeps {
 
 function makeDeps(opts: {
   queued: WithId<IParkedTask>[]
-  result: INamedRemovalResult
+  result: ITargetedRemovalResult
   claimFails?: Set<string>
   claimThrowsOn?: string
 }): ISpyDeps {
@@ -155,10 +191,10 @@ function makeDeps(opts: {
 describe('prepareDrainNetwork', () => {
   it('no-ops when nothing is queued (never touches the removal engine)', async () => {
     let computeCalled = false
-    const deps = makeDeps({ queued: [], result: namedResult() })
+    const deps = makeDeps({ queued: [], result: targetedResult() })
     deps.computeRemovals = async () => {
       computeCalled = true
-      return namedResult()
+      return targetedResult()
     }
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
     expect(computeCalled).toBe(false)
@@ -171,7 +207,7 @@ describe('prepareDrainNetwork', () => {
     const t = task('OldFacet')
     const deps = makeDeps({
       queued: [t],
-      result: namedResult({ removals: [removal('OldFacet')] }),
+      result: targetedResult({ removals: [removal('OldFacet')] }),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
 
@@ -194,7 +230,7 @@ describe('prepareDrainNetwork', () => {
     const b = task('FacetBB', { prUrl: 'https://gh/pull/2048' })
     const deps = makeDeps({
       queued: [a, b],
-      result: namedResult({
+      result: targetedResult({
         removals: [removal('FacetA', [sel(1)]), removal('FacetBB', [sel(2)])],
       }),
     })
@@ -222,7 +258,7 @@ describe('prepareDrainNetwork', () => {
     const t = task('GoneFacet')
     const deps = makeDeps({
       queued: [t],
-      result: namedResult({ notFoundOnChain: ['GoneFacet'] }),
+      result: targetedResult({ notFoundOnChain: [missingTarget('GoneFacet')] }),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
 
@@ -231,22 +267,44 @@ describe('prepareDrainNetwork', () => {
     expect(prep.outcome.superseded).toEqual(['GoneFacet'])
   })
 
-  it('keeps a pruned-but-routed task queued and alerts (never removes a live facet)', async () => {
-    const t = task('LiveFacet')
+  it('removes a task whose address is no longer in the deploy log, and alerts about the drift', async () => {
+    const t = task('PrunedFacet')
     const deps = makeDeps({
       queued: [t],
-      result: namedResult({
-        prunedButRouted: [{ name: 'LiveFacet', address: t.facetAddress }],
+      result: targetedResult({
+        removals: [removal('PrunedFacet')],
+        prunedButRouted: [namedAddress('PrunedFacet')],
       }),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
 
+    // The loupe still routes the address, so the removal is valid and rides along.
+    expect(deps.calls.claim).toEqual([t.taskKey])
     expect(deps.calls.supersede).toHaveLength(0)
-    expect(deps.calls.claim).toHaveLength(0)
-    expect(prep.calls).toHaveLength(0)
+    expect(prep.calls).toHaveLength(1)
     expect(deps.calls.alerts).toHaveLength(1)
-    expect(deps.calls.alerts[0]).toContain('LiveFacet')
+    expect(deps.calls.alerts[0]).toContain('deploy log no longer lists')
     expect(prep.outcome.prunedButRouted).toEqual([
+      { facet: 'PrunedFacet', prUrl: t.prUrl },
+    ])
+  })
+
+  it('keeps a task queued and alerts when its address is a live facet in target state', async () => {
+    const t = task('LiveFacet')
+    const deps = makeDeps({
+      queued: [t],
+      result: targetedResult({
+        liveInTargetState: [namedAddress('LiveFacet')],
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.claim).toHaveLength(0)
+    expect(deps.calls.supersede).toHaveLength(0)
+    expect(deps.calls.cancel).toHaveLength(0)
+    expect(prep.calls).toHaveLength(0)
+    expect(deps.calls.alerts[0]).toContain('NOT removing')
+    expect(prep.outcome.liveInTargetState).toEqual([
       { facet: 'LiveFacet', prUrl: t.prUrl },
     ])
   })
@@ -255,7 +313,9 @@ describe('prepareDrainNetwork', () => {
     const t = task('DiamondCutFacet')
     const deps = makeDeps({
       queued: [t],
-      result: namedResult({ protectedSkipped: ['DiamondCutFacet'] }),
+      result: targetedResult({
+        protectedSkipped: [protectedTarget('DiamondCutFacet')],
+      }),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
 
@@ -269,7 +329,7 @@ describe('prepareDrainNetwork', () => {
     const t = task('OldFacet')
     const deps = makeDeps({
       queued: [t],
-      result: namedResult({ removals: [removal('OldFacet')] }),
+      result: targetedResult({ removals: [removal('OldFacet')] }),
       claimFails: new Set([t.taskKey]),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
@@ -285,7 +345,7 @@ describe('prepareDrainNetwork', () => {
     const b = task('FacetBB')
     const deps = makeDeps({
       queued: [a, b],
-      result: namedResult({
+      result: targetedResult({
         removals: [removal('FacetA'), removal('FacetBB')],
       }),
       claimThrowsOn: b.taskKey,
@@ -304,20 +364,18 @@ describe('prepareDrainNetwork', () => {
     ).toBe(true)
   })
 
-  it('handles a mixed batch: removal claimed, gone superseded, protected cancelled, pruned alerted', async () => {
+  it('handles a mixed batch: removal claimed, gone superseded, protected cancelled, live kept', async () => {
     const rem = task('RemFacet')
     const gone = task('GoneFacet')
     const prot = task('OwnershipFacet')
-    const pruned = task('PrunedFacet')
+    const live = task('LiveFacet')
     const deps = makeDeps({
-      queued: [rem, gone, prot, pruned],
-      result: namedResult({
+      queued: [rem, gone, prot, live],
+      result: targetedResult({
         removals: [removal('RemFacet')],
-        notFoundOnChain: ['GoneFacet'],
-        protectedSkipped: ['OwnershipFacet'],
-        prunedButRouted: [
-          { name: 'PrunedFacet', address: pruned.facetAddress },
-        ],
+        notFoundOnChain: [missingTarget('GoneFacet')],
+        protectedSkipped: [protectedTarget('OwnershipFacet')],
+        liveInTargetState: [namedAddress('LiveFacet')],
       }),
     })
     const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
@@ -326,9 +384,32 @@ describe('prepareDrainNetwork', () => {
     expect(prep.claimedTaskKeys).toEqual([rem.taskKey])
     expect(deps.calls.supersede).toEqual([gone.taskKey])
     expect(deps.calls.cancel).toEqual([prot.taskKey])
-    expect(prep.outcome.prunedButRouted).toHaveLength(1)
+    expect(prep.outcome.liveInTargetState).toHaveLength(1)
     expect(prep.parkedTaskRefs).toEqual([
       { facet: 'RemFacet', prUrl: rem.prUrl },
+    ])
+  })
+
+  it('removes only the targeted version when two versions of a facet are co-registered', async () => {
+    // Both are parked-able rows for the same facet NAME at different addresses;
+    // only the one whose address the engine returned as removable may be folded in.
+    const v1 = task('SymbiosisFacet', { facetAddress: addr(0xa1) })
+    const v2 = task('SymbiosisFacet', { facetAddress: addr(0xa2) })
+    const deps = makeDeps({
+      queued: [v1, v2],
+      result: targetedResult({
+        removals: [
+          { name: 'SymbiosisFacet', address: addr(0xa1), selectors: [sel(1)] },
+        ],
+        liveInTargetState: [{ name: 'SymbiosisFacet', address: addr(0xa2) }],
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.claim).toEqual([v1.taskKey])
+    expect(prep.claimedTaskKeys).toEqual([v1.taskKey])
+    expect(prep.outcome.liveInTargetState).toEqual([
+      { facet: 'SymbiosisFacet', prUrl: v2.prUrl },
     ])
   })
 })
@@ -498,7 +579,9 @@ describe('proposeWithDrain', () => {
   it('proposes the primary alone (never opens the queue) when the drain is not eligible', async () => {
     delete process.env.DRAIN_PARKED_TASKS
     const spy = primarySpy()
-    const opener = makeOpener(makeDeps({ queued: [], result: namedResult() }))
+    const opener = makeOpener(
+      makeDeps({ queued: [], result: targetedResult() })
+    )
     const result = await proposeWithDrain(options, spy.fn, opener.open)
     expect(opener.openCount()).toBe(0)
     expect(spy.received).toEqual([{ calls: [], refs: undefined }])
@@ -510,7 +593,7 @@ describe('proposeWithDrain', () => {
     const b = task('FacetBB')
     const deps = makeDeps({
       queued: [a, b],
-      result: namedResult({
+      result: targetedResult({
         removals: [removal('FacetA'), removal('FacetBB')],
       }),
     })
@@ -534,7 +617,7 @@ describe('proposeWithDrain', () => {
   })
 
   it('proposes the primary with no extra calls and links nothing when the queue is empty', async () => {
-    const deps = makeDeps({ queued: [], result: namedResult() })
+    const deps = makeDeps({ queued: [], result: targetedResult() })
     const opener = makeOpener(deps)
     const spy = primarySpy()
     await proposeWithDrain(options, spy.fn, opener.open)
@@ -548,7 +631,7 @@ describe('proposeWithDrain', () => {
     const a = task('FacetA')
     const deps = makeDeps({
       queued: [a],
-      result: namedResult({ removals: [removal('FacetA')] }),
+      result: targetedResult({ removals: [removal('FacetA')] }),
     })
     const opener = makeOpener(deps)
     const spy = primarySpy(() => {
@@ -570,7 +653,7 @@ describe('proposeWithDrain', () => {
     const a = task('FacetA')
     const deps = makeDeps({
       queued: [a],
-      result: namedResult({ removals: [removal('FacetA')] }),
+      result: targetedResult({ removals: [removal('FacetA')] }),
     })
     const opener = makeOpener(deps)
     const spy = primarySpy({ safeTxHash: HASH, stored: false })
@@ -586,7 +669,7 @@ describe('proposeWithDrain', () => {
     const b = task('FacetBB')
     const deps = makeDeps({
       queued: [a, b],
-      result: namedResult({
+      result: targetedResult({
         removals: [removal('FacetA'), removal('FacetBB')],
       }),
     })
@@ -612,7 +695,7 @@ describe('proposeWithDrain', () => {
   })
 
   it('falls back to a primary-only proposal (never breaks the primary) when preparation fails', async () => {
-    const deps = makeDeps({ queued: [], result: namedResult() })
+    const deps = makeDeps({ queued: [], result: targetedResult() })
     deps.listQueued = async () => {
       throw new Error('mongo down')
     }
@@ -638,7 +721,7 @@ describe('proposeWithDrain', () => {
   it('is reentrancy-guarded: a nested drain during the primary is a no-op', async () => {
     const deps = makeDeps({
       queued: [task('X')],
-      result: namedResult({ removals: [removal('X')] }),
+      result: targetedResult({ removals: [removal('X')] }),
     })
     const opener = makeOpener(deps)
     const inner = primarySpy()
@@ -663,7 +746,7 @@ describe('proposeWithDrain', () => {
     const a = task('FacetA')
     const deps = makeDeps({
       queued: [a],
-      result: namedResult({ removals: [removal('FacetA')] }),
+      result: targetedResult({ removals: [removal('FacetA')] }),
     })
     const open: DrainOpener = async () => ({
       close: async () => {
@@ -682,7 +765,7 @@ describe('proposeWithDrain', () => {
     const a = task('FacetA')
     const deps = makeDeps({
       queued: [a],
-      result: namedResult({ removals: [removal('FacetA')] }),
+      result: targetedResult({ removals: [removal('FacetA')] }),
     })
     deps.revert = async () => {
       throw new Error('mongo revert failed')
@@ -708,7 +791,7 @@ describe('proposeWithDrain', () => {
     const a = task('FacetA')
     const deps = makeDeps({
       queued: [a],
-      result: namedResult({ removals: [removal('FacetA')] }),
+      result: targetedResult({ removals: [removal('FacetA')] }),
     })
     deps.log = () => {
       throw new Error('log sink blew up')

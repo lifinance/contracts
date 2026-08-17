@@ -9,10 +9,16 @@
  * facets whose source (and `out/` artifact) was already deleted by
  * `/deprecate-contract`.
  *
+ * The second entrypoint (`computeTargetedFacetRemovals`) resolves an explicitly
+ * requested set of removal targets instead of diffing target state. Targets are
+ * keyed by facet ADDRESS: the deploy log holds one address per contract name, so
+ * a name is ambiguous whenever two versions of a facet are co-registered on the
+ * same diamond, and resolving by name would target the live one.
+ *
  * Consumed by `script/tasks/cleanUpProdDiamond.ts` (interactive `--auto` and
- * fleet `--all-networks` modes). Pure diff logic (`diffFacets`) is separated
- * from I/O (`computeFacetRemovalDiff`) so both are unit-testable; all I/O is
- * injectable via the `io` parameter.
+ * fleet `--all-networks` modes) and by the parked-task drain. Pure diff logic
+ * (`diffFacets`, `diffTargetedFacets`) is separated from I/O so both are
+ * unit-testable; all I/O is injectable via the `io` parameter.
  */
 
 import * as fs from 'fs'
@@ -28,7 +34,7 @@ import {
   type Hex,
 } from 'viem'
 
-import type { EnvironmentEnum, SupportedChain } from '../../common/types'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import {
   getFunctionSelectors,
@@ -69,6 +75,7 @@ const FACETS_ABI = parseAbi([
 
 /** A single facet slated for removal, with the selectors taken from the loupe. */
 export interface IFacetRemoval {
+  /** Display label only — `address` is the identity of what gets removed. */
   name: string
   address: `0x${string}`
   selectors: `0x${string}`[]
@@ -133,6 +140,8 @@ export interface IRemovalDiffIO {
   ) => Set<string> | undefined
   /** Union of selectors owned by the given (active) facet names whose artifacts exist. */
   getActiveSelectors: (names: string[]) => Set<string>
+  /** Union of selectors owned by the diamond-machinery facets that must never be removed. */
+  getProtectedSelectors: () => Set<string>
   /** Set of contract names whose `.sol` source still exists under `src/`. */
   getSourceNames: () => Set<string>
   /** Set of contract names whose `.sol` source lives under `src/Facets/` (real facets only). */
@@ -421,6 +430,8 @@ const defaultIO: IRemovalDiffIO = {
   getAddressToName: resolveAddressToName,
   getExpectedNames: getExpectedFacetNames,
   getActiveSelectors: collectActiveSelectors,
+  getProtectedSelectors: () =>
+    collectActiveSelectors([...HARDCODED_PROTECTED_FACETS]),
   getSourceNames: () => getSourceContractNames(),
   getFacetNames: () => getFacetSourceNames(),
 }
@@ -501,97 +512,174 @@ export async function computeFacetRemovalDiff(
   })
 }
 
-/** Result of resolving an explicit set of facet names against one diamond. */
-export interface INamedRemovalResult {
+/**
+ * A facet slated for removal, identified by its ADDRESS. The deploy log maps one
+ * address per contract name, so a name cannot identify a removal target once two
+ * versions of a facet are co-registered on the same diamond — the log points at
+ * the live one, and a name-keyed removal would target it instead of the
+ * deprecated one. `label` is therefore display-only and never matched against.
+ */
+export interface IRemovalTarget {
+  address: `0x${string}`
+  /** Human-readable name for logs/prompts (deploy-log name at enqueue time). */
+  label?: string
+}
+
+/** Why a requested target was refused by the never-remove guards. */
+export type ProtectedReason = 'allowlisted-name' | 'machinery-selectors'
+
+/** A requested target refused because removing it is never allowed. */
+export interface IProtectedTarget {
+  address: `0x${string}`
+  name: string
+  reason: ProtectedReason
+}
+
+/** A requested target and the deploy-log name its address resolves to. */
+export interface INamedAddress {
+  name: string
+  address: `0x${string}`
+}
+
+/** Result of resolving an explicit set of removal targets against one diamond. */
+export interface ITargetedRemovalResult {
   network: string
   environment: EnvironmentEnum
   diamondAddress?: `0x${string}`
   removals: IFacetRemoval[]
-  /** Requested names not registered on this diamond (nothing to remove here). */
-  notFoundOnChain: string[]
-  /** Requested names on the never-remove allowlist — refused (should never be deprecated). */
-  protectedSkipped: string[]
+  /** Targets whose address routes no selectors on this diamond (nothing to remove). */
+  notFoundOnChain: IRemovalTarget[]
+  /** Requested names with no deploy-log entry — only the name-keyed entrypoint fills this. */
+  unresolvedNames: string[]
+  /** Targets refused by a never-remove guard (allowlisted name, or machinery selectors). */
+  protectedSkipped: IProtectedTarget[]
   /**
-   * On-chain facet addresses not present in the deploy log, so unmappable to a
-   * name. A requested facet registered at an unlogged address (redeploy drift,
-   * pruned/stale log entry, name mismatch) lands here rather than being silently
-   * reported as "not on chain" — the operator must investigate before assuming
-   * the deprecated facet was actually removed.
+   * On-chain facet addresses not present in the deploy log. Informational: the
+   * loupe, not the log, decides what a target owns, so an unlogged address is
+   * removable — but a growing list here means the log has drifted from chain.
    */
   unresolved: `0x${string}`[]
   /**
-   * Requested names whose deploy-log entry was pruned (so the loupe address no
-   * longer resolves to the name) but whose stored `facetAddress` hint is still
-   * routed on-chain. NOT gone — the log was pruned prematurely. Surfaced (never
-   * removed, never superseded) so a human restores the log entry; empty unless a
-   * `nameToAddress` hint is supplied (spec §8 deploy-log longevity hazard).
+   * Targeted addresses that ARE routed on-chain but are absent from the deploy
+   * log. They are removed (the address is authoritative), and reported so the log
+   * gets reconciled — under name-keyed resolution this state used to make a live
+   * facet look "already gone" and false-supersede its removal task.
    */
-  prunedButRouted: { name: string; address: `0x${string}` }[]
+  prunedButRouted: INamedAddress[]
+  /**
+   * Targets refused because their deploy-log name is still listed in target state,
+   * i.e. the address is the LIVE deployment of an active facet. Guards a mistyped
+   * address and a name-keyed request for a facet with a co-registered old version.
+   */
+  liveInTargetState: INamedAddress[]
 }
 
 /**
- * Pure resolution of an explicit set of requested facet names against the
- * on-chain loupe. Unlike {@link diffFacets} there is no target-state diff and no
- * source/drift gate: the caller has *explicitly named* the facets to remove
- * (e.g. via `/deprecate-contract`), so the only checks are "is it actually on
- * this diamond" and "is it on the never-remove allowlist". Selectors come from
- * the loupe (the diamond's current routing for that address).
+ * Pure resolution of explicitly requested removal targets against the on-chain
+ * loupe. Unlike {@link diffFacets} there is no target-state *diff* and no
+ * source/drift gate: the caller has explicitly named the addresses to remove
+ * (e.g. via `/deprecate-contract`), so the checks are "is this address actually
+ * routing selectors on this diamond" and "is removing it forbidden".
+ *
+ * Selectors come from the loupe entry of the targeted address, which is why no
+ * selector hold-back is needed here: the loupe routes every selector to exactly
+ * one facet, so a co-registered newer version's selectors are in its own entry
+ * and can never be swept out by removing the older one.
+ *
+ * @param params.targets - Removal targets, keyed by address (deduped here).
+ * @param params.addressToName - Lowercased address → deploy-log name (labels + guards).
+ * @param params.protectedNames - Never-remove allowlist, matched on the resolved name.
+ * @param params.protectedSelectors - Lowercased selectors of the diamond-machinery
+ *   facets; a target owning any of them is refused even when its address is
+ *   absent from the deploy log (so an unlogged address can't bypass the allowlist).
+ * @param params.expectedNames - Names target state expects to keep, or `undefined`
+ *   when the network has no target-state entry (the live-facet guard is then skipped).
  */
-export function diffNamedFacets(params: {
+export function diffTargetedFacets(params: {
   network: string
   environment: EnvironmentEnum
   diamondAddress?: `0x${string}`
-  requestedNames: Set<string>
+  targets: IRemovalTarget[]
   onChainFacets: IOnChainFacet[]
   addressToName: Record<string, string>
   protectedNames: Set<string>
-  /**
-   * Optional `name → stored facetAddress` hint (e.g. a parked task's snapshot).
-   * A requested name that resolves via neither the log nor this hint stays in
-   * `notFoundOnChain`; one whose hinted address is still routed on-chain but is
-   * no longer in the log is moved to `prunedButRouted` instead (spec §8).
-   */
-  nameToAddress?: Record<string, `0x${string}`>
-}): INamedRemovalResult {
+  protectedSelectors: Set<string>
+  expectedNames?: Set<string>
+  unresolvedNames?: string[]
+}): ITargetedRemovalResult {
   const {
     network,
     environment,
     diamondAddress,
-    requestedNames,
+    targets,
     onChainFacets,
     addressToName,
     protectedNames,
-    nameToAddress,
+    protectedSelectors,
+    expectedNames,
+    unresolvedNames,
   } = params
 
-  const result: INamedRemovalResult = {
+  const result: ITargetedRemovalResult = {
     network,
     environment,
     diamondAddress,
     removals: [],
     notFoundOnChain: [],
+    unresolvedNames: unresolvedNames ?? [],
     protectedSkipped: [],
     unresolved: [],
     prunedButRouted: [],
+    liveInTargetState: [],
   }
 
-  const foundOnChain = new Set<string>()
+  const onChainByAddress = new Map<string, IOnChainFacet>()
   for (const facet of onChainFacets) {
-    const name = addressToName[lower(facet.address)]
-    // On-chain but unmapped: could be a requested facet at an address the deploy
-    // log doesn't list. Surface it rather than dropping it, so it isn't
-    // misreported as "not on chain".
-    if (!name) {
+    onChainByAddress.set(lower(facet.address), facet)
+    if (!addressToName[lower(facet.address)])
       result.unresolved.push(facet.address)
-      continue
-    }
-    if (!requestedNames.has(name)) continue
-    foundOnChain.add(name)
+  }
 
-    if (protectedNames.has(name)) {
-      result.protectedSkipped.push(name)
+  const seen = new Set<string>()
+  for (const target of targets) {
+    const key = lower(target.address)
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    const facet = onChainByAddress.get(key)
+    if (!facet) {
+      result.notFoundOnChain.push(target)
       continue
     }
+
+    const loggedName = addressToName[key]
+    const name = loggedName ?? target.label ?? 'unknown'
+
+    if (loggedName && protectedNames.has(loggedName)) {
+      result.protectedSkipped.push({
+        address: facet.address,
+        name,
+        reason: 'allowlisted-name',
+      })
+      continue
+    }
+
+    if (facet.selectors.some((sel) => protectedSelectors.has(lower(sel)))) {
+      result.protectedSkipped.push({
+        address: facet.address,
+        name,
+        reason: 'machinery-selectors',
+      })
+      continue
+    }
+
+    if (loggedName && expectedNames?.has(loggedName)) {
+      result.liveInTargetState.push({ name, address: facet.address })
+      continue
+    }
+
+    if (!loggedName)
+      result.prunedButRouted.push({ name, address: facet.address })
 
     result.removals.push({
       name,
@@ -600,67 +688,146 @@ export function diffNamedFacets(params: {
     })
   }
 
-  // A name absent from the log is normally "gone", but if its stored address
-  // hint is still routed on-chain the log was pruned prematurely — keep it out
-  // of `notFoundOnChain` so the drain never false-supersedes a live facet.
-  const onChainAddresses = new Set(onChainFacets.map((f) => lower(f.address)))
-  for (const name of requestedNames) {
-    if (foundOnChain.has(name)) continue
-    const hinted = nameToAddress?.[name]
-    if (hinted && onChainAddresses.has(lower(hinted)))
-      result.prunedButRouted.push({ name, address: getAddress(lower(hinted)) })
-    else result.notFoundOnChain.push(name)
-  }
-
   return result
 }
 
-/**
- * Resolves an explicit set of facet names against a single diamond and returns
- * the ones to remove (registered on-chain and not protected), taking selectors
- * from the loupe so it works after the facet's source/artifact was deleted by
- * `/deprecate-contract`. This is the deprecation-driven removal path; the
- * facet-name set comes from the deprecation, not from a target-state diff.
- *
- * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
- * @param nameToAddress - Optional `name → stored facetAddress` hint (e.g. a parked
- *   task's snapshot) used to detect deploy-log-pruned-but-still-routed facets (spec §8).
- */
-export async function computeNamedFacetRemovals(
+/** Shared prelude for both entrypoints: loupe + log + guard inputs for one diamond. */
+async function loadTargetingContext(
   network: string,
   environment: EnvironmentEnum,
-  names: string[],
-  io: Partial<IRemovalDiffIO> = {},
-  nameToAddress?: Record<string, `0x${string}`>
-): Promise<INamedRemovalResult> {
-  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
-
-  const diamondAddress = await resolved.getDiamondAddress(network, environment)
-  if (!diamondAddress)
-    return {
-      network,
-      environment,
-      removals: [],
-      notFoundOnChain: names,
-      protectedSkipped: [],
-      unresolved: [],
-      prunedButRouted: [],
-    }
-
+  resolved: IRemovalDiffIO,
+  diamondAddress: `0x${string}`
+): Promise<{
+  onChainFacets: IOnChainFacet[]
+  addressToName: Record<string, string>
+  protectedSelectors: Set<string>
+  expectedNames?: Set<string>
+}> {
   const [onChainFacets, addressToName] = await Promise.all([
     resolved.getOnChainFacets(diamondAddress, network),
     resolved.getAddressToName(network, environment),
   ])
+  return {
+    onChainFacets,
+    addressToName,
+    protectedSelectors: resolved.getProtectedSelectors(),
+    // The live-facet guard exists because a production removal is irreversible and
+    // goes through Safe + timelock. Staging diamonds are direct-send and routinely
+    // have facets removed to be re-added, so gating them on target state would
+    // block a normal workflow to prevent a cheap, self-inflicted mistake.
+    expectedNames:
+      environment === EnvironmentEnum.production
+        ? resolved.getExpectedNames(network, environment)
+        : undefined,
+  }
+}
 
-  return diffNamedFacets({
+/** Empty result for a network with no diamond deployed: every target is a no-op. */
+function noDiamondResult(
+  network: string,
+  environment: EnvironmentEnum,
+  targets: IRemovalTarget[],
+  unresolvedNames: string[] = []
+): ITargetedRemovalResult {
+  return {
+    network,
+    environment,
+    removals: [],
+    notFoundOnChain: targets,
+    unresolvedNames,
+    protectedSkipped: [],
+    unresolved: [],
+    prunedButRouted: [],
+    liveInTargetState: [],
+  }
+}
+
+/**
+ * Resolves explicit removal targets (addresses) against a single diamond and
+ * returns the ones to remove, taking selectors from the loupe so it works after
+ * the facet's source/artifact was deleted by `/deprecate-contract`. This is the
+ * deprecation-driven removal path; the target set comes from the deprecation
+ * (parked task or `--facetAddresses`), not from a target-state diff.
+ *
+ * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
+ */
+export async function computeTargetedFacetRemovals(
+  network: string,
+  environment: EnvironmentEnum,
+  targets: IRemovalTarget[],
+  io: Partial<IRemovalDiffIO> = {}
+): Promise<ITargetedRemovalResult> {
+  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
+
+  const diamondAddress = await resolved.getDiamondAddress(network, environment)
+  if (!diamondAddress) return noDiamondResult(network, environment, targets)
+
+  const context = await loadTargetingContext(
+    network,
+    environment,
+    resolved,
+    diamondAddress
+  )
+
+  return diffTargetedFacets({
     network,
     environment,
     diamondAddress,
-    requestedNames: new Set(names),
-    onChainFacets,
-    addressToName,
+    targets,
     protectedNames: getProtectedNames(),
-    nameToAddress,
+    ...context,
+  })
+}
+
+/**
+ * Name-keyed convenience wrapper over {@link computeTargetedFacetRemovals}: maps
+ * each requested name to the address the deploy log lists for it, then resolves
+ * those addresses. Names with no log entry are reported in `unresolvedNames`
+ * rather than throwing, so a fleet sweep over networks that never had the facet
+ * stays quiet.
+ *
+ * A name resolves to exactly one address, so this cannot express "remove the old
+ * version while the new one stays registered" — such a request is refused by the
+ * live-facet guard (`liveInTargetState`) and the operator must pass the address.
+ */
+export async function computeFacetRemovalsByName(
+  network: string,
+  environment: EnvironmentEnum,
+  names: string[],
+  io: Partial<IRemovalDiffIO> = {}
+): Promise<ITargetedRemovalResult> {
+  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
+
+  const diamondAddress = await resolved.getDiamondAddress(network, environment)
+  if (!diamondAddress) return noDiamondResult(network, environment, [], names)
+
+  const context = await loadTargetingContext(
+    network,
+    environment,
+    resolved,
+    diamondAddress
+  )
+
+  const nameToAddress = new Map<string, `0x${string}`>()
+  for (const [address, name] of Object.entries(context.addressToName))
+    nameToAddress.set(name, getAddress(address))
+
+  const targets: IRemovalTarget[] = []
+  const unresolvedNames: string[] = []
+  for (const name of names) {
+    const address = nameToAddress.get(name)
+    if (address) targets.push({ address, label: name })
+    else unresolvedNames.push(name)
+  }
+
+  return diffTargetedFacets({
+    network,
+    environment,
+    diamondAddress,
+    targets,
+    protectedNames: getProtectedNames(),
+    unresolvedNames,
+    ...context,
   })
 }
 

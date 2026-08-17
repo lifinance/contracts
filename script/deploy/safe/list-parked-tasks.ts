@@ -133,7 +133,8 @@ const main = defineCommand({
         .sort(
           (a, b) =>
             a.network.localeCompare(b.network) ||
-            a.facetName.localeCompare(b.facetName)
+            a.facetName.localeCompare(b.facetName) ||
+            a.facetAddress.localeCompare(b.facetAddress)
         )
 
       if (args.json) {
@@ -166,7 +167,7 @@ const main = defineCommand({
         if (t.status === 'proposed') counts.proposed++
         consola.info(
           [
-            `${t.facetName}`,
+            `${t.facetName} @ ${t.facetAddress}`,
             `status ${t.status}`,
             `age ${formatAge(t.createdAt)}`,
             `PR ${t.prUrl}`,

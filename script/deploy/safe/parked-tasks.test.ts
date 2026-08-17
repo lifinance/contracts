@@ -181,6 +181,12 @@ function createFakeCollection(
         },
       }
     },
+    async findOne(
+      filter: Filter<IParkedTask>
+    ): Promise<WithId<IParkedTask> | null> {
+      return (rows.find((r) => matchesFilter(r, filter)) ??
+        null) as WithId<IParkedTask> | null
+    },
     async findOneAndUpdate(
       filter: Filter<IParkedTask>,
       update: UpdateFilter<IParkedTask>,
@@ -217,26 +223,39 @@ function createFakeCollection(
 }
 
 describe('computeTaskKey', () => {
-  it('joins kind|network|environment|facetName', () => {
+  it('joins kind|network|environment|facetAddress', () => {
     expect(
       computeTaskKey(
         'facet-removal',
         'arbitrum',
         EnvironmentEnum.production,
-        'GenericSwapFacet'
+        FACET
       )
-    ).toBe('facet-removal|arbitrum|production|GenericSwapFacet')
+    ).toBe(`facet-removal|arbitrum|production|${FACET.toLowerCase()}`)
   })
 
-  it('lowercases only the network segment', () => {
+  it('lowercases the network and the address segment', () => {
     expect(
       computeTaskKey(
         'facet-removal',
         'Arbitrum',
         EnvironmentEnum.production,
-        'GenericSwapFacet'
+        '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
       )
-    ).toBe('facet-removal|arbitrum|production|GenericSwapFacet')
+    ).toBe(
+      'facet-removal|arbitrum|production|0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    )
+  })
+
+  it('distinguishes two co-registered versions of the same facet', () => {
+    const key = (address: string): string =>
+      computeTaskKey(
+        'facet-removal',
+        'arbitrum',
+        EnvironmentEnum.production,
+        address
+      )
+    expect(key(FACET)).not.toBe(key(DIAMOND))
   })
 })
 
@@ -248,7 +267,7 @@ describe('enqueueParkedTask', () => {
     expect(coll.rows).toHaveLength(1)
     const row = coll.rows[0]
     expect(row?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      'facet-removal|arbitrum|production|0x2222222222222222222222222222222222222222'
     )
     expect(row?.status).toBe('queued')
     expect(row?.createdAt).toBeInstanceOf(Date)
@@ -261,16 +280,72 @@ describe('enqueueParkedTask', () => {
     await enqueueParkedTask(coll, buildInput({ network: 'Arbitrum' }))
     expect(coll.rows[0]?.network).toBe('arbitrum')
     expect(coll.rows[0]?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      'facet-removal|arbitrum|production|0x2222222222222222222222222222222222222222'
     )
   })
 
-  it('returns null on a duplicate open task (E11000), without throwing', async () => {
+  it('returns null when an open task already exists for the same facet address', async () => {
     const coll = createFakeCollection()
     await enqueueParkedTask(coll, buildInput())
     const second = await enqueueParkedTask(coll, buildInput())
     expect(second).toBeNull()
     expect(coll.rows).toHaveLength(1)
+  })
+
+  it('returns null when an open task was parked under a name-derived key', async () => {
+    // Pre-address-keying rows carry a taskKey the unique index cannot match
+    // against the new address-derived one; the pre-insert read is what dedups them.
+    const coll = createFakeCollection([
+      {
+        ...buildInput(),
+        taskKey: 'facet-removal|arbitrum|production|GenericSwapFacet',
+        status: 'queued',
+        createdAt: new Date(),
+      } as IParkedTask,
+    ])
+    expect(await enqueueParkedTask(coll, buildInput())).toBeNull()
+    expect(coll.rows).toHaveLength(1)
+  })
+
+  it('returns null on a concurrent duplicate insert (E11000), without throwing', async () => {
+    const coll = createFakeCollection()
+    await enqueueParkedTask(coll, buildInput())
+    // Simulate the race the pre-insert read cannot close: the row appears between
+    // the read and the insert, so only the unique index catches it.
+    coll.findOne = async () => null
+    expect(await enqueueParkedTask(coll, buildInput())).toBeNull()
+    expect(coll.rows).toHaveLength(1)
+  })
+
+  it('parks the same facet twice when two versions live at different addresses', async () => {
+    const coll = createFakeCollection()
+    await enqueueParkedTask(coll, buildInput())
+    const second = await enqueueParkedTask(
+      coll,
+      buildInput({ facetAddress: DIAMOND })
+    )
+    expect(second).not.toBeNull()
+    expect(coll.rows).toHaveLength(2)
+    expect(coll.rows[1]?.taskKey).toBe(
+      `facet-removal|arbitrum|production|${DIAMOND.toLowerCase()}`
+    )
+  })
+
+  it('checksums the facet address before storing and keying', async () => {
+    const coll = createFakeCollection()
+    await enqueueParkedTask(
+      coll,
+      buildInput({
+        facetAddress:
+          '0xd6e1afe5ca8d00a2efc01b89997abe2de47fdfaf' as unknown as Address,
+      })
+    )
+    expect(coll.rows[0]?.facetAddress).toBe(
+      '0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf'
+    )
+    expect(coll.rows[0]?.taskKey).toBe(
+      'facet-removal|arbitrum|production|0xd6e1afe5ca8d00a2efc01b89997abe2de47fdfaf'
+    )
   })
 
   it('rethrows a non-duplicate insert error', async () => {
@@ -329,7 +404,7 @@ describe('enqueueParkedTask', () => {
     expect(row?.facetName).toBe('GenericSwapFacet')
     expect(row?.prUrl).toBe(PR_URL)
     expect(row?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      'facet-removal|arbitrum|production|0x2222222222222222222222222222222222222222'
     )
   })
 })

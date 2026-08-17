@@ -40,7 +40,7 @@ import {
   type UpdateFilter,
   type WithId,
 } from 'mongodb'
-import { type Address } from 'viem'
+import { getAddress, type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
 import { getEnvVar } from '../../utils/utils'
@@ -73,24 +73,25 @@ const OPEN_TASK_KEY_INDEX_NAME = 'unique_open_task_key'
 
 /**
  * A deferred diamond-maintenance task, parked until the network is next touched.
- * One record per (kind, network, environment, facetName) — the finest grain
- * (spec §4). Selectors are intentionally NOT stored: they are resolved from the
- * live loupe at drain time, so a stored list can never go stale.
+ * One record per (kind, network, environment, facetAddress) — the finest grain
+ * that stays unambiguous while two versions of a facet are co-registered on the
+ * same diamond. Selectors are intentionally NOT stored: they are resolved from
+ * the live loupe at drain time, so a stored list can never go stale.
  */
 export interface IParkedTask {
   _id?: ObjectId
-  /** Dedup key `${kind}|${network}|${environment}|${facetName}` (see {@link computeTaskKey}). */
+  /** Dedup key `${kind}|${network}|${environment}|${facetAddress}` (see {@link computeTaskKey}). */
   taskKey: string
   kind: ParkedTaskKind
   /** Lowercased network name, matching the `pendingTransactions` convention. */
   network: string
   /** `production` in v1 — the queue is a production-mainnet construct (spec §12). */
   environment: EnvironmentEnum
-  /** The facet identity; selectors are re-resolved from the loupe at drain. */
+  /** Display label for logs and signer-facing summaries; never used to resolve the removal. */
   facetName: string
   /** Diamond address snapshot from the deploy log at enqueue (sanity/fallback). */
   diamondAddress: Address
-  /** Facet address snapshot; re-verified against the loupe at drain. */
+  /** The facet identity: resolved against the loupe at drain, selectors taken from it. */
   facetAddress: Address
   /** Originating deprecation PR — REQUIRED and first-class (spec §6). */
   prUrl: string
@@ -130,22 +131,27 @@ export interface IListParkedTasksFilter {
 }
 
 /**
- * Computes the dedup key for a parked task: `${kind}|${network}|${environment}|${facetName}`.
- * Only the network segment is lowercased, matching the stored `network` value.
+ * Computes the dedup key for a parked task:
+ * `${kind}|${network}|${environment}|${facetAddress}`.
+ *
+ * Keyed on the facet ADDRESS, not its name: the deploy log holds one address per
+ * name, so a name-keyed queue cannot express "remove v1 while v2 stays
+ * registered" for a facet whose two versions are both live on a diamond. Network
+ * and address are lowercased so the key is stable across checksum casings.
  *
  * @param kind - Task kind (`facet-removal` in v1).
  * @param network - Network slug (matches `networks.json` keys).
  * @param environment - Deployment environment.
- * @param facetName - The facet identity being parked for removal.
+ * @param facetAddress - Address of the facet being parked for removal.
  * @returns The pipe-joined task key.
  */
 export function computeTaskKey(
   kind: ParkedTaskKind,
   network: string,
   environment: EnvironmentEnum,
-  facetName: string
+  facetAddress: string
 ): string {
-  return `${kind}|${network.toLowerCase()}|${environment}|${facetName}`
+  return `${kind}|${network.toLowerCase()}|${environment}|${facetAddress.toLowerCase()}`
 }
 
 /**
@@ -286,16 +292,20 @@ export async function getParkedTasksCollection(): Promise<{
  * same facet is a harmless no-op), mirroring `storeTransactionInMongoDB`.
  *
  * Identity fields are normalised here (the single enqueue chokepoint) so every
- * caller — CLI, `/deprecate-contract`, the future drain — dedups consistently:
- * `network`/`facetName`/`prUrl` are trimmed and a blank `facetName` is rejected,
- * because `taskKey` is built from `network`+`facetName` and a stray space would
- * silently mint a distinct, undeduplicated task for the same facet.
+ * caller — CLI, `/deprecate-contract`, the drain — dedups consistently:
+ * `network`/`facetName`/`prUrl` are trimmed, `facetAddress` is checksummed, and a
+ * blank `facetName` is rejected so the label a signer sees is never empty.
+ *
+ * Dedup also runs as a pre-insert read on (kind, network, environment,
+ * facetAddress): the unique index only covers `taskKey`, and any task parked
+ * before the key became address-derived carries a name-derived key that the index
+ * cannot match against a new insert.
  *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
  * @returns The insert result, or `null` if a duplicate open task already exists.
  * @throws Error if `prUrl` or `facetName` is missing or blank (prUrl is the
- *   PR-link requirement, spec §6; facetName is the task identity).
+ *   PR-link requirement, spec §6; facetName is the signer-facing label).
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -310,14 +320,35 @@ export async function enqueueParkedTask(
 
   const network = input.network.trim().toLowerCase()
   const facetName = input.facetName.trim()
+  const facetAddress = getAddress(input.facetAddress)
   const doc: IParkedTask = {
     ...input,
     network,
     facetName,
+    facetAddress,
     prUrl: input.prUrl.trim(),
-    taskKey: computeTaskKey(input.kind, network, input.environment, facetName),
+    taskKey: computeTaskKey(
+      input.kind,
+      network,
+      input.environment,
+      facetAddress
+    ),
     status: 'queued',
     createdAt: new Date(),
+  }
+
+  const openForAddress = await parkedTasks.findOne({
+    kind: { $eq: input.kind },
+    network: { $eq: network },
+    environment: { $eq: input.environment },
+    facetAddress: { $eq: facetAddress },
+    status: { $in: OPEN_STATUSES },
+  })
+  if (openForAddress) {
+    consola.warn(
+      `Duplicate parked task detected - skipping enqueue.\n  Facet: ${facetName} @ ${facetAddress} on ${network}\n  Existing task key: ${openForAddress.taskKey}`
+    )
+    return null
   }
 
   try {
