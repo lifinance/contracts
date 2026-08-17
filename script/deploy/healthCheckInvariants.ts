@@ -30,6 +30,7 @@ import {
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
+import { getSourceContractNames } from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
@@ -354,10 +355,13 @@ export interface IStaleRegisteredFacets {
 }
 
 /**
- * Classify on-chain facets that are deprecated (their deploy-log name is absent
- * from the network's `_targetState.json` facet set) by whether an open parked
- * removal covers them. Pure; addresses the deploy log cannot map are skipped —
- * the `no-unexpected-facets` invariant owns those.
+ * Classify stale on-chain facets by whether an open parked removal covers them.
+ * A facet is stale when its deploy-log name is absent from `expectedFacetNames`
+ * — the caller builds that set as target-state names ∪ live `src/` contract
+ * names, so a live facet the target state merely hasn't recorded (target-state
+ * drift) is never flagged; only true deprecations (source deleted) are. Pure;
+ * addresses the deploy log cannot map are skipped — the `no-unexpected-facets`
+ * invariant owns those.
  *
  * @returns Sorted, de-duplicated facet names in each bucket.
  */
@@ -1684,7 +1688,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     description:
       'Deprecated facets still registered on-chain are covered by an open parked-removal task',
     severity: 'warning',
-    scope: { environments: ['production'] },
+    // skipTestnet: the parked queue is a production-mainnet construct — testnet
+    // diamonds are EOA-owned and clean up directly, so queue coverage is
+    // meaningless there and the warning would never resolve.
+    scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
       'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or remove it via script/tasks/cleanUpProdDiamond.ts.',
@@ -1703,7 +1710,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const expectedFacetNames = new Set(Object.keys(targetFacets))
+      // Stale = deprecated (source deleted), never target-state drift: a live
+      // facet missing from _targetState.json must not warn (see
+      // getSourceContractNames — the same source-gone gate the removal engine
+      // uses).
+      const expectedFacetNames = new Set([
+        ...Object.keys(targetFacets),
+        ...getSourceContractNames(),
+      ])
 
       // Cheap pre-pass without the queue: only touch Mongo when something is stale.
       const prePass = computeStaleRegisteredFacets({
@@ -1762,7 +1776,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
       for (const name of unparked)
         ctx.logWarn(
-          `Facet ${name} is registered on-chain but absent from _targetState.json and NOT covered by an open parked-removal task — no removal is scheduled`
+          `Facet ${name} is registered on-chain but deprecated (source removed, absent from _targetState.json) and NOT covered by an open parked-removal task — no removal is scheduled`
         )
       if (unparked.length === 0)
         consola.success(

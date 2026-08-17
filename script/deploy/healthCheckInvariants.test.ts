@@ -236,6 +236,7 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     expect(inv).toBeDefined()
     expect(inv?.severity).toBe('warning')
     expect(inv?.scope.environments).toEqual(['production'])
+    expect(inv?.scope.skipTestnet).toBe(true)
     expect(inv?.readsOnChainFacets).toBe(true)
   })
 })
