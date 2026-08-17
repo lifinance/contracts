@@ -24,9 +24,12 @@ import { type IParkedTask } from './parked-tasks'
 import {
   computeSafeToPrune,
   computeTtlAlerts,
+  formatReconcileFailureMessage,
+  formatReopenAlertMessage,
   formatSafeToPruneReport,
   formatTtlAlertMessage,
   reconcileDecision,
+  resolveFacetPresence,
 } from './reconcile-parked-tasks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -103,6 +106,146 @@ describe('reconcileDecision', () => {
     expect(
       reconcileDecision({ status: 'queued' }, { facetPresentOnChain: true })
     ).toBe('keep')
+  })
+
+  it('reopens an executed task whose facet is still routed (removal never landed)', () => {
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: true, proposalStatus: 'executed' }
+      )
+    ).toBe('reopen')
+  })
+
+  it('reopens a superseded task whose facet is still routed', () => {
+    expect(
+      reconcileDecision({ status: 'superseded' }, { facetPresentOnChain: true })
+    ).toBe('reopen')
+  })
+
+  it('keeps an executed task whose facet really is gone', () => {
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: false, proposalStatus: 'executed' }
+      )
+    ).toBe('keep')
+  })
+
+  it('keeps a superseded task whose facet really is gone', () => {
+    expect(
+      reconcileDecision(
+        { status: 'superseded' },
+        { facetPresentOnChain: false }
+      )
+    ).toBe('keep')
+  })
+
+  it('never revisits a cancelled task, present or not', () => {
+    expect(
+      reconcileDecision({ status: 'cancelled' }, { facetPresentOnChain: true })
+    ).toBe('keep')
+    expect(
+      reconcileDecision({ status: 'cancelled' }, { facetPresentOnChain: false })
+    ).toBe('keep')
+  })
+})
+
+describe('resolveFacetPresence', () => {
+  const task = { facetName: 'AcrossFacetV3', facetAddress: addr(0xabc) }
+
+  it('reports present when the facet NAME is routed, even though the stored address is not', () => {
+    // The worldchain regression: the task carried lisk's AcrossFacetV3 address, so
+    // an address-only check said "gone" while the named facet was still live.
+    expect(
+      resolveFacetPresence(
+        task,
+        new Set(['AcrossFacetV3']),
+        new Set(['0xdead'])
+      )
+    ).toBe(true)
+  })
+
+  it('reports present when only the stored address is routed (deploy-log entry pruned)', () => {
+    expect(
+      resolveFacetPresence(
+        task,
+        new Set(),
+        new Set([task.facetAddress.toLowerCase()])
+      )
+    ).toBe(true)
+  })
+
+  it('matches the stored address case-insensitively', () => {
+    expect(
+      resolveFacetPresence(
+        { ...task, facetAddress: addr(0xabc).toUpperCase() as Address },
+        new Set(),
+        new Set([addr(0xabc).toLowerCase()])
+      )
+    ).toBe(true)
+  })
+
+  it('reports absent when neither the name nor the address is routed', () => {
+    expect(
+      resolveFacetPresence(task, new Set(['OtherFacet']), new Set(['0xdead']))
+    ).toBe(false)
+  })
+})
+
+describe('formatReopenAlertMessage', () => {
+  it('returns an empty string when nothing was reopened', () => {
+    expect(formatReopenAlertMessage([])).toBe('')
+  })
+
+  it('groups reopened tasks by network and names the facet, prior status and PR', () => {
+    const msg = formatReopenAlertMessage([
+      {
+        network: 'worldchain',
+        facet: 'AcrossFacetV3',
+        prUrl: 'https://gh/pull/1',
+        from: 'executed',
+      },
+      {
+        network: 'lens',
+        facet: 'GenericSwapFacet',
+        prUrl: 'https://gh/pull/2',
+        from: 'superseded',
+      },
+    ])
+    expect(msg).toContain('2 deferred diamond-cleanup task(s)')
+    expect(msg).toContain('STILL ROUTED')
+    expect(msg).toContain('[worldchain]')
+    expect(msg).toContain('AcrossFacetV3 (was executed) → https://gh/pull/1')
+    expect(msg).toContain('[lens]')
+    expect(msg).toContain(
+      'GenericSwapFacet (was superseded) → https://gh/pull/2'
+    )
+  })
+})
+
+describe('formatReconcileFailureMessage', () => {
+  it('returns an empty string when every network was reconciled', () => {
+    expect(formatReconcileFailureMessage([])).toBe('')
+  })
+
+  it('names each skipped network, its environment and the reason', () => {
+    const msg = formatReconcileFailureMessage([
+      {
+        network: 'harmony',
+        environment: EnvironmentEnum.production,
+        reason: 'Chain harmony does not exist',
+      },
+      {
+        network: 'velas',
+        environment: EnvironmentEnum.production,
+        reason: 'no LiFiDiamond in deploy log',
+      },
+    ])
+    expect(msg).toContain('2 network(s) could not be reconciled')
+    expect(msg).toContain('NOT verified')
+    expect(msg).toContain('harmony:production — Chain harmony does not exist')
+    expect(msg).toContain('velas:production — no LiFiDiamond in deploy log')
   })
 })
 

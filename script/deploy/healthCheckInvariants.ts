@@ -28,11 +28,20 @@ import {
   type PublicClient,
 } from 'viem'
 
-import { EnvironmentEnum } from '../common/types'
-import type { IWhitelistConfig, TargetState } from '../common/types'
+import {
+  EnvironmentEnum,
+  type IWhitelistConfig,
+  type TargetState,
+} from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
-import { getSourceContractNames } from './safe/diamondRemovalDiff'
+import {
+  diffFacets,
+  getExpectedFacetNames,
+  getProtectedNames,
+  getSourceContractNames,
+  type IFacetRemoval,
+} from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -357,54 +366,6 @@ export function findDuplicateSelectors(
       duplicates.push({ selector, addresses: [...addresses] })
 
   return duplicates
-}
-
-/** Deprecated-but-still-registered facets, split by parked-removal coverage. */
-export interface IStaleRegisteredFacets {
-  /** Stale facets covered by an open parked-removal task — expected-pending. */
-  parked: string[]
-  /** Stale facets with NO open parked task — nothing scheduled to remove them. */
-  unparked: string[]
-}
-
-/**
- * Classify stale on-chain facets by whether an open parked removal covers them.
- * A facet is stale when its deploy-log name is absent from `expectedFacetNames`
- * — the caller builds that set as target-state names ∪ live `src/` contract
- * names, so a live facet the target state merely hasn't recorded (target-state
- * drift) is never flagged; only true deprecations (source deleted) are. Pure;
- * addresses the deploy log cannot map are skipped — the `no-unexpected-facets`
- * invariant owns those.
- *
- * @returns Sorted, de-duplicated facet names in each bucket.
- */
-export function computeStaleRegisteredFacets(params: {
-  onChainFacets: IOnChainFacet[]
-  deployedContracts: Record<string, string>
-  expectedFacetNames: Set<string>
-  openParkedFacetNames: Set<string>
-}): IStaleRegisteredFacets {
-  const {
-    onChainFacets,
-    deployedContracts,
-    expectedFacetNames,
-    openParkedFacetNames,
-  } = params
-  const nameByAddress = Object.fromEntries(
-    Object.entries(deployedContracts).map(([name, address]) => [
-      String(address).toLowerCase(),
-      name,
-    ])
-  )
-  const parked = new Set<string>()
-  const unparked = new Set<string>()
-  for (const facet of onChainFacets) {
-    const name = nameByAddress[facet.address.toLowerCase()]
-    if (!name || expectedFacetNames.has(name)) continue
-    if (openParkedFacetNames.has(name)) parked.add(name)
-    else unparked.add(name)
-  }
-  return { parked: [...parked].sort(), unparked: [...unparked].sort() }
 }
 
 /** ABI fragment for reading a contract owner. */
@@ -929,6 +890,71 @@ async function readPeripheryRegistry(
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
 }
+
+/**
+ * Facets that are routed by the diamond but should no longer exist: absent from
+ * target state, not on the never-remove allowlist, and with no `.sol` source left
+ * under `src/` — i.e. deprecated by `/deprecate-contract` whose removal never
+ * actually landed on this chain.
+ *
+ * Returns `[]` when the network/environment has no target-state `LiFiDiamond`
+ * block: an absent entry is not "expects zero facets", and diffing it would
+ * classify every routed facet as deprecated.
+ *
+ * A facet routed at an address the deploy log cannot name is NOT reported here —
+ * that is `no-unexpected-facets`' job. This check answers the complementary
+ * question that invariant cannot: *should* a known facet still be here?
+ *
+ * @param params.deployedContracts - Deploy-log `{name: address}` map, inverted here
+ *   to resolve loupe addresses to names (works for both hex and Tron base58).
+ * @param params.expectedNames - Target-state `LiFiDiamond` contract names, or
+ *   `undefined` when the network/environment has no entry at all.
+ * @returns The deprecated-but-routed facets, each with the selectors the loupe
+ *   currently routes to it.
+ */
+export function findDeprecatedLiveFacets(params: {
+  networkLower: string
+  environment: EnvironmentEnum
+  onChainFacets: IOnChainFacet[]
+  deployedContracts: Record<string, Address | string>
+  expectedNames: Set<string> | undefined
+  protectedNames: Set<string>
+  sourceNames: Set<string>
+}): IFacetRemoval[] {
+  const { expectedNames } = params
+  if (!expectedNames) return []
+
+  const addressToName: Record<string, string> = {}
+  for (const [name, address] of Object.entries(params.deployedContracts))
+    addressToName[String(address).toLowerCase()] = name
+
+  return diffFacets({
+    network: params.networkLower,
+    environment: params.environment,
+    onChainFacets: params.onChainFacets.map((f) => ({
+      address: f.address as Address,
+      selectors: f.selectors as Hex[],
+    })),
+    addressToName,
+    expectedNames,
+    protectedNames: params.protectedNames,
+    // Detection only, so nothing is held back: with an empty active-selector set
+    // `removals` is exactly the deprecated-but-routed facet set. Populating it
+    // would require compiled artifacts and throws when they are stale — never
+    // acceptable in a health check, and the actual removal path
+    // (`cleanUpProdDiamond`) computes the real held-back set anyway.
+    activeSelectors: new Set<string>(),
+    sourceNames: params.sourceNames,
+  }).removals
+}
+
+/**
+ * Memoized `src/` walk — the health check evaluates every network in one process,
+ * and the source set is identical for all of them.
+ */
+let sourceContractNamesCache: Set<string> | undefined
+const cachedSourceContractNames = (): Set<string> =>
+  (sourceContractNamesCache ??= getSourceContractNames())
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1822,7 +1848,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'no-stale-registered-facets',
     description:
-      'Deprecated facets still registered on-chain are covered by an open parked-removal task',
+      'Deprecated facets still routed on-chain are covered by an open parked-removal task',
     severity: 'warning',
     // skipTestnet: the parked queue is a production-mainnet construct — testnet
     // diamonds are EOA-owned and clean up directly, so queue coverage is
@@ -1830,7 +1856,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
-      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or remove it via script/tasks/cleanUpProdDiamond.ts.',
+      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>` (docs/DeferredDiamondCleanupQueue.md).',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -1838,38 +1864,36 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const targetFacets =
-        ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond
-      if (!targetFacets) {
+      const expectedNames = getExpectedFacetNames(
+        ctx.networkLower,
+        EnvironmentEnum.production
+      )
+      if (!expectedNames) {
         consola.info(
-          'No production target state for this network; skipping stale-facet check'
+          `No LiFiDiamond target-state entry for ${ctx.networkLower}/production; skipping stale-facet check`
         )
         return
       }
-      // Stale = deprecated (source deleted), never target-state drift: a live
-      // facet missing from _targetState.json must not warn (see
-      // getSourceContractNames — the same source-gone gate the removal engine
-      // uses).
-      const expectedFacetNames = new Set([
-        ...Object.keys(targetFacets),
-        ...getSourceContractNames(),
-      ])
 
-      // Cheap pre-pass without the queue: only touch Mongo when something is stale.
-      const prePass = computeStaleRegisteredFacets({
+      // Stale = deprecated (source deleted), never target-state drift — the same
+      // source-gone gate the removal engine applies (see findDeprecatedLiveFacets).
+      const deprecated = findDeprecatedLiveFacets({
+        networkLower: ctx.networkLower,
+        environment: EnvironmentEnum.production,
         onChainFacets: ctx.onChainFacets,
         deployedContracts: ctx.deployedContracts,
-        expectedFacetNames,
-        openParkedFacetNames: new Set(),
+        expectedNames,
+        protectedNames: getProtectedNames(),
+        sourceNames: cachedSourceContractNames(),
       })
-      if (prePass.unparked.length === 0) {
+      if (deprecated.length === 0) {
         consola.success('No stale registered facets')
         return
       }
 
+      // Only stale networks touch the queue (and its mongodb dep).
       let openParkedFacetNames: Set<string>
       try {
-        // Lazy import: only stale networks need the queue (and its mongodb dep).
         const { getParkedTasksCollection, listParkedTasks } = await import(
           './safe/parked-tasks'
         )
@@ -1897,26 +1921,34 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         const errorMessage =
           error instanceof Error ? error.message : String(error)
         ctx.logWarn(
-          `Parked-task queue unreachable — stale-facet coverage check skipped (${prePass.unparked.length} stale facet(s) unverified): ${errorMessage}`
+          `Parked-task queue unreachable — stale-facet coverage check skipped (${deprecated.length} stale facet(s) unverified): ${errorMessage}`
         )
         return
       }
 
-      const { parked, unparked } = computeStaleRegisteredFacets({
-        onChainFacets: ctx.onChainFacets,
-        deployedContracts: ctx.deployedContracts,
-        expectedFacetNames,
-        openParkedFacetNames,
-      })
-      for (const name of parked)
+      const parked = deprecated.filter((f) => openParkedFacetNames.has(f.name))
+      const unparked = deprecated.filter(
+        (f) => !openParkedFacetNames.has(f.name)
+      )
+      if (parked.length > 0)
         consola.info(
-          `Facet ${name} is deprecated and awaiting its parked removal (expected-pending)`
+          `${
+            parked.length
+          } deprecated facet(s) awaiting their parked removal (expected-pending): ${parked
+            .map((f) => f.name)
+            .join(', ')}`
         )
-      for (const name of unparked)
+      // One aggregated warning per network, not one per facet: the fleet-wide
+      // backlog is large enough that per-facet lines would drown the report.
+      if (unparked.length > 0)
         ctx.logWarn(
-          `Facet ${name} is registered on-chain but deprecated (source removed, absent from _targetState.json) and NOT covered by an open parked-removal task — no removal is scheduled`
+          `${
+            unparked.length
+          } deprecated facet(s) still routed with NO open parked-removal task: ${unparked
+            .map((f) => `${f.name} (${f.address})`)
+            .join(', ')}`
         )
-      if (unparked.length === 0)
+      else
         consola.success(
           'All stale registered facets are covered by parked removals'
         )

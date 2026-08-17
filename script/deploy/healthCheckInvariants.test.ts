@@ -4,15 +4,17 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
+import { EnvironmentEnum } from '../common/types'
 
 import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
-  computeStaleRegisteredFacets,
+  findDeprecatedLiveFacets,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -151,6 +153,91 @@ describe('findDuplicateSelectors', () => {
   })
 })
 
+describe('findDeprecatedLiveFacets', () => {
+  const LIVE = '0x00000000000000000000000000000000000000AA'
+  const KEEP = '0x00000000000000000000000000000000000000bb'
+  const SELECTORS: Hex[] = ['0xdeadbeef']
+
+  /** A deprecated facet: routed, in the deploy log, absent from target state, source gone. */
+  function base(): Parameters<typeof findDeprecatedLiveFacets>[0] {
+    return {
+      networkLower: 'worldchain',
+      environment: EnvironmentEnum.production,
+      onChainFacets: [{ address: LIVE, selectors: SELECTORS }],
+      deployedContracts: { AcrossFacetV3: LIVE },
+      expectedNames: new Set(['AcrossFacetV4']),
+      protectedNames: new Set(['DiamondCutFacet']),
+      sourceNames: new Set(['AcrossFacetV4']),
+    }
+  }
+
+  it('flags a facet that is routed, absent from target state and whose source is gone', () => {
+    const found = findDeprecatedLiveFacets(base())
+    expect(found).toHaveLength(1)
+    expect(found[0]?.name).toBe('AcrossFacetV3')
+    expect(found[0]?.selectors).toEqual(SELECTORS)
+  })
+
+  it('ignores a facet that target state still expects', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        expectedNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a facet whose source still exists (target-state drift, not a deprecation)', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        sourceNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('never flags a protected facet, even when target state omits it', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        deployedContracts: { DiamondCutFacet: LIVE },
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a routed address the deploy log cannot name (no-unexpected-facets owns that)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), deployedContracts: {} })
+    ).toHaveLength(0)
+  })
+
+  it('matches deploy-log addresses case-insensitively', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      deployedContracts: { AcrossFacetV3: LIVE.toLowerCase() },
+    })
+    expect(found).toHaveLength(1)
+  })
+
+  it('returns nothing when the network has no target-state entry (would flag everything)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), expectedNames: undefined })
+    ).toHaveLength(0)
+  })
+
+  it('reports only the deprecated facet when an expected one is routed alongside it', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      onChainFacets: [
+        { address: LIVE, selectors: SELECTORS },
+        { address: KEEP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV3: LIVE, AcrossFacetV4: KEEP },
+    })
+    expect(found.map((f) => f.name)).toEqual(['AcrossFacetV3'])
+  })
+})
+
 describe('isInvariantApplicable', () => {
   it('applies everywhere for an empty scope', () => {
     const inv = makeInvariant({})
@@ -238,71 +325,6 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     expect(inv?.scope.environments).toEqual(['production'])
     expect(inv?.scope.skipTestnet).toBe(true)
     expect(inv?.readsOnChainFacets).toBe(true)
-  })
-})
-
-describe('computeStaleRegisteredFacets', () => {
-  const facet = (
-    address: string,
-    n = 1
-  ): { address: string; selectors: string[] } => ({
-    address,
-    selectors: [`0x${n.toString(16).padStart(8, '0')}`],
-  })
-
-  it('classifies a deprecated facet with no parked task as unparked', () => {
-    const r = computeStaleRegisteredFacets({
-      onChainFacets: [facet('0xAAA'), facet('0xBBB')],
-      deployedContracts: { OldFacet: '0xaaa', CurrentFacet: '0xbbb' },
-      expectedFacetNames: new Set(['CurrentFacet']),
-      openParkedFacetNames: new Set(),
-    })
-    expect(r.unparked).toEqual(['OldFacet'])
-    expect(r.parked).toHaveLength(0)
-  })
-
-  it('classifies a deprecated facet with an open parked task as parked (expected-pending)', () => {
-    const r = computeStaleRegisteredFacets({
-      onChainFacets: [facet('0xaaa')],
-      deployedContracts: { OldFacet: '0xAAA' },
-      expectedFacetNames: new Set(),
-      openParkedFacetNames: new Set(['OldFacet']),
-    })
-    expect(r.parked).toEqual(['OldFacet'])
-    expect(r.unparked).toHaveLength(0)
-  })
-
-  it('skips on-chain addresses the deploy log cannot map (no-unexpected-facets owns those)', () => {
-    const r = computeStaleRegisteredFacets({
-      onChainFacets: [facet('0x999')],
-      deployedContracts: { OldFacet: '0xaaa' },
-      expectedFacetNames: new Set(),
-      openParkedFacetNames: new Set(),
-    })
-    expect(r.parked).toHaveLength(0)
-    expect(r.unparked).toHaveLength(0)
-  })
-
-  it('never flags a facet the target state still expects', () => {
-    const r = computeStaleRegisteredFacets({
-      onChainFacets: [facet('0xaaa')],
-      deployedContracts: { CurrentFacet: '0xaaa' },
-      expectedFacetNames: new Set(['CurrentFacet']),
-      openParkedFacetNames: new Set(),
-    })
-    expect(r.parked).toHaveLength(0)
-    expect(r.unparked).toHaveLength(0)
-  })
-
-  it('sorts and de-duplicates stale names across buckets', () => {
-    const r = computeStaleRegisteredFacets({
-      onChainFacets: [facet('0xaaa', 1), facet('0xbbb', 2), facet('0xaaa', 3)],
-      deployedContracts: { ZFacet: '0xbbb', AFacet: '0xaaa' },
-      expectedFacetNames: new Set(),
-      openParkedFacetNames: new Set(['ZFacet']),
-    })
-    expect(r.unparked).toEqual(['AFacet'])
-    expect(r.parked).toEqual(['ZFacet'])
   })
 })
 
