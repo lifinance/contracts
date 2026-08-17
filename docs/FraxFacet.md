@@ -214,16 +214,16 @@ native gas.
   computed from a fee-token balance delta, so the fee token must differ from the
   bridged asset; the facet reverts `InformationMismatch` on that collision (a Frax
   gas token is never itself a bridged Frax OFT).
-- **BE-integration requirement (EXP-514 — to be confirmed).** On Tempo the effective
-  caller (the `msg.sender` the facet pulls from — a relayer, the Permit2Proxy, or the
-  user) must **hold the TIP20 fee token and approve it to the Diamond**, in addition to
-  the bridged-token approval. The facet pulls the quoted fee from that caller via
-  `transferFrom` and forwards it to HopV2; the caller must **not** pre-transfer the fee
-  token to the Diamond. A pre-transfer is not credited against the pull — the caller is
-  still charged the fee (double-funding), and the unused-fee sweep only refunds the
-  balance the facet itself added, so any pre-sent amount is stranded in the Diamond.
-  This differs from every other chain (where the fee is native `msg.value`) and **MUST
-  be confirmed with the BE integration**.
+- **Fee-token funding (Tempo only).** The effective caller (the `msg.sender` the facet
+  pulls from — a relayer, the Permit2Proxy, or the user) must **hold the TIP20 fee token
+  and approve it to the Diamond**, in addition to the bridged-token approval. The facet
+  pulls the quoted fee from that caller via `transferFrom` and forwards it to HopV2; the
+  caller must **not** pre-transfer the fee token to the Diamond. A pre-transfer is not
+  credited against the pull — the caller is still charged the fee (double-funding), and
+  the unused-fee sweep only refunds the balance the facet itself added, so any pre-sent
+  amount is stranded in the Diamond. This differs from every other chain, where the fee
+  is native `msg.value`. Provisioning and approving this token in the relayer/BE flow is
+  tracked in EXP-514.
 
 ## Swap Data
 
