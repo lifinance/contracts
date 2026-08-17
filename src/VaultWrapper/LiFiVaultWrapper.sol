@@ -701,7 +701,11 @@ contract LiFiVaultWrapper is
     ///      `maxRedeem` floors below `balanceOf` (OZ-derived vaults such as MetaMorpho), a
     ///      one-call full exit via `redeem(balanceOf)` is therefore not guaranteed; callers
     ///      should use `redeem(maxRedeem(owner))`, which may leave sub-1e-12-token dust that a
-    ///      follow-up call clears.
+    ///      follow-up call clears. Because this now consults the source's views via
+    ///      `adapter.maxWithdrawableValue`, it reverts if those source views revert (a
+    ///      fully-paused/bricked source) — consistent with the fail-closed posture of
+    ///      `maxWithdraw`/`previewRedeem`, a deliberate deviation from EIP-4626's view-safety
+    ///      expectation.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 

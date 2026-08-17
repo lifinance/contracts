@@ -50,11 +50,25 @@ withdrawal.
   never drains the raw source position, so a full exit leaves the tiny
   virtual-offset residue behind — that residue is the inflation-attack buffer,
   matching standard OZ behavior.
-- The `max*`/preview views: `maxWithdraw` and `maxRedeem` route through the
-  realizable, net-of-source-fee `previewRedeem`, so on a fee source
-  `maxWithdraw` reports the net amount. Neither reflects the source's own
-  liquidity/withdrawal limits (tracked separately as finding #4); deposits do
-  not reflect a source entry fee.
+- The `max*`/preview views are **source-liquidity-aware**: `maxRedeem` clamps the
+  owner's balance to what the source can currently honor (via the adapter's
+  `maxWithdrawableValue`), with a full-position short-circuit so it equals `balanceOf`
+  on a fully-liquid source and only clamps when the source is genuinely
+  liquidity-limited (an Aave-style utilization cap, a paused source). `maxWithdraw`
+  inherits the clamp because OZ derives it as `previewRedeem(maxRedeem(owner))`, so the
+  `withdraw` entrypoint's `ERC4626ExceededMaxWithdraw` guard is liquidity-aware too. On a
+  fee source `maxWithdraw` still reports the net (fee-adjusted) amount. Deposits do not
+  reflect a source entry fee.
+- `previewRedeem`/`previewWithdraw` remain **liquidity-agnostic**: EIP-4626 requires
+  previews to ignore withdrawal limits, so they value against the full position and never
+  consult `maxWithdrawableValue`.
+- Dust tradeoff on OZ-style sources (e.g. MetaMorpho, whose own `maxRedeem` floors ~1
+  share below `balanceOf` even at full liquidity): a one-call full exit via
+  `redeem(balanceOf)` may hit `ERC4626ExceededMaxRedeem`. Callers should exit via
+  `redeem(maxRedeem(owner))`; `redeem` is the guaranteed exit and leaves at most
+  sub-1e-12-token dust that a follow-up call clears.
+- The exact-out `withdraw` rounding boundary near `maxWithdraw` remains the one tolerated
+  artifact, unchanged by the liquidity-awareness above.
 
 ## Admin role
 

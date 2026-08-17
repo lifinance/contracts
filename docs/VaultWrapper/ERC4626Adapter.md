@@ -38,6 +38,12 @@ assuming anything about the source beyond its own standard EIP-4626 previews:
 - `withdrawUpTo` — the exact-in execution. DELEGATECALL only; realizes up to
   `assets` of position value into the wrapper and returns the measured asset
   delta. Backs `redeem`.
+- `maxWithdrawableValue` — the source-liquidity signal: the floor valuation
+  (`convertToAssets`) of the GROSS worth of `min(holder position, source.maxRedeem)`.
+  Gross by design (not `previewRedeem`) — it does NOT net the source's exit fee, because
+  the wrapper feeds it into its own gross share math to clamp its `max*` views to what the
+  source can currently honor. Equals the full position value on a fully-liquid source (one
+  with no active liquidity limit).
 
 These views read cost/realizable amounts straight from the source's own
 EIP-4626 `previewWithdraw`/`previewRedeem`, so they carry the same
@@ -67,6 +73,9 @@ function previewWithdrawUpTo(address _underlying, address _holder, uint256 _asse
 
 /// Realizes up to `_assets` of position value from the source; returns the measured asset delta.
 function withdrawUpTo(address _asset, address _underlying, uint256 _assets) external returns (uint256 withdrawn)
+
+/// Gross floor valuation of `min(holder position, source.maxRedeem)` — the source-liquidity signal (not exit-fee-netted).
+function maxWithdrawableValue(address _underlying, address _holder) external view returns (uint256 assets)
 ```
 
 ## Related contracts
