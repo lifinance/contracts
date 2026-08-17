@@ -473,6 +473,7 @@ function buildLiveDeps(
     listQueued: () =>
       listParkedTasks(parkedTasks, {
         network: options.network,
+        environment,
         status: 'queued',
       }),
     computeRemovals: (names, nameToAddress) =>

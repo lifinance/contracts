@@ -28,6 +28,7 @@ import {
   type PublicClient,
 } from 'viem'
 
+import { EnvironmentEnum } from '../common/types'
 import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
@@ -1877,10 +1878,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           const open = [
             ...(await listParkedTasks(parkedTasks, {
               network: ctx.networkLower,
+              environment: EnvironmentEnum.production,
               status: 'queued',
             })),
             ...(await listParkedTasks(parkedTasks, {
               network: ctx.networkLower,
+              environment: EnvironmentEnum.production,
               status: 'proposed',
             })),
           ]

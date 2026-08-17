@@ -410,6 +410,30 @@ describe('listParkedTasks', () => {
     expect(tasks).toHaveLength(1)
     expect(tasks[0]?.facetName).toBe('B')
   })
+
+  it('filters by environment (a staging row never leaks into production reads)', async () => {
+    const coll = seed()
+    coll.rows.push({
+      taskKey: 'facet-removal|arbitrum|staging|A',
+      kind: 'facet-removal',
+      network: 'arbitrum',
+      environment: EnvironmentEnum.staging,
+      facetName: 'A',
+      diamondAddress: DIAMOND,
+      facetAddress: FACET,
+      prUrl: 'https://github.com/lifinance/contracts/pull/3',
+      status: 'queued',
+      enqueuer: 'dev@li.finance',
+      createdAt: new Date(),
+    })
+    const tasks = await listParkedTasks(coll, {
+      network: 'arbitrum',
+      environment: EnvironmentEnum.production,
+      status: 'queued',
+    })
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0]?.environment).toBe(EnvironmentEnum.production)
+  })
 })
 
 describe('claimForProposal', () => {
