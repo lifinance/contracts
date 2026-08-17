@@ -21,7 +21,9 @@ import { EnvironmentEnum } from '../../common/types'
 import { type IParkedTask } from './parked-tasks'
 import {
   computeTtlAlerts,
+  deprecatedNetworkDecision,
   formatTtlAlertMessage,
+  partitionByNetworkStatus,
   reconcileDecision,
 } from './reconcile-parked-tasks'
 
@@ -99,6 +101,41 @@ describe('reconcileDecision', () => {
     expect(
       reconcileDecision({ status: 'queued' }, { facetPresentOnChain: true })
     ).toBe('keep')
+  })
+})
+
+describe('deprecatedNetworkDecision', () => {
+  it('cancels a queued task whose network is no longer active', () => {
+    expect(deprecatedNetworkDecision({ status: 'queued' })).toBe('cancel')
+  })
+
+  it('keeps a proposed task so its live Safe proposal is not orphaned', () => {
+    expect(deprecatedNetworkDecision({ status: 'proposed' })).toBe('keep')
+  })
+})
+
+describe('partitionByNetworkStatus', () => {
+  const active = new Set(['arbitrum', 'mainnet'])
+
+  it('routes a task on an active network to the reconcile path', () => {
+    const task = parked({ network: 'arbitrum' })
+    expect(partitionByNetworkStatus([task], active)).toEqual({
+      live: [task],
+      deprecated: [],
+    })
+  })
+
+  it('routes a task on a network absent from networks.json to the deprecated path', () => {
+    const task = parked({ network: 'harmony' })
+    expect(partitionByNetworkStatus([task], active)).toEqual({
+      live: [],
+      deprecated: [task],
+    })
+  })
+
+  it('treats a present-but-inactive network as deprecated', () => {
+    const task = parked({ network: 'localanvil' })
+    expect(partitionByNetworkStatus([task], active).deprecated).toEqual([task])
   })
 })
 

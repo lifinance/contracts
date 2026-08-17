@@ -589,6 +589,7 @@ origin-PR lines to the signer.
         │                executed  (terminal, = done)
         │
         └── operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
+             network no longer active in networks.json ──────┘ (queued only)
 ```
 
 All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
@@ -613,6 +614,14 @@ All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
   already-minted Safe removal proposal from the origin-PR linkage (§6), so a claimed task
   must be `revertToQueued` first, then cancelled.
+- **queued → cancelled (deprecated network)**: the reconcile evaluates network status
+  *before* on-chain truth (`partitionByNetworkStatus` → `deprecatedNetworkDecision`) —
+  a network absent from `config/networks.json`, or present with `status ≠ 'active'`,
+  has no RPC config and no maintenance intent, so its parked removals are abandoned
+  rather than reconciled against a chain nobody can reach. A `proposed` task on such a
+  network is **warned about, never auto-cancelled** (same orphaned-proposal rule as
+  above). `/deprecate-network` cancels these at the human chokepoint; the cron is the
+  self-healing backstop for a deprecation that missed the step.
 
 **Idempotency / dedup**
 
@@ -643,6 +652,12 @@ Three composed backstops, none silent:
    `#dev-sc-multisig-proposals` via the existing webhook (Fact 12), naming the
    network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
 3. **Observability** (§9) makes the backlog visible on demand.
+
+**The backstop must survive a bad network.** The reconcile isolates each
+`(network, environment)` group: an unreachable chain or a missing RPC is logged and
+skipped, the remaining groups are still decided, the TTL alert still fires, and the run
+exits non-zero afterwards so the failure still reaches Slack. A single unresolvable
+network aborting the batch would silently disable backstop 2 for the whole fleet.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
 (possibly weeks), the `deployments/<network>.json` facet→address entry that

@@ -18,7 +18,14 @@
  *     to the multisig-proposals Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
- * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
+ * A task whose network is no longer `active` in `config/networks.json` is abandoned
+ * (`queued` → `cancelled`) instead of reconciled — there is no chain left to read.
+ * Every step is isolated — a failing `(network, environment)` group or a failing
+ * cancellation is logged, the rest of the fleet and the TTL alert still run, and the
+ * process exits non-zero at the end.
+ *
+ * The pure decisions ({@link reconcileDecision}, {@link deprecatedNetworkDecision},
+ * {@link partitionByNetworkStatus}, {@link computeTtlAlerts},
  * {@link formatTtlAlertMessage}) are fully unit-tested; only the live CLI wiring
  * (Mongo/loupe/Slack) is unit-test exempt, mirroring `getParkedTasksCollection()`.
  * Dry-run by default (#2047 convention); pass `--yes` to apply transitions and
@@ -33,11 +40,13 @@ import { getAddress } from 'viem'
 
 import { SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
+import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
 
 import { fetchOnChainFacets, resolveDiamondAddress } from './diamondRemovalDiff'
 import {
   getParkedTasksCollection,
   listParkedTasks,
+  markCancelled,
   markExecuted,
   markSuperseded,
   revertToQueued,
@@ -53,7 +62,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_TTL_DAYS = 60
 
 /** Lifecycle transition the reconcile should apply to a task. */
-export type ReconcileDecision = 'executed' | 'superseded' | 'revert' | 'keep'
+export type ReconcileDecision =
+  | 'executed'
+  | 'superseded'
+  | 'revert'
+  | 'cancel'
+  | 'keep'
 
 /** On-chain / proposal truth for one task, gathered by the live adapter. */
 export interface IReconcileContext {
@@ -86,6 +100,46 @@ export function reconcileDecision(
   if (task.status === 'proposed' && ctx.proposalStatus === 'reverted')
     return 'revert'
   return 'keep'
+}
+
+/**
+ * Decides the transition for an open task whose network is no longer `active` in
+ * `config/networks.json`. Such a network has no RPC config and no maintenance
+ * intent left, so its removals are abandoned rather than reconciled against a
+ * chain nobody can reach. A `proposed` task is left alone deliberately: it already
+ * carries a live Safe removal proposal, and `markCancelled` is restricted to
+ * `queued` so cancelling can never orphan that proposal from its origin-PR
+ * linkage (spec §6/§7) — an operator reverts it first.
+ *
+ * @param task - The open task (only its `status` matters here).
+ * @returns `cancel` for a `queued` task, `keep` for a claimed one.
+ */
+export function deprecatedNetworkDecision(
+  task: Pick<IParkedTask, 'status'>
+): Extract<ReconcileDecision, 'cancel' | 'keep'> {
+  return task.status === 'queued' ? 'cancel' : 'keep'
+}
+
+/**
+ * Splits open tasks by whether their network is still active, so the reconcile
+ * never tries to resolve a chain that `config/networks.json` no longer describes.
+ *
+ * @param tasks - Open tasks to route.
+ * @param activeNetworks - Network ids with `status: 'active'` in networks.json.
+ * @returns `live` tasks for the on-chain path, `deprecated` ones for abandonment.
+ */
+export function partitionByNetworkStatus<
+  T extends Pick<IParkedTask, 'network'>
+>(
+  tasks: readonly T[],
+  activeNetworks: ReadonlySet<string>
+): { live: T[]; deprecated: T[] } {
+  const live: T[] = []
+  const deprecated: T[] = []
+  for (const task of tasks)
+    if (activeNetworks.has(task.network)) live.push(task)
+    else deprecated.push(task)
+  return { live, deprecated }
 }
 
 /** An open task that has aged past the TTL, for the cold-network alert. */
@@ -178,12 +232,18 @@ async function resolveProposalStatus(
   return doc?.status
 }
 
-/** Reconciles every open task, grouped by (network, environment) so the loupe is fetched once each. */
+/**
+ * Reconciles every open task, grouped by (network, environment) so the loupe is
+ * fetched once each.
+ *
+ * @returns How many steps failed (a network group, or a cancellation), so the
+ * caller can fail the run *after* the TTL alert has had its chance to fire.
+ */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
   apply: boolean
-): Promise<void> {
+): Promise<number> {
   const open = [
     ...(await listParkedTasks(parkedTasks, {
       network: networkFilter,
@@ -196,11 +256,39 @@ async function reconcileAll(
   ]
   if (open.length === 0) {
     consola.info('No open parked tasks to reconcile')
-    return
+    return 0
+  }
+
+  let failures = 0
+  const { live, deprecated } = partitionByNetworkStatus(
+    open,
+    new Set(getAllActiveNetworks().map((n) => n.id))
+  )
+  for (const task of deprecated) {
+    const decision = deprecatedNetworkDecision(task)
+    consola.info(
+      `[${task.network}:${task.environment}] ${task.facetName} (${task.status}) → ${decision} (network no longer active)`
+    )
+    try {
+      if (decision === 'keep')
+        consola.warn(
+          `[${task.network}:${task.environment}] ${task.facetName} is claimed on a deprecated network — revert it before cancelling so its Safe proposal is not orphaned`
+        )
+      else if (apply) await markCancelled(parkedTasks, task.taskKey)
+    } catch (error: unknown) {
+      failures++
+      consola.error(
+        `[${task.network}:${task.environment}] could not cancel ${
+          task.facetName
+        } — continuing: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
   }
 
   const byNetworkEnv = new Map<string, typeof open>()
-  for (const t of open) {
+  for (const t of live) {
     const key = `${t.network}:${t.environment}`
     const list = byNetworkEnv.get(key) ?? []
     list.push(t)
@@ -224,42 +312,54 @@ async function reconcileAll(
       const first = tasks[0]
       if (!first) continue
       const { network, environment } = first
-      const diamondAddress = await resolveDiamondAddress(network, environment)
-      if (!diamondAddress) {
-        consola.warn(
-          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
-        )
-        continue
-      }
-      const onChain = await fetchOnChainFacets(diamondAddress, network)
-      const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+      try {
+        const diamondAddress = await resolveDiamondAddress(network, environment)
+        if (!diamondAddress) {
+          consola.warn(
+            `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          )
+          continue
+        }
+        const onChain = await fetchOnChainFacets(diamondAddress, network)
+        const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
 
-      for (const task of tasks) {
-        const proposalStatus = await resolveProposalStatus(
-          pendingTransactions,
-          task.safeTxHash
+        for (const task of tasks) {
+          const proposalStatus = await resolveProposalStatus(
+            pendingTransactions,
+            task.safeTxHash
+          )
+          const decision = reconcileDecision(task, {
+            facetPresentOnChain: routed.has(
+              getAddress(task.facetAddress).toLowerCase()
+            ),
+            proposalStatus,
+          })
+          consola.info(
+            `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
+          )
+          if (!apply || decision === 'keep') continue
+          if (decision === 'executed')
+            await markExecuted(parkedTasks, task.taskKey)
+          else if (decision === 'superseded')
+            await markSuperseded(parkedTasks, task.taskKey)
+          else if (decision === 'revert')
+            await revertToQueued(parkedTasks, task.taskKey)
+        }
+      } catch (error: unknown) {
+        // One unreachable network must not cost the fleet its reconcile or the TTL
+        // alert — the cold-network backstop is the whole point of the cron.
+        failures++
+        consola.error(
+          `[${network}:${environment}] reconcile failed — continuing: ${
+            error instanceof Error ? error.message : String(error)
+          }`
         )
-        const decision = reconcileDecision(task, {
-          facetPresentOnChain: routed.has(
-            getAddress(task.facetAddress).toLowerCase()
-          ),
-          proposalStatus,
-        })
-        consola.info(
-          `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
-        )
-        if (!apply || decision === 'keep') continue
-        if (decision === 'executed')
-          await markExecuted(parkedTasks, task.taskKey)
-        else if (decision === 'superseded')
-          await markSuperseded(parkedTasks, task.taskKey)
-        else if (decision === 'revert')
-          await revertToQueued(parkedTasks, task.taskKey)
       }
     }
   } finally {
     await safeMongoClient?.close()
   }
+  return failures
 }
 
 /** Computes and (when applying) sends the cold-network TTL alert. */
@@ -316,8 +416,14 @@ const main = defineCommand({
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      await reconcileAll(parkedTasks, args.network, apply)
+      const failures = await reconcileAll(parkedTasks, args.network, apply)
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
+      if (failures > 0) {
+        consola.error(
+          `${failures} reconcile step(s) failed — see the errors above`
+        )
+        process.exitCode = 1
+      }
     } finally {
       await client.close()
     }
