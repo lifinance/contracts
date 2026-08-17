@@ -17,6 +17,7 @@
       "Bash(jq *)",
       "Bash(wc *)",
       "Bash(ls *)",
+      "Bash(gh workflow run runPendingTimelockTXs.yml --repo lifinance/contracts)",
       "Read",
       "Write",
       "Edit",

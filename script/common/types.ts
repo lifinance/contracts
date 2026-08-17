@@ -87,6 +87,28 @@ export interface INetwork {
    */
   customVerificationFlags?: Record<string, string | null>
   /**
+   * Per-network override for forge's --gas-estimate-multiplier flag (a percent value; forge's
+   * default is 130). When set, deploys (script/deploy/deploySingleContract.sh) use this value and
+   * ignore the GAS_ESTIMATE_MULTIPLIER env var; diamond-cut/update scripts still read the env var.
+   * Use it where the env-var default cannot work for the chain, e.g. a chain whose transaction gas
+   * cap rejects a high multiplier, or one whose estimates are far below actual usage.
+   */
+  gasEstimateMultiplier?: number
+  /**
+   * Extra forge script flags appended verbatim to the deploy command in
+   * script/deploy/deploySingleContract.sh (e.g. tempo's "--gas-limit 40000000").
+   * If the flags include --skip-simulation, simulation is skipped regardless of env-based flags.
+   * Only applied on the standard deploy path; the zkEVM path builds its own command and ignores
+   * this field.
+   */
+  customDeployFlags?: string
+  /**
+   * Fixed gas price in wei for deploys on chains where the RPC's suggested price is unusable.
+   * script/deploy/deploySingleContract.sh passes it via the ETH_GAS_PRICE env var, since forge's
+   * --gas-price flag only affects simulation and not the broadcast.
+   */
+  gasPrice?: number
+  /**
    * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
    * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
    * such as GasZipPeriphery or TokenWrapper are intentionally not deployed on that network).

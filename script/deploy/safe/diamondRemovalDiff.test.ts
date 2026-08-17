@@ -2,14 +2,17 @@
 import { describe, expect, it } from 'bun:test'
 
 import { EnvironmentEnum } from '../../common/types'
+import { buildDiamondCutRemoveCalldata } from '../../utils/viemScriptHelpers'
 
 import {
   buildAddressToName,
+  buildRemovalSnapshotFromPayloads,
   collectActiveSelectors,
   computeFacetRemovalDiff,
   computeNamedFacetRemovals,
   diffFacets,
   diffNamedFacets,
+  extractRemoveFacetCuts,
   fetchOnChainFacets,
   filterRePointedRemovals,
   getExpectedFacetNames,
@@ -627,5 +630,77 @@ describe('revalidateRemovalsOnChain', () => {
         currentAddress: addr(7),
       },
     ])
+  })
+})
+
+describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
+  it('extracts Remove cuts and ignores non-diamondCut payloads', () => {
+    const remove = buildDiamondCutRemoveCalldata([
+      { name: 'A', selectors: [sel(1), sel(2)] },
+    ])
+    const cuts = extractRemoveFacetCuts(['0x12345678' as `0x${string}`, remove])
+    expect(cuts).toEqual([{ selectors: [sel(1), sel(2)] }])
+  })
+
+  it('returns none when there are no Remove cuts and no parked rows', () => {
+    expect(buildRemovalSnapshotFromPayloads([], [])).toEqual({ kind: 'none' })
+  })
+
+  it('zips trailing Remove cuts with parked identities (drain append order)', () => {
+    const primaryRemove = buildDiamondCutRemoveCalldata([
+      { name: 'PrimaryGone', selectors: [sel(9)] },
+    ])
+    const foldedA = buildDiamondCutRemoveCalldata([
+      { name: 'A', selectors: [sel(1)] },
+    ])
+    const foldedB = buildDiamondCutRemoveCalldata([
+      { name: 'B', selectors: [sel(2), sel(3)] },
+    ])
+    const built = buildRemovalSnapshotFromPayloads(
+      [primaryRemove, foldedA, foldedB],
+      [
+        { facetName: 'A', facetAddress: addr(2) },
+        { facetName: 'B', facetAddress: addr(3) },
+      ]
+    )
+    expect(built).toEqual({
+      kind: 'snapshot',
+      snapshot: [
+        { name: 'A', address: addr(2), selectors: [sel(1)] },
+        { name: 'B', address: addr(3), selectors: [sel(2), sel(3)] },
+      ],
+    })
+  })
+
+  it('signals unvalidated when Remove cuts exist without parked rows (execute aborts)', () => {
+    const remove = buildDiamondCutRemoveCalldata([
+      { name: 'Legacy', selectors: [sel(1)] },
+    ])
+    expect(buildRemovalSnapshotFromPayloads([remove], [])).toEqual({
+      kind: 'unvalidated',
+      removeCutCount: 1,
+    })
+  })
+
+  it('signals mismatch when parked outnumber Remove cuts', () => {
+    const remove = buildDiamondCutRemoveCalldata([
+      { name: 'A', selectors: [sel(1)] },
+    ])
+    const built = buildRemovalSnapshotFromPayloads(
+      [remove],
+      [
+        { facetName: 'A', facetAddress: addr(2) },
+        { facetName: 'B', facetAddress: addr(3) },
+      ]
+    )
+    expect(built.kind).toBe('mismatch')
+  })
+
+  it('signals mismatch when parked rows exist but payloads have no Remove cuts', () => {
+    const built = buildRemovalSnapshotFromPayloads(
+      [],
+      [{ facetName: 'A', facetAddress: addr(2) }]
+    )
+    expect(built.kind).toBe('mismatch')
   })
 })

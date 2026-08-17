@@ -22,6 +22,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  zeroAddress,
   type Address,
   type Hex,
   type PublicClient,
@@ -32,6 +33,11 @@ import { normalizeSelector } from '../utils/utils'
 
 import { getSourceContractNames } from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  resolveLiveFacetsFromLog,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -272,6 +278,12 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'zksync',
     ],
   },
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'Intent escrow settlers are not deployed on Jovay and BE confirmed the chain is not supported for intents — do not require LiFiIntentEscrowFacetV2 until product enables it.',
+    networks: ['jovay'],
+  },
 ]
 
 /**
@@ -440,36 +452,6 @@ const checkIsDeployed = async (
   if (code === '0x') return false
 
   return true
-}
-
-/**
- * Binary-search the earliest block at which `address` has code — its deployment block —
- * in ~log2(latest) `getCode` calls. Used to bound event queries: a full-history
- * `fromBlock: 'earliest'` scan is range-capped (throws) or silently truncated (false pass)
- * by some RPC providers on long-lived mainnet proxies. Assumes code presence is monotonic
- * (contract not self-destructed), which holds for LI.FI periphery.
- */
-async function findDeploymentBlock(
-  publicClient: PublicClient,
-  address: Address
-): Promise<bigint> {
-  const hasCode = async (blockNumber: bigint): Promise<boolean> => {
-    const code = await publicClient.getCode({ address, blockNumber })
-    return code !== undefined && code !== '0x'
-  }
-
-  // Defensive: if code exists at genesis (never for our contracts), earliest is 0.
-  if (await hasCode(0n)) return 0n
-
-  // Invariant: no code at `low`, code at `high`; converge to the first block with code.
-  let low = 0n
-  let high = await publicClient.getBlockNumber()
-  while (high - low > 1n) {
-    const mid = (low + high) / 2n
-    if (await hasCode(mid)) high = mid
-    else low = mid
-  }
-  return high
 }
 
 /**
@@ -902,6 +884,51 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
+/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
+const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
+ *
+ * @param name - the periphery contract name to look up
+ * @param ctx - the health-check context (supplies the diamond address and RPC client)
+ * @returns the registered address (checksummed hex on EVM, base58 on Tron), or null when the
+ *   registry holds the zero address — i.e. nothing is registered under that name
+ * @throws when the read fails, returns malformed output, or no client is configured, so callers
+ *   can tell "not registered" (null) apart from "could not determine" (throw)
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        ctx.diamondAddress,
+        'getPeripheryContract(string)',
+        [name],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    if (!parsed.startsWith('T') || parsed.length !== 34)
+      throw new Error(`malformed Tron address for ${name}: ${parsed}`)
+    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+  }
+
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const registry = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function getPeripheryContract(string) external view returns (address)',
+    ]),
+    client: ctx.publicClient,
+  })
+  const address = await registry.read.getPeripheryContract([name])
+  return address === zeroAddress ? null : getAddress(address)
+}
+
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
@@ -1307,6 +1334,114 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `Periphery contract ${periphery} registered in Diamond`
             )
         }
+      }
+    },
+  },
+  {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets live in the diamond, not on target state: the failure this guards against
+      // is a facet being live while its companion is absent, and target state itself was missing the
+      // receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
+      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
+      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
+      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      const couplings = getFacetPeripheryCouplings()
+      const liveFacets = resolveLiveFacetsFromLog(
+        ctx.onChainFacets.map((facet) => facet.address),
+        ctx.deployedContracts as Record<string, string>,
+        Object.keys(couplings)
+      )
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower,
+        couplings
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${carveOut.facet}: ${carveOut.companion} not required here — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = required.map((requirement) => requirement.companion)
+      // A companion is present iff the registry returns a non-null (non-zero) address. A read that
+      // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
+      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
+      const registered = new Map<string, boolean>()
+      const unresolved = new Set<string>()
+      const markUnresolved = (companion: string, reason: unknown): void => {
+        ctx.logWarn(
+          `Failed to read periphery registration for ${companion}: ${String(
+            reason
+          )}`
+        )
+        unresolved.add(companion)
+      }
+
+      // EVM reads fold into the batched multicall client (concurrent); Tron reads stay sequential
+      // to avoid spawning a troncast subprocess per companion at once.
+      if (ctx.isTron)
+        for (const companion of wanted)
+          try {
+            registered.set(
+              companion,
+              (await readPeripheryRegistry(companion, ctx)) !== null
+            )
+          } catch (error: unknown) {
+            markUnresolved(companion, error)
+          }
+      else {
+        const results = await Promise.allSettled(
+          wanted.map((companion) => readPeripheryRegistry(companion, ctx))
+        )
+        wanted.forEach((companion, index) => {
+          const result = results[index]
+          if (result?.status === 'fulfilled')
+            registered.set(companion, result.value !== null)
+          else markUnresolved(companion, result?.reason ?? 'no result')
+        })
+      }
+
+      for (const { companion, triggeredBy } of required) {
+        if (unresolved.has(companion)) {
+          ctx.logWarn(
+            `${triggeredBy.join(
+              ', '
+            )}: could not determine whether ${companion} is registered (lookup failed)`
+          )
+          continue
+        }
+
+        if (registered.get(companion)) {
+          consola.success(
+            `${companion} registered for ${triggeredBy.join(', ')}`
+          )
+          continue
+        }
+
+        ctx.logError(
+          `${triggeredBy.join(
+            ', '
+          )} live but companion ${companion} not registered in Diamond - destination calls for this integration are disabled on this network`
+        )
       }
     },
   },
@@ -1782,74 +1917,6 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         consola.success(
           'All stale registered facets are covered by parked removals'
         )
-    },
-  },
-  {
-    name: 'no-unexpected-erc20proxy-callers',
-    description: 'Only the Executor is authorized on the ERC20Proxy',
-    severity: 'warning',
-    scope: { environments: ['production'], chains: 'evm-only' },
-    run: async (ctx) => {
-      if (!ctx.publicClient) return
-      const erc20ProxyAddress = ctx.deployedContracts['ERC20Proxy']
-      const executorAddress = ctx.deployedContracts['Executor']
-      if (!erc20ProxyAddress || !executorAddress) return
-
-      const expectedAuthorized = new Set([
-        getAddress(executorAddress as Address).toLowerCase(),
-      ])
-
-      // ERC20Proxy exposes no enumerator for authorizedCallers, so reconstruct the current
-      // set from AuthorizationChanged events. Bound the scan to the proxy's deployment block:
-      // a `fromBlock: 'earliest'` full-history query is range-capped (throws) or silently
-      // truncated (false pass) by some providers on long-lived mainnet proxies. The events are
-      // sparse, so one bounded query returns the full set. Any failure surfaces as a visible
-      // warning (never a silent pass).
-      try {
-        const erc20Proxy = getAddress(erc20ProxyAddress as Address)
-        const fromBlock = await findDeploymentBlock(
-          ctx.publicClient,
-          erc20Proxy
-        )
-        const logs = await ctx.publicClient.getContractEvents({
-          address: erc20Proxy,
-          abi: parseAbi([
-            'event AuthorizationChanged(address indexed caller, bool authorized)',
-          ]),
-          eventName: 'AuthorizationChanged',
-          fromBlock,
-          toBlock: 'latest',
-        })
-
-        const authorized = new Map<string, boolean>()
-        for (const log of logs) {
-          const args = log.args as { caller?: Address; authorized?: boolean }
-          if (args.caller !== undefined && args.authorized !== undefined)
-            authorized.set(
-              getAddress(args.caller).toLowerCase(),
-              args.authorized
-            )
-        }
-
-        const unexpected = [...authorized.entries()]
-          .filter(([addr, isAuth]) => isAuth && !expectedAuthorized.has(addr))
-          .map(([addr]) => addr)
-
-        if (unexpected.length === 0)
-          consola.success('Only the Executor is authorized on the ERC20Proxy')
-        else
-          ctx.logWarn(
-            `ERC20Proxy authorizes unexpected caller(s) besides the Executor: ${unexpected.join(
-              ', '
-            )}`
-          )
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
-        ctx.logWarn(
-          `Could not enumerate ERC20Proxy authorized callers (RPC log range limit?); skipping: ${errorMessage}`
-        )
-      }
     },
   },
   {

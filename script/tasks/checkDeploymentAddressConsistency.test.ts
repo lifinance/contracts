@@ -39,7 +39,7 @@ describe('findMismatches', () => {
         whitelistPeriphery: { OutputValidator: '0xAAA' },
         deploymentFlat: { OutputValidator: '0xaaa', DiamondCutFacet: '0xF00' },
         diamondPeriphery: { OutputValidator: '0xAaA' },
-        diamondFacets: { DiamondCutFacet: '0xf00' },
+        diamondFacets: { DiamondCutFacet: ['0xf00'] },
       },
     ]
     expect(findMismatches(sources)).toEqual([])
@@ -70,7 +70,7 @@ describe('findMismatches', () => {
       {
         ...base,
         deploymentFlat: { DexManagerFacet: '0xnew' },
-        diamondFacets: { DexManagerFacet: '0xold' },
+        diamondFacets: { DexManagerFacet: ['0xold'] },
       },
     ]
     const result = findMismatches(sources)
@@ -81,6 +81,46 @@ describe('findMismatches', () => {
     })
   })
 
+  it('agrees when a facet is registered at several addresses and one matches', () => {
+    const sources: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xnew' },
+        diamondFacets: { SymbiosisFacet: ['0xnew', '0xold'] },
+      },
+    ]
+    expect(findMismatches(sources)).toEqual([])
+  })
+
+  it('agrees regardless of the order the addresses are registered in', () => {
+    const flipped: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xnew' },
+        diamondFacets: { SymbiosisFacet: ['0xold', '0xnew'] },
+      },
+    ]
+    expect(findMismatches(flipped)).toEqual([])
+  })
+
+  it('flags a multi-address facet when none of the addresses match', () => {
+    const sources: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xdeployed' },
+        diamondFacets: { SymbiosisFacet: ['0xold', '0xolder'] },
+      },
+    ]
+    const result = findMismatches(sources)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      kind: 'facet',
+      contract: 'SymbiosisFacet',
+    })
+    // the deployment log plus every registered address
+    expect(result[0]?.addresses).toHaveLength(3)
+  })
+
   it('ignores empty placeholders and contracts present in only one source', () => {
     const sources: INetworkSources[] = [
       {
@@ -88,7 +128,7 @@ describe('findMismatches', () => {
         whitelistPeriphery: { Patcher: '0xabc' },
         deploymentFlat: { Patcher: '0xabc' },
         diamondPeriphery: { Patcher: '' }, // not deployed -> ignored
-        diamondFacets: { LonelyFacet: '0x999' }, // only one source -> ignored
+        diamondFacets: { LonelyFacet: ['0x999'] }, // only one source -> ignored
       },
     ]
     expect(findMismatches(sources)).toEqual([])
