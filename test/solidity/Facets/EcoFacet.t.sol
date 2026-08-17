@@ -590,6 +590,60 @@ contract EcoFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_TronWithShortFinalCallData() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        // Final call carries the transfer selector but only 36 bytes of calldata
+        // (selector + recipient word, missing the amount word); the receiver
+        // decode must reject it via the length guard before reading the address.
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({
+            token: bridgeData.sendingAssetId,
+            amount: bridgeData.minAmount
+        });
+
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                USER_RECEIVER
+            )
+        });
+
+        EcoFacet.Route memory route = EcoFacet.Route({
+            salt: keccak256("eco.route.shortcalldata"),
+            deadline: uint64(block.timestamp + 1 days),
+            portal: PORTAL,
+            nativeAmount: 0,
+            tokens: tokens,
+            calls: calls
+        });
+
+        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
+            nonEVMReceiver: abi.encode(USER_RECEIVER),
+            prover: address(0x1234),
+            rewardDeadline: uint64(block.timestamp + 2 days),
+            encodedRoute: abi.encode(route),
+            solanaATA: bytes32(0),
+            refundRecipient: USER_SENDER
+        });
+
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
     function testRevert_TronWithEmptyRouteCalls() public {
         vm.startPrank(USER_SENDER);
 
