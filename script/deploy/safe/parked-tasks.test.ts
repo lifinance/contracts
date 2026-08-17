@@ -38,6 +38,7 @@ import {
   markCancelled,
   markExecuted,
   markSuperseded,
+  reopenResolvedTask,
   revertToQueued,
   setSafeTxHash,
   type IParkedTask,
@@ -188,6 +189,21 @@ function createFakeCollection(
     ): Promise<WithId<IParkedTask> | null> {
       const row = rows.find((r) => matchesFilter(r, filter))
       if (!row) return null
+      // The partial unique index applies to updates too, not only inserts: moving a
+      // terminal row back into an open status collides with an existing open row
+      // for the same taskKey (reopenResolvedTask depends on this).
+      const nextStatus = (update.$set as Partial<IParkedTask> | undefined)
+        ?.status
+      if (
+        nextStatus &&
+        OPEN.includes(nextStatus) &&
+        !OPEN.includes(row.status) &&
+        rows.some(
+          (r) =>
+            r !== row && r.taskKey === row.taskKey && OPEN.includes(r.status)
+        )
+      )
+        throw new FakeDuplicateKeyError()
       // Snapshot BEFORE mutating so the driver-default 'before' is honored — this
       // is what forces production to pass returnDocument:'after' for the
       // post-update assertions to hold.
@@ -461,24 +477,26 @@ describe('claimForProposal', () => {
 
 describe('status transitions', () => {
   const KEY = 'facet-removal|arbitrum|production|A'
+  function taskRow(status: IParkedTask['status']): IParkedTask {
+    return {
+      taskKey: KEY,
+      kind: 'facet-removal',
+      network: 'arbitrum',
+      environment: EnvironmentEnum.production,
+      facetName: 'A',
+      diamondAddress: DIAMOND,
+      facetAddress: FACET,
+      prUrl: PR_URL,
+      status,
+      enqueuer: 'dev@li.finance',
+      createdAt: new Date(),
+      proposedAt: new Date(),
+      safeTxHash: '0xabc',
+      resolvedAt: new Date(),
+    }
+  }
   function seedOne(status: IParkedTask['status']): IFakeCollection {
-    return createFakeCollection([
-      {
-        taskKey: KEY,
-        kind: 'facet-removal',
-        network: 'arbitrum',
-        environment: EnvironmentEnum.production,
-        facetName: 'A',
-        diamondAddress: DIAMOND,
-        facetAddress: FACET,
-        prUrl: PR_URL,
-        status,
-        enqueuer: 'dev@li.finance',
-        createdAt: new Date(),
-        proposedAt: new Date(),
-        safeTxHash: '0xabc',
-      },
-    ])
+    return createFakeCollection([taskRow(status)])
   }
 
   it('markExecuted flips proposed→executed and sets resolvedAt', async () => {
@@ -540,6 +558,37 @@ describe('status transitions', () => {
   it('revertToQueued is a no-op (null) on a queued task', async () => {
     const coll = seedOne('queued')
     expect(await revertToQueued(coll, KEY)).toBeNull()
+  })
+
+  it('reopenResolvedTask flips executed→queued and clears the resolution + proposal linkage', async () => {
+    const coll = seedOne('executed')
+    const doc = await reopenResolvedTask(coll, KEY)
+    expect(doc?.status).toBe('queued')
+    expect(doc?.resolvedAt).toBeUndefined()
+    expect(doc?.proposedAt).toBeUndefined()
+    expect(doc?.safeTxHash).toBeUndefined()
+  })
+
+  it('reopenResolvedTask flips superseded→queued', async () => {
+    const coll = seedOne('superseded')
+    expect((await reopenResolvedTask(coll, KEY))?.status).toBe('queued')
+  })
+
+  it('reopenResolvedTask refuses a cancelled task (deliberate operator decision)', async () => {
+    const coll = seedOne('cancelled')
+    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+    expect(coll.rows[0]?.status).toBe('cancelled')
+  })
+
+  it('reopenResolvedTask is a no-op (null) on an already-open task', async () => {
+    const coll = seedOne('queued')
+    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+  })
+
+  it('reopenResolvedTask returns null instead of throwing when an open task already tracks the facet', async () => {
+    const coll = createFakeCollection([taskRow('executed'), taskRow('queued')])
+    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+    expect(coll.rows[0]?.status).toBe('executed')
   })
 })
 

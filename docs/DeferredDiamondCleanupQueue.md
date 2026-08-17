@@ -586,12 +586,20 @@ origin-PR lines to the signer.
         │                    │
         │       linked proposal executed + loupe confirms facet absent
         │                    ▼
-        │                executed  (terminal, = done)
-        │
-        └── operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
+        │       executed / superseded  (terminal, = done)
+        │                    │
+        └────────────────────┘ reconcile: facet NAME still routed → reopen (EXSC-774)
+
+             operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
 ```
 
-All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
+`executed`/`superseded` are terminal but **not trusted**: every reconcile re-verifies
+them against the loupe, because a removal recorded as done that never actually landed
+was otherwise never re-checked and stayed invisible indefinitely (EXSC-774 — worldchain's
+`AcrossFacetV3` sat live for 18 days behind an `executed` record). `cancelled` is the only
+truly final state.
+
+All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 
 - **queued → proposed**: the drain, via the atomic `claimForProposal(parkedTasks,
   taskKey)` (`:324`) filtered on `status:'queued'` (§6 step 3). This is the dedup gate
@@ -608,6 +616,11 @@ All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 - **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
   — the facet is already absent on-chain (removed via another route); self-healing
   reconcile.
+- **executed/superseded → queued**: `reopenResolvedTask` — the reconcile finds the facet
+  still routed despite a terminal status, so the removal never landed. Clears
+  `resolvedAt`/`proposedAt`/`safeTxHash` and alerts the multisig-proposals channel.
+  `cancelled` is deliberately excluded (it records an operator's decision, not a claim
+  about on-chain state).
 - **→ cancelled**: `markCancelled` (`:383`) — an operator explicitly abandons the intent
   (deprecation reverted, facet re-added, or a protected facet queued in error). **Merged
   behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
@@ -723,7 +736,8 @@ only the PR-link surfacing (§6) and drops the manual `--auto` invocation.
 | No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9, 15; §7). |
 | Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts:119`); a queued protected facet is `cancelled` + alerted (§6). Inherits every #2047 guardrail (drift gate is N/A — named path). |
 | Deferred ≠ orphaned | Cold-network backstops: `--auto --all-networks` sweep + TTL Slack alert + observability CLI (§8). No silent truncation — the TTL alert names what's still queued. |
-| Deploy-log longevity | Address snapshot + loupe-by-address check so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). |
+| Deploy-log longevity | Address snapshot as a *fallback* so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). Presence is resolved by facet **name** first — a snapshot address can be flat wrong, and an address-only check then reports "gone" about an address nobody asked about (EXSC-774). |
+| A resolution can be wrong | `executed`/`superseded` are re-verified against the loupe on every reconcile and reopened when the facet is still routed (§7). A stored terminal status is never taken as proof. |
 | Opt-in in v1 | `DRAIN_PARKED_TASKS` **default off; ON for rollouts, OFF for emergencies** (§6) — an urgent pause/break-glass proposal never drags unrelated removals into its signing set; reentrancy-guarded (§6). |
 | Direct-send safety | Drain no-ops on staging/testnet/`SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Fact 13; §12). |
 | Rule compliance | TS/Bash, no Python (`000:15`); viem (`200:14`); reuse helpers (`:24`); new helpers 100%-covered colocated tests (`:120`); `citty`/`consola`/`getEnvVar` CLI (`:116`); `I`-prefixed interfaces; injectable I/O + dry-run-default per #2047 convention (Fact 14). |

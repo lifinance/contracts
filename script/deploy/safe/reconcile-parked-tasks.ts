@@ -4,12 +4,16 @@
  * Standalone counterpart to the drain (design: docs/DeferredDiamondCleanupQueue.md
  * §7/§8). Two responsibilities, both idempotent and safe to run on a cron:
  *
- *  1. **Reconcile** open tasks against on-chain truth. The loupe is primary — if a
- *     parked facet's address is no longer routed, the removal is done: a claimed
- *     (`proposed`) task whose linked proposal executed becomes `executed`, anything
- *     else that is already gone becomes `superseded` (removed via another route).
+ *  1. **Reconcile** tasks against on-chain truth. The loupe is primary, and presence
+ *     is resolved by facet NAME (see {@link resolveFacetPresence}) — if a parked
+ *     facet is no longer routed, the removal is done: a claimed (`proposed`) task
+ *     whose linked proposal executed becomes `executed`, anything else that is
+ *     already gone becomes `superseded` (removed via another route).
  *     A `proposed` task whose linked proposal `reverted` while the facet is still
- *     present is reverted to `queued` so the next drain re-proposes. The
+ *     present is reverted to `queued` so the next drain re-proposes. A task already
+ *     resolved as done (`executed`/`superseded`) whose facet is STILL routed is a
+ *     false resolution: it is reopened to `queued` and alerted, because a removal
+ *     recorded as done was otherwise never re-checked and stayed invisible. The
  *     `pendingTransactions` proposal status is an OPTIONAL signal: with tunnel
  *     access (`SC_MONGODB_URI`) the job distinguishes executed vs superseded and
  *     detects reverts; without it (loupe-only) a gone facet is `superseded`.
@@ -18,28 +22,38 @@
  *     to the multisig-proposals Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
- * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
- * {@link formatTtlAlertMessage}) are fully unit-tested; only the live CLI wiring
- * (Mongo/loupe/Slack) is unit-test exempt, mirroring `getParkedTasksCollection()`.
+ * Each (network, environment) is reconciled in isolation: the queue outlives
+ * networks, so one retired chain can no longer abort the sweep and leave every
+ * later network unverified. Skipped networks are alerted, never dropped silently.
+ *
+ * The pure decisions ({@link reconcileDecision}, {@link resolveFacetPresence},
+ * {@link computeTtlAlerts}, {@link formatTtlAlertMessage}) are fully unit-tested;
+ * only the live CLI wiring (Mongo/loupe/Slack) is unit-test exempt, mirroring
+ * `getParkedTasksCollection()`.
  * Dry-run by default (#2047 convention); pass `--yes` to apply transitions and
- * send the alert.
+ * send the alerts.
  */
 
 import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { getAddress } from 'viem'
 
+import { type EnvironmentEnum } from '../../common/types'
 import { SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 
-import { fetchOnChainFacets, resolveDiamondAddress } from './diamondRemovalDiff'
+import {
+  fetchOnChainFacets,
+  resolveAddressToName,
+  resolveDiamondAddress,
+} from './diamondRemovalDiff'
 import {
   getParkedTasksCollection,
   listParkedTasks,
   markExecuted,
   markSuperseded,
+  reopenResolvedTask,
   revertToQueued,
   type IParkedTask,
   type ParkedTaskStatus,
@@ -53,24 +67,43 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_TTL_DAYS = 60
 
 /** Lifecycle transition the reconcile should apply to a task. */
-export type ReconcileDecision = 'executed' | 'superseded' | 'revert' | 'keep'
+export type ReconcileDecision =
+  | 'executed'
+  | 'superseded'
+  | 'revert'
+  | 'reopen'
+  | 'keep'
+
+/** Statuses that claim the removal is done and are therefore re-verified against the loupe. */
+const RESOLVED_STATUSES: ParkedTaskStatus[] = ['executed', 'superseded']
 
 /** On-chain / proposal truth for one task, gathered by the live adapter. */
 export interface IReconcileContext {
-  /** Whether the task's facet address is still routed by the diamond loupe. */
+  /**
+   * Whether the task's facet is still routed by the diamond loupe — resolved by
+   * facet NAME first, with the stored `facetAddress` only as a fallback. See
+   * {@link resolveFacetPresence} for why the name must lead.
+   */
   facetPresentOnChain: boolean
   /** Linked proposal status, if `SC_MONGODB_URI` (tunnel) was reachable. */
   proposalStatus?: SafeTxStatus
 }
 
 /**
- * Decides the lifecycle transition for one open parked task from on-chain truth
- * (spec §7 state machine). Loupe-primary: a facet that is gone is terminal
- * (`executed` when its own proposal executed, else `superseded`); a still-present
- * facet whose linked proposal reverted goes back to `queued`; everything else is
- * left untouched.
+ * Decides the lifecycle transition for one parked task from on-chain truth
+ * (spec §7 state machine). Loupe-primary in both directions:
  *
- * @param task - The open task (only its `status` matters here).
+ * - A task claiming to be done (`executed`/`superseded`) whose facet is still
+ *   routed is a false resolution — reopened to `queued` so the next drain
+ *   re-proposes it. Without this, a removal that never executed is invisible
+ *   forever, since terminal states were previously never re-checked.
+ * - An open task whose facet is gone becomes terminal (`executed` when its own
+ *   proposal executed, else `superseded`).
+ * - An open, still-present task whose linked proposal reverted goes back to `queued`.
+ *
+ * `cancelled` is never revisited — it records a deliberate operator decision.
+ *
+ * @param task - The task (only its `status` matters here).
  * @param ctx - On-chain presence + optional linked-proposal status.
  * @returns The transition to apply (`keep` = no change).
  */
@@ -78,6 +111,11 @@ export function reconcileDecision(
   task: Pick<IParkedTask, 'status'>,
   ctx: IReconcileContext
 ): ReconcileDecision {
+  if (task.status === 'cancelled') return 'keep'
+
+  if (RESOLVED_STATUSES.includes(task.status))
+    return ctx.facetPresentOnChain ? 'reopen' : 'keep'
+
   if (!ctx.facetPresentOnChain) {
     if (task.status === 'proposed' && ctx.proposalStatus === 'executed')
       return 'executed'
@@ -86,6 +124,38 @@ export function reconcileDecision(
   if (task.status === 'proposed' && ctx.proposalStatus === 'reverted')
     return 'revert'
   return 'keep'
+}
+
+/**
+ * Resolves whether a parked task's facet is still routed by the diamond.
+ *
+ * Name-primary, address-fallback — and the order is load-bearing. The stored
+ * `facetAddress` is a snapshot taken at enqueue and can be flat wrong: a
+ * worldchain `AcrossFacetV3` task carried lisk's address, so an address-only check
+ * truthfully answered "that address is not routed" while the facet actually routed
+ * under that name on worldchain was never examined, and the task was resolved as
+ * `executed` while the facet stayed live for 18 days. The drain removes by name
+ * (`computeNamedFacetRemovals`), so presence must be judged by name too or the two
+ * disagree about what "done" means.
+ *
+ * The address remains a fallback so a pruned deploy-log entry — where no loupe
+ * address resolves to the name any more, but the snapshot address is still routed —
+ * still counts as present rather than being false-resolved (spec §8).
+ *
+ * @param task - The task's facet identity (name + stored address snapshot).
+ * @param routedNames - Facet names currently routed, resolved via the deploy log.
+ * @param routedAddresses - Lowercased addresses currently routed by the loupe.
+ * @returns `true` while the facet is still routed under either identity.
+ */
+export function resolveFacetPresence(
+  task: Pick<IParkedTask, 'facetName' | 'facetAddress'>,
+  routedNames: Set<string>,
+  routedAddresses: Set<string>
+): boolean {
+  return (
+    routedNames.has(task.facetName) ||
+    routedAddresses.has(task.facetAddress.toLowerCase())
+  )
 }
 
 /** An open task that has aged past the TTL, for the cold-network alert. */
@@ -160,6 +230,89 @@ export function formatTtlAlertMessage(
   return lines.join('\n')
 }
 
+/** A task that claimed to be done while its facet is still routed. */
+export interface IReopenedParkedTask {
+  network: string
+  facet: string
+  prUrl: string
+  /** The terminal status the task was reopened from. */
+  from: ParkedTaskStatus
+}
+
+/** A (network, environment) whose on-chain state could not be read, so its tasks went unverified. */
+export interface IReconcileFailure {
+  network: string
+  environment: EnvironmentEnum
+  reason: string
+}
+
+/** Outcome of one reconcile sweep. */
+export interface IReconcileRun {
+  reopened: IReopenedParkedTask[]
+  /** Networks skipped because their state was unreadable — never silently dropped. */
+  failures: IReconcileFailure[]
+}
+
+/**
+ * Formats the unreconciled-network alert. Returns `''` when every network was
+ * verified.
+ *
+ * A network whose state cannot be read has its parked tasks verified by nothing at
+ * all, which is the same invisibility this job exists to prevent — so a skip is
+ * always reported rather than quietly tolerated.
+ *
+ * @param failures - Networks skipped during the sweep.
+ * @returns A Slack-ready message, or `''` if `failures` is empty.
+ */
+export function formatReconcileFailureMessage(
+  failures: IReconcileFailure[]
+): string {
+  if (failures.length === 0) return ''
+  const lines = [
+    `⚠️ ${failures.length} network(s) could not be reconciled — their parked tasks were NOT verified this run:`,
+  ]
+  for (const f of failures)
+    lines.push(`   - ${f.network}:${f.environment} — ${f.reason}`)
+  // Without a remedy this alert repeats every run forever: a retired network can
+  // never be reconciled, so its tasks have to be cancelled to clear the backlog.
+  lines.push(
+    '   → transient RPC/config problem: no action needed. Retired network: cancel its parked tasks so the queue stops tracking a chain that no longer exists.'
+  )
+  return lines.join('\n')
+}
+
+/**
+ * Formats the false-resolution alert. Returns `''` when nothing was reopened so
+ * the caller can skip sending.
+ *
+ * This is the loud half of the fix: a reopened task is proof that a removal we
+ * recorded as done never landed, which is exactly the failure that previously left
+ * a deprecated facet live and unmonitored.
+ *
+ * @param reopened - Tasks reopened by this run.
+ * @returns A Slack-ready message, or `''` if `reopened` is empty.
+ */
+export function formatReopenAlertMessage(
+  reopened: IReopenedParkedTask[]
+): string {
+  if (reopened.length === 0) return ''
+  const byNetwork = new Map<string, IReopenedParkedTask[]>()
+  for (const r of reopened) {
+    const list = byNetwork.get(r.network) ?? []
+    list.push(r)
+    byNetwork.set(r.network, list)
+  }
+  const lines = [
+    `🚨 ${reopened.length} deferred diamond-cleanup task(s) were marked done but their facet is STILL ROUTED — re-queued for removal:`,
+  ]
+  for (const [network, list] of byNetwork) {
+    lines.push(`[${network}]`)
+    for (const r of list)
+      lines.push(`   - ${r.facet} (was ${r.from}) → ${r.prUrl}`)
+  }
+  return lines.join('\n')
+}
+
 // ───────────────────────── live adapter (unit-test exempt) ─────────────────────
 
 type PendingTransactions = Awaited<
@@ -178,29 +331,31 @@ async function resolveProposalStatus(
   return doc?.status
 }
 
-/** Reconciles every open task, grouped by (network, environment) so the loupe is fetched once each. */
+/**
+ * Reconciles every task that is not `cancelled`, grouped by (network, environment)
+ * so the loupe and deploy log are fetched once each.
+ *
+ * Resolved (`executed`/`superseded`) tasks are re-verified alongside open ones:
+ * trusting a stored terminal status is what made a removal that never executed
+ * invisible indefinitely. Reopened tasks are returned so the caller can alert.
+ */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
   apply: boolean
-): Promise<void> {
-  const open = [
-    ...(await listParkedTasks(parkedTasks, {
-      network: networkFilter,
-      status: 'queued',
-    })),
-    ...(await listParkedTasks(parkedTasks, {
-      network: networkFilter,
-      status: 'proposed',
-    })),
-  ]
-  if (open.length === 0) {
-    consola.info('No open parked tasks to reconcile')
-    return
+): Promise<IReconcileRun> {
+  const candidates = (
+    await listParkedTasks(parkedTasks, { network: networkFilter })
+  ).filter((t) => t.status !== 'cancelled')
+  if (candidates.length === 0) {
+    consola.info('No parked tasks to reconcile')
+    return { reopened: [], failures: [] }
   }
 
-  const byNetworkEnv = new Map<string, typeof open>()
-  for (const t of open) {
+  const reopened: IReopenedParkedTask[] = []
+  const failures: IReconcileFailure[] = []
+  const byNetworkEnv = new Map<string, typeof candidates>()
+  for (const t of candidates) {
     const key = `${t.network}:${t.environment}`
     const list = byNetworkEnv.get(key) ?? []
     list.push(t)
@@ -224,15 +379,46 @@ async function reconcileAll(
       const first = tasks[0]
       if (!first) continue
       const { network, environment } = first
-      const diamondAddress = await resolveDiamondAddress(network, environment)
-      if (!diamondAddress) {
+      // Per-network isolation: the queue outlives networks (a retired chain keeps
+      // its parked tasks but leaves `networks.json`, so the loupe read throws), and
+      // one such chain must not abort the sweep. Every network ordered after it
+      // would otherwise never be reconciled at all — silently.
+      let onChain: Awaited<ReturnType<typeof fetchOnChainFacets>>
+      let addressToName: Record<string, string>
+      try {
+        const diamondAddress = await resolveDiamondAddress(network, environment)
+        if (!diamondAddress) {
+          consola.warn(
+            `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          )
+          failures.push({
+            network,
+            environment,
+            reason: 'no LiFiDiamond in deploy log',
+          })
+          continue
+        }
+        ;[onChain, addressToName] = await Promise.all([
+          fetchOnChainFacets(diamondAddress, network),
+          resolveAddressToName(network, environment),
+        ])
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error)
         consola.warn(
-          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          `[${network}:${environment}] cannot read on-chain state — skipping: ${reason}`
         )
+        failures.push({ network, environment, reason })
         continue
       }
-      const onChain = await fetchOnChainFacets(diamondAddress, network)
-      const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+
+      const routedAddresses = new Set(
+        onChain.map((f) => f.address.toLowerCase())
+      )
+      const routedNames = new Set(
+        onChain
+          .map((f) => addressToName[f.address.toLowerCase()])
+          .filter((name): name is string => name !== undefined)
+      )
 
       for (const task of tasks) {
         const proposalStatus = await resolveProposalStatus(
@@ -240,15 +426,30 @@ async function reconcileAll(
           task.safeTxHash
         )
         const decision = reconcileDecision(task, {
-          facetPresentOnChain: routed.has(
-            getAddress(task.facetAddress).toLowerCase()
+          facetPresentOnChain: resolveFacetPresence(
+            task,
+            routedNames,
+            routedAddresses
           ),
           proposalStatus,
         })
         consola.info(
           `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
         )
-        if (!apply || decision === 'keep') continue
+        if (decision === 'keep') continue
+        if (decision === 'reopen') {
+          // Recorded in dry-run too, so the false-resolution alert is visible
+          // without --yes; only the Slack send is gated on applying.
+          if (!apply || (await reopenResolvedTask(parkedTasks, task.taskKey)))
+            reopened.push({
+              network,
+              facet: task.facetName,
+              prUrl: task.prUrl,
+              from: task.status,
+            })
+          continue
+        }
+        if (!apply) continue
         if (decision === 'executed')
           await markExecuted(parkedTasks, task.taskKey)
         else if (decision === 'superseded')
@@ -259,6 +460,33 @@ async function reconcileAll(
     }
   } finally {
     await safeMongoClient?.close()
+  }
+  return { reopened, failures }
+}
+
+/** Logs and (when applying) sends the reconcile sweep's alerts. */
+async function runReconcileAlerts(
+  run: IReconcileRun,
+  apply: boolean
+): Promise<void> {
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS
+  const send = async (message: string): Promise<void> => {
+    if (apply && webhookUrl)
+      await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
+        text: message,
+      })
+  }
+
+  const reopenMessage = formatReopenAlertMessage(run.reopened)
+  if (reopenMessage) {
+    consola.error(reopenMessage)
+    await send(reopenMessage)
+  }
+
+  const failureMessage = formatReconcileFailureMessage(run.failures)
+  if (failureMessage) {
+    consola.warn(failureMessage)
+    await send(failureMessage)
   }
 }
 
@@ -316,7 +544,8 @@ const main = defineCommand({
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      await reconcileAll(parkedTasks, args.network, apply)
+      const run = await reconcileAll(parkedTasks, args.network, apply)
+      await runReconcileAlerts(run, apply)
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
     } finally {
       await client.close()

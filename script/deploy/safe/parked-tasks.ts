@@ -496,6 +496,52 @@ export async function setSafeTxHash(
 }
 
 /**
+ * Reopens a task that was resolved as done (`executed`/`superseded`) but whose
+ * facet is demonstrably still routed — the removal never actually landed. Sends it
+ * back to `queued` and clears the stale proposal linkage and resolution stamp so
+ * the next drain re-proposes it from scratch.
+ *
+ * `cancelled` is deliberately NOT reopenable: that state records an operator
+ * explicitly abandoning the intent, and re-queueing it would fight that decision.
+ *
+ * Reopening re-enters the *open* statuses the partial unique index covers, so it
+ * collides (E11000) when a fresh open task already exists for the same `taskKey`.
+ * That is a benign race — the facet is already tracked — so it returns `null`
+ * rather than throwing, mirroring {@link enqueueParkedTask}.
+ *
+ * @param parkedTasks - The queue collection.
+ * @param taskKey - The terminal task to reopen.
+ * @returns The reopened task, `null` if it was not `executed`/`superseded`, or
+ *   `null` if an open task for the same `taskKey` already exists.
+ */
+export async function reopenResolvedTask(
+  parkedTasks: Collection<IParkedTask>,
+  taskKey: string
+): Promise<WithId<IParkedTask> | null> {
+  try {
+    return await transition(
+      parkedTasks,
+      taskKey,
+      ['executed', 'superseded'],
+      { status: 'queued' },
+      { proposedAt: '', safeTxHash: '', resolvedAt: '' }
+    )
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 11000
+    ) {
+      consola.warn(
+        `Cannot reopen resolved task - an open task already tracks it.\n  Task key: ${taskKey}`
+      )
+      return null
+    }
+    throw error
+  }
+}
+
+/**
  * Reverts a claimed (`proposed`) task back to `queued` when no stored proposal
  * carries its removal (preparation failure, primary-proposal failure, or duplicate
  * primary), clearing the stale `proposedAt`/`safeTxHash` so the next drain

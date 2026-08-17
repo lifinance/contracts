@@ -4,14 +4,17 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
+import { EnvironmentEnum } from '../common/types'
 
 import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  findDeprecatedLiveFacets,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -147,6 +150,91 @@ describe('findDuplicateSelectors', () => {
       { address: '0xAAA', selectors: ['0x11111111', '0x11111111'] },
     ])
     expect(result).toEqual([])
+  })
+})
+
+describe('findDeprecatedLiveFacets', () => {
+  const LIVE = '0x00000000000000000000000000000000000000AA'
+  const KEEP = '0x00000000000000000000000000000000000000bb'
+  const SELECTORS: Hex[] = ['0xdeadbeef']
+
+  /** A deprecated facet: routed, in the deploy log, absent from target state, source gone. */
+  function base(): Parameters<typeof findDeprecatedLiveFacets>[0] {
+    return {
+      networkLower: 'worldchain',
+      environment: EnvironmentEnum.production,
+      onChainFacets: [{ address: LIVE, selectors: SELECTORS }],
+      deployedContracts: { AcrossFacetV3: LIVE },
+      expectedNames: new Set(['AcrossFacetV4']),
+      protectedNames: new Set(['DiamondCutFacet']),
+      sourceNames: new Set(['AcrossFacetV4']),
+    }
+  }
+
+  it('flags a facet that is routed, absent from target state and whose source is gone', () => {
+    const found = findDeprecatedLiveFacets(base())
+    expect(found).toHaveLength(1)
+    expect(found[0]?.name).toBe('AcrossFacetV3')
+    expect(found[0]?.selectors).toEqual(SELECTORS)
+  })
+
+  it('ignores a facet that target state still expects', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        expectedNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a facet whose source still exists (target-state drift, not a deprecation)', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        sourceNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('never flags a protected facet, even when target state omits it', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        deployedContracts: { DiamondCutFacet: LIVE },
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a routed address the deploy log cannot name (no-unexpected-facets owns that)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), deployedContracts: {} })
+    ).toHaveLength(0)
+  })
+
+  it('matches deploy-log addresses case-insensitively', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      deployedContracts: { AcrossFacetV3: LIVE.toLowerCase() },
+    })
+    expect(found).toHaveLength(1)
+  })
+
+  it('returns nothing when the network has no target-state entry (would flag everything)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), expectedNames: undefined })
+    ).toHaveLength(0)
+  })
+
+  it('reports only the deprecated facet when an expected one is routed alongside it', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      onChainFacets: [
+        { address: LIVE, selectors: SELECTORS },
+        { address: KEEP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV3: LIVE, AcrossFacetV4: KEEP },
+    })
+    expect(found.map((f) => f.name)).toEqual(['AcrossFacetV3'])
   })
 })
 

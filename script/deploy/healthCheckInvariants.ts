@@ -28,9 +28,20 @@ import {
   type PublicClient,
 } from 'viem'
 
-import type { IWhitelistConfig, TargetState } from '../common/types'
+import {
+  EnvironmentEnum,
+  type IWhitelistConfig,
+  type TargetState,
+} from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
+import {
+  diffFacets,
+  getExpectedFacetNames,
+  getProtectedNames,
+  getSourceContractNames,
+  type IFacetRemoval,
+} from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -879,6 +890,71 @@ async function readPeripheryRegistry(
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
 }
+
+/**
+ * Facets that are routed by the diamond but should no longer exist: absent from
+ * target state, not on the never-remove allowlist, and with no `.sol` source left
+ * under `src/` — i.e. deprecated by `/deprecate-contract` whose removal never
+ * actually landed on this chain.
+ *
+ * Returns `[]` when the network/environment has no target-state `LiFiDiamond`
+ * block: an absent entry is not "expects zero facets", and diffing it would
+ * classify every routed facet as deprecated.
+ *
+ * A facet routed at an address the deploy log cannot name is NOT reported here —
+ * that is `no-unexpected-facets`' job. This check answers the complementary
+ * question that invariant cannot: *should* a known facet still be here?
+ *
+ * @param params.deployedContracts - Deploy-log `{name: address}` map, inverted here
+ *   to resolve loupe addresses to names (works for both hex and Tron base58).
+ * @param params.expectedNames - Target-state `LiFiDiamond` contract names, or
+ *   `undefined` when the network/environment has no entry at all.
+ * @returns The deprecated-but-routed facets, each with the selectors the loupe
+ *   currently routes to it.
+ */
+export function findDeprecatedLiveFacets(params: {
+  networkLower: string
+  environment: EnvironmentEnum
+  onChainFacets: IOnChainFacet[]
+  deployedContracts: Record<string, Address | string>
+  expectedNames: Set<string> | undefined
+  protectedNames: Set<string>
+  sourceNames: Set<string>
+}): IFacetRemoval[] {
+  const { expectedNames } = params
+  if (!expectedNames) return []
+
+  const addressToName: Record<string, string> = {}
+  for (const [name, address] of Object.entries(params.deployedContracts))
+    addressToName[String(address).toLowerCase()] = name
+
+  return diffFacets({
+    network: params.networkLower,
+    environment: params.environment,
+    onChainFacets: params.onChainFacets.map((f) => ({
+      address: f.address as Address,
+      selectors: f.selectors as Hex[],
+    })),
+    addressToName,
+    expectedNames,
+    protectedNames: params.protectedNames,
+    // Detection only, so nothing is held back: with an empty active-selector set
+    // `removals` is exactly the deprecated-but-routed facet set. Populating it
+    // would require compiled artifacts and throws when they are stale — never
+    // acceptable in a health check, and the actual removal path
+    // (`cleanUpProdDiamond`) computes the real held-back set anyway.
+    activeSelectors: new Set<string>(),
+    sourceNames: params.sourceNames,
+  }).removals
+}
+
+/**
+ * Memoized `src/` walk — the health check evaluates every network in one process,
+ * and the source set is identical for all of them.
+ */
+let sourceContractNamesCache: Set<string> | undefined
+const cachedSourceContractNames = (): Set<string> =>
+  (sourceContractNamesCache ??= getSourceContractNames())
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1767,6 +1843,59 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       if (unexpected === 0)
         consola.success('All on-chain facets are known deployed contracts')
+    },
+  },
+  {
+    name: 'no-deprecated-facets',
+    description:
+      'No deprecated facet (source deleted, absent from target state) is still routed',
+    severity: 'warning',
+    scope: {},
+    readsOnChainFacets: true,
+    remediation:
+      'The removal never landed on this chain. Run `cleanUpProdDiamond --auto --network <network>` to park/propose it (docs/DeferredDiamondCleanupQueue.md).',
+    run: async (ctx) => {
+      if (ctx.onChainFacets.length === 0) {
+        consola.info(
+          'On-chain facet list unavailable; skipping deprecated-facet check'
+        )
+        return
+      }
+      const environment =
+        ctx.environment === EnvironmentEnum.staging
+          ? EnvironmentEnum.staging
+          : EnvironmentEnum.production
+      const expectedNames = getExpectedFacetNames(ctx.networkLower, environment)
+      if (!expectedNames) {
+        consola.info(
+          `No LiFiDiamond target-state entry for ${ctx.networkLower}/${environment}; skipping deprecated-facet check`
+        )
+        return
+      }
+
+      const deprecated = findDeprecatedLiveFacets({
+        networkLower: ctx.networkLower,
+        environment,
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: ctx.deployedContracts,
+        expectedNames,
+        protectedNames: getProtectedNames(),
+        sourceNames: cachedSourceContractNames(),
+      })
+
+      if (deprecated.length === 0) {
+        consola.success('No deprecated facets are still routed')
+        return
+      }
+      // One aggregated warning per network, not one per facet: the fleet-wide
+      // backlog is large enough that per-facet lines would drown the report.
+      ctx.logWarn(
+        `${
+          deprecated.length
+        } deprecated facet(s) still routed by the diamond: ${deprecated
+          .map((f) => `${f.name} (${f.address})`)
+          .join(', ')}`
+      )
     },
   },
   {
