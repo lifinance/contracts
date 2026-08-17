@@ -41,6 +41,7 @@ import type { SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
+import { networks } from '../../utils/viemScriptHelpers'
 
 import { fetchOnChainFacets, resolveDiamondAddress } from './diamondRemovalDiff'
 import {
@@ -259,12 +260,20 @@ async function resolveProposalStatus(
   return doc?.status
 }
 
-/** Reconciles every open task, grouped by (network, environment) so the loupe is fetched once each. */
+/**
+ * Reconciles every open task, grouped by (network, environment) so the loupe is
+ * fetched once each. Fault-isolated per network: a retired network (dropped from
+ * `config/networks.json` while its tasks were parked) or a failing RPC must never
+ * abort the sweep — one dead network previously froze reconciliation for the
+ * whole fleet (4/4 weekly cron runs died on a retired network's tasks).
+ *
+ * @returns The networks whose reconcile failed (empty when the sweep completed).
+ */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
   apply: boolean
-): Promise<void> {
+): Promise<string[]> {
   const open = [
     ...(await listParkedTasks(parkedTasks, {
       network: networkFilter,
@@ -277,7 +286,7 @@ async function reconcileAll(
   ]
   if (open.length === 0) {
     consola.info('No open parked tasks to reconcile')
-    return
+    return []
   }
 
   const byNetworkEnv = new Map<string, typeof open>()
@@ -300,47 +309,64 @@ async function reconcileAll(
     pendingTransactions = col.pendingTransactions
   }
 
+  const failed: string[] = []
   try {
     for (const tasks of byNetworkEnv.values()) {
       const first = tasks[0]
       if (!first) continue
       const { network, environment } = first
-      const diamondAddress = await resolveDiamondAddress(network, environment)
-      if (!diamondAddress) {
+      if (!networks[network]) {
         consola.warn(
-          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          `[${network}:${environment}] network is no longer in config/networks.json (retired) — its ${tasks.length} open task(s) can never drain or reconcile. Cancel them (markCancelled) or migrate. Skipping.`
         )
         continue
       }
-      const onChain = await fetchOnChainFacets(diamondAddress, network)
-      const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+      try {
+        const diamondAddress = await resolveDiamondAddress(network, environment)
+        if (!diamondAddress) {
+          consola.warn(
+            `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          )
+          continue
+        }
+        const onChain = await fetchOnChainFacets(diamondAddress, network)
+        const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
 
-      for (const task of tasks) {
-        const proposalStatus = await resolveProposalStatus(
-          pendingTransactions,
-          task.safeTxHash
+        for (const task of tasks) {
+          const proposalStatus = await resolveProposalStatus(
+            pendingTransactions,
+            task.safeTxHash
+          )
+          const decision = reconcileDecision(task, {
+            facetPresentOnChain: routed.has(
+              getAddress(task.facetAddress).toLowerCase()
+            ),
+            proposalStatus,
+          })
+          consola.info(
+            `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
+          )
+          if (!apply || decision === 'keep') continue
+          if (decision === 'executed')
+            await markExecuted(parkedTasks, task.taskKey)
+          else if (decision === 'superseded')
+            await markSuperseded(parkedTasks, task.taskKey)
+          else if (decision === 'revert')
+            await revertToQueued(parkedTasks, task.taskKey)
+        }
+      } catch (error) {
+        failed.push(network)
+        consola.error(
+          `[${network}:${environment}] reconcile failed — continuing with remaining networks: ${
+            error instanceof Error ? error.message : String(error)
+          }`
         )
-        const decision = reconcileDecision(task, {
-          facetPresentOnChain: routed.has(
-            getAddress(task.facetAddress).toLowerCase()
-          ),
-          proposalStatus,
-        })
-        consola.info(
-          `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
-        )
-        if (!apply || decision === 'keep') continue
-        if (decision === 'executed')
-          await markExecuted(parkedTasks, task.taskKey)
-        else if (decision === 'superseded')
-          await markSuperseded(parkedTasks, task.taskKey)
-        else if (decision === 'revert')
-          await revertToQueued(parkedTasks, task.taskKey)
       }
     }
   } finally {
     await safeMongoClient?.close()
   }
+  return failed
 }
 
 /**
@@ -429,9 +455,25 @@ const main = defineCommand({
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      await reconcileAll(parkedTasks, args.network, apply)
+      const failedNetworks = await reconcileAll(
+        parkedTasks,
+        args.network,
+        apply
+      )
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
       await reportSafeToPrune(parkedTasks, args.network)
+      // Surface a partial sweep as a failed job (never a silent green), but only
+      // after the TTL alert + prune report ran for the networks that succeeded.
+      if (failedNetworks.length > 0) {
+        consola.error(
+          `Reconcile incomplete — ${
+            failedNetworks.length
+          } network(s) failed: ${failedNetworks.join(
+            ', '
+          )}. Re-run with --network <X> after fixing.`
+        )
+        process.exitCode = 1
+      }
     } finally {
       await client.close()
     }
