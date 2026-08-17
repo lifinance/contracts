@@ -95,7 +95,7 @@ Several of the bundled skills (`sc-design-review`, `start-linear-ticket`, etc.) 
 
 ### Slack is not in `.mcp.json`
 
-`post-pr-for-review` and `finish-rollout` need Slack, but Slack cannot be declared here: its OAuth server does not support dynamic client registration, so Claude Code cannot register itself as a client and every auth attempt fails with `Incompatible auth server`. Slack requires a pre-registered OAuth app.
+`post-pr-for-review`, `finish-rollout`, `multisig-rollout`, `offboard-sc-dev`, `check-open-prs`, `request-audit` and `resolve-audit-issues` all call Slack, but Slack cannot be declared here: its OAuth server does not support dynamic client registration, so Claude Code cannot register itself as a client and every auth attempt fails with `Incompatible auth server`. Slack requires a pre-registered OAuth app.
 
 Add it as a **claude.ai connector** instead (claude.ai → Settings → Connectors → Slack), which uses Anthropic's registered Slack app. It then appears in Claude Code alongside the servers above, and the Slack-dependent skills work as documented.
 
@@ -118,3 +118,5 @@ Add it as a **claude.ai connector** instead (claude.ai → Settings → Connecto
 ### Adding a new MCP server
 
 If you're adding a skill that depends on a new MCP server, also add the server to `.mcp.json` and document it in the table above. Keep the criterion strict: only servers that something *in this repo* actively calls. Personal productivity MCPs (Gmail, Calendar, etc.) belong in your user-level Claude Code config, not here.
+
+One exception: a server whose OAuth provider doesn't support dynamic client registration cannot be declared in `.mcp.json` at all — Claude Code has no client ID to register with and the entry fails permanently. Route those through a claude.ai connector and document them like Slack above, rather than adding a block that can never authenticate.
