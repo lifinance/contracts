@@ -732,9 +732,9 @@ contract FraxFacetTest is TestBaseFacet {
 
     function test_WillStoreConstructorParametersCorrectly() public {
         fraxFacet = new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
-        assertEq(address(fraxFacet.HOP()), HOP);
-        assertEq(fraxFacet.TIP_FEE_MANAGER(), address(0));
-        assertEq(fraxFacet.PATH_USD(), address(0));
+        assertEq(address(fraxFacet.FRAX_HOP()), HOP);
+        assertEq(fraxFacet.FRAX_TIP_FEE_MANAGER(), address(0));
+        assertEq(fraxFacet.FRAX_PATH_USD(), address(0));
     }
 
     function testRevert_WhenConstructedWithZeroHop() public {

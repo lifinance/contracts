@@ -45,18 +45,18 @@ contract FraxFacet is
 
     /// @notice The Frax HopV2 contract on this chain (hub on Fraxtal, spoke elsewhere).
     ///         This is also the token approval target ("approvalAddress").
-    IFraxHopV2 public immutable HOP;
+    IFraxHopV2 public immutable FRAX_HOP;
 
     /// @notice The Tempo TIP20 fee manager. Non-zero ONLY on Tempo, whose LayerZero
     ///         EndpointV2Alt rejects native msg.value and charges the messaging fee in an
     ///         ERC20 gas token instead. Zero on every standard chain, which selects the
     ///         native-fee path. This single immutable is what lets one FraxFacet source
     ///         serve every chain (see docs/FraxFacet.md).
-    address public immutable TIP_FEE_MANAGER;
+    address public immutable FRAX_TIP_FEE_MANAGER;
 
     /// @notice The default Tempo gas token (PATH_USD) used when the diamond has not opted
     ///         into a specific TIP20 gas token. Set only on Tempo; zero elsewhere.
-    address public immutable PATH_USD;
+    address public immutable FRAX_PATH_USD;
 
     /// Types ///
 
@@ -123,9 +123,9 @@ contract FraxFacet is
         ) {
             revert InvalidConfig();
         }
-        HOP = _hop;
-        TIP_FEE_MANAGER = _tipFeeManager;
-        PATH_USD = _pathUsd;
+        FRAX_HOP = _hop;
+        FRAX_TIP_FEE_MANAGER = _tipFeeManager;
+        FRAX_PATH_USD = _pathUsd;
     }
 
     /// Admin Methods ///
@@ -242,7 +242,7 @@ contract FraxFacet is
         // On standard chains the LayerZero fee is the only native outflow and must come from
         // msg.value, never from stray diamond balance. On Tempo the fee is an ERC20, so no
         // native should be sent at all (EndpointV2Alt would revert on non-zero msg.value).
-        if (TIP_FEE_MANAGER == address(0)) {
+        if (FRAX_TIP_FEE_MANAGER == address(0)) {
             if (_fraxData.nativeFee > msg.value) {
                 revert InvalidCallData();
             }
@@ -285,7 +285,7 @@ contract FraxFacet is
         // On Tempo the fee is an ERC20 and no native is ever consumed; reject stray msg.value
         // here too (symmetric with the non-swap path) so it fails fast instead of being
         // silently refunded late.
-        if (TIP_FEE_MANAGER != address(0) && msg.value != 0) {
+        if (FRAX_TIP_FEE_MANAGER != address(0) && msg.value != 0) {
             revert InvalidCallData();
         }
 
@@ -310,7 +310,7 @@ contract FraxFacet is
             _bridgeData.minAmount,
             _swapData,
             payable(_fraxData.refundRecipient),
-            TIP_FEE_MANAGER == address(0) ? _fraxData.nativeFee : 0
+            FRAX_TIP_FEE_MANAGER == address(0) ? _fraxData.nativeFee : 0
         );
 
         _startBridge(_bridgeData, _fraxData);
@@ -377,7 +377,7 @@ contract FraxFacet is
         // HopV2 only routes OFTs it has been configured with; an unapproved one reverts inside
         // sendOFT. Checked BEFORE oft.token() below so the only external call this facet makes
         // to the caller-supplied oft address is to one the hop itself already allowlists.
-        if (!HOP.approvedOft(_fraxData.oft)) {
+        if (!FRAX_HOP.approvedOft(_fraxData.oft)) {
             revert TokenNotSupported();
         }
 
@@ -406,13 +406,13 @@ contract FraxFacet is
         ILiFi.BridgeData memory _bridgeData,
         FraxData calldata _fraxData
     ) internal {
-        // NOTE: oft.token() == sendingAssetId and HOP.approvedOft(oft) are enforced in
+        // NOTE: oft.token() == sendingAssetId and FRAX_HOP.approvedOft(oft) are enforced in
         // _validateFraxData, before any deposit or swap.
 
         // HopV2 floors the amount to the OFT's dust granularity and only pulls the floored
         // amount. Compute it up front so we approve and bridge exactly that, and can return
         // the un-bridged dust to the user instead of leaving it stranded in the diamond.
-        uint256 flooredAmount = HOP.removeDust(
+        uint256 flooredAmount = FRAX_HOP.removeDust(
             _fraxData.oft,
             _bridgeData.minAmount
         );
@@ -422,7 +422,7 @@ contract FraxFacet is
 
         LibAsset.maxApproveERC20(
             IERC20(_bridgeData.sendingAssetId),
-            address(HOP),
+            address(FRAX_HOP),
             flooredAmount
         );
 
@@ -442,8 +442,8 @@ contract FraxFacet is
             );
         }
 
-        if (TIP_FEE_MANAGER == address(0)) {
-            HOP.sendOFT{ value: _fraxData.nativeFee }(
+        if (FRAX_TIP_FEE_MANAGER == address(0)) {
+            FRAX_HOP.sendOFT{ value: _fraxData.nativeFee }(
                 _fraxData.oft,
                 _fraxData.dstEid,
                 recipient,
@@ -480,7 +480,7 @@ contract FraxFacet is
     ///      LayerZero fee in a TIP20 ERC20 gas token, which HopV2 pulls from the diamond
     ///      (msg.sender) via transferFrom. So the diamond must (1) hold that fee token and
     ///      (2) approve it to HopV2, in addition to the bridged-token approval above. The fee
-    ///      token is the one the diamond opted into via TIP_FEE_MANAGER, else PATH_USD; its
+    ///      token is the one the diamond opted into via FRAX_TIP_FEE_MANAGER, else FRAX_PATH_USD; its
     ///      amount is quoted in-token by HopV2.quoteStatic. msg.value is 0.
     /// @dev BE-integration note (EXP-514): the fee token must be made available to the diamond
     ///      by the caller for the transferFrom pull to succeed - see docs/FraxFacet.md.
@@ -494,11 +494,11 @@ contract FraxFacet is
         bytes32 _recipient,
         uint256 _amount
     ) internal {
-        address feeToken = ITipFeeManager(TIP_FEE_MANAGER).userTokens(
+        address feeToken = ITipFeeManager(FRAX_TIP_FEE_MANAGER).userTokens(
             address(this)
         );
         if (feeToken == address(0)) {
-            feeToken = PATH_USD;
+            feeToken = FRAX_PATH_USD;
         }
 
         // The unused-fee sweep below tracks the fee token by a balance delta taken after the
@@ -510,7 +510,7 @@ contract FraxFacet is
             revert InformationMismatch();
         }
 
-        uint256 feeAmount = HOP.quoteStatic(
+        uint256 feeAmount = FRAX_HOP.quoteStatic(
             _fraxData.oft,
             _fraxData.dstEid,
             _recipient,
@@ -532,12 +532,12 @@ contract FraxFacet is
             LibAsset.depositAsset(feeToken, feeAmount);
             LibAsset.maxApproveERC20(
                 IERC20(feeToken),
-                address(HOP),
+                address(FRAX_HOP),
                 feeAmount
             );
         }
 
-        HOP.sendOFT(
+        FRAX_HOP.sendOFT(
             _fraxData.oft,
             _fraxData.dstEid,
             _recipient,

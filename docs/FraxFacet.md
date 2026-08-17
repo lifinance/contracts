@@ -6,7 +6,7 @@ The FraxFacet bridges tokens through **Frax HopV2**, a LayerZero V2 OFT
 hub-and-spoke bridge. **Fraxtal** (chainId `252`) is the hub; every other chain
 is a spoke, and all spokes share a single CREATE2 address for the HopV2 contract.
 The facet pulls the sending asset into the Diamond and calls
-`HOP.sendOFT(oft, dstEid, recipient, amountLd, dstGas=0, data="")` on the local
+`FRAX_HOP.sendOFT(oft, dstEid, recipient, amountLd, dstGas=0, data="")` on the local
 HopV2 contract. Routes are resolved by the hub-and-spoke topology:
 
 - **spoke ↔ hub** is a single hop.
@@ -69,7 +69,7 @@ invalid route costs the caller nothing but gas:
 - `InvalidNonEVMReceiver` when a non-EVM destination has a zero `nonEVMReceiver`.
 - `UnsupportedChainId` / `InformationMismatch` on the `destinationChainId` ↔ `dstEid`
   cross-check.
-- `TokenNotSupported` when `HOP.approvedOft(oft)` is `false`.
+- `TokenNotSupported` when `FRAX_HOP.approvedOft(oft)` is `false`.
 - `InformationMismatch` when the OFT's underlying `token()` is not
   `bridgeData.sendingAssetId`.
 
@@ -91,7 +91,7 @@ so the only external call this facet makes into it happens after the hop has all
   `refundRecipient`.
 - **Dust.** HopV2 floors the amount to the OFT's `decimalConversionRate` multiple
   and only bridges the floored amount. The facet floors the amount up front (via
-  `HOP.removeDust`), approves and bridges exactly that, and transfers the dust
+  `FRAX_HOP.removeDust`), approves and bridges exactly that, and transfers the dust
   remainder to `refundRecipient` **in the same transaction** — nothing is stranded
   in the Diamond. It reverts `InvalidCallData` if the floored amount is `0`.
 - **No positive slippage / intent semantics.** `minAmountLD == amountLD`: HopV2
@@ -122,7 +122,7 @@ so the only external call this facet makes into it happens after the hop has all
   **an upgraded, malicious HopV2 could spend any balance the Diamond happens to hold in
   an approved token at that moment.**
 - **OFT support pre-check.** HopV2 only routes OFTs it has been configured with
-  (`HOP.approvedOft(oft)`). The facet checks this **before** any deposit or swap, so an
+  (`FRAX_HOP.approvedOft(oft)`). The facet checks this **before** any deposit or swap, so an
   unapproved OFT reverts `TokenNotSupported` up front instead of failing deep inside
   `sendOFT` after `_depositAndSwap` has already executed the caller's swap. The whole
   transaction reverts either way, so this is a gas / error-clarity guarantee rather than a
@@ -202,13 +202,13 @@ On **Tempo** (chainId `4217`), LayerZero uses **EndpointV2Alt**, which rejects
 native `msg.value`; the messaging fee is paid in a **TIP20 ERC20 gas token**, not
 native gas.
 
-- The facet selects this path via a constructor immutable, `TIP_FEE_MANAGER`,
-  which is non-zero **only on Tempo** (`PATH_USD` is the default gas token). One
+- The facet selects this path via a constructor immutable, `FRAX_TIP_FEE_MANAGER`,
+  which is non-zero **only on Tempo** (`FRAX_PATH_USD` is the default gas token). One
   FraxFacet source serves every chain — the fee mode is chosen at **deploy time**
   from `config/frax.json`, not by a separate contract.
-- The fee token is resolved as `TIP_FEE_MANAGER.userTokens(diamond)`, falling back
-  to `PATH_USD` when the Diamond has not opted into a specific token. Its amount is
-  quoted in-token via `HOP.quoteStatic`. The facet pulls the fee token from the
+- The fee token is resolved as `FRAX_TIP_FEE_MANAGER.userTokens(diamond)`, falling back
+  to `FRAX_PATH_USD` when the Diamond has not opted into a specific token. Its amount is
+  quoted in-token via `FRAX_HOP.quoteStatic`. The facet pulls the fee token from the
   caller, approves it to HopV2, and sends with `msg.value == 0` (both entrypoints
   revert `InvalidCallData` if any native is sent on Tempo). The unused-fee refund is
   computed from a fee-token balance delta, so the fee token must differ from the
