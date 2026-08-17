@@ -283,6 +283,12 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'Intent escrow settlers are not deployed on Jovay and BE confirmed the chain is not supported for intents — do not require LiFiIntentEscrowFacetV2 until product enables it.',
     networks: ['jovay'],
   },
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'Injective is retiring the intent-escrow flow rather than migrating it: no LiFiIntentEscrowFacetV2 is deployed there, and the deprecated LiFiIntentEscrowFacet was removed. Do not require V2 on injective.',
+    networks: ['injective'],
+  },
 ]
 
 /**
