@@ -9,7 +9,9 @@
 #   un-gated MONGODB_URI queue (status flips), never on-chain state or the signing store.
 # - Per-network isolation: an unreachable chain is logged and skipped, the remaining networks and the
 #   TTL alert still run, and the job exits non-zero at the end so the failure still reaches Slack.
-#   A task on a network that is no longer active in networks.json is cancelled, not reconciled.
+# - A task whose network is not active in networks.json is reported, never cancelled here: cancelling
+#   requires an operator naming one network (--network X --cancel-deprecated --yes), because
+#   networks.json is temporarily narrowed for pause rehearsals and this job runs unattended.
 # - Loupe-primary: SC_MONGODB_URI (the signing store) is NOT reachable from GitHub Actions (no tunnel),
 #   so the job runs in loupe-only mode — a gone facet is marked superseded (executed vs superseded is
 #   an audit label only) and revert-detection is skipped; run locally with tunnel access for the full

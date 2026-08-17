@@ -615,13 +615,22 @@ All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   already-minted Safe removal proposal from the origin-PR linkage (§6), so a claimed task
   must be `revertToQueued` first, then cancelled.
 - **queued → cancelled (deprecated network)**: the reconcile evaluates network status
-  *before* on-chain truth (`partitionByNetworkStatus` → `deprecatedNetworkDecision`) —
-  a network absent from `config/networks.json`, or present with `status ≠ 'active'`,
-  has no RPC config and no maintenance intent, so its parked removals are abandoned
-  rather than reconciled against a chain nobody can reach. A `proposed` task on such a
-  network is **warned about, never auto-cancelled** (same orphaned-proposal rule as
-  above). `/deprecate-network` cancels these at the human chokepoint; the cron is the
-  self-healing backstop for a deprecation that missed the step.
+  *before* on-chain truth (`partitionByNetworkStatus` → `deprecatedNetworkDecision`),
+  because a network absent from `config/networks.json` — or present with
+  `status ≠ 'active'` — has no chain the loupe can read, so the removal can never be
+  verified and abandoning the intent is the only terminal answer available.
+  **Applying that cancellation is opt-in and single-network**
+  (`--network <x> --cancel-deprecated --yes`): a non-active config entry is *not* proof
+  of deprecation — `config/networks.json` is deliberately narrowed to a handful of
+  networks for emergency-pause rehearsals (`f99db1607`, `216bad0e4`, both reverted days
+  later) and `status` is toggled back to `active` (`51a04fc64`). An unattended
+  fleet-wide run that cancelled on that signal would read a temporary config as a
+  fleet-wide deprecation and terminally empty the queue, with no undo (`cancelled` is
+  terminal and re-enqueue needs origin-PR context). So the cron only ever **reports**
+  these; `/deprecate-network` does the cancelling, once, for the network a human named.
+  A `proposed` task is **never** cancelled either way (same orphaned-proposal rule as
+  above); it needs `revertToQueued` first, for which no operator CLI exists yet
+  (EXSC-715).
 
 **Idempotency / dedup**
 
@@ -654,10 +663,13 @@ Three composed backstops, none silent:
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **The backstop must survive a bad network.** The reconcile isolates each
-`(network, environment)` group: an unreachable chain or a missing RPC is logged and
-skipped, the remaining groups are still decided, the TTL alert still fires, and the run
-exits non-zero afterwards so the failure still reaches Slack. A single unresolvable
-network aborting the batch would silently disable backstop 2 for the whole fleet.
+`(network, environment)` group, the optional proposal-store connection, and each
+cancellation: an unreachable chain or a missing RPC is logged and skipped, the
+remaining groups are still decided, the TTL alert still fires, and the run exits
+non-zero afterwards so the failure still reaches Slack. A single unresolvable network
+aborting the batch would silently disable backstop 2 for the whole fleet — which is
+how the first four scheduled runs were lost. (A network whose deploy log carries no
+LiFiDiamond is a legitimate skip, not a failure: warned about, not counted.)
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
 (possibly weeks), the `deployments/<network>.json` facet→address entry that

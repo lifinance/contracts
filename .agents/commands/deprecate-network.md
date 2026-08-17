@@ -106,17 +106,25 @@ When `/deprecate-network` is invoked with network names:
 
 7. **Cancel parked diamond-cleanup tasks**:
 
-   - For each network, list its open tasks in the deferred-cleanup queue:
+   Run this **after** step 2 has removed the network from `config/networks.json`.
+
+   - List the network's open tasks:
      `bunx tsx script/deploy/safe/list-parked-tasks.ts --network {network} --status queued`
-   - A facet removal parked for a network that is going away is never going to be
-     drained — the reconcile cannot reach a chain that `config/networks.json` no
-     longer describes. Cancel each one so the queue holds no deprecated network.
-   - Repeat for `--status proposed`. A claimed task must be reverted before it can be
-     cancelled (`markCancelled` accepts `queued` only), because its Safe removal
-     proposal is already live and must not lose its origin-PR linkage — surface these
-     to the operator instead of resolving them automatically.
-   - The weekly `reconcile-parked-tasks` cron also cancels `queued` tasks on
-     non-active networks, so a missed cleanup self-heals rather than failing the job.
+     (repeat with `--status proposed`)
+   - A facet removal parked for a network that is going away can never be drained — the
+     reconcile cannot reach a chain `config/networks.json` no longer describes — so
+     cancel the `queued` ones:
+     `bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --network {network} --cancel-deprecated --yes`
+     Run it **once per network**; `--cancel-deprecated` refuses to run fleet-wide on
+     purpose, so a temporarily narrowed `networks.json` can never cancel the whole queue.
+     Drop `--yes` first to preview.
+   - A `proposed` task is **not** cancelled by that command: its Safe removal proposal is
+     already live and `markCancelled` accepts `queued` only, so cancelling it would cut
+     the proposal from its origin-PR linkage. It needs `revertToQueued` first, for which
+     there is no operator CLI yet (EXSC-715) — surface it to the SC on-call rather than
+     editing Mongo by hand.
+   - The weekly cron reports (never cancels) any task left on a non-active network, so a
+     missed cleanup shows up in the job log instead of failing the run.
 
 8. **Update whitelist**:
 

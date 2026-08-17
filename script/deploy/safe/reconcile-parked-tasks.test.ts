@@ -1,8 +1,11 @@
 /**
  * Tests for the deferred diamond-cleanup reconcile job (reconcile-parked-tasks.ts).
  *
- * The two pure decisions are exercised directly: {@link reconcileDecision} maps a
- * task's status + on-chain/proposal truth to a lifecycle transition, and
+ * The pure decisions are exercised directly: {@link reconcileDecision} maps a task's
+ * status + on-chain/proposal truth to a lifecycle transition,
+ * {@link partitionByNetworkStatus} / {@link deprecatedNetworkDecision} /
+ * {@link shouldCancelDeprecated} decide what happens to a task whose network is no
+ * longer active (and, crucially, when a cancellation is allowed to be applied), and
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
  * have aged past the TTL. The live CLI (Mongo/loupe/Slack wiring) is unit-test
  * exempt, mirroring the store's `getParkedTasksCollection()` carve-out.
@@ -25,6 +28,7 @@ import {
   formatTtlAlertMessage,
   partitionByNetworkStatus,
   reconcileDecision,
+  shouldCancelDeprecated,
 } from './reconcile-parked-tasks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -115,7 +119,20 @@ describe('deprecatedNetworkDecision', () => {
 })
 
 describe('partitionByNetworkStatus', () => {
-  const active = new Set(['arbitrum', 'mainnet'])
+  // Derived the way the live adapter derives it (`getAllActiveNetworks`), so the
+  // present-but-inactive case is distinguishable from the absent one rather than
+  // both trivially missing from a hand-written set.
+  const activeIdsOf = (config: Record<string, { status: string }>) =>
+    new Set(
+      Object.entries(config)
+        .filter(([, n]) => n.status === 'active')
+        .map(([id]) => id)
+    )
+  const active = activeIdsOf({
+    arbitrum: { status: 'active' },
+    mainnet: { status: 'active' },
+    localanvil: { status: 'inactive' },
+  })
 
   it('routes a task on an active network to the reconcile path', () => {
     const task = parked({ network: 'arbitrum' })
@@ -133,9 +150,62 @@ describe('partitionByNetworkStatus', () => {
     })
   })
 
-  it('treats a present-but-inactive network as deprecated', () => {
+  it('treats a network present in the config but not active as deprecated', () => {
     const task = parked({ network: 'localanvil' })
+    expect(active.has('localanvil')).toBe(false)
     expect(partitionByNetworkStatus([task], active).deprecated).toEqual([task])
+  })
+})
+
+describe('shouldCancelDeprecated', () => {
+  it('cancels only when the operator asked for it on a named network', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(true)
+  })
+
+  it('never cancels on an unattended fleet-wide run — the cron must not mass-cancel', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: undefined,
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels without the opt-in flag', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: false,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels in a dry run', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: false,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels a task the decision left alone', () => {
+    expect(
+      shouldCancelDeprecated('keep', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
   })
 })
 

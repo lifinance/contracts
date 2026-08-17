@@ -18,15 +18,22 @@
  *     to the multisig-proposals Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
- * A task whose network is no longer `active` in `config/networks.json` is abandoned
- * (`queued` → `cancelled`) instead of reconciled — there is no chain left to read.
- * Every step is isolated — a failing `(network, environment)` group or a failing
- * cancellation is logged, the rest of the fleet and the TTL alert still run, and the
- * process exits non-zero at the end.
+ * A task whose network is not `active` in `config/networks.json` cannot be
+ * reconciled — there is no chain to read — so it is routed out of the on-chain path
+ * and reported. Cancelling it is opt-in and single-network
+ * (`--network <x> --cancel-deprecated --yes`, see {@link shouldCancelDeprecated});
+ * the cron never cancels.
+ *
+ * Failures are isolated: a failing `(network, environment)` group, an unreachable
+ * proposal store, or a failing cancellation is logged, the rest of the fleet and the
+ * TTL alert still run, and the process exits non-zero at the end. (A network whose
+ * deploy log has no LiFiDiamond is a legitimate skip, not a failure, and is only
+ * warned about.)
  *
  * The pure decisions ({@link reconcileDecision}, {@link deprecatedNetworkDecision},
- * {@link partitionByNetworkStatus}, {@link computeTtlAlerts},
- * {@link formatTtlAlertMessage}) are fully unit-tested; only the live CLI wiring
+ * {@link partitionByNetworkStatus}, {@link shouldCancelDeprecated},
+ * {@link computeTtlAlerts}, {@link formatTtlAlertMessage}) are fully unit-tested;
+ * only the live CLI wiring
  * (Mongo/loupe/Slack) is unit-test exempt, mirroring `getParkedTasksCollection()`.
  * Dry-run by default (#2047 convention); pass `--yes` to apply transitions and
  * send the alert.
@@ -103,13 +110,16 @@ export function reconcileDecision(
 }
 
 /**
- * Decides the transition for an open task whose network is no longer `active` in
- * `config/networks.json`. Such a network has no RPC config and no maintenance
- * intent left, so its removals are abandoned rather than reconciled against a
- * chain nobody can reach. A `proposed` task is left alone deliberately: it already
- * carries a live Safe removal proposal, and `markCancelled` is restricted to
- * `queued` so cancelling can never orphan that proposal from its origin-PR
- * linkage (spec §6/§7) — an operator reverts it first.
+ * Decides which transition an open task on a non-active network is ELIGIBLE for.
+ * The chain cannot be read, so the removal cannot be verified; abandoning the intent
+ * is the only terminal answer available. Eligibility is not permission — whether the
+ * cancellation is actually applied is {@link shouldCancelDeprecated}'s call, because
+ * a non-active config entry is not by itself proof of deprecation.
+ *
+ * A `proposed` task is never eligible: it already carries a live Safe removal
+ * proposal, and `markCancelled` is restricted to `queued` so cancelling can never
+ * orphan that proposal from its origin-PR linkage (spec §6/§7). Resolving one needs
+ * `revertToQueued` first, for which no operator CLI exists yet (EXSC-715).
  *
  * @param task - The open task (only its `status` matters here).
  * @returns `cancel` for a `queued` task, `keep` for a claimed one.
@@ -118,6 +128,39 @@ export function deprecatedNetworkDecision(
   task: Pick<IParkedTask, 'status'>
 ): Extract<ReconcileDecision, 'cancel' | 'keep'> {
   return task.status === 'queued' ? 'cancel' : 'keep'
+}
+
+/**
+ * Whether a deprecated-network task may actually be cancelled on this run.
+ *
+ * `status`/presence in `config/networks.json` is NOT a reliable deprecation signal:
+ * the file is narrowed to a handful of networks for emergency-pause rehearsals
+ * (`f99db1607`, `216bad0e4`, both reverted days later) and `status` is toggled back
+ * to `active` (`51a04fc64`), so an unattended fleet-wide run could otherwise read a
+ * temporary config as "the fleet was deprecated" and terminally cancel the whole
+ * queue. Cancellation therefore requires an operator who named ONE network and
+ * passed `--cancel-deprecated --yes`; the cron only ever reports.
+ *
+ * @param decision - Transition from {@link deprecatedNetworkDecision}.
+ * @param opts.apply - Whether the run applies transitions (`--yes`).
+ * @param opts.cancelDeprecated - Whether `--cancel-deprecated` was passed.
+ * @param opts.networkFilter - The `--network` value; cancelling fleet-wide is refused.
+ * @returns `true` only for an opted-in, applied, single-network cancellation.
+ */
+export function shouldCancelDeprecated(
+  decision: ReconcileDecision,
+  opts: {
+    apply: boolean
+    cancelDeprecated: boolean
+    networkFilter: string | undefined
+  }
+): boolean {
+  return (
+    decision === 'cancel' &&
+    opts.apply &&
+    opts.cancelDeprecated &&
+    opts.networkFilter !== undefined
+  )
 }
 
 /**
@@ -242,7 +285,8 @@ async function resolveProposalStatus(
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
-  apply: boolean
+  apply: boolean,
+  cancelDeprecated: boolean
 ): Promise<number> {
   const open = [
     ...(await listParkedTasks(parkedTasks, {
@@ -266,25 +310,39 @@ async function reconcileAll(
   )
   for (const task of deprecated) {
     const decision = deprecatedNetworkDecision(task)
+    const cancelling = shouldCancelDeprecated(decision, {
+      apply,
+      cancelDeprecated,
+      networkFilter,
+    })
     consola.info(
-      `[${task.network}:${task.environment}] ${task.facetName} (${task.status}) → ${decision} (network no longer active)`
+      `[${task.network}:${task.environment}] ${task.facetName} (${
+        task.status
+      }) → ${decision}${
+        cancelling ? '' : ' (reported only)'
+      } (network not active in networks.json)`
     )
-    try {
-      if (decision === 'keep')
-        consola.warn(
-          `[${task.network}:${task.environment}] ${task.facetName} is claimed on a deprecated network — revert it before cancelling so its Safe proposal is not orphaned`
-        )
-      else if (apply) await markCancelled(parkedTasks, task.taskKey)
-    } catch (error: unknown) {
-      failures++
-      consola.error(
-        `[${task.network}:${task.environment}] could not cancel ${
-          task.facetName
-        } — continuing: ${
-          error instanceof Error ? error.message : String(error)
-        }`
+    if (decision === 'keep')
+      consola.warn(
+        `[${task.network}:${task.environment}] ${task.facetName} is claimed on an inactive network — it needs revertToQueued before it can be cancelled, so its live Safe proposal keeps its origin-PR link (EXSC-715 tracks the operator CLI)`
       )
-    }
+    else if (!cancelling)
+      consola.warn(
+        `[${task.network}:${task.environment}] ${task.facetName} is parked on an inactive network — cancel it with \`reconcile-parked-tasks --network ${task.network} --cancel-deprecated --yes\` once you have confirmed the network is really deprecated`
+      )
+    else
+      try {
+        await markCancelled(parkedTasks, task.taskKey)
+      } catch (error: unknown) {
+        failures++
+        consola.error(
+          `[${task.network}:${task.environment}] could not cancel ${
+            task.facetName
+          } — continuing: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+      }
   }
 
   const byNetworkEnv = new Map<string, typeof open>()
@@ -301,11 +359,21 @@ async function reconcileAll(
     | Awaited<ReturnType<typeof getSafeMongoCollection>>['client']
     | undefined
   let pendingTransactions: PendingTransactions | undefined
-  if (process.env.SC_MONGODB_URI) {
-    const col = await getSafeMongoCollection()
-    safeMongoClient = col.client
-    pendingTransactions = col.pendingTransactions
-  }
+  if (process.env.SC_MONGODB_URI)
+    try {
+      const col = await getSafeMongoCollection()
+      safeMongoClient = col.client
+      pendingTransactions = col.pendingTransactions
+    } catch (error: unknown) {
+      // Losing the optional proposal store degrades the run to loupe-only; it must
+      // not cost the fleet its reconcile or the TTL alert.
+      failures++
+      consola.error(
+        `proposal store unreachable — continuing loupe-only: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
 
   try {
     for (const tasks of byNetworkEnv.values()) {
@@ -407,16 +475,35 @@ const main = defineCommand({
         'Apply transitions and send the TTL alert (default: dry-run)',
       required: false,
     },
+    cancelDeprecated: {
+      type: 'boolean',
+      description:
+        'Also cancel queued tasks parked on a network that is not active in networks.json. Requires --network (a fleet-wide config narrowing must never be read as a fleet-wide deprecation)',
+      required: false,
+    },
   },
   async run({ args }) {
     const ttlDays = args.ttlDays ? Number(args.ttlDays) : DEFAULT_TTL_DAYS
     const apply = args.yes ?? false
+    const cancelDeprecated = args.cancelDeprecated ?? false
     if (!apply) consola.info('Dry-run — pass --yes to apply transitions/alert')
+    if (cancelDeprecated && !args.network) {
+      consola.error(
+        '--cancel-deprecated requires --network: name the deprecated network explicitly so a temporarily narrowed networks.json can never cancel the whole queue'
+      )
+      process.exitCode = 1
+      return
+    }
     // getParkedTasksCollection reads the un-gated MONGODB_URI cluster (no tunnel).
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      const failures = await reconcileAll(parkedTasks, args.network, apply)
+      const failures = await reconcileAll(
+        parkedTasks,
+        args.network,
+        apply,
+        cancelDeprecated
+      )
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
       if (failures > 0) {
         consola.error(
