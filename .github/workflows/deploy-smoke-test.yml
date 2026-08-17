@@ -53,7 +53,7 @@ jobs:
               - 'script/resources/**'
               - '.env.example'
               - 'package.json'
-              - 'bun.lockb'
+              - 'bun.lock'
               - '.github/workflows/deploy-smoke-test.yml'
 
   deploy-smoke-test:
