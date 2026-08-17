@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
+import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { VaultWrapperFactoryStackBase } from "test/solidity/VaultWrapper/VaultWrapperFactoryStackBase.sol";
@@ -83,9 +84,17 @@ contract LiFiVaultWrapperLiquidityTest is VaultWrapperFactoryStackBase {
 
     function testRevert_RedeemAboveClampedMax() public {
         source.setWithdrawable(300e18);
-        uint256 shares = wrapper.maxRedeem(alice) + 1;
+        uint256 maxShares = wrapper.maxRedeem(alice);
+        uint256 shares = maxShares + 1;
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector,
+                alice,
+                shares,
+                maxShares
+            )
+        );
 
         vm.prank(alice);
         wrapper.redeem(shares, alice, alice);
