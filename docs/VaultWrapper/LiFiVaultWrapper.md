@@ -65,8 +65,16 @@ withdrawal.
 - Dust tradeoff on OZ-style sources (e.g. MetaMorpho, whose own `maxRedeem` floors ~1
   share below `balanceOf` even at full liquidity): a one-call full exit via
   `redeem(balanceOf)` may hit `ERC4626ExceededMaxRedeem`. Callers should exit via
-  `redeem(maxRedeem(owner))`; `redeem` is the guaranteed exit and leaves at most
-  sub-1e-12-token dust that a follow-up call clears.
+  `redeem(maxRedeem(owner))`; `redeem` is the guaranteed exit and leaves residual dust
+  that a follow-up call clears. The dust bound is **one source share's value** — not a
+  fixed 1e-12: sub-1e-12 token on fine-grained sources (18-decimal shares, modest price
+  per share), but potentially 1e-6 token or more on a coarse-share source (fewer share
+  decimals than the asset, or a heavily grown price per share). A redeem whose slice
+  values below one source share burns the shares for a **zero payout** (standard
+  ERC-4626 dust semantics with the threshold at one source share instead of one wei);
+  `previewRedeem` quotes 0 for the same input, and the EIP-5143
+  `redeem(shares, receiver, owner, minAssets)` overload reverts `SlippageExceeded` —
+  integrators of coarse-share sources should use one of the two.
 - The exact-out `withdraw` rounding boundary near `maxWithdraw` remains the one tolerated
   artifact, unchanged by the liquidity-awareness above.
 

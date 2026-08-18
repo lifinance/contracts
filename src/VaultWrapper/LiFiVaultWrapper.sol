@@ -700,8 +700,14 @@ contract LiFiVaultWrapper is
     ///      by up to one source-share of value, never over-report). On a source whose own
     ///      `maxRedeem` floors below `balanceOf` (OZ-derived vaults such as MetaMorpho), a
     ///      one-call full exit via `redeem(balanceOf)` is therefore not guaranteed; callers
-    ///      should use `redeem(maxRedeem(owner))`, which may leave sub-1e-12-token dust that a
-    ///      follow-up call clears. Because this now consults the source's views via
+    ///      should use `redeem(maxRedeem(owner))`, which may leave residual dust that a
+    ///      follow-up call clears. That dust is bounded by ONE SOURCE SHARE's value, not a
+    ///      fixed magnitude: on fine-grained sources (18-decimal shares, modest price per
+    ///      share) it is sub-1e-12 token, but a coarse-share source (fewer share decimals
+    ///      than the asset, or a heavily grown price per share) can put one source share at
+    ///      1e-6 token or more — integrators of such sources should quote `previewRedeem`
+    ///      or use the EIP-5143 `redeem(shares, receiver, owner, minAssets)` overload.
+    ///      Because this now consults the source's views via
     ///      `adapter.maxWithdrawableValue`, it reverts if those source views revert (a
     ///      fully-paused/bricked source) — consistent with the fail-closed posture of
     ///      `maxWithdraw`/`previewRedeem`, a deliberate deviation from EIP-4626's view-safety
@@ -854,7 +860,12 @@ contract LiFiVaultWrapper is
     ///      already predicts). This is required, not just an optimization: some ERC-4626
     ///      sources (e.g. solmate's) hard-revert their own `redeem` when their own preview
     ///      is 0, which would otherwise make `redeem` revert for a `_shares` amount within
-    ///      `maxRedeem` — an exit must always succeed.
+    ///      `maxRedeem` — an exit must always succeed. The shares are still burned and the
+    ///      payout is 0 (standard ERC-4626 dust semantics, with the threshold at one
+    ///      SOURCE share's value rather than one wei); the unrealized slice accrues to the
+    ///      remaining holders. `previewRedeem` quotes 0 for the same input and the
+    ///      EIP-5143 `redeem(..., minAssets)` overload reverts `SlippageExceeded`, so the
+    ///      silent-zero path only reaches callers who skip both.
     /// @param _caller The account spending the allowance (msg.sender in `redeem`).
     /// @param _receiver The asset receiver.
     /// @param _owner The share owner being exited.
