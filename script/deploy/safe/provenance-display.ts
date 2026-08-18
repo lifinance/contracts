@@ -5,11 +5,6 @@
  * signing prompt. Import from `confirm-safe-tx.ts` so a signer can see which
  * code produced the proposal, and whether that code is fetchable and matches a
  * clean tree, without leaving the CLI.
- *
- * Kept out of the CLI script itself so the formatting is unit-testable, the
- * same way the Ledger Flex filmstrip is factored. The lines are plain strings
- * assembled here, not decoded transaction data, so the single-entry-point rule
- * for decoded display (rule 201) does not apply.
  */
 
 import { PROVENANCE_UNKNOWN } from '../shared/git-provenance'

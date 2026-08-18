@@ -4,8 +4,7 @@
  * Fail-soft answers to "which code produced this?" — HEAD commit, branch,
  * scoped working-tree dirtiness, whether that commit exists on a remote, who
  * ran the command, and the open PR for the branch. Import it from any script
- * that records audit metadata about its own run (Safe proposals today, deploy
- * logs next).
+ * that records audit metadata about its own run.
  *
  * Every helper swallows its own failures, returns a sentinel and appends a
  * one-line message to an error collector. Capture sits on the deployment path,
@@ -488,10 +487,7 @@ export function resolveOpenPrUrl(
   return openPrUrl(branch, resolveContext(context))
 }
 
-/**
- * Clears the process-lifetime memo. Only tests need this — git state cannot
- * meaningfully change within one script run.
- */
+/** Clears the process-lifetime memo so each test starts from a fresh capture. */
 export function resetGitProvenanceCache(): void {
   cachedProvenance = undefined
 }

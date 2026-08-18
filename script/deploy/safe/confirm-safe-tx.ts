@@ -389,10 +389,6 @@ const processTxs = async (
         detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
     }
 
-    // Which code produced this proposal, and whether that code is fetchable
-    // and matched a clean tree. Self-reported context rather than a
-    // guarantee: an unpushed commit or a dirty whitelist means "ask before
-    // signing", not "unsafe". Legacy rows render an explicit "not recorded".
     detailLines.push(...formatProvenanceLines(tx.provenance))
 
     consola.info(detailLines.join('\n'))

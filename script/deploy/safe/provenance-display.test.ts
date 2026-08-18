@@ -222,6 +222,8 @@ describe('formatProvenanceLines — untrusted text cannot repaint the prompt', (
     )
 
     expect(CONTROL.test(text)).toBe(false)
+    // Without this, a field that stopped rendering at all would still pass.
+    expect(text.split('x[2Jy').length - 1).toBe(6)
   })
 
   it('leaves legitimate unicode in provenance text untouched', () => {

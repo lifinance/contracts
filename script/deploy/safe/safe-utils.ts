@@ -148,8 +148,8 @@ export interface IProposalProvenance extends IGitProvenance {
 /** Trailing options of {@link storeTransactionInMongoDB}. */
 export interface IProposalProvenanceOptions {
   /**
-   * One-line rationale; falls back to `SAFE_PROPOSAL_REASON` when unset. A CLI
-   * flag that feeds this is deliberately deferred (EXSC-694).
+   * One-line rationale; falls back to the deploy chain's reason variable when
+   * unset.
    */
   reason?: string
   /**
@@ -1416,8 +1416,8 @@ export function normalizeProposalReason(
 export function buildProposalProvenance(
   options?: IProposalProvenanceOptions
 ): IProposalProvenance {
-  // No CLI flag feeds this yet (EXSC-694); the env var is what the bash deploy
-  // chain can already set without touching any script signature.
+  // The environment is the only channel the bash deploy chain can supply a
+  // rationale through without touching any script signature.
   const reason = normalizeProposalReason(
     options?.reason ?? process.env.SAFE_PROPOSAL_REASON
   )
@@ -1485,9 +1485,6 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
-  // Captured here, at the single funnel every proposal passes through, so no
-  // call site has to opt in — and outside the retry below, so a retried insert
-  // re-uses one capture instead of re-spawning git and re-stamping the clock.
   // Never derived from `safeTx`: the Tron route hands in a cast-together object
   // whose shape does not match the type.
   const provenance = buildProposalProvenance(provenanceOptions)
