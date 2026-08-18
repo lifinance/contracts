@@ -228,11 +228,13 @@ export function shouldCancelDeprecated(
     networkFilter: string | undefined
   }
 ): boolean {
+  // Truthiness, not `!== undefined`: citty yields '' for a bare `--network`, and
+  // listParkedTasks treats '' as no filter at all — i.e. the whole fleet.
   return (
     decision === 'cancel' &&
     opts.apply &&
     opts.cancelDeprecated &&
-    opts.networkFilter !== undefined
+    Boolean(opts.networkFilter)
   )
 }
 
@@ -385,15 +387,27 @@ export function formatReconcileFailureMessage(
   failures: IReconcileFailure[]
 ): string {
   if (failures.length === 0) return ''
+  // Keeps the worst case (a fleet-wide narrowing) under SlackNotifier's 2900-char budget.
+  const MAX_LISTED = 15
   const lines = [
     `⚠️ ${failures.length} network(s) could not be reconciled — their parked tasks were NOT verified this run:`,
   ]
-  for (const f of failures)
+  for (const f of failures.slice(0, MAX_LISTED))
     lines.push(`   - ${f.network}:${f.environment} — ${f.reason}`)
+  if (failures.length > MAX_LISTED)
+    lines.push(
+      `   … and ${
+        failures.length - MAX_LISTED
+      } more — see the job log for the full list.`
+    )
   // Without a remedy this alert repeats every run forever: a retired network can
   // never be reconciled, so its tasks have to be cancelled to clear the backlog.
+  // The caveat is not optional — a config narrowed for a pause rehearsal is
+  // indistinguishable from a deprecation here, and cancelling cannot be undone.
   lines.push(
-    '   → transient RPC/config problem: no action needed. Retired network: cancel its parked tasks so the queue stops tracking a chain that no longer exists.'
+    '   → transient RPC/config problem: no action needed.',
+    '   → outside the active set: if the network really is gone for good, clear it with `reconcile-parked-tasks --network <x> --cancel-deprecated --yes` (one network at a time).',
+    "   → CHECK FIRST: networks.json is temporarily narrowed during emergency-pause rehearsals, which looks identical to a deprecation here. Cancelling a live network's tasks is irreversible."
   )
   return lines.join('\n')
 }
@@ -553,9 +567,21 @@ async function reconcileAll(
     candidates,
     new Set(getAllActiveNetworks().map((n) => n.id))
   )
+  // Grouped per (network, environment): one alert line per network, not per task —
+  // a fleet-wide narrowing otherwise posts one line for every open task.
+  const deprecatedByNetwork = new Map<
+    string,
+    { network: string; environment: EnvironmentEnum; blocked: string[] }
+  >()
+  let terminalSkipped = 0
   for (const task of deprecated) {
     const decision = deprecatedNetworkDecision(task)
-    if (decision === 'keep' && task.status !== 'proposed') continue
+    if (decision === 'keep' && task.status !== 'proposed') {
+      // Terminal on a network we cannot read: nothing to do, but it is no longer
+      // covered by the false-resolution re-check, so it is counted, not silent.
+      terminalSkipped++
+      continue
+    }
     const cancelling = shouldCancelDeprecated(decision, {
       apply,
       cancelDeprecated,
@@ -568,34 +594,53 @@ async function reconcileAll(
         cancelling ? '' : ' (reported only)'
       } (network not active in networks.json)`
     )
+    const key = `${task.network}:${task.environment}`
+    const group = deprecatedByNetwork.get(key) ?? {
+      network: task.network,
+      environment: task.environment,
+      blocked: [],
+    }
+    deprecatedByNetwork.set(key, group)
+
     if (decision === 'keep') {
-      failures.push({
-        network: task.network,
-        environment: task.environment,
-        reason: `${task.facetName} is claimed on a network outside the active set — revertToQueued it before it can be cancelled, so its live Safe proposal keeps its origin-PR link (no CLI yet, EXSC-715)`,
-      })
+      group.blocked.push(
+        `${task.facetName} (claimed — needs revertToQueued first)`
+      )
       continue
     }
     if (!cancelling) {
-      failures.push({
-        network: task.network,
-        environment: task.environment,
-        reason: `${task.facetName} is parked on a network outside the active set and cannot be reconciled — once you have confirmed the network is really deprecated, cancel it with \`reconcile-parked-tasks --network ${task.network} --cancel-deprecated --yes\``,
-      })
+      group.blocked.push(task.facetName)
       continue
     }
     try {
-      await markCancelled(parkedTasks, task.taskKey)
+      // A concurrent drain can flip queued→proposed between the read and this
+      // write, in which case the store refuses and returns null — the log must not
+      // claim a cancellation that did not happen.
+      if ((await markCancelled(parkedTasks, task.taskKey)) === null)
+        group.blocked.push(
+          `${task.facetName} (no longer queued — not cancelled)`
+        )
     } catch (error: unknown) {
-      failures.push({
-        network: task.network,
-        environment: task.environment,
-        reason: `could not cancel ${task.facetName}: ${
+      group.blocked.push(
+        `${task.facetName} (cancel failed: ${
           error instanceof Error ? error.message : String(error)
-        }`,
-      })
+        })`
+      )
     }
   }
+  if (terminalSkipped > 0)
+    consola.info(
+      `${terminalSkipped} resolved task(s) on networks outside the active set were not re-verified this run`
+    )
+  for (const g of deprecatedByNetwork.values())
+    if (g.blocked.length > 0)
+      failures.push({
+        network: g.network,
+        environment: g.environment,
+        reason: `outside the active set in networks.json — ${
+          g.blocked.length
+        } parked task(s) not reconciled: ${g.blocked.join(', ')}`,
+      })
 
   const byNetworkEnv = new Map<string, typeof candidates>()
   for (const t of live) {

@@ -326,6 +326,17 @@ describe('shouldCancelDeprecated', () => {
     ).toBe(false)
   })
 
+  it('never cancels on a bare --network, which citty yields as an empty string', () => {
+    // listParkedTasks treats '' as no filter at all, so '' is a fleet-wide run.
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: '',
+      })
+    ).toBe(false)
+  })
+
   it('never cancels without the opt-in flag', () => {
     expect(
       shouldCancelDeprecated('cancel', {
