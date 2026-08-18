@@ -2,16 +2,14 @@
  * Reverse-dependency reminder for contract redeployments (EXSC-785).
  *
  * `deployRequirements.json` → `contractAddresses` records the FORWARD dependency edge: deploying
- * `ReceiverAcrossV4` needs the `Executor` address, deploying `Executor` needs `ERC20Proxy` — each
- * bound immutably at construction. The REVERSE edge is what a redeployment needs: redeploying the
- * Executor invalidates every deployed Receiver's immutable binding, and redeploying the ERC20Proxy
- * transitively invalidates the Executor and thus every Receiver.
+ * `ReceiverAcrossV4` needs the `Executor` address, deploying `Executor` needs `ERC20Proxy`. The
+ * REVERSE edge is what a redeployment needs: a dependent that stored the address at construction
+ * and has no setter keeps pointing at the old contract forever, so it must itself be redeployed.
  *
- * This reminder walks that reverse graph and lists every dependent present in the network's deploy
- * log — the contracts that must themselves be redeployed and re-registered afterwards.
- * `contractSpecificReminders.sh` states the same rule as static prose for `Executor` and
- * `ERC20Proxy`; deriving it from the graph keeps it correct as `deployRequirements.json` grows and
- * narrows it to the dependents actually present on the target network.
+ * This reminder walks that reverse graph and lists every such dependent present in the network's
+ * deploy log. `contractSpecificReminders.sh` states the same rule as static prose for `Executor`
+ * and `ERC20Proxy`; deriving it from the graph keeps it correct as `deployRequirements.json` grows
+ * and narrows it to the dependents actually present on the target network.
  *
  * Non-fatal by design (same tier as `facetCompanionReminder`): the `receiver-executor-binding` and
  * `executor-erc20proxy-binding` health-check invariants are the enforcing gate after the fact.
@@ -39,9 +37,26 @@ export interface ITransitiveDependent {
 }
 
 /**
- * Walk the reverse dependency graph: every contract whose `contractAddresses` names
- * `contractName`, directly or through intermediates (ERC20Proxy → Executor → Receivers).
+ * Edges whose dependent can repoint the address after deployment, so redeploying the dependency
+ * forces no redeploy. `deployRequirements.json` records them as constructor inputs like any other,
+ * but a diamond reaches its `DiamondCutFacet` through mutable diamond storage (replaced with an
+ * ordinary `diamondCut`) and `LiFiTimelockController` exposes `setDiamondAddress`. Warning about
+ * these would tell a deployer to redeploy contracts that do not need it.
+ */
+const UPDATABLE_DEPENDENCIES: Record<string, readonly string[]> = {
+  LiFiDiamond: ['DiamondCutFacet'],
+  LiFiDiamondImmutable: ['DiamondCutFacet'],
+  LiFiTimelockController: ['LiFiDiamond'],
+}
+
+/**
+ * Walk the reverse dependency graph: every contract that stores `contractName` at construction
+ * with no way to update it, directly or through intermediates (ERC20Proxy → Executor → Receivers).
  * Pure; cycle-safe; sorted by contract name.
+ *
+ * @param contractName - the contract being (re)deployed
+ * @param deployRequirements - registry override, for tests
+ * @returns each dependent with the dependency path that reaches it
  */
 export function collectTransitiveDependents(
   contractName: string,
@@ -52,8 +67,10 @@ export function collectTransitiveDependents(
 ): ITransitiveDependent[] {
   const dependentsOf = (name: string): string[] =>
     Object.entries(deployRequirements)
-      .filter(([, entry]) =>
-        Object.keys(entry.contractAddresses ?? {}).includes(name)
+      .filter(
+        ([dependent, entry]) =>
+          Object.keys(entry.contractAddresses ?? {}).includes(name) &&
+          !(UPDATABLE_DEPENDENCIES[dependent] ?? []).includes(name)
       )
       .map(([dependent]) => dependent)
 
@@ -88,6 +105,7 @@ export function collectTransitiveDependents(
  * @param network - network key as in `config/networks.json`
  * @param deployedContracts - the network's deploy log (contract name → address)
  * @param deployRequirements - registry override, for tests
+ * @returns the human-facing reminder, or null when no dependent is deployed on this network
  */
 export function buildDependencyReminder(
   contractName: string,
@@ -111,8 +129,11 @@ export function buildDependencyReminder(
     .join(', ')
 
   return (
-    `⚠️  Redeploying ${contractName} invalidates immutable bindings on ${network}: ` +
-    `${list} bind${dependents.length === 1 ? 's' : ''} it at construction. ` +
+    `⚠️  Redeploying ${contractName} leaves stale references on ${network}: ` +
+    `${list} store${
+      dependents.length === 1 ? 's' : ''
+    } it at construction and cannot be ` +
+    `repointed afterwards. ` +
     `Redeploy and re-register each dependent (diamondUpdatePeriphery) after this deployment, ` +
     `or the binding health checks will flag this network.`
   )

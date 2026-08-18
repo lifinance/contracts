@@ -67,15 +67,23 @@ export function buildCompanionReminder(
  * Network keys in `config/networks.json` are alphanumeric with optional `-`/`_` (e.g. `bsc-testnet`).
  * Reject anything else so a caller-supplied name can never traverse outside `deployments/`
  * (e.g. `../../.env`) once composed into a file path.
+ *
+ * @param name - the candidate network key
+ * @returns true when the name is a plain network key
  */
 export function isValidNetworkName(name: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(name)
 }
 
 /**
- * Read a network's deploy log. Returns an empty map when the name is not a plain network key, or
- * when the file is missing or unreadable — a brand-new network legitimately has no log yet, and
- * the reminder must never break a deploy.
+ * Read a network's deploy log.
+ *
+ * @param network - network key as in `config/networks.json`
+ * @param environment - `production` or `staging`; selects the log file suffix
+ * @param repoRoot - directory holding `deployments/`
+ * @returns contract name → address; empty when the name is not a plain network key, or the file is
+ *   missing or unreadable — a brand-new network legitimately has no log yet, and the reminder must
+ *   never break a deploy
  */
 export function readDeployLog(
   network: string,

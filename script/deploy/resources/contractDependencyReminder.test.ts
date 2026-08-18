@@ -56,6 +56,36 @@ describe('collectTransitiveDependents', () => {
   })
 })
 
+describe('updatable dependency edges', () => {
+  // These dependents can repoint the address after deployment, so a redeploy of the dependency
+  // must not tell the deployer to redeploy them.
+  const UPDATABLE = {
+    LiFiDiamond: { contractAddresses: { DiamondCutFacet: {} } },
+    LiFiDiamondImmutable: { contractAddresses: { DiamondCutFacet: {} } },
+    LiFiTimelockController: { contractAddresses: { LiFiDiamond: {} } },
+  }
+
+  it('drops the diamond -> DiamondCutFacet edge', () => {
+    expect(collectTransitiveDependents('DiamondCutFacet', UPDATABLE)).toEqual(
+      []
+    )
+  })
+
+  it('drops the timelock -> LiFiDiamond edge', () => {
+    expect(collectTransitiveDependents('LiFiDiamond', UPDATABLE)).toEqual([])
+  })
+
+  it('still reports a same-named dependent when the edge is not excluded', () => {
+    const graph = {
+      LiFiTimelockController: { contractAddresses: { Executor: {} } },
+    }
+
+    expect(collectTransitiveDependents('Executor', graph)).toEqual([
+      { contract: 'LiFiTimelockController', via: [] },
+    ])
+  })
+})
+
 describe('buildDependencyReminder', () => {
   const ADDR = '0x1111111111111111111111111111111111111111'
 
@@ -112,6 +142,23 @@ describe('real deployRequirements.json reverse graph', () => {
     expect(dependents).toContain('ReceiverStargateV2')
     expect(dependents).toContain('ReceiverChainflip')
     expect(dependents).toContain('ReceiverOIF')
+  })
+
+  it('excludes DiamondCutFacet: a diamond replaces it with an ordinary cut', () => {
+    expect(collectTransitiveDependents('DiamondCutFacet')).toEqual([])
+  })
+
+  it('excludes the timelock, which can repoint its diamond via setDiamondAddress', () => {
+    expect(collectTransitiveDependents('LiFiDiamond')).toEqual([])
+  })
+
+  it('keeps every genuine cascade edge in the real graph', () => {
+    const executorDependents = collectTransitiveDependents('Executor').map(
+      (d) => d.contract
+    )
+
+    expect(executorDependents).not.toContain('LiFiDiamond')
+    expect(executorDependents.length).toBeGreaterThanOrEqual(4)
   })
 
   it('ERC20Proxy dependents include the receivers transitively via Executor', () => {
