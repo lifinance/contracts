@@ -274,6 +274,21 @@ describe('resolveLiveFacets', () => {
     expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
+  it('uses selectors when the deploy log names the address something uncoupled', () => {
+    const resolved = resolveLiveFacets(
+      [
+        {
+          address: '0x9999000000000000000000000000000000000099',
+          selectors: CHAINFLIP_SELECTORS,
+        },
+      ],
+      { RetiredFacet: '0x9999000000000000000000000000000000000099' },
+      candidates,
+      compiled
+    )
+    expect(resolved).toEqual(['ChainflipFacet'])
+  })
+
   it('falls back to log-only resolution when no compiled selectors are available', () => {
     const resolved = resolveLiveFacets(
       [

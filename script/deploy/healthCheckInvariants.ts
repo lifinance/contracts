@@ -963,18 +963,21 @@ async function readPeripheryRegistry(
   const cache = ctx.peripheryRegistryCache
   if (!cache) return readPeripheryRegistryUncached(name, ctx)
 
-  const cached = cache.get(name)
+  // Keyed by diamond as well as name: the context owns one cache per network today, but a caller
+  // that ever reused one across networks would otherwise be served another chain's address.
+  const key = `${ctx.diamondAddress.toLowerCase()}:${name}`
+  const cached = cache.get(key)
   if (cached) return cached
 
   const pending = readPeripheryRegistryUncached(name, ctx).catch(
     (error: unknown) => {
       // Evict only our own entry: the key may already hold a fresh healthy promise, and a stale
       // rejection must not tear that one down.
-      if (cache.get(name) === pending) cache.delete(name)
+      if (cache.get(key) === pending) cache.delete(key)
       throw error
     }
   )
-  cache.set(name, pending)
+  cache.set(key, pending)
   return pending
 }
 

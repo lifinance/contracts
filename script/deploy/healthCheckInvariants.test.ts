@@ -846,7 +846,7 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(ctx.warnings[0]).toContain('missing from the deploy log')
   })
 
-  it('reads the Tron registry one name at a time, never as a subprocess burst', async () => {
+  it('awaits Tron registry candidates one at a time (each read spawns a subprocess)', async () => {
     const { ctx } = makeReceiverCtx({})
     Object.assign(ctx, {
       isTron: true,
@@ -857,8 +857,8 @@ describe('periphery-registry-log-sync invariant', () => {
 
     let inFlight = 0
     let peakInFlight = 0
-    // Intercept at the cache so the invariant's own read path is what gets measured. Each Tron
-    // read spawns a troncast subprocess, so the peak matters, not the total.
+    // Intercepts at the cache, so this measures the invariant's await sequencing rather than the
+    // troncast subprocess itself - sequencing is what bounds the subprocess count.
     const cache = (
       ctx as unknown as {
         peripheryRegistryCache: Map<string, Promise<string | null>>
@@ -1016,7 +1016,10 @@ describe('selector identity in the facet invariants', () => {
   })
 
   it('evaluates the coupling of a live facet the deploy log does not know about', async () => {
-    const coupled = Object.keys(getFacetPeripheryCouplings())[0] as string
+    // Pinned rather than "first key": a reordered registry, or a carve-out landing on the first
+    // entry, would otherwise silently turn this into a no-op that still passes.
+    const coupled = 'StargateFacetV2'
+    expect(getFacetPeripheryCouplings()[coupled]?.requires).toBeDefined()
     const ctx = makeFacetCtx(
       [{ address: UNLOGGED, selectors: ['0x11111111'] }],
       {},

@@ -197,9 +197,14 @@ export function resolveLiveFacets(
   const liveNames = new Set<string>()
 
   for (const facet of onChainFacets) {
+    // A log entry naming this address something that is not a candidate must not shadow the
+    // selector fallback: a mislabelled or superseded log line would otherwise hide a live
+    // coupled facet as effectively as a missing one.
+    const loggedName = nameByLogAddress.get(facet.address.toLowerCase())
     const name =
-      nameByLogAddress.get(facet.address.toLowerCase()) ??
-      identifyFacetBySelectorSet(facet.selectors, compiledSelectors)
+      loggedName !== undefined && candidates.has(loggedName)
+        ? loggedName
+        : identifyFacetBySelectorSet(facet.selectors, compiledSelectors)
     if (name !== undefined && candidates.has(name)) liveNames.add(name)
   }
 
@@ -231,7 +236,11 @@ export function loadCompiledFacetSelectors(): Record<string, string[]> {
 
   const facetSourceDir = resolve(cwd, 'src', 'Facets')
   const outDir = resolve(cwd, 'out')
-  if (!existsSync(facetSourceDir) || !existsSync(outDir)) return {}
+  if (!existsSync(facetSourceDir) || !existsSync(outDir)) {
+    const unbuilt: Record<string, string[]> = {}
+    compiledSelectorCache.set(cwd, unbuilt)
+    return unbuilt
+  }
 
   const selectorsByFacet: Record<string, string[]> = {}
   for (const entry of readdirSync(facetSourceDir)) {
