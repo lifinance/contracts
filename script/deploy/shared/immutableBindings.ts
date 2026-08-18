@@ -83,7 +83,9 @@ export function isZeroAddressValue(value: string): boolean {
  * @returns the message with every URL replaced by a placeholder
  */
 export function redactUrls(message: string): string {
-  return message.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<redacted-url>')
+  // No \b anchor: a scheme glued to a word character (`log_https://…`) has no word
+  // boundary at its start, and the whole match would fail — leaking the URL it exists to hide.
+  return message.replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<redacted-url>')
 }
 
 /**

@@ -911,7 +911,12 @@ async function readAddressGetter(
     // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
     // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
     // warning instead of an error-severity mismatch against a line of prose.
-    if (!parsed.startsWith('T') || parsed.length !== 34)
+    // A zero address in any encoding is a real answer the caller must report as an error, so
+    // it passes the shape check; anything else non-base58 is unusable output.
+    if (
+      !isZeroAddressValue(parsed) &&
+      (!parsed.startsWith('T') || parsed.length !== 34)
+    )
       throw new Error(`malformed Tron address for ${getter}(): ${parsed}`)
     return parsed
   }
@@ -945,7 +950,13 @@ async function readBindingValue(
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!/revert/i.test(message) || check.legacyGetters.length === 0)
+    // Two error shapes mean "this build has no such function": a revert, and viem's zero-data
+    // error when the call returns "0x". Matching only reverts skips the fallback for the second,
+    // leaving the binding unverified. An unreachable RPC matches neither and must not retry.
+    if (
+      !/revert|returned no data/i.test(message) ||
+      check.legacyGetters.length === 0
+    )
       throw error
 
     for (const legacyGetter of check.legacyGetters)

@@ -125,6 +125,19 @@ describe('immutable-bindings-match-config on Tron', () => {
     expect(ctx.errors[0]).toContain('zero address')
   })
 
+  it('errors on the 41-hex zero address encoding rather than calling it malformed', async () => {
+    // troncast normalizes decoded addresses to base58 today, so this encoding should not reach
+    // the invariant — but the shape check must not reclassify a zero binding as "unverified",
+    // which would downgrade the exact failure this invariant exists to catch.
+    onChainValue = '410000000000000000000000000000000000000000'
+    const ctx = makeTronCtx()
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('zero address')
+  })
+
   it('never silently accepts a case-mangled Tron address', async () => {
     // base58 is case-significant, so a lowercased value is not the same address. It fails the
     // shape check and is reported as unverified rather than compared as if it were valid.

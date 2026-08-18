@@ -388,3 +388,19 @@ describe('substituteConfigKeyPlaceholders', () => {
     ).toBe('.refundWallet')
   })
 })
+
+describe('redactUrls — adversarial inputs', () => {
+  it('redacts a URL glued to a preceding word character', () => {
+    // A \b anchor fails here, so the whole match would fail and the URL would survive intact.
+    for (const prefix of ['log_', '1', 'word', '[', 'msg:']) {
+      const out = redactUrls(`${prefix}https://host/path?apikey=not-a-real-key`)
+      expect(out).not.toContain('not-a-real-key')
+    }
+  })
+
+  it('redacts non-http schemes too', () => {
+    expect(redactUrls('ws://host/?k=not-a-real-key')).not.toContain(
+      'not-a-real-key'
+    )
+  })
+})

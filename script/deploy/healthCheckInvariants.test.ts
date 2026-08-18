@@ -843,3 +843,46 @@ describe('immutable-bindings-match-config Tron client guard', () => {
     expect(reads).toEqual([])
   })
 })
+
+describe('immutable-bindings-match-config zero-data fallback', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('tries a legacy getter when the call returns no data instead of reverting', async () => {
+    // viem raises this instead of a revert when a call yields "0x" — a getter-shaped absence
+    // just like a revert, so the fallback has to treat both the same.
+    const expected = collectImmutableBindingChecks(
+      'mainnet',
+      'production'
+    ).find((c) => c.contractName === 'DeBridgeDlnFacet')?.expectedAddress
+    const calls: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { DeBridgeDlnFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['DeBridgeDlnFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          calls.push(functionName)
+          if (functionName === 'DLN_SOURCE')
+            throw new Error(
+              'The contract function "DLN_SOURCE" returned no data ("0x").'
+            )
+          return expected
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(calls).toEqual(['DLN_SOURCE', 'dlnSource'])
+  })
+})
