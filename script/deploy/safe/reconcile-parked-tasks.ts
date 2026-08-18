@@ -443,16 +443,26 @@ async function reconcileAll(
   }
 
   // Open the (tunnel-gated) proposal store once for the whole run rather than
-  // per task — a connection per task risks exhausting the pool.
+  // per task — a connection per task risks exhausting the pool. The proposal
+  // status is an OPTIONAL signal (module header): SC_MONGODB_URI being set does
+  // not mean the tunnel is up, and an unreachable signing store must degrade to
+  // loupe-only reconciliation, never abort the sweep.
   let safeMongoClient:
     | Awaited<ReturnType<typeof getSafeMongoCollection>>['client']
     | undefined
   let pendingTransactions: PendingTransactions | undefined
-  if (process.env.SC_MONGODB_URI) {
-    const col = await getSafeMongoCollection()
-    safeMongoClient = col.client
-    pendingTransactions = col.pendingTransactions
-  }
+  if (process.env.SC_MONGODB_URI)
+    try {
+      const col = await getSafeMongoCollection()
+      safeMongoClient = col.client
+      pendingTransactions = col.pendingTransactions
+    } catch (error: unknown) {
+      consola.warn(
+        `Signing store unreachable — reconciling loupe-only (executed vs superseded indistinguishable; reverted proposals undetected): ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
 
   try {
     for (const tasks of byNetworkEnv.values()) {
