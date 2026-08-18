@@ -9,8 +9,10 @@ import {
   buildRemovalSnapshotFromPayloads,
   collectActiveSelectors,
   computeFacetRemovalDiff,
+  computeFacetRemovalsByAddress,
   computeNamedFacetRemovals,
   diffFacets,
+  diffFacetsByAddress,
   diffNamedFacets,
   extractRemoveFacetCuts,
   fetchOnChainFacets,
@@ -412,83 +414,132 @@ describe('diffNamedFacets', () => {
     expect(r.removals).toHaveLength(0)
   })
 
-  it('resolves a pruned-log facet by its unambiguous stored-address hint (log-independent)', () => {
+  it('cannot distinguish two co-registered versions — the reason the queue is address-keyed', () => {
     const r = diffNamedFacets({
       ...base,
-      requestedNames: new Set(['OldFacet']),
-      onChainFacets: [{ address: addr(9), selectors: [sel(1), sel(2)] }],
-      addressToName: {}, // deploy-log entry pruned
+      requestedNames: new Set(['SymbiosisFacet']),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] }, // v2.0.0, live, owns the log name
+        { address: addr(9), selectors: [sel(9)] }, // v1.0.0, superseded, unlogged
+      ],
+      addressToName: { [addr(1)]: 'SymbiosisFacet' },
       protectedNames: new Set(),
-      nameToAddress: { OldFacet: addr(9) },
+    })
+    // The LIVE facet is what a name resolves to; the stale one is merely surfaced.
+    expect(r.removals).toEqual([
+      { name: 'SymbiosisFacet', address: addr(1), selectors: [sel(1)] },
+    ])
+    expect(r.unresolved).toEqual([addr(9)])
+  })
+})
+
+describe('diffFacetsByAddress', () => {
+  const base = {
+    network: 'net',
+    environment: PROD,
+    diamondAddress: addr(0xd),
+  }
+
+  it('removes exactly the requested address, using its live loupe selectors', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1), sel(2)] },
+        { address: addr(2), selectors: [sel(3)] },
+      ],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
     })
     expect(r.removals).toEqual([
-      { name: 'OldFacet', address: addr(9), selectors: [sel(1), sel(2)] },
+      { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
     ])
-    expect(r.unresolved).toHaveLength(0)
-    expect(r.prunedButRouted).toHaveLength(0)
     expect(r.notFoundOnChain).toHaveLength(0)
   })
 
-  it('refuses a protected facet even when resolved via the address hint', () => {
-    const r = diffNamedFacets({
+  it('removes a superseded version while leaving its live successor registered under the same name', () => {
+    const r = diffFacetsByAddress({
       ...base,
-      requestedNames: new Set(['DiamondCutFacet']),
+      requestedAddresses: new Set([addr(9)]), // SymbiosisFacet v1.0.0
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] }, // v2.0.0 — live, owns the log name
+        { address: addr(9), selectors: [sel(9)] }, // v1.0.0 — superseded, unlogged
+      ],
+      addressToName: { [addr(1)]: 'SymbiosisFacet' },
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+    expect(r.removals.map((x) => x.address)).not.toContain(addr(1))
+  })
+
+  it('removes an address the deploy log never listed (no name to resolve)', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
       onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
       addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(1)] },
+    ])
+  })
+
+  it('matches the loupe case-insensitively', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([
+        addr(1).toUpperCase().replace('0X', '0x') as `0x${string}`,
+      ]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toHaveLength(1)
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('refuses an address the log maps to a never-remove facet', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'DiamondCutFacet' },
       protectedNames: new Set(['DiamondCutFacet']),
-      nameToAddress: { DiamondCutFacet: addr(9) },
     })
-    expect(r.protectedSkipped).toEqual(['DiamondCutFacet'])
+    expect(r.protectedSkipped).toEqual([
+      { name: 'DiamondCutFacet', address: addr(1) },
+    ])
     expect(r.removals).toHaveLength(0)
-    expect(r.prunedButRouted).toHaveLength(0)
   })
 
-  it('never resolves an ambiguous hint (two names claiming one address) — surfaces both', () => {
-    const r = diffNamedFacets({
+  it('reports requested addresses that are not registered on this diamond', () => {
+    const r = diffFacetsByAddress({
       ...base,
-      requestedNames: new Set(['FacetA', 'FacetB']),
-      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
       addressToName: {},
       protectedNames: new Set(),
-      nameToAddress: { FacetA: addr(9), FacetB: addr(9) },
     })
+    expect(r.notFoundOnChain).toEqual([addr(9)])
     expect(r.removals).toHaveLength(0)
-    expect(r.unresolved).toEqual([addr(9)])
-    expect(r.prunedButRouted).toEqual(
-      expect.arrayContaining([
-        { name: 'FacetA', address: addr(9) },
-        { name: 'FacetB', address: addr(9) },
-      ])
-    )
-    expect(r.notFoundOnChain).toHaveLength(0)
   })
 
-  it('keeps a hint whose address the log maps to a DIFFERENT name in prunedButRouted', () => {
-    const r = diffNamedFacets({
+  it('leaves unrequested on-chain facets untouched', () => {
+    const r = diffFacetsByAddress({
       ...base,
-      requestedNames: new Set(['OldFacet']),
-      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
-      addressToName: { [addr(9)]: 'SomeOtherFacet' },
-      protectedNames: new Set(),
-      nameToAddress: { OldFacet: addr(9) },
-    })
-    expect(r.removals).toHaveLength(0)
-    expect(r.prunedButRouted).toEqual([{ name: 'OldFacet', address: addr(9) }])
-    expect(r.notFoundOnChain).toHaveLength(0)
-  })
-
-  it('ignores hints for names that were not requested', () => {
-    const r = diffNamedFacets({
-      ...base,
-      requestedNames: new Set(['OldFacet']),
-      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
       addressToName: {},
       protectedNames: new Set(),
-      nameToAddress: { UnrequestedFacet: addr(9) },
     })
-    expect(r.removals).toHaveLength(0)
-    expect(r.unresolved).toEqual([addr(9)])
-    expect(r.notFoundOnChain).toEqual(['OldFacet'])
+    expect(r.removals).toHaveLength(1)
+    expect(r.removals[0]?.address).toBe(addr(1))
   })
 })
 
@@ -512,6 +563,34 @@ describe('computeNamedFacetRemovals', () => {
     expect(r.diamondAddress).toBe(addr(0xd))
     expect(r.removals).toEqual([
       { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
+    ])
+  })
+})
+
+describe('computeFacetRemovalsByAddress', () => {
+  it('returns all addresses as notFoundOnChain when the diamond is absent', async () => {
+    const r = await computeFacetRemovalsByAddress(
+      'net',
+      PROD,
+      [addr(1), addr(2)],
+      { getDiamondAddress: async () => undefined }
+    )
+    expect(r.notFoundOnChain).toEqual([addr(1), addr(2)])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('resolves address removals against the loupe', async () => {
+    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(9), selectors: [sel(9)] },
+      ],
+      getAddressToName: async () => ({ [addr(1)]: 'SymbiosisFacet' }),
+    })
+    expect(r.diamondAddress).toBe(addr(0xd))
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
     ])
   })
 })

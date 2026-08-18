@@ -136,32 +136,53 @@ export function reconcileDecision(
 /**
  * Resolves whether a parked task's facet is still routed by the diamond.
  *
- * Name-primary, address-fallback — and the order is load-bearing. The stored
- * `facetAddress` is a snapshot taken at enqueue and can be flat wrong: a
- * worldchain `AcrossFacetV3` task carried lisk's address, so an address-only check
- * truthfully answered "that address is not routed" while the facet actually routed
- * under that name on worldchain was never examined, and the task was resolved as
- * `executed` while the facet stayed live for 18 days. The drain removes by name
- * (`computeNamedFacetRemovals`), so presence must be judged by name too or the two
- * disagree about what "done" means.
+ * Address-only, matching the drain: a task targets one exact address
+ * (`computeFacetRemovalsByAddress`), so presence must be judged the same way or
+ * the two disagree about what "done" means. Judging by NAME would strand every
+ * co-registered removal — once superseded SymbiosisFacet v1.0.0 is cut, v2.0.0
+ * still routes under that name, so a name check would report the task's facet as
+ * present forever and it would never reconcile (EXSC-750/EXSC-775).
  *
- * The address remains a fallback so a pruned deploy-log entry — where no loupe
- * address resolves to the name any more, but the snapshot address is still routed —
- * still counts as present rather than being false-resolved (spec §8).
+ * The name is still worth checking, but as an anomaly signal rather than as
+ * presence — see {@link isSuspectAddressSnapshot}.
+ *
+ * @param task - The task's facet identity (its stored address snapshot).
+ * @param routedAddresses - Lowercased addresses currently routed by the loupe.
+ * @returns `true` while that exact address is still routed.
+ */
+export function resolveFacetPresence(
+  task: Pick<IParkedTask, 'facetAddress'>,
+  routedAddresses: Set<string>
+): boolean {
+  return routedAddresses.has(task.facetAddress.toLowerCase())
+}
+
+/**
+ * Flags a task whose stored address is gone while a facet of its name is still
+ * routed — the shape of a wrong address snapshot, which reconcile must not
+ * silently resolve.
+ *
+ * This is the worldchain `AcrossFacetV3` failure: the task carried lisk's
+ * address, so an address check truthfully answered "not routed", the task was
+ * resolved as `executed`, and the facet stayed live for 18 days. It is NOT the
+ * same shape as a legitimate co-registered removal, where the parked address is
+ * gone *because it was just removed* — that case is only distinguishable by
+ * whether the name's live address differs from the parked one, so the caller
+ * treats a hit as an alert to investigate, never as a resolution.
  *
  * @param task - The task's facet identity (name + stored address snapshot).
  * @param routedNames - Facet names currently routed, resolved via the deploy log.
  * @param routedAddresses - Lowercased addresses currently routed by the loupe.
- * @returns `true` while the facet is still routed under either identity.
+ * @returns `true` when the address is absent but the name is still routed.
  */
-export function resolveFacetPresence(
+export function isSuspectAddressSnapshot(
   task: Pick<IParkedTask, 'facetName' | 'facetAddress'>,
   routedNames: Set<string>,
   routedAddresses: Set<string>
 ): boolean {
   return (
-    routedNames.has(task.facetName) ||
-    routedAddresses.has(task.facetAddress.toLowerCase())
+    !routedAddresses.has(task.facetAddress.toLowerCase()) &&
+    routedNames.has(task.facetName)
   )
 }
 
@@ -516,16 +537,17 @@ async function reconcileAll(
           task.safeTxHash
         )
         const decision = reconcileDecision(task, {
-          facetPresentOnChain: resolveFacetPresence(
-            task,
-            routedNames,
-            routedAddresses
-          ),
+          facetPresentOnChain: resolveFacetPresence(task, routedAddresses),
           proposalStatus,
         })
         consola.info(
           `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
         )
+        if (isSuspectAddressSnapshot(task, routedNames, routedAddresses))
+          consola.warn(
+            `[${network}:${environment}] ${task.facetName}: parked address ${task.facetAddress} is not routed, but a facet named ${task.facetName} still is. ` +
+              `Expected when a superseded version was just removed; a wrong address snapshot looks identical — verify before trusting "${decision}". Origin PR: ${task.prUrl}`
+          )
         if (decision === 'keep') continue
         if (decision === 'reopen') {
           // Recorded in dry-run too, so the false-resolution alert is visible

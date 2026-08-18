@@ -239,13 +239,13 @@ one removal proposal (§6). The schema below **shipped verbatim** as `IParkedTas
 /** A deferred diamond-maintenance task, parked until the network is next touched. */
 export interface IParkedTask {
   _id?: ObjectId
-  taskKey: string            // dedup key: `${kind}|${network}|${environment}|${facetName}` (see §7)
+  taskKey: string            // dedup key: `${kind}|${network}|${environment}|${facetAddress}` (see §7)
   kind: 'facet-removal'      // extensible; only facet-removal in v1
   network: string            // lowercased, matches pendingTransactions convention
   environment: EnvironmentEnum // 'production' in v1 (§9)
-  facetName: string          // the IDENTITY — selectors are NOT stored (see below)
+  facetName: string          // human-readable LABEL for reports — NOT the identity
   diamondAddress: `0x${string}`  // snapshot from deploy log at enqueue (sanity/fallback)
-  facetAddress: `0x${string}`    // snapshot; re-verified against the loupe at drain
+  facetAddress: `0x${string}`    // the IDENTITY — selectors are NOT stored (see below)
   prUrl: string              // originating deprecation PR — REQUIRED, first-class (§6)
   status: 'queued' | 'proposed' | 'executed' | 'cancelled' | 'superseded'
   enqueuer: string           // git user.email / actor, for audit
@@ -468,12 +468,10 @@ a deliberate future option, not part of v1.
 ### Drain algorithm
 
 1. Query `parkedTasks` for `{network, environment, status:'queued'}`.
-2. `computeNamedFacetRemovals(network, environment, names)` (Fact 2) for those facet
-   names. Partition the result:
-   - `notFoundOnChain` → mark those records **`superseded`** (facet already gone —
-     removed another way). **But first** cross-check the stored `facetAddress`
-     against the loupe: if the log entry was pruned yet the address is still routed,
-     it is **not** superseded (see §8 hazard) — keep it queued and alert.
+2. `computeFacetRemovalsByAddress(network, environment, addresses)` for those tasks'
+   stored `facetAddress`es (never their names — see §8). Partition the result:
+   - `notFoundOnChain` → mark those records **`superseded`** (that exact facet is
+     already gone — removed another way).
    - `protectedSkipped` → mark **`cancelled`** + alert loudly (a protected facet
      should never have been queued — a bug in enqueue).
    - `removals` → proceed.
@@ -630,10 +628,14 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 **Idempotency / dedup**
 
 - **Don't enqueue twice.** Partial unique index `unique_open_task_key` on `taskKey`
-  (`${kind}|${network}|${environment}|${facetName}`) filtered to
+  (`${kind}|${network}|${environment}|${facetAddress}`) filtered to
   `status ∈ {queued, proposed}` (Fact 15) — mirrors `unique_pending_intent_hash`
   (Fact 8). A repeat `/deprecate-contract` of the same facet hits E11000 and
-  `enqueueParkedTask` returns `null` — a harmless no-op.
+  `enqueueParkedTask` returns `null` — a harmless no-op. Rows parked before the key
+  moved from `facetName` to `facetAddress` (EXSC-775) must be migrated with
+  `bunx tsx script/deploy/safe/migrate-parked-task-keys.ts --apply`, or their stale
+  keys stop colliding with a re-enqueue and the queue can hold two open tasks for
+  one address — which would fold two identical `Remove` calls into one batch.
 - **Don't re-propose if pending.** The atomic `claimForProposal` flip (above) is the
   guarantee; a `proposed` record whose proposal is still `pending` is skipped.
 - **Safe re-runs.** The whole drain is idempotent: nothing `queued` ⇒ no-op.
@@ -658,19 +660,19 @@ Three composed backstops, none silent:
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
-(possibly weeks), the `deployments/<network>.json` facet→address entry that
-`computeNamedFacetRemovals` uses to resolve the address (Fact 2) must survive until
-the parked task **retires** — longer than #2047's already-documented "don't prune
-until executed" window (Fact 10). Two mitigations, both in this spec:
+(possibly weeks), a name-resolving removal depends on the
+`deployments/<network>.json` facet→address entry (Fact 2) surviving until the parked
+task **retires** — longer than #2047's already-documented "don't prune until
+executed" window (Fact 10). Two mitigations, both in this spec:
 
-- The record stores `facetAddress` at enqueue (§4). The drain checks that address
-  against the loupe **directly**, and (EXSC-723) **resolves a pruned log entry by
-  address**: an unmapped on-chain address claimed by exactly one parked task's
-  stored `facetAddress` becomes a removal with its live loupe selectors — the log
-  entry is no longer load-bearing for the drain. Ambiguous cases (the log maps the
-  address to a *different* name, or two tasks claim one address) are never resolved:
-  they stay queued in `prunedButRouted` and alert for human investigation, so the
-  drain still never false-supersedes or wrong-cuts a live facet.
+- **The queue never resolves a name (EXSC-775).** A task's identity is its
+  `facetAddress` (§4), and the drain resolves it through
+  `computeFacetRemovalsByAddress`, which matches the loupe by address and takes
+  selectors from it. The deploy log supplies only a display label and the
+  never-remove check, so a pruned entry cannot mis-resolve a removal. This also
+  makes a *superseded* facet targetable: the log holds exactly one address per
+  name, so while SymbiosisFacet v1.0.0 and v2.0.0 are both cut into 35 production
+  diamonds (EXSC-750), only an address can say which one is doomed.
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
   executed" warning (Fact 10) is **strengthened** to "until the parked task retires" —
   not for the drain (address-resolving, above) but because the health check's
@@ -786,7 +788,7 @@ prod Safe signing (Fact 13). Therefore:
 | PR-link surfacing: extend `ISafeTxDocument` + `confirm-safe-tx` detailLines + `IProposalSummary`/list-pending + Slack | 2 | our build | ✅ **DONE — this PR** |
 | `/deprecate-contract` step 6 rewrite (propose → call `enqueueParkedTask`) + `multisig-rollout` doc update | 1 | our build | ✅ **DONE** — step 6 in #2047, `multisig-rollout` doc this PR |
 | Reconcile (proposed→executed/superseded via loupe) + TTL Slack alert (cron) | 2 | our build | ✅ **DONE — this PR** (`reconcile-parked-tasks.ts` + `reconcileParkedTasks.yml`) |
-| Loupe-by-address engine affordance (deploy-log-pruned robustness, §8) | 1 | our build | ✅ **DONE — this PR** (`prunedButRouted`) |
+| Address-keyed removal identity (deploy-log-pruned robustness §8 + co-registered versions) | 3 | our build | ✅ **DONE — this PR** (`computeFacetRemovalsByAddress`, EXSC-775) |
 | Review + first real park → drain → execute cycle (Safe signing + timelock) | 5 | human decision / operational | todo |
 
 Total ≈ **18**; **our-build share 13/18 ≈ 72%**, all now built — **4 points (store +
@@ -825,9 +827,9 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    **one** proposal — a separate proposal was still a full second sign/schedule/execute.
    Accepted tradeoff: removals are coupled to the upgrade's timelock op (reject-one =
    reject-all). See §6 Batching. **Built in `prepareDrainNetwork` / `proposeWithDrain`.**
-5. ~~**Deploy-log hazard (§8).**~~ **RESOLVED (EXSC-723):** both, plus detection.
-   The drain resolves a pruned entry by stored `facetAddress` (unambiguous
-   single-claim only; conflicts stay in `prunedButRouted` + alert), the queue-aware
+5. ~~**Deploy-log hazard (§8).**~~ **RESOLVED (EXSC-723/EXSC-775):** both, plus
+   detection. The drain resolves removals by stored `facetAddress` and never by
+   name, so a pruned or ambiguous log entry cannot mis-resolve one; the queue-aware
    health-check invariant `no-stale-registered-facets` flags any
    deprecated-but-registered facet with no open parked task, and the reconcile job
    reports deploy-log entries that are safe to prune once every covering task is
@@ -863,8 +865,8 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    │ opens deprecation PR #P                │ proposeWithDrain(X)  ◄── the ONE hook (§6)
    ▼                                        ▼  (DRAIN_PARKED_TASKS on; timelock; try/catch)
  enqueue parkedTask{                        │ 1. read status:queued for X
-   kind: facet-removal,                     │ 2. computeNamedFacetRemovals (live loupe)
-   network: X, facetName: F,                │ 3. claimForProposal flip queued→proposed  (dedup gate)
+   kind: facet-removal,                     │ 2. computeFacetRemovalsByAddress (live loupe)
+   network: X, facetAddress: A,             │ 3. claimForProposal flip queued→proposed  (dedup gate)
    prUrl: #P, status: queued }              │ 4. build one Remove call per facet, carrying #P link
    │                                        │ 5. _runPropose folds them into the primary scheduleBatch
    │  … survives across sessions …          │ 6. link claimed tasks → the primary's safeTxHash

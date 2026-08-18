@@ -29,6 +29,7 @@ import {
   formatSafeToPruneReport,
   formatTtlAlertMessage,
   reconcileDecision,
+  isSuspectAddressSnapshot,
   resolveFacetPresence,
 } from './reconcile-parked-tasks'
 
@@ -154,25 +155,9 @@ describe('reconcileDecision', () => {
 describe('resolveFacetPresence', () => {
   const task = { facetName: 'AcrossFacetV3', facetAddress: addr(0xabc) }
 
-  it('reports present when the facet NAME is routed, even though the stored address is not', () => {
-    // The worldchain regression: the task carried lisk's AcrossFacetV3 address, so
-    // an address-only check said "gone" while the named facet was still live.
+  it('reports present when the stored address is routed', () => {
     expect(
-      resolveFacetPresence(
-        task,
-        new Set(['AcrossFacetV3']),
-        new Set(['0xdead'])
-      )
-    ).toBe(true)
-  })
-
-  it('reports present when only the stored address is routed (deploy-log entry pruned)', () => {
-    expect(
-      resolveFacetPresence(
-        task,
-        new Set(),
-        new Set([task.facetAddress.toLowerCase()])
-      )
+      resolveFacetPresence(task, new Set([task.facetAddress.toLowerCase()]))
     ).toBe(true)
   })
 
@@ -180,15 +165,50 @@ describe('resolveFacetPresence', () => {
     expect(
       resolveFacetPresence(
         { ...task, facetAddress: addr(0xabc).toUpperCase() as Address },
-        new Set(),
         new Set([addr(0xabc).toLowerCase()])
       )
     ).toBe(true)
   })
 
-  it('reports absent when neither the name nor the address is routed', () => {
+  it('reports absent when the address is gone, even though a facet of that name still routes', () => {
+    // A co-registered removal: SymbiosisFacet v1.0.0 is cut, v2.0.0 keeps the
+    // name. Judging by name would leave this task open forever.
+    expect(resolveFacetPresence(task, new Set(['0xdead']))).toBe(false)
+  })
+})
+
+describe('isSuspectAddressSnapshot', () => {
+  const task = { facetName: 'AcrossFacetV3', facetAddress: addr(0xabc) }
+
+  it('flags the worldchain shape: address not routed, name still routed', () => {
+    // The task carried lisk's AcrossFacetV3 address, so an address check said
+    // "gone" while the named facet was still live on worldchain.
     expect(
-      resolveFacetPresence(task, new Set(['OtherFacet']), new Set(['0xdead']))
+      isSuspectAddressSnapshot(
+        task,
+        new Set(['AcrossFacetV3']),
+        new Set(['0xdead'])
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag a task whose address is still routed', () => {
+    expect(
+      isSuspectAddressSnapshot(
+        task,
+        new Set(['AcrossFacetV3']),
+        new Set([task.facetAddress.toLowerCase()])
+      )
+    ).toBe(false)
+  })
+
+  it('does not flag a removal whose name is gone from the diamond too', () => {
+    expect(
+      isSuspectAddressSnapshot(
+        task,
+        new Set(['OtherFacet']),
+        new Set(['0xdead'])
+      )
     ).toBe(false)
   })
 })

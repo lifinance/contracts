@@ -73,24 +73,24 @@ const OPEN_TASK_KEY_INDEX_NAME = 'unique_open_task_key'
 
 /**
  * A deferred diamond-maintenance task, parked until the network is next touched.
- * One record per (kind, network, environment, facetName) — the finest grain
+ * One record per (kind, network, environment, facetAddress) — the finest grain
  * (spec §4). Selectors are intentionally NOT stored: they are resolved from the
  * live loupe at drain time, so a stored list can never go stale.
  */
 export interface IParkedTask {
   _id?: ObjectId
-  /** Dedup key `${kind}|${network}|${environment}|${facetName}` (see {@link computeTaskKey}). */
+  /** Dedup key `${kind}|${network}|${environment}|${facetAddress}` (see {@link computeTaskKey}). */
   taskKey: string
   kind: ParkedTaskKind
   /** Lowercased network name, matching the `pendingTransactions` convention. */
   network: string
   /** `production` in v1 — the queue is a production-mainnet construct (spec §12). */
   environment: EnvironmentEnum
-  /** The facet identity; selectors are re-resolved from the loupe at drain. */
+  /** Human-readable label for the parked facet. NOT the identity — see `facetAddress`. */
   facetName: string
   /** Diamond address snapshot from the deploy log at enqueue (sanity/fallback). */
   diamondAddress: Address
-  /** Facet address snapshot; re-verified against the loupe at drain. */
+  /** The task identity: the exact facet to remove. Selectors are re-resolved from the loupe at drain. */
   facetAddress: Address
   /** Originating deprecation PR — REQUIRED and first-class (spec §6). */
   prUrl: string
@@ -131,22 +131,43 @@ export interface IListParkedTasksFilter {
 }
 
 /**
- * Computes the dedup key for a parked task: `${kind}|${network}|${environment}|${facetName}`.
- * Only the network segment is lowercased, matching the stored `network` value.
+ * Normalises a facet address for use as a {@link computeTaskKey} segment.
+ *
+ * EVM addresses are case-insensitive, so lowercasing lets a checksummed and an
+ * all-lower spelling of the same facet dedup against each other. Tron base58 is
+ * case-SENSITIVE — `T…a` and `T…A` are different accounts — so a non-`0x` address
+ * is kept verbatim rather than folded into a key that could collide.
+ */
+function normaliseAddressForKey(facetAddress: string): string {
+  const trimmed = facetAddress.trim()
+  return trimmed.startsWith('0x') ? trimmed.toLowerCase() : trimmed
+}
+
+/**
+ * Computes the dedup key for a parked task: `${kind}|${network}|${environment}|${facetAddress}`.
+ * The network segment is lowercased to match the stored `network` value, the
+ * address per {@link normaliseAddressForKey}.
+ *
+ * Keyed by ADDRESS rather than name: two versions of one facet are routinely
+ * co-registered on the same diamond (SymbiosisFacet v1.0.0 alongside v2.0.0 on 35
+ * production chains, EXSC-750), and a name-keyed queue can neither represent them
+ * separately nor target one without the other.
  *
  * @param kind - Task kind (`facet-removal` in v1).
  * @param network - Network slug (matches `networks.json` keys).
  * @param environment - Deployment environment.
- * @param facetName - The facet identity being parked for removal.
+ * @param facetAddress - Address being parked for removal — the task identity.
  * @returns The pipe-joined task key.
  */
 export function computeTaskKey(
   kind: ParkedTaskKind,
   network: string,
   environment: EnvironmentEnum,
-  facetName: string
+  facetAddress: string
 ): string {
-  return `${kind}|${network.toLowerCase()}|${environment}|${facetName}`
+  return `${kind}|${network.toLowerCase()}|${environment}|${normaliseAddressForKey(
+    facetAddress
+  )}`
 }
 
 /**
@@ -287,16 +308,17 @@ export async function getParkedTasksCollection(): Promise<{
  * same facet is a harmless no-op), mirroring `storeTransactionInMongoDB`.
  *
  * Identity fields are normalised here (the single enqueue chokepoint) so every
- * caller — CLI, `/deprecate-contract`, the future drain — dedups consistently:
- * `network`/`facetName`/`prUrl` are trimmed and a blank `facetName` is rejected,
- * because `taskKey` is built from `network`+`facetName` and a stray space would
- * silently mint a distinct, undeduplicated task for the same facet.
+ * caller — CLI, `/deprecate-contract`, the drain — dedups consistently:
+ * `network`/`facetName`/`facetAddress`/`prUrl` are trimmed, because `taskKey` is
+ * built from `network`+`facetAddress` and a stray space would silently mint a
+ * distinct, undeduplicated task for the same facet.
  *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
  * @returns The insert result, or `null` if a duplicate open task already exists.
- * @throws Error if `prUrl` or `facetName` is missing or blank (prUrl is the
- *   PR-link requirement, spec §6; facetName is the task identity).
+ * @throws Error if `prUrl`, `facetAddress` or `facetName` is missing or blank
+ *   (prUrl is the PR-link requirement, spec §6; facetAddress is the task
+ *   identity; facetName is its label, required so queue reports stay readable).
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -308,15 +330,26 @@ export async function enqueueParkedTask(
     )
   if (!input.facetName || input.facetName.trim() === '')
     throw new Error('facetName is required to park a facet-removal task')
+  if (!input.facetAddress || input.facetAddress.trim() === '')
+    throw new Error(
+      'facetAddress is required to park a facet-removal task (it is the task identity)'
+    )
 
   const network = input.network.trim().toLowerCase()
   const facetName = input.facetName.trim()
+  const facetAddress = input.facetAddress.trim() as Address
   const doc: IParkedTask = {
     ...input,
     network,
     facetName,
+    facetAddress,
     prUrl: input.prUrl.trim(),
-    taskKey: computeTaskKey(input.kind, network, input.environment, facetName),
+    taskKey: computeTaskKey(
+      input.kind,
+      network,
+      input.environment,
+      facetAddress
+    ),
     status: 'queued',
     createdAt: new Date(),
   }

@@ -519,16 +519,23 @@ export interface INamedRemovalResult {
    * the deprecated facet was actually removed.
    */
   unresolved: `0x${string}`[]
+}
+
+/** Result of resolving an explicit set of facet ADDRESSES against one diamond. */
+export interface IAddressRemovalResult {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
   /**
-   * Requested names whose stored `facetAddress` hint is still routed on-chain but
-   * could NOT be safely resolved by address: the loupe address is mapped to a
-   * different name in the deploy log, or more than one requested name claims the
-   * same address. Surfaced (never removed, never superseded) so a human
-   * investigates; empty unless a `nameToAddress` hint is supplied. An
-   * unambiguous hint whose address is unmapped in the log resolves into
-   * `removals` instead (spec §8 deploy-log longevity hazard, EXSC-723).
+   * Removals, one per requested address still routed on-chain. `name` is the
+   * deploy-log label when the address maps to one, else `undefined` — the caller
+   * supplies its own label (a parked task carries `facetName` for this).
    */
-  prunedButRouted: { name: string; address: `0x${string}` }[]
+  removals: (Omit<IFacetRemoval, 'name'> & { name?: string })[]
+  /** Requested addresses not registered on this diamond (nothing to remove here). */
+  notFoundOnChain: `0x${string}`[]
+  /** Requested addresses that resolve to a never-remove facet — refused. */
+  protectedSkipped: { name: string; address: `0x${string}` }[]
 }
 
 /**
@@ -547,15 +554,6 @@ export function diffNamedFacets(params: {
   onChainFacets: IOnChainFacet[]
   addressToName: Record<string, string>
   protectedNames: Set<string>
-  /**
-   * Optional `name → stored facetAddress` hint (e.g. a parked task's snapshot).
-   * A hinted address that is still routed on-chain, absent from the log, and
-   * claimed by exactly one requested name resolves into a removal with its live
-   * loupe selectors — log-independent by construction (spec §8, EXSC-723).
-   * Ambiguous or log-conflicting hints land in `prunedButRouted`; a name that
-   * resolves via neither the log nor the hint stays in `notFoundOnChain`.
-   */
-  nameToAddress?: Record<string, `0x${string}`>
 }): INamedRemovalResult {
   const {
     network,
@@ -565,7 +563,6 @@ export function diffNamedFacets(params: {
     onChainFacets,
     addressToName,
     protectedNames,
-    nameToAddress,
   } = params
 
   const result: INamedRemovalResult = {
@@ -576,26 +573,11 @@ export function diffNamedFacets(params: {
     notFoundOnChain: [],
     protectedSkipped: [],
     unresolved: [],
-    prunedButRouted: [],
-  }
-
-  // Reverse hint map for log-independent resolution: an unmapped on-chain
-  // address claimed by exactly ONE requested name is that facet (the log entry
-  // was pruned). Two names claiming one address is ambiguous — never resolved.
-  const hintNamesByAddress = new Map<string, string[]>()
-  for (const [name, hintAddress] of Object.entries(nameToAddress ?? {})) {
-    if (!requestedNames.has(name)) continue
-    const key = lower(hintAddress)
-    hintNamesByAddress.set(key, [...(hintNamesByAddress.get(key) ?? []), name])
   }
 
   const foundOnChain = new Set<string>()
   for (const facet of onChainFacets) {
-    const logName = addressToName[lower(facet.address)]
-    const hintNames = logName
-      ? undefined
-      : hintNamesByAddress.get(lower(facet.address))
-    const name = logName ?? (hintNames?.length === 1 ? hintNames[0] : undefined)
+    const name = addressToName[lower(facet.address)]
     // On-chain but unmapped: could be a requested facet at an address the deploy
     // log doesn't list. Surface it rather than dropping it, so it isn't
     // misreported as "not on chain".
@@ -618,18 +600,88 @@ export function diffNamedFacets(params: {
     })
   }
 
-  // A still-unresolved name whose hinted address remains routed on-chain was NOT
-  // safely resolvable (log maps the address to another name, or the hint is
-  // ambiguous) — keep it out of `notFoundOnChain` so the drain never
-  // false-supersedes a live facet.
-  const onChainAddresses = new Set(onChainFacets.map((f) => lower(f.address)))
-  for (const name of requestedNames) {
-    if (foundOnChain.has(name)) continue
-    const hinted = nameToAddress?.[name]
-    if (hinted && onChainAddresses.has(lower(hinted)))
-      result.prunedButRouted.push({ name, address: getAddress(lower(hinted)) })
-    else result.notFoundOnChain.push(name)
+  for (const name of requestedNames)
+    if (!foundOnChain.has(name)) result.notFoundOnChain.push(name)
+
+  return result
+}
+
+/**
+ * Pure resolution of an explicit set of requested facet ADDRESSES against the
+ * on-chain loupe — the removal path for anything that must target one exact
+ * facet, including a version co-registered alongside its successor under the
+ * same name (EXSC-750). Unlike {@link diffNamedFacets} the deploy log is never
+ * load-bearing: it supplies a display label when it happens to know the address,
+ * and the never-remove check when it does. Selectors always come from the loupe,
+ * so they cannot go stale between enqueue and drain.
+ *
+ * The protected check runs on both sides — the name the log maps the requested
+ * address to, and the set of addresses the log maps to a protected name — so an
+ * unlogged address cannot smuggle a never-remove facet past the allowlist.
+ */
+export function diffFacetsByAddress(params: {
+  network: string
+  environment: EnvironmentEnum
+  diamondAddress?: `0x${string}`
+  /** Addresses to remove; matched case-insensitively against the loupe. */
+  requestedAddresses: Set<`0x${string}`>
+  onChainFacets: IOnChainFacet[]
+  addressToName: Record<string, string>
+  protectedNames: Set<string>
+}): IAddressRemovalResult {
+  const {
+    network,
+    environment,
+    diamondAddress,
+    requestedAddresses,
+    onChainFacets,
+    addressToName,
+    protectedNames,
+  } = params
+
+  const result: IAddressRemovalResult = {
+    network,
+    environment,
+    diamondAddress,
+    removals: [],
+    notFoundOnChain: [],
+    protectedSkipped: [],
   }
+
+  const requested = new Map<string, `0x${string}`>()
+  for (const address of requestedAddresses)
+    requested.set(lower(address), address)
+
+  const protectedAddresses = new Set(
+    Object.entries(addressToName)
+      .filter(([, name]) => protectedNames.has(name))
+      .map(([address]) => lower(address))
+  )
+
+  const foundOnChain = new Set<string>()
+  for (const facet of onChainFacets) {
+    const key = lower(facet.address)
+    if (!requested.has(key)) continue
+    foundOnChain.add(key)
+
+    const name = addressToName[key]
+    if ((name && protectedNames.has(name)) || protectedAddresses.has(key)) {
+      result.protectedSkipped.push({
+        name: name ?? 'unknown (address not in deploy log)',
+        address: facet.address,
+      })
+      continue
+    }
+
+    result.removals.push({
+      name,
+      address: facet.address,
+      selectors: facet.selectors,
+    })
+  }
+
+  for (const [key, address] of requested)
+    if (!foundOnChain.has(key)) result.notFoundOnChain.push(address)
 
   return result
 }
@@ -641,17 +693,18 @@ export function diffNamedFacets(params: {
  * `/deprecate-contract`. This is the deprecation-driven removal path; the
  * facet-name set comes from the deprecation, not from a target-state diff.
  *
+ * Resolves a name through the deploy log, which holds exactly ONE address per
+ * name — so it cannot target a superseded version co-registered under the same
+ * name. Use {@link computeFacetRemovalsByAddress} whenever the exact facet
+ * matters (the parked-removal queue always does).
+ *
  * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
- * @param nameToAddress - Optional `name → stored facetAddress` hint (e.g. a parked
- *   task's snapshot). An unambiguous hint resolves a deploy-log-pruned facet by
- *   address with live loupe selectors; conflicts land in `prunedButRouted` (spec §8).
  */
 export async function computeNamedFacetRemovals(
   network: string,
   environment: EnvironmentEnum,
   names: string[],
-  io: Partial<IRemovalDiffIO> = {},
-  nameToAddress?: Record<string, `0x${string}`>
+  io: Partial<IRemovalDiffIO> = {}
 ): Promise<INamedRemovalResult> {
   const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
 
@@ -664,7 +717,6 @@ export async function computeNamedFacetRemovals(
       notFoundOnChain: names,
       protectedSkipped: [],
       unresolved: [],
-      prunedButRouted: [],
     }
 
   const [onChainFacets, addressToName] = await Promise.all([
@@ -680,7 +732,50 @@ export async function computeNamedFacetRemovals(
     onChainFacets,
     addressToName,
     protectedNames: getProtectedNames(),
-    nameToAddress,
+  })
+}
+
+/**
+ * Resolves an explicit set of facet ADDRESSES against a single diamond and
+ * returns the ones to remove, taking selectors from the loupe. The address-keyed
+ * counterpart of {@link computeNamedFacetRemovals}, and the path the parked
+ * removal queue drains through: a task's stored `facetAddress` names exactly one
+ * facet, so a superseded version can be removed while its live successor —
+ * registered under the very same deploy-log name — is left untouched.
+ *
+ * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
+ */
+export async function computeFacetRemovalsByAddress(
+  network: string,
+  environment: EnvironmentEnum,
+  addresses: `0x${string}`[],
+  io: Partial<IRemovalDiffIO> = {}
+): Promise<IAddressRemovalResult> {
+  const resolved: IRemovalDiffIO = { ...defaultIO, ...io }
+
+  const diamondAddress = await resolved.getDiamondAddress(network, environment)
+  if (!diamondAddress)
+    return {
+      network,
+      environment,
+      removals: [],
+      notFoundOnChain: addresses,
+      protectedSkipped: [],
+    }
+
+  const [onChainFacets, addressToName] = await Promise.all([
+    resolved.getOnChainFacets(diamondAddress, network),
+    resolved.getAddressToName(network, environment),
+  ])
+
+  return diffFacetsByAddress({
+    network,
+    environment,
+    diamondAddress,
+    requestedAddresses: new Set(addresses),
+    onChainFacets,
+    addressToName,
+    protectedNames: getProtectedNames(),
   })
 }
 

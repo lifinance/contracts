@@ -31,9 +31,8 @@ import {
 } from '../../utils/viemScriptHelpers'
 
 import {
-  computeNamedFacetRemovals,
-  type IFacetRemoval,
-  type INamedRemovalResult,
+  computeFacetRemovalsByAddress,
+  type IAddressRemovalResult,
 } from './diamondRemovalDiff'
 import {
   claimForProposal,
@@ -61,8 +60,6 @@ export interface IDrainOutcome {
   proposed: IParkedTaskRef[]
   /** Facets already absent on-chain → marked superseded. */
   superseded: string[]
-  /** Facets still routed but not safely resolvable by address → kept + alerted. */
-  prunedButRouted: IParkedTaskRef[]
   /** Protected facets parked in error → cancelled + alerted. */
   protectedCancelled: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
@@ -83,7 +80,7 @@ export interface IDrainPreparation {
   parkedTaskRefs: IParkedTaskRef[]
   /** Claimed (`queued → proposed`) task keys — link on success, revert on failure. */
   claimedTaskKeys: string[]
-  /** Partition side-effects already applied (superseded / cancelled / pruned / skipped). */
+  /** Partition side-effects already applied (superseded / cancelled / skipped). */
   outcome: IDrainOutcome
 }
 
@@ -95,11 +92,8 @@ export interface IDrainPreparation {
 export interface IDrainDeps {
   /** Queued tasks for this network/environment. */
   listQueued: () => Promise<WithId<IParkedTask>[]>
-  /** Resolve requested names against the live loupe, hinting stored addresses (§8). */
-  computeRemovals: (
-    names: string[],
-    nameToAddress: Record<string, Address>
-  ) => Promise<INamedRemovalResult>
+  /** Resolve the parked facet addresses against the live loupe. */
+  computeRemovals: (addresses: Address[]) => Promise<IAddressRemovalResult>
   /** Atomic queued → proposed flip (dedup gate); `null` if lost the race. */
   claim: (taskKey: string) => Promise<unknown>
   /** Mark a task superseded (facet already gone on-chain). */
@@ -119,12 +113,17 @@ export interface IDrainDeps {
 /**
  * Prepares one network's queued facet-removal tasks for folding into the primary
  * proposal (spec §6 drain algorithm). Pure orchestration over injected I/O:
- * partition against the live loupe (gone → supersede, pruned-but-routed → keep +
- * alert, protected → cancel + alert, removable → claim), then build one
- * `diamondCut` Remove call per claimed facet for the caller to append to the
- * primary's `scheduleBatch`. Claiming and calldata-building are wrapped so a
- * mid-preparation failure reverts every task this run already claimed before
- * rethrowing — the caller then proceeds primary-only.
+ * partition against the live loupe (gone → supersede, protected → cancel +
+ * alert, removable → claim), then build one `diamondCut` Remove call per claimed
+ * facet for the caller to append to the primary's `scheduleBatch`. Claiming and
+ * calldata-building are wrapped so a mid-preparation failure reverts every task
+ * this run already claimed before rethrowing — the caller then proceeds
+ * primary-only.
+ *
+ * Every task is matched to the loupe by its stored `facetAddress`, never by name:
+ * a superseded facet is routinely co-registered with its successor under one
+ * deploy-log name, and matching by name would fold the LIVE facet's selectors
+ * into the removal (EXSC-750/EXSC-775).
  *
  * Does NOT sign or store anything: the claimed tasks are linked to (or reverted
  * from) the primary proposal by {@link proposeWithDrain} once its Safe tx hash is
@@ -146,7 +145,6 @@ export async function prepareDrainNetwork(
     environment,
     proposed: [],
     superseded: [],
-    prunedButRouted: [],
     protectedCancelled: [],
     skippedAlreadyClaimed: [],
   }
@@ -160,23 +158,29 @@ export async function prepareDrainNetwork(
   const tasks = await deps.listQueued()
   if (tasks.length === 0) return empty
 
-  const names = tasks.map((t) => t.facetName)
-  const nameToAddress: Record<string, Address> = {}
-  for (const t of tasks) nameToAddress[t.facetName] = getAddress(t.facetAddress)
+  const result = await deps.computeRemovals(
+    tasks.map((t) => getAddress(t.facetAddress))
+  )
 
-  const result = await deps.computeRemovals(names, nameToAddress)
+  const lower = (address: string): string => address.toLowerCase()
+  const removalByAddress = new Map(
+    result.removals.map((r) => [lower(r.address), r])
+  )
+  const notFound = new Set(result.notFoundOnChain.map(lower))
+  const protectedAddresses = new Set(
+    result.protectedSkipped.map((p) => lower(p.address))
+  )
 
-  const removalByName = new Map(result.removals.map((r) => [r.name, r]))
-  const notFound = new Set(result.notFoundOnChain)
-  const protectedNames = new Set(result.protectedSkipped)
-  const prunedNames = new Set(result.prunedButRouted.map((p) => p.name))
-
-  const claimed: { task: WithId<IParkedTask>; removal: IFacetRemoval }[] = []
+  const claimed: {
+    task: WithId<IParkedTask>
+    removal: { selectors: `0x${string}`[] }
+  }[] = []
 
   try {
     for (const task of tasks) {
       const name = task.facetName
-      const removal = removalByName.get(name)
+      const address = lower(task.facetAddress)
+      const removal = removalByAddress.get(address)
       if (removal) {
         const won = await deps.claim(task.taskKey)
         if (!won) {
@@ -187,33 +191,30 @@ export async function prepareDrainNetwork(
           continue
         }
         claimed.push({ task, removal })
-      } else if (notFound.has(name)) {
+      } else if (notFound.has(address)) {
         await deps.supersede(task.taskKey)
         outcome.superseded.push(name)
-        deps.log(`[${network}] ${name}: already absent on-chain — superseded`)
-      } else if (prunedNames.has(name)) {
-        outcome.prunedButRouted.push({ facet: name, prUrl: task.prUrl })
-        deps.alert(
-          `[${network}] ${name}: address ${task.facetAddress} is still routed but could not be safely resolved (the deploy log maps it to another name, or multiple parked tasks claim it) — NOT removing. Investigate, then re-drain. Origin PR: ${task.prUrl}`
+        deps.log(
+          `[${network}] ${name} (${task.facetAddress}): already absent on-chain — superseded`
         )
-      } else if (protectedNames.has(name)) {
+      } else if (protectedAddresses.has(address)) {
         await deps.cancel(task.taskKey)
         outcome.protectedCancelled.push(name)
         deps.alert(
-          `[${network}] ${name}: a PROTECTED facet was parked for removal — cancelling (enqueue bug). Origin PR: ${task.prUrl}`
+          `[${network}] ${name} (${task.facetAddress}): a PROTECTED facet was parked for removal — cancelling (enqueue bug). Origin PR: ${task.prUrl}`
         )
       }
     }
 
     if (claimed.length === 0) return empty
 
-    // Guaranteed present once there are removals: computeNamedFacetRemovals only
+    // Guaranteed present once there are removals: computeFacetRemovalsByAddress only
     // omits diamondAddress on the no-diamond early return, which yields no removals.
     const diamondAddress = getAddress(result.diamondAddress as Address)
-    const calls: ITimelockCall[] = claimed.map(({ removal }) => ({
+    const calls: ITimelockCall[] = claimed.map(({ task, removal }) => ({
       to: diamondAddress,
       calldata: buildDiamondCutRemoveCalldata([
-        { name: removal.name, selectors: removal.selectors },
+        { name: task.facetName, selectors: removal.selectors },
       ]) as Hex,
     }))
     const parkedTaskRefs: IParkedTaskRef[] = claimed.map(({ task }) => ({
@@ -476,14 +477,8 @@ function buildLiveDeps(
         environment,
         status: 'queued',
       }),
-    computeRemovals: (names, nameToAddress) =>
-      computeNamedFacetRemovals(
-        options.network,
-        environment,
-        names,
-        {},
-        nameToAddress
-      ),
+    computeRemovals: (addresses) =>
+      computeFacetRemovalsByAddress(options.network, environment, addresses),
     claim: (taskKey) => claimForProposal(parkedTasks, taskKey),
     supersede: (taskKey) => markSuperseded(parkedTasks, taskKey),
     cancel: (taskKey) => markCancelled(parkedTasks, taskKey),
@@ -513,20 +508,18 @@ async function sendDrainSlackAlert(message: string): Promise<void> {
 
 /** Human-readable one-line summary of a drain run. */
 function logDrainSummary(outcome: IDrainOutcome): void {
-  const { proposed, superseded, protectedCancelled, prunedButRouted } = outcome
+  const { proposed, superseded, protectedCancelled } = outcome
   if (
     proposed.length === 0 &&
     superseded.length === 0 &&
-    protectedCancelled.length === 0 &&
-    prunedButRouted.length === 0
+    protectedCancelled.length === 0
   ) {
     consola.info(`[${outcome.network}] parked-task drain: nothing to do`)
     return
   }
   consola.success(
     `[${outcome.network}] parked-task drain: ${proposed.length} folded in, ` +
-      `${superseded.length} superseded, ${protectedCancelled.length} cancelled, ` +
-      `${prunedButRouted.length} pruned-but-routed (kept)` +
+      `${superseded.length} superseded, ${protectedCancelled.length} cancelled` +
       (outcome.safeTxHash ? ` → ${outcome.safeTxHash}` : '')
   )
 }

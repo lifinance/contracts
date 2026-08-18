@@ -233,26 +233,44 @@ function createFakeCollection(
 }
 
 describe('computeTaskKey', () => {
-  it('joins kind|network|environment|facetName', () => {
+  it('joins kind|network|environment|facetAddress', () => {
     expect(
       computeTaskKey(
         'facet-removal',
         'arbitrum',
         EnvironmentEnum.production,
-        'GenericSwapFacet'
+        FACET
       )
-    ).toBe('facet-removal|arbitrum|production|GenericSwapFacet')
+    ).toBe(`facet-removal|arbitrum|production|${FACET.toLowerCase()}`)
   })
 
-  it('lowercases only the network segment', () => {
+  it('lowercases the network and an EVM address', () => {
     expect(
       computeTaskKey(
         'facet-removal',
         'Arbitrum',
         EnvironmentEnum.production,
-        'GenericSwapFacet'
+        ('0x' + FACET.slice(2).toUpperCase()) as Address
       )
-    ).toBe('facet-removal|arbitrum|production|GenericSwapFacet')
+    ).toBe(`facet-removal|arbitrum|production|${FACET.toLowerCase()}`)
+  })
+
+  it('keeps a non-0x (Tron base58) address verbatim — base58 is case-sensitive', () => {
+    const tron = 'TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f' as Address
+    expect(
+      computeTaskKey('facet-removal', 'tron', EnvironmentEnum.production, tron)
+    ).toBe(`facet-removal|tron|production|${tron}`)
+  })
+
+  it('gives two versions of one facet, co-registered on a diamond, distinct keys', () => {
+    const args = [
+      'facet-removal',
+      'mainnet',
+      EnvironmentEnum.production,
+    ] as const
+    expect(computeTaskKey(...args, FACET)).not.toBe(
+      computeTaskKey(...args, DIAMOND)
+    )
   })
 })
 
@@ -264,7 +282,7 @@ describe('enqueueParkedTask', () => {
     expect(coll.rows).toHaveLength(1)
     const row = coll.rows[0]
     expect(row?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
     )
     expect(row?.status).toBe('queued')
     expect(row?.createdAt).toBeInstanceOf(Date)
@@ -277,7 +295,7 @@ describe('enqueueParkedTask', () => {
     await enqueueParkedTask(coll, buildInput({ network: 'Arbitrum' }))
     expect(coll.rows[0]?.network).toBe('arbitrum')
     expect(coll.rows[0]?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
     )
   })
 
@@ -345,7 +363,7 @@ describe('enqueueParkedTask', () => {
     expect(row?.facetName).toBe('GenericSwapFacet')
     expect(row?.prUrl).toBe(PR_URL)
     expect(row?.taskKey).toBe(
-      'facet-removal|arbitrum|production|GenericSwapFacet'
+      `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
     )
   })
 })
