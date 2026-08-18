@@ -488,6 +488,13 @@ async function runReconcileAlerts(
     consola.warn(failureMessage)
     await send(failureMessage)
   }
+
+  // A cron log nobody reads is not an alarm. Say so when there was something to
+  // raise but no webhook to raise it on, rather than degrading to log-only in silence.
+  if (apply && !webhookUrl && (reopenMessage || failureMessage))
+    consola.warn(
+      'WEBHOOK_DEV_SC_MULTISIG_PROPOSALS is not set — the alert(s) above were logged only, not delivered to Slack.'
+    )
 }
 
 /** Computes and (when applying) sends the cold-network TTL alert. */
