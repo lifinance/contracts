@@ -1462,9 +1462,30 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         .filter((name) => !notPeriphery.has(name))
         .sort()
 
-      const registered = await Promise.allSettled(
-        candidates.map((name) => readPeripheryRegistry(name, ctx))
-      )
+      // EVM reads fold into the batched multicall client; Tron reads stay sequential because each
+      // one spawns a troncast subprocess with its own retry backoff, and firing the whole candidate
+      // list at once would burst dozens of them at a rate-limited RPC.
+      const registered: Array<PromiseSettledResult<string | null>> = []
+      if (ctx.isTron)
+        for (const name of candidates)
+          registered.push(
+            await readPeripheryRegistry(name, ctx).then(
+              (value): PromiseSettledResult<string | null> => ({
+                status: 'fulfilled',
+                value,
+              }),
+              (reason: unknown): PromiseSettledResult<string | null> => ({
+                status: 'rejected',
+                reason,
+              })
+            )
+          )
+      else
+        registered.push(
+          ...(await Promise.allSettled(
+            candidates.map((name) => readPeripheryRegistry(name, ctx))
+          ))
+        )
 
       let inSync = 0
       candidates.forEach((name, index) => {
@@ -2024,7 +2045,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
           ctx.logWarn(
             identified
-              ? `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors identify it as ${identified} - add it to deployments/${ctx.networkLower}.json`
+              ? `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
               : `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
           )
         }

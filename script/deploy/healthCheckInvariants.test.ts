@@ -819,6 +819,43 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(ctx.warnings[0]).toContain('missing from the deploy log')
   })
 
+  it('reads the Tron registry one name at a time, never as a subprocess burst', async () => {
+    const { ctx } = makeReceiverCtx({})
+    Object.assign(ctx, {
+      isTron: true,
+      tronRpcUrl: 'http://tron.invalid',
+      publicClient: undefined,
+      tronWeb: {},
+    })
+
+    let inFlight = 0
+    let peakInFlight = 0
+    // Intercept at the cache so the invariant's own read path is what gets measured. Each Tron
+    // read spawns a troncast subprocess, so the peak matters, not the total.
+    const cache = (
+      ctx as unknown as {
+        peripheryRegistryCache: Map<string, Promise<string | null>>
+      }
+    ).peripheryRegistryCache
+    const realGet = cache.get.bind(cache)
+    cache.get = (key: string) => {
+      const existing = realGet(key)
+      if (existing) return existing
+      const pending = (async () => {
+        inFlight++
+        peakInFlight = Math.max(peakInFlight, inFlight)
+        await Promise.resolve()
+        inFlight--
+        return null
+      })()
+      cache.set(key, pending)
+      return pending
+    }
+
+    await sync().run(ctx)
+    expect(peakInFlight).toBe(1)
+  })
+
   it('does not waste registry reads on facet names from the deploy log', async () => {
     const { ctx, registryQueries } = makeReceiverCtx({
       deployedContracts: { AcrossFacetV4: OIF_ON_CHAIN },
