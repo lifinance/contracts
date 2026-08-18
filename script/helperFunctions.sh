@@ -1941,17 +1941,29 @@ function parseTargetStateGoogleSpreadsheet() {
     fi
   fi
 
+  # Everything from here on empties the environment first and repopulates it from the CSV,
+  # so any abort in between would leave the file wiped. Keep a copy to roll back to.
+  local TARGET_STATE_BACKUP
+  TARGET_STATE_BACKUP=$(mktemp)
+  if ! cp "$TARGET_STATE_PATH" "$TARGET_STATE_BACKUP"; then
+    error "unable to back up target state file ($TARGET_STATE_PATH) before repopulating it. Cannot proceed."
+    rm -f "$CSV_FILE_PATH" "$TARGET_STATE_BACKUP"
+    return 1
+  fi
+
+  local REMOVAL_FAILED=0
   if [[ -n "$SPECIFIC_NETWORK" ]]; then
     # Remove only the specific network from target state
-    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK"
+    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK" || REMOVAL_FAILED=1
   else
     # remove existing entries from target state JSON file
-    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
+    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" || REMOVAL_FAILED=1
   fi
 
   # make sure existing entries were removed properly (to prevent corrupted target state)
-  if [[ $? -ne 0 ]]; then
+  if [[ $REMOVAL_FAILED -ne 0 ]]; then
     error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
     rm -f "$CSV_FILE_PATH"
     return 1
   fi
@@ -1961,24 +1973,36 @@ function parseTargetStateGoogleSpreadsheet() {
   trap 'rm -rf "$TEMP_DIR"' EXIT
 
   # Process networks in parallel with concurrency control
+  local NETWORK_PIDS=()
   for LINE in "${NETWORK_LINES[@]}"; do
     # Extract network name
     NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
     # Wait if we've reached the maximum number of concurrent jobs
-    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
       sleep 1
     done
 
     # Start processing this network in background
     processNetworkLine "$NETWORK" "$LINE" "$ENVIRONMENT" "$TEMP_DIR" "$FACETS_STARTS_AT_COLUMN" "$(printf '%s\n' "${CONTRACTS_ARRAY[@]}")" &
+    NETWORK_PIDS+=("$!")
   done
 
-  # Wait for all background jobs and check for failures
-  wait
-  if [ $? -ne 0 ]; then
-    error "One or more network processing jobs failed"
+  # A bare `wait` always reports success, so each worker has to be waited on by pid for its
+  # exit code to survive -- otherwise a failed network is merged as a partial result.
+  local FAILED_NETWORK_COUNT=0
+  local NETWORK_PID
+  for NETWORK_PID in "${NETWORK_PIDS[@]}"; do
+    if ! wait "$NETWORK_PID"; then
+      ((FAILED_NETWORK_COUNT += 1))
+    fi
+  done
+
+  if [[ $FAILED_NETWORK_COUNT -ne 0 ]]; then
+    error "$FAILED_NETWORK_COUNT of ${#NETWORK_PIDS[@]} network(s) failed to process (see the errors above). Nothing was merged; target state restored."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
     rm -rf "$TEMP_DIR"
+    rm -f "$CSV_FILE_PATH"
     return 1
   fi
 
@@ -1986,7 +2010,15 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "All network processing completed. Merging results..."
 
   # Merge all temporary JSON files into the main target state file
-  mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"
+  if ! mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"; then
+    error "failed to merge the per-network results into $TARGET_STATE_PATH. Target state restored."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
+    rm -rf "$TEMP_DIR"
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
+
+  rm -f "$TARGET_STATE_BACKUP"
 
   # Clean up temporary directory
   rm -rf "$TEMP_DIR"
@@ -2062,8 +2094,15 @@ function processNetworkLine() {
       local DIAMOND_TYPE="LiFiDiamond"
     fi
 
-    # get current contract version and save in variable
-    local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+    # get current contract version and save in variable.
+    # Declared separately from the assignment: `local VAR=$(...)` reports local's own exit
+    # code, which discards the lookup failure. getCurrentContractVersion also prints its
+    # errors on stdout, so a failed lookup returns an error string rather than an empty
+    # value -- normalise anything that is not a version tag to empty.
+    local CURRENT_VERSION
+    if ! CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT") || ! isVersionTag "$CURRENT_VERSION"; then
+      CURRENT_VERSION=""
+    fi
 
     # make sure version was returned properly
     if [[ -z "$CURRENT_VERSION" ]]; then
@@ -2082,6 +2121,12 @@ function processNetworkLine() {
 
     # check if cell value is "latest" >> find version
     if [[ "$CELL_VALUE" == "latest" ]]; then
+      # 'latest' has no fallback: without a resolved version the entry would be written with an
+      # empty version string, which reads downstream as "no version pinned" rather than as an error.
+      if [[ -z "$CURRENT_VERSION" ]]; then
+        error "[$NETWORK] cannot resolve 'latest' version for contract $CONTRACT - network not written"
+        return 1
+      fi
 
       # echo warning that sheet needs to be updated
       echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
@@ -2104,10 +2149,14 @@ function processNetworkLine() {
     fi
 
     # Add to network-specific JSON file
-    addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"
+    if ! addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"; then
+      error "[$NETWORK] failed to write version $VERSION of contract $CONTRACT to $NETWORK_JSON_FILE"
+      return 1
+    fi
   done
 
   echo "[$NETWORK] Processing completed"
+  return 0
 }
 
 function addContractVersionToNetworkJSON() {
@@ -2162,11 +2211,40 @@ function mergeNetworkResults() {
   for NETWORK_JSON in "$TEMP_DIR"/*.json; do
     if [[ -f "$NETWORK_JSON" ]]; then
       # Merge this network's data into the main target state file
-      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
+      if ! jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" || ! mv "${MERGED_JSON}.tmp" "$MERGED_JSON"; then
+        error "failed to merge $NETWORK_JSON into $MERGED_JSON"
+        rm -f "${MERGED_JSON}.tmp"
+        return 1
+      fi
     fi
   done
 
   echo "All network results merged into $TARGET_STATE_PATH"
+  return 0
+}
+
+function restoreTargetStateBackup() {
+  # Function: restoreTargetStateBackup
+  # Description: Restores the target state file from a backup taken before repopulating it
+  # Arguments:
+  #   $1 - BACKUP_PATH: Path to the backup copy
+  #   $2 - TARGET_STATE_PATH: Path to the target state file to restore
+
+  local BACKUP_PATH="$1"
+  local TARGET_STATE_PATH="$2"
+
+  if [[ ! -f "$BACKUP_PATH" ]]; then
+    error "no target state backup found at $BACKUP_PATH - $TARGET_STATE_PATH may be incomplete and needs manual review"
+    return 1
+  fi
+
+  if ! mv "$BACKUP_PATH" "$TARGET_STATE_PATH"; then
+    error "could not restore $TARGET_STATE_PATH from $BACKUP_PATH - restore it manually before deploying"
+    return 1
+  fi
+
+  echo "restored $TARGET_STATE_PATH from backup"
+  return 0
 }
 
 function getBytecodeFromArtifact() {
