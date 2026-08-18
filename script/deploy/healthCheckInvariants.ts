@@ -41,7 +41,8 @@ import { getCorePeriphery } from './shared/globalContractLists'
 import {
   collectImmutableBindingChecks,
   isFacetContract,
-  isZeroTronAddress,
+  isZeroAddressValue,
+  TRON_ZERO_ADDRESS_BASE58,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
@@ -842,9 +843,6 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
-/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
-const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
-
 /**
  * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
  *
@@ -872,7 +870,7 @@ async function readPeripheryRegistry(
     )
     if (!parsed.startsWith('T') || parsed.length !== 34)
       throw new Error(`malformed Tron address for ${name}: ${parsed}`)
-    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+    return parsed === TRON_ZERO_ADDRESS_BASE58 ? null : parsed
   }
 
   if (!ctx.publicClient) throw new Error('no EVM client configured')
@@ -1320,6 +1318,26 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       )
       if (checks.length === 0) return
 
+      // Config stores Tron counterparties in base58, so without TronWeb the expected value cannot
+      // be normalized and every comparison would fail on encoding rather than on drift.
+      const tronWeb = ctx.tronWeb
+      if (ctx.isTron && (!tronWeb || !ctx.tronRpcUrl)) {
+        ctx.logWarn(
+          'Tron client unavailable — immutable bindings not verified on this network'
+        )
+        return
+      }
+
+      // Facets and periphery resolve their live address differently, and that split is decided by
+      // the presence of a facet source file: if the tree is not there, every facet would be
+      // misclassified as periphery and silently verified against a possibly-not-live address.
+      if (!existsSync(path.resolve(process.cwd(), 'src', 'Facets'))) {
+        ctx.logWarn(
+          'src/Facets not found — cannot tell facets from periphery, immutable bindings not verified'
+        )
+        return
+      }
+
       const targetStateFacets = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
       const facetListAvailable = ctx.onChainFacets.length > 0
       // Without the diamond's facet list every facet-typed entry would look un-live and warn;
@@ -1364,15 +1382,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx
           )
           const expectedValue =
-            ctx.isTron && ctx.tronWeb
-              ? ensureTronAddress(check.expectedAddress, ctx.tronWeb)
+            ctx.isTron && tronWeb
+              ? ensureTronAddress(check.expectedAddress, tronWeb)
               : getAddress(check.expectedAddress as Address)
 
           // Name the getter that answered, not the annotated one: on a chain running an older
           // build they differ, and the reader needs to know which contract version was read.
           const readLabel = `${check.contractName}.${getterUsed}()`
 
-          if (isZeroTronAddress(onChainValue))
+          if (isZeroAddressValue(onChainValue))
             ctx.logError(
               `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.keyInConfigFile}`
             )

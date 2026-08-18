@@ -802,3 +802,44 @@ describe('immutable-bindings-match-config legacy getter fallback', () => {
     expect(calls).toEqual(['DLN_SOURCE'])
   })
 })
+
+describe('immutable-bindings-match-config Tron client guard', () => {
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('skips with a warning rather than comparing base58 against checksummed hex', async () => {
+    // Tron config values are base58. Without TronWeb the expected side cannot be normalized, so
+    // every comparison would fail on encoding and look like fleet-wide drift.
+    const reads: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'tron',
+      isTron: true,
+      tronWeb: undefined,
+      tronRpcUrl: undefined,
+      deployedContracts: { EcoFacet: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR' },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['EcoFacet'],
+      onChainFacets: [
+        {
+          address: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR',
+          selectors: ['0xffffffff'],
+        },
+      ],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          reads.push(functionName)
+          return '0x0000000000000000000000000000000000000000'
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some((w) => w.includes('Tron client unavailable'))
+    ).toBe(true)
+    expect(reads).toEqual([])
+  })
+})

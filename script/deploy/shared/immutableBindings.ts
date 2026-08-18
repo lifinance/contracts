@@ -8,13 +8,20 @@
  * file plus a per-network key; an arg additionally annotated with a `getter` (the public getter
  * exposing the bound value on chain) becomes checkable. Coverage grows by adding annotations —
  * args without a `getter` are skipped, and only address-typed bindings are supported.
+ *
+ * Also exposes the two classifiers a caller needs before it can compare safely: whether a
+ * contract is a facet (facets and periphery resolve their live address differently) and whether a
+ * value is the zero address in any of the encodings a read can return.
  */
 import { existsSync, readFileSync } from 'fs'
 import { isAbsolute, relative, resolve } from 'path'
 
 import deployRequirementsJson from '../resources/deployRequirements.json'
 
-/** Tron's zero address in base58; a TVM `address` read can also return it 41-hex encoded. */
+/**
+ * Tron's zero address in base58; a TVM `address` read can also return it 41-hex encoded, and an
+ * unregistered PeripheryRegistry name resolves to it.
+ */
 export const TRON_ZERO_ADDRESS_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
 
 /** One constructor arg under a `deployRequirements.json` entry's `configData`. */
@@ -59,7 +66,7 @@ export interface IImmutableBindingCheck {
  * @param value - raw address value as read from chain or config
  * @returns true when the value denotes the zero address
  */
-export function isZeroTronAddress(value: string): boolean {
+export function isZeroAddressValue(value: string): boolean {
   const trimmed = value.trim()
   if (trimmed === TRON_ZERO_ADDRESS_BASE58) return true
   return /^(0x|41)?0{40}$/i.test(trimmed)

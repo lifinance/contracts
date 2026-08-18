@@ -11,7 +11,7 @@ import {
   collectImmutableBindingChecks,
   isFacetContract,
   isValidConfigFileName,
-  isZeroTronAddress,
+  isZeroAddressValue,
   loadConfigFileFromDisk,
   resolveConfigValue,
   TRON_ZERO_ADDRESS_BASE58,
@@ -210,35 +210,35 @@ describe('collectImmutableBindingChecks', () => {
   })
 })
 
-describe('isZeroTronAddress', () => {
+describe('isZeroAddressValue', () => {
   it('recognizes both Tron zero-address encodings and the EVM one', () => {
     // A naive shape check passes all three, so a binding pointing at zero would read as a
     // legitimate address and the drift check would silently pass.
-    expect(isZeroTronAddress(TRON_ZERO_ADDRESS_BASE58)).toBe(true)
+    expect(isZeroAddressValue(TRON_ZERO_ADDRESS_BASE58)).toBe(true)
     expect(
-      isZeroTronAddress('410000000000000000000000000000000000000000')
+      isZeroAddressValue('410000000000000000000000000000000000000000')
     ).toBe(true)
     expect(
-      isZeroTronAddress('0x0000000000000000000000000000000000000000')
+      isZeroAddressValue('0x0000000000000000000000000000000000000000')
     ).toBe(true)
-    expect(isZeroTronAddress('0000000000000000000000000000000000000000')).toBe(
+    expect(isZeroAddressValue('0000000000000000000000000000000000000000')).toBe(
       true
     )
   })
 
   it('is case-insensitive for hex but not for base58', () => {
     expect(
-      isZeroTronAddress('0X0000000000000000000000000000000000000000')
+      isZeroAddressValue('0X0000000000000000000000000000000000000000')
     ).toBe(true)
-    expect(isZeroTronAddress(TRON_ZERO_ADDRESS_BASE58.toLowerCase())).toBe(
+    expect(isZeroAddressValue(TRON_ZERO_ADDRESS_BASE58.toLowerCase())).toBe(
       false
     )
   })
 
   it('does not flag a real address', () => {
-    expect(isZeroTronAddress('TBhZw2sb5DuqGXf3PcxMKDaqxtoZVUUtR7')).toBe(false)
-    expect(isZeroTronAddress(SPOKE)).toBe(false)
-    expect(isZeroTronAddress('')).toBe(false)
+    expect(isZeroAddressValue('TBhZw2sb5DuqGXf3PcxMKDaqxtoZVUUtR7')).toBe(false)
+    expect(isZeroAddressValue(SPOKE)).toBe(false)
+    expect(isZeroAddressValue('')).toBe(false)
   })
 })
 
