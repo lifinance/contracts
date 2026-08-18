@@ -100,6 +100,37 @@ contract LiFiVaultWrapperLiquidityTest is VaultWrapperFactoryStackBase {
         wrapper.redeem(shares, alice, alice);
     }
 
+    // The withdrawal fee is zero in this suite, so `withdraw` at exactly `maxWithdraw`
+    // carries no fee re-grossing and must succeed even on a tight liquidity cap.
+    function test_WithdrawAtClampedMaxSucceeds() public {
+        source.setWithdrawable(300e18);
+        uint256 maxAssets = wrapper.maxWithdraw(alice);
+        uint256 balanceBefore = asset.balanceOf(alice);
+
+        vm.prank(alice);
+        wrapper.withdraw(maxAssets, alice, alice);
+
+        assertGt(maxAssets, 0);
+        assertEq(asset.balanceOf(alice) - balanceBefore, maxAssets);
+    }
+
+    function testRevert_WithdrawAboveClampedMax() public {
+        source.setWithdrawable(300e18);
+        uint256 maxAssets = wrapper.maxWithdraw(alice);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector,
+                alice,
+                maxAssets + 1,
+                maxAssets
+            )
+        );
+
+        vm.prank(alice);
+        wrapper.withdraw(maxAssets + 1, alice, alice);
+    }
+
     function test_MaxRedeemIsZeroWhenSourceDry() public {
         source.setWithdrawable(0);
 

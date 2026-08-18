@@ -619,7 +619,9 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
     ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    ///      is checked in the entrypoint only). Otherwise inherits the source-liquidity
+    ///      clamp — and its fail-closed revert on a broken source — from `maxRedeem`,
+    ///      since OZ derives this view as `previewRedeem(maxRedeem(owner))`.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
