@@ -619,7 +619,9 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
     ///      `withdraw`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    ///      is checked in the entrypoint only). Otherwise inherits the source-liquidity
+    ///      clamp — and its fail-closed revert on a broken source — from `maxRedeem`,
+    ///      since OZ derives this view as `previewRedeem(maxRedeem(owner))`.
     function maxWithdraw(
         address owner
     ) public view override returns (uint256) {
@@ -629,13 +631,32 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Reports 0 while the access gate flags the owner as sanctioned, mirroring
-    ///      `redeem`'s exit freeze (the asset receiver is unknowable in this view and
-    ///      is checked in the entrypoint only).
+    /// @dev Reports 0 while the access gate flags the owner as sanctioned (mirroring
+    ///      `redeem`'s exit freeze). Otherwise clamps the owner's balance to the shares
+    ///      the source can currently honor (`adapter.maxWithdrawableValue`,
+    ///      floor-converted), keeping the EIP-4626 guarantee that a `redeem` within
+    ///      `maxRedeem` never reverts under a source liquidity limit. When the source can
+    ///      release the whole position — the common case — the balance is returned
+    ///      unchanged, skipping a conversion round-trip that would under-report by ~1
+    ///      share and block one-call full exits. `maxWithdraw` inherits the clamp via its
+    ///      `previewRedeem(maxRedeem(owner))` derivation. Reverts if the source's views
+    ///      revert (fail-closed, like the gate check above).
     function maxRedeem(address owner) public view override returns (uint256) {
         if (_sanctioned(owner)) return 0;
 
-        return super.maxRedeem(owner);
+        uint256 balance = super.maxRedeem(owner);
+        uint256 realizable = IYieldAdapter(adapter).maxWithdrawableValue(
+            underlying,
+            address(this)
+        );
+        if (realizable >= totalAssets()) return balance;
+
+        uint256 liquidityCap = _convertToShares(
+            realizable,
+            Math.Rounding.Floor
+        );
+
+        return balance < liquidityCap ? balance : liquidityCap;
     }
 
     /// Internal ///

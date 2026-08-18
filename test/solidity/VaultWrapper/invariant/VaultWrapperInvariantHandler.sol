@@ -7,6 +7,7 @@ import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { FeeType } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { MockLiquidityCappedERC4626 } from "test/solidity/VaultWrapper/mocks/MockLiquidityCappedERC4626.sol";
 
 /// @notice Handler that drives a single `LiFiVaultWrapper` through bounded, randomized
 ///         multi-actor sequences for the invariant suite: three depositors enter/exit while
@@ -118,10 +119,14 @@ contract VaultWrapperInvariantHandler is Test {
 
     function redeem(uint256 _actorSeed, uint256 _shares) external {
         address actor = _actor(_actorSeed);
-        uint256 balance = WRAPPER.balanceOf(actor);
-        if (balance == 0) return;
+        // maxRedeem is liquidity-aware: on a capped source it clamps below the balance, and
+        // a redeem above it reverts ERC4626ExceededMaxRedeem. Driving the full allowed range
+        // (up to and including the clamp) under fail-on-revert proves a redeem within
+        // maxRedeem never reverts, whatever the source's current liquidity.
+        uint256 ceiling = WRAPPER.maxRedeem(actor);
+        if (ceiling == 0) return;
 
-        uint256 shares = bound(_shares, 1, balance);
+        uint256 shares = bound(_shares, 1, ceiling);
 
         vm.prank(actor);
         uint256 received = WRAPPER.redeem(shares, actor, actor);
@@ -188,5 +193,35 @@ contract VaultWrapperInvariantHandler is Test {
         uint256 current = WRAPPER.perfHighWaterMarkPps();
         assertGe(current, hwmFloor, "high-water mark regressed");
         hwmFloor = current;
+    }
+}
+
+/// @notice Handler variant that additionally fuzzes the source's withdrawal-liquidity cap,
+///         driving `maxRedeem`/`maxWithdraw` through their full liquidity-clamped range.
+contract VaultWrapperCappedSourceInvariantHandler is
+    VaultWrapperInvariantHandler
+{
+    constructor(
+        LiFiVaultWrapper _wrapper,
+        MockERC20 _asset,
+        MockERC4626 _underlying,
+        LiFiVaultWrapperFactory _factory,
+        address _vaultAdmin
+    )
+        VaultWrapperInvariantHandler(
+            _wrapper,
+            _asset,
+            _underlying,
+            _factory,
+            _vaultAdmin
+        )
+    {}
+
+    /// @notice Moves the source's withdrawable-liquidity cap anywhere in [0, totalAssets].
+    function setLiquidity(uint256 _assets) external {
+        uint256 total = UNDERLYING.totalAssets();
+        MockLiquidityCappedERC4626(address(UNDERLYING)).setWithdrawable(
+            bound(_assets, 0, total)
+        );
     }
 }

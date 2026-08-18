@@ -10,9 +10,9 @@ pragma solidity ^0.8.29;
 ///         than changing the factory or the wrapper implementation.
 /// @dev Methods split by how the wrapper invokes them, and this split is a security
 ///      invariant adapters MUST honour:
-///      - `resolveAsset` and `totalAssets` are invoked as ordinary (static) calls and
-///        run in the adapter's own context; they take an explicit `_holder`/`_underlying`
-///        and MUST be free of side effects.
+///      - `resolveAsset`, `totalAssets`, and `maxWithdrawableValue` are invoked as
+///        ordinary (static) calls and run in the adapter's own context; they take an
+///        explicit `_holder`/`_underlying` and MUST be free of side effects.
 ///      - `deposit` and `withdraw` are invoked via `delegatecall` and therefore run in
 ///        the wrapper's context: `address(this)`, token balances, and yield-source
 ///        positions are the wrapper's. They MUST be stateless with respect to adapter
@@ -72,4 +72,20 @@ interface IYieldAdapter {
         address _underlying,
         uint256 _assets
     ) external returns (uint256 withdrawn);
+
+    /// @notice Gross position value `_holder` can withdraw from `_underlying` right now,
+    ///         capped by the source's current withdrawal-liquidity limits.
+    /// @dev Ordinary static call. Returns the source's floor valuation of
+    ///      `min(holder position, source maxRedeem)` — gross (no fee netting), because the
+    ///      wrapper feeds it into its own gross share math to clamp `maxRedeem`/
+    ///      `maxWithdraw` to what the source can honor. Equals the full position value
+    ///      when the source imposes no limit. MAY revert if the source's views revert;
+    ///      the wrapper treats that as fail-closed.
+    /// @param _underlying The yield source identifier.
+    /// @param _holder The account whose position is valued (the wrapper).
+    /// @return assets The gross, source-liquidity-capped position value.
+    function maxWithdrawableValue(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 assets);
 }

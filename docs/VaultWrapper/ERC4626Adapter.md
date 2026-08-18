@@ -19,7 +19,19 @@ asset. `deposit`/`withdraw` return the wrapper's asset balance delta and the
 wrapper reverts on a shortfall, catching a yield source that moves less than
 asked. It does **not** catch share-side dilution (a vault that consumes the full
 asset but credits fewer shares via an internal deposit fee); such non-standard
-sources are unsupported and require a dedicated adapter.
+sources are unsupported and require a dedicated adapter. The same applies to
+sources charging an **exit fee**: exits are exact-out, so a fee-on-exit source
+trips the wrapper's shortfall guard on every withdrawal — unsupported until a
+future release adds cost-aware exit pricing.
+
+## Source liquidity view
+
+`maxWithdrawableValue` is the source-liquidity signal behind the wrapper's
+liquidity-aware `maxRedeem`/`maxWithdraw`: the source's floor valuation
+(`convertToAssets`) of `min(holder position, source.maxRedeem)`. It equals the
+full position value on a source with no active liquidity limit, and shrinks to
+what the source can currently honor under a limit (an Aave-style utilization
+cap, a paused source).
 
 ## Functions
 
@@ -35,6 +47,9 @@ function deposit(address _asset, address _underlying, uint256 _assets) external 
 
 /// Redeem `_assets` from the yield source; returns the asset amount received.
 function withdraw(address _asset, address _underlying, uint256 _assets) external returns (uint256 withdrawn)
+
+/// Gross floor valuation of `min(holder position, source.maxRedeem)` — the source-liquidity signal.
+function maxWithdrawableValue(address _underlying, address _holder) external view returns (uint256 assets)
 ```
 
 ## Related contracts
