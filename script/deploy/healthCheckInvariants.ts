@@ -35,7 +35,9 @@ import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
-  resolveLiveFacetsFromLog,
+  identifyFacetBySelectorSet,
+  loadCompiledFacetSelectors,
+  resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
@@ -1309,15 +1311,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
-      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
-      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
-      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      // A facet is live iff the diamond registers it under its deploy-log address or - when the log
+      // cannot name it - under a selector set only one compiled facet accounts for. Resolving
+      // through the deploy log alone would drop a facet that is live on chain but missing or stale
+      // in the log, leaving its coupling silently unevaluated; the periphery side of this check
+      // already reads on-chain truth, and the facet side must not reintroduce that dependency.
       const couplings = getFacetPeripheryCouplings()
-      const liveFacets = resolveLiveFacetsFromLog(
-        ctx.onChainFacets.map((facet) => facet.address),
+      const { live: liveFacets } = resolveLiveFacets(
+        ctx.onChainFacets,
         ctx.deployedContracts as Record<string, string>,
-        Object.keys(couplings)
+        Object.keys(couplings),
+        loadCompiledFacetSelectors()
       )
 
       const { required, skipped } = evaluateFacetPeripheryCouplings(
@@ -1758,12 +1762,19 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
+      const compiledSelectors = loadCompiledFacetSelectors()
       let unexpected = 0
       for (const facet of ctx.onChainFacets)
         if (!knownAddresses.has(facet.address.toLowerCase())) {
           unexpected++
+          const identified = identifyFacetBySelectorSet(
+            facet.selectors,
+            compiledSelectors
+          )
           ctx.logWarn(
-            `Facet ${facet.address} is registered on-chain but absent from the deploy log (possible unexpected/rogue facet or stale deploy log)`
+            identified
+              ? `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors identify it as ${identified} - add it to deployments/${ctx.networkLower}.json`
+              : `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
           )
         }
       if (unexpected === 0)

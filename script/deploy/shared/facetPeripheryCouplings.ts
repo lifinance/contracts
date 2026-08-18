@@ -10,6 +10,9 @@
  * This module reads them and evaluates, for one chain, which companion periphery contracts are
  * actually required. Import it from the `facet-required-periphery` health-check invariant.
  */
+import { existsSync, readdirSync, readFileSync } from 'fs'
+import { isAbsolute, relative, resolve } from 'path'
+
 import globalConfig from '../../../config/global.json'
 
 /** What one facet requires on the same chain to be functionally complete. */
@@ -109,31 +112,158 @@ export function evaluateFacetPeripheryCouplings(
   }
 }
 
+/** One facet as returned by the diamond's `facets()` call. */
+export interface IOnChainFacetSelectors {
+  address: string
+  selectors: string[]
+}
+
+/** Outcome of identifying the facets a diamond actually has registered. */
+export interface ILiveFacetResolution {
+  /** Candidate facet names live on chain, by deploy-log address or by compiled selector set. */
+  live: string[]
+  /** On-chain facet addresses neither the deploy log nor any compiled selector set names. */
+  unidentified: string[]
+}
+
+/** Selector sets arrive 0x-prefixed from `facets()` and bare from build artifacts. */
+function normalizeSelectors(selectors: string[]): Set<string> {
+  return new Set(
+    selectors.map((selector) => selector.toLowerCase().replace(/^0x/, ''))
+  )
+}
+
 /**
- * Resolve which coupled facets are live on a chain from the deploy log, confirmed against the
- * diamond's registered facet addresses.
+ * Name the facet behind one on-chain selector set, or return undefined when it cannot be named.
  *
- * A facet counts as live iff its `deployments/<network>.json` address is one of the addresses the
- * diamond returns from `facets()`. The reverse gap — a facet registered on chain but absent from the
- * deploy log — is the domain of the `no-unexpected-facets` warning, not this gate: a diamond whose
- * live facets are not even recorded in the deploy log has a bookkeeping failure that a coupling check
- * should not try to reconstruct from compiled selectors.
+ * A diamond registers a facet's selectors, which on real chains is frequently a strict subset of
+ * what the facet compiles to — constants and view getters are routinely left unregistered (12 of
+ * mainnet's 45 facets on 2026-08-18). Requiring set equality would therefore name almost nothing,
+ * so a facet matches when its on-chain selectors are *contained* in a compiled set, and only when
+ * exactly one compiled facet fits: an ambiguous set stays unnamed rather than guessed. An exact
+ * match wins over a merely containing one, which is what separates a facet from the packed variant
+ * that re-exports its selectors.
  *
- * @param onChainFacetAddresses - facet addresses from the diamond's `facets()` call
+ * @param selectors - the selectors the diamond registers for this facet
+ * @param compiledSelectors - facet name → its full compiled selector set
+ * @returns the facet name, or undefined when no single compiled facet accounts for the set
+ */
+export function identifyFacetBySelectorSet(
+  selectors: string[],
+  compiledSelectors: Record<string, string[]>
+): string | undefined {
+  const onChain = normalizeSelectors(selectors)
+  if (onChain.size === 0) return undefined
+
+  const containing = Object.entries(compiledSelectors)
+    .map(([name, compiled]) => ({
+      name,
+      compiled: normalizeSelectors(compiled),
+    }))
+    .filter(
+      ({ compiled }) =>
+        compiled.size > 0 &&
+        [...onChain].every((selector) => compiled.has(selector))
+    )
+  const exact = containing.filter(
+    ({ compiled }) => compiled.size === onChain.size
+  )
+  const winners = exact.length > 0 ? exact : containing
+  return winners.length === 1 ? winners[0]?.name : undefined
+}
+
+/**
+ * Resolve which coupled facets are live on a chain, identifying each on-chain facet by its
+ * deploy-log address first and by its compiled selector set second.
+ *
+ * The selector-set fallback is what makes this robust to deploy-log drift: a facet live on chain but
+ * missing from — or stale in — `deployments/<network>.json` is still identified, so a coupling
+ * requirement cannot be skipped just because the bookkeeping lags the chain.
+ *
+ * Identity by selector set is delegated to {@link identifyFacetBySelectorSet}.
+ *
+ * @param onChainFacets - facets from the diamond's `facets()` call, with their selectors
  * @param deployedContracts - the deploy log for this chain (`deployments/<network>.json`)
  * @param candidateFacetNames - facet names to test (the coupling registry keys)
- * @returns the subset of `candidateFacetNames` whose deploy-log address is registered on chain
+ * @param compiledSelectors - facet name → its full compiled selector set; empty disables the
+ *   fallback (and with it the `unidentified` report, which would otherwise flag every facet)
+ * @returns the live subset of `candidateFacetNames`, plus any unidentifiable on-chain addresses
  */
-export function resolveLiveFacetsFromLog(
-  onChainFacetAddresses: string[],
+export function resolveLiveFacets(
+  onChainFacets: IOnChainFacetSelectors[],
   deployedContracts: Record<string, string>,
-  candidateFacetNames: string[]
-): string[] {
-  const onChain = new Set(
-    onChainFacetAddresses.map((address) => address.toLowerCase())
-  )
-  return candidateFacetNames.filter((name) => {
-    const address = deployedContracts[name]
-    return typeof address === 'string' && onChain.has(address.toLowerCase())
-  })
+  candidateFacetNames: string[],
+  compiledSelectors: Record<string, string[]> = {}
+): ILiveFacetResolution {
+  const nameByLogAddress = new Map<string, string>()
+  for (const [name, address] of Object.entries(deployedContracts))
+    if (typeof address === 'string')
+      nameByLogAddress.set(address.toLowerCase(), name)
+
+  const candidates = new Set(candidateFacetNames)
+  const liveNames = new Set<string>()
+  const unidentified: string[] = []
+
+  for (const facet of onChainFacets) {
+    const name =
+      nameByLogAddress.get(facet.address.toLowerCase()) ??
+      identifyFacetBySelectorSet(facet.selectors, compiledSelectors)
+
+    if (name === undefined) {
+      if (Object.keys(compiledSelectors).length > 0)
+        unidentified.push(facet.address)
+      continue
+    }
+    if (candidates.has(name)) liveNames.add(name)
+  }
+
+  return {
+    live: candidateFacetNames.filter((name) => liveNames.has(name)),
+    unidentified,
+  }
+}
+
+/** Facet names come from a directory listing; the guard keeps a hostile filename out of a path. */
+function isValidFacetName(name: string): boolean {
+  return /^[A-Za-z0-9_]+$/.test(name)
+}
+
+/**
+ * Read every facet's compiled selector set from the Foundry build output under `out/`.
+ *
+ * Both directories are resolved from the process working directory, which is the repository root
+ * for every caller (the health check, its tests). A facet with no artifact is omitted rather than
+ * reported: `out/` is generated, so an unbuilt or partially built checkout must degrade the
+ * selector-identity fallback instead of failing the health check.
+ *
+ * @returns facet name → its full compiled selector set, `0x`-prefixed; empty when nothing is built
+ */
+export function loadCompiledFacetSelectors(): Record<string, string[]> {
+  const facetSourceDir = resolve(process.cwd(), 'src', 'Facets')
+  const outDir = resolve(process.cwd(), 'out')
+  if (!existsSync(facetSourceDir) || !existsSync(outDir)) return {}
+
+  const selectorsByFacet: Record<string, string[]> = {}
+  for (const entry of readdirSync(facetSourceDir)) {
+    if (!entry.endsWith('.sol')) continue
+    const name = entry.slice(0, -'.sol'.length)
+    if (!isValidFacetName(name)) continue
+
+    const artifactPath = resolve(outDir, `${name}.sol`, `${name}.json`)
+    const relativeToOut = relative(outDir, artifactPath)
+    if (relativeToOut.startsWith('..') || isAbsolute(relativeToOut)) continue
+    if (!existsSync(artifactPath)) continue
+
+    try {
+      const artifact = JSON.parse(readFileSync(artifactPath, 'utf8')) as {
+        methodIdentifiers?: Record<string, string>
+      }
+      const selectors = Object.values(artifact.methodIdentifiers ?? {})
+      if (selectors.length > 0)
+        selectorsByFacet[name] = selectors.map((selector) => `0x${selector}`)
+    } catch {
+      // An unreadable artifact only costs this facet its selector identity.
+    }
+  }
+  return selectorsByFacet
 }
