@@ -309,7 +309,8 @@ async function runTtlAlert(
     )
     return
   }
-  if (delivery === 'misconfigured' || !webhookUrl)
+  // 'misconfigured' — an unattended run reaching here has no webhook to post to.
+  if (!webhookUrl)
     throw new Error(
       'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the TTL alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
     )
