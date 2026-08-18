@@ -28,18 +28,21 @@
 - [Gnosis Bridge Facet](./GnosisBridgeFacet.md)
 - [Hop Facet](./HopFacet.md)
 - [Hop Facet Packed](./HopFacetPacked.md)
+- [LayerSwap Facet](./LayerSwapFacet.md)
 - [LiFi Intent Escrow Facet V2](./LiFiIntentEscrowFacetV2.md)
 - [Mayan Facet](./MayanFacet.md)
 - [MegaETH Bridge Facet](./MegaETHBridgeFacet.md)
 - [NEAR Intents Facet](./NEARIntentsFacet.md)
 - [OmniBridge Facet](./OmniBridgeFacet.md)
 - [Optimism Bridge Facet](./OptimismBridgeFacet.md)
+- [PaxosTransit Facet](./PaxosTransitFacet.md)
 - [Periphery Registry Facet](./PeripheryRegistryFacet.md)
 - [Polygon Bridge Facet](./PolygonBridgeFacet.md)
 - [Polymer CCTP Facet](./PolymerCCTPFacet.md)
 - [Relay Depository Facet](./RelayDepositoryFacet.md)
 - [Squid Facet](./SquidFacet.md)
 - [Stargate FacetV2](./StargateFacetV2.md)
+- [Superset Facet](./SupersetFacet.md)
 - [Symbiosis Facet](./SymbiosisFacet.md)
 - [ThorSwap Facet](./ThorSwapFacet.md)
 - [Unit Facet](./UnitFacet.md)
@@ -82,8 +85,17 @@
 
 - [LiFiTimelockController](./LiFiTimelockController.md)
 
+## Processes
+
+- [Multisig Signing Process — deploy → propose → sign → execute](./MultisigSigningProcess.md)
+- [Facet Removal Reconciliation](./FacetRemovalReconciliation.md)
+- [Deferred Diamond-Cleanup Queue](./DeferredDiamondCleanupQueue.md)
+- [Wallet-rotation skill suite — design & architecture](./wallet-rotation-skill-suite.md)
+
 ## Guides
 
+- [Setup — full toolchain and internal resource access](./Setup.md)
+- [Setup for agents](./Setup-agents.md)
 - [Adding a New Bridge Integration](./AddingANewBridge.md)
 - [Contract Deployment Checklist](./Deploy.md)
 - [ERC-7730 Clear-Signing Display Proposal](./ClearSigningProposal.md)
