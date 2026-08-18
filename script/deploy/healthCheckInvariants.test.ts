@@ -540,6 +540,9 @@ function makeReceiverCtx(stub: IReceiverStub): {
   Object.assign(ctx, {
     diamondAddress: '0x9999999999999999999999999999999999999999',
     refundWallet: REFUND_WALLET,
+    coreFacetsToCheck: [],
+    nonCoreFacets: [],
+    globalConfig: { whitelistPeripheryFunctions: {} },
     deployedContracts: {
       Executor: EXECUTOR,
       ...(stub.deployedContracts ?? {}),
@@ -710,5 +713,98 @@ describe('periphery registry read cache', () => {
     ).length
     expect(afterFirst).toBe(1)
     expect(afterSecond).toBe(2)
+  })
+})
+
+describe('periphery-registry-log-sync invariant', () => {
+  const sync = () => invariant('periphery-registry-log-sync')
+
+  it('is a production-scoped warning, mirroring no-unexpected-facets', () => {
+    expect(sync().severity).toBe('warning')
+    expect(sync().scope.environments).toEqual(['production'])
+  })
+
+  it('flags a contract registered on chain but missing from the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({ registry: { ReceiverOIF: OIF_ON_CHAIN } })
+    await sync().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverOIF')
+    expect(ctx.warnings[0]).toContain('missing from the deploy log')
+  })
+
+  it('probes receiver names that no core or whitelist list contains', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({})
+    await sync().run(ctx)
+    expect(registryQueries).toContain('ReceiverOIF')
+    expect(registryQueries).toContain('ReceiverStargateV2')
+  })
+
+  it('flags a deploy-log address that disagrees with the registry', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      deployedContracts: { ReceiverOIF: WRONG },
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('the on-chain registry has')
+  })
+
+  it('stays silent when the registry and the deploy log agree', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      deployedContracts: { ReceiverOIF: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('compares EVM addresses regardless of checksum case', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN.toUpperCase().replace('0X', '0x') },
+      deployedContracts: { ReceiverOIF: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('says nothing about a name that is not registered on chain', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { ReceiverOIF: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('warns rather than errors when a registry read fails', async () => {
+    const { ctx } = makeReceiverCtx({
+      failingRegistryNames: ['ReceiverOIF'],
+    })
+    await sync().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('ReceiverOIF') && w.includes('Could not read')
+      )
+    ).toBe(true)
+  })
+
+  it('probes periphery named only by the deploy log, not just the static lists', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      deployedContracts: { LiFiDEXAggregator: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).toContain('LiFiDEXAggregator')
+  })
+
+  it('does not waste registry reads on facet names from the deploy log', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      deployedContracts: { AcrossFacetV4: OIF_ON_CHAIN },
+    })
+    Object.assign(ctx, { nonCoreFacets: ['AcrossFacetV4'] })
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('AcrossFacetV4')
+    expect(registryQueries).not.toContain('LiFiDiamond')
   })
 })

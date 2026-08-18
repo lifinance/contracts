@@ -834,7 +834,10 @@ async function checkWhitelistIntegrity(
 }
 
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
-const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
+export const RECEIVER_EXECUTOR_GETTERS: Array<{
+  name: string
+  getter: string
+}> = [
   // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
   // binding is no longer kept current, so it is intentionally not checked here.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
@@ -886,6 +889,18 @@ async function readPeripheryRegistryUncached(
   })
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
+}
+
+/**
+ * `getAddress` that yields null instead of throwing: deploy-log entries are hand-editable, and one
+ * malformed entry must never abort a whole per-contract loop.
+ */
+function tryGetAddress(value: string): Address | null {
+  try {
+    return getAddress(value as Address)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -1362,6 +1377,87 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             )
         }
       }
+    },
+  },
+  {
+    name: 'periphery-registry-log-sync',
+    description:
+      'Every periphery contract registered in the diamond is recorded in the deploy log',
+    // The chain -> log direction of periphery coverage, and the periphery analog of
+    // no-unexpected-facets - which is a warning for the same reason: a log that lags the chain is
+    // a bookkeeping failure, not a broken diamond, and an error gate here would turn the whole
+    // fleet sweep red over drift nobody can fix in the same change. periphery-registered stays the
+    // error-severity gate for the log -> chain direction.
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    remediation:
+      'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain PeripheryRegistry.',
+    run: async (ctx) => {
+      // The registry is a mapping(string => address) with no enumerator, so the on-chain side can
+      // only be discovered by probing names. Facets are excluded because probing every facet name
+      // would multiply the RPC reads for lookups that can only ever return the zero address.
+      const notPeriphery = new Set([
+        'LiFiDiamond',
+        ...ctx.coreFacetsToCheck,
+        ...ctx.nonCoreFacets,
+      ])
+      const candidates = [
+        ...new Set([
+          ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
+          ...Object.keys(ctx.globalConfig.whitelistPeripheryFunctions),
+          ...Object.values(getFacetPeripheryCouplings()).map(
+            (coupling) => coupling.requires
+          ),
+          ...RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name),
+          ...Object.keys(ctx.deployedContracts),
+        ]),
+      ]
+        .filter((name) => !notPeriphery.has(name))
+        .sort()
+
+      const registered = await Promise.allSettled(
+        candidates.map((name) => readPeripheryRegistry(name, ctx))
+      )
+
+      let inSync = 0
+      candidates.forEach((name, index) => {
+        const result = registered[index]
+        if (result?.status !== 'fulfilled') {
+          const reason =
+            result?.status === 'rejected' ? String(result.reason) : 'no result'
+          ctx.logWarn(
+            `Could not read the registry entry for ${name}: ${reason}`
+          )
+          return
+        }
+        // Not registered here: whether it SHOULD be is periphery-registered's question, not this
+        // invariant's - this one only reconciles what the chain already says.
+        if (result.value === null) return
+
+        const onChain = result.value
+        const logged = ctx.deployedContracts[name]
+        if (!logged) {
+          ctx.logWarn(
+            `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+          )
+          return
+        }
+        // Tron addresses are base58 and case-sensitive; only EVM hex gets checksum-normalized.
+        const normalize = (address: string): string =>
+          ctx.isTron ? address : tryGetAddress(address) ?? address
+        if (normalize(String(logged)) !== normalize(onChain))
+          ctx.logWarn(
+            `${name}: the deploy log has ${String(
+              logged
+            )} but the on-chain registry has ${onChain}`
+          )
+        else inSync++
+      })
+
+      if (inSync > 0)
+        consola.success(
+          `${inSync} registered periphery contract(s) match the deploy log`
+        )
     },
   },
   {
