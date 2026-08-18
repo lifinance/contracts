@@ -46,6 +46,7 @@ jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     concurrency:
       group: sc-core-dev-approval-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -330,6 +331,7 @@ jobs:
     if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     needs: version-control
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
       AUDIT_LOG_PATH: 'audit/auditLog.json'

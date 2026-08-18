@@ -19,6 +19,7 @@ permissions:
 jobs:
   protect_audit_labels:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
 

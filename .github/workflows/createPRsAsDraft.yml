@@ -12,6 +12,7 @@ jobs:
     name: Mark as draft
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Mark as draft
         uses: voiceflow/draft-pr@53c61b5093ebf96d8d7afb384128a2c4bbd018f7 # v1.1

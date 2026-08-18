@@ -37,6 +37,7 @@ jobs:
          contains(github.event.pull_request.labels.*.name, 'requires-types'))
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       # Step 1: Checkout the contracts repository

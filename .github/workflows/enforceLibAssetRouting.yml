@@ -22,6 +22,7 @@ permissions:
 jobs:
   enforce-libasset-routing:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       # Step 1: Checkout code
