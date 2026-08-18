@@ -116,6 +116,10 @@
       "0x3A5ef52B3aEEaA29e98C19806C187A8a774F5591": {
         "Name": "PaxosTransitFacet",
         "Version": "1.0.0"
+      },
+      "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
+        "Name": "AllBridgeFacet",
+        "Version": "2.2.0"
       }
     },
     "Periphery": {
@@ -124,8 +128,8 @@
       "FeeCollector": "0x9ca271A532392230EAe919Fb5460aEa9D9718424",
       "FeeForwarder": "",
       "GasZipPeriphery": "",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "OutputValidator": "",
       "Patcher": "",
       "Permit2Proxy": "",

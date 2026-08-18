@@ -104,6 +104,9 @@ jobs:
         continue-on-error: true
         env:
           MAX_CONCURRENT_JOBS: '8'
+          # TronGrid throttles anonymous traffic hard enough that tron's read-heavy invariants
+          # 429 out before finishing, which reads as drift rather than reduced coverage.
+          TRONGRID_API_KEY: ${{ secrets.TRONGRID_API_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}

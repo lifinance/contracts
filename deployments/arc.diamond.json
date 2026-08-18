@@ -21,8 +21,8 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x19E4193737B5c27d0BD868F68F171bA584DF1898": {
-        "Name": "GenericSwapFacet",
+      "0x5D529744d6a4F02c0cECbD32bD9C23d6c3B17107": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x0E60f12E2CE6b4EA51bde7A2aD61A22B12605c9C": {
@@ -45,21 +45,13 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xB965d133cab4f61eC3cBBBB51c86A004FB44cbb0": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
-      },
-      "0xEF75B3040eEe1b8D18D243DD6e2F48A78b5dB3f9": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
       "0x8d80bcbD33b2570d5233f5d5D051A90eCfefc7f0": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x99ddF64f20d229a3281E32191C29D85ea2e6E9c4": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+      "0xBbdFFF46eD41b4B56BC73ab6466D523C284Adc8A": {
+        "Name": "PolymerCCTPFacet",
+        "Version": "3.1.0"
       }
     },
     "Periphery": {
@@ -76,7 +68,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xf8268EF796657144161CC0467762dD929423F1F7",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

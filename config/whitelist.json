@@ -395,14 +395,6 @@
             }
           }
         ],
-        "taiko": [
-          {
-            "address": "0xa091aed5265cadb389100096cbdd363683a867e5",
-            "functions": {
-              "0xe3665a43": "swapExactInput(uint256,uint256,uint256,address,address,bytes)"
-            }
-          }
-        ],
         "scroll": [
           {
             "address": "0x81bbba46b9fcf04ab13314136b895b15291f0462",
@@ -742,254 +734,6 @@
               "0xb94c3609": "routeSingle((uint8,bytes),bytes)",
               "0xf35cae90": "safeRouteMulti((uint8,bytes)[],(uint8,bytes)[],address,bytes)",
               "0x21025a06": "safeRouteSingle((uint8,bytes),(uint8,bytes),address,bytes)"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "Odos",
-      "key": "odos",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/odos.svg",
-      "webUrl": "https://www.odos.xyz/",
-      "contracts": {
-        "mainnet": [
-          {
-            "address": "0xcf5540fffcdc3d510b18bfca6d2b9987b0772559",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "optimism": [
-          {
-            "address": "0xca423977156bb05b13a2ba3b76bc5419e2fe9680",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "bsc": [
-          {
-            "address": "0x89b8aa89fdd0507a99d334cbe3c808fafc7d850e",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "polygon": [
-          {
-            "address": "0x4e3288c9ca110bcc82bf38f09a7b425c095d92bf",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "sonic": [
-          {
-            "address": "0xac041df48df9791b0654f1dbbf2cc8450c5f2e9d",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "fraxtal": [
-          {
-            "address": "0x56c85a254dd12ee8d9c04049a4ab62769ce98210",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "zksync": [
-          {
-            "address": "0x4bba932e9792a2b917d47830c93a9bc79320e4f7",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "mantle": [
-          {
-            "address": "0xd9f4e85489adcd0baf0cd63b4231c6af58c26745",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "base": [
-          {
-            "address": "0x19ceead7105607cd444f5ad10dd51356436095a1",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "arbitrum": [
-          {
-            "address": "0xa669e7a0d4b3e4fa48af2de86bd4cd7126be4e13",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "avalanche": [
-          {
-            "address": "0x88de50b233052e4fb783d4f6db78cc34fea3e9fc",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
-            }
-          }
-        ],
-        "linea": [
-          {
-            "address": "0x2d8879046f1559e53eb052e949e9544bcb72f414",
-            "functions": {
-              "0x3b635ce4": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,uint32)",
-              "0x83bd37f9": "swapCompact()",
-              "0x7bf2d6d4": "swapMulti((address,uint256,address)[],(address,uint256,address)[],uint256,bytes,address,uint32)",
-              "0x84a7f3dd": "swapMultiCompact()"
-            }
-          },
-          {
-            "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
-            "functions": {
-              "0x83bd37f9": "swapCompact()",
-              "0x84a7f3dd": "swapMultiCompact()",
-              "0x30f80b4c": "swap((address,uint256,address,address,uint256,uint256,address),bytes,address,(uint64,uint64,address))",
-              "0xfef828dc": "swapMulti((address,uint256,address)[],(address,uint256,uint256,address)[],bytes,address,(uint64,uint64,address))"
             }
           }
         ]
@@ -2738,23 +2482,6 @@
             }
           }
         ],
-        "taiko": [
-          {
-            "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
-            "functions": {
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xdd9c5f96": "",
-              "0xee623204": ""
-            }
-          },
-          {
-            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
-            "functions": {
-              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
-              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
-            }
-          }
-        ],
         "scroll": [
           {
             "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
@@ -2846,14 +2573,6 @@
               "0x4dcebcba": "swapSingle((uint256,address,address,uint256,address,address,uint256,uint256,address,uint256,uint256),(bytes,uint256),uint256)"
             }
           }
-        ],
-        "taiko": [
-          {
-            "address": "0xbbbbbbb520d69a9775e85b458c58c648259fad5f",
-            "functions": {
-              "0x4dcebcba": "swapSingle((uint256,address,address,uint256,address,address,uint256,uint256,address,uint256,uint256),(bytes,uint256),uint256)"
-            }
-          }
         ]
       }
     },
@@ -2915,6 +2634,18 @@
           },
           {
             "address": "0x28b1dc1a5e3699a428bc51d234dfab7c9cb2a183",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x8feab81d36e7576107d5de0758c1b839be31b4f6",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -2997,6 +2728,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x1f5b43127414e36c31ecb5ff5567262997cd24d0",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "cronos": [
@@ -3070,6 +2813,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0xc86fb5bf6bfde081fd627c639c05e70d23cf7717",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "bsc": [
@@ -3124,6 +2879,18 @@
           },
           {
             "address": "0x62ccef0b4545166f721caa9fee13c1d3767e27dc",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x5994814f2c4040b863a0125a45de152a8c2a4dec",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3206,6 +2973,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x3c4829196bfadff4394726b45159aeaac6fcd41c",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "zksync": [
@@ -3270,6 +3049,18 @@
           },
           {
             "address": "0x6f7c20464258c732577c87a9b467619e03e5c158",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x46edecea0228f04ab88dc34be98314863ba40be0",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3352,6 +3143,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x472fc4f7fd3c9f06f0b8637c5505815ac80938ad",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "base": [
@@ -3425,6 +3228,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x67d03631fe51b741c0c00c4e16eb662ac84381df",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "arbitrum": [
@@ -3479,6 +3294,18 @@
           },
           {
             "address": "0x7cf6b330b437e9fb432b1400de17b03357cf049a",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x09f94b5fc68e227c323a6fbae3bd98c97fd8c849",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3561,6 +3388,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0xab96dcfa7a7d669d9bf5918fab8641479973dd0a",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "linea": [
@@ -3625,6 +3464,18 @@
           },
           {
             "address": "0x2e1dee213ba8d7af0934c49a23187babeaca8764",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0xdfcb0cecc10e78f3f3749f3f3d3ee4047b2c9829",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -3719,6 +3570,18 @@
               "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
               "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
             }
+          },
+          {
+            "address": "0x472fc4f7fd3c9f06f0b8637c5505815ac80938ad",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
           }
         ],
         "scroll": [
@@ -3783,6 +3646,18 @@
           },
           {
             "address": "0x5e2f47bd7d4b357fcfd0bb224eb665773b1b9801",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
+              "0x0d5f0e3b": "uniswapV3SwapTo(uint256,uint256,uint256,uint256[])",
+              "0x08298b5a": "unxswapTo(uint256,uint256,uint256,address,bytes32[])",
+              "0x01617fab": "swapWrap(uint256,uint256)",
+              "0x0c307f76": "dagSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),(address[],address[],uint256[],bytes[],uint256)[])",
+              "0x98d2ac62": "swapWrapToWithBaseRequest(uint256,address,(uint256,address,uint256,uint256,uint256))"
+            }
+          },
+          {
+            "address": "0x6148d68ec192df0a7d36d97bdabbebb014c69938",
             "functions": {
               "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
               "0x03b87e5f": "smartSwapTo(uint256,address,(uint256,address,uint256,uint256,uint256),uint256[],(address[],address[],uint256[],bytes[],uint256)[][],(uint256,address,address,address,uint256,uint256,uint256,uint256,bool,bytes)[])",
@@ -4268,21 +4143,6 @@
             }
           }
         ],
-        "taiko": [
-          {
-            "address": "0x5affa5312ade198d9527acf058fee1c8ed8fe9f3",
-            "functions": {
-              "0x73fc4457": "swapWithMagpieSignature(bytes)",
-              "0x25e651ed": "swapWithUserSignature(bytes)"
-            }
-          },
-          {
-            "address": "0xf5f3b8faf45023fd92c0c88fedf73fb0529fc1cd",
-            "functions": {
-              "0x46ec278a": "swapWithBackendSignature(bytes)"
-            }
-          }
-        ],
         "scroll": [
           {
             "address": "0x9ee06954418687c6fb3a9966f7c46e0a245f0183",
@@ -4630,14 +4490,6 @@
             }
           }
         ],
-        "taiko": [
-          {
-            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
-            "functions": {
-              "0x3f0bde25": "IceCreamSwap()"
-            }
-          }
-        ],
         "scroll": [
           {
             "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
@@ -4805,7 +4657,7 @@
       "contracts": {
         "mainnet": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
@@ -4813,7 +4665,7 @@
         ],
         "base": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
@@ -4821,7 +4673,7 @@
         ],
         "arbitrum": [
           {
-            "address": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
+            "address": "0x00fC00edbe7C003b006f870068c548940000223e",
             "functions": {
               "0x7515fd56": "open((address,uint256,uint256,uint32,uint32,address,uint256[2][],(bytes32,bytes32,uint256,bytes32,uint256,bytes32,bytes,bytes)[]))"
             }
@@ -6402,88 +6254,6 @@
         ]
       }
     ],
-    "botanix": [
-      {
-        "name": "FeeCollector",
-        "address": "0x9391Bdac8F2e23F3510e40B156D1a86269f23EA2",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x324de98D989705fe26A40B3009ca7e9aC21305aB",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x25fcf0C48ca9908c7a279027B669be5ea22c74FA",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x0AcF63fCabe57364a70F0cAAac536365AdcA7607",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
     "bsc": [
       {
         "name": "FeeCollector",
@@ -7680,6 +7450,64 @@
       {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
+    "injective": [
+      {
+        "name": "FeeForwarder",
+        "address": "0x2C7475cBe7A9813dbe93C94297491ED7bD86cFab",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "GasZipPeriphery",
+        "address": "0x1Bad89ee4cA153C4E592e0Bf2f2A256fa9beDC42",
+        "selectors": [
+          {
+            "selector": "0x8b71ae6c",
+            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
+          },
+          {
+            "selector": "0xc4af5a74",
+            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x1c9633Cf7E22C36e6b9EAE03CdA5F4042d746683",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x1299f7F941745377a2091AF51557e8De04B96B10",
         "selectors": [
           {
             "selector": "0x27444dab",
@@ -9864,6 +9692,20 @@
             "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x321E5015072eB568B24F46e5A92FFcc4316056AB",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
       }
     ],
     "ronin": [
@@ -10544,88 +10386,6 @@
         ]
       }
     ],
-    "sophon": [
-      {
-        "name": "FeeCollector",
-        "address": "0xa1C8d86cEF721e9D16b8067E8525EEf2Bb5a17C5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0x92870bEd7554532ddE5213aC0f304573D79AaB24",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0xEfA269B9405762E56ED0b35C428331ce4963dDFf",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0xbBdf9FfB0Fe437280b14176a7EFC70c93896d9dd",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xa1f3bCb776Aca31Ce6EE8684B2F3184304F0a2F7",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
     "stable": [
       {
         "name": "FeeCollector",
@@ -10696,252 +10456,6 @@
       {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
-    "superposition": [
-      {
-        "name": "FeeCollector",
-        "address": "0x15b9Cf781B4A79C00E4dB7b49d8Bf67359a87Fd2",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x698F5d62E6841B3623907330B9883afFC3d6A6D3",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x349e00F0D4033CB7014Dbf12fdF9E80CFaf262Bc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
-    "swellchain": [
-      {
-        "name": "FeeCollector",
-        "address": "0x5d9C68B76809B33317d869FF6034929F4458913c",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0x012A203d28f1dCB3ACE07BACe0274de21a0Fbb57",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x9949c9A89146299828a96e77c70208Ab076326A2",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0xBB99EbdfA348239ac16a1949E0e69d29e2957C98",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xeDA29b03Be07709064ba36233C0a0430450b5941",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0x1808ceD816EC35C672Bdea98c0239ac469694377",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
-    "taiko": [
-      {
-        "name": "FeeCollector",
-        "address": "0xDd8A081efC90DFFD79940948a1528C51793C4B03",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x645e8096781d98810226595B3e2411B5CcC4899E",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0xD989E929517B0e5eD0c8EfE7607Fa167B697cBa8",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
         "selectors": [
           {
             "selector": "0x27444dab",

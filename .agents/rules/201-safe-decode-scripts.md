@@ -17,6 +17,7 @@ paths:
 - **Decode and formatters live in safe-decode-utils**: `decodeTransactionData`, display helpers (`getTargetName`, `getTargetSuffix`, `getPeripheryDeploymentCheckSuffix`), and formatters (`formatDiamondCutSummary`, `formatTimelockScheduleBatch`, `formatBatchSetContractSelectorWhitelist`, `tryFormatDiamondPayload`) are implemented in [script/deploy/safe/safe-decode-utils.ts](script/deploy/safe/safe-decode-utils.ts). Do NOT duplicate these in other Safe scripts; import from safe-decode-utils.
 - **decodeDiamondCut**: Remains in [script/deploy/safe/safe-utils.ts](script/deploy/safe/safe-utils.ts) (selector map, explorer links). safe-decode-utils imports and calls it; safe-utils MUST NOT import from safe-decode-utils (avoid circular dependency).
 - **Known ABIs**: Reliable decoding for common Safe/timelock calls (diamondCut, schedule, scheduleBatch, batchSetContractSelectorWhitelist, registerPeripheryContract) uses explicit ABIs in safe-decode-utils. When adding support for new top-level functions, add the ABI and a branch in `formatDecodedTxDataForDisplay`; keep ABIs in one place.
+- **Selector registry**: Selector → name/signature resolution (diamond.json, clearSigning/whitelist configs, well-known signatures, batched + disk-cached 4byte fallback) lives in [script/deploy/safe/selector-registry.ts](script/deploy/safe/selector-registry.ts). Both safe-utils and safe-decode-utils import it; keep it dependency-light (fs/path/viem/consola only) so it never creates an import cycle.
 
 ## Adding or Changing Decode Behavior
 
@@ -34,7 +35,7 @@ paths:
 | Concern | Location | Notes |
 |--------|----------|--------|
 | Decoded tx display | safe-decode-utils: `formatDecodedTxDataForDisplay` | Single entry point |
-| Selector → function name | safe-decode-utils: `decodeTransactionData` | Diamond ABI then 4byte (Sourcify) |
+| Selector → function name | safe-decode-utils: `decodeTransactionData` | Diamond ABI, then local registry (`selector-registry.ts`), then batched 4byte (Sourcify) |
 | Target name / explorer | safe-decode-utils: `getTargetName`, `getTargetSuffix` | Used by formatters |
 | Diamond cut details | safe-utils: `decodeDiamondCut` | Called from safe-decode-utils |
 | Known ABIs | safe-decode-utils | One set for all callers |
