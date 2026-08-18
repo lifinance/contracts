@@ -92,6 +92,7 @@ function addressResult(
     removals: [],
     notFoundOnChain: [],
     protectedSkipped: [],
+    routedNames: new Set<string>(),
     ...over,
   }
 }
@@ -235,6 +236,44 @@ describe('prepareDrainNetwork', () => {
     expect(deps.calls.supersede).toEqual([t.taskKey])
     expect(prep.calls).toHaveLength(0)
     expect(prep.outcome.superseded).toEqual(['GoneFacet'])
+  })
+
+  it('refuses to supersede an absent address while its NAME is still routed', async () => {
+    // The worldchain/lisk contamination shape: the task carries an address that was
+    // never routed here, so the facet it was meant to remove is still on the diamond.
+    const t = task('AcrossFacetV3')
+    const deps = makeDeps({
+      queued: [t],
+      result: addressResult({
+        notFoundOnChain: [t.facetAddress],
+        routedNames: new Set(['AcrossFacetV3']),
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.supersede).toEqual([])
+    expect(prep.outcome.superseded).toEqual([])
+    expect(prep.outcome.suspectSnapshots).toEqual(['AcrossFacetV3'])
+    expect(deps.calls.alerts.join('\n')).toContain('NOT routed')
+  })
+
+  it('bails out entirely when the diamond could not be resolved', async () => {
+    const t = task('GoneFacet')
+    const deps = makeDeps({
+      queued: [t],
+      // The no-diamond early return: no chain read happened, so nothing is absent.
+      result: addressResult({
+        diamondAddress: undefined,
+        diamondUnresolved: true,
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.supersede).toEqual([])
+    expect(deps.calls.claim).toEqual([])
+    expect(prep.calls).toHaveLength(0)
+    expect(prep.outcome.superseded).toEqual([])
+    expect(deps.calls.alerts.join('\n')).toContain('no LiFiDiamond resolved')
   })
 
   it('removes ONLY the parked address when a live facet shares its deploy-log name', async () => {

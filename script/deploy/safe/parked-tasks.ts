@@ -40,7 +40,7 @@ import {
   type UpdateFilter,
   type WithId,
 } from 'mongodb'
-import { type Address } from 'viem'
+import { getAddress, type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
 import { getEnvVar } from '../../utils/utils'
@@ -141,6 +141,25 @@ export interface IListParkedTasksFilter {
 function normaliseAddressForKey(facetAddress: string): string {
   const trimmed = facetAddress.trim()
   return trimmed.startsWith('0x') ? trimmed.toLowerCase() : trimmed
+}
+
+/**
+ * Canonical stored spelling of a facet address: EVM addresses are checksummed, Tron
+ * base58 is kept verbatim.
+ *
+ * The stored value and {@link computeTaskKey} must never disagree about identity —
+ * otherwise an EVM address parked in one capitalisation and re-parked in another
+ * would carry two spellings for one key. Tron base58 is case-SENSITIVE, so folding
+ * it would merge distinct accounts; it stays as given, which is safe because the
+ * spelling always comes from the deploy log.
+ *
+ * @param facetAddress - Address as supplied by the caller.
+ * @returns The canonical form to store.
+ * @throws If an `0x` address is not a valid EVM address.
+ */
+function canonicaliseFacetAddress(facetAddress: string): string {
+  const trimmed = facetAddress.trim()
+  return trimmed.startsWith('0x') ? getAddress(trimmed) : trimmed
 }
 
 /**
@@ -337,7 +356,7 @@ export async function enqueueParkedTask(
 
   const network = input.network.trim().toLowerCase()
   const facetName = input.facetName.trim()
-  const facetAddress = input.facetAddress.trim() as Address
+  const facetAddress = canonicaliseFacetAddress(input.facetAddress) as Address
   const doc: IParkedTask = {
     ...input,
     network,
@@ -550,22 +569,28 @@ export async function setSafeTxHash(
  * That is a benign race — the facet is already tracked — so it returns `null`
  * rather than throwing, mirroring {@link enqueueParkedTask}.
  *
+ * Addressed by `_id`, not `taskKey`: the partial unique index covers only the open
+ * statuses, so one `taskKey` can own several *terminal* rows (parked → executed →
+ * re-parked → executed). Matching by key would let Mongo pick any of them, and the
+ * caller would then report a document it did not modify.
+ *
  * @param parkedTasks - The queue collection.
- * @param taskKey - The terminal task to reopen.
+ * @param id - `_id` of the terminal task to reopen.
  * @returns The reopened task, `null` if it was not `executed`/`superseded`, or
  *   `null` if an open task for the same `taskKey` already exists.
  */
 export async function reopenResolvedTask(
   parkedTasks: Collection<IParkedTask>,
-  taskKey: string
+  id: ObjectId
 ): Promise<WithId<IParkedTask> | null> {
   try {
-    return await transition(
-      parkedTasks,
-      taskKey,
-      ['executed', 'superseded'],
-      { status: 'queued' },
-      { proposedAt: '', safeTxHash: '', resolvedAt: '' }
+    return await parkedTasks.findOneAndUpdate(
+      { _id: { $eq: id }, status: { $in: ['executed', 'superseded'] } },
+      {
+        $set: { status: 'queued' },
+        $unset: { proposedAt: '', safeTxHash: '', resolvedAt: '' },
+      },
+      { returnDocument: 'after' }
     )
   } catch (error: unknown) {
     if (
@@ -574,7 +599,7 @@ export async function reopenResolvedTask(
       (error as { code: number }).code === 11000
     ) {
       consola.warn(
-        `Cannot reopen resolved task - an open task already tracks it.\n  Task key: ${taskKey}`
+        `Cannot reopen resolved task - an open task already tracks it.\n  Task id: ${id.toString()}`
       )
       return null
     }

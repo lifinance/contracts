@@ -950,6 +950,32 @@ export function findDeprecatedLiveFacets(params: {
 }
 
 /**
+ * Splits deprecated-but-routed facets into the ones an open parked task actually
+ * covers and the ones nothing is tracking.
+ *
+ * Coverage is matched by ADDRESS, like the drain and the reconcile. A name maps to
+ * exactly one deploy-log address, so a task whose address is not the stale facet
+ * on-chain covers nothing the drain would remove — counting it as coverage would
+ * silence this backstop for the very facet it exists to surface (two co-registered
+ * versions under one name, EXSC-750/EXSC-775).
+ *
+ * @param deprecated - Deprecated facets the loupe still routes.
+ * @param openParkedAddresses - Lowercased `facetAddress` of every open parked task.
+ * @returns The covered (`parked`) and uncovered (`unparked`) partitions.
+ */
+export function splitByParkedCoverage(
+  deprecated: IFacetRemoval[],
+  openParkedAddresses: Set<string>
+): { parked: IFacetRemoval[]; unparked: IFacetRemoval[] } {
+  const isParked = (facet: IFacetRemoval): boolean =>
+    openParkedAddresses.has(facet.address.toLowerCase())
+  return {
+    parked: deprecated.filter(isParked),
+    unparked: deprecated.filter((f) => !isParked(f)),
+  }
+}
+
+/**
  * Memoized `src/` walk — the health check evaluates every network in one process,
  * and the source set is identical for all of them.
  */
@@ -1893,7 +1919,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       // Only stale networks touch the queue (and its mongodb dep).
-      let openParkedFacetNames: Set<string>
+      let openParkedAddresses: Set<string>
       try {
         const { getParkedTasksCollection, listParkedTasks } = await import(
           './safe/parked-tasks'
@@ -1912,7 +1938,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               status: 'proposed',
             })),
           ]
-          openParkedFacetNames = new Set(open.map((t) => t.facetName))
+          // Keyed by ADDRESS, like the drain and the reconcile: a name maps to one
+          // deploy-log address, so a task whose address does not match the stale
+          // facet on-chain covers nothing the drain would actually remove — and
+          // counting it as coverage silences this backstop for the very facet it
+          // exists to surface (co-registered versions, EXSC-750/EXSC-775).
+          openParkedAddresses = new Set(
+            open.map((t) => t.facetAddress.toLowerCase())
+          )
         } finally {
           await client.close()
         }
@@ -1927,9 +1960,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      const parked = deprecated.filter((f) => openParkedFacetNames.has(f.name))
-      const unparked = deprecated.filter(
-        (f) => !openParkedFacetNames.has(f.name)
+      const { parked, unparked } = splitByParkedCoverage(
+        deprecated,
+        openParkedAddresses
       )
       if (parked.length > 0)
         consola.info(

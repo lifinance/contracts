@@ -586,7 +586,8 @@ origin-PR lines to the signer.
         │                    ▼
         │       executed / superseded  (terminal, = done)
         │                    │
-        └────────────────────┘ reconcile: facet NAME still routed → reopen (EXSC-774)
+        └────────────────────┘ reconcile: parked ADDRESS still routed AND still
+                                 deprecated → reopen (EXSC-774)
 
              operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
              network outside the active set (opt-in) ────────┘ (queued only)
@@ -617,7 +618,15 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   reconcile.
 - **executed/superseded → queued**: `reopenResolvedTask` — the reconcile finds the facet
   still routed despite a terminal status, so the removal never landed. Clears
-  `resolvedAt`/`proposedAt`/`safeTxHash` and alerts the multisig-proposals channel.
+  `resolvedAt`/`proposedAt`/`safeTxHash` and alerts the CI-notifications channel.
+  Addressed by `_id`, not `taskKey`: the partial unique index covers only the open
+  statuses, so one key can own several terminal rows (parked → executed → re-parked →
+  executed) and a key-matched write could modify a different row than the one the sweep
+  decided on. Reopening also requires the facet to be **still deprecated** — source
+  deleted and absent from `_targetState.json`, the same gate the removal engine uses.
+  A routed address that is expected again (an incident rollback re-cutting it, or a
+  CREATE2 redeploy landing on the same address) is a deliberate re-add, so the reopen is
+  withheld and reported as an anomaly instead of queueing a `Remove` for a live facet.
   `cancelled` is deliberately excluded (it records an operator's decision, not a claim
   about on-chain state).
 - **→ cancelled**: `markCancelled` (`:383`) — an operator explicitly abandons the intent
@@ -687,11 +696,14 @@ Three composed backstops, none silent:
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **The backstop must survive a bad network.** The reconcile isolates each
-`(network, environment)` group, the optional proposal-store connection, each
-cancellation, and the sweep as a whole: an unreachable chain or a missing RPC is
-logged and collected as an `IReconcileFailure`, the remaining groups are still
-decided, and both the failure alert and the TTL alert still fire — every skipped
-network is named in Slack rather than exiting the job non-zero and losing the detail.
+`(network, environment)` group, **each per-task queue write**, the optional
+proposal-store connection, each cancellation, and the sweep as a whole: an
+unreachable chain, a missing RPC or a failed status write is logged and collected as
+an `IReconcileFailure`, the remaining tasks and groups are still decided, and both
+the failure alert and the TTL alert still fire — every skipped network is named in
+Slack rather than exiting the job non-zero and losing the detail. The write path needs
+the same isolation as the read path: an unguarded transition would unwind past every
+group ordered after it, which is the same fleet-wide freeze from the read side.
 A single unresolvable network aborting the batch would silently disable backstop 2
 for the whole fleet, which is how the first four scheduled runs were lost.
 
@@ -713,7 +725,8 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   executed" warning (Fact 10) is **strengthened** to "until the parked task retires" —
   not for the drain (address-resolving, above) but because the health check's
   queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
-  addresses to names through the log. The weekly reconcile job (§7) reports which
+  addresses to names through the log in order to detect them at all (its queue
+  coverage check is address-keyed, like the drain). The weekly reconcile job (§7) reports which
   entries are **safe to prune** (every covering task terminal); pruning then is a
   small reviewed PR.
 
@@ -779,10 +792,10 @@ only the PR-link surfacing (§6) and drops the manual `--auto` invocation.
 | No new governance path / no bypass | Queue lives on the **non-sensitive `MONGODB_URI` cluster** (off the signing store), **mirroring** the existing `timelock-operations/queue` (Fact 5, 15). Removals still go loupe → `buildDiamondCutRemoveCalldata` → `wrapWithTimelockSchedule` → Safe → timelock → quorum, **unchanged** (Facts 2, 4, 9). Timelock/Safe never weakened (`002:29`, `105:15`). |
 | PR link mandatory + reviewer-visible | `enqueueParkedTask` throws on a blank `prUrl` (Fact 15); drain **logs each removal loudly** and copies the link to `parkedTaskRefs` on the proposal; shown in `confirm-safe-tx` detailLines, `list-pending-proposals`, and Slack (§6). |
 | No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9, 15; §7). |
-| Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts:119`); a queued protected facet is `cancelled` + alerted (§6). Inherits every #2047 guardrail (drift gate is N/A — named path). |
+| Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts`); a queued protected facet is `cancelled` + alerted (§6). The address path checks protection twice, the second side independent of the deploy log: an address the log cannot name (the normal case for a superseded version) is matched by **selector** against the union owned by the protected facets, and refused on a hit — or refused outright when that union cannot be built from artifacts, so the check fails closed. Inherits every #2047 guardrail (drift gate is N/A — named path). |
 | Deferred ≠ orphaned | Cold-network backstops: `--auto --all-networks` sweep + TTL Slack alert + observability CLI (§8). No silent truncation — the TTL alert names what's still queued. |
-| Deploy-log longevity | Address snapshot as a *fallback* so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). Presence is resolved by facet **name** first — a snapshot address can be flat wrong, and an address-only check then reports "gone" about an address nobody asked about (EXSC-774). |
-| A resolution can be wrong | `executed`/`superseded` are re-verified against the loupe on every reconcile and reopened when the facet is still routed (§7). A stored terminal status is never taken as proof. |
+| Deploy-log longevity | Presence is resolved by the parked **address**, matching the drain (EXSC-775); a pruned log entry therefore cannot false-`superseded` a live facet, and the strengthened `/deprecate-contract` warning (§8) keeps the label resolvable. A snapshot address can still be flat wrong, so address-gone + **name still routed** resolves nothing: both the drain and the reconcile refuse the transition and alert instead (EXSC-774). |
+| A resolution can be wrong | `executed`/`superseded` are re-verified against the loupe on every reconcile and reopened when the facet is still routed **and still deprecated** (§7) — a facet that is expected again was re-added deliberately, so the reopen is withheld and alerted rather than queueing a `Remove` for a live facet. A stored terminal status is never taken as proof, and no contradictory data resolves silently: withheld decisions go to Slack, not just the job log. |
 | Opt-in in v1 | `DRAIN_PARKED_TASKS` **default off; ON for rollouts, OFF for emergencies** (§6) — an urgent pause/break-glass proposal never drags unrelated removals into its signing set; reentrancy-guarded (§6). |
 | Direct-send safety | Drain no-ops on staging/testnet/`SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Fact 13; §12). |
 | Rule compliance | TS/Bash, no Python (`000:15`); viem (`200:14`); reuse helpers (`:24`); new helpers 100%-covered colocated tests (`:120`); `citty`/`consola`/`getEnvVar` CLI (`:116`); `I`-prefixed interfaces; injectable I/O + dry-run-default per #2047 convention (Fact 14). |

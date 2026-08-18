@@ -29,6 +29,7 @@ import {
   computeSafeToPrune,
   computeTtlAlerts,
   deprecatedNetworkDecision,
+  formatReconcileAnomalyMessage,
   formatReconcileFailureMessage,
   formatReopenAlertMessage,
   formatSafeToPruneReport,
@@ -118,19 +119,46 @@ describe('reconcileDecision', () => {
     ).toBe('keep')
   })
 
-  it('reopens an executed task whose facet is still routed (removal never landed)', () => {
+  it('reopens an executed task whose deprecated facet is still routed (removal never landed)', () => {
     expect(
       reconcileDecision(
         { status: 'executed' },
-        { facetPresentOnChain: true, proposalStatus: 'executed' }
+        {
+          facetPresentOnChain: true,
+          proposalStatus: 'executed',
+          facetDeprecated: true,
+        }
       )
     ).toBe('reopen')
   })
 
-  it('reopens a superseded task whose facet is still routed', () => {
+  it('reopens a superseded task whose deprecated facet is still routed', () => {
     expect(
-      reconcileDecision({ status: 'superseded' }, { facetPresentOnChain: true })
+      reconcileDecision(
+        { status: 'superseded' },
+        { facetPresentOnChain: true, facetDeprecated: true }
+      )
     ).toBe('reopen')
+  })
+
+  it('does NOT reopen a routed facet that is no longer deprecated (incident rollback)', () => {
+    // Re-cutting the same address (a rollback, or a CREATE2 redeploy) makes the facet
+    // live and target-state-expected again; reopening would queue a Remove for it.
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: true, facetDeprecated: false }
+      )
+    ).toBe('keep')
+  })
+
+  it('does NOT reopen when deprecation cannot be determined', () => {
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: true, facetDeprecated: undefined }
+      )
+    ).toBe('keep')
   })
 
   it('keeps an executed task whose facet really is gone', () => {
@@ -275,6 +303,57 @@ describe('formatReconcileFailureMessage', () => {
     expect(msg).toContain('NOT verified')
     expect(msg).toContain('harmony:production — Chain harmony does not exist')
     expect(msg).toContain('velas:production — no LiFiDiamond in deploy log')
+  })
+
+  it('counts physical networks, not rows, when two environments of one network fail', () => {
+    const msg = formatReconcileFailureMessage([
+      {
+        network: 'ethereum',
+        environment: EnvironmentEnum.production,
+        reason: 'RPC timeout',
+      },
+      {
+        network: 'ethereum',
+        environment: EnvironmentEnum.staging,
+        reason: 'RPC timeout',
+      },
+    ])
+    expect(msg).toContain('1 network(s) could not be reconciled')
+    // Both rows are still listed — the count is deduped, the detail is not.
+    expect(msg).toContain('ethereum:production')
+    expect(msg).toContain('ethereum:staging')
+  })
+})
+
+describe('formatReconcileAnomalyMessage', () => {
+  const anomaly = (facet: string) => ({
+    network: 'worldchain',
+    environment: EnvironmentEnum.production,
+    facet,
+    prUrl: 'https://gh/pull/1',
+    reason:
+      'parked address is not routed, but a facet of the same name still is',
+  })
+
+  it('returns an empty string when nothing was withheld', () => {
+    expect(formatReconcileAnomalyMessage([])).toBe('')
+  })
+
+  it('names the facet, the network and why no transition was applied', () => {
+    const msg = formatReconcileAnomalyMessage([anomaly('AcrossFacetV3')])
+    expect(msg).toContain('UNCHANGED')
+    expect(msg).toContain('[worldchain:production] AcrossFacetV3')
+    expect(msg).toContain('same name still is')
+    expect(msg).toContain('https://gh/pull/1')
+  })
+
+  it('caps the listing so a fleet-wide anomaly cannot blow the Slack budget', () => {
+    const msg = formatReconcileAnomalyMessage(
+      Array.from({ length: 40 }, (_, i) => anomaly(`Facet${i}`))
+    )
+    expect(msg).toContain('40 deferred diamond-cleanup task(s)')
+    expect(msg).toContain('and 25 more')
+    expect(msg.length).toBeLessThan(2900)
   })
 })
 

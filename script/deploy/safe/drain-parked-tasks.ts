@@ -62,6 +62,8 @@ export interface IDrainOutcome {
   superseded: string[]
   /** Protected facets parked in error → cancelled + alerted. */
   protectedCancelled: string[]
+  /** Facets whose parked address is unrouted while their NAME still is → left queued + alerted. */
+  suspectSnapshots: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
   skippedAlreadyClaimed: string[]
   /** The primary proposal's Safe tx hash, once claimed tasks are linked to it. */
@@ -146,6 +148,7 @@ export async function prepareDrainNetwork(
     proposed: [],
     superseded: [],
     protectedCancelled: [],
+    suspectSnapshots: [],
     skippedAlreadyClaimed: [],
   }
   const empty: IDrainPreparation = {
@@ -161,6 +164,16 @@ export async function prepareDrainNetwork(
   const result = await deps.computeRemovals(
     tasks.map((t) => getAddress(t.facetAddress))
   )
+
+  // No chain read happened, so nothing is known to be absent. Superseding here
+  // would retire every queued task for the network — while every facet is still
+  // routed — on nothing but a deploy log missing its LiFiDiamond key.
+  if (result.diamondUnresolved) {
+    deps.alert(
+      `[${network}] parked-task drain skipped: no LiFiDiamond resolved for ${environment} — ${tasks.length} task(s) left queued (deploy log incomplete?)`
+    )
+    return empty
+  }
 
   const lower = (address: string): string => address.toLowerCase()
   const removalByAddress = new Map(
@@ -192,6 +205,18 @@ export async function prepareDrainNetwork(
         }
         claimed.push({ task, removal })
       } else if (notFound.has(address)) {
+        // An address can be absent because the facet really was removed, or because
+        // the snapshot was wrong from the start (a task carrying another network's
+        // address). Superseding the second case retires the task while the facet it
+        // was meant to remove stays routed, so a name still on the diamond keeps the
+        // task open for a human — the same guard the reconcile applies.
+        if (result.routedNames.has(name)) {
+          outcome.suspectSnapshots.push(name)
+          deps.alert(
+            `[${network}] ${name} (${task.facetAddress}): parked address is NOT routed, but a facet named ${name} still is — refusing to supersede; verify the snapshot (wrong-network address?) before resolving. Origin PR: ${task.prUrl}`
+          )
+          continue
+        }
         await deps.supersede(task.taskKey)
         outcome.superseded.push(name)
         deps.log(

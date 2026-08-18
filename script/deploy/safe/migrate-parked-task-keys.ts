@@ -139,7 +139,9 @@ const main = defineCommand({
       process.exitCode = 1
     } finally {
       try {
-        await mongoClient.close(true)
+        // Optional: a throw before the connection was opened (an unset MONGODB_URI)
+        // leaves it undefined, and closing it would mask the real error.
+        await mongoClient?.close(true)
       } catch (closeError: unknown) {
         consola.warn(
           `Failed to close MongoDB connection: ${

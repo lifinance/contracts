@@ -438,6 +438,8 @@ describe('diffFacetsByAddress', () => {
     network: 'net',
     environment: PROD,
     diamondAddress: addr(0xd),
+    // Explicit "nothing is protected"; the unavailable case is undefined, tested below.
+    protectedSelectors: new Set<string>(),
   }
 
   it('removes exactly the requested address, using its live loupe selectors', () => {
@@ -527,6 +529,70 @@ describe('diffFacetsByAddress', () => {
     expect(r.removals).toHaveLength(0)
   })
 
+  it('refuses an UNLOGGED address that holds a protected facet selector', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(0xc), sel(1)] }],
+      addressToName: {}, // the log cannot name it, so the name check cannot fire
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: new Set([sel(0xc)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.protectedSkipped).toEqual([
+      {
+        name: `unknown (address not in deploy log, holds protected selector ${sel(
+          0xc
+        )})`,
+        address: addr(9),
+      },
+    ])
+  })
+
+  it('refuses an UNLOGGED address when the protected selector union is unavailable', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: undefined, // e.g. a missing artifact — cannot verify
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.protectedSkipped[0]?.name).toContain(
+      'protected selectors unavailable'
+    )
+  })
+
+  it('still removes an unlogged address whose selectors are not protected', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(9)] }],
+      addressToName: {},
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: new Set([sel(0xc)]),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+  })
+
+  it('reports the deploy-log names the loupe routes, for the suspect-snapshot check', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
+      addressToName: { [addr(1)]: 'AcrossFacetV3' },
+      protectedNames: new Set(),
+    })
+    expect(r.routedNames).toEqual(new Set(['AcrossFacetV3']))
+    expect(r.notFoundOnChain).toEqual([addr(9)])
+  })
+
   it('leaves unrequested on-chain facets untouched', () => {
     const r = diffFacetsByAddress({
       ...base,
@@ -568,14 +634,17 @@ describe('computeNamedFacetRemovals', () => {
 })
 
 describe('computeFacetRemovalsByAddress', () => {
-  it('returns all addresses as notFoundOnChain when the diamond is absent', async () => {
+  it('flags an unresolvable diamond instead of reporting the addresses absent', async () => {
     const r = await computeFacetRemovalsByAddress(
       'net',
       PROD,
       [addr(1), addr(2)],
       { getDiamondAddress: async () => undefined }
     )
-    expect(r.notFoundOnChain).toEqual([addr(1), addr(2)])
+    // No chain read happened, so nothing may be reported as gone — the drain
+    // supersedes on notFoundOnChain and would retire the whole queue.
+    expect(r.diamondUnresolved).toBe(true)
+    expect(r.notFoundOnChain).toEqual([])
     expect(r.removals).toHaveLength(0)
   })
 
@@ -587,6 +656,8 @@ describe('computeFacetRemovalsByAddress', () => {
         { address: addr(9), selectors: [sel(9)] },
       ],
       getAddressToName: async () => ({ [addr(1)]: 'SymbiosisFacet' }),
+      getFacetNames: () => new Set(['DiamondCutFacet']),
+      getActiveSelectors: () => new Set([sel(0xc)]),
     })
     expect(r.diamondAddress).toBe(addr(0xd))
     expect(r.removals).toEqual([

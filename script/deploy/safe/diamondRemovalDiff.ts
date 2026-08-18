@@ -532,10 +532,23 @@ export interface IAddressRemovalResult {
    * supplies its own label (a parked task carries `facetName` for this).
    */
   removals: (Omit<IFacetRemoval, 'name'> & { name?: string })[]
-  /** Requested addresses not registered on this diamond (nothing to remove here). */
+  /**
+   * Requested addresses the loupe does not route. Only ever populated from a real
+   * loupe read: when the diamond itself could not be resolved this stays empty and
+   * {@link IAddressRemovalResult.diamondUnresolved} is set instead, so a caller can
+   * never read "we could not ask the chain" as "the chain says absent".
+   */
   notFoundOnChain: `0x${string}`[]
   /** Requested addresses that resolve to a never-remove facet — refused. */
   protectedSkipped: { name: string; address: `0x${string}` }[]
+  /**
+   * Set when the network has no resolvable `LiFiDiamond` in its deploy log, so no
+   * chain read happened at all. A caller that treats absence as "already removed"
+   * (the drain supersedes on it) MUST bail on this instead.
+   */
+  diamondUnresolved?: true
+  /** Deploy-log names of every facet the loupe routes — the suspect-snapshot signal. */
+  routedNames: Set<string>
 }
 
 /**
@@ -607,6 +620,57 @@ export function diffNamedFacets(params: {
 }
 
 /**
+ * The selector union owned by the protected facets, for the deploy-log-independent
+ * half of the never-remove check. Scoped to real facets — protected periphery is not
+ * diamond-routed, and its signatures overlapping a deprecated facet's would refuse a
+ * legitimate removal. Returns `undefined` when the union cannot be built (an artifact
+ * is missing), which the caller treats as "cannot verify" rather than "nothing protected".
+ *
+ * @param protectedNames - The never-remove allowlist.
+ * @param io - Resolved I/O providing facet names + selector collection.
+ * @returns Lowercased protected selectors, or `undefined` if unavailable.
+ */
+function collectProtectedFacetSelectors(
+  protectedNames: Set<string>,
+  io: IRemovalDiffIO
+): Set<string> | undefined {
+  try {
+    const facetNames = io.getFacetNames()
+    return io.getActiveSelectors(
+      [...protectedNames].filter((name) => facetNames.has(name))
+    )
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Why an unlogged address must not be removed, or `undefined` when it may be.
+ *
+ * The deploy log names exactly one address per facet name, so the addresses this
+ * path targets are routinely absent from it. Protection therefore falls back to
+ * the selectors the loupe reports: a facet holding a protected facet's selector is
+ * that facet under another address, whatever the log says about it.
+ *
+ * @param selectors - The candidate's on-chain selectors.
+ * @param protectedSelectors - Lowercased protected-facet selectors, or `undefined` if unavailable.
+ * @returns A refusal label for `protectedSkipped`, or `undefined` to allow removal.
+ */
+function unloggedRefusalReason(
+  selectors: `0x${string}`[],
+  protectedSelectors: Set<string> | undefined
+): string | undefined {
+  if (!protectedSelectors)
+    return 'unknown (address not in deploy log, protected selectors unavailable)'
+  const hit = selectors.find((selector) =>
+    protectedSelectors.has(lower(selector))
+  )
+  return hit === undefined
+    ? undefined
+    : `unknown (address not in deploy log, holds protected selector ${hit})`
+}
+
+/**
  * Pure resolution of an explicit set of requested facet ADDRESSES against the
  * on-chain loupe — the removal path for anything that must target one exact
  * facet, including a version co-registered alongside its successor under the
@@ -615,9 +679,12 @@ export function diffNamedFacets(params: {
  * and the never-remove check when it does. Selectors always come from the loupe,
  * so they cannot go stale between enqueue and drain.
  *
- * The protected check runs on both sides — the name the log maps the requested
- * address to, and the set of addresses the log maps to a protected name — so an
- * unlogged address cannot smuggle a never-remove facet past the allowlist.
+ * The protected check has a deploy-log-independent second side: an address the log
+ * cannot name is matched by SELECTOR against the union owned by the protected
+ * facets, because the very cases this path exists for (a superseded version, a
+ * pruned log entry) are exactly the ones the log cannot name. Passing
+ * `protectedSelectors: undefined` means that union could not be built, and every
+ * unlogged address is then refused rather than removed unverified.
  */
 export function diffFacetsByAddress(params: {
   network: string
@@ -628,6 +695,13 @@ export function diffFacetsByAddress(params: {
   onChainFacets: IOnChainFacet[]
   addressToName: Record<string, string>
   protectedNames: Set<string>
+  /**
+   * Lowercased selectors owned by the protected facets, or `undefined` when that
+   * union is unavailable (missing artifact) — which fails closed for any address
+   * the deploy log cannot name. Required (never optional) so a caller cannot pick
+   * either failure direction by omission.
+   */
+  protectedSelectors: Set<string> | undefined
 }): IAddressRemovalResult {
   const {
     network,
@@ -637,6 +711,7 @@ export function diffFacetsByAddress(params: {
     onChainFacets,
     addressToName,
     protectedNames,
+    protectedSelectors,
   } = params
 
   const result: IAddressRemovalResult = {
@@ -646,17 +721,16 @@ export function diffFacetsByAddress(params: {
     removals: [],
     notFoundOnChain: [],
     protectedSkipped: [],
+    routedNames: new Set(
+      onChainFacets
+        .map((f) => addressToName[lower(f.address)])
+        .filter((name): name is string => name !== undefined)
+    ),
   }
 
   const requested = new Map<string, `0x${string}`>()
   for (const address of requestedAddresses)
     requested.set(lower(address), address)
-
-  const protectedAddresses = new Set(
-    Object.entries(addressToName)
-      .filter(([, name]) => protectedNames.has(name))
-      .map(([address]) => lower(address))
-  )
 
   const foundOnChain = new Set<string>()
   for (const facet of onChainFacets) {
@@ -665,12 +739,16 @@ export function diffFacetsByAddress(params: {
     foundOnChain.add(key)
 
     const name = addressToName[key]
-    if ((name && protectedNames.has(name)) || protectedAddresses.has(key)) {
-      result.protectedSkipped.push({
-        name: name ?? 'unknown (address not in deploy log)',
-        address: facet.address,
-      })
+    if (name && protectedNames.has(name)) {
+      result.protectedSkipped.push({ name, address: facet.address })
       continue
+    }
+    if (name === undefined) {
+      const refusal = unloggedRefusalReason(facet.selectors, protectedSelectors)
+      if (refusal) {
+        result.protectedSkipped.push({ name: refusal, address: facet.address })
+        continue
+      }
     }
 
     result.removals.push({
@@ -759,14 +837,18 @@ export async function computeFacetRemovalsByAddress(
       network,
       environment,
       removals: [],
-      notFoundOnChain: addresses,
+      notFoundOnChain: [],
       protectedSkipped: [],
+      diamondUnresolved: true,
+      routedNames: new Set<string>(),
     }
 
   const [onChainFacets, addressToName] = await Promise.all([
     resolved.getOnChainFacets(diamondAddress, network),
     resolved.getAddressToName(network, environment),
   ])
+
+  const protectedNames = getProtectedNames()
 
   return diffFacetsByAddress({
     network,
@@ -775,7 +857,11 @@ export async function computeFacetRemovalsByAddress(
     requestedAddresses: new Set(addresses),
     onChainFacets,
     addressToName,
-    protectedNames: getProtectedNames(),
+    protectedNames,
+    protectedSelectors: collectProtectedFacetSelectors(
+      protectedNames,
+      resolved
+    ),
   })
 }
 

@@ -64,6 +64,8 @@ import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
 
 import {
   fetchOnChainFacets,
+  getExpectedFacetNames,
+  getSourceContractNames,
   resolveAddressToName,
   resolveDiamondAddress,
 } from './diamondRemovalDiff'
@@ -82,6 +84,11 @@ import { getSafeMongoCollection, type SafeTxStatus } from './safe-utils'
 
 /** Milliseconds in a day. */
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Memoized `src/` walk — the sweep asks the same question for every network. */
+let sourceContractNamesCache: Set<string> | undefined
+const cachedSourceContractNames = (): Set<string> =>
+  (sourceContractNamesCache ??= getSourceContractNames())
 
 /** Default cold-network TTL before a "still open" alert fires (spec §14 Q10). */
 const DEFAULT_TTL_DAYS = 60
@@ -109,6 +116,15 @@ export interface IReconcileContext {
   facetPresentOnChain: boolean
   /** Linked proposal status, if `SC_MONGODB_URI` (tunnel) was reachable. */
   proposalStatus?: SafeTxStatus
+  /**
+   * Whether the facet is still *deprecated* — source deleted AND absent from
+   * `_targetState.json`, the same gate the removal engine uses. `undefined` when it
+   * could not be determined (no target-state entry for the network). Only a
+   * deprecated facet may be re-queued for removal: an address that is routed again
+   * because it was legitimately re-cut (an incident rollback, or a CREATE2 redeploy
+   * landing on the same address) must not have its removal resurrected.
+   */
+  facetDeprecated?: boolean
 }
 
 /**
@@ -116,9 +132,11 @@ export interface IReconcileContext {
  * (spec §7 state machine). Loupe-primary in both directions:
  *
  * - A task claiming to be done (`executed`/`superseded`) whose facet is still
- *   routed is a false resolution — reopened to `queued` so the next drain
- *   re-proposes it. Without this, a removal that never executed is invisible
- *   forever, since terminal states were previously never re-checked.
+ *   routed AND still deprecated is a false resolution — reopened to `queued` so the
+ *   next drain re-proposes it. Without this, a removal that never executed is
+ *   invisible forever, since terminal states were previously never re-checked. A
+ *   routed facet that is no longer deprecated is a deliberate re-add, so the
+ *   removal stays retired (see {@link IReconcileContext.facetDeprecated}).
  * - An open task whose facet is gone becomes terminal (`executed` when its own
  *   proposal executed, else `superseded`).
  * - An open, still-present task whose linked proposal reverted goes back to `queued`.
@@ -135,8 +153,10 @@ export function reconcileDecision(
 ): ReconcileDecision {
   if (task.status === 'cancelled') return 'keep'
 
-  if (RESOLVED_STATUSES.includes(task.status))
-    return ctx.facetPresentOnChain ? 'reopen' : 'keep'
+  if (RESOLVED_STATUSES.includes(task.status)) {
+    if (!ctx.facetPresentOnChain) return 'keep'
+    return ctx.facetDeprecated === true ? 'reopen' : 'keep'
+  }
 
   if (!ctx.facetPresentOnChain) {
     if (task.status === 'proposed' && ctx.proposalStatus === 'executed')
@@ -388,11 +408,27 @@ export interface IReconcileFailure {
   reason: string
 }
 
+/**
+ * A task whose reconcile decision was WITHHELD because the data contradicts itself.
+ * Never resolved silently: an anomaly is the one signal that something the queue
+ * believes about the chain is wrong, so it is alerted and left for a human.
+ */
+export interface IReconcileAnomaly {
+  network: string
+  environment: EnvironmentEnum
+  facet: string
+  prUrl: string
+  /** Why no transition was applied, phrased for the operator reading Slack. */
+  reason: string
+}
+
 /** Outcome of one reconcile sweep. */
 export interface IReconcileRun {
   reopened: IReopenedParkedTask[]
   /** Networks skipped because their state was unreadable — never silently dropped. */
   failures: IReconcileFailure[]
+  /** Tasks left untouched because their on-chain data was self-contradictory. */
+  anomalies: IReconcileAnomaly[]
   /**
    * `${network}:${environment}` → lowercased addresses the loupe reported, for the
    * networks this run actually read. Reused by the safe-to-prune report so it does
@@ -418,8 +454,11 @@ export function formatReconcileFailureMessage(
   if (failures.length === 0) return ''
   // Keeps the worst case (a fleet-wide narrowing) under SlackNotifier's 2900-char budget.
   const MAX_LISTED = 15
+  // One entry per (network, environment), so the headline counts physical networks
+  // rather than rows — two failing environments of one chain is still one network.
+  const networkCount = new Set(failures.map((f) => f.network)).size
   const lines = [
-    `⚠️ ${failures.length} network(s) could not be reconciled — their parked tasks were NOT verified this run:`,
+    `⚠️ ${networkCount} network(s) could not be reconciled — their parked tasks were NOT verified this run:`,
   ]
   for (const f of failures.slice(0, MAX_LISTED))
     lines.push(`   - ${f.network}:${f.environment} — ${f.reason}`)
@@ -470,6 +509,36 @@ export function formatReopenAlertMessage(
     for (const r of list)
       lines.push(`   - ${r.facet} (was ${r.from}) → ${r.prUrl}`)
   }
+  return lines.join('\n')
+}
+
+/**
+ * Formats the withheld-decision alert. Returns '' when nothing was withheld.
+ *
+ * The job runs unattended, so a console warning next to a decision reaches nobody —
+ * an anomaly that never leaves the job log is a silent resolution with extra steps.
+ *
+ * @param anomalies - Tasks whose transition was withheld this run.
+ * @returns A Slack-ready message, or '' if `anomalies` is empty.
+ */
+export function formatReconcileAnomalyMessage(
+  anomalies: IReconcileAnomaly[]
+): string {
+  if (anomalies.length === 0) return ''
+  const MAX_LISTED = 15
+  const lines = [
+    `⚠️ ${anomalies.length} deferred diamond-cleanup task(s) were left UNCHANGED because their on-chain data is contradictory — a human has to adjudicate:`,
+  ]
+  for (const a of anomalies.slice(0, MAX_LISTED))
+    lines.push(
+      `   - [${a.network}:${a.environment}] ${a.facet}: ${a.reason} → ${a.prUrl}`
+    )
+  if (anomalies.length > MAX_LISTED)
+    lines.push(
+      `   … and ${
+        anomalies.length - MAX_LISTED
+      } more — see the job log for the full list.`
+    )
   return lines.join('\n')
 }
 
@@ -614,12 +683,18 @@ async function reconcileAll(
   ).filter((t) => t.status !== 'cancelled')
   if (candidates.length === 0) {
     consola.info('No parked tasks to reconcile')
-    return { reopened: [], failures: [], routedByNetworkEnv: new Map() }
+    return {
+      reopened: [],
+      failures: [],
+      anomalies: [],
+      routedByNetworkEnv: new Map(),
+    }
   }
 
   const reopened: IReopenedParkedTask[] = []
   const routedByNetworkEnv = new Map<string, Set<string>>()
   const failures: IReconcileFailure[] = []
+  const anomalies: IReconcileAnomaly[] = []
 
   // Routed out before the loupe is touched: a task on a network outside the active
   // set has no chain to read, so it would otherwise fail per-network every week
@@ -780,49 +855,119 @@ async function reconcileAll(
           .filter((name): name is string => name !== undefined)
       )
 
+      // A facet may only be re-queued for removal while it is still deprecated —
+      // the same source-gone + absent-from-target-state gate the removal engine
+      // uses, so eval and remover cannot disagree about what is removable.
+      const expectedNames = getExpectedFacetNames(network, environment)
+      const isDeprecated = (facetName: string): boolean | undefined =>
+        expectedNames === undefined
+          ? undefined
+          : !expectedNames.has(facetName) &&
+            !cachedSourceContractNames().has(facetName)
+
       for (const task of tasks) {
+        const presentOnChain = resolveFacetPresence(task, routedAddresses)
+        // The address is gone while its name is still routed: either a superseded
+        // version was just removed, or the snapshot was wrong from the start (a task
+        // carrying another network's address, the worldchain/lisk shape). Resolving
+        // the second retires the task while the facet it targeted stays live, so no
+        // transition is applied and the contradiction is alerted instead.
+        if (isSuspectAddressSnapshot(task, routedNames, routedAddresses)) {
+          const reason = `parked address ${task.facetAddress} is not routed, but a facet named ${task.facetName} still is — wrong address snapshot? No transition applied`
+          consola.warn(
+            `[${network}:${environment}] ${task.facetName}: ${reason}`
+          )
+          anomalies.push({
+            network,
+            environment,
+            facet: task.facetName,
+            prUrl: task.prUrl,
+            reason,
+          })
+          continue
+        }
+
         const proposalStatus = await resolveProposalStatus(
           pendingTransactions,
           task.safeTxHash
         )
+        const facetDeprecated = isDeprecated(task.facetName)
         const decision = reconcileDecision(task, {
-          facetPresentOnChain: resolveFacetPresence(task, routedAddresses),
+          facetPresentOnChain: presentOnChain,
           proposalStatus,
+          facetDeprecated,
         })
         consola.info(
           `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
         )
-        if (isSuspectAddressSnapshot(task, routedNames, routedAddresses))
+        // A terminal task whose facet is routed again, yet no longer deprecated, is a
+        // deliberate re-add (incident rollback, or a CREATE2 redeploy landing on the
+        // same address). Reopening it would queue a Remove for a live facet target
+        // state expects to keep, so the reopen is withheld and reported.
+        if (
+          decision === 'keep' &&
+          RESOLVED_STATUSES.includes(task.status) &&
+          presentOnChain
+        ) {
+          const reason =
+            facetDeprecated === undefined
+              ? `facet is routed again but ${network}:${environment} has no target-state entry — cannot tell a re-add from a false resolution; reopen withheld`
+              : `facet is routed again but is no longer deprecated (present in target state or source) — treated as a deliberate re-add, reopen withheld`
           consola.warn(
-            `[${network}:${environment}] ${task.facetName}: parked address ${task.facetAddress} is not routed, but a facet named ${task.facetName} still is. ` +
-              `Expected when a superseded version was just removed; a wrong address snapshot looks identical — verify before trusting "${decision}". Origin PR: ${task.prUrl}`
+            `[${network}:${environment}] ${task.facetName}: ${reason}`
           )
-        if (decision === 'keep') continue
-        if (decision === 'reopen') {
-          // Recorded in dry-run too, so the false-resolution alert is visible
-          // without --yes; only the Slack send is gated on applying.
-          if (!apply || (await reopenResolvedTask(parkedTasks, task.taskKey)))
-            reopened.push({
-              network,
-              facet: task.facetName,
-              prUrl: task.prUrl,
-              from: task.status,
-            })
+          anomalies.push({
+            network,
+            environment,
+            facet: task.facetName,
+            prUrl: task.prUrl,
+            reason,
+          })
           continue
         }
-        if (!apply) continue
-        if (decision === 'executed')
-          await markExecuted(parkedTasks, task.taskKey)
-        else if (decision === 'superseded')
-          await markSuperseded(parkedTasks, task.taskKey)
-        else if (decision === 'revert')
-          await revertToQueued(parkedTasks, task.taskKey)
+        if (decision === 'keep') continue
+
+        // Per-task write isolation: a transient queue write must not unwind past the
+        // remaining tasks and every (network, environment) group ordered after this
+        // one — the abort-the-sweep failure this job was rebuilt to eliminate.
+        try {
+          if (decision === 'reopen') {
+            // Recorded in dry-run too, so the false-resolution alert is visible
+            // without --yes; only the Slack send is gated on applying.
+            if (!apply || (await reopenResolvedTask(parkedTasks, task._id)))
+              reopened.push({
+                network,
+                facet: task.facetName,
+                prUrl: task.prUrl,
+                from: task.status,
+              })
+            continue
+          }
+          if (!apply) continue
+          if (decision === 'executed')
+            await markExecuted(parkedTasks, task.taskKey)
+          else if (decision === 'superseded')
+            await markSuperseded(parkedTasks, task.taskKey)
+          else if (decision === 'revert')
+            await revertToQueued(parkedTasks, task.taskKey)
+        } catch (error: unknown) {
+          const reason = error instanceof Error ? error.message : String(error)
+          consola.warn(
+            `[${network}:${environment}] ${task.facetName}: could not apply "${decision}" — leaving the task unchanged: ${reason}`
+          )
+          failures.push({
+            network,
+            environment,
+            reason: `${task.facetName}: ${decision} write failed — ${reason}`,
+          })
+          continue
+        }
       }
     }
   } finally {
     await safeMongoClient?.close()
   }
-  return { reopened, failures, routedByNetworkEnv }
+  return { reopened, failures, anomalies, routedByNetworkEnv }
 }
 
 /** Logs and (when applying) sends the reconcile sweep's alerts. */
@@ -846,6 +991,12 @@ async function runReconcileAlerts(
   if (reopenMessage) {
     consola.error(reopenMessage)
     await send(reopenMessage)
+  }
+
+  const anomalyMessage = formatReconcileAnomalyMessage(run.anomalies)
+  if (anomalyMessage) {
+    consola.warn(anomalyMessage)
+    await send(anomalyMessage)
   }
 
   const failureMessage = formatReconcileFailureMessage(run.failures)
@@ -1001,6 +1152,7 @@ const main = defineCommand({
               }`,
             },
           ],
+          anomalies: [],
           routedByNetworkEnv: new Map(),
         }
         consola.error(run.failures[0]?.reason)

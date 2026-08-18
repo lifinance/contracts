@@ -106,7 +106,12 @@ When `/deprecate-network` is invoked with network names:
 
 7. **Cancel parked diamond-cleanup tasks**:
 
-   Run this **after** step 2 has removed the network from `config/networks.json`.
+   **Precondition — step 2 must already be done.** `--cancel-deprecated` decides what
+   is deprecated by reading `config/networks.json`. Run before step 2 and the network
+   still counts as active, so its tasks are routed to the loupe instead of the
+   cancellation path and the command is a silent no-op. Verify first:
+   `jq -r '."{network}".status // "absent"' config/networks.json`
+   — it must print `absent` (or anything other than `active`) before you continue.
 
    - List the network's open tasks:
      `bunx tsx script/deploy/safe/list-parked-tasks.ts --network {network} --status queued`

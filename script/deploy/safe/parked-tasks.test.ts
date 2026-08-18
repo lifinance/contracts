@@ -18,13 +18,14 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import {
+  ObjectId,
   type Collection,
   type Filter,
   type InsertOneResult,
   type UpdateFilter,
   type WithId,
 } from 'mongodb'
-import { type Address } from 'viem'
+import { getAddress, type Address } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 
@@ -102,6 +103,13 @@ function matchesLeaf(value: unknown, cond: unknown): boolean {
     if ('$in' in c) return (c.$in ?? []).includes(value)
   }
   return value === cond
+}
+
+/** `_id` of the fake collection row at `index` — the reopen transition addresses by id. */
+function idOf(coll: IFakeCollection, index: number): ObjectId {
+  const id = (coll.rows[index] as WithId<IParkedTask> | undefined)?._id
+  if (!id) throw new Error(`fake collection has no row at index ${index}`)
+  return id
 }
 
 function matchesFilter(row: IParkedTask, filter: Filter<IParkedTask>): boolean {
@@ -297,6 +305,33 @@ describe('enqueueParkedTask', () => {
     expect(coll.rows[0]?.taskKey).toBe(
       `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
     )
+  })
+
+  it('stores an EVM address in its canonical checksummed form', async () => {
+    // The stored spelling and the taskKey must not diverge: an address parked in one
+    // capitalisation and re-parked in another would otherwise carry two spellings.
+    const coll = createFakeCollection()
+    await enqueueParkedTask(
+      coll,
+      buildInput({
+        facetAddress: FACET.toUpperCase().replace('0X', '0x') as Address,
+      })
+    )
+    expect(coll.rows[0]?.facetAddress).toBe(getAddress(FACET))
+    expect(coll.rows[0]?.taskKey).toBe(
+      `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
+    )
+  })
+
+  it('keeps a Tron base58 address verbatim (case-sensitive account identity)', async () => {
+    const tron = 'TW7Xj4Zt7ZWvhKQyPnzUnFyfLmTsMLGvBn' as unknown as Address
+    const coll = createFakeCollection()
+    await enqueueParkedTask(
+      coll,
+      buildInput({ network: 'tron', facetAddress: tron })
+    )
+    expect(coll.rows[0]?.facetAddress).toBe(tron)
+    expect(coll.rows[0]?.taskKey).toBe(`facet-removal|tron|production|${tron}`)
   })
 
   it('returns null on a duplicate open task (E11000), without throwing', async () => {
@@ -543,8 +578,12 @@ describe('claimForProposal', () => {
 
 describe('status transitions', () => {
   const KEY = 'facet-removal|arbitrum|production|A'
-  function taskRow(status: IParkedTask['status']): IParkedTask {
+  function taskRow(
+    status: IParkedTask['status'],
+    id: ObjectId = new ObjectId()
+  ): WithId<IParkedTask> {
     return {
+      _id: id,
       taskKey: KEY,
       kind: 'facet-removal',
       network: 'arbitrum',
@@ -628,7 +667,7 @@ describe('status transitions', () => {
 
   it('reopenResolvedTask flips executed→queued and clears the resolution + proposal linkage', async () => {
     const coll = seedOne('executed')
-    const doc = await reopenResolvedTask(coll, KEY)
+    const doc = await reopenResolvedTask(coll, idOf(coll, 0))
     expect(doc?.status).toBe('queued')
     expect(doc?.resolvedAt).toBeUndefined()
     expect(doc?.proposedAt).toBeUndefined()
@@ -637,23 +676,40 @@ describe('status transitions', () => {
 
   it('reopenResolvedTask flips superseded→queued', async () => {
     const coll = seedOne('superseded')
-    expect((await reopenResolvedTask(coll, KEY))?.status).toBe('queued')
+    expect((await reopenResolvedTask(coll, idOf(coll, 0)))?.status).toBe(
+      'queued'
+    )
   })
 
   it('reopenResolvedTask refuses a cancelled task (deliberate operator decision)', async () => {
     const coll = seedOne('cancelled')
-    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+    expect(await reopenResolvedTask(coll, idOf(coll, 0))).toBeNull()
     expect(coll.rows[0]?.status).toBe('cancelled')
   })
 
   it('reopenResolvedTask is a no-op (null) on an already-open task', async () => {
     const coll = seedOne('queued')
-    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+    expect(await reopenResolvedTask(coll, idOf(coll, 0))).toBeNull()
   })
 
   it('reopenResolvedTask returns null instead of throwing when an open task already tracks the facet', async () => {
     const coll = createFakeCollection([taskRow('executed'), taskRow('queued')])
-    expect(await reopenResolvedTask(coll, KEY)).toBeNull()
+    expect(await reopenResolvedTask(coll, idOf(coll, 0))).toBeNull()
+    expect(coll.rows[0]?.status).toBe('executed')
+  })
+
+  it('reopens the exact row it was given when one taskKey owns several terminal rows', async () => {
+    // The partial unique index covers only the open statuses, so parked → executed →
+    // re-parked → executed leaves two terminal rows under one key. Matching by key
+    // would let the store pick either, and the caller would report the wrong one.
+    const first = taskRow('executed')
+    const second = taskRow('superseded')
+    const coll = createFakeCollection([first, second])
+
+    const doc = await reopenResolvedTask(coll, second._id)
+
+    expect(doc?._id).toEqual(second._id)
+    expect(coll.rows[1]?.status).toBe('queued')
     expect(coll.rows[0]?.status).toBe('executed')
   })
 })

@@ -15,6 +15,7 @@ import {
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   findDeprecatedLiveFacets,
+  splitByParkedCoverage,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -150,6 +151,53 @@ describe('findDuplicateSelectors', () => {
       { address: '0xAAA', selectors: ['0x11111111', '0x11111111'] },
     ])
     expect(result).toEqual([])
+  })
+})
+
+describe('splitByParkedCoverage', () => {
+  const V1 = '0x00000000000000000000000000000000000000A1'
+  const V2 = '0x00000000000000000000000000000000000000a2'
+  const facet = (name: string, address: string) => ({
+    name,
+    address: address as Hex,
+    selectors: ['0xdeadbeef'] as Hex[],
+  })
+
+  it('counts a facet as covered when an open task carries its exact address', () => {
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set([V1.toLowerCase()])
+    )
+    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(unparked).toHaveLength(0)
+  })
+
+  it('does NOT count a same-NAME task on a different address as coverage', () => {
+    // Both SymbiosisFacet versions routed (EXSC-750) with a task for v1 only: keying
+    // on the name would classify v2 as expected-pending and never warn about it.
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1), facet('SymbiosisFacet', V2)],
+      new Set([V1.toLowerCase()])
+    )
+    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(unparked.map((f) => f.address)).toEqual([V2])
+  })
+
+  it('matches addresses case-insensitively', () => {
+    const { parked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set([V1.toUpperCase().replace('0X', '0x').toLowerCase()])
+    )
+    expect(parked).toHaveLength(1)
+  })
+
+  it('reports everything as uncovered when the queue holds no open task', () => {
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set()
+    )
+    expect(parked).toHaveLength(0)
+    expect(unparked).toHaveLength(1)
   })
 })
 
