@@ -64,6 +64,8 @@ export interface IDrainOutcome {
   protectedCancelled: string[]
   /** Facets whose parked address is unrouted while their NAME still is → left queued + alerted. */
   suspectSnapshots: string[]
+  /** Facets whose protected status could not be verified → left queued + alerted. */
+  unverifiable: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
   skippedAlreadyClaimed: string[]
   /** The primary proposal's Safe tx hash, once claimed tasks are linked to it. */
@@ -149,6 +151,7 @@ export async function prepareDrainNetwork(
     superseded: [],
     protectedCancelled: [],
     suspectSnapshots: [],
+    unverifiable: [],
     skippedAlreadyClaimed: [],
   }
   const empty: IDrainPreparation = {
@@ -183,6 +186,11 @@ export async function prepareDrainNetwork(
   const protectedAddresses = new Set(
     result.protectedSkipped.map((p) => lower(p.address))
   )
+  // Deliberately NOT folded into protectedAddresses: that set cancels the task
+  // (terminal, "parked in error"), while an unverifiable address only means the
+  // protected-selector union could not be built — a tooling gap that must leave the
+  // task queued for the next run.
+  const unverifiableAddresses = new Set(result.unverifiable.map(lower))
 
   const claimed: {
     task: WithId<IParkedTask>
@@ -227,6 +235,11 @@ export async function prepareDrainNetwork(
         outcome.protectedCancelled.push(name)
         deps.alert(
           `[${network}] ${name} (${task.facetAddress}): a PROTECTED facet was parked for removal — cancelling (enqueue bug). Origin PR: ${task.prUrl}`
+        )
+      } else if (unverifiableAddresses.has(address)) {
+        outcome.unverifiable.push(name)
+        deps.alert(
+          `[${network}] ${name} (${task.facetAddress}): cannot verify the never-remove allowlist for an address the deploy log does not name (protected selectors unavailable — run \`forge build\`) — leaving it queued. Origin PR: ${task.prUrl}`
         )
       }
     }

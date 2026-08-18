@@ -549,7 +549,7 @@ describe('diffFacetsByAddress', () => {
     ])
   })
 
-  it('refuses an UNLOGGED address when the protected selector union is unavailable', () => {
+  it('reports an UNLOGGED address as unverifiable when the protected union is unavailable', () => {
     const r = diffFacetsByAddress({
       ...base,
       requestedAddresses: new Set([addr(9)]),
@@ -559,9 +559,10 @@ describe('diffFacetsByAddress', () => {
       protectedSelectors: undefined, // e.g. a missing artifact — cannot verify
     })
     expect(r.removals).toHaveLength(0)
-    expect(r.protectedSkipped[0]?.name).toContain(
-      'protected selectors unavailable'
-    )
+    // NOT protectedSkipped: the drain cancels that set (terminal, "parked in
+    // error"), which would retire a legitimate task over a missing artifact.
+    expect(r.protectedSkipped).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
   })
 
   it('still removes an unlogged address whose selectors are not protected', () => {

@@ -63,8 +63,10 @@ import { getEnvVar } from '../../utils/utils'
 import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
 
 import {
+  collectActiveSelectors,
   fetchOnChainFacets,
   getExpectedFacetNames,
+  getFacetSourceNames,
   getSourceContractNames,
   resolveAddressToName,
   resolveDiamondAddress,
@@ -89,6 +91,30 @@ const DAY_MS = 24 * 60 * 60 * 1000
 let sourceContractNamesCache: Set<string> | undefined
 const cachedSourceContractNames = (): Set<string> =>
   (sourceContractNamesCache ??= getSourceContractNames())
+
+/**
+ * Selector union owned by the network's target-state facets, or `undefined` when it
+ * cannot be read. `collectActiveSelectors` throws on a missing artifact — correct for
+ * the removal engine, which must fail closed, but here it is only one input to a
+ * reopen decision that already withholds on `undefined`, and a reconcile sweep must
+ * not die on a stale build.
+ *
+ * @param expectedNames - Target-state `LiFiDiamond` names for the network.
+ * @returns Lowercased selectors, or `undefined` if unavailable.
+ */
+function resolveActiveSelectors(
+  expectedNames: Set<string> | undefined
+): Set<string> | undefined {
+  if (!expectedNames) return undefined
+  try {
+    const facetNames = getFacetSourceNames()
+    return collectActiveSelectors(
+      [...expectedNames].filter((name) => facetNames.has(name))
+    )
+  } catch {
+    return undefined
+  }
+}
 
 /** Default cold-network TTL before a "still open" alert fires (spec §14 Q10). */
 const DEFAULT_TTL_DAYS = 60
@@ -135,8 +161,8 @@ export interface IReconcileContext {
  *   routed AND still deprecated is a false resolution — reopened to `queued` so the
  *   next drain re-proposes it. Without this, a removal that never executed is
  *   invisible forever, since terminal states were previously never re-checked. A
- *   routed facet that is no longer deprecated is a deliberate re-add, so the
- *   removal stays retired (see {@link IReconcileContext.facetDeprecated}).
+ *   routed facet that is no longer removable is a deliberate re-add, so the removal
+ *   stays retired (see {@link isParkedFacetStillRemovable}).
  * - An open task whose facet is gone becomes terminal (`executed` when its own
  *   proposal executed, else `superseded`).
  * - An open, still-present task whose linked proposal reverted goes back to `queued`.
@@ -185,6 +211,54 @@ export function reconcileDecision(
  * @param routedAddresses - Lowercased addresses currently routed by the loupe.
  * @returns `true` while that exact address is still routed.
  */
+/**
+ * Whether a parked facet is still *removable* — the gate a reopen must pass before a
+ * retired removal is re-queued.
+ *
+ * Name-level deprecation (source deleted AND absent from target state) is the common
+ * case, but it cannot answer the co-registered one: the superseded SymbiosisFacet
+ * v1.0.0 shares its name with a live v2.0.0 that target state expects and whose
+ * source exists (EXSC-750), so a name-only gate would withhold exactly the reopen
+ * EXSC-774 exists for. An address the deploy log does not name therefore falls back
+ * to selectors: the log holds the live address for every name it knows, so an
+ * unlogged routed address is a superseded version, and it is removable when none of
+ * the selectors it routes belongs to a facet target state still expects — the same
+ * held-back rule the removal engine applies. Verified on real mainnet data: v1 routes
+ * `0xb70fb9a5`/`0x6e067161`, neither in the 156-selector active union, while the live
+ * v2 owns `0xe23b7a08`/`0xc46059b2`.
+ *
+ * Fails to `undefined` (the caller then withholds) whenever the inputs cannot answer it.
+ *
+ * @param params - Task identity plus the network's target state, sources, log and loupe facts.
+ * @returns `true` removable, `false` deliberately live, `undefined` undecidable.
+ */
+export function isParkedFacetStillRemovable(params: {
+  facetName: string
+  facetAddress: string
+  /** Lowercased address → deploy-log name for this network. */
+  addressToName: Record<string, string>
+  /** Target-state `LiFiDiamond` names, or `undefined` when the network has no entry. */
+  expectedNames: Set<string> | undefined
+  sourceNames: Set<string>
+  /** Lowercased selectors owned by target-state facets, or `undefined` if unavailable. */
+  activeSelectors: Set<string> | undefined
+  /** Selectors the loupe routes to the parked address. */
+  routedSelectors: string[]
+}): boolean | undefined {
+  const { facetName, expectedNames, sourceNames } = params
+  if (!expectedNames) return undefined
+  if (!expectedNames.has(facetName) && !sourceNames.has(facetName)) return true
+
+  const logged = params.addressToName[params.facetAddress.toLowerCase()]
+  if (logged !== undefined) return false
+
+  const activeSelectors = params.activeSelectors
+  if (!activeSelectors) return undefined
+  return params.routedSelectors.every(
+    (selector) => !activeSelectors.has(selector.toLowerCase())
+  )
+}
+
 export function resolveFacetPresence(
   task: Pick<IParkedTask, 'facetAddress'>,
   routedAddresses: Set<string>
@@ -855,15 +929,13 @@ async function reconcileAll(
           .filter((name): name is string => name !== undefined)
       )
 
-      // A facet may only be re-queued for removal while it is still deprecated —
-      // the same source-gone + absent-from-target-state gate the removal engine
-      // uses, so eval and remover cannot disagree about what is removable.
+      // A facet may only be re-queued for removal while it is still removable — the
+      // same gates the removal engine applies, so eval and remover cannot disagree.
       const expectedNames = getExpectedFacetNames(network, environment)
-      const isDeprecated = (facetName: string): boolean | undefined =>
-        expectedNames === undefined
-          ? undefined
-          : !expectedNames.has(facetName) &&
-            !cachedSourceContractNames().has(facetName)
+      const activeSelectors = resolveActiveSelectors(expectedNames)
+      const selectorsByAddress = new Map(
+        onChain.map((f) => [f.address.toLowerCase(), f.selectors as string[]])
+      )
 
       for (const task of tasks) {
         const presentOnChain = resolveFacetPresence(task, routedAddresses)
@@ -891,7 +963,16 @@ async function reconcileAll(
           pendingTransactions,
           task.safeTxHash
         )
-        const facetDeprecated = isDeprecated(task.facetName)
+        const facetDeprecated = isParkedFacetStillRemovable({
+          facetName: task.facetName,
+          facetAddress: task.facetAddress,
+          addressToName,
+          expectedNames,
+          sourceNames: cachedSourceContractNames(),
+          activeSelectors,
+          routedSelectors:
+            selectorsByAddress.get(task.facetAddress.toLowerCase()) ?? [],
+        })
         const decision = reconcileDecision(task, {
           facetPresentOnChain: presentOnChain,
           proposalStatus,
@@ -912,7 +993,7 @@ async function reconcileAll(
           const reason =
             facetDeprecated === undefined
               ? `facet is routed again but ${network}:${environment} has no target-state entry — cannot tell a re-add from a false resolution; reopen withheld`
-              : `facet is routed again but is no longer deprecated (present in target state or source) — treated as a deliberate re-add, reopen withheld`
+              : `facet is routed again and is not removable (target state expects it, or it routes selectors an expected facet owns) — treated as a deliberate re-add, reopen withheld`
           consola.warn(
             `[${network}:${environment}] ${task.facetName}: ${reason}`
           )

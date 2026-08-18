@@ -839,6 +839,13 @@ function printAddressRemoval(result: IAddressRemovalResult): void {
         .join(', ')}`
     )
 
+  if (result.unverifiable.length > 0)
+    consola.error(
+      `🛑 REFUSED (cannot verify the never-remove allowlist — the deploy log does not name these and the protected selectors are unavailable; run "forge build" and retry): ${result.unverifiable.join(
+        ', '
+      )}`
+    )
+
   if (result.notFoundOnChain.length > 0)
     consola.info(
       `ℹ️  not registered on ${result.network}: ${result.notFoundOnChain.join(

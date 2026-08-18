@@ -37,6 +37,7 @@ import {
   partitionByNetworkStatus,
   parseTtlDays,
   reconcileDecision,
+  isParkedFacetStillRemovable,
   isSuspectAddressSnapshot,
   resolveFacetPresence,
   shouldCancelDeprecated,
@@ -322,6 +323,88 @@ describe('formatReconcileFailureMessage', () => {
     // Both rows are still listed — the count is deduped, the detail is not.
     expect(msg).toContain('ethereum:production')
     expect(msg).toContain('ethereum:staging')
+  })
+})
+
+describe('isParkedFacetStillRemovable', () => {
+  // Real mainnet facts (EXSC-750): the live SymbiosisFacet v2.0.0 is logged at
+  // 0xa0353221… and owns 0xe23b7a08/0xc46059b2; the superseded v1.0.0 at 0x23Fc1b73…
+  // is absent from the log and routes 0xb70fb9a5/0x6e067161.
+  const LIVE = '0xa0353221443ca4e2e6a040f30a57b47f5a6d479d'
+  const STALE = '0x23Fc1b73Ff1B0f9C1e4A0B8dD5B0d0c0A0e0F000'
+  const base = {
+    facetName: 'SymbiosisFacet',
+    addressToName: { [LIVE]: 'SymbiosisFacet' },
+    expectedNames: new Set(['SymbiosisFacet']),
+    sourceNames: new Set(['SymbiosisFacet']),
+    activeSelectors: new Set(['0xe23b7a08', '0xc46059b2']),
+  }
+
+  it('is removable when the name itself is deprecated (source gone, not expected)', () => {
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetName: 'GenericSwapFacet',
+        facetAddress: STALE,
+        expectedNames: new Set(['GenericSwapFacetV3']),
+        sourceNames: new Set(['GenericSwapFacetV3']),
+        routedSelectors: ['0xb70fb9a5'],
+      })
+    ).toBe(true)
+  })
+
+  it('is removable for a superseded version co-registered under a LIVE name', () => {
+    // The name-only gate says "expected + source exists" and would withhold here,
+    // dropping the very case EXSC-774 exists for.
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetAddress: STALE,
+        routedSelectors: ['0xb70fb9a5', '0x6e067161'],
+      })
+    ).toBe(true)
+  })
+
+  it('is NOT removable when the deploy log names the parked address (it is the live one)', () => {
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetAddress: LIVE,
+        routedSelectors: ['0xe23b7a08'],
+      })
+    ).toBe(false)
+  })
+
+  it('is NOT removable when an unlogged address routes a selector an expected facet owns', () => {
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetAddress: STALE,
+        routedSelectors: ['0xb70fb9a5', '0xE23B7A08'],
+      })
+    ).toBe(false)
+  })
+
+  it('is undecidable without a target-state entry', () => {
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetAddress: STALE,
+        expectedNames: undefined,
+        routedSelectors: ['0xb70fb9a5'],
+      })
+    ).toBeUndefined()
+  })
+
+  it('is undecidable when the active-selector union is unavailable', () => {
+    expect(
+      isParkedFacetStillRemovable({
+        ...base,
+        facetAddress: STALE,
+        activeSelectors: undefined,
+        routedSelectors: ['0xb70fb9a5'],
+      })
+    ).toBeUndefined()
   })
 })
 

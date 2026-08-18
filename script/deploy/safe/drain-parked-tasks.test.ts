@@ -92,6 +92,7 @@ function addressResult(
     removals: [],
     notFoundOnChain: [],
     protectedSkipped: [],
+    unverifiable: [],
     routedNames: new Set<string>(),
     ...over,
   }
@@ -255,6 +256,24 @@ describe('prepareDrainNetwork', () => {
     expect(prep.outcome.superseded).toEqual([])
     expect(prep.outcome.suspectSnapshots).toEqual(['AcrossFacetV3'])
     expect(deps.calls.alerts.join('\n')).toContain('NOT routed')
+  })
+
+  it('leaves a task queued when its protected status cannot be verified', async () => {
+    // A missing artifact makes the protected-selector union unavailable. Cancelling
+    // here would retire a legitimate removal over a tooling gap.
+    const t = task('OldFacet')
+    const deps = makeDeps({
+      queued: [t],
+      result: addressResult({ unverifiable: [t.facetAddress] }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.cancel).toEqual([])
+    expect(deps.calls.supersede).toEqual([])
+    expect(deps.calls.claim).toEqual([])
+    expect(prep.outcome.protectedCancelled).toEqual([])
+    expect(prep.outcome.unverifiable).toEqual(['OldFacet'])
+    expect(deps.calls.alerts.join('\n')).toContain('leaving it queued')
   })
 
   it('bails out entirely when the diamond could not be resolved', async () => {

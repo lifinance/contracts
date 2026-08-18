@@ -542,6 +542,15 @@ export interface IAddressRemovalResult {
   /** Requested addresses that resolve to a never-remove facet — refused. */
   protectedSkipped: { name: string; address: `0x${string}` }[]
   /**
+   * Requested addresses whose protection could NOT be established: the deploy log
+   * cannot name them and the protected-selector union was unavailable. Distinct from
+   * {@link IAddressRemovalResult.protectedSkipped} because the two call for opposite
+   * handling — a protected facet was parked in error (terminal), while an
+   * unverifiable one is a tooling gap (retry after `forge build`), so a caller must
+   * neither remove nor resolve it.
+   */
+  unverifiable: `0x${string}`[]
+  /**
    * Set when the network has no resolvable `LiFiDiamond` in its deploy log, so no
    * chain read happened at all. A caller that treats absence as "already removed"
    * (the drain supersedes on it) MUST bail on this instead.
@@ -645,32 +654,6 @@ function collectProtectedFacetSelectors(
 }
 
 /**
- * Why an unlogged address must not be removed, or `undefined` when it may be.
- *
- * The deploy log names exactly one address per facet name, so the addresses this
- * path targets are routinely absent from it. Protection therefore falls back to
- * the selectors the loupe reports: a facet holding a protected facet's selector is
- * that facet under another address, whatever the log says about it.
- *
- * @param selectors - The candidate's on-chain selectors.
- * @param protectedSelectors - Lowercased protected-facet selectors, or `undefined` if unavailable.
- * @returns A refusal label for `protectedSkipped`, or `undefined` to allow removal.
- */
-function unloggedRefusalReason(
-  selectors: `0x${string}`[],
-  protectedSelectors: Set<string> | undefined
-): string | undefined {
-  if (!protectedSelectors)
-    return 'unknown (address not in deploy log, protected selectors unavailable)'
-  const hit = selectors.find((selector) =>
-    protectedSelectors.has(lower(selector))
-  )
-  return hit === undefined
-    ? undefined
-    : `unknown (address not in deploy log, holds protected selector ${hit})`
-}
-
-/**
  * Pure resolution of an explicit set of requested facet ADDRESSES against the
  * on-chain loupe — the removal path for anything that must target one exact
  * facet, including a version co-registered alongside its successor under the
@@ -684,7 +667,9 @@ function unloggedRefusalReason(
  * facets, because the very cases this path exists for (a superseded version, a
  * pruned log entry) are exactly the ones the log cannot name. Passing
  * `protectedSelectors: undefined` means that union could not be built, and every
- * unlogged address is then refused rather than removed unverified.
+ * unlogged address then lands in `unverifiable` — never removed, and never reported
+ * as protected either, since "parked in error" and "we could not check" call for
+ * opposite handling.
  */
 export function diffFacetsByAddress(params: {
   network: string
@@ -721,6 +706,7 @@ export function diffFacetsByAddress(params: {
     removals: [],
     notFoundOnChain: [],
     protectedSkipped: [],
+    unverifiable: [],
     routedNames: new Set(
       onChainFacets
         .map((f) => addressToName[lower(f.address)])
@@ -744,9 +730,18 @@ export function diffFacetsByAddress(params: {
       continue
     }
     if (name === undefined) {
-      const refusal = unloggedRefusalReason(facet.selectors, protectedSelectors)
-      if (refusal) {
-        result.protectedSkipped.push({ name: refusal, address: facet.address })
+      if (!protectedSelectors) {
+        result.unverifiable.push(facet.address)
+        continue
+      }
+      const hit = facet.selectors.find((selector) =>
+        protectedSelectors.has(lower(selector))
+      )
+      if (hit !== undefined) {
+        result.protectedSkipped.push({
+          name: `unknown (address not in deploy log, holds protected selector ${hit})`,
+          address: facet.address,
+        })
         continue
       }
     }
@@ -839,6 +834,7 @@ export async function computeFacetRemovalsByAddress(
       removals: [],
       notFoundOnChain: [],
       protectedSkipped: [],
+      unverifiable: [],
       diamondUnresolved: true,
       routedNames: new Set<string>(),
     }
