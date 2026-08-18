@@ -10,6 +10,10 @@ Per network, `deployments/` holds:
 Staging uses the `.staging.json` / `.diamond.staging.json` variants; the semantics below are
 identical.
 
+`deployments/_deployments_log_file.json` (the master log) is a different artifact and out of
+scope here: it is a per-version record with timestamps, verification status and constructor args,
+and it keeps entries for retired contracts.
+
 ## Both files describe current state, not history
 
 - `<network>.diamond.json` lists what the diamond **registers right now** — it is regenerated
