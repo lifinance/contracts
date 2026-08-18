@@ -52,6 +52,7 @@ jobs:
       cancel-in-progress: true
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository (with submodules)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
