@@ -122,9 +122,9 @@ investigate; commit nothing. Otherwise commit the diamond-log diff to the PR bra
 
 **Removals in the same cut.** `updateDiamondLogs` rebuilds `Facets` from the loupe, so a facet
 the cut removed (a drained deferred-cleanup task rides along as extra `scheduleBatch` elements)
-disappears from `<net>.diamond.json` on its own — but the flat `deployments/<net>.json` is
-append-only. Delete each removed facet's entry there by hand in the same commit; both logs track
-current on-chain registration, not history
+disappears from `<net>.diamond.json` on its own — but no generator prunes the flat
+`deployments/<net>.json`. Delete each removed facet's entry there by hand in the same commit; both
+logs track current on-chain registration, not history
 ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)). Keep the entry when the facet is still
 routed by the loupe (removal not executed, or the parked task retired as
 cancelled/superseded).

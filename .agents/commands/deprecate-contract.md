@@ -276,7 +276,7 @@ Please review the above list and indicate which files/occurrences should be remo
 - Type the file paths you want to clean up
 - Or say "none" if all occurrences should remain
 - Or say "all" to remove all occurrences (use with caution)
-- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` facet→address entry of any facet still registered on the diamond; those go once the removal has executed on-chain
+- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` **or** `deployments/*.diamond.json` entry of any facet the loupe still routes; both go once that network's removal has executed on-chain
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  FINAL MANUAL STEPS REQUIRED

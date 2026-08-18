@@ -55,7 +55,7 @@ cast call <diamond> "facetAddresses()(address[])" --rpc-url "$(jq -r '.<network>
 
 `updateDiamondLogs` (`script/helperFunctions.sh`) rebuilds `LiFiDiamond.Facets` wholesale from
 that same loupe call, so the diamond log self-heals for any network it is re-run on. The flat log
-is append-only — pruning it is always a manual edit.
+has no generator that prunes it, so removing an entry is always a manual edit.
 
 `script/tasks/checkDeploymentAddressConsistency.ts` cross-checks the two files only where a name
 appears in both, so it cannot enforce this on its own: "in the flat log, absent from the diamond"
