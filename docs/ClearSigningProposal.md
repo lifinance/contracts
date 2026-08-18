@@ -47,7 +47,7 @@ The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a So
 
 Two shapes, keyed by `bridgeFacetName()`:
 
-- **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrow`(+`V2`), `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
+- **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrowV2`, `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
 - **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
 
 > **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
@@ -72,7 +72,7 @@ The user sees both the swap input amount and the minimum bridge output. Intentio
 
 ### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin`
 
-Each facet's packed/min entry-point has a bespoke calldata layout (CBridge packed, Across packed, Hop L1/L2 packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via Across (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
+Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, Hop L1/L2 packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via Across (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
 
 Full interpolation for packed variants is deferred to a follow-up once we know which packed entry-points wallets actually want to surface to users.
 
@@ -118,11 +118,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `startBridgeTokensViaAcrossV4Swap` | Bridge via AcrossV4Swap | Bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaAllBridge` | Bridge via AllBridge | Bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaArbitrumBridge` | Bridge via ArbitrumBridge | Bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCBridge` | Bridge via CBridge | Bridge {_bridgeData.minAmount} via CBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCBridgeERC20Min` | Bridge via CBridge (ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeERC20Packed` | Bridge via CBridge (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeNativeMin` | Bridge via CBridge (native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaCBridgeNativePacked` | Bridge via CBridge (native, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaCelerCircleBridge` | Bridge via CelerCircleBridge | Bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaChainflip` | Bridge via Chainflip | Bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaDeBridgeDln` | Bridge via DeBridgeDln | Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
@@ -144,7 +139,7 @@ The seven existing `display.formats` entries from the current registry descripto
 | `startBridgeTokensViaHopL2Native` | Bridge via HopL2 | Bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaHopL2NativeMin` | Bridge via HopL2 (L2, native, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaHopL2NativePacked` | Bridge via HopL2 (L2, native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaLiFiIntentEscrow` | Bridge via LiFiIntentEscrow | Bridge {_bridgeData.minAmount} via LiFiIntentEscrow to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaLiFiIntentEscrowV2` | Bridge via LiFiIntentEscrowV2 | Bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaMayan` | Bridge via Mayan | Bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaMegaETHBridge` | Bridge via MegaETHBridge | Bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaNEARIntents` | Bridge via NEARIntents | Bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
@@ -165,7 +160,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `swapAndStartBridgeTokensViaAcrossV4Swap` | Swap & Bridge via AcrossV4Swap | Swap then bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaAllBridge` | Swap & Bridge via AllBridge | Swap then bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaArbitrumBridge` | Swap & Bridge via ArbitrumBridge | Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaCBridge` | Swap & Bridge via CBridge | Swap then bridge {_bridgeData.minAmount} via CBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaCelerCircleBridge` | Swap & Bridge via CelerCircleBridge | Swap then bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaChainflip` | Swap & Bridge via Chainflip | Swap then bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaDeBridgeDln` | Swap & Bridge via DeBridgeDln | Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
@@ -179,7 +173,7 @@ The seven existing `display.formats` entries from the current registry descripto
 | `swapAndStartBridgeTokensViaHopL1Native` | Swap & Bridge via HopL1 | Swap then bridge {_bridgeData.minAmount} via HopL1 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaHopL2ERC20` | Swap & Bridge via HopL2 | Swap then bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaHopL2Native` | Swap & Bridge via HopL2 | Swap then bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaLiFiIntentEscrow` | Swap & Bridge via LiFiIntentEscrow | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrow to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` | Swap & Bridge via LiFiIntentEscrowV2 | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaMayan` | Swap & Bridge via Mayan | Swap then bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaMegaETHBridge` | Swap & Bridge via MegaETHBridge | Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaNEARIntents` | Swap & Bridge via NEARIntents | Swap then bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |

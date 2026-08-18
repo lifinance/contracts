@@ -1232,11 +1232,12 @@ function saveDiamondPeriphery() {
   # get a list of all periphery contracts
   PERIPHERY_CONTRACTS=$(getContractNamesInFolder "src/Periphery/")
 
-  # prepare temp dir to collect per-contract JSON snippets
+  # prepare temp dir to collect per-contract JSON snippets and lookup-failure markers
   local TEMP_DIR
   TEMP_DIR=$(mktemp -d)
   local PERIPHERY_DIR="$TEMP_DIR/periphery"
-  mkdir -p "$PERIPHERY_DIR"
+  local FAILURES_DIR="$TEMP_DIR/failures"
+  mkdir -p "$PERIPHERY_DIR" "$FAILURES_DIR"
 
   # determine concurrency (fallback to 10 if not set)
   local CONCURRENCY=${MAX_CONCURRENT_JOBS:-10}
@@ -1257,11 +1258,20 @@ function saveDiamondPeriphery() {
 
     (
       ADDRESS=$(universalCast "call" "$NETWORK" "$DIAMOND_ADDRESS" "getPeripheryContract(string) returns (address)" "$CONTRACT" 2>/dev/null)
-      # Skip unregistered contracts (zero address in EVM hex or Tron base58 format, or empty)
-      if [[ -z "$ADDRESS" || "$ADDRESS" == "$ZERO_ADDRESS" || "$ADDRESS" == "$TRON_ZERO_ADDRESS_BASE58" ]]; then
-        ADDRESS=""
+      local CALL_EXIT=$?
+      if [[ "$CALL_EXIT" -ne 0 ]]; then
+        # lookup failed (RPC error etc.); universalCall merges stderr into stdout, so ADDRESS
+        # may hold error text. Record a failure marker and emit no JSON so it cannot poison the merge.
+        echo "$CONTRACT" >"$FAILURES_DIR/${CONTRACT}"
+      elif [[ -z "$ADDRESS" || "$ADDRESS" == "$ZERO_ADDRESS" || "$ADDRESS" == "$TRON_ZERO_ADDRESS_BASE58" ]]; then
+        # genuinely unregistered (call succeeded, returned zero/empty)
+        echo "{\"$CONTRACT\": \"\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
+      elif isValidEvmAddress "$ADDRESS" || isValidTronAddress "$ADDRESS"; then
+        echo "{\"$CONTRACT\": \"$ADDRESS\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
+      else
+        # unexpected output that is neither a valid address nor a recognised zero; treat as failure
+        echo "$CONTRACT" >"$FAILURES_DIR/${CONTRACT}"
       fi
-      echo "{\"$CONTRACT\": \"$ADDRESS\"}" >"$PERIPHERY_DIR/${CONTRACT}.json"
     ) &
 
     if isTronNetwork "$NETWORK"; then sleep 2; fi
@@ -1291,9 +1301,32 @@ function saveDiamondPeriphery() {
     fi
   fi
 
+  # count lookup failures recorded by the parallel workers
+  local FAILED_LOOKUPS=0
+  FAILED_LOOKUPS=$(find "$FAILURES_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+
+  # decide which periphery object to persist. A failed on-chain resolution (RPC error, or an
+  # empty result while the log already holds addresses) must never clobber recorded data, so in
+  # that case we keep the existing section instead of overwriting it with an empty/partial map.
+  local EXISTING_PERIPHERY
+  EXISTING_PERIPHERY=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_PERIPHERY='{}'
+  local EXISTING_COUNT
+  EXISTING_COUNT=$(echo "$EXISTING_PERIPHERY" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || EXISTING_COUNT=0
+  local NEW_COUNT
+  NEW_COUNT=$(echo "$PERIPHERY_JSON" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || NEW_COUNT=0
+
+  local PERSIST_PERIPHERY="$PERIPHERY_JSON"
+  if [[ "$FAILED_LOOKUPS" -gt 0 ]]; then
+    warning "[$NETWORK] $FAILED_LOOKUPS periphery lookup(s) failed; keeping existing Periphery section unchanged to avoid clobbering recorded addresses"
+    PERSIST_PERIPHERY="$EXISTING_PERIPHERY"
+  elif [[ "$NEW_COUNT" -eq 0 && "$EXISTING_COUNT" -gt 0 ]]; then
+    warning "[$NETWORK] periphery resolution returned no addresses while the log holds $EXISTING_COUNT; keeping existing Periphery section unchanged"
+    PERSIST_PERIPHERY="$EXISTING_PERIPHERY"
+  fi
+
   if [[ "$OUTPUT_MODE" == "periphery-only" && -n "$OUTPUT_PATH" ]]; then
     # write properly formatted JSON to output path
-    echo "$PERIPHERY_JSON" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
+    echo "$PERSIST_PERIPHERY" | jq . >"$OUTPUT_PATH" 2>/dev/null || echo '{}' >"$OUTPUT_PATH"
     # cleanup temp dir so it is always removed in this branch (same as shared cleanup below)
     rm -rf "$TEMP_DIR"
   else
@@ -1308,7 +1341,7 @@ function saveDiamondPeriphery() {
       fi
     fi
     # update diamond file in a single atomic write
-    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERIPHERY_JSON" '
+    result=$(jq --arg diamond_name "$DIAMOND_NAME" --argjson periphery_obj "$PERSIST_PERIPHERY" '
         .[$diamond_name] = (.[$diamond_name] // {}) |
         .[$diamond_name].Periphery = $periphery_obj
       ' "$DIAMOND_FILE" 2>/dev/null)
@@ -1318,7 +1351,7 @@ function saveDiamondPeriphery() {
       warning "[$NETWORK] Merge failed, creating fresh diamond structure with periphery"
       existing_json=$(cat "$DIAMOND_FILE" 2>/dev/null || echo '{}')
       EXISTING_FACETS=$(echo "$existing_json" | jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Facets // {}' 2>/dev/null) || EXISTING_FACETS='{}'
-      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$EXISTING_FACETS" --argjson periphery_obj "$PERIPHERY_JSON" '
+      result=$(jq -n --arg diamond_name "$DIAMOND_NAME" --argjson facets_obj "$EXISTING_FACETS" --argjson periphery_obj "$PERSIST_PERIPHERY" '
         {
           ($diamond_name): {
             Facets: $facets_obj,
@@ -3978,7 +4011,10 @@ function deployAndAddContractToDiamond() {
     diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" false false "$CONTRACT"
     RETURN_CODE2=$?
 
-    if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then
+    # Both must succeed: a failed deploy whose old contract is still registered makes
+    # diamondUpdatePeriphery report "no action needed" (RETURN_CODE2=0), and a deploy that
+    # fails to register leaves the diamond pointed at the old address - neither is a success.
+    if [[ "$RETURN_CODE1" -eq 0 && "$RETURN_CODE2" -eq 0 ]]; then
       return 0
     else
       return 1

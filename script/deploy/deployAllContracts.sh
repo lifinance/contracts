@@ -274,9 +274,11 @@ deployAllContracts() {
     # Register periphery contracts in the diamond's PeripheryRegistryFacet
     # This stores the contract name -> address mapping on-chain in the diamond contract.
     # The diamond can then look up periphery contract addresses by name using getPeripheryContract().
-    diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""
-
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
+    if diamondUpdatePeriphery "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME" true false ""; then
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 completed"
+    else
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 7 did NOT complete: at least one periphery contract was not registered in the diamond - re-run this stage before continuing"
+    fi
   fi
 
   # Stage 8: Update whitelist.json and execute sync whitelist script

@@ -25,10 +25,12 @@ import {
 
 import targetStateImport from './_targetState.json'
 import {
+  getExemptCoreFacets,
   runHealthCheckInvariants,
   type IHealthCheckContext,
 } from './healthCheckInvariants'
 import {
+  deriveNonCoreFacets,
   getCoreFacets,
   getCorePeriphery,
   getTronWallet,
@@ -129,7 +131,18 @@ export async function runHealthCheckForNetwork(
     )[networkLower]
     const supportsGasZip = (networkGasZipConfig?.gasZipChainId ?? 0) > 0
 
-    const coreFacetExclusions = supportsGasZip ? [] : ['GasZipFacet']
+    // Facets that are core "going forward" but postdate this network's onboarding. Surfaced
+    // (never a silent skip) so the grandfathering is visible in the run output.
+    const exemptCoreFacets = getExemptCoreFacets(networkLower)
+    for (const { facet, reason } of exemptCoreFacets)
+      consola.info(
+        `⏭  Not requiring core facet [${facet}] on ${networkLower} — exempt: ${reason}`
+      )
+
+    const coreFacetExclusions = [
+      ...(supportsGasZip ? [] : ['GasZipFacet']),
+      ...exemptCoreFacets.map((e) => e.facet),
+    ]
     const coreFacetsToCheck = getCoreFacets({ exclude: coreFacetExclusions })
 
     // For staging, skip targetState checks as targetState is only for production.
@@ -141,14 +154,13 @@ export async function runHealthCheckForNetwork(
         // Surface (not silence): a production network with no target state means the
         // non-core facet comparison is skipped, i.e. reduced coverage.
         missingProductionTargetState = true
+      // Note: the FULL core list, not `coreFacetsToCheck` — see deriveNonCoreFacets.
       else
-        nonCoreFacets = Object.keys(networkTarget.LiFiDiamond).filter(
-          (k) =>
-            !coreFacetsToCheck.includes(k) &&
-            !getCorePeriphery().includes(k) &&
-            k !== 'LiFiDiamond' &&
-            k.includes('Facet')
-        )
+        nonCoreFacets = deriveNonCoreFacets({
+          targetStateContracts: Object.keys(networkTarget.LiFiDiamond),
+          coreFacets: getCoreFacets(),
+          corePeriphery: getCorePeriphery(),
+        })
     }
 
     let publicClient: PublicClient | undefined
@@ -199,7 +211,6 @@ export async function runHealthCheckForNetwork(
     // Wallet addresses (Tron or EVM format)
     let deployerWallet: string
     let refundWallet: string
-    let feeCollectorOwner: string
     let pauserWallet: string
 
     if (isTron) {
@@ -207,7 +218,6 @@ export async function runHealthCheckForNetwork(
 
       deployerWallet = getTronWallet('deployerWallet', { tronWeb })
       refundWallet = getTronWallet('refundWallet', { tronWeb })
-      feeCollectorOwner = getTronWallet('feeCollectorOwner', { tronWeb })
       pauserWallet = getTronWallet('pauserWallet', { tronWeb })
     } else {
       // Testnets are owned by deployerWallet regardless of environment.
@@ -217,7 +227,6 @@ export async function runHealthCheckForNetwork(
           : globalConfig.deployerWallet
       )
       refundWallet = getAddress(globalConfig.refundWallet)
-      feeCollectorOwner = getAddress(globalConfig.feeCollectorOwner)
       pauserWallet = getAddress(globalConfig.pauserWallet)
     }
 
@@ -240,7 +249,6 @@ export async function runHealthCheckForNetwork(
       nonCoreFacets,
       deployerWallet,
       refundWallet,
-      feeCollectorOwner,
       pauserWallet,
       onChainFacets: [],
       errors,

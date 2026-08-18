@@ -308,28 +308,6 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
-  "botanix": {
-    "name": "botanix",
-    "chainId": 3637,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0x0D2437F93Fed6EA64Ef01cCde385FB1263910C56",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.botanixlabs.com",
-    "verificationType": "etherscan",
-    "explorerUrl": "https://botanixscan.io",
-    "explorerApiUrl": "https://api.routescan.io/v2/network/mainnet/evm/3637/etherscan",
-    "multicallAddress": "0xca11bde05977b3631167028862be2a173976ca11",
-    "safeAddress": "0x68feA7dc931B1de6F251Cb5F5A9798192E533e53",
-    "gasZipChainId": 496,
-    "isZkEVM": false,
-    "targetEvmVersion": "cancun",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510",
-    "customVerificationFlags": {
-      "-e": "verifyContract"
-    }
-  },
   "bsc": {
     "name": "bsc",
     "chainId": 56,
@@ -582,6 +560,25 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
+  "injective": {
+    "name": "injective",
+    "chainId": 1776,
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
+    "nativeCurrency": "INJ",
+    "wrappedNativeAddress": "0x0000000088827d2d103ee2d9a6b781773ae03ffb",
+    "status": "active",
+    "type": "mainnet",
+    "rpcUrl": "https://sentry.evm-rpc.injective.network",
+    "verificationType": "blockscout",
+    "explorerUrl": "https://blockscout.injective.network",
+    "explorerApiUrl": "https://blockscout-api.injective.network/api/",
+    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "safeAddress": "0xA14dD3d7CA72aE2d08055813a2DEa4CaC40910B6",
+    "gasZipChainId": 527,
+    "isZkEVM": false,
+    "targetEvmVersion": "cancun",
+    "create3Factory": "0x68b068F7869CCE4FB95E0504096Ae336dd4ae7F6"
+  },
   "ink": {
     "name": "ink",
     "chainId": 57073,
@@ -659,8 +656,8 @@
     "isZkEVM": false,
     "targetEvmVersion": "cancun",
     "create3Factory": "0x6B97EF4Ff5187C9CF6Dd61eecbF80739572ee208",
-    "gasPrice": 3000000000,
-    "devNotes": "eth_gasPrice RPC returns ~20 gwei but actual network txs run at 1-4 gwei; deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE=3000000000 (3 gwei) for forge broadcast"
+    "gasPrice": 500000000,
+    "devNotes": "eth_gasPrice RPC now returns ~0.002 gwei (it previously over-reported ~20 gwei, which is why this pin exists). deploySingleContract.sh reads gasPrice and sets ETH_GAS_PRICE for forge broadcast; combined with GAS_ESTIMATE_MULTIPLIER the old 3 gwei pin made forge's balance pre-check demand ~0.0176 ETH for a ~0.0000118 ETH deployment and fail with insufficient funds. 0.5 gwei keeps a wide margin over the live price without blocking on balance."
   },
   "lens": {
     "name": "lens",
@@ -1172,25 +1169,6 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
-  "sophon": {
-    "name": "sophon",
-    "chainId": 50104,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "SOPH",
-    "wrappedNativeAddress": "0x2b1A859dE6A55c553520D7780Bc5805712B128F9",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.sophon.xyz",
-    "verificationType": "zksync",
-    "explorerUrl": "https://explorer.sophon.xyz",
-    "explorerApiUrl": "https://explorer.sophon.xyz/contract_verification",
-    "multicallAddress": "0x5f4867441d2416cA88B1b3fd38f21811680CD2C8",
-    "safeAddress": "0xEd16F4d0802f95213afD558A8385D28a921c5c96",
-    "gasZipChainId": 484,
-    "isZkEVM": true,
-    "targetEvmVersion": "n/a",
-    "devNotes": "Contract verification is not working. In contact with the team to find a resolution. "
-  },
   "stable": {
     "name": "stable",
     "chainId": 988,
@@ -1209,63 +1187,6 @@
     "isZkEVM": false,
     "targetEvmVersion": "cancun",
     "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
-  },
-  "superposition": {
-    "name": "superposition",
-    "chainId": 55244,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0x1fB719f10b56d7a85DCD32f27f897375fB21cfdd",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.superposition.so",
-    "verificationType": "blockscout",
-    "explorerUrl": "https://explorer.superposition.so",
-    "explorerApiUrl": "https://explorer.superposition.so/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeAddress": "0x2BB647f471Ab4A2a2a7800f4c4F66bA44864392f",
-    "gasZipChainId": 303,
-    "isZkEVM": false,
-    "targetEvmVersion": "cancun",
-    "create3Factory": "0xeBbbaC35500713C4AD49929e1bE4225c7efF6510"
-  },
-  "swellchain": {
-    "name": "swellchain",
-    "chainId": 1923,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.ankr.com/swell",
-    "verificationType": "etherscan",
-    "explorerUrl": "https://explorer.swellnetwork.io",
-    "explorerApiUrl": "https://explorer.swellnetwork.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeAddress": "0xdD26Fb3CBF2E6D6658e0473fc96f4c016aE3a75c",
-    "gasZipChainId": 385,
-    "isZkEVM": false,
-    "targetEvmVersion": "cancun",
-    "create3Factory": "0x6f4108819C19e1f218E45DE89e728ce0240a8593"
-  },
-  "taiko": {
-    "name": "taiko",
-    "chainId": 167000,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "ETH",
-    "wrappedNativeAddress": "0xA51894664A773981C6C112C43ce576f315d5b1B6",
-    "status": "active",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.taiko.xyz",
-    "verificationType": "etherscan",
-    "explorerUrl": "https://taikoscan.io",
-    "explorerApiUrl": "https://api.taikoscan.io/api",
-    "multicallAddress": "0xcA11bde05977b3631167028862bE2a173976CA11",
-    "safeAddress": "0x85083A0e051E1f80c7eB41fAf50cA0f87983a4B1",
-    "gasZipChainId": 249,
-    "isZkEVM": false,
-    "targetEvmVersion": "london",
-    "create3Factory": "0x8437A5fE47A4Df14700c96DF1870824e72FA8499"
   },
   "telos": {
     "name": "telos",
@@ -1308,7 +1229,8 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "customDeployFlags": "--gas-limit 40000000",
-    "devNotes": "In order to deploy contract its required to have GAS_MULTIPLIER set to 550 in .env file. If it's more than 550, the deployment for LiFiDEXAggregator will fail with gas limit exceeded error if less than 500 then the deployment for LiFiDEXAggregator will fail with out of gas error. Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path. Gas is paid in TIP-20 stablecoins (no native asset; eth_getBalance returns a sentinel): the default fee token is pathUSD (feeTokenAddress), and an account can override it via the FeeManager predeploy (feeManagerAddress) userTokens(account). eth_gasPrice is quoted in attodollars (1e18) per gas.",
+    "gasEstimateMultiplier": 200,
+    "devNotes": "Deploys use the pinned gasEstimateMultiplier of 200: tempo caps the transaction gas limit at 30M, and higher multipliers push large-estimate contracts over the cap (SquidFacet's ~11.7M estimate x 5.5 was rejected with 'transaction gas limit greater than the cap'). Exception: LiFiDEXAggregator historically needed a multiplier of 500-550 (below 500 it fails with out of gas, above 550 with gas limit exceeded) - temporarily raise this gasEstimateMultiplier field when redeploying it (setting GAS_ESTIMATE_MULTIPLIER in .env has no effect on deploys while this field is set, since the field overrides the env var; diamond-cut/update scripts still read the env var). Moreover we use dummy wrapped native address for AcrossFacetV4 because we don't activate the native path. Gas is paid in TIP-20 stablecoins (no native asset; eth_getBalance returns a sentinel): the default fee token is pathUSD (feeTokenAddress), and an account can override it via the FeeManager predeploy (feeManagerAddress) userTokens(account). eth_gasPrice is quoted in attodollars (1e18) per gas.",
     "skipHealthcheck": true
   },
   "unichain": {
