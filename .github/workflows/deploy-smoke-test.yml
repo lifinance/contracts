@@ -27,6 +27,7 @@ jobs:
     # Determines whether files that can influence the smoke pipeline were touched.
     # Always runs (cheap) so the downstream smoke-test-required can report status.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       smoke: ${{ steps.filter.outputs.smoke }}
     steps:
@@ -187,6 +188,7 @@ jobs:
     needs: [detect-changes, deploy-smoke-test]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Validate upstream result
         # Validate `detect-changes` succeeded first. If it failed, `deploy-smoke-test`
