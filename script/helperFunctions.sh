@@ -363,7 +363,7 @@ function findContractInMasterLogByAddress() {
     done
   done
 
-  echo "[info] address not found in MongoDB"
+  info "address not found in MongoDB"
   return 1
 }
 function getContractVersionFromMasterLog() {
@@ -3283,7 +3283,8 @@ function checkFailure() {
 
   # check RESULT code and display error message if code != 0
   if [[ $RESULT -ne 0 ]]; then
-    echo "Failed to $ERROR_MESSAGE"
+    # stderr, not stdout: this can fire inside a $(...) capture, which swallows stdout
+    echo "Failed to $ERROR_MESSAGE" >&2
     exit 1
   fi
 }
@@ -3298,11 +3299,18 @@ function echoDebug() {
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
+# error/warning/info must write to stderr: many value-returning helpers are captured
+# via $(...), and a stdout message would be swallowed into the captured value instead
+# of reaching the console (making `-z` guards on the result unreachable). Progress
+# output that is not a diagnostic still uses plain echo so it stays on stdout.
 function error() {
-  printf '\033[31m[error] %s\033[0m\n' "$1"
+  printf '\033[31m[error] %s\033[0m\n' "$1" >&2
 }
 function warning() {
-  printf '\033[33m[warning] %s\033[0m\n' "$1"
+  printf '\033[33m[warning] %s\033[0m\n' "$1" >&2
+}
+function info() {
+  printf '[info] %s\n' "$1" >&2
 }
 function success() {
   printf '\033[0;32m[success] %s\033[0m\n' "$1"
@@ -3485,7 +3493,7 @@ function findContractVersionInTargetState() {
     return 0
   else
     # entry not found - issue error message and return error code
-    echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
+    info "No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
     return 1
   fi
 }
@@ -3727,7 +3735,7 @@ function doesAddressContainBytecode() {
 
   # check address value
   if [[ "$ADDRESS" == "null" || "$ADDRESS" == "" ]]; then
-    echo "[warning]: trying to verify deployment at invalid address: ($ADDRESS)"
+    warning "trying to verify deployment at invalid address: ($ADDRESS)"
     return 1
   fi
 
@@ -4401,7 +4409,7 @@ function getCreate3FactoryAddress() {
   CREATE3_FACTORY=$(jq --arg NETWORK "$NETWORK" -r '.[$NETWORK].create3Factory // empty' "$NETWORKS_JSON_FILE_PATH")
 
   if [ -z "$CREATE3_FACTORY" ]; then
-    echo "Error: create3Factory address not found for network '$NETWORK'"
+    error "create3Factory address not found for network '$NETWORK'"
     return 1
   fi
 

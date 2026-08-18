@@ -12,7 +12,7 @@ paths:
 - Start with `#!/bin/bash`; organize into functions (logging, error handling, deployment); keep DRY via helpers.
 - **Use existing helpers**: Source `script/helperFunctions.sh` and `script/playgroundHelpers.sh` for reusable functions (deployment, verification, network queries, logging, etc.). Prefer existing helpers over reimplementing logic.
 - Load env from `.env`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
-- Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets.
+- Use logging helpers (`echoDebug`, `error`, `warning`, `info`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets. `error`/`warning`/`info` write to stderr so they survive a `$(...)` capture of a value-returning helper; use plain `echo` for progress output that belongs on stdout.
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
 
