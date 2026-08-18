@@ -1375,16 +1375,29 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           continue
         }
 
+        // Normalize the config side before the read, and outside its try: config values are
+        // only known to be non-empty strings, so a malformed one throws here — folding that
+        // into the read's catch would report a broken config entry as an unverified binding
+        // and let this error-severity check pass on exactly the drift it exists to catch.
+        let expectedValue: string
+        try {
+          expectedValue =
+            ctx.isTron && tronWeb
+              ? ensureTronAddress(check.expectedAddress, tronWeb)
+              : getAddress(check.expectedAddress as Address)
+        } catch {
+          ctx.logError(
+            `${check.configFileName} ${check.keyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+          )
+          continue
+        }
+
         try {
           const { value: onChainValue, getterUsed } = await readBindingValue(
             address,
             check,
             ctx
           )
-          const expectedValue =
-            ctx.isTron && tronWeb
-              ? ensureTronAddress(check.expectedAddress, tronWeb)
-              : getAddress(check.expectedAddress as Address)
 
           // Name the getter that answered, not the annotated one: on a chain running an older
           // build they differ, and the reader needs to know which contract version was read.
