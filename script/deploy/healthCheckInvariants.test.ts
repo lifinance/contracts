@@ -12,6 +12,7 @@ import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  RECEIVER_EXECUTOR_GETTERS,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -23,6 +24,7 @@ import {
   type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -806,5 +808,20 @@ describe('periphery-registry-log-sync invariant', () => {
     await sync().run(ctx)
     expect(registryQueries).not.toContain('AcrossFacetV4')
     expect(registryQueries).not.toContain('LiFiDiamond')
+  })
+})
+
+describe('receiver coverage tracks the coupling registry', () => {
+  it('gives every coupled Receiver an executor-binding and owner check', () => {
+    const checked = new Set(
+      RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name)
+    )
+    const coupledReceivers = Object.values(getFacetPeripheryCouplings())
+      .map((coupling) => coupling.requires)
+      .filter((companion) => companion.startsWith('Receiver'))
+
+    expect(coupledReceivers.length).toBeGreaterThan(0)
+    for (const receiver of coupledReceivers)
+      expect(checked.has(receiver)).toBe(true)
   })
 })
