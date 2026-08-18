@@ -353,15 +353,22 @@ export const getContractAddressForNetwork = async (
  * @param contractName - Name of the contract (used to locate the compiled JSON)
  * @param excludes - Optional list of function selectors (with or without '0x') to exclude
  * @returns An array of function selectors as strings prefixed with '0x'
+ * @throws If the contract name resolves outside the build output directory, the compiled JSON is missing, or it contains no methodIdentifiers
  */
 export function getFunctionSelectors(
   contractName: string,
   excludes: string[] = []
 ): `0x${string}`[] {
   // Build the file path to the contract's compiled JSON file
+  const base = path.resolve('out')
   const filePath = path.resolve(
-    `./out/${contractName}.sol/${contractName}.json`
+    base,
+    `${contractName}.sol`,
+    `${contractName}.json`
   )
+  const relativePath = path.relative(base, filePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Invalid contract name: ${contractName}`)
 
   // Ensure the contract file exists
   if (!fs.existsSync(filePath))
@@ -390,11 +397,12 @@ export function getFunctionSelectors(
 }
 
 /**
- * Retrieves a contract address from a (prod or staging) deploy log file
+ * Reads and parses a (prod or staging) deploy log file
  *
  * @param network Name of the network
  * @param environment the production environment (production/staging)
- * @returns Hex-encoded calldata array like cast abi-encode would produce
+ * @returns Parsed deploy log mapping contract names to their deployed addresses
+ * @throws If the network name resolves outside the deployments directory or no deploy log exists for the network/environment.
  */
 export function getDeployLogFile(
   network: string,
@@ -402,7 +410,11 @@ export function getDeployLogFile(
 ): Record<string, string> {
   const suffix =
     environment === EnvironmentEnum.production ? '' : `.${environment}`
-  const filePath = path.resolve(`deployments/${network}${suffix}.json`)
+  const base = path.resolve('deployments')
+  const filePath = path.resolve(base, `${network}${suffix}.json`)
+  const relative = path.relative(base, filePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative))
+    throw new Error(`Invalid network name: ${network}`)
 
   if (!fs.existsSync(filePath))
     throw new Error(`Deploy log not found: ${filePath}`)

@@ -1,0 +1,1 @@
+../../.agents/commands/aikido-weekly-review.md

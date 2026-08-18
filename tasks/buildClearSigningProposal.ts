@@ -317,7 +317,7 @@ function bridgeFacetName(fnName: string): string {
 //   always populated. AcrossV4/DeBridgeDln can even differ from
 //   `_bridgeData.receiver` on EVM (destination call → our Receiver contract;
 //   DeBridgeDln never cross-checks), so the field adds signal on EVM too. Glacis/
-//   AllBridge/LiFiIntentEscrow/GasZip enforce equality on plain EVM transfers, so
+//   AllBridge/LiFiIntentEscrowV2/GasZip enforce equality on plain EVM transfers, so
 //   there the field just re-shows the recipient and carries the real value on
 //   non-EVM.
 //
@@ -363,12 +363,6 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     component: 'recipient',
     type: 'bytes32',
     label: 'AllBridge Recipient',
-  },
-  LiFiIntentEscrow: {
-    paramName: '_lifiIntentData',
-    component: 'recipient',
-    type: 'bytes32',
-    label: 'Intent Recipient',
   },
   LiFiIntentEscrowV2: {
     paramName: '_lifiIntentData',
@@ -854,7 +848,6 @@ const NON_USER_FACING_NAMES = new Set([
   // Admin/relayer-only; users do not sign these directly. If a wallet integration
   // ever wants clear-signing for owner-side recovery flows, classify and remove.
   'withdraw', // WithdrawFacet — owner-only recovery
-  'triggerRefund', // CBridge refund — admin-side
   'executeCallAndWithdraw', // operator-only utility
 ])
 

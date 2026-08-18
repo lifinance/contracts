@@ -22,6 +22,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  zeroAddress,
   type Address,
   type Hex,
   type PublicClient,
@@ -31,6 +32,11 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD } from './shared/constants'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  resolveLiveFacetsFromLog,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -42,7 +48,7 @@ import {
   checkOwnershipTron,
   ensureTronAddress,
   parseTronAddressOutput,
-  parseTroncastNestedArray,
+  parseTroncastArrayOutput,
 } from './tron/tronUtils'
 
 /** Severity of a failed invariant: `error` fails the run (exit 1); `warning` is reported but non-fatal. */
@@ -97,7 +103,6 @@ export interface IHealthCheckContext {
   nonCoreFacets: string[]
   deployerWallet: string
   refundWallet: string
-  feeCollectorOwner: string
   pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
@@ -170,6 +175,130 @@ export function getInvariantExclusion(
     (e) =>
       e.invariant === invariantName && e.network.toLowerCase() === networkLower
   )
+}
+
+/**
+ * A core facet that became core AFTER some networks were already live, together with the
+ * networks that predate it. This is how a facet is made core "going forward": it stays in
+ * `config/global.json` → `coreFacets`, so every NEWLY onboarded network must have it (a new
+ * chain is absent from `networks` below and is therefore enforced by default — the safe
+ * direction), while the listed pre-existing networks are exempt until they are backfilled.
+ *
+ * Deliberately narrower than {@link IInvariantExclusion}: that carve-out disables a whole
+ * invariant on a network (losing coverage for every other facet), whereas this drops one
+ * facet from the expected core set and leaves the rest of `core-facets-deployed` and
+ * `facets-registered` fully enforced.
+ *
+ * The `networks` list is a shrinking to-do, not a permanent state: remove a network the moment
+ * the facet is deployed and registered there, and delete the whole entry once the list is
+ * empty. Exemptions apply to the health check only — `deployCoreFacets.sh` still reads
+ * `coreFacets` from global.json, so deploying the facet everywhere remains a one-command job.
+ */
+export interface ICoreFacetExemption {
+  /** Facet name as listed in `config/global.json` → `coreFacets`. */
+  facet: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) that predate the facet becoming core. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-facet grandfathering. See {@link ICoreFacetExemption}.
+ *
+ * Every entry is validated in `healthCheckInvariants.test.ts`: the facet must really be in
+ * `coreFacets`, every network must exist in `config/networks.json`, and the reason must be
+ * non-empty — so a stale exemption fails CI rather than silently hiding a real gap.
+ */
+export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'LiFiIntentEscrowFacetV2 supersedes LiFiIntentEscrowFacet and is core going forward (V2-227, #1997), deployed to the chains named there. The networks below predate that decision and are exempt until the facet is backfilled — remove a network here once the facet is deployed and registered on it.',
+    networks: [
+      '0g',
+      'abstract',
+      'apechain',
+      'arbitrumnova',
+      'arbitrumsepolia',
+      'arctestnet',
+      'avalanche',
+      'basesepolia',
+      'berachain',
+      'blast',
+      'bob',
+      'boba',
+      'celo',
+      'cronos',
+      'etherlink',
+      'flare',
+      'flow',
+      'fraxtal',
+      'fuse',
+      'gnosis',
+      'gravity',
+      'hemi',
+      'hyperevm',
+      'immutablezkevm',
+      'injective',
+      'ink',
+      'kaia',
+      'lens',
+      'linea',
+      'lisk',
+      'mantle',
+      'metis',
+      'mode',
+      'monad',
+      'moonbeam',
+      'morph',
+      'nibiru',
+      'opbnb',
+      'optimismsepolia',
+      'plasma',
+      'plume',
+      'ronin',
+      'rootstock',
+      'scroll',
+      'sei',
+      'somnia',
+      'soneium',
+      'sonic',
+      'stable',
+      'telos',
+      'tempo',
+      'tron',
+      'tronshasta',
+      'unichain',
+      'vana',
+      'viction',
+      'worldchain',
+      'xdc',
+      'xlayer',
+      'zksync',
+    ],
+  },
+  {
+    facet: 'LiFiIntentEscrowFacetV2',
+    reason:
+      'Intent escrow settlers are not deployed on Jovay and BE confirmed the chain is not supported for intents — do not require LiFiIntentEscrowFacetV2 until product enables it.',
+    networks: ['jovay'],
+  },
+]
+
+/**
+ * Core facets the given network is exempt from, with the reason for each. Pure; network match
+ * is case-insensitive. A network absent from every entry gets an empty list, i.e. the full
+ * core set is enforced — so new chains are covered without touching this table.
+ */
+export function getExemptCoreFacets(
+  network: string,
+  exemptions: ICoreFacetExemption[] = CORE_FACET_EXEMPTIONS
+): Array<{ facet: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ facet: e.facet, reason: e.reason }))
 }
 
 /**
@@ -278,36 +407,6 @@ const checkIsDeployed = async (
 }
 
 /**
- * Binary-search the earliest block at which `address` has code — its deployment block —
- * in ~log2(latest) `getCode` calls. Used to bound event queries: a full-history
- * `fromBlock: 'earliest'` scan is range-capped (throws) or silently truncated (false pass)
- * by some RPC providers on long-lived mainnet proxies. Assumes code presence is monotonic
- * (contract not self-destructed), which holds for LI.FI periphery.
- */
-async function findDeploymentBlock(
-  publicClient: PublicClient,
-  address: Address
-): Promise<bigint> {
-  const hasCode = async (blockNumber: bigint): Promise<boolean> => {
-    const code = await publicClient.getCode({ address, blockNumber })
-    return code !== undefined && code !== '0x'
-  }
-
-  // Defensive: if code exists at genesis (never for our contracts), earliest is 0.
-  if (await hasCode(0n)) return 0n
-
-  // Invariant: no code at `low`, code at `high`; converge to the first block with code.
-  let low = 0n
-  let high = await publicClient.getBlockNumber()
-  while (high - low > 1n) {
-    const mid = (low + high) / 2n
-    if (await hasCode(mid)) high = mid
-    else low = mid
-  }
-  return high
-}
-
-/**
  * Check if a contract is deployed (Tron or EVM) and log success or error.
  * @param label - Optional prefix for messages (e.g. 'Facet', 'Periphery contract').
  */
@@ -341,11 +440,16 @@ async function checkAndLogDeployment(
   return true
 }
 
-const getExpectedPairs = async (
+/**
+ * Expand config into the set of (contract, selector) pairs the diamond whitelist should hold.
+ * Exported for testing.
+ */
+export const getExpectedPairs = async (
   network: string,
   deployedContracts: Record<string, Address | string>,
   whitelistConfig: IWhitelistConfig,
   logError: (msg: string) => void,
+  logWarn: (msg: string) => void,
   isTron = false
 ): Promise<Array<{ contract: string; selector: Hex }>> => {
   try {
@@ -383,17 +487,55 @@ const getExpectedPairs = async (
     if (peripheryConfig) {
       const networkPeripheryContracts = peripheryConfig[network.toLowerCase()]
       if (networkPeripheryContracts) {
+        // How many entries share each name on this network. A name used more than once
+        // cannot be resolved against `deployedContracts` (one address per name), so the
+        // staleness comparison below has to sit out those entries.
+        const entriesPerName = new Map<string, number>()
+        for (const { name } of networkPeripheryContracts)
+          entriesPerName.set(name, (entriesPerName.get(name) ?? 0) + 1)
+
         for (const peripheryContract of networkPeripheryContracts) {
-          const contractAddr = deployedContracts[peripheryContract.name]
-          if (contractAddr) {
-            for (const selectorInfo of peripheryContract.selectors || []) {
-              expectedPairs.push({
-                contract: isTron
-                  ? String(contractAddr)
-                  : getAddress(contractAddr as Address).toLowerCase(),
-                selector: selectorInfo.selector.toLowerCase() as Hex,
-              })
-            }
+          // The address in whitelist.json is authoritative: this check asks "does the
+          // diamond's whitelist match config", and not every whitelisted periphery
+          // contract is deployed by this repo (e.g. Composer is whitelisted only).
+          // Resolving by name from the deployments file instead would silently drop
+          // every such entry — and could not represent the several distinct addresses
+          // that share one name on a given network.
+          const configAddr = peripheryContract.address
+          const deployedAddr = deployedContracts[peripheryContract.name]
+          const contractAddr = configAddr || deployedAddr
+
+          if (!contractAddr) {
+            logWarn(
+              `Whitelist periphery entry "${peripheryContract.name}" has no address in config and is not in the deployments file; its selectors are excluded from the expected-pair set (reduced coverage).`
+            )
+            continue
+          }
+
+          // A config address that disagrees with a contract we did deploy means the
+          // whitelist entry is stale — diamondSyncWhitelist would whitelist the wrong
+          // address. Surface it, but keep config as the source of truth for this check.
+          // Skipped when the name is not unique on this network: `deployedContracts` holds
+          // one address per name, so at most one of the entries could ever match it and
+          // the rest would warn spuriously.
+          if (
+            configAddr &&
+            deployedAddr &&
+            entriesPerName.get(peripheryContract.name) === 1 &&
+            String(configAddr).toLowerCase() !==
+              String(deployedAddr).toLowerCase()
+          )
+            logWarn(
+              `Whitelist config lists ${peripheryContract.name} at ${configAddr} but deployments has ${deployedAddr}; config/whitelist.json may be stale.`
+            )
+
+          for (const selectorInfo of peripheryContract.selectors || []) {
+            expectedPairs.push({
+              contract: isTron
+                ? String(contractAddr)
+                : getAddress(contractAddr as Address).toLowerCase(),
+              selector: selectorInfo.selector.toLowerCase() as Hex,
+            })
           }
         }
       }
@@ -457,17 +599,7 @@ async function checkWhitelistIntegrity(
       tronRpcUrl
     )
 
-    let parsed: unknown[]
-    try {
-      parsed = JSON.parse(onChainDataOutput.trim())
-    } catch {
-      const trimmed = onChainDataOutput.trim()
-      if (!trimmed.startsWith('[')) {
-        throw new Error('Expected array format')
-      }
-      const [parsedArray] = parseTroncastNestedArray(trimmed, 0)
-      parsed = parsedArray as unknown[]
-    }
+    const parsed = parseTroncastArrayOutput(onChainDataOutput)
 
     if (!Array.isArray(parsed) || parsed.length !== 2) {
       throw new Error('Unexpected troncast output format')
@@ -654,6 +786,13 @@ async function checkWhitelistIntegrity(
         `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
       )
     } else {
+      // Use the executed wrapper, not `source diamondSyncWhitelist.sh && …`: the latter runs
+      // the #!/bin/bash script's body in the caller's interactive shell, and its `read -ra`
+      // (a bash builtin option) fails under zsh — the macOS default — leaving the network list
+      // empty. syncWhitelistToNetworks.sh runs under its own bash shebang.
+      const syncCmd = `./script/tasks/syncWhitelistToNetworks.sh ${network}${
+        environment === 'production' ? ' --production' : ''
+      }`
       if (missingPairsList.length > 0) {
         logError(
           `Pair Array is missing ${missingPairsList.length} pairs from config:`
@@ -665,9 +804,7 @@ async function checkWhitelistIntegrity(
         if (missingPairsList.length > 10) {
           logError(`  ... and ${missingPairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix missing pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix missing pairs, run: ${syncCmd}`)
       }
       if (stalePairsList.length > 0) {
         logError(
@@ -680,9 +817,7 @@ async function checkWhitelistIntegrity(
         if (stalePairsList.length > 10) {
           logError(`  ... and ${stalePairsList.length - 10} more`)
         }
-        consola.warn(
-          `\n💡 To fix stale pairs, run: source script/tasks/diamondSyncWhitelist.sh && diamondSyncWhitelist ${network} ${environment}`
-        )
+        consola.warn(`\n💡 To fix stale pairs, run: ${syncCmd}`)
       }
     }
   } catch (error: unknown) {
@@ -693,12 +828,58 @@ async function checkWhitelistIntegrity(
 
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
 const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
-  { name: 'ReceiverAcrossV3', getter: 'executor' },
+  // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
+  // binding is no longer kept current, so it is intentionally not checked here.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
   { name: 'ReceiverChainflip', getter: 'executor' },
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
+
+/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
+const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
+ *
+ * @param name - the periphery contract name to look up
+ * @param ctx - the health-check context (supplies the diamond address and RPC client)
+ * @returns the registered address (checksummed hex on EVM, base58 on Tron), or null when the
+ *   registry holds the zero address — i.e. nothing is registered under that name
+ * @throws when the read fails, returns malformed output, or no client is configured, so callers
+ *   can tell "not registered" (null) apart from "could not determine" (throw)
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        ctx.diamondAddress,
+        'getPeripheryContract(string)',
+        [name],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    if (!parsed.startsWith('T') || parsed.length !== 34)
+      throw new Error(`malformed Tron address for ${name}: ${parsed}`)
+    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+  }
+
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const registry = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function getPeripheryContract(string) external view returns (address)',
+    ]),
+    client: ctx.publicClient,
+  })
+  const address = await registry.read.getPeripheryContract([name])
+  return address === zeroAddress ? null : getAddress(address)
+}
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1044,9 +1225,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               ctx.tronRpcUrl
             )
 
-            const cleanedAddress = registeredAddressOutput
-              .trim()
-              .replace(/^["']|["']$/g, '')
+            // Use the shared parser, not an ad-hoc trim: callTronContract's output carries
+            // TronWeb diagnostic lines ahead of the return value.
+            const cleanedAddress = parseTronAddressOutput(
+              registeredAddressOutput
+            )
             const registeredAddress =
               cleanedAddress.startsWith('T') && cleanedAddress.length === 34
                 ? cleanedAddress
@@ -1107,6 +1290,114 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets live in the diamond, not on target state: the failure this guards against
+      // is a facet being live while its companion is absent, and target state itself was missing the
+      // receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
+      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
+      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
+      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      const couplings = getFacetPeripheryCouplings()
+      const liveFacets = resolveLiveFacetsFromLog(
+        ctx.onChainFacets.map((facet) => facet.address),
+        ctx.deployedContracts as Record<string, string>,
+        Object.keys(couplings)
+      )
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower,
+        couplings
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${carveOut.facet}: ${carveOut.companion} not required here — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = required.map((requirement) => requirement.companion)
+      // A companion is present iff the registry returns a non-null (non-zero) address. A read that
+      // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
+      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
+      const registered = new Map<string, boolean>()
+      const unresolved = new Set<string>()
+      const markUnresolved = (companion: string, reason: unknown): void => {
+        ctx.logWarn(
+          `Failed to read periphery registration for ${companion}: ${String(
+            reason
+          )}`
+        )
+        unresolved.add(companion)
+      }
+
+      // EVM reads fold into the batched multicall client (concurrent); Tron reads stay sequential
+      // to avoid spawning a troncast subprocess per companion at once.
+      if (ctx.isTron)
+        for (const companion of wanted)
+          try {
+            registered.set(
+              companion,
+              (await readPeripheryRegistry(companion, ctx)) !== null
+            )
+          } catch (error: unknown) {
+            markUnresolved(companion, error)
+          }
+      else {
+        const results = await Promise.allSettled(
+          wanted.map((companion) => readPeripheryRegistry(companion, ctx))
+        )
+        wanted.forEach((companion, index) => {
+          const result = results[index]
+          if (result?.status === 'fulfilled')
+            registered.set(companion, result.value !== null)
+          else markUnresolved(companion, result?.reason ?? 'no result')
+        })
+      }
+
+      for (const { companion, triggeredBy } of required) {
+        if (unresolved.has(companion)) {
+          ctx.logWarn(
+            `${triggeredBy.join(
+              ', '
+            )}: could not determine whether ${companion} is registered (lookup failed)`
+          )
+          continue
+        }
+
+        if (registered.get(companion)) {
+          consola.success(
+            `${companion} registered for ${triggeredBy.join(', ')}`
+          )
+          continue
+        }
+
+        ctx.logError(
+          `${triggeredBy.join(
+            ', '
+          )} live but companion ${companion} not registered in Diamond - destination calls for this integration are disabled on this network`
+        )
+      }
+    },
+  },
+  {
     name: 'whitelist-integrity',
     description:
       'Diamond whitelist matches config (source of truth + getter arrays)',
@@ -1162,6 +1453,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.deployedContracts,
             whitelistConfig as IWhitelistConfig,
             ctx.logError,
+            ctx.logWarn,
             ctx.isTron
           )
 
@@ -1187,7 +1479,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         }
       } catch (error) {
-        ctx.logError('Whitelist configuration not available')
+        const errorMessage =
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
     },
   },
@@ -1276,30 +1570,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         consola.info('Skipping diamond ownership check for staging environment')
     },
   },
-  {
-    name: 'feecollector-owner',
-    description: 'FeeCollector owner is the fee-collector owner wallet',
-    severity: 'error',
-    scope: {},
-    run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
-        await checkOwnershipTron(
-          'FeeCollector',
-          ctx.feeCollectorOwner,
-          ctx.deployedContracts,
-          ctx.tronRpcUrl,
-          ctx.tronWeb,
-          ctx.logError
-        )
-      else if (ctx.publicClient)
-        await checkOwnership(
-          'FeeCollector',
-          ctx.feeCollectorOwner,
-          ctx,
-          ctx.publicClient
-        )
-    },
-  },
+  // FeeCollector is deprecated: its on-chain owner is no longer maintained against
+  // config.feeCollectorOwner, so there is deliberately no 'feecollector-owner' invariant.
+  // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
     description: 'Receiver owner is the refund wallet',
@@ -1498,74 +1771,6 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
-    name: 'no-unexpected-erc20proxy-callers',
-    description: 'Only the Executor is authorized on the ERC20Proxy',
-    severity: 'warning',
-    scope: { environments: ['production'], chains: 'evm-only' },
-    run: async (ctx) => {
-      if (!ctx.publicClient) return
-      const erc20ProxyAddress = ctx.deployedContracts['ERC20Proxy']
-      const executorAddress = ctx.deployedContracts['Executor']
-      if (!erc20ProxyAddress || !executorAddress) return
-
-      const expectedAuthorized = new Set([
-        getAddress(executorAddress as Address).toLowerCase(),
-      ])
-
-      // ERC20Proxy exposes no enumerator for authorizedCallers, so reconstruct the current
-      // set from AuthorizationChanged events. Bound the scan to the proxy's deployment block:
-      // a `fromBlock: 'earliest'` full-history query is range-capped (throws) or silently
-      // truncated (false pass) by some providers on long-lived mainnet proxies. The events are
-      // sparse, so one bounded query returns the full set. Any failure surfaces as a visible
-      // warning (never a silent pass).
-      try {
-        const erc20Proxy = getAddress(erc20ProxyAddress as Address)
-        const fromBlock = await findDeploymentBlock(
-          ctx.publicClient,
-          erc20Proxy
-        )
-        const logs = await ctx.publicClient.getContractEvents({
-          address: erc20Proxy,
-          abi: parseAbi([
-            'event AuthorizationChanged(address indexed caller, bool authorized)',
-          ]),
-          eventName: 'AuthorizationChanged',
-          fromBlock,
-          toBlock: 'latest',
-        })
-
-        const authorized = new Map<string, boolean>()
-        for (const log of logs) {
-          const args = log.args as { caller?: Address; authorized?: boolean }
-          if (args.caller !== undefined && args.authorized !== undefined)
-            authorized.set(
-              getAddress(args.caller).toLowerCase(),
-              args.authorized
-            )
-        }
-
-        const unexpected = [...authorized.entries()]
-          .filter(([addr, isAuth]) => isAuth && !expectedAuthorized.has(addr))
-          .map(([addr]) => addr)
-
-        if (unexpected.length === 0)
-          consola.success('Only the Executor is authorized on the ERC20Proxy')
-        else
-          ctx.logWarn(
-            `ERC20Proxy authorizes unexpected caller(s) besides the Executor: ${unexpected.join(
-              ', '
-            )}`
-          )
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
-        ctx.logWarn(
-          `Could not enumerate ERC20Proxy authorized callers (RPC log range limit?); skipping: ${errorMessage}`
-        )
-      }
-    },
-  },
-  {
     name: 'safe-config',
     description: 'Governance Safe has the expected owners and threshold',
     severity: 'error',
@@ -1635,8 +1840,11 @@ async function executeInvariant(
   baseCtx: IHealthCheckContext,
   invariant: IHealthCheckInvariant
 ): Promise<boolean> {
+  // Do NOT format the severity as a `[error]`-style prefix here: this banner prints once per
+  // invariant per network, so a level-looking token makes every passing check match a grep for
+  // '[error]' in the CI log and makes a healthy run read as mass failure. Keep it a plain label.
   consola.box(
-    `[${invariant.severity}] ${invariant.name} — ${invariant.description}`
+    `${invariant.name} — ${invariant.description} (severity: ${invariant.severity})`
   )
   const errors: string[] = []
   const warnings: string[] = []

@@ -6,7 +6,7 @@
 import 'dotenv/config'
 
 import { readFileSync } from 'fs'
-import { dirname, resolve } from 'path'
+import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
@@ -400,8 +400,16 @@ export async function getContractAddress(
 
   const filesToTry: string[] = []
   for (const root of roots) {
-    filesToTry.push(resolve(root, `deployments/${network}.${fileSuffix}json`))
-    filesToTry.push(resolve(root, `deployments/${network}.json`))
+    const base = resolve(root, 'deployments')
+    for (const target of [
+      resolve(base, `${network}.${fileSuffix}json`),
+      resolve(base, `${network}.json`),
+    ]) {
+      const relativePath = relative(base, target)
+      if (relativePath.startsWith('..') || isAbsolute(relativePath))
+        throw new Error(`Invalid network name: ${network}`)
+      filesToTry.push(target)
+    }
   }
   // When staging Tron, mainnet deployment may be the only file
   if (network === 'tronshasta')
@@ -466,12 +474,11 @@ export async function getFacetSelectors(
   facetName: string,
   excludeSelectors: string[] = []
 ): Promise<string[]> {
-  const artifactPath = resolve(
-    process.cwd(),
-    'out',
-    `${facetName}.sol`,
-    `${facetName}.json`
-  )
+  const base = resolve(process.cwd(), 'out')
+  const artifactPath = resolve(base, `${facetName}.sol`, `${facetName}.json`)
+  const relativePath = relative(base, artifactPath)
+  if (relativePath.startsWith('..') || isAbsolute(relativePath))
+    throw new Error(`Invalid facet name: ${facetName}`)
 
   // Check if artifact exists
   try {
