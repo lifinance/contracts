@@ -951,3 +951,22 @@ describe('selector identity in the facet invariants', () => {
     expect(ctx.errors[0]).toContain(coupled)
   })
 })
+
+describe('no-unexpected-facets without build output', () => {
+  it('says identification was unavailable rather than claiming nothing matched', async () => {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      onChainFacets: [
+        {
+          address: '0xbbbb000000000000000000000000000000000002',
+          selectors: ['0x11111111'],
+        },
+      ],
+      deployedContracts: {},
+      compiledFacetSelectors: {},
+    })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no build output available')
+  })
+})

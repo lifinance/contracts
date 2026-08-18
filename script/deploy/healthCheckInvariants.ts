@@ -2043,11 +2043,20 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             facet.selectors,
             compiledSelectors
           )
-          ctx.logWarn(
-            identified
-              ? `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
-              : `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
-          )
+          if (identified)
+            ctx.logWarn(
+              `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
+            )
+          // Without build output there is nothing to match against, so say that rather than
+          // reporting an identity check that never ran.
+          else if (Object.keys(compiledSelectors).length === 0)
+            ctx.logWarn(
+              `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
+            )
+          else
+            ctx.logWarn(
+              `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
+            )
         }
       if (unexpected === 0)
         consola.success('All on-chain facets are known deployed contracts')
