@@ -1809,31 +1809,29 @@ function parseTargetStateGoogleSpreadsheet() {
     exit 1
   fi
 
+  # This function (and processNetworkLine) rely on bash's `read -a`, which zsh does not
+  # support. Under zsh every `read -ra` fails, leaving CONTRACTS_ARRAY/LINE_ARRAY empty —
+  # which silently produced a near-empty target state while still reporting success.
+  if [[ -z "$BASH_VERSION" ]]; then
+    error "parseTargetStateGoogleSpreadsheet requires bash (it uses 'read -a', which zsh lacks). Re-run via 'bash script/scriptMaster.sh'."
+    return 1
+  fi
+
   # load google sheets into CSV file
   CSV_FILE_PATH="newTest.csv"
-  curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
+  if ! curl -fsSL --connect-timeout 10 --max-time 60 "$SPREADSHEET_URL""$EXPORT_PARAMS" -o "$CSV_FILE_PATH"; then
+    error "failed to download the target state sheet from $SPREADSHEET_URL. Cannot proceed."
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
 
   if [[ -n "$SPECIFIC_NETWORK" ]]; then
     echo "Updating $ENVIRONMENT target state for network '$SPECIFIC_NETWORK' from this Google sheet now: $SPREADSHEET_URL"
-    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
-    echo ""
-
-    # Remove only the specific network from target state
-    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK"
   else
     echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
-    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
-    echo ""
-
-    # remove existing entries from target state JSON file
-    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
   fi
-
-  # make sure existing entries were removed properly (to prevent corrupted target state)
-  if [[ $? -ne 0 ]]; then
-    error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
-    exit 1
-  fi
+  echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
+  echo ""
 
   # Parse the CSV to extract contract names and network data
   local CONTRACTS_ARRAY=()
@@ -1896,29 +1894,120 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "Found ${#CONTRACTS_ARRAY[@]} contracts to process"
   echo ""
 
+  # Everything below this point mutates the target state file, so validate the parse first.
+  # A sheet export that yields no contracts or no networks means the download, the sheet
+  # layout or the shell is broken -- never a legitimate "the target state is empty now".
+  if [[ ${#CONTRACTS_ARRAY[@]} -eq 0 ]]; then
+    error "no contract names parsed from the sheet (expected a row containing 'Blue = Periphery'). Target state left unchanged."
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
+
+  if [[ ${#NETWORK_LINES[@]} -eq 0 ]]; then
+    if [[ -n "$SPECIFIC_NETWORK" ]]; then
+      error "no row found for network '$SPECIFIC_NETWORK' in the sheet export. Target state left unchanged."
+    else
+      error "no network rows parsed from the sheet. Target state left unchanged."
+    fi
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
+
+  # The sheet export covers a single tab, so a network kept on another tab (or simply not
+  # yet added) is absent from it. Wiping the environment and repopulating from that export
+  # would delete such a network's entries without a word -- refuse instead. Set
+  # ALLOW_TARGET_STATE_NETWORK_REMOVAL=true to intentionally drop networks.
+  if [[ -z "$SPECIFIC_NETWORK" && "$ALLOW_TARGET_STATE_NETWORK_REMOVAL" != "true" ]]; then
+    local EXISTING_NETWORKS
+    # NOTE: the arg cannot be named ENV -- jq's built-in $ENV (the environment object)
+    # shadows it, and indexing with an object makes the whole query error out.
+    # A jq failure must not read as "nothing would be lost" -- that silent pass is the same
+    # shape as the data loss this guard exists to prevent.
+    if ! EXISTING_NETWORKS=$(jq -r --arg TARGET_ENV "$ENVIRONMENT" 'to_entries[] | select(.value[$TARGET_ENV] != null) | .key' "$TARGET_STATE_PATH"); then
+      error "could not read the existing networks from $TARGET_STATE_PATH, so it cannot be verified that repopulating is safe. Cannot proceed."
+      rm -f "$CSV_FILE_PATH"
+      return 1
+    fi
+
+    local MISSING_NETWORKS=()
+    local EXISTING_NETWORK
+    while IFS= read -r EXISTING_NETWORK; do
+      [[ -z "$EXISTING_NETWORK" ]] && continue
+      if ! printf '%s\n' "${NETWORK_LINES[@]}" | cut -d',' -f1 | grep -qxF "$EXISTING_NETWORK"; then
+        MISSING_NETWORKS+=("$EXISTING_NETWORK")
+      fi
+    done <<<"$EXISTING_NETWORKS"
+
+    if [[ ${#MISSING_NETWORKS[@]} -gt 0 ]]; then
+      error "these networks have '$ENVIRONMENT' entries in $TARGET_STATE_PATH but no row in the sheet export: ${MISSING_NETWORKS[*]}"
+      error "repopulating would silently delete them (the CSV export only covers the sheet's first tab). Add their rows to that tab, or re-run with ALLOW_TARGET_STATE_NETWORK_REMOVAL=true to drop them on purpose."
+      rm -f "$CSV_FILE_PATH"
+      return 1
+    fi
+  fi
+
+  # Everything from here on empties the environment first and repopulates it from the CSV,
+  # so any abort in between would leave the file wiped. Keep a copy to roll back to.
+  local TARGET_STATE_BACKUP
+  TARGET_STATE_BACKUP=$(mktemp)
+  if ! cp "$TARGET_STATE_PATH" "$TARGET_STATE_BACKUP"; then
+    error "unable to back up target state file ($TARGET_STATE_PATH) before repopulating it. Cannot proceed."
+    rm -f "$CSV_FILE_PATH" "$TARGET_STATE_BACKUP"
+    return 1
+  fi
+
+  local REMOVAL_FAILED=0
+  if [[ -n "$SPECIFIC_NETWORK" ]]; then
+    # Remove only the specific network from target state
+    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK" || REMOVAL_FAILED=1
+  else
+    # remove existing entries from target state JSON file
+    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" || REMOVAL_FAILED=1
+  fi
+
+  # make sure existing entries were removed properly (to prevent corrupted target state)
+  if [[ $REMOVAL_FAILED -ne 0 ]]; then
+    error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
+
   # Create temporary directory for parallel processing
   local TEMP_DIR=$(mktemp -d)
   trap 'rm -rf "$TEMP_DIR"' EXIT
 
   # Process networks in parallel with concurrency control
+  local NETWORK_PIDS=()
   for LINE in "${NETWORK_LINES[@]}"; do
     # Extract network name
     NETWORK=$(echo "$LINE" | cut -d',' -f1)
 
     # Wait if we've reached the maximum number of concurrent jobs
-    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
       sleep 1
     done
 
     # Start processing this network in background
     processNetworkLine "$NETWORK" "$LINE" "$ENVIRONMENT" "$TEMP_DIR" "$FACETS_STARTS_AT_COLUMN" "$(printf '%s\n' "${CONTRACTS_ARRAY[@]}")" &
+    NETWORK_PIDS+=("$!")
   done
 
-  # Wait for all background jobs and check for failures
-  wait
-  if [ $? -ne 0 ]; then
-    error "One or more network processing jobs failed"
+  # A bare `wait` always reports success, so each worker has to be waited on by pid for its
+  # exit code to survive -- otherwise a failed network is merged as a partial result.
+  local FAILED_NETWORK_COUNT=0
+  local NETWORK_PID
+  for NETWORK_PID in "${NETWORK_PIDS[@]}"; do
+    if ! wait "$NETWORK_PID"; then
+      ((FAILED_NETWORK_COUNT += 1))
+    fi
+  done
+
+  if [[ $FAILED_NETWORK_COUNT -ne 0 ]]; then
+    error "$FAILED_NETWORK_COUNT of ${#NETWORK_PIDS[@]} network(s) failed to process (see the errors above). Nothing was merged; target state restored."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
     rm -rf "$TEMP_DIR"
+    rm -f "$CSV_FILE_PATH"
     return 1
   fi
 
@@ -1926,7 +2015,15 @@ function parseTargetStateGoogleSpreadsheet() {
   echo "All network processing completed. Merging results..."
 
   # Merge all temporary JSON files into the main target state file
-  mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"
+  if ! mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"; then
+    error "failed to merge the per-network results into $TARGET_STATE_PATH. Target state restored."
+    restoreTargetStateBackup "$TARGET_STATE_BACKUP" "$TARGET_STATE_PATH"
+    rm -rf "$TEMP_DIR"
+    rm -f "$CSV_FILE_PATH"
+    return 1
+  fi
+
+  rm -f "$TARGET_STATE_BACKUP"
 
   # Clean up temporary directory
   rm -rf "$TEMP_DIR"
@@ -2003,15 +2100,40 @@ function processNetworkLine() {
     fi
 
     # get current contract version and save in variable
-    local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+    # getCurrentContractVersion prints its error messages to stdout, so on failure the
+    # command substitution captures error text instead of leaving the variable empty --
+    # blank it explicitly or the emptiness check below can never fire. The isVersionTag
+    # check keeps any other non-version output from reaching the target state as a version.
+    local CURRENT_VERSION
+    if ! CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT") || ! isVersionTag "$CURRENT_VERSION"; then
+      CURRENT_VERSION=""
+    fi
 
     # make sure version was returned properly
     if [[ -z "$CURRENT_VERSION" ]]; then
-      warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT" >&2
+      # The lookup is case-sensitive, so a sheet cell spelled 'NearIntentsFacet' misses
+      # 'NEARIntentsFacet' -- point at that before the reader assumes the contract is gone.
+      local CASE_MATCH=""
+      if [[ -n "$CONTRACT_DIRECTORY" ]]; then
+        CASE_MATCH=$(find "${CONTRACT_DIRECTORY%/}" -iname "$CONTRACT.sol" -print -quit 2>/dev/null)
+      fi
+      if [[ -n "$CASE_MATCH" && "$(basename "$CASE_MATCH")" != "$CONTRACT.sol" ]]; then
+        warning "[$NETWORK] Warning: no src file named '$CONTRACT.sol', but '$(basename "$CASE_MATCH")' exists - fix the spelling in the Google sheet" >&2
+      elif [[ -n "$CASE_MATCH" ]]; then
+        warning "[$NETWORK] Warning: could not read '@custom:version' from $CASE_MATCH" >&2
+      else
+        warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT (no matching file in $CONTRACT_DIRECTORY)" >&2
+      fi
     fi
 
     # check if cell value is "latest" >> find version
     if [[ "$CELL_VALUE" == "latest" ]]; then
+      # 'latest' has no fallback: without a resolved version the entry would be written with an
+      # empty version string, which reads downstream as "no version pinned" rather than as an error.
+      if [[ -z "$CURRENT_VERSION" ]]; then
+        error "[$NETWORK] cannot resolve 'latest' version for contract $CONTRACT - network not written"
+        return 1
+      fi
 
       # echo warning that sheet needs to be updated
       echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
@@ -2034,10 +2156,14 @@ function processNetworkLine() {
     fi
 
     # Add to network-specific JSON file
-    addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"
+    if ! addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"; then
+      error "[$NETWORK] failed to write version $VERSION of contract $CONTRACT to $NETWORK_JSON_FILE"
+      return 1
+    fi
   done
 
   echo "[$NETWORK] Processing completed"
+  return 0
 }
 
 function addContractVersionToNetworkJSON() {
@@ -2092,11 +2218,40 @@ function mergeNetworkResults() {
   for NETWORK_JSON in "$TEMP_DIR"/*.json; do
     if [[ -f "$NETWORK_JSON" ]]; then
       # Merge this network's data into the main target state file
-      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
+      if ! jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" || ! mv "${MERGED_JSON}.tmp" "$MERGED_JSON"; then
+        error "failed to merge $NETWORK_JSON into $MERGED_JSON"
+        rm -f "${MERGED_JSON}.tmp"
+        return 1
+      fi
     fi
   done
 
   echo "All network results merged into $TARGET_STATE_PATH"
+  return 0
+}
+
+function restoreTargetStateBackup() {
+  # Function: restoreTargetStateBackup
+  # Description: Restores the target state file from a backup taken before repopulating it
+  # Arguments:
+  #   $1 - BACKUP_PATH: Path to the backup copy
+  #   $2 - TARGET_STATE_PATH: Path to the target state file to restore
+
+  local BACKUP_PATH="$1"
+  local TARGET_STATE_PATH="$2"
+
+  if [[ ! -f "$BACKUP_PATH" ]]; then
+    error "no target state backup found at $BACKUP_PATH - $TARGET_STATE_PATH may be incomplete and needs manual review"
+    return 1
+  fi
+
+  if ! mv "$BACKUP_PATH" "$TARGET_STATE_PATH"; then
+    error "could not restore $TARGET_STATE_PATH from $BACKUP_PATH - restore it manually before deploying"
+    return 1
+  fi
+
+  echo "restored $TARGET_STATE_PATH from backup"
+  return 0
 }
 
 function getBytecodeFromArtifact() {
