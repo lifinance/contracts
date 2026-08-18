@@ -15,6 +15,7 @@ permissions:
 jobs:
   validate-json:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       # Step 1: Checkout code

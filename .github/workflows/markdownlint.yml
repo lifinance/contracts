@@ -19,6 +19,7 @@ jobs:
   lint:
     name: lint changed markdown files
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # Step 1: Checkout (full history needed so tj-actions/changed-files can diff against the base ref)
       - name: Checkout

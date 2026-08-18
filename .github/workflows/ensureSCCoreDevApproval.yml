@@ -27,6 +27,7 @@ jobs:
   core-dev-approval:
     # no draft condition on purpose — a skipped run counts as passing for branch protection
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Get smart-contract-core Team Members
         env:
