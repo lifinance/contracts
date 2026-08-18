@@ -468,6 +468,30 @@ describe('listParkedTasks', () => {
     expect(tasks).toHaveLength(1)
     expect(tasks[0]?.environment).toBe(EnvironmentEnum.production)
   })
+
+  it('returns tasks in taskKey order, so the drain claims in the order the execute-time zip replays them', async () => {
+    // Seeded deliberately out of order — an unsorted read would return C, A, B.
+    const row = (facetName: string): IParkedTask => ({
+      taskKey: `facet-removal|arbitrum|production|${facetName}`,
+      kind: 'facet-removal',
+      network: 'arbitrum',
+      environment: EnvironmentEnum.production,
+      facetName,
+      diamondAddress: DIAMOND,
+      facetAddress: FACET,
+      prUrl: 'https://github.com/lifinance/contracts/pull/1',
+      status: 'queued',
+      enqueuer: 'dev@li.finance',
+      createdAt: new Date(),
+    })
+    const coll = createFakeCollection([row('C'), row('A'), row('B')])
+    const keys = (await listParkedTasks(coll, {})).map((t) => t.taskKey)
+    expect(keys).toEqual([
+      'facet-removal|arbitrum|production|A',
+      'facet-removal|arbitrum|production|B',
+      'facet-removal|arbitrum|production|C',
+    ])
+  })
 })
 
 describe('claimForProposal', () => {

@@ -374,9 +374,15 @@ export async function enqueueParkedTask(
 /**
  * Reads parked tasks, optionally filtered by network / environment / prUrl / status.
  *
+ * Sorted by `taskKey` so the drain claims (and therefore appends Remove cuts) in
+ * the same order {@link listParkedTasksBySafeTxHash} later replays them in. That
+ * read tie-breaks on `taskKey` when `proposedAt` collides, which it can for claims
+ * landing in the same millisecond — without a deterministic read order here the
+ * two disagree and the execute-time zip mislabels a cut.
+ *
  * @param parkedTasks - The queue collection.
  * @param filter - Optional network (lowercased), environment, prUrl, and status filters.
- * @returns The matching tasks.
+ * @returns The matching tasks, ordered by `taskKey`.
  */
 export async function listParkedTasks(
   parkedTasks: Collection<IParkedTask>,
@@ -387,7 +393,7 @@ export async function listParkedTasks(
   if (filter.environment) query.environment = { $eq: filter.environment }
   if (filter.prUrl) query.prUrl = { $eq: filter.prUrl }
   if (filter.status) query.status = { $eq: filter.status }
-  return parkedTasks.find(query).toArray()
+  return parkedTasks.find(query).sort({ taskKey: 1 }).toArray()
 }
 
 /**
