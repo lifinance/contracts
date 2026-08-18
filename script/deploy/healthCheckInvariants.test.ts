@@ -507,3 +507,208 @@ describe('runHealthCheckInvariants (runner)', () => {
     expect(ran).toBe(false)
   })
 })
+
+const EXECUTOR = '0x1111111111111111111111111111111111111111'
+const OIF_ON_CHAIN = '0x2222222222222222222222222222222222222222'
+const STARGATE_ON_CHAIN = '0x3333333333333333333333333333333333333333'
+const REFUND_WALLET = '0x4444444444444444444444444444444444444444'
+const WRONG = '0x5555555555555555555555555555555555555555'
+const ZERO = '0x0000000000000000000000000000000000000000'
+
+interface IReceiverStub {
+  /** PeripheryRegistry contents: contract name -> address. */
+  registry?: Record<string, string>
+  /** Deploy log contents. */
+  deployedContracts?: Record<string, string>
+  /** Contract address -> the Executor its binding getter returns. */
+  boundExecutor?: Record<string, string>
+  /** Contract address -> its owner. */
+  owner?: Record<string, string>
+  /** Contract addresses whose non-registry reads throw. */
+  failingReads?: string[]
+  /** Registry names whose read throws. */
+  failingRegistryNames?: string[]
+}
+
+/** Records every registry lookup so cache behaviour can be asserted. */
+function makeReceiverCtx(stub: IReceiverStub): {
+  ctx: IHealthCheckContext
+  registryQueries: string[]
+} {
+  const registryQueries: string[] = []
+  const ctx = makeCtx()
+  Object.assign(ctx, {
+    diamondAddress: '0x9999999999999999999999999999999999999999',
+    refundWallet: REFUND_WALLET,
+    deployedContracts: {
+      Executor: EXECUTOR,
+      ...(stub.deployedContracts ?? {}),
+    },
+    peripheryRegistryCache: new Map(),
+    publicClient: {
+      readContract: async ({
+        address,
+        functionName,
+        args,
+      }: {
+        address: string
+        functionName: string
+        args?: unknown[]
+      }) => {
+        if (functionName === 'getPeripheryContract') {
+          const name = String(args?.[0])
+          registryQueries.push(name)
+          if (stub.failingRegistryNames?.includes(name))
+            throw new Error('registry rpc boom')
+          return stub.registry?.[name] ?? ZERO
+        }
+        if (stub.failingReads?.includes(address)) throw new Error('rpc boom')
+        if (functionName === 'owner') return stub.owner?.[address] ?? ZERO
+        return stub.boundExecutor?.[address] ?? ZERO
+      },
+    },
+  })
+  return { ctx, registryQueries }
+}
+
+const invariant = (name: string): IHealthCheckInvariant => {
+  const found = HEALTH_CHECK_INVARIANTS.find((entry) => entry.name === name)
+  if (!found) throw new Error(`invariant ${name} not found`)
+  return found
+}
+
+describe('receiver-executor-binding registry-first resolution', () => {
+  it('checks a receiver that is registered on chain but absent from the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      boundExecutor: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+  })
+
+  it('passes when the registry-resolved receiver is bound to the deployed Executor', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      boundExecutor: { [OIF_ON_CHAIN]: EXECUTOR },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('prefers the on-chain registry over a stale deploy-log address', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      deployedContracts: { ReceiverOIF: WRONG },
+      boundExecutor: { [OIF_ON_CHAIN]: EXECUTOR, [WRONG]: WRONG },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('falls back to the deploy log when the contract is not registered on chain', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { ReceiverOIF: OIF_ON_CHAIN },
+      boundExecutor: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+  })
+
+  it('warns and still checks the remaining receivers when one binding read fails', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: {
+        ReceiverOIF: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      failingReads: [OIF_ON_CHAIN],
+      boundExecutor: { [STARGATE_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+})
+
+describe('receiver-owner covers the bridge-specific receivers', () => {
+  it('errors when a registry-resolved receiver has the wrong owner', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      owner: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverOIF')
+  })
+
+  it('passes when every receiver owner is the refund wallet', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: {
+        ReceiverOIF: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      owner: {
+        [OIF_ON_CHAIN]: REFUND_WALLET,
+        [STARGATE_ON_CHAIN]: REFUND_WALLET,
+      },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('still checks the generic Receiver from the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { Receiver: OIF_ON_CHAIN },
+      owner: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors.some((e) => e.includes('Receiver'))).toBe(true)
+  })
+
+  it('warns and still checks the remaining receivers when one owner read fails', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: {
+        ReceiverOIF: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      failingReads: [OIF_ON_CHAIN],
+      owner: { [STARGATE_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+})
+
+describe('periphery registry read cache', () => {
+  it('reads each registry name at most once across invariants sharing a context', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      boundExecutor: { [OIF_ON_CHAIN]: EXECUTOR },
+      owner: { [OIF_ON_CHAIN]: REFUND_WALLET },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    await invariant('receiver-owner').run(ctx)
+
+    const counts = new Map<string, number>()
+    for (const name of registryQueries)
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    expect([...counts.values()].every((count) => count === 1)).toBe(true)
+  })
+
+  it('does not cache a failed registry read, so a retry reaches the RPC again', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      failingRegistryNames: ['ReceiverOIF'],
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    const afterFirst = registryQueries.filter((n) => n === 'ReceiverOIF').length
+    await invariant('receiver-owner').run(ctx)
+    const afterSecond = registryQueries.filter(
+      (n) => n === 'ReceiverOIF'
+    ).length
+    expect(afterFirst).toBe(1)
+    expect(afterSecond).toBe(2)
+  })
+})

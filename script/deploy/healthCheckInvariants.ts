@@ -108,6 +108,11 @@ export interface IHealthCheckContext {
   pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
+  /**
+   * Run-wide memo of PeripheryRegistry reads, shared by every invariant that resolves a periphery
+   * address. Optional because tests build partial contexts; absent simply means uncached reads.
+   */
+  peripheryRegistryCache?: Map<string, Promise<string | null>>
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -851,7 +856,7 @@ const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
  * @throws when the read fails, returns malformed output, or no client is configured, so callers
  *   can tell "not registered" (null) apart from "could not determine" (throw)
  */
-async function readPeripheryRegistry(
+async function readPeripheryRegistryUncached(
   name: string,
   ctx: IHealthCheckContext
 ): Promise<string | null> {
@@ -881,6 +886,63 @@ async function readPeripheryRegistry(
   })
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
+}
+
+/**
+ * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
+ *
+ * Registry state does not change during a run, but four invariants now probe overlapping name
+ * sets; uncached that multiplies the RPC reads per network and feeds the rate limits that degrade
+ * other checks. The promise is cached before it settles so concurrent invariants share one
+ * in-flight read, and a failed read is evicted so a retry reaches the RPC again.
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  const cache = ctx.peripheryRegistryCache
+  if (!cache) return readPeripheryRegistryUncached(name, ctx)
+
+  const cached = cache.get(name)
+  if (cached) return cached
+
+  const pending = readPeripheryRegistryUncached(name, ctx).catch(
+    (error: unknown) => {
+      // Evict only our own entry: the key may already hold a fresh healthy promise, and a stale
+      // rejection must not tear that one down.
+      if (cache.get(name) === pending) cache.delete(name)
+      throw error
+    }
+  )
+  cache.set(name, pending)
+  return pending
+}
+
+/**
+ * Resolve a periphery contract's address from the on-chain registry first, deploy log second.
+ *
+ * The deploy log can be incomplete, and resolving through it alone silently exempts a log-absent
+ * contract from every check that depends on this lookup — the blind spot that let a live receiver
+ * go unverified. A failed registry read falls back to the log rather than aborting: a read failure
+ * is not evidence of absence.
+ *
+ * @returns the address, or undefined when the contract is absent from both sources
+ */
+async function resolvePeripheryAddress(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | undefined> {
+  try {
+    const registered = await readPeripheryRegistry(name, ctx)
+    if (registered) return registered
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ctx.logWarn(
+      `Could not read the PeripheryRegistry for ${name} (falling back to the deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[name]
+  return logged ? String(logged) : undefined
 }
 
 /**
@@ -1161,7 +1223,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const expectedExecutor = getAddress(executorAddress as Address)
 
       for (const { name, getter } of RECEIVER_EXECUTOR_GETTERS) {
-        const receiverAddress = ctx.deployedContracts[name]
+        // Registry-first: a receiver live on chain but absent from the deploy log must not escape
+        // the only check that verifies its Executor binding.
+        const receiverAddress = await resolvePeripheryAddress(name, ctx)
         if (!receiverAddress) continue
 
         const receiver = getContract({
@@ -1175,7 +1239,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           receiver.read as Record<string, (() => Promise<Address>) | undefined>
         )[getter]
         if (!readExecutor) continue
-        const boundExecutor = getAddress(await readExecutor())
+        let boundExecutor: Address
+        try {
+          boundExecutor = getAddress(await readExecutor())
+        } catch (error: unknown) {
+          // One flaky read must not abandon the receivers not yet checked.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name}.${getter}(): ${errorMessage}`)
+          continue
+        }
 
         if (boundExecutor !== expectedExecutor)
           ctx.logError(
@@ -1579,11 +1652,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
-    description: 'Receiver owner is the refund wallet',
+    description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
     scope: {},
     run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
+      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         await checkOwnershipTron(
           'Receiver',
           ctx.refundWallet,
@@ -1592,13 +1665,46 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ctx.tronWeb,
           ctx.logError
         )
-      else if (ctx.publicClient)
-        await checkOwnership(
-          'Receiver',
-          ctx.refundWallet,
-          ctx,
-          ctx.publicClient
-        )
+        return
+      }
+      if (!ctx.publicClient) return
+      const publicClient = ctx.publicClient
+
+      try {
+        await checkOwnership('Receiver', ctx.refundWallet, ctx, publicClient)
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        ctx.logWarn(`Could not read Receiver owner: ${errorMessage}`)
+      }
+
+      // The bridge-specific receivers had no owner check at all. Resolve them registry-first so
+      // one missing from the deploy log is still covered; absent from both sources means the
+      // receiver genuinely is not on this chain.
+      for (const { name } of RECEIVER_EXECUTOR_GETTERS) {
+        const address = await resolvePeripheryAddress(name, ctx)
+        if (!address) continue
+
+        let owner: Address
+        try {
+          owner = await getOwnableContract(
+            address as Address,
+            publicClient
+          ).read.owner()
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          ctx.logWarn(`Could not read ${name} owner: ${errorMessage}`)
+          continue
+        }
+        if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))
+          ctx.logError(
+            `${name} owner is ${getAddress(owner)}, expected ${getAddress(
+              ctx.refundWallet as Address
+            )}`
+          )
+        else consola.success(`${name} owner is correct`)
+      }
     },
   },
   {
@@ -1890,6 +1996,10 @@ async function executeInvariant(
   if (invariant.severity === 'error' && errors.length > 0) {
     errors.length = 0
     warnings.length = 0
+    // A lagging RPC node can return stale registry state as a SUCCESS, which the shared cache
+    // would replay here and defeat the point of re-verifying. Only this pass gets a private cache;
+    // invariants still running concurrently keep their shared entries.
+    localCtx.peripheryRegistryCache = new Map()
     await runOnce()
     if (errors.length === 0)
       consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)
