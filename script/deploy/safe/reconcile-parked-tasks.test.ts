@@ -498,9 +498,14 @@ describe('formatTtlAlertMessage', () => {
 
 describe('computeSafeToPrune', () => {
   const always = () => true
+  const notRouted = () => false
 
   it('reports a (network, facet) whose only task executed', () => {
-    const r = computeSafeToPrune([parked({ status: 'executed' })], always)
+    const r = computeSafeToPrune(
+      [parked({ status: 'executed' })],
+      always,
+      notRouted
+    )
     expect(r).toEqual([
       {
         network: 'arbitrum',
@@ -511,7 +516,11 @@ describe('computeSafeToPrune', () => {
   })
 
   it('reports a superseded task (facet gone via another route)', () => {
-    const r = computeSafeToPrune([parked({ status: 'superseded' })], always)
+    const r = computeSafeToPrune(
+      [parked({ status: 'superseded' })],
+      always,
+      notRouted
+    )
     expect(r).toHaveLength(1)
   })
 
@@ -521,18 +530,36 @@ describe('computeSafeToPrune', () => {
         parked({ status: 'executed' }),
         parked({ status: 'queued' }), // re-park of the same facet
       ],
-      always
+      always,
+      notRouted
     )
     expect(r).toHaveLength(0)
   })
 
   it('never reports a cancelled-only group (intent abandoned, facet may be live)', () => {
-    const r = computeSafeToPrune([parked({ status: 'cancelled' })], always)
+    const r = computeSafeToPrune(
+      [parked({ status: 'cancelled' })],
+      always,
+      notRouted
+    )
     expect(r).toHaveLength(0)
   })
 
   it('filters entries whose deploy-log row is already gone', () => {
-    const r = computeSafeToPrune([parked({ status: 'executed' })], () => false)
+    const r = computeSafeToPrune(
+      [parked({ status: 'executed' })],
+      () => false,
+      notRouted
+    )
+    expect(r).toHaveLength(0)
+  })
+
+  it('holds back an entry whose logged address is still routed (the terminal task removed a superseded version; the row points at the live one)', () => {
+    const r = computeSafeToPrune(
+      [parked({ status: 'executed', facetName: 'SymbiosisFacet' })],
+      always,
+      () => true
+    )
     expect(r).toHaveLength(0)
   })
 
@@ -543,7 +570,8 @@ describe('computeSafeToPrune', () => {
         parked({ status: 'queued', facetName: 'B' }),
         parked({ status: 'superseded', facetName: 'A', network: 'optimism' }),
       ],
-      always
+      always,
+      notRouted
     )
     expect(r).toEqual([
       {

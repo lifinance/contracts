@@ -5,8 +5,9 @@
  * §7/§8). Three responsibilities, all idempotent and safe to run on a cron:
  *
  *  1. **Reconcile** tasks against on-chain truth. The loupe is primary, and presence
- *     is resolved by facet NAME (see {@link resolveFacetPresence}) — if a parked
- *     facet is no longer routed, the removal is done: a claimed (`proposed`) task
+ *     is resolved by the task's stored facet ADDRESS (see
+ *     {@link resolveFacetPresence}) — if that exact facet is no longer routed, the
+ *     removal is done: a claimed (`proposed`) task
  *     whose linked proposal executed becomes `executed`, anything else that is
  *     already gone becomes `superseded` (removed via another route).
  *     A `proposed` task whose linked proposal `reverted` while the facet is still
@@ -101,8 +102,9 @@ const RESOLVED_STATUSES: ParkedTaskStatus[] = ['executed', 'superseded']
 export interface IReconcileContext {
   /**
    * Whether the task's facet is still routed by the diamond loupe — resolved by
-   * facet NAME first, with the stored `facetAddress` only as a fallback. See
-   * {@link resolveFacetPresence} for why the name must lead.
+   * the stored `facetAddress` alone. See {@link resolveFacetPresence} for why the
+   * address must lead, and {@link isSuspectAddressSnapshot} for the name check
+   * that survives as an anomaly signal.
    */
   facetPresentOnChain: boolean
   /** Linked proposal status, if `SC_MONGODB_URI` (tunnel) was reachable. */
@@ -391,6 +393,12 @@ export interface IReconcileRun {
   reopened: IReopenedParkedTask[]
   /** Networks skipped because their state was unreadable — never silently dropped. */
   failures: IReconcileFailure[]
+  /**
+   * `${network}:${environment}` → lowercased addresses the loupe reported, for the
+   * networks this run actually read. Reused by the safe-to-prune report so it does
+   * not re-sweep the fleet; an absent key means "not read", never "nothing routed".
+   */
+  routedByNetworkEnv: Map<string, Set<string>>
 }
 
 /**
@@ -480,18 +488,26 @@ export interface ISafeToPruneEntry {
 
 /**
  * Returns the (network, facet) deploy-log entries that are safe to prune: at
- * least one task for the pair reached `executed`/`superseded` (the facet is
+ * least one task for the pair reached `executed`/`superseded` (that facet is
  * gone from the diamond) and none is still open. `cancelled`-only groups are
  * never safe — a cancelled intent means the facet may still be registered.
  * Entries whose log row is already gone are filtered via `hasLogEntry`.
  *
+ * Tasks group by NAME here because a deploy-log row is what gets pruned, and the
+ * log holds one row per name. Removals are address-keyed (EXSC-775), so a group's
+ * tasks may cover a *superseded* version while the row points at the live one —
+ * `isLoggedAddressRouted` holds those back, since pruning the row would orphan a
+ * registered facet from the log.
+ *
  * @param tasks - Candidate tasks (any status).
  * @param hasLogEntry - Whether `deployments/<network>[.<env>].json` still lists the facet.
+ * @param isLoggedAddressRouted - Whether the address that row points at is still on the diamond.
  * @returns Prunable entries, de-duplicated, in first-seen order.
  */
 export function computeSafeToPrune(
   tasks: IParkedTask[],
-  hasLogEntry: (entry: ISafeToPruneEntry) => boolean
+  hasLogEntry: (entry: ISafeToPruneEntry) => boolean,
+  isLoggedAddressRouted: (entry: ISafeToPruneEntry) => boolean
 ): ISafeToPruneEntry[] {
   const groups = new Map<string, IParkedTask[]>()
   for (const t of tasks) {
@@ -517,7 +533,7 @@ export function computeSafeToPrune(
       environment: first.environment,
       facet: first.facetName,
     }
-    if (hasLogEntry(entry)) safe.push(entry)
+    if (hasLogEntry(entry) && !isLoggedAddressRouted(entry)) safe.push(entry)
   }
   return safe
 }
@@ -575,10 +591,11 @@ async function reconcileAll(
   ).filter((t) => t.status !== 'cancelled')
   if (candidates.length === 0) {
     consola.info('No parked tasks to reconcile')
-    return { reopened: [], failures: [] }
+    return { reopened: [], failures: [], routedByNetworkEnv: new Map() }
   }
 
   const reopened: IReopenedParkedTask[] = []
+  const routedByNetworkEnv = new Map<string, Set<string>>()
   const failures: IReconcileFailure[] = []
 
   // Routed out before the loupe is touched: a task on a network outside the active
@@ -733,6 +750,7 @@ async function reconcileAll(
       const routedAddresses = new Set(
         onChain.map((f) => f.address.toLowerCase())
       )
+      routedByNetworkEnv.set(`${network}:${environment}`, routedAddresses)
       const routedNames = new Set(
         onChain
           .map((f) => addressToName[f.address.toLowerCase()])
@@ -781,7 +799,7 @@ async function reconcileAll(
   } finally {
     await safeMongoClient?.close()
   }
-  return { reopened, failures }
+  return { reopened, failures, routedByNetworkEnv }
 }
 
 /** Logs and (when applying) sends the reconcile sweep's alerts. */
@@ -815,10 +833,14 @@ async function runReconcileAlerts(
  * reconcile so freshly-applied transitions count). Log presence is checked
  * against the repo's `deployments/*.json`; a missing log file counts as
  * already pruned. Report-only — the actual pruning is a reviewed PR.
+ *
+ * A network the reconcile could not read contributes no routed set; its entries
+ * are held back rather than reported prunable against unknown chain state.
  */
 async function reportSafeToPrune(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
-  networkFilter: string | undefined
+  networkFilter: string | undefined,
+  routedByNetworkEnv: Map<string, Set<string>>
 ): Promise<void> {
   const all = await listParkedTasks(parkedTasks, { network: networkFilter })
   const logsByKey = new Map<string, Record<string, string> | undefined>()
@@ -834,8 +856,15 @@ async function reportSafeToPrune(
       logsByKey.set(key, undefined)
     }
   }
-  const entries = computeSafeToPrune(all, (e) =>
-    Boolean(logsByKey.get(`${e.network}:${e.environment}`)?.[e.facet])
+  const entries = computeSafeToPrune(
+    all,
+    (e) => Boolean(logsByKey.get(`${e.network}:${e.environment}`)?.[e.facet]),
+    (e) => {
+      const routed = routedByNetworkEnv.get(`${e.network}:${e.environment}`)
+      if (!routed) return true // unread network — hold the entry back
+      const logged = logsByKey.get(`${e.network}:${e.environment}`)?.[e.facet]
+      return logged !== undefined && routed.has(logged.toLowerCase())
+    }
   )
   const report = formatSafeToPruneReport(entries)
   if (report) consola.info(report)
@@ -933,12 +962,13 @@ const main = defineCommand({
               }`,
             },
           ],
+          routedByNetworkEnv: new Map(),
         }
         consola.error(run.failures[0]?.reason)
       }
       await runReconcileAlerts(run, apply)
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
-      await reportSafeToPrune(parkedTasks, args.network)
+      await reportSafeToPrune(parkedTasks, args.network, run.routedByNetworkEnv)
     } finally {
       await client.close()
     }
