@@ -530,6 +530,8 @@ interface IReceiverStub {
   failingReads?: string[]
   /** Registry names whose read throws. */
   failingRegistryNames?: string[]
+  /** Make every registry read fail as a rate limit. */
+  rateLimitAll?: boolean
 }
 
 /** Records every registry lookup so cache behaviour can be asserted. */
@@ -564,6 +566,7 @@ function makeReceiverCtx(stub: IReceiverStub): {
         if (functionName === 'getPeripheryContract') {
           const name = String(args?.[0])
           registryQueries.push(name)
+          if (stub.rateLimitAll) throw new Error('429 Too Many Requests')
           if (stub.failingRegistryNames?.includes(name))
             throw new Error('registry rpc boom')
           return stub.registry?.[name] ?? ZERO
@@ -623,6 +626,16 @@ describe('receiver-executor-binding registry-first resolution', () => {
     expect(ctx.errors[0]).toContain('ReceiverOIF')
   })
 
+  it('compares against the Executor the diamond points at, not a stale logged one', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { Executor: STARGATE_ON_CHAIN, ReceiverOIF: OIF_ON_CHAIN },
+      deployedContracts: { Executor: WRONG },
+      boundExecutor: { [OIF_ON_CHAIN]: STARGATE_ON_CHAIN },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
   it('warns and still checks the remaining receivers when one binding read fails', async () => {
     const { ctx } = makeReceiverCtx({
       registry: {
@@ -671,6 +684,17 @@ describe('receiver-owner covers the bridge-specific receivers', () => {
     })
     await invariant('receiver-owner').run(ctx)
     expect(ctx.errors.some((e) => e.includes('Receiver'))).toBe(true)
+  })
+
+  it('checks the generic Receiver the diamond points at, not a stale logged one', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { Receiver: OIF_ON_CHAIN },
+      deployedContracts: { Receiver: STARGATE_ON_CHAIN },
+      owner: { [OIF_ON_CHAIN]: WRONG, [STARGATE_ON_CHAIN]: REFUND_WALLET },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Receiver')
   })
 
   it('warns and still checks the remaining receivers when one owner read fails', async () => {
@@ -864,6 +888,30 @@ describe('periphery-registry-log-sync invariant', () => {
     await sync().run(ctx)
     expect(registryQueries).not.toContain('AcrossFacetV4')
     expect(registryQueries).not.toContain('LiFiDiamond')
+  })
+
+  it('skips a retired facet that lingers in the deploy log but left target state', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      deployedContracts: {
+        MultichainFacet: OIF_ON_CHAIN,
+        LiFiDiamondImmutable: STARGATE_ON_CHAIN,
+      },
+    })
+    // Deliberately NOT in coreFacetsToCheck/nonCoreFacets: target state only names current facets,
+    // so a retired one is exactly the case the name-based exclusion has to catch.
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('MultichainFacet')
+    expect(registryQueries).not.toContain('LiFiDiamondImmutable')
+  })
+
+  it('collapses a rate-limited fan-out into a single warning', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { LiFiDEXAggregator: OIF_ON_CHAIN },
+      rateLimitAll: true,
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('rate limit')
   })
 })
 

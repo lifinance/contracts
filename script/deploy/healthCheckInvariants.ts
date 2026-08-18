@@ -1272,10 +1272,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'], chains: 'evm-only' },
     run: async (ctx) => {
       if (!ctx.publicClient) return
-      const executorAddress = ctx.deployedContracts['Executor']
+      // Resolved the same way as the receivers below: comparing a registry-resolved receiver
+      // against a log-only Executor would flag drift between the two sources as a binding error.
+      const executorAddress = await resolvePeripheryAddress('Executor', ctx)
       if (!executorAddress) {
         ctx.logError(
-          'Executor missing from deploy log; cannot verify Receivers'
+          'Executor found in neither the PeripheryRegistry nor the deploy log; cannot verify Receivers'
         )
         return
       }
@@ -1441,11 +1443,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // knows. Both deploy logs contribute, because a contract can be recorded in one and not the
       // other. Facets are excluded because probing every facet name would multiply the RPC reads
       // for lookups that can only ever return the zero address.
-      const notPeriphery = new Set([
-        'LiFiDiamond',
-        ...ctx.coreFacetsToCheck,
-        ...ctx.nonCoreFacets,
-      ])
+      // Target state only names facets that are still current, so a retired facet lingering in the
+      // flat log would otherwise be probed - a fifth of all probes on a real network, for lookups
+      // that can only ever return the zero address. No periphery contract is named `*Facet`.
+      const notPeriphery = (name: string): boolean =>
+        name.endsWith('Facet') ||
+        name.startsWith('LiFiDiamond') ||
+        ctx.coreFacetsToCheck.includes(name) ||
+        ctx.nonCoreFacets.includes(name)
       const candidates = [
         ...new Set([
           ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
@@ -1459,7 +1464,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             loadDiamondLogPeripheryNames(ctx.networkLower)),
         ]),
       ]
-        .filter((name) => !notPeriphery.has(name))
+        .filter((name) => !notPeriphery(name))
         .sort()
 
       // EVM reads fold into the batched multicall client; Tron reads stay sequential because each
@@ -1487,10 +1492,22 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ))
         )
 
+      // One rate-limited RPC would otherwise emit a warning per candidate - dozens per network.
+      // The facets() read collapses the same failure into a single line; match that.
+      const rateLimited = registered.some(
+        (result) =>
+          result.status === 'rejected' && isRateLimitError(result.reason)
+      )
+      if (rateLimited)
+        ctx.logWarn(
+          'RPC rate limit reached while reading the PeripheryRegistry; registry/log sync coverage is incomplete for this network'
+        )
+
       let inSync = 0
       candidates.forEach((name, index) => {
         const result = registered[index]
         if (result?.status !== 'fulfilled') {
+          if (rateLimited) return
           const reason =
             result?.status === 'rejected' ? String(result.reason) : 'no result'
           ctx.logWarn(
@@ -1836,17 +1853,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       if (!ctx.publicClient) return
       const publicClient = ctx.publicClient
 
-      try {
-        await checkOwnership('Receiver', ctx.refundWallet, ctx, publicClient)
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
-        ctx.logWarn(`Could not read Receiver owner: ${errorMessage}`)
-      }
-
-      // Resolved registry-first so a receiver missing from the deploy log is still covered;
-      // absent from both sources means the receiver genuinely is not on this chain.
-      for (const { name } of RECEIVER_EXECUTOR_GETTERS) {
+      // Resolved registry-first so a receiver missing from - or stale in - the deploy log is still
+      // covered; absent from both sources means the receiver genuinely is not on this chain. The
+      // generic Receiver is included: resolving it from the log alone would check a contract the
+      // diamond no longer points at.
+      for (const { name } of [
+        { name: 'Receiver' },
+        ...RECEIVER_EXECUTOR_GETTERS,
+      ]) {
         const address = await resolvePeripheryAddress(name, ctx)
         if (!address) continue
 
