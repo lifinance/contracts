@@ -109,6 +109,11 @@ export interface IHealthCheckContext {
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
   /**
+   * Periphery names recorded in `deployments/<network>.diamond.json`. Undefined = read from disk
+   * (the default); injectable so the registry/log sync check is testable without fixture files.
+   */
+  diamondLogPeripheryNames?: string[]
+  /**
    * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
    * name. Undefined = read from the build output (the default); injectable so both invariants
    * that consume it are testable without a Foundry build.
@@ -897,6 +902,40 @@ async function readPeripheryRegistryUncached(
   return address === zeroAddress ? null : getAddress(address)
 }
 
+/** Network keys compose into a path, so anything outside this shape is refused outright. */
+function isValidNetworkName(name: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(name)
+}
+
+/**
+ * Read the periphery names recorded in `deployments/<network>.diamond.json`.
+ *
+ * Only the names are taken: this is a source of candidates to probe, not a comparison target — the
+ * diamond log is a snapshot with different semantics from the flat log, and reconciling the two is
+ * a separate concern. An unreadable or absent log costs coverage, never the run.
+ *
+ * @param networkLower - canonical lowercase network key
+ * @returns the recorded periphery names, or an empty list when the log cannot be read
+ */
+function loadDiamondLogPeripheryNames(networkLower: string): string[] {
+  if (!isValidNetworkName(networkLower)) return []
+  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
+  const logPath = path.resolve(deploymentsDir, `${networkLower}.diamond.json`)
+  const relativeToDir = path.relative(deploymentsDir, logPath)
+  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
+    return []
+  if (!existsSync(logPath)) return []
+
+  try {
+    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
+      LiFiDiamond?: { Periphery?: Record<string, string> }
+    }
+    return Object.keys(parsed.LiFiDiamond?.Periphery ?? {})
+  } catch {
+    return []
+  }
+}
+
 /**
  * `getAddress` that yields null instead of throwing: deploy-log entries are hand-editable, and one
  * malformed entry must never abort a whole per-contract loop.
@@ -942,10 +981,9 @@ async function readPeripheryRegistry(
 /**
  * Resolve a periphery contract's address from the on-chain registry first, deploy log second.
  *
- * The deploy log can be incomplete, and resolving through it alone silently exempts a log-absent
- * contract from every check that depends on this lookup — the blind spot that let a live receiver
- * go unverified. A failed registry read falls back to the log rather than aborting: a read failure
- * is not evidence of absence.
+ * The deploy log can be incomplete, so resolving through it alone silently exempts a log-absent
+ * contract from every check that depends on this lookup. A failed registry read falls back to the
+ * log rather than aborting: a read failure is not evidence of absence.
  *
  * @returns the address, or undefined when the contract is absent from both sources
  */
@@ -1388,20 +1426,21 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'periphery-registry-log-sync',
     description:
-      'Every periphery contract registered in the diamond is recorded in the deploy log',
-    // The chain -> log direction of periphery coverage, and the periphery analog of
-    // no-unexpected-facets - which is a warning for the same reason: a log that lags the chain is
-    // a bookkeeping failure, not a broken diamond, and an error gate here would turn the whole
-    // fleet sweep red over drift nobody can fix in the same change. periphery-registered stays the
-    // error-severity gate for the log -> chain direction.
+      'Every known periphery contract registered in the diamond is recorded in the deploy log',
+    // Warning, not error: a log that lags the chain is a bookkeeping failure, not a broken
+    // diamond, and an error gate here would turn the whole fleet sweep red over drift nobody can
+    // fix in the same change. periphery-registered remains the error gate for the log -> chain
+    // direction.
     severity: 'warning',
     scope: { environments: ['production'] },
     remediation:
       'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain PeripheryRegistry.',
     run: async (ctx) => {
       // The registry is a mapping(string => address) with no enumerator, so the on-chain side can
-      // only be discovered by probing names. Facets are excluded because probing every facet name
-      // would multiply the RPC reads for lookups that can only ever return the zero address.
+      // only be discovered by probing names - which bounds this check to names some source already
+      // knows. Both deploy logs contribute, because a contract can be recorded in one and not the
+      // other. Facets are excluded because probing every facet name would multiply the RPC reads
+      // for lookups that can only ever return the zero address.
       const notPeriphery = new Set([
         'LiFiDiamond',
         ...ctx.coreFacetsToCheck,
@@ -1416,6 +1455,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ),
           ...RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name),
           ...Object.keys(ctx.deployedContracts),
+          ...(ctx.diamondLogPeripheryNames ??
+            loadDiamondLogPeripheryNames(ctx.networkLower)),
         ]),
       ]
         .filter((name) => !notPeriphery.has(name))
@@ -1487,10 +1528,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       // A facet is live iff the diamond registers it under its deploy-log address or - when the log
-      // cannot name it - under a selector set only one compiled facet accounts for. Resolving
-      // through the deploy log alone would drop a facet that is live on chain but missing or stale
-      // in the log, leaving its coupling silently unevaluated; the periphery side of this check
-      // already reads on-chain truth, and the facet side must not reintroduce that dependency.
+      // cannot name it - under a selector set only one compiled facet accounts for. The log alone
+      // is not enough: a facet live on chain but missing or stale there would have its coupling
+      // silently unevaluated.
       const couplings = getFacetPeripheryCouplings()
       const liveFacets = resolveLiveFacets(
         ctx.onChainFacets,
@@ -1780,9 +1820,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         ctx.logWarn(`Could not read Receiver owner: ${errorMessage}`)
       }
 
-      // The bridge-specific receivers had no owner check at all. Resolve them registry-first so
-      // one missing from the deploy log is still covered; absent from both sources means the
-      // receiver genuinely is not on this chain.
+      // Resolved registry-first so a receiver missing from the deploy log is still covered;
+      // absent from both sources means the receiver genuinely is not on this chain.
       for (const { name } of RECEIVER_EXECUTOR_GETTERS) {
         const address = await resolvePeripheryAddress(name, ctx)
         if (!address) continue

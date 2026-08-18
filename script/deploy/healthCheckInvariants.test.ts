@@ -544,6 +544,7 @@ function makeReceiverCtx(stub: IReceiverStub): {
     refundWallet: REFUND_WALLET,
     coreFacetsToCheck: [],
     nonCoreFacets: [],
+    diamondLogPeripheryNames: [],
     globalConfig: { whitelistPeripheryFunctions: {} },
     deployedContracts: {
       Executor: EXECUTOR,
@@ -798,6 +799,24 @@ describe('periphery-registry-log-sync invariant', () => {
     })
     await sync().run(ctx)
     expect(registryQueries).toContain('LiFiDEXAggregator')
+  })
+
+  it('probes periphery recorded only in the diamond log', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({})
+    Object.assign(ctx, { diamondLogPeripheryNames: ['ReceiverAcrossV3'] })
+    await sync().run(ctx)
+    expect(registryQueries).toContain('ReceiverAcrossV3')
+  })
+
+  it('flags a diamond-log-only contract that is registered but absent from the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverAcrossV3: OIF_ON_CHAIN },
+    })
+    Object.assign(ctx, { diamondLogPeripheryNames: ['ReceiverAcrossV3'] })
+    await sync().run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('ReceiverAcrossV3')
+    expect(ctx.warnings[0]).toContain('missing from the deploy log')
   })
 
   it('does not waste registry reads on facet names from the deploy log', async () => {

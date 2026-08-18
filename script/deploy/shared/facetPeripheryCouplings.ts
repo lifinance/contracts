@@ -131,12 +131,11 @@ function normalizeSelectors(selectors: string[]): Set<string> {
  * Name the facet behind one on-chain selector set, or return undefined when it cannot be named.
  *
  * A diamond registers a facet's selectors, which on real chains is frequently a strict subset of
- * what the facet compiles to — constants and view getters are routinely left unregistered (12 of
- * mainnet's 45 facets on 2026-08-18). Requiring set equality would therefore name almost nothing,
- * so a facet matches when its on-chain selectors are *contained* in a compiled set, and only when
- * exactly one compiled facet fits: an ambiguous set stays unnamed rather than guessed. An exact
- * match wins over a merely containing one, which is what separates a facet from the packed variant
- * that re-exports its selectors.
+ * what the facet compiles to: constants and view getters are routinely left unregistered at cut
+ * time. Identity therefore holds when the on-chain selectors are *contained* in a compiled set,
+ * and only when exactly one compiled facet fits — an ambiguous set stays unnamed rather than
+ * guessed. An exact match wins over a merely containing one, which is what separates a facet from
+ * the packed variant that re-exports its selectors.
  *
  * @param selectors - the selectors the diamond registers for this facet
  * @param compiledSelectors - facet name → its full compiled selector set
