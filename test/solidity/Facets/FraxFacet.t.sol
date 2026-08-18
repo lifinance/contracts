@@ -1116,7 +1116,7 @@ contract FraxFacetTempoTest is TestBase {
         oft = new MockFraxOFT(address(bridgedToken));
         tipFeeManager = new MockTipFeeManager();
         hop = new MockFraxHopV2Tempo(DUST_RATE);
-        hop.setFeeConfig(address(pathUsd), FEE_QUOTE, FEE_QUOTE);
+        hop.setFeeConfig(address(pathUsd), FEE_QUOTE);
 
         fraxFacet = new TestFraxFacet(
             IFraxHopV2(address(hop)),
@@ -1165,10 +1165,12 @@ contract FraxFacetTempoTest is TestBase {
             hasDestinationCall: false
         });
 
+        // On Tempo the facet no longer quotes on-chain: BE supplies the fee-token amount via
+        // nativeFee, which the facet pulls from the caller. The mock pulls FEE_QUOTE on sendOFT.
         fraxData = FraxFacet.FraxData({
             oft: address(oft),
             dstEid: 30255,
-            nativeFee: 0,
+            nativeFee: FEE_QUOTE,
             refundRecipient: USER_REFUND,
             nonEVMReceiver: bytes32(0)
         });
@@ -1222,7 +1224,7 @@ contract FraxFacetTempoTest is TestBase {
         // hop pulls only 4e6 of the 5e6 quoted fee -> 1e6 unused stays in the diamond
         // and must be swept to the refundRecipient
         uint256 feePull = 4 * 1e6;
-        hop.setFeeConfig(address(pathUsd), FEE_QUOTE, feePull);
+        hop.setFeeConfig(address(pathUsd), feePull);
 
         uint256 refundBefore = pathUsd.balanceOf(USER_REFUND);
 
@@ -1240,9 +1242,10 @@ contract FraxFacetTempoTest is TestBase {
         assertEq(pathUsd.balanceOf(address(fraxFacet)), 0);
     }
 
-    function test_Tempo_ZeroFeeQuoteSkipsFeeDeposit() public {
-        // a zero fee quote must skip the fee deposit/approve entirely
-        hop.setFeeConfig(address(pathUsd), 0, 0);
+    function test_Tempo_ZeroNativeFeeSkipsFeeDeposit() public {
+        // a zero nativeFee must skip the fee deposit/approve entirely
+        fraxData.nativeFee = 0;
+        hop.setFeeConfig(address(pathUsd), 0);
 
         uint256 senderFeeBefore = pathUsd.balanceOf(USER_SENDER);
 
@@ -1265,7 +1268,7 @@ contract FraxFacetTempoTest is TestBase {
         TestToken feeToken2 = new TestToken("Fee Token 2", "FEE2", 6);
         feeToken2.mint(USER_SENDER, 1_000_000 * 1e6);
         tipFeeManager.setUserToken(address(fraxFacet), address(feeToken2));
-        hop.setFeeConfig(address(feeToken2), FEE_QUOTE, FEE_QUOTE);
+        hop.setFeeConfig(address(feeToken2), FEE_QUOTE);
 
         vm.startPrank(USER_SENDER);
         bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
@@ -1381,7 +1384,7 @@ contract FraxFacetTempoTest is TestBase {
         // opting the diamond's gas token into the bridged token would corrupt the
         // unused-fee balance-delta accounting; the facet must reject the collision
         tipFeeManager.setUserToken(address(fraxFacet), address(bridgedToken));
-        hop.setFeeConfig(address(bridgedToken), FEE_QUOTE, FEE_QUOTE);
+        hop.setFeeConfig(address(bridgedToken), FEE_QUOTE);
 
         vm.startPrank(USER_SENDER);
         bridgedToken.approve(address(fraxFacet), BRIDGE_AMOUNT);
@@ -1395,14 +1398,15 @@ contract FraxFacetTempoTest is TestBase {
         public
     {
         // Defensive: the fee snapshot anticipates HopV2's fee logic changing on a proxy
-        // upgrade. If sendOFT ever pulled MORE fee token than quoteStatic reported and the
-        // diamond held an incidental pre-existing balance to cover the excess, the unused-fee
-        // sweep must degrade to "no refund" rather than underflow-revert an otherwise-valid
-        // bridge. hop pulls 1e6 more than the 5e6 quoted, covered by a 2e6 pre-existing balance.
+        // upgrade. If sendOFT ever pulled MORE fee token than the facet deposited (nativeFee)
+        // and the diamond held an incidental pre-existing balance to cover the excess, the
+        // unused-fee sweep must degrade to "no refund" rather than underflow-revert an
+        // otherwise-valid bridge. hop pulls 1e6 more than the 5e6 deposited, covered by a 2e6
+        // pre-existing balance.
         uint256 preExisting = 2 * 1e6;
         uint256 feePull = FEE_QUOTE + 1e6;
         deal(address(pathUsd), address(fraxFacet), preExisting);
-        hop.setFeeConfig(address(pathUsd), FEE_QUOTE, feePull);
+        hop.setFeeConfig(address(pathUsd), feePull);
 
         uint256 refundBefore = pathUsd.balanceOf(USER_REFUND);
 

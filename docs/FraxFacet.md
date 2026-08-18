@@ -207,18 +207,20 @@ native gas.
   FraxFacet source serves every chain — the fee mode is chosen at **deploy time**
   from `config/frax.json`, not by a separate contract.
 - The fee token is resolved as `FRAX_TIP_FEE_MANAGER.userTokens(diamond)`, falling back
-  to `FRAX_PATH_USD` when the Diamond has not opted into a specific token. Its amount is
-  quoted in-token via `FRAX_HOP.quoteStatic`. The facet pulls the fee token from the
-  caller, approves it to HopV2, and sends with `msg.value == 0` (both entrypoints
-  revert `InvalidCallData` if any native is sent on Tempo). The unused-fee refund is
-  computed from a fee-token balance delta, so the fee token must differ from the
-  bridged asset; the facet reverts `InformationMismatch` on that collision (a Frax
-  gas token is never itself a bridged Frax OFT).
+  to `FRAX_PATH_USD` when the Diamond has not opted into a specific token. Like the native
+  path, the facet does **not** quote the fee on-chain: it pulls `FraxData.nativeFee` of the
+  fee token from the caller, approves HopV2, and HopV2 requotes and pulls its actual fee on
+  `sendOFT` with `msg.value == 0` (both entrypoints revert `InvalidCallData` if any native
+  is sent on Tempo). Since `depositAsset` pulls exactly `nativeFee` from the caller, that is
+  the most the caller can be charged. The unused-fee refund is computed from a fee-token
+  balance delta, so the fee token must differ from the bridged asset; the facet reverts
+  `InformationMismatch` on that collision (a Frax gas token is never itself a bridged Frax OFT).
 - **Fee-token funding (Tempo only).** The effective caller (`msg.sender`) must hold the
-  TIP20 fee token and **approve the fee amount to the Diamond**, in addition to the
-  bridged-token approval. The facet pulls the quoted fee via `transferFrom`. This differs
-  from every other chain, where the fee is native `msg.value`. Provisioning this token in
-  the relayer/BE flow is tracked in EXP-514.
+  TIP20 fee token and **approve `nativeFee` to the Diamond**, in addition to the
+  bridged-token approval. BE populates `FraxData.nativeFee` with the quoted fee-token amount
+  (the value carries Frax's headroom via the quote's `requiredApprovals`). This differs from
+  every other chain, where the fee is native `msg.value`. Provisioning this token in the
+  relayer/BE flow is tracked in EXP-514.
 
 ## Swap Data
 

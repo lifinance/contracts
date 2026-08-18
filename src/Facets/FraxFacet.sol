@@ -476,16 +476,12 @@ contract FraxFacet is
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev Tempo (EndpointV2Alt) send path. Tempo rejects native msg.value and charges the
-    ///      LayerZero fee in a TIP20 ERC20 gas token. The facet pulls the quoted fee from the
-    ///      effective caller (msg.sender) into the diamond via depositAsset, then approves it to
-    ///      HopV2, which pulls it from the diamond on sendOFT - in addition to the bridged-token
-    ///      approval above. The fee token is the one the diamond opted into via
-    ///      FRAX_TIP_FEE_MANAGER, else FRAX_PATH_USD; its amount is quoted in-token by
-    ///      HopV2.quoteStatic. msg.value is 0.
-    /// @dev BE-integration note (EXP-514): the effective caller must hold the fee token and
-    ///      approve the fee amount to the diamond for the transferFrom pull to succeed - see
-    ///      docs/FraxFacet.md.
+    /// @dev Tempo (EndpointV2Alt) send path: the LayerZero fee is a TIP20 ERC20, not native.
+    ///      The facet pulls _fraxData.nativeFee of the fee token from the caller, approves HopV2,
+    ///      and HopV2 requotes and pulls its actual fee on sendOFT (msg.value is 0); any unpulled
+    ///      remainder is swept to refundRecipient. The fee token is
+    ///      FRAX_TIP_FEE_MANAGER.userTokens(diamond), else FRAX_PATH_USD, and must differ from
+    ///      the bridged asset (reverts InformationMismatch on collision).
     /// @param _fraxData Data specific to Frax HopV2
     /// @param _sendingAssetId The bridged ERC20 (bridgeData.sendingAssetId)
     /// @param _recipient bytes32-encoded destination recipient
@@ -512,30 +508,20 @@ contract FraxFacet is
             revert InformationMismatch();
         }
 
-        uint256 feeAmount = FRAX_HOP.quoteStatic(
-            _fraxData.oft,
-            _fraxData.dstEid,
-            _recipient,
-            _amount,
-            0,
-            "",
-            feeToken
-        );
-
         // Snapshot before the deposit so any fee token HopV2 does not pull can be returned to
-        // the user without touching a pre-existing diamond balance. quoteStatic and sendOFT run
-        // in the same tx so the pull normally equals feeAmount, but this keeps the "diamond
-        // retains nothing" invariant even if HopV2's fee logic changes on a proxy upgrade.
+        // the caller without touching a pre-existing diamond balance. HopV2 requotes and pulls
+        // in the same tx; the diamond holds only the just-deposited nativeFee, so HopV2 can pull
+        // at most that - a higher fee reverts on HopV2's transferFrom.
         uint256 feeTokenBalanceBefore = IERC20(feeToken).balanceOf(
             address(this)
         );
 
-        if (feeAmount != 0) {
-            LibAsset.depositAsset(feeToken, feeAmount);
+        if (_fraxData.nativeFee != 0) {
+            LibAsset.depositAsset(feeToken, _fraxData.nativeFee);
             LibAsset.maxApproveERC20(
                 IERC20(feeToken),
                 address(FRAX_HOP),
-                feeAmount
+                _fraxData.nativeFee
             );
         }
 
@@ -548,11 +534,10 @@ contract FraxFacet is
             ""
         );
 
-        // Sweep only the fee token HopV2 did not pull. Guard the subtraction: the same
-        // proxy-upgrade drift the snapshot defends against could make HopV2 pull MORE than
-        // quoted, and if the diamond held any incidental pre-existing feeToken balance the
-        // post-send balance can fall below the baseline. An over-pull must degrade to "no
-        // refund", never revert an otherwise-valid bridge with an arithmetic panic.
+        // Sweep the fee token HopV2 did not pull back to the caller. Guard the subtraction: if
+        // the diamond held an incidental pre-existing feeToken balance an over-pull could push
+        // the post-send balance below the baseline; degrade to "no refund" rather than revert an
+        // otherwise-valid bridge with an arithmetic panic.
         uint256 feeTokenBalanceAfter = IERC20(feeToken).balanceOf(
             address(this)
         );

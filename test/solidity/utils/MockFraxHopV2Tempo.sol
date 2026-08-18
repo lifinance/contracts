@@ -48,9 +48,10 @@ contract MockTipFeeManager is ITipFeeManager {
 ///      tokens and a LayerZero EndpointV2Alt whose logic is implemented at the node
 ///      level (codesize 1), so a Foundry fork cannot reproduce sendOFT / deal / the fee
 ///      pull on those addresses. This mock replicates the exact on-chain behaviour the
-///      FraxFacet Tempo path depends on: dust flooring, an ERC20 fee quote via
-///      quoteStatic, a msg.value==0 requirement, and a transferFrom pull of both the
-///      bridged token and the fee token from the caller (the diamond).
+///      FraxFacet Tempo path depends on: dust flooring, a msg.value==0 requirement, and a
+///      transferFrom pull of both the bridged token and the fee token from the caller (the
+///      diamond). The facet supplies the fee-token amount via FraxData.nativeFee and does not
+///      quote on-chain; quote/quoteStatic remain implemented for interface fidelity.
 contract MockFraxHopV2Tempo is IFraxHopV2 {
     error NativeValueNotAllowed();
     error BridgedTokenPullFailed();
@@ -59,7 +60,6 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
     uint256 internal immutable DUST_RATE;
 
     address public feeToken;
-    uint256 public feeQuote;
     uint256 public feePull;
 
     uint256 public lastAmountPulled;
@@ -76,16 +76,11 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
         return true;
     }
 
-    /// @notice Configures the fee token, the amount reported by quoteStatic, and the
-    ///         amount actually pulled by sendOFT (feePull < feeQuote leaves unused fee
-    ///         in the diamond so the facet's refund sweep can be exercised).
-    function setFeeConfig(
-        address _feeToken,
-        uint256 _feeQuote,
-        uint256 _feePull
-    ) external {
+    /// @notice Configures the fee token and the amount sendOFT pulls from the caller
+    ///         (the diamond). Setting feePull below the facet's deposited nativeFee leaves
+    ///         unused fee in the diamond so the facet's refund sweep can be exercised.
+    function setFeeConfig(address _feeToken, uint256 _feePull) external {
         feeToken = _feeToken;
-        feeQuote = _feeQuote;
         feePull = _feePull;
     }
 
@@ -104,7 +99,7 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
         uint128,
         bytes calldata
     ) external view returns (uint256) {
-        return feeQuote;
+        return feePull;
     }
 
     function quoteStatic(
@@ -116,7 +111,7 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
         bytes calldata,
         address
     ) external view returns (uint256) {
-        return feeQuote;
+        return feePull;
     }
 
     function sendOFT(
