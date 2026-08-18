@@ -4,8 +4,9 @@
  * The two pure decisions are exercised directly: {@link reconcileDecision} maps a
  * task's status + on-chain/proposal truth to a lifecycle transition, and
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
- * have aged past the TTL. The live CLI (Mongo/loupe/Slack wiring) is unit-test
- * exempt, mirroring the store's `getParkedTasksCollection()` carve-out.
+ * have aged past the TTL, and {@link ttlAlertDelivery} decides whether an alert is
+ * posted, logged, or treated as a misconfiguration. The live CLI (Mongo/loupe/Slack
+ * wiring) is unit-test exempt, mirroring the store's `getParkedTasksCollection()` carve-out.
  */
 
 import {
@@ -23,6 +24,7 @@ import {
   computeTtlAlerts,
   formatTtlAlertMessage,
   reconcileDecision,
+  ttlAlertDelivery,
 } from './reconcile-parked-tasks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -183,5 +185,32 @@ describe('formatTtlAlertMessage', () => {
     expect(msg).toContain('65d')
     expect(msg).toContain('https://gh/pull/1')
     expect(msg).toContain('https://gh/pull/2')
+  })
+})
+
+describe('ttlAlertDelivery', () => {
+  it('stays silent on a dry-run even when everything else is configured', () => {
+    expect(ttlAlertDelivery(false, true, 'https://hooks.slack/x')).toBe(
+      'dry-run'
+    )
+  })
+
+  it('logs instead of posting on a local run, keeping rehearsals off the channel', () => {
+    expect(ttlAlertDelivery(true, false, 'https://hooks.slack/x')).toBe('local')
+  })
+
+  it('posts on the applied unattended run', () => {
+    expect(ttlAlertDelivery(true, true, 'https://hooks.slack/x')).toBe('send')
+  })
+
+  it.each([undefined, ''])(
+    'reports a missing webhook (%p) rather than dropping the alert silently',
+    (webhook) => {
+      expect(ttlAlertDelivery(true, true, webhook)).toBe('misconfigured')
+    }
+  )
+
+  it('does not report a misconfiguration on a local run with no webhook', () => {
+    expect(ttlAlertDelivery(true, false, undefined)).toBe('local')
   })
 })
