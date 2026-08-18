@@ -30,6 +30,7 @@ import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
+import { formatProvenanceLines } from './provenance-display'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
@@ -387,6 +388,8 @@ const processTxs = async (
       for (const ref of tx.parkedTaskRefs)
         detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
     }
+
+    detailLines.push(...formatProvenanceLines(tx.provenance))
 
     consola.info(detailLines.join('\n'))
 

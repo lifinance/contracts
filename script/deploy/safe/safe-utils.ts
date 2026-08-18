@@ -49,6 +49,11 @@ import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import {
+  captureGitProvenance,
+  PROVENANCE_UNKNOWN,
+  type IGitProvenance,
+} from '../shared/git-provenance'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
@@ -123,6 +128,41 @@ export interface IParkedTaskRef {
   prUrl: string
 }
 
+/**
+ * Who created a proposal, from what code, and why — captured from ambient git
+ * state when the proposal is stored, and shown to the signer at signing time so
+ * "what is this?" is answerable without asking around.
+ *
+ * This is self-reported context, not a security control: it makes honest
+ * mistakes (unpushed commit, dirty whitelist, no stated reason) visible and
+ * gives later checks something to verify against. It is not a defence against a
+ * proposer who is deliberately lying.
+ */
+export interface IProposalProvenance extends IGitProvenance {
+  /** ISO-8601 capture time, distinct from the row's insert `timestamp`. */
+  capturedAt: string
+  /** One-line rationale, when the proposer supplied one. */
+  reason?: string
+}
+
+/** Trailing options of {@link storeTransactionInMongoDB}. */
+export interface IProposalProvenanceOptions {
+  /**
+   * One-line rationale; falls back to the deploy chain's reason variable when
+   * unset.
+   */
+  reason?: string
+  /**
+   * Test seam: use this block verbatim instead of probing git, so suites that
+   * exercise the storage funnel stay deterministic and spawn no subprocesses.
+   * Production code never sets it.
+   */
+  override?: IProposalProvenance
+}
+
+/** Longest rationale kept; the field is a one-liner for a signer, not a log. */
+const MAX_PROPOSAL_REASON_LENGTH = 200
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -141,6 +181,12 @@ export interface ISafeTxDocument {
    * only present on proposals the deferred-cleanup drain folded removals into.
    */
   parkedTaskRefs?: IParkedTaskRef[]
+  /**
+   * Provenance of this proposal. Optional: rows stored before capture existed
+   * have none, so every consumer must treat `undefined` as "legacy row" rather
+   * than as a clean, authorless proposal.
+   */
+  provenance?: IProposalProvenance
 }
 
 /** MongoDB row shape — includes the document `_id` returned by `find()`. */
@@ -1338,6 +1384,72 @@ export function computeProposalIntentHash(
 }
 
 /**
+ * Normalizes a free-text proposal rationale into a single tidy line.
+ * @param raw - Rationale as supplied by a caller or the environment.
+ * @returns The collapsed, length-capped line, or `undefined` when empty.
+ */
+export function normalizeProposalReason(
+  raw: string | undefined
+): string | undefined {
+  // Whitespace collapses first so newlines and tabs become word breaks; the
+  // remaining control characters are dropped outright because this text is
+  // rendered into the prompt a signer reads, where an escape sequence could
+  // repaint or erase the surrounding lines.
+  const collapsed = (raw ?? '')
+    .replace(/\s+/gu, ' ')
+    .replace(/\p{Cc}/gu, '')
+    .trim()
+  if (collapsed.length === 0) return undefined
+  return collapsed.slice(0, MAX_PROPOSAL_REASON_LENGTH)
+}
+
+/**
+ * Assembles the provenance block stored with a proposal.
+ *
+ * Never throws and never blocks a proposal: the storage funnel it feeds already
+ * aborts a deployment when it fails, so a git probe must not be able to take a
+ * production deploy down. Total failure yields sentinel values with the cause
+ * in `captureErrors`, which is strictly more useful than an absent field.
+ * @param options - Rationale and the test override seam.
+ * @returns A provenance block, populated as far as capture succeeded.
+ */
+export function buildProposalProvenance(
+  options?: IProposalProvenanceOptions
+): IProposalProvenance {
+  // The environment is the only channel the bash deploy chain can supply a
+  // rationale through without touching any script signature.
+  const reason = normalizeProposalReason(
+    options?.reason ?? process.env.SAFE_PROPOSAL_REASON
+  )
+
+  if (options?.override)
+    return reason && !options.override.reason
+      ? { ...options.override, reason }
+      : options.override
+
+  const capturedAt = new Date().toISOString()
+  try {
+    return {
+      ...captureGitProvenance(),
+      capturedAt,
+      ...(reason ? { reason } : {}),
+    }
+  } catch (error) {
+    // Backstop only — capture is fail-soft internally and should not reach here.
+    return {
+      actor: PROVENANCE_UNKNOWN,
+      proposerHandle: PROVENANCE_UNKNOWN,
+      gitCommit: PROVENANCE_UNKNOWN,
+      gitBranch: PROVENANCE_UNKNOWN,
+      dirtyTreeScoped: [],
+      captureErrors: [`provenance capture failed: ${error}`],
+      capturedAt,
+      ...(reason ? { reason } : {}),
+    }
+  }
+}
+
+/**
  * Stores a Safe transaction in MongoDB
  * Skips storage if a pending proposal with the same intent already exists
  * @param pendingTransactions - MongoDB collection
@@ -1347,6 +1459,8 @@ export function computeProposalIntentHash(
  * @param safeTx - The transaction to store
  * @param safeTxHash - Hash of the transaction
  * @param proposer - Address of the proposer
+ * @param parkedTaskRefs - Origin-PR links when this is a drained facet removal
+ * @param provenanceOptions - Rationale and the provenance test override seam
  * @returns Result of the MongoDB insert operation, or null if duplicate exists
  */
 export async function storeTransactionInMongoDB(
@@ -1357,7 +1471,8 @@ export async function storeTransactionInMongoDB(
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address,
-  parkedTaskRefs?: IParkedTaskRef[]
+  parkedTaskRefs?: IParkedTaskRef[],
+  provenanceOptions?: IProposalProvenanceOptions
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   // Compute intent hash for duplicate detection
   const intentHash = computeProposalIntentHash(
@@ -1370,6 +1485,10 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
+  // Never derived from `safeTx`: the Tron route hands in a cast-together object
+  // whose shape does not match the type.
+  const provenance = buildProposalProvenance(provenanceOptions)
+
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -1380,6 +1499,7 @@ export async function storeTransactionInMongoDB(
     timestamp: new Date(),
     status: 'pending' as const,
     intentHash,
+    provenance,
     ...(parkedTaskRefs && parkedTaskRefs.length > 0 ? { parkedTaskRefs } : {}),
   } satisfies ISafeTxDocument
 
