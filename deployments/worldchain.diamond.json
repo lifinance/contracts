@@ -65,12 +65,12 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
-        "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
+      },
+      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
     },
