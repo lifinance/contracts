@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { TestBase } from "../utils/TestBase.sol";
 import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
-import { InvalidConfig, InvalidReceiver, NullAddrIsNotAnERC20Token, ETHTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NullAddrIsNotAnERC20Token, ETHTransferFailed, InsufficientBalance } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeForwarderTest is TestBase {
     FeeForwarder private feeForwarder;
@@ -597,5 +597,242 @@ contract FeeForwarderTest is TestBase {
             USER_REFUND.balance,
             RECIPIENT_ETH_BALANCE + AMOUNT_NATIVE_SMALL
         ); // 0.1 ether
+    }
+
+    function test_ForwardNativeFeesDoesNotRefundPreExistingBalance() public {
+        // Arrange
+        uint256 strayBalance = 3 ether;
+        vm.deal(address(feeForwarder), strayBalance);
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: USER_RECEIVER,
+            amount: AMOUNT_NATIVE_SMALL
+        }); // 0.1 ether
+
+        uint256 valueSent = AMOUNT_NATIVE_SMALL + AMOUNT_NATIVE_MEDIUM;
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // Act
+        vm.prank(USER_SENDER);
+        feeForwarder.forwardNativeFees{ value: valueSent }(distributions);
+
+        // Assert - only the unspent part of msg.value comes back, the stray balance stays put
+        assertEq(
+            USER_RECEIVER.balance,
+            RECIPIENT_ETH_BALANCE + AMOUNT_NATIVE_SMALL
+        ); // 0.1 ether
+        assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
+        assertEq(address(feeForwarder).balance, strayBalance);
+    }
+
+    function testRevert_ForwardNativeFeesDistributingMoreThanMsgValue()
+        public
+    {
+        // Arrange - a stray balance would cover the shortfall, but the caller did not fund it
+        vm.deal(address(feeForwarder), 1 ether);
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: USER_RECEIVER,
+            amount: 1 ether
+        });
+
+        // Act & Assert
+        vm.prank(USER_SENDER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                1 ether,
+                AMOUNT_NATIVE_MEDIUM
+            )
+        );
+
+        feeForwarder.forwardNativeFees{ value: AMOUNT_NATIVE_MEDIUM }(
+            distributions
+        );
+    }
+
+    function test_ForwardNativeFeesBlocksReentrantRecipientFromClaimingRefund()
+        public
+    {
+        // Arrange - recipient calls back in and tries to claim everything not yet distributed
+        ReentrantFeeRecipient attacker = new ReentrantFeeRecipient(
+            feeForwarder
+        );
+        uint256 valueSent = 5 ether;
+
+        uint256 claimAttempt = valueSent - AMOUNT_NATIVE_SMALL; // 4.9 ether
+        attacker.arm({
+            _reentryAmount: claimAttempt,
+            _reentryValue: 0,
+            _reentryWithEmptyArray: false
+        });
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: address(attacker),
+            amount: AMOUNT_NATIVE_SMALL
+        }); // 0.1 ether
+
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // Act
+        vm.prank(USER_SENDER);
+        feeForwarder.forwardNativeFees{ value: valueSent }(distributions);
+
+        // Assert - the callback fired, and it was rejected by the msg.value accounting
+        // rather than by some unrelated failure
+        assertEq(attacker.reentryAttempts(), 1);
+        assertFalse(attacker.reentrySucceeded());
+        assertEq(
+            attacker.reentryRevertData(),
+            abi.encodeWithSelector(
+                InsufficientBalance.selector,
+                claimAttempt,
+                0
+            )
+        );
+
+        // the recipient only kept its authorized fee
+        assertEq(address(attacker).balance, AMOUNT_NATIVE_SMALL); // 0.1 ether
+        assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
+        assertEq(address(feeForwarder).balance, 0);
+    }
+
+    function test_ForwardNativeFeesAllowsHarmlessReentryWhileRefundOutstanding()
+        public
+    {
+        // Arrange - the outer invocation still owes a 4.9 ether refund when the callback
+        // fires, but the nested call claims nothing: it funds nothing and distributes nothing
+        ReentrantFeeRecipient attacker = new ReentrantFeeRecipient(
+            feeForwarder
+        );
+
+        attacker.arm({
+            _reentryAmount: 0,
+            _reentryValue: 0,
+            _reentryWithEmptyArray: true
+        });
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: address(attacker),
+            amount: AMOUNT_NATIVE_SMALL
+        }); // 0.1 ether
+
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // Act
+        vm.prank(USER_SENDER);
+        feeForwarder.forwardNativeFees{ value: 5 ether }(distributions);
+
+        // Assert - re-entry is not blocked, it simply has nothing to claim: the nested call
+        // succeeds and the outstanding refund still reaches the original caller
+        assertEq(attacker.reentryAttempts(), 1);
+        assertTrue(attacker.reentrySucceeded());
+        assertEq(address(attacker).balance, AMOUNT_NATIVE_SMALL); // 0.1 ether
+        assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
+        assertEq(address(feeForwarder).balance, 0);
+    }
+
+    function test_ForwardNativeFeesAllowsReentrantRecipientToForwardOwnValue()
+        public
+    {
+        // Arrange - the same callback, but the nested call distributes value the recipient
+        // funded itself, so it is a legitimate invocation rather than a claim on the parent
+        ReentrantFeeRecipient attacker = new ReentrantFeeRecipient(
+            feeForwarder
+        );
+        vm.deal(address(attacker), AMOUNT_NATIVE_MEDIUM);
+
+        attacker.arm({
+            _reentryAmount: AMOUNT_NATIVE_MEDIUM,
+            _reentryValue: AMOUNT_NATIVE_MEDIUM,
+            _reentryWithEmptyArray: false
+        });
+
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution({
+            recipient: address(attacker),
+            amount: AMOUNT_NATIVE_SMALL
+        }); // 0.1 ether
+
+        uint256 balanceBefore = USER_SENDER.balance;
+
+        // Act
+        vm.prank(USER_SENDER);
+        feeForwarder.forwardNativeFees{ value: 5 ether }(distributions);
+
+        // Assert - the nested call succeeded on its own funds and took nothing from the parent
+        assertEq(attacker.reentryAttempts(), 1);
+        assertTrue(attacker.reentrySucceeded());
+        assertEq(
+            address(attacker).balance,
+            AMOUNT_NATIVE_MEDIUM + AMOUNT_NATIVE_SMALL
+        ); // 0.5 + 0.1 ether
+        assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
+        assertEq(address(feeForwarder).balance, 0);
+    }
+}
+
+/// @notice Fee recipient that calls back into FeeForwarder from its receive hook
+contract ReentrantFeeRecipient {
+    FeeForwarder internal immutable FORWARDER;
+
+    uint256 internal reentryAmount;
+    uint256 internal reentryValue;
+    bool internal reentryWithEmptyArray;
+    bool internal armed;
+
+    /// @notice counts callbacks that actually fired, so a test can prove re-entry happened
+    ///         rather than passing because the hook was never reached
+    uint256 public reentryAttempts;
+    bool public reentrySucceeded;
+    bytes public reentryRevertData;
+
+    constructor(FeeForwarder _forwarder) {
+        FORWARDER = _forwarder;
+    }
+
+    function arm(
+        uint256 _reentryAmount,
+        uint256 _reentryValue,
+        bool _reentryWithEmptyArray
+    ) external {
+        reentryAmount = _reentryAmount;
+        reentryValue = _reentryValue;
+        reentryWithEmptyArray = _reentryWithEmptyArray;
+        armed = true;
+    }
+
+    receive() external payable {
+        if (armed) _reenter();
+    }
+
+    function _reenter() private {
+        armed = false;
+        ++reentryAttempts;
+
+        FeeForwarder.FeeDistribution[] memory distributions;
+        if (reentryWithEmptyArray) {
+            distributions = new FeeForwarder.FeeDistribution[](0);
+        } else {
+            distributions = new FeeForwarder.FeeDistribution[](1);
+            distributions[0] = FeeForwarder.FeeDistribution({
+                recipient: address(this),
+                amount: reentryAmount
+            });
+        }
+
+        (reentrySucceeded, reentryRevertData) = address(FORWARDER).call{
+            value: reentryValue
+        }(abi.encodeCall(FeeForwarder.forwardNativeFees, (distributions)));
     }
 }
