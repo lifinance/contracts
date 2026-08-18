@@ -1,8 +1,11 @@
 /**
  * Tests for the deferred diamond-cleanup reconcile job (reconcile-parked-tasks.ts).
  *
- * The pure decisions are exercised directly: {@link reconcileDecision} maps a
- * task's status + on-chain/proposal truth to a lifecycle transition,
+ * The pure decisions are exercised directly: {@link reconcileDecision} maps a task's
+ * status + on-chain/proposal truth to a lifecycle transition,
+ * {@link partitionByNetworkStatus} / {@link deprecatedNetworkDecision} /
+ * {@link shouldCancelDeprecated} decide what happens to a task whose network is
+ * outside the active set (and, crucially, when a cancellation may be applied),
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
  * have aged past the TTL, and {@link computeSafeToPrune} /
  * {@link formatSafeToPruneReport} name the deploy-log entries whose removal work
@@ -24,13 +27,17 @@ import { type IParkedTask } from './parked-tasks'
 import {
   computeSafeToPrune,
   computeTtlAlerts,
+  deprecatedNetworkDecision,
   formatReconcileFailureMessage,
   formatReopenAlertMessage,
   formatSafeToPruneReport,
   formatTtlAlertMessage,
+  partitionByNetworkStatus,
+  parseTtlDays,
   reconcileDecision,
   isSuspectAddressSnapshot,
   resolveFacetPresence,
+  shouldCancelDeprecated,
 } from './reconcile-parked-tasks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -266,6 +273,142 @@ describe('formatReconcileFailureMessage', () => {
     expect(msg).toContain('NOT verified')
     expect(msg).toContain('harmony:production — Chain harmony does not exist')
     expect(msg).toContain('velas:production — no LiFiDiamond in deploy log')
+  })
+})
+
+describe('deprecatedNetworkDecision', () => {
+  it('cancels a queued task whose network is no longer active', () => {
+    expect(deprecatedNetworkDecision({ status: 'queued' })).toBe('cancel')
+  })
+
+  it('keeps a proposed task so its live Safe proposal is not orphaned', () => {
+    expect(deprecatedNetworkDecision({ status: 'proposed' })).toBe('keep')
+  })
+})
+
+describe('partitionByNetworkStatus', () => {
+  // Derived the way the live adapter derives it (`getAllActiveNetworks`), so the
+  // present-but-inactive case is distinguishable from the absent one rather than
+  // both trivially missing from a hand-written set.
+  const activeIdsOf = (config: Record<string, { status: string }>) =>
+    new Set(
+      Object.entries(config)
+        .filter(([, n]) => n.status === 'active')
+        .map(([id]) => id)
+    )
+  const active = activeIdsOf({
+    arbitrum: { status: 'active' },
+    mainnet: { status: 'active' },
+    localanvil: { status: 'inactive' },
+  })
+
+  it('routes a task on an active network to the reconcile path', () => {
+    const task = parked({ network: 'arbitrum' })
+    expect(partitionByNetworkStatus([task], active)).toEqual({
+      live: [task],
+      deprecated: [],
+    })
+  })
+
+  it('routes a task on a network absent from networks.json to the deprecated path', () => {
+    const task = parked({ network: 'harmony' })
+    expect(partitionByNetworkStatus([task], active)).toEqual({
+      live: [],
+      deprecated: [task],
+    })
+  })
+
+  it('treats a network present in the config but not active as deprecated', () => {
+    const task = parked({ network: 'localanvil' })
+    expect(active.has('localanvil')).toBe(false)
+    expect(partitionByNetworkStatus([task], active).deprecated).toEqual([task])
+  })
+})
+
+describe('shouldCancelDeprecated', () => {
+  it('cancels only when the operator asked for it on a named network', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(true)
+  })
+
+  it('never cancels on an unattended fleet-wide run — the cron must not mass-cancel', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: undefined,
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels on a bare --network, which citty yields as an empty string', () => {
+    // listParkedTasks treats '' as no filter at all, so '' is a fleet-wide run.
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: '',
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels without the opt-in flag', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: true,
+        cancelDeprecated: false,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels in a dry run', () => {
+    expect(
+      shouldCancelDeprecated('cancel', {
+        apply: false,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
+  })
+
+  it('never cancels a task the decision left alone', () => {
+    expect(
+      shouldCancelDeprecated('keep', {
+        apply: true,
+        cancelDeprecated: true,
+        networkFilter: 'harmony',
+      })
+    ).toBe(false)
+  })
+})
+
+describe('parseTtlDays', () => {
+  it('accepts a positive integer', () => {
+    expect(parseTtlDays('30')).toBe(30)
+  })
+
+  it('falls back to the default when the flag is absent', () => {
+    expect(parseTtlDays(undefined)).toBe(60)
+  })
+
+  it('rejects a non-numeric value rather than flagging every open task', () => {
+    // NaN makes `ageDays < ttlDays` false for every task, which would alert on the
+    // whole fleet instead of the stale ones.
+    expect(() => parseTtlDays('soon')).toThrow(/positive integer/)
+  })
+
+  it('rejects a negative value', () => {
+    expect(() => parseTtlDays('-1')).toThrow(/positive integer/)
+  })
+
+  it('rejects a fractional value', () => {
+    expect(() => parseTtlDays('1.5')).toThrow(/positive integer/)
   })
 })
 

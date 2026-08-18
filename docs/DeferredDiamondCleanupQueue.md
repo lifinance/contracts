@@ -589,6 +589,7 @@ origin-PR lines to the signer.
         └────────────────────┘ reconcile: facet NAME still routed → reopen (EXSC-774)
 
              operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
+             network outside the active set (opt-in) ────────┘ (queued only)
 ```
 
 `executed`/`superseded` are terminal but **not trusted**: every reconcile re-verifies
@@ -624,6 +625,26 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
   already-minted Safe removal proposal from the origin-PR linkage (§6), so a claimed task
   must be `revertToQueued` first, then cancelled.
+- **queued → cancelled (deprecated network)**: the reconcile evaluates network status
+  *before* on-chain truth (`partitionByNetworkStatus` → `deprecatedNetworkDecision`),
+  because a network that is not in the active set has no resolvable chain for the
+  reconcile to read: `getViemChainForNetworkName` throws for an absent key, and no
+  `ETH_NODE_URI_<NETWORK>` is configured for one that is not active. So the task is
+  out of scope for on-chain reconciliation either way, and abandoning the intent is
+  the only terminal answer available — but *being out of the active set is not proof
+  the network was deprecated*.
+  **Applying that cancellation is opt-in and single-network**
+  (`--network <x> --cancel-deprecated --yes`): a non-active config entry is *not* proof
+  of deprecation — `config/networks.json` is deliberately narrowed to a handful of
+  networks for emergency-pause rehearsals (`f99db1607`, `216bad0e4`, both reverted days
+  later) and `status` is toggled back to `active` (`51a04fc64`). An unattended
+  fleet-wide run that cancelled on that signal would read a temporary config as a
+  fleet-wide deprecation and terminally empty the queue, with no undo (`cancelled` is
+  terminal and re-enqueue needs origin-PR context). So the cron only ever **reports**
+  these; `/deprecate-network` does the cancelling, once, for the network a human named.
+  A `proposed` task is **never** cancelled either way (same orphaned-proposal rule as
+  above); it needs `revertToQueued` first, for which no operator CLI exists yet
+  (EXSC-715).
 
 **Idempotency / dedup**
 
@@ -658,6 +679,15 @@ Three composed backstops, none silent:
    `#dev-sc-multisig-proposals` via the existing webhook (Fact 12), naming the
    network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
 3. **Observability** (§9) makes the backlog visible on demand.
+
+**The backstop must survive a bad network.** The reconcile isolates each
+`(network, environment)` group, the optional proposal-store connection, each
+cancellation, and the sweep as a whole: an unreachable chain or a missing RPC is
+logged and collected as an `IReconcileFailure`, the remaining groups are still
+decided, and both the failure alert and the TTL alert still fire — every skipped
+network is named in Slack rather than exiting the job non-zero and losing the detail.
+A single unresolvable network aborting the batch would silently disable backstop 2
+for the whole fleet, which is how the first four scheduled runs were lost.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
 (possibly weeks), a name-resolving removal depends on the
