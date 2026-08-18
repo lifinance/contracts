@@ -112,3 +112,22 @@ describe('formatRoleChange', () => {
     expect(infoSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('decodeTransactionData', () => {
+  it('resolves Timelock scheduleBatch from the local registry without any network call', async () => {
+    const { decodeTransactionData } = await import('./safe-decode-utils')
+    const originalFetch = globalThis.fetch
+    // Any network access must not happen for locally-known selectors
+    globalThis.fetch = (() => {
+      throw new Error('network disabled in test')
+    }) as unknown as typeof fetch
+    try {
+      const result = await decodeTransactionData('0x8f2a0bb0')
+      expect(result.functionName).toBe(
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      )
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})

@@ -29,9 +29,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x6622D02754559BF2A6A4f5cc3469846900Dcd395": {
-        "Name": "",
-        "Version": ""
+      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
+        "Name": "SymbiosisFacet",
+        "Version": "1.0.0"
       },
       "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
         "Name": "CBridgeFacet",
@@ -61,9 +61,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
         "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

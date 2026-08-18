@@ -4,17 +4,25 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IAllBridge } from "../Interfaces/IAllBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
-import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NotInitialized } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
-/// @title Allbridge Facet
+/// @title AllBridgeFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through AllBridge
-/// @custom:version 2.1.2
+/// @dev The LI.FI chain ID to AllBridge chain ID mapping is held in diamond
+///      storage and is owner-updatable (initAllBridge / setChainIdToAllBridgeChainId /
+///      unsetChainIdToAllBridgeChainId), so new destinations can be added without a
+///      facet redeploy. The facet must be initialized via initAllBridge before it can
+///      bridge; an uninitialized (or unmapped) destination reverts UnsupportedAllBridgeChainId.
+/// @dev This contract is not intended to custody user funds; any balances held are
+///      incidental and transient during a bridge call and should not persist.
+/// @custom:version 2.2.0
 contract AllBridgeFacet is
     ILiFi,
     ReentrancyGuard,
@@ -22,30 +30,8 @@ contract AllBridgeFacet is
     Validatable,
     LiFiData
 {
-    uint256 private constant ALLBRIDGE_ID_ETHEREUM = 1;
-    uint256 private constant ALLBRIDGE_ID_BSC = 2;
-    uint256 private constant ALLBRIDGE_ID_TRON = 3;
-    uint256 private constant ALLBRIDGE_ID_SOLANA = 4;
-    uint256 private constant ALLBRIDGE_ID_POLYGON = 5;
-    uint256 private constant ALLBRIDGE_ID_ARBITRUM = 6;
-    uint256 private constant ALLBRIDGE_ID_AVALANCHE = 8;
-    uint256 private constant ALLBRIDGE_ID_BASE = 9;
-    uint256 private constant ALLBRIDGE_ID_OPTIMISM = 10;
-    uint256 private constant ALLBRIDGE_ID_CELO = 11;
-    uint256 private constant ALLBRIDGE_ID_SONIC = 12;
-    uint256 private constant ALLBRIDGE_ID_SUI = 13;
-    uint256 private constant ALLBRIDGE_ID_UNICHAIN = 14;
-    uint256 private constant ALLBRIDGE_ID_LINEA = 17;
-
-    uint256 internal constant LIFI_CHAIN_ID_ARBITRUM = 42161;
-    uint256 internal constant LIFI_CHAIN_ID_AVALANCHE = 43114;
-    uint256 internal constant LIFI_CHAIN_ID_BASE = 8453;
-    uint256 internal constant LIFI_CHAIN_ID_BSC = 56;
-    uint256 internal constant LIFI_CHAIN_ID_CELO = 42220;
-    uint256 internal constant LIFI_CHAIN_ID_LINEA = 59144;
-    uint256 internal constant LIFI_CHAIN_ID_POLYGON = 137;
-    uint256 internal constant LIFI_CHAIN_ID_SONIC = 146;
-    uint256 internal constant LIFI_CHAIN_ID_UNICHAIN = 130;
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.allbridge");
 
     error UnsupportedAllBridgeChainId();
 
@@ -69,12 +55,120 @@ contract AllBridgeFacet is
         bool payFeeWithSendingAsset;
     }
 
+    /// @notice Maps a LI.FI chain ID to the corresponding AllBridge chain ID.
+    /// @param chainId LI.FI internal chain ID
+    /// @param allBridgeChainId AllBridge internal chain ID
+    struct ChainIdConfig {
+        uint256 chainId;
+        uint256 allBridgeChainId;
+    }
+
+    struct Storage {
+        // Maps a LI.FI chain ID to its AllBridge chain ID. AllBridge chain IDs start at 1
+        // (Ethereum), so a stored 0 unambiguously means "unmapped" and no offset is needed.
+        mapping(uint256 => uint256) allBridgeChainIds;
+        bool chainMappingsInitialized;
+    }
+
+    /// Events ///
+
+    event AllBridgeChainMappingsInitialized(ChainIdConfig[] chainIdConfigs);
+
+    event ChainIdToAllBridgeChainIdSet(
+        uint256 indexed chainId,
+        uint256 allBridgeChainId
+    );
+
+    event ChainIdToAllBridgeChainIdUnset(uint256 indexed chainId);
+
     /// @notice Initializes the AllBridge contract
     /// @param _allBridge The address of the AllBridge contract
     constructor(IAllBridge _allBridge) {
         if (address(_allBridge) == address(0)) revert InvalidConfig();
 
         ALLBRIDGE = _allBridge;
+    }
+
+    /// @notice Initializes the LI.FI chain ID to AllBridge chain ID mappings
+    /// @param chainIdConfigs Chain ID configuration data
+    /// @dev Re-initialization overwrites the provided mappings and leaves the rest untouched.
+    /// @dev A zero chainId or allBridgeChainId is rejected: 0 is the reserved
+    ///      "unmapped" sentinel (see Storage), so it must never be stored.
+    /// https://docs-core.allbridge.io/product/how-does-allbridge-core-work/allbridge-core-contracts
+    function initAllBridge(ChainIdConfig[] calldata chainIdConfigs) external {
+        if (chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+
+        Storage storage sm = getStorage();
+
+        for (uint256 i = 0; i < chainIdConfigs.length; ) {
+            uint256 chainId = chainIdConfigs[i].chainId;
+            uint256 allBridgeChainId = chainIdConfigs[i].allBridgeChainId;
+
+            if (chainId == 0 || allBridgeChainId == 0) revert InvalidConfig();
+
+            sm.allBridgeChainIds[chainId] = allBridgeChainId;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        sm.chainMappingsInitialized = true;
+        emit AllBridgeChainMappingsInitialized(chainIdConfigs);
+    }
+
+    /// @notice Sets the AllBridge chain ID for one or more LI.FI chain IDs
+    /// @param chainIdConfigs Chain ID configuration data
+    /// @dev A zero chainId or allBridgeChainId is rejected; use
+    ///      unsetChainIdToAllBridgeChainId to remove a mapping.
+    function setChainIdToAllBridgeChainId(
+        ChainIdConfig[] calldata chainIdConfigs
+    ) external {
+        if (chainIdConfigs.length == 0) revert InvalidConfig();
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+
+        if (!sm.chainMappingsInitialized) {
+            revert NotInitialized();
+        }
+
+        for (uint256 i = 0; i < chainIdConfigs.length; ) {
+            uint256 chainId = chainIdConfigs[i].chainId;
+            uint256 allBridgeChainId = chainIdConfigs[i].allBridgeChainId;
+
+            if (chainId == 0 || allBridgeChainId == 0) revert InvalidConfig();
+
+            sm.allBridgeChainIds[chainId] = allBridgeChainId;
+            emit ChainIdToAllBridgeChainIdSet(chainId, allBridgeChainId);
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Removes the AllBridge chain ID mapping for a given LI.FI chain ID
+    /// @param _chainId LI.FI chain ID
+    function unsetChainIdToAllBridgeChainId(uint256 _chainId) external {
+        LibDiamond.enforceIsContractOwner();
+        Storage storage sm = getStorage();
+
+        if (!sm.chainMappingsInitialized) {
+            revert NotInitialized();
+        }
+
+        delete sm.allBridgeChainIds[_chainId];
+        emit ChainIdToAllBridgeChainIdUnset(_chainId);
+    }
+
+    /// @notice Gets the AllBridge chain ID for a given LI.FI chain ID
+    /// @param _chainId LI.FI chain ID
+    /// @return The corresponding AllBridge chain ID
+    function getChainIdToAllBridgeChainId(
+        uint256 _chainId
+    ) external view returns (uint256) {
+        return _getAllBridgeChainId(_chainId);
     }
 
     /// @notice Bridge tokens to another chain via AllBridge
@@ -201,45 +295,28 @@ contract AllBridgeFacet is
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @notice Converts LiFi internal chain IDs to AllBridge chain IDs
+    /// @notice Converts LI.FI internal chain IDs to AllBridge chain IDs
     // https://docs-core.allbridge.io/product/how-does-allbridge-core-work/allbridge-core-contracts
-    /// @param _destinationChainId The LiFi chain ID to convert
-    /// @return The corresponding Chainflip chain ID
-    /// @dev Reverts if the destination chain is not supported
+    /// @param _destinationChainId The LI.FI chain ID to convert
+    /// @return The corresponding AllBridge chain ID
+    /// @dev Reverts if the destination chain is not mapped
     function _getAllBridgeChainId(
         uint256 _destinationChainId
-    ) internal pure returns (uint256) {
-        // first try to match cases where chainId is the same and does not need to be mapped
-        if (
-            _destinationChainId == ALLBRIDGE_ID_ETHEREUM ||
-            _destinationChainId == ALLBRIDGE_ID_OPTIMISM
-        ) return _destinationChainId;
-        // all others have custom chainIds
-        else if (_destinationChainId == LIFI_CHAIN_ID_BSC)
-            return ALLBRIDGE_ID_BSC;
-        else if (_destinationChainId == LIFI_CHAIN_ID_TRON)
-            return ALLBRIDGE_ID_TRON;
-        else if (_destinationChainId == LIFI_CHAIN_ID_SOLANA)
-            return ALLBRIDGE_ID_SOLANA;
-        else if (_destinationChainId == LIFI_CHAIN_ID_POLYGON)
-            return ALLBRIDGE_ID_POLYGON;
-        else if (_destinationChainId == LIFI_CHAIN_ID_ARBITRUM)
-            return ALLBRIDGE_ID_ARBITRUM;
-        else if (_destinationChainId == LIFI_CHAIN_ID_AVALANCHE)
-            return ALLBRIDGE_ID_AVALANCHE;
-        else if (_destinationChainId == LIFI_CHAIN_ID_BASE)
-            return ALLBRIDGE_ID_BASE;
-        else if (_destinationChainId == LIFI_CHAIN_ID_CELO)
-            return ALLBRIDGE_ID_CELO;
-        else if (_destinationChainId == LIFI_CHAIN_ID_SUI)
-            return ALLBRIDGE_ID_SUI;
-        else if (_destinationChainId == LIFI_CHAIN_ID_SONIC)
-            return ALLBRIDGE_ID_SONIC;
-        else if (_destinationChainId == LIFI_CHAIN_ID_UNICHAIN)
-            return ALLBRIDGE_ID_UNICHAIN;
-        else if (_destinationChainId == LIFI_CHAIN_ID_LINEA)
-            return ALLBRIDGE_ID_LINEA;
-        // revert if no match found
-        else revert UnsupportedAllBridgeChainId();
+    ) internal view returns (uint256) {
+        uint256 allBridgeChainId = getStorage().allBridgeChainIds[
+            _destinationChainId
+        ];
+        if (allBridgeChainId == 0) revert UnsupportedAllBridgeChainId();
+
+        return allBridgeChainId;
+    }
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

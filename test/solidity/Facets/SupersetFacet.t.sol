@@ -100,6 +100,35 @@ contract MockSupersetHubPoolManager is
             inputToken: inputToken
         });
     }
+
+    ExactInputParams public lastExactInput;
+
+    /// @dev Simulates a pool manager that skips its own
+    ///      `amountOut >= amountOutMinimum` check.
+    bool public underFill;
+
+    function setUnderFill(bool _underFill) external {
+        underFill = _underFill;
+    }
+
+    function exactInput(
+        ExactInputParams calldata _params
+    ) external payable override returns (uint256 amountOut) {
+        // First 20 bytes of the Uniswap-V3 path are the input token.
+        address inputToken = address(bytes20(_params.path[0:20]));
+
+        IERC20(inputToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _params.amountIn
+        );
+
+        lastExactInput = _params;
+        return
+            underFill
+                ? _params.amountOutMinimum - 1
+                : _params.amountOutMinimum;
+    }
 }
 
 /// @dev Test-only router that performs a fixed-rate swap so the
@@ -269,6 +298,14 @@ contract SupersetFacetTest is TestBaseFacet {
         // demoSuperset.ts (`base-to-unichain-w-swap` scenario, WETH→USDC).
     }
 
+    function testBase_Revert_BridgeToSameChainId() public override {
+        // not applicable — same-chain Superset DEX swaps are intentionally allowed
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
+        // not applicable — same-chain Superset DEX swaps are intentionally allowed
+    }
+
     /// @dev Stub swapData so the revert-path tests in `TestBaseFacet` work
     ///      without hitting `getAmountsIn` (the V2 DAI/USDC pool on Base has
     ///      ~$4 of liquidity, well under defaultUSDCAmount). The happy-path
@@ -400,6 +437,25 @@ contract SupersetFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
         bridgeData.minAmount = defaultUSDCAmount;
         validSupersetData.path = "";
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+    }
+
+    function testRevert_MisalignedPathLength() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        // 68 bytes: long enough for one hop, but not 32 + n * 35.
+        validSupersetData.path = abi.encodePacked(
+            bytes32(uint256(2)),
+            bytes3(uint24(3000)),
+            bytes32(uint256(3)),
+            bytes1(0)
+        );
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -571,6 +627,122 @@ contract SupersetFacetTest is TestBaseFacet {
         assertEq(
             usdc.balanceOf(USER_SENDER),
             senderBalanceBefore - defaultUSDCAmount
+        );
+    }
+
+    function test_CanBridgeSameChainOnSpoke() public {
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, defaultUSDCAmount);
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.destinationChainId = block.chainid;
+        // Same-chain spoke entrypoint ignores `toEid` (uses `multiHopSwap`).
+        validSupersetData.toEid = 0;
+
+        uint256 senderBalanceBefore = usdc.balanceOf(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        supersetFacet.startBridgeTokensViaSuperset{
+            value: validSupersetData.lzFee
+        }(bridgeData, validSupersetData);
+
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            senderBalanceBefore - defaultUSDCAmount
+        );
+    }
+
+    function test_CanBridgeSameChainOnHub() public {
+        vm.chainId(42161);
+
+        MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            2,
+            ADDRESS_USDC
+        );
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            3,
+            ADDRESS_DAI
+        );
+
+        TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
+
+        vm.prank(address(0));
+        hubFacet.initSuperset(_defaultChainIdConfigs());
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(hubFacet), defaultUSDCAmount);
+
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.bridge = "superset";
+        bridgeData.destinationChainId = 42161;
+        // Hub same-chain ignores toEid / fallbackEoA / lzFee.
+        validSupersetData.toEid = 0;
+        validSupersetData.fallbackEoA = address(0);
+        validSupersetData.lzFee = 0;
+
+        hubFacet.startBridgeTokensViaSuperset{ value: 0 }(
+            bridgeData,
+            validSupersetData
+        );
+
+        (
+            bytes memory path,
+            address recipient,
+            uint256 deadline,
+            uint256 amountIn,
+            uint256 amountOutMinimum
+        ) = mockHub.lastExactInput();
+
+        assertEq(recipient, bridgeData.receiver);
+        assertEq(deadline, validSupersetData.deadline);
+        assertEq(amountIn, defaultUSDCAmount);
+        assertEq(amountOutMinimum, validSupersetData.amountOutMin);
+        // Uniswap-V3 path: address(USDC) || fee(3000) || address(DAI)
+        assertEq(
+            path,
+            abi.encodePacked(ADDRESS_USDC, bytes3(uint24(3000)), ADDRESS_DAI)
+        );
+    }
+
+    function testRevert_HubSameChainUnderFill() public {
+        vm.chainId(42161);
+
+        MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            2,
+            ADDRESS_USDC
+        );
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
+            3,
+            ADDRESS_DAI
+        );
+        mockHub.setUnderFill(true);
+
+        TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
+
+        vm.prank(address(0));
+        hubFacet.initSuperset(_defaultChainIdConfigs());
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(hubFacet), defaultUSDCAmount);
+
+        bridgeData.minAmount = defaultUSDCAmount;
+        bridgeData.bridge = "superset";
+        bridgeData.destinationChainId = 42161;
+        validSupersetData.toEid = 0;
+        validSupersetData.fallbackEoA = address(0);
+        validSupersetData.lzFee = 0;
+        // Above 1 so the mock's fill stays non-zero, i.e. a shortfall the
+        // superseded `amountOut == 0` check would have let through.
+        validSupersetData.amountOutMin = 1000;
+
+        vm.expectRevert(InvalidConfig.selector);
+
+        hubFacet.startBridgeTokensViaSuperset{ value: 0 }(
+            bridgeData,
+            validSupersetData
         );
     }
 

@@ -311,6 +311,56 @@ contract SquidFacetTest is TestBaseFacet {
         );
     }
 
+    function test_CanBridgeTokens_CallBridge_ERC20() public {
+        // same route data as CallBridgeCall but dispatched via the CallBridge route;
+        // the router deployed at the fork block does not expose this callBridge
+        // signature, so the router call itself is mocked
+        address addressUSDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+        bridgeData.minAmount = 100000000;
+        bridgeData.sendingAssetId = addressUSDT;
+
+        vm.startPrank(USER_SENDER);
+
+        // give USDT balance to user
+        deal(addressUSDT, USER_SENDER, 100000000);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        SquidFacet.SquidData
+            memory squidData = _getSquidDataForCallBridgeCallERC20();
+
+        squidData.routeType = SquidFacet.RouteType.CallBridge;
+
+        vm.mockCall(
+            SQUID_ROUTER,
+            abi.encodeWithSelector(ISquidRouter.callBridge.selector),
+            ""
+        );
+
+        vm.expectCall(
+            SQUID_ROUTER,
+            abi.encodeCall(
+                ISquidRouter.callBridge,
+                (
+                    ADDRESS_USDC,
+                    bridgeData.minAmount,
+                    squidData.sourceCalls,
+                    squidData.bridgedTokenSymbol,
+                    squidData.destinationChain,
+                    LibBytes.toHexString(uint160(bridgeData.receiver), 20)
+                )
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        squidFacet.startBridgeTokensViaSquid{ value: squidData.fee }(
+            bridgeData,
+            squidData
+        );
+    }
+
     function test_CanSwapERC20ToNativeAndBridge() public {
         vm.startPrank(USER_SENDER);
         // prepare bridgeData

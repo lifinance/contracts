@@ -4,8 +4,9 @@ pragma solidity ^0.8.17;
 import { TestBase } from "../utils/TestBase.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { OutputValidator } from "lifi/Periphery/OutputValidator.sol";
-import { CBridgeFacet } from "lifi/Facets/CBridgeFacet.sol";
-import { ICBridge } from "lifi/Interfaces/ICBridge.sol";
+import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
+import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
@@ -13,9 +14,12 @@ import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TransferFromFailed, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 
-// Stub CBridgeFacet Contract
-contract TestCBridgeFacet is CBridgeFacet, TestWhitelistManagerBase {
-    constructor(ICBridge _cBridge) CBridgeFacet(_cBridge) {}
+// Stub AcrossFacetV4 Contract
+contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
+    constructor(
+        IAcrossSpokePoolV4 _spokePool,
+        bytes32 _wrappedNative
+    ) AcrossFacetV4(_spokePool, _wrappedNative) {}
 }
 
 // Reverts on any native transfer; used to prove that zero-value native calls are skipped
@@ -28,12 +32,14 @@ contract RevertingNativeReceiver {
 }
 
 contract OutputValidatorTest is TestBase {
-    address internal constant CBRIDGE_ROUTER =
-        0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820; // mainnet
+    address internal constant SPOKE_POOL =
+        0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5; // Across V4 SpokePool (mainnet)
+    address internal constant ADDRESS_WETH =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     OutputValidator private outputValidator;
     address private validationWallet;
-    TestCBridgeFacet private cBridge;
+    TestAcrossFacetV4 private acrossBridge;
     MockUniswapDEX private mockDEX;
 
     event TokensWithdrawn(
@@ -49,51 +55,63 @@ contract OutputValidatorTest is TestBase {
     );
 
     function setUp() public {
+        // Pin to a block where the Across V4 SpokePool is deployed and configured
+        customBlockNumberForForking = 22989702;
         // Initialize TestBase (creates diamond, etc.)
         initTestBase();
 
         // Deploy OutputValidator with owner parameter
         outputValidator = new OutputValidator(USER_DIAMOND_OWNER);
+        // The pinned fork block gives the validator's deterministic address a
+        // pre-existing mainnet balance; zero it so native-balance assertions
+        // reflect a fresh (production-like) contract
+        vm.deal(address(outputValidator), 0);
 
         // Setup validation wallet
         validationWallet = address(0x5678);
 
-        // Deploy CBridge facet
-        cBridge = new TestCBridgeFacet(ICBridge(CBRIDGE_ROUTER));
-        bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = cBridge.startBridgeTokensViaCBridge.selector;
-        functionSelectors[1] = cBridge
-            .swapAndStartBridgeTokensViaCBridge
+        // Deploy Across V4 facet as the swap+bridge vehicle for the integration tests
+        acrossBridge = new TestAcrossFacetV4(
+            IAcrossSpokePoolV4(SPOKE_POOL),
+            LibBytes.toBytes32(ADDRESS_WETH)
+        );
+        bytes4[] memory functionSelectors = new bytes4[](3);
+        functionSelectors[0] = acrossBridge
+            .startBridgeTokensViaAcrossV4
             .selector;
-        functionSelectors[2] = cBridge.addAllowedContractSelector.selector;
-        functionSelectors[3] = cBridge.triggerRefund.selector;
+        functionSelectors[1] = acrossBridge
+            .swapAndStartBridgeTokensViaAcrossV4
+            .selector;
+        functionSelectors[2] = acrossBridge
+            .addAllowedContractSelector
+            .selector;
 
-        addFacet(diamond, address(cBridge), functionSelectors);
-        cBridge = TestCBridgeFacet(address(diamond));
+        addFacet(diamond, address(acrossBridge), functionSelectors);
+        acrossBridge = TestAcrossFacetV4(address(diamond));
 
         // Deploy and setup MockDEX
         mockDEX = new MockUniswapDEX();
 
-        // Whitelist MockDEX in the diamond using CBridge facet
-        cBridge.addAllowedContractSelector(
+        // Whitelist MockDEX in the diamond
+        acrossBridge.addAllowedContractSelector(
             address(mockDEX),
             mockDEX.swapExactTokensForTokens.selector
         );
-        cBridge.addAllowedContractSelector(
+        acrossBridge.addAllowedContractSelector(
             address(mockDEX),
             mockDEX.swapExactTokensForETH.selector
         );
-        cBridge.addAllowedContractSelector(
+        acrossBridge.addAllowedContractSelector(
             address(mockDEX),
             mockDEX.swapExactETHForTokens.selector
         );
 
         // Whitelist OutputValidator in the diamond
-        cBridge.addAllowedContractSelector(
+        acrossBridge.addAllowedContractSelector(
             address(outputValidator),
             outputValidator.validateNativeOutput.selector
         );
-        cBridge.addAllowedContractSelector(
+        acrossBridge.addAllowedContractSelector(
             address(outputValidator),
             outputValidator.validateERC20Output.selector
         );
@@ -101,7 +119,7 @@ contract OutputValidatorTest is TestBase {
         // Label addresses for better test output
         vm.label(address(outputValidator), "OutputValidator");
         vm.label(validationWallet, "ValidationWallet");
-        vm.label(address(cBridge), "CBridgeFacet");
+        vm.label(address(acrossBridge), "AcrossFacetV4");
         vm.label(address(mockDEX), "MockDEX");
     }
 
@@ -728,10 +746,10 @@ contract OutputValidatorTest is TestBase {
             requiresDeposit: false
         });
 
-        // Setup bridge data (using CBridge for simplicity)
+        // Setup bridge data (using Across V4 as the swap+bridge vehicle)
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("test"),
-            bridge: "cbridge",
+            bridge: "across",
             integrator: "test-integrator",
             referrer: address(0),
             sendingAssetId: address(dai),
@@ -742,9 +760,21 @@ contract OutputValidatorTest is TestBase {
             hasDestinationCall: false
         });
 
-        // CBridge specific data
-        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet
-            .CBridgeData({ maxSlippage: 5000, nonce: 1 });
+        // Across V4 specific data
+        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
+            .AcrossV4Data({
+                receiverAddress: LibBytes.toBytes32(address(this)),
+                refundAddress: LibBytes.toBytes32(USER_SENDER),
+                sendingAssetId: LibBytes.toBytes32(address(dai)),
+                receivingAssetId: LibBytes.toBytes32(ADDRESS_DAI_POL),
+                outputAmount: 0,
+                outputAmountMultiplier: 1e18,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
 
         // Fund the user with input tokens
         deal(address(usdc), USER_SENDER, inputAmount);
@@ -752,10 +782,10 @@ contract OutputValidatorTest is TestBase {
         usdc.approve(address(diamond), inputAmount);
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
-        cBridge.swapAndStartBridgeTokensViaCBridge(
+        acrossBridge.swapAndStartBridgeTokensViaAcrossV4(
             bridgeData,
             swapData,
-            cBridgeData
+            acrossData
         );
         vm.stopPrank();
 
@@ -832,7 +862,7 @@ contract OutputValidatorTest is TestBase {
         // Setup bridge data for USDC tokens
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("test-native-to-erc20"),
-            bridge: "cbridge",
+            bridge: "across",
             integrator: "test-integrator",
             referrer: address(0),
             sendingAssetId: address(usdc),
@@ -843,19 +873,31 @@ contract OutputValidatorTest is TestBase {
             hasDestinationCall: false
         });
 
-        // CBridge specific data
-        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet
-            .CBridgeData({ maxSlippage: 5000, nonce: 4 });
+        // Across V4 specific data
+        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
+            .AcrossV4Data({
+                receiverAddress: LibBytes.toBytes32(USER_SENDER),
+                refundAddress: LibBytes.toBytes32(USER_SENDER),
+                sendingAssetId: LibBytes.toBytes32(address(usdc)),
+                receivingAssetId: LibBytes.toBytes32(ADDRESS_USDC_POL),
+                outputAmount: 0,
+                outputAmountMultiplier: 1e18,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
 
         // Fund the user with input native tokens
         vm.deal(USER_SENDER, inputAmount);
         vm.startPrank(USER_SENDER);
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
-        cBridge.swapAndStartBridgeTokensViaCBridge{ value: inputAmount }(
+        acrossBridge.swapAndStartBridgeTokensViaAcrossV4{ value: inputAmount }(
             bridgeData,
             swapData,
-            cBridgeData
+            acrossData
         );
         vm.stopPrank();
 
@@ -939,7 +981,7 @@ contract OutputValidatorTest is TestBase {
         // Bridge should receive the expected amount (8 ETH), excess goes to OutputValidator
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: bytes32("test-erc20-to-native"),
-            bridge: "cbridge",
+            bridge: "across",
             integrator: "test-integrator",
             referrer: address(0),
             sendingAssetId: LibAsset.NULL_ADDRESS,
@@ -950,9 +992,23 @@ contract OutputValidatorTest is TestBase {
             hasDestinationCall: false
         });
 
-        // CBridge specific data
-        CBridgeFacet.CBridgeData memory cBridgeData = CBridgeFacet
-            .CBridgeData({ maxSlippage: 5000, nonce: 3 });
+        // Across V4 specific data (native bridge uses WRAPPED_NATIVE as inputToken)
+        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
+            .AcrossV4Data({
+                receiverAddress: LibBytes.toBytes32(USER_SENDER),
+                refundAddress: LibBytes.toBytes32(USER_SENDER),
+                sendingAssetId: LibBytes.toBytes32(ADDRESS_WETH),
+                receivingAssetId: LibBytes.toBytes32(
+                    ADDRESS_WRAPPED_NATIVE_POL
+                ),
+                outputAmount: 0,
+                outputAmountMultiplier: 1e18,
+                exclusiveRelayer: bytes32(0),
+                quoteTimestamp: uint32(block.timestamp),
+                fillDeadline: uint32(block.timestamp + 1000),
+                exclusivityParameter: 0,
+                message: ""
+            });
 
         // Fund the user with input tokens
         deal(address(usdc), USER_SENDER, inputAmount);
@@ -960,10 +1016,10 @@ contract OutputValidatorTest is TestBase {
         usdc.approve(address(diamond), inputAmount);
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
-        cBridge.swapAndStartBridgeTokensViaCBridge(
+        acrossBridge.swapAndStartBridgeTokensViaAcrossV4(
             bridgeData,
             swapData,
-            cBridgeData
+            acrossData
         );
         vm.stopPrank();
 
