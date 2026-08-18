@@ -109,6 +109,12 @@ export interface IHealthCheckContext {
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
   /**
+   * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
+   * name. Undefined = read from the build output (the default); injectable so both invariants
+   * that consume it are testable without a Foundry build.
+   */
+  compiledFacetSelectors?: Record<string, string[]>
+  /**
    * Run-wide memo of PeripheryRegistry reads, shared by every invariant that resolves a periphery
    * address. Optional because tests build partial contexts; absent simply means uncached reads.
    */
@@ -1486,11 +1492,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // in the log, leaving its coupling silently unevaluated; the periphery side of this check
       // already reads on-chain truth, and the facet side must not reintroduce that dependency.
       const couplings = getFacetPeripheryCouplings()
-      const { live: liveFacets } = resolveLiveFacets(
+      const liveFacets = resolveLiveFacets(
         ctx.onChainFacets,
         ctx.deployedContracts as Record<string, string>,
         Object.keys(couplings),
-        loadCompiledFacetSelectors()
+        ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
       )
 
       const { required, skipped } = evaluateFacetPeripheryCouplings(
@@ -1964,7 +1970,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
-      const compiledSelectors = loadCompiledFacetSelectors()
+      const compiledSelectors =
+        ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
       let unexpected = 0
       for (const facet of ctx.onChainFacets)
         if (!knownAddresses.has(facet.address.toLowerCase())) {

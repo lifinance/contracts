@@ -8,7 +8,9 @@
  *
  * `config/global.json` → `facetPeripheryCouplings` declares those couplings, keyed by facet name.
  * This module reads them and evaluates, for one chain, which companion periphery contracts are
- * actually required. Import it from the `facet-required-periphery` health-check invariant.
+ * actually required — which first needs to know which facets are live there, so it also identifies
+ * a diamond's on-chain facets, by deploy-log address and by compiled selector set. Import it from
+ * the `facet-required-periphery` and `no-unexpected-facets` health-check invariants.
  */
 import { existsSync, readdirSync, readFileSync } from 'fs'
 import { isAbsolute, relative, resolve } from 'path'
@@ -118,14 +120,6 @@ export interface IOnChainFacetSelectors {
   selectors: string[]
 }
 
-/** Outcome of identifying the facets a diamond actually has registered. */
-export interface ILiveFacetResolution {
-  /** Candidate facet names live on chain, by deploy-log address or by compiled selector set. */
-  live: string[]
-  /** On-chain facet addresses neither the deploy log nor any compiled selector set names. */
-  unidentified: string[]
-}
-
 /** Selector sets arrive 0x-prefixed from `facets()` and bare from build artifacts. */
 function normalizeSelectors(selectors: string[]): Set<string> {
   return new Set(
@@ -186,15 +180,15 @@ export function identifyFacetBySelectorSet(
  * @param deployedContracts - the deploy log for this chain (`deployments/<network>.json`)
  * @param candidateFacetNames - facet names to test (the coupling registry keys)
  * @param compiledSelectors - facet name → its full compiled selector set; empty disables the
- *   fallback (and with it the `unidentified` report, which would otherwise flag every facet)
- * @returns the live subset of `candidateFacetNames`, plus any unidentifiable on-chain addresses
+ *   selector fallback, leaving deploy-log resolution alone
+ * @returns the subset of `candidateFacetNames` that is live on chain
  */
 export function resolveLiveFacets(
   onChainFacets: IOnChainFacetSelectors[],
   deployedContracts: Record<string, string>,
   candidateFacetNames: string[],
   compiledSelectors: Record<string, string[]> = {}
-): ILiveFacetResolution {
+): string[] {
   const nameByLogAddress = new Map<string, string>()
   for (const [name, address] of Object.entries(deployedContracts))
     if (typeof address === 'string')
@@ -202,31 +196,24 @@ export function resolveLiveFacets(
 
   const candidates = new Set(candidateFacetNames)
   const liveNames = new Set<string>()
-  const unidentified: string[] = []
 
   for (const facet of onChainFacets) {
     const name =
       nameByLogAddress.get(facet.address.toLowerCase()) ??
       identifyFacetBySelectorSet(facet.selectors, compiledSelectors)
-
-    if (name === undefined) {
-      if (Object.keys(compiledSelectors).length > 0)
-        unidentified.push(facet.address)
-      continue
-    }
-    if (candidates.has(name)) liveNames.add(name)
+    if (name !== undefined && candidates.has(name)) liveNames.add(name)
   }
 
-  return {
-    live: candidateFacetNames.filter((name) => liveNames.has(name)),
-    unidentified,
-  }
+  return candidateFacetNames.filter((name) => liveNames.has(name))
 }
 
 /** Facet names come from a directory listing; the guard keeps a hostile filename out of a path. */
 function isValidFacetName(name: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(name)
 }
+
+/** Memoized per working directory: a fleet run reads these artifacts once, not once per network. */
+const compiledSelectorCache = new Map<string, Record<string, string[]>>()
 
 /**
  * Read every facet's compiled selector set from the Foundry build output under `out/`.
@@ -239,8 +226,12 @@ function isValidFacetName(name: string): boolean {
  * @returns facet name → its full compiled selector set, `0x`-prefixed; empty when nothing is built
  */
 export function loadCompiledFacetSelectors(): Record<string, string[]> {
-  const facetSourceDir = resolve(process.cwd(), 'src', 'Facets')
-  const outDir = resolve(process.cwd(), 'out')
+  const cwd = process.cwd()
+  const cached = compiledSelectorCache.get(cwd)
+  if (cached) return cached
+
+  const facetSourceDir = resolve(cwd, 'src', 'Facets')
+  const outDir = resolve(cwd, 'out')
   if (!existsSync(facetSourceDir) || !existsSync(outDir)) return {}
 
   const selectorsByFacet: Record<string, string[]> = {}
@@ -265,5 +256,6 @@ export function loadCompiledFacetSelectors(): Record<string, string[]> {
       // An unreadable artifact only costs this facet its selector identity.
     }
   }
+  compiledSelectorCache.set(cwd, selectorsByFacet)
   return selectorsByFacet
 }

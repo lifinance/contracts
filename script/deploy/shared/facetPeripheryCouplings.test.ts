@@ -1,4 +1,3 @@
-
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -131,8 +130,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
-    expect(resolved.unidentified).toEqual([])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
   it('identifies a candidate absent from the deploy log by its full selector set', () => {
@@ -147,8 +145,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['ChainflipFacet'])
-    expect(resolved.unidentified).toEqual([])
+    expect(resolved).toEqual(['ChainflipFacet'])
   })
 
   it('identifies a candidate whose deploy-log address is stale', () => {
@@ -163,7 +160,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
   it('identifies a facet registered with only part of its compiled selector set', () => {
@@ -178,7 +175,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
   it('refuses to identify a facet whose selectors fit more than one compiled set', () => {
@@ -196,10 +193,7 @@ describe('resolveLiveFacets', () => {
         AcrossFacetPackedV4: [...ACROSS_SELECTORS, '0x55555555'],
       }
     )
-    expect(resolved.live).toEqual([])
-    expect(resolved.unidentified).toEqual([
-      '0x9999000000000000000000000000000000000099',
-    ])
+    expect(resolved).toEqual([])
   })
 
   it('prefers an exact selector-set match over a broader containing one', () => {
@@ -217,7 +211,7 @@ describe('resolveLiveFacets', () => {
         AcrossFacetV4: [...CHAINFLIP_SELECTORS, '0x66666666'],
       }
     )
-    expect(resolved.live).toEqual(['ChainflipFacet'])
+    expect(resolved).toEqual(['ChainflipFacet'])
   })
 
   it('does not identify a facet whose on-chain set is a superset of a compiled set', () => {
@@ -232,7 +226,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual([])
+    expect(resolved).toEqual([])
   })
 
   it('matches selectors regardless of case, order and 0x prefix', () => {
@@ -247,39 +241,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
-  })
-
-  it('reports an on-chain facet no source can identify', () => {
-    const resolved = resolveLiveFacets(
-      [
-        {
-          address: '0x9999000000000000000000000000000000000099',
-          selectors: ['0xabcdabcd'],
-        },
-      ],
-      deployLog,
-      candidates,
-      compiled
-    )
-    expect(resolved.unidentified).toEqual([
-      '0x9999000000000000000000000000000000000099',
-    ])
-  })
-
-  it('does not report an on-chain facet that the deploy log already names', () => {
-    const resolved = resolveLiveFacets(
-      [
-        {
-          address: '0xeeee000000000000000000000000000000000005',
-          selectors: ['0xabcdabcd'],
-        },
-      ],
-      deployLog,
-      candidates,
-      compiled
-    )
-    expect(resolved.unidentified).toEqual([])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
   it('does not report an on-chain facet identified by a compiled non-candidate', () => {
@@ -294,8 +256,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual([])
-    expect(resolved.unidentified).toEqual([])
+    expect(resolved).toEqual([])
   })
 
   it('lists a candidate once when both log and selector set identify it', () => {
@@ -310,7 +271,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       compiled
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 
   it('falls back to log-only resolution when no compiled selectors are available', () => {
@@ -329,8 +290,7 @@ describe('resolveLiveFacets', () => {
       candidates,
       {}
     )
-    expect(resolved.live).toEqual(['AcrossFacetV4'])
-    expect(resolved.unidentified).toEqual([])
+    expect(resolved).toEqual(['AcrossFacetV4'])
   })
 })
 

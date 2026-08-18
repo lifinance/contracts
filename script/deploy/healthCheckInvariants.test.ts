@@ -825,3 +825,73 @@ describe('receiver coverage tracks the coupling registry', () => {
       expect(checked.has(receiver)).toBe(true)
   })
 })
+
+describe('selector identity in the facet invariants', () => {
+  const FACET_A = '0xaaaa000000000000000000000000000000000001'
+  const UNLOGGED = '0xbbbb000000000000000000000000000000000002'
+
+  function makeFacetCtx(
+    onChainFacets: Array<{ address: string; selectors: string[] }>,
+    deployedContracts: Record<string, string>,
+    compiledFacetSelectors: Record<string, string[]>
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      onChainFacets,
+      deployedContracts,
+      compiledFacetSelectors,
+    })
+    return ctx
+  }
+
+  it('names an unlogged on-chain facet from its selectors', async () => {
+    const ctx = makeFacetCtx(
+      [{ address: UNLOGGED, selectors: ['0x11111111'] }],
+      {},
+      { AcrossFacetV4: ['0x11111111'] }
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('AcrossFacetV4')
+  })
+
+  it('says so when no compiled selector set identifies an unlogged facet', async () => {
+    const ctx = makeFacetCtx(
+      [{ address: UNLOGGED, selectors: ['0x99999999'] }],
+      {},
+      { AcrossFacetV4: ['0x11111111'] }
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no compiled selector set identifies it')
+  })
+
+  it('leaves a deploy-log-named facet alone', async () => {
+    const ctx = makeFacetCtx(
+      [{ address: FACET_A, selectors: ['0x11111111'] }],
+      { AcrossFacetV4: FACET_A },
+      { AcrossFacetV4: ['0x11111111'] }
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('evaluates the coupling of a live facet the deploy log does not know about', async () => {
+    const coupled = Object.keys(getFacetPeripheryCouplings())[0] as string
+    const ctx = makeFacetCtx(
+      [{ address: UNLOGGED, selectors: ['0x11111111'] }],
+      {},
+      { [coupled]: ['0x11111111'] }
+    )
+    Object.assign(ctx, {
+      diamondAddress: '0x9999999999999999999999999999999999999999',
+      publicClient: {
+        readContract: async () => ZERO,
+      },
+      peripheryRegistryCache: new Map(),
+    })
+    await invariant('facet-required-periphery').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(coupled)
+  })
+})
