@@ -47,7 +47,7 @@
  * header row), so each file stays small enough for Hexagate to process reliably.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -158,6 +158,16 @@ function parseArgs(argv: string[]): {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+
+  const deploymentsDir = join(REPO_ROOT, 'deployments')
+  for (const n of networks) {
+    const relativePath = relative(
+      deploymentsDir,
+      join(deploymentsDir, `${n}.diamond.json`)
+    )
+    if (relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error(`Invalid network name: ${n}`)
+  }
 
   const explicitAny = CATEGORY_FLAGS.some((c) => out.categories[c] === true)
   const categories = {} as Record<Category, boolean>

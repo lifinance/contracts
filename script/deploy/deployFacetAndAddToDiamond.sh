@@ -9,6 +9,9 @@ function deployFacetAndAddToDiamond() {
   source script/helperFunctions.sh
   source script/deploy/deploySingleContract.sh
   source script/tasks/diamondUpdatePeriphery.sh
+  # defines diamondUpdateFacet, called below - without this the cut depends on the caller
+  # having sourced script/tasks/*.sh
+  source script/tasks/diamondUpdateFacet.sh
 
 
   # read function arguments into variables

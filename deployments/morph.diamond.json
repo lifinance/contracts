@@ -33,9 +33,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0A14228AC6477646576966D03eBDADce8D5C83bb": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x9dFAc3741f384201AF5167b81Ba411516Cc99641": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xb1e9A4b09e2b8c35D21Ede99Fa60276fe0647551": {
         "Name": "GenericSwapFacetV3",
@@ -57,9 +57,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xE38C60642A0779c0d25C3f790FAeE21f2059b647": {
+      "0x778A74B0A93C933021648a260110214A9FffAff8": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0x455B71D20a8b51E9757FeD649833f71355cFCe44": {
         "Name": "LayerSwapFacet",

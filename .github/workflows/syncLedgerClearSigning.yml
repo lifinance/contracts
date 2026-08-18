@@ -1,6 +1,6 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments AND with the `display.formats` proposal at `config/clearSigningProposal.json`.
-# - Triggers: monthly cron (safety net), push to facets/deployments/proposal (fast path), and manual.
+# - Triggers: push-to-main on ABI/deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run).
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
@@ -39,12 +39,16 @@ permissions:
 jobs:
   sync-ledger:
     concurrency:
-      # Key by event so a manual workflow_dispatch (especially dry_run) can't
-      # cancel an in-progress scheduled or push-triggered production sync.
-      # cancel-in-progress is still per-group: multiple dry-runs cancel each
-      # other, multiple push-triggered runs cancel each other, but the two
-      # never cross-cancel.
-      group: sync-ledger-clear-signing-${{ github.event_name }}
+      # Collapse the two production triggers (schedule + push) into one group so
+      # they never force-push sync/lifi-erc7730 or update the upstream PR
+      # concurrently — a second concurrent run would break the
+      # `--force-with-lease` push or send a duplicate Slack ping.
+      # cancel-in-progress lets a newer production run supersede an in-flight
+      # one; force-push is atomic, so whichever wins leaves a consistent branch
+      # + PR. Manual workflow_dispatch keeps its own group so a dry_run can
+      # neither cancel nor be cancelled by a production sync (and repeated
+      # dispatches still cancel each other).
+      group: sync-ledger-clear-signing-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'production' }}
       cancel-in-progress: true
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
@@ -64,7 +68,7 @@ jobs:
         run: bun install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
