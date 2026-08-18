@@ -46,6 +46,7 @@ jobs:
     # Determines whether files that can influence script validity were touched.
     # Always runs (cheap) so the downstream validate-scripts-required can report status.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       scripts: ${{ steps.filter.outputs.scripts }}
     steps:
@@ -77,6 +78,7 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -84,6 +86,7 @@ jobs:
           # PR base branch; submodules for `forge build src` (TypeChain input)
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -124,6 +127,7 @@ jobs:
     needs: [detect-changes, validate-scripts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Validate upstream result
         # Validate `detect-changes` succeeded first. If it failed, `validate-scripts`

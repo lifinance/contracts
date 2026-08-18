@@ -29,6 +29,7 @@ jobs:
       pull-requests: write # required to create/delete the reminder comment on the PR
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Detect facet/periphery vs. invariant-registry changes
         id: filter

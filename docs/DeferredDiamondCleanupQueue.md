@@ -287,10 +287,17 @@ The engine ships the guard for this in #2047:
 `revalidateRemovalsOnChain(network, diamondAddress, snapshot, io?)` (pure core
 `filterRePointedRemovals`) re-reads the loupe and returns `{ stillRemovable, stale }`,
 dropping any selector that no longer routes to the doomed facet address (`re-pointed`
-or `already-gone`). **The drain/execute consumer MUST call it immediately before
-executing a queued removal op** and abort (or re-propose from `stillRemovable`) if
-`stale` is non-empty. This is a first-class acceptance criterion for the drain-hook
-follow-up, not an optional hardening step.
+or `already-gone`). **Wired into `execute-pending-timelock-tx` / `executeOperation`:**
+immediately before `executeBatch`, the runner rebuilds the propose-time snapshot from
+Remove payloads + parked tasks (`listParkedTasksBySafeTxHash` +
+`buildRemovalSnapshotFromPayloads`) and aborts if `stale` is non-empty. Under the fold
+that aborts the **entire** timelock batch (primary cut + removals) — the schedule is
+immutable, so "re-propose from `stillRemovable`" means cancel the op and drain again.
+Remove cuts with no parked rows for the Safe tx hash also abort (fail closed) —
+doomed addresses are not recoverable from calldata (`facetAddress = 0`), so
+executing blind would reopen silent live-selector deletion. That covers drain
+unlink (best-effort `setSafeTxHash` never stamped) and legacy
+`cleanUpProdDiamond` until those removals park too.
 
 ---
 
@@ -401,24 +408,31 @@ and would **miss the agentic facet-cut case this whole design exists for** (a de
 rides along with the next automated cut). Hooking the `multisig-rollout` skill would
 miss any cut done outside a rollout. `runPropose` is the one point both reach.
 
-**Implementation shape (least-invasive, keeps signing pure).** Extract the current
-`runPropose` body into a pure `_runPropose(options)`; the public `runPropose` becomes a
-thin wrapper that runs the primary proposal first and then drains, guarded so the drain
-can never affect the primary proposal or the process exit code:
+**Implementation shape (folds removals into the primary's `scheduleBatch`).** Extract the
+current `runPropose` body into `_runPropose(options, extraTimelockCalls?, parkedTaskRefs?)`
+— which appends the extra calls to `normalizeProposeCalls`'s `targets`/`calldatas` before
+the timelock wrap and returns `{ safeTxHash, stored }`. The public `runPropose` drives it
+through `proposeWithDrain`, which prepares the removal calls **before** the primary is
+signed so they ride in the same single Safe transaction (Q4 revisited — see Batching
+below):
 
 ```ts
 // script/deploy/safe/propose-to-safe.ts
-export async function _runPropose(options: IProposeToSafeOptions) {
-  /* … the existing body verbatim: normalizeProposeCalls → initializeSafeClient →
+export async function _runPropose(
+  options: IProposeToSafeOptions,
+  extraTimelockCalls: ITimelockCall[] = [], // appended to the scheduleBatch inner calls
+  parkedTaskRefs?: IParkedTaskRef[] // annotated onto the stored proposal
+): Promise<{ safeTxHash: Hex; stored: boolean }> {
+  /* normalizeProposeCalls → (append extraTimelockCalls) → initializeSafeClient →
      getSafeMongoCollection → getNextNonce → createTransaction → sign →
-     storeTransactionInMongoDB … (propose-to-safe.ts:59-252 today) */
+     storeTransactionInMongoDB(…, parkedTaskRefs) */
 }
 
 export async function runPropose(options: IProposeToSafeOptions) {
-  await _runPropose(options) // the primary ("main") proposal — unchanged behaviour
-  // opt-in, best-effort: a drain failure must never fail the primary proposal
-  await drainParkedTasks(options).catch((e) =>
-    consola.warn('parked-task drain failed (primary proposal unaffected):', e)
+  // proposeWithDrain claims removals, folds them into the ONE proposal, then links
+  // (or reverts) the claimed tasks; a drain problem falls back to primary-only.
+  await proposeWithDrain(options, (extraCalls, refs) =>
+    _runPropose(options, extraCalls, refs)
   )
 }
 ```
@@ -426,15 +440,18 @@ export async function runPropose(options: IProposeToSafeOptions) {
 - **New helper** `script/deploy/safe/drain-parked-tasks.ts` (mirrors the `parked-tasks.ts`
   kebab convention). It opens its own `getParkedTasksCollection()` (Fact 15) — the drain
   reads the queue on the non-sensitive cluster, independent of the signing store — and
-  mints the removal proposal through the low-level store, **not** by recursing through
-  `runPropose`.
+  hands its removal calls to `_runPropose`, **not** by minting a second proposal or
+  recursing through `runPropose`.
 - **Flag-gated — `DRAIN_PARKED_TASKS` (Q6, semantics decided): ON for rollouts, OFF for
   emergencies.** Default **off** in v1. The point of the flag is scoping, not just a
   kill-switch: an urgent pause / break-glass proposal must **never** drag unrelated facet
   removals into its signing set, so emergency flows run with `DRAIN_PARKED_TASKS` unset
   and stay a single clean proposal; deliberate rollouts set it on to let removals ride.
-- **Reentrancy-guarded** so the drain's *own* removal proposal (minted through the
-  low-level store) can't re-trigger a drain.
+- **Timelock-only.** Removals need the `scheduleBatch` to batch into, so the fold-in runs
+  only when the primary proposal is timelocked (`isDrainEligible`). A non-timelock primary
+  leaves the tasks `queued` for the next timelocked cut.
+- **Reentrancy-guarded** so a primary proposal that itself re-enters `runPropose` can't
+  re-trigger a drain.
 - **Production/Safe-only**: on a direct-send environment (Fact 13) it no-ops (§12).
 
 **Known gap (stated, not hidden).** `sendOrPropose` (`safeScriptHelpers.ts:29`) is a
@@ -466,22 +483,52 @@ a deliberate future option, not part of v1.
    concurrent drain finds no `queued` record, gets `null`, and skips it — so two parallel
    sessions draining the same network **cannot double-propose the same removal**,
    independent of the salt-nondeterministic `intentHash` (Fact 9).
-4. Build the removal cut → `buildDiamondCutRemoveCalldata(removals)` →
-   `prepareTimelockCalldata` (→ `scheduleBatch`, Fact 9) → mint the proposal via the
-   low-level store (**not** recursing through `runPropose`), carrying the PR links
-   (below). Set `safeTxHash` on the flipped records.
-5. On mint failure, revert the flipped records with `revertToQueued` (Fact 15), which
-   clears the stale `proposedAt`/`safeTxHash` so the next drain re-proposes cleanly.
+4. Build **one `diamondCut` Remove call per claimed facet** →
+   `buildDiamondCutRemoveCalldata([{name, selectors}])` — and hand those calls to
+   `_runPropose` as `extraTimelockCalls`, which appends them to the primary proposal's
+   `scheduleBatch` (Fact 9). No second proposal is minted.
+5. Once `_runPropose` returns the primary's `safeTxHash`, set it on each flipped record
+   (`setSafeTxHash`). If the primary proposal **fails** — or was a duplicate that created
+   no new proposal — revert the flipped records with `revertToQueued` (Fact 15), clearing
+   the stale `proposedAt`/`safeTxHash` so the next drain re-folds them cleanly. Preparation
+   failures before the primary is signed revert their own claims and fall back to
+   primary-only, so a drain problem never blocks the primary.
 
-**Batching — one consolidated removal proposal per network (recommended; Q4 still open,
-§14).** The recommendation is a single per-network `scheduleBatch` Remove carrying every
-queued facet's origin PR — **not** merged into the upgrade's Safe transaction
-(FacetRemovalReconciliation §4 argues why: the upgrade cut is Solidity-built, the removal
-cut is TS-built; one extra proposal in the same signing session delivers the batching
-without threading removal logic across the language boundary). It is captured by the same
-`list-pending-proposals.ts` sweep, lands in the same rollout PR, and is signed in the same
-session. The one-proposal-per-origin-PR alternative (cleaner 1:1 PR↔proposal mapping, more
-proposals) was **not** settled in the thread — see §14 Q4.
+**Batching — one proposal, one signature (Q4 revisited).** Every claimed facet becomes its
+own `diamondCut` Remove element **appended to the primary proposal's `scheduleBatch`** — so
+a rollout that already signs one proposal signs exactly one, now carrying the cleanups too
+(N parked facets → the primary's calls + N removal elements). This supersedes the earlier
+"one *extra* proposal per network in the same signing session" recommendation: a separate
+proposal is still a full second sign + schedule + execute, which defeated the near-zero
+marginal-signing goal. The fold happens purely in TypeScript at the `runPropose` layer
+(the primary's calldata is already TS by then), so it never threads removal logic into the
+Solidity deploy scripts — the language-boundary concern in FacetRemovalReconciliation §4
+only ever applied to a *single on-chain `diamondCut`*, not to a shared `scheduleBatch`.
+Every removal call is captured by the same `list-pending-proposals.ts` sweep, lands in the
+same rollout PR, and — carrying its origin PR via `parkedTaskRefs` — is reviewed inline in
+the one proposal.
+
+**Accepted tradeoff — review-time coupling.** Folding into one timelock operation couples
+the removals to the upgrade: a reviewer who objects to a removal must reject the whole
+proposal (upgrade included), not just the removal. That is acceptable because each removal
+already carries its origin-PR link for review, and the `DRAIN_PARKED_TASKS`-off default
+keeps emergency / break-glass proposals a single clean upgrade with nothing folded in.
+
+**Accepted tradeoff — execution-time atomicity (TOCTOU).** Because the removals share the
+upgrade's `scheduleBatch`, on-chain execution is atomic: a bad folded Remove would take
+the primary cut with it. Two failure modes in the delay window: (1) selector already
+gone → on-chain `FunctionDoesNotExist` revert of the whole batch; (2) selector
+**re-pointed** to a live facet → the Remove (`facetAddress = 0`) would *succeed* and
+silently delete the live selector. The pre-execute guard in `execute-pending-timelock-tx`
+(§4) refuses both before `executeBatch`, marking the queue row `failed` so the cron does
+not retry. The prepare-time partition still shrinks the window; the schedule remains
+immutable once queued. Exposure is low in practice (parked removals target already-
+deprecated facets), but larger than the old separate-proposal design. Mitigations if the
+guard ever false-positives a rollout: cancel the op, or gate `DRAIN_PARKED_TASKS` off.
+A rare false abort can also come from same-ms `proposedAt` ties mis-ordering the
+trailing-N Remove zip (fail-safe, not silent delete) — accepted until claim-time
+append indexing ships. Flagged for governance review; the default-off flag remains
+the break-glass escape hatch.
 
 ### How the PR link reaches the reviewer — the acceptance criterion (visibility decided)
 
@@ -514,13 +561,13 @@ parkedTaskRefs?: { facet: string; prUrl: string }[]
 2. **`list-pending-proposals.ts`.** Add `parkedTaskRefs` to `IProposalSummary`
    (`safe-utils.ts:139`) → one extra console line + the `--json` shape.
 3. **Slack** (`multisig-rollout` Phase 8, Fact 11 / the webhook helper Fact 12).
-   Include the origin-PR URLs in the removal proposal's line of the thread.
+   Include the origin-PR URLs in the proposal's line of the thread.
 
-**Multiple parked tasks from different PRs on one network → one batched removal proposal
-carrying multiple PR links** (under the recommended per-network batching, Q4).
-`parkedTaskRefs` is an array precisely so a network with facet *A* (PR #2046) and facet
-*B* (PR #2048) queued produces a single `scheduleBatch` Remove with **two** origin-PR
-lines shown to the signer.
+**Multiple parked tasks from different PRs on one network → folded into the one primary
+proposal, carrying multiple PR links** (Q4 revisited, Batching above). `parkedTaskRefs` is
+an array precisely so a network with facet *A* (PR #2046) and facet *B* (PR #2048) queued
+appends **two** removal elements to the primary's `scheduleBatch` and shows **two**
+origin-PR lines to the signer.
 
 ---
 
@@ -593,8 +640,14 @@ Three composed backstops, none silent:
    (match by facet+network) so the two paths don't double-propose.
 2. **TTL / age alert.** A scheduled job reads `parkedTasks`; any record `queued`
    longer than *N* days (default **30** `[unverified]` — team to set) → post to
-   `#dev-sc-multisig-proposals` via the existing webhook (Fact 12), naming the
-   network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-github-ci-notifications` (`WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS`), naming
+   the network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-multisig-proposals` stays reserved for please-sign announcements, so scheduled
+   job output never competes with the signing worklist. Delivery requires `CI`: a local run
+   (including the full-tunnel one §7 recommends) prints the alert to the console instead of
+   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery. On the
+   scheduled run an unset webhook fails the job instead of dropping the alert, so the backstop
+   cannot go quiet behind a green check.
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
@@ -662,8 +715,8 @@ Phase 3.5 (Fact 11) is **superseded** by the automatic drain hook (§6): when
 Crucially, the drain is **not** a new `multisig-rollout` skill step and needs **no edit
 to the skill** — it fires from the `runPropose` chokepoint (§6), so it rides *any* facet
 cut, rollout or not. The rollout's Phase 4 capture, Phase 5 PR, and Phase 8 Slack post
-already carry the extra removal proposal — the skill doc gains only the PR-link surfacing
-(§6) and drops the manual `--auto` invocation.
+already carry the primary proposal that the removals are folded into — the skill doc gains
+only the PR-link surfacing (§6) and drops the manual `--auto` invocation.
 
 ---
 
@@ -750,10 +803,13 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    `ISafeTxDocument` with the optional, backward-compatible `parkedTaskRefs?:
    { facet, prUrl }[]` field (over a side-car lookup) — simplest read path at all
    three surfaces; purely additive to the schema. **Built in the follow-up PR.**
-4. ~~**Batching (§6).**~~ **RESOLVED (Daniel):** one consolidated per-network
-   removal proposal — a single `scheduleBatch` Remove carrying every queued facet's
-   origin PR via the `parkedTaskRefs` array (fewer proposals, one extra signature in
-   the session). **Built in the follow-up PR** (`drainNetwork`).
+4. ~~**Batching (§6).**~~ **RESOLVED, then REVISED (Daniel):** originally one consolidated
+   *extra* per-network removal proposal in the same session; revised to **fold the removals
+   into the primary proposal's `scheduleBatch`** (one `diamondCut` Remove element per
+   claimed facet, carrying each origin PR via `parkedTaskRefs`) so a rollout signs exactly
+   **one** proposal — a separate proposal was still a full second sign/schedule/execute.
+   Accepted tradeoff: removals are coupled to the upgrade's timelock op (reject-one =
+   reject-all). See §6 Batching. **Built in `prepareDrainNetwork` / `proposeWithDrain`.**
 5. **Deploy-log hazard (§8).** Harden the drain to resolve by stored `facetAddress`
    when the log entry was pruned (small engine extension), **and/or** just enforce
    "don't prune the log until the parked task retires"? (Recommend both.)
@@ -785,17 +841,18 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
  ────────────────                         ──────────────────────────────────────
  /deprecate-contract F                    rollout / any proposeDiamondCut → runPropose
    │ (removes F from codebase)              │
-   │ opens deprecation PR #P                │ primary proposal stored (_runPropose, unchanged)
-   ▼                                        ▼
- enqueue parkedTask{                      drainParkedTasks(X)  ◄── runPropose tail, the ONE hook (§6)
-   kind: facet-removal,                     │  (DRAIN_PARKED_TASKS on; try/catch)
-   network: X, facetName: F,                │ 1. read status:queued for X
-   prUrl: #P, status: queued }              │ 2. computeNamedFacetRemovals (live loupe)
-   │                                        │ 3. claimForProposal flip queued→proposed  (dedup gate)
-   │  … survives across sessions …          │ 4. ONE scheduleBatch Remove, carrying #P link
-   └───────────────────────────────────────┤
+   │ opens deprecation PR #P                │ proposeWithDrain(X)  ◄── the ONE hook (§6)
+   ▼                                        ▼  (DRAIN_PARKED_TASKS on; timelock; try/catch)
+ enqueue parkedTask{                        │ 1. read status:queued for X
+   kind: facet-removal,                     │ 2. computeNamedFacetRemovals (live loupe)
+   network: X, facetName: F,                │ 3. claimForProposal flip queued→proposed  (dedup gate)
+   prUrl: #P, status: queued }              │ 4. build one Remove call per facet, carrying #P link
+   │                                        │ 5. _runPropose folds them into the primary scheduleBatch
+   │  … survives across sessions …          │ 6. link claimed tasks → the primary's safeTxHash
+   └───────────────────────────────────────┤     (revert on primary failure / duplicate)
                                             ▼
-                            Safe proposal (pendingTransactions) — reviewer sees "origin PR #P"
+                            ONE Safe proposal (pendingTransactions) — primary + N Removes,
+                                            │  reviewer sees "origin PR #P" per folded removal
                                             │  (confirm-safe-tx detailLines + list-pending + Slack)
                                             ▼
                             ≥quorum sign (Ledger) → timelock delay → execute

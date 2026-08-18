@@ -24,6 +24,7 @@ permissions:
 jobs:
   verify-clear-signing:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository (with submodules)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -40,7 +41,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'

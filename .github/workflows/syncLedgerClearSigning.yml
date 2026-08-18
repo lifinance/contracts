@@ -1,7 +1,7 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond ABI + deployments AND with the `display.formats` proposal at `config/clearSigningProposal.json`.
-# - Triggers: monthly cron (safety net), push to facets/deployments/proposal (fast path), and manual.
-# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
+# - Triggers: push-to-main on ABI/deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run).
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
 # - Upstream-only: guarded to lifinance/contracts because forks that sync this file (contracts-tron) lack `LEDGER_SYNC_TOKEN`/Slack secrets and must not push to the EF registry.
@@ -39,15 +39,20 @@ permissions:
 jobs:
   sync-ledger:
     concurrency:
-      # Key by event so a manual workflow_dispatch (especially dry_run) can't
-      # cancel an in-progress scheduled or push-triggered production sync.
-      # cancel-in-progress is still per-group: multiple dry-runs cancel each
-      # other, multiple push-triggered runs cancel each other, but the two
-      # never cross-cancel.
-      group: sync-ledger-clear-signing-${{ github.event_name }}
+      # Collapse the two production triggers (schedule + push) into one group so
+      # they never force-push sync/lifi-erc7730 or update the upstream PR
+      # concurrently — a second concurrent run would break the
+      # `--force-with-lease` push or send a duplicate Slack ping.
+      # cancel-in-progress lets a newer production run supersede an in-flight
+      # one; force-push is atomic, so whichever wins leaves a consistent branch
+      # + PR. Manual workflow_dispatch keeps its own group so a dry_run can
+      # neither cancel nor be cancelled by a production sync (and repeated
+      # dispatches still cancel each other).
+      group: sync-ledger-clear-signing-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'production' }}
       cancel-in-progress: true
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository (with submodules)
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -64,10 +69,26 @@ jobs:
         run: bun install
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@de808b1eea699e761c404bda44ba8f21aba30b2c # v1.3.1
+        uses: ./.github/actions/setup-foundry
 
       - name: Build contracts (generate Foundry artifacts)
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
+
+      - name: Set up Python for ERC-7730 formatter
+        # erc7730 pins `Requires-Python >=3.12,<3.13`, so the formatter only
+        # installs on 3.12 — pin it explicitly rather than trust the runner's
+        # default Python (which drifts and would break the install without notice).
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install ERC-7730 formatter
+        # `erc7730 format` is the exact formatter the registry runs in its own
+        # `format.yml` bot. We apply it to our generated descriptor (see the sync
+        # step) so our output already matches the registry's canonical shape.
+        # Left unpinned so we track whatever formatter version the registry uses;
+        # pinning would reintroduce drift the moment they upgrade theirs.
+        run: pip install erc7730
 
       - name: Checkout fork (clear-signing-erc7730-registry) with sync token
         # Use `actions/checkout` rather than a manual `git clone` token-in-URL.
@@ -138,6 +159,17 @@ jobs:
 
           echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (abi + deployments + display.formats merge; metadata preserved)...\033[0m"
           bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --printDiff
+
+          # Normalize to the registry's canonical format before diffing/committing.
+          # Our generator writes fully-expanded `JSON.stringify(..., 2)`, but the
+          # registry stores the compact `erc7730 format` shape. Without this step
+          # every sync re-expands their file and their format bot re-compacts it,
+          # so the PR carries a permanent ~20k-line formatting diff that buries
+          # the real ABI/deployment changes. Running the registry's own formatter
+          # here makes the diff show only genuine changes (EXSC-781). Placed
+          # before the porcelain check so it applies to the dry-run preview too.
+          echo -e "\033[32mFormatting ${LEDGER_FILE_PATH} with erc7730 (registry canonical formatter)...\033[0m"
+          erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
 
           cd ledger-registry
           if [ -z "$(git status --porcelain)" ]; then

@@ -38,10 +38,13 @@ jobs:
     # Determines whether files that can influence `forge test` outcomes were touched.
     # Always runs (cheap) so the downstream unit-tests-required can report status.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       forge: ${{ steps.filter.outputs.forge }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
       - name: Detect relevant changes
         id: filter
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -69,6 +72,7 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -77,6 +81,7 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
@@ -89,10 +94,12 @@ jobs:
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
         with:
-          # Each shard runs `forge test --match-path <subset>` and so compiles a
-          # different partial out/; key the build cache per shard so they do not
-          # poison one another's cache.
+          # Each shard runs `forge test --match-path <subset>`, so it compiles a
+          # different partial out/ and forks a different set of chains; key the
+          # build and RPC caches per shard so they do not poison one another's.
           cache-key-suffix: ${{ matrix.shard }}
+          # This is the fork-RPC-heavy workflow, so it is worth accumulating state here.
+          rpc-cache-refresh: 'true'
 
       - name: Install forge Dependencies
         run: forge install
@@ -154,6 +161,7 @@ jobs:
     needs: [detect-changes, run-unit-tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Validate upstream result
         # Validate `detect-changes` succeeded first. If it failed, `run-unit-tests`
