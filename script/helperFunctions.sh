@@ -1819,7 +1819,7 @@ function parseTargetStateGoogleSpreadsheet() {
 
   # load google sheets into CSV file
   CSV_FILE_PATH="newTest.csv"
-  if ! curl -fsSL "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH; then
+  if ! curl -fsSL --connect-timeout 10 --max-time 60 "$SPREADSHEET_URL""$EXPORT_PARAMS" -o "$CSV_FILE_PATH"; then
     error "failed to download the target state sheet from $SPREADSHEET_URL. Cannot proceed."
     rm -f "$CSV_FILE_PATH"
     return 1
@@ -1904,7 +1904,11 @@ function parseTargetStateGoogleSpreadsheet() {
   fi
 
   if [[ ${#NETWORK_LINES[@]} -eq 0 ]]; then
-    error "no network rows parsed from the sheet. Target state left unchanged."
+    if [[ -n "$SPECIFIC_NETWORK" ]]; then
+      error "no row found for network '$SPECIFIC_NETWORK' in the sheet export. Target state left unchanged."
+    else
+      error "no network rows parsed from the sheet. Target state left unchanged."
+    fi
     rm -f "$CSV_FILE_PATH"
     return 1
   fi
@@ -1916,7 +1920,7 @@ function parseTargetStateGoogleSpreadsheet() {
   if [[ -z "$SPECIFIC_NETWORK" && "$ALLOW_TARGET_STATE_NETWORK_REMOVAL" != "true" ]]; then
     local EXISTING_NETWORKS
     # NOTE: the arg cannot be named ENV -- jq's built-in $ENV (the environment object)
-    # shadows it, and indexing with an object silently yields no networks.
+    # shadows it, and indexing with an object makes the whole query error out.
     # A jq failure must not read as "nothing would be lost" -- that silent pass is the same
     # shape as the data loss this guard exists to prevent.
     if ! EXISTING_NETWORKS=$(jq -r --arg TARGET_ENV "$ENVIRONMENT" 'to_entries[] | select(.value[$TARGET_ENV] != null) | .key' "$TARGET_STATE_PATH"); then
@@ -1927,11 +1931,12 @@ function parseTargetStateGoogleSpreadsheet() {
 
     local MISSING_NETWORKS=()
     local EXISTING_NETWORK
-    for EXISTING_NETWORK in $EXISTING_NETWORKS; do
+    while IFS= read -r EXISTING_NETWORK; do
+      [[ -z "$EXISTING_NETWORK" ]] && continue
       if ! printf '%s\n' "${NETWORK_LINES[@]}" | cut -d',' -f1 | grep -qxF "$EXISTING_NETWORK"; then
         MISSING_NETWORKS+=("$EXISTING_NETWORK")
       fi
-    done
+    done <<<"$EXISTING_NETWORKS"
 
     if [[ ${#MISSING_NETWORKS[@]} -gt 0 ]]; then
       error "these networks have '$ENVIRONMENT' entries in $TARGET_STATE_PATH but no row in the sheet export: ${MISSING_NETWORKS[*]}"
@@ -2094,11 +2099,11 @@ function processNetworkLine() {
       local DIAMOND_TYPE="LiFiDiamond"
     fi
 
-    # get current contract version and save in variable.
-    # Declared separately from the assignment: `local VAR=$(...)` reports local's own exit
-    # code, which discards the lookup failure. getCurrentContractVersion also prints its
-    # errors on stdout, so a failed lookup returns an error string rather than an empty
-    # value -- normalise anything that is not a version tag to empty.
+    # get current contract version and save in variable
+    # getCurrentContractVersion prints its error messages to stdout, so on failure the
+    # command substitution captures error text instead of leaving the variable empty --
+    # blank it explicitly or the emptiness check below can never fire. The isVersionTag
+    # check keeps any other non-version output from reaching the target state as a version.
     local CURRENT_VERSION
     if ! CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT") || ! isVersionTag "$CURRENT_VERSION"; then
       CURRENT_VERSION=""
@@ -2112,8 +2117,10 @@ function processNetworkLine() {
       if [[ -n "$CONTRACT_DIRECTORY" ]]; then
         CASE_MATCH=$(find "${CONTRACT_DIRECTORY%/}" -iname "$CONTRACT.sol" -print -quit 2>/dev/null)
       fi
-      if [[ -n "$CASE_MATCH" ]]; then
+      if [[ -n "$CASE_MATCH" && "$(basename "$CASE_MATCH")" != "$CONTRACT.sol" ]]; then
         warning "[$NETWORK] Warning: no src file named '$CONTRACT.sol', but '$(basename "$CASE_MATCH")' exists - fix the spelling in the Google sheet" >&2
+      elif [[ -n "$CASE_MATCH" ]]; then
+        warning "[$NETWORK] Warning: could not read '@custom:version' from $CASE_MATCH" >&2
       else
         warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT (no matching file in $CONTRACT_DIRECTORY)" >&2
       fi
