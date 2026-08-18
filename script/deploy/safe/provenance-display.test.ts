@@ -174,3 +174,63 @@ describe('formatProvenanceLines — malformed rows', () => {
     expect(text).toContain('Source:          unknown @ unknown')
   })
 })
+
+// Provenance strings are proposer-supplied and land in the prompt a human reads
+// before signing, so terminal control characters must not survive rendering:
+// they can erase or repaint the surrounding lines. The assertions strip only
+// the module's own colour codes, then require that nothing controlling is left.
+describe('formatProvenanceLines — untrusted text cannot repaint the prompt', () => {
+  const ESC = String.fromCharCode(27)
+  const CR = String.fromCharCode(13)
+  const NUL = String.fromCharCode(0)
+  const C1_CSI = String.fromCharCode(0x9b)
+  const CONTROL = /\p{Cc}/u
+
+  // Joined with a space, not a newline: the separator itself must not be a
+  // control character, or the Cc assertion below would always match.
+  /** Drops the colour codes this module emits itself, keeping injected ones. */
+  const plain = (lines: string[]): string =>
+    lines.join(' ').replace(ANSI_PATTERN, '')
+
+  it('renders an escape sequence and a carriage return inert in the reason', () => {
+    const text = plain(
+      formatProvenanceLines(
+        buildProvenance({
+          reason: `benign${ESC}[2J${ESC}[1;32m APPROVED BY SECURITY${CR}Reason: benign`,
+        })
+      )
+    )
+
+    expect(CONTROL.test(text)).toBe(false)
+    expect(text).toContain('benign[2J[1;32m APPROVED BY SECURITYReason: benign')
+  })
+
+  it('strips control characters from every proposer-influenced field', () => {
+    const poisoned = `x${ESC}[2J${CR}${NUL}${C1_CSI}y`
+
+    const text = plain(
+      formatProvenanceLines(
+        buildProvenance({
+          proposerHandle: poisoned,
+          gitBranch: poisoned,
+          dirtyTreeScoped: [poisoned],
+          prUrl: poisoned,
+          reason: poisoned,
+          captureErrors: [poisoned],
+        })
+      )
+    )
+
+    expect(CONTROL.test(text)).toBe(false)
+  })
+
+  it('leaves legitimate unicode in provenance text untouched', () => {
+    const text = plain(
+      formatProvenanceLines(
+        buildProvenance({ reason: 'déployer 日本語 — naïve 👨‍👩‍👧' })
+      )
+    )
+
+    expect(text).toContain('déployer 日本語 — naïve 👨‍👩‍👧')
+  })
+})

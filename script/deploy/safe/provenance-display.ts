@@ -29,6 +29,16 @@ const RESET = '\u001b[0m'
 
 const color = (code: string, text: string): string => `${code}${text}${RESET}`
 
+/**
+ * Drops C0/C1 control characters from proposer-supplied text.
+ *
+ * Everything this module renders is read by a human immediately before they
+ * approve a transaction, so text carrying escape sequences could erase or
+ * restyle the lines around it and misrepresent what is being signed. Only the
+ * Cc category is removed, leaving legitimate non-ASCII text untouched.
+ */
+const sanitize = (text: string): string => text.replace(/\p{Cc}/gu, '')
+
 const detailLine = (label: string, value: string): string =>
   `    ${`${label}:`.padEnd(LABEL_WIDTH)}${value}`
 
@@ -70,11 +80,13 @@ export function formatProvenanceLines(
 
   // Tolerate partially written rows: a hand-edited or half-migrated document
   // must degrade to "unknown", never abort the signing session.
-  const handle = provenance.proposerHandle || PROVENANCE_UNKNOWN
-  const actor = provenance.actor || PROVENANCE_UNKNOWN
-  const commit = provenance.gitCommit || PROVENANCE_UNKNOWN
-  const branch = provenance.gitBranch || PROVENANCE_UNKNOWN
-  const dirtyPaths = provenance.dirtyTreeScoped ?? []
+  const handle = sanitize(provenance.proposerHandle || PROVENANCE_UNKNOWN)
+  const actor = sanitize(provenance.actor || PROVENANCE_UNKNOWN)
+  const commit = sanitize(provenance.gitCommit || PROVENANCE_UNKNOWN)
+  const branch = sanitize(provenance.gitBranch || PROVENANCE_UNKNOWN)
+  const dirtyPaths = (provenance.dirtyTreeScoped ?? []).map((path) =>
+    sanitize(String(path))
+  )
   const shortCommit =
     commit === PROVENANCE_UNKNOWN ? commit : commit.slice(0, 12)
 
@@ -92,15 +104,16 @@ export function formatProvenanceLines(
     ),
   ]
 
-  if (provenance.prUrl)
-    lines.push(detailLine('PR', color(CYAN, provenance.prUrl)))
+  const prUrl = sanitize(provenance.prUrl ?? '')
+  if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
 
+  // A rationale of nothing but control characters sanitizes to empty, which
+  // must read as "none given" rather than as a blank but present reason.
+  const reason = sanitize(provenance.reason ?? '')
   lines.push(
     detailLine(
       'Reason',
-      provenance.reason
-        ? color(GREEN, provenance.reason)
-        : color(YELLOW, '— none given —')
+      reason ? color(GREEN, reason) : color(YELLOW, '— none given —')
     )
   )
 
@@ -112,7 +125,9 @@ export function formatProvenanceLines(
         'Capture',
         color(
           YELLOW,
-          `⚠ incomplete (${captureErrors.length}): ${captureErrors[0]}`
+          `⚠ incomplete (${captureErrors.length}): ${sanitize(
+            String(captureErrors[0])
+          )}`
         )
       )
     )

@@ -471,6 +471,25 @@ describe('normalizeProposalReason', () => {
     const normalized = normalizeProposalReason('x'.repeat(500))
     expect(normalized).toHaveLength(200)
   })
+
+  // A rationale is proposer-supplied and is rendered into the signing prompt a
+  // human reads before approving, so terminal control characters must never
+  // survive normalization: they can repaint or erase the prompt around them.
+  it('strips control characters a proposer could use to repaint the prompt', () => {
+    const esc = String.fromCharCode(27)
+    const normalized = normalizeProposalReason(
+      `add Facet${esc}[2K${esc}[1;32m VERIFIED${esc}[0m`
+    )
+
+    expect(normalized).toBe('add Facet[2K[1;32m VERIFIED[0m')
+    expect(normalized).not.toContain(esc)
+  })
+
+  it('keeps legitimate non-ASCII text intact', () => {
+    expect(normalizeProposalReason('déployer 日本語 — naïve 👨‍👩‍👧')).toBe(
+      'déployer 日本語 — naïve 👨‍👩‍👧'
+    )
+  })
 })
 
 /**

@@ -1391,7 +1391,14 @@ export function computeProposalIntentHash(
 export function normalizeProposalReason(
   raw: string | undefined
 ): string | undefined {
-  const collapsed = (raw ?? '').replace(/\s+/gu, ' ').trim()
+  // Whitespace collapses first so newlines and tabs become word breaks; the
+  // remaining control characters are dropped outright because this text is
+  // rendered into the prompt a signer reads, where an escape sequence could
+  // repaint or erase the surrounding lines.
+  const collapsed = (raw ?? '')
+    .replace(/\s+/gu, ' ')
+    .replace(/\p{Cc}/gu, '')
+    .trim()
   if (collapsed.length === 0) return undefined
   return collapsed.slice(0, MAX_PROPOSAL_REASON_LENGTH)
 }
