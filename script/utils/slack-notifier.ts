@@ -56,6 +56,19 @@ interface IProcessingStats {
 // posts instead of being dropped.
 const SLACK_TEXT_LIMIT = 2900
 
+/**
+ * Whether this process is the unattended scheduled run rather than a developer's
+ * shell. A local run reads its own console, so delivering its output to the shared
+ * channel only posts noise the team has to triage — and a rehearsal against a
+ * narrowed config posts alarms that are false by construction.
+ *
+ * `.env` is symlinked across worktrees, so the webhook is always populated
+ * locally — presence of the URL cannot stand in for this check.
+ */
+export function isUnattendedRun(): boolean {
+  return Boolean(process.env.CI)
+}
+
 export class SlackNotifier {
   private webhookUrl: string
   private startTime: Date

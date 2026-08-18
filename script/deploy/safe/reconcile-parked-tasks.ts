@@ -15,7 +15,7 @@
  *     detects reverts; without it (loupe-only) a gone facet is `superseded`.
  *
  *  2. **TTL alert** — surface open tasks that have aged past the TTL (default 60d)
- *     to the multisig-proposals Slack channel, so a cold network that never gets
+ *     to the github-ci-notifications Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
  * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
@@ -31,7 +31,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress } from 'viem'
 
-import { SlackNotifier } from '../../utils/slack-notifier'
+import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 
 import { fetchOnChainFacets, resolveDiamondAddress } from './diamondRemovalDiff'
@@ -277,11 +277,17 @@ async function runTtlAlert(
     return
   }
   consola.warn(message)
-  const webhookUrl = process.env.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS
-  if (apply && webhookUrl)
-    await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
-      text: message,
-    })
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  if (!apply || !webhookUrl) return
+  if (!isUnattendedRun()) {
+    consola.info(
+      'Local run: alert logged only. Set CI=1 to deliver it to Slack.'
+    )
+    return
+  }
+  await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
+    text: message,
+  })
 }
 
 const main = defineCommand({
