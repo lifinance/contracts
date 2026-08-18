@@ -473,6 +473,29 @@ export function formatReopenAlertMessage(
   return lines.join('\n')
 }
 
+export type TtlAlertDelivery = 'dry-run' | 'local' | 'misconfigured' | 'send'
+
+/**
+ * Decides what an applied run does with a computed TTL alert. A missing webhook on
+ * the unattended run is a misconfiguration rather than a skip: the scheduled job
+ * would otherwise stay green while the cold-network backstop it exists for is lost.
+ *
+ * @param apply - whether the run applies transitions (`--yes`) rather than dry-running.
+ * @param unattended - {@link isUnattendedRun} for this process.
+ * @param webhookUrl - `WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS`, if set.
+ * @returns which delivery path the caller must take.
+ */
+export function ttlAlertDelivery(
+  apply: boolean,
+  unattended: boolean,
+  webhookUrl: string | undefined
+): TtlAlertDelivery {
+  if (!apply) return 'dry-run'
+  if (!unattended) return 'local'
+  if (!webhookUrl) return 'misconfigured'
+  return 'send'
+}
+
 // ───────────────────────── live adapter (unit-test exempt) ─────────────────────
 
 type PendingTransactions = Awaited<
@@ -891,19 +914,19 @@ async function runTtlAlert(
   }
   consola.warn(message)
   const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
-  if (!apply) return
-  if (!webhookUrl) {
-    consola.info(
-      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset — alert logged only.'
-    )
-    return
-  }
-  if (!isUnattendedRun()) {
+  const delivery = ttlAlertDelivery(apply, isUnattendedRun(), webhookUrl)
+  if (delivery === 'dry-run') return
+  if (delivery === 'local') {
     consola.info(
       'Local run: alert logged only. Set CI=1 to deliver it to Slack.'
     )
     return
   }
+  // 'misconfigured' — an unattended run reaching here has no webhook to post to.
+  if (!webhookUrl)
+    throw new Error(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the TTL alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    )
   await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
     text: message,
   })

@@ -7,9 +7,10 @@
  * {@link shouldCancelDeprecated} decide what happens to a task whose network is
  * outside the active set (and, crucially, when a cancellation may be applied),
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
- * have aged past the TTL, and {@link computeSafeToPrune} /
- * {@link formatSafeToPruneReport} name the deploy-log entries whose removal work
- * is terminal. The live CLI (Mongo/loupe/Slack wiring) is unit-test exempt,
+ * have aged past the TTL, {@link computeSafeToPrune} / {@link formatSafeToPruneReport}
+ * name the deploy-log entries whose removal work is terminal, and
+ * {@link ttlAlertDelivery} decides whether an alert is posted, logged, or treated as a
+ * misconfiguration. The live CLI (Mongo/loupe/Slack wiring) is unit-test exempt,
  * mirroring the store's `getParkedTasksCollection()` carve-out.
  */
 
@@ -38,6 +39,7 @@ import {
   isSuspectAddressSnapshot,
   resolveFacetPresence,
   shouldCancelDeprecated,
+  ttlAlertDelivery,
 } from './reconcile-parked-tasks'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -617,5 +619,32 @@ describe('formatSafeToPruneReport', () => {
     expect(msg).toContain('- A')
     expect(msg).toContain('- B')
     expect(msg).toContain('- C')
+  })
+})
+
+describe('ttlAlertDelivery', () => {
+  it('stays silent on a dry-run even when everything else is configured', () => {
+    expect(ttlAlertDelivery(false, true, 'https://hooks.slack/x')).toBe(
+      'dry-run'
+    )
+  })
+
+  it('logs instead of posting on a local run, keeping rehearsals off the channel', () => {
+    expect(ttlAlertDelivery(true, false, 'https://hooks.slack/x')).toBe('local')
+  })
+
+  it('posts on the applied unattended run', () => {
+    expect(ttlAlertDelivery(true, true, 'https://hooks.slack/x')).toBe('send')
+  })
+
+  it.each([undefined, ''])(
+    'reports a missing webhook (%p) rather than dropping the alert silently',
+    (webhook) => {
+      expect(ttlAlertDelivery(true, true, webhook)).toBe('misconfigured')
+    }
+  )
+
+  it('does not report a misconfiguration on a local run with no webhook', () => {
+    expect(ttlAlertDelivery(true, false, undefined)).toBe('local')
   })
 })

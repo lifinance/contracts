@@ -18,9 +18,10 @@
 #   an audit label only) and revert-detection is skipped; run locally with tunnel access for the full
 #   state machine. RPCs are fetched from MongoDB (fallback: public RPCs from networks.json).
 # - Triggers: weekly cron (Mon 08:00 UTC) + workflow_dispatch (manual). Upstream-only (skips on forks).
-# - Known limitations: needs MONGODB_URI (queue + RPCs); WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS optional
-#   (the TTL alert is skipped gracefully if the webhook secret is unset). Slack delivery also
-#   requires CI to be set, so a local run of the same script logs the alert instead of posting it.
+# - Known limitations: needs MONGODB_URI (queue + RPCs) and, because this run applies, a populated
+#   WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS — a run that has an alert to post but no webhook fails
+#   instead of staying green while the backstop alert is dropped. Slack delivery also requires CI
+#   to be set, so a local run of the same script logs the alert instead of posting it.
 
 name: Reconcile Deferred Diamond-Cleanup Queue
 
@@ -38,6 +39,7 @@ jobs:
     # guard is false, so the job is skipped (neutral, not failed).
     if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read # required to checkout the repo and read config/deploy logs
     steps:
@@ -78,7 +80,7 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }} # un-gated deferred-cleanup queue + RPC fallback
           # Script reads WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS (local .env convention); the GH
           # secret follows the repo's SLACK_WEBHOOK_* naming — bridge one to the other.
-          WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }} # TTL alert (optional)
+          WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }} # TTL alert (required for this applied run)
 
       # A silently-broken cron defeats the cold-network backstop — surface run failures to Slack.
       - name: Notify Slack on failure

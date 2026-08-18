@@ -29,6 +29,7 @@ jobs:
   handle-fork-pr:
     if: github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     concurrency:
       group: fork-pr-migration-${{ github.event.pull_request.number }}
       cancel-in-progress: true
