@@ -27,6 +27,11 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
     // (booked with the fee); the drained wrapper keeps sub-cent virtual-offset/flooring dust.
     uint256 internal constant WITHDRAW_TOL = 3;
     uint256 internal constant DRAIN_DUST = 1000; // 0.001 USDC
+    // Value of the shares left outstanding after every holder exits at `maxRedeem`: the
+    // source's own `balanceOf`-flooring `maxRedeem` strands ~1 source-share per exit, worth
+    // 1 asset-wei in total at the pinned block. Bounded tight (0.00001 USDC) so any real
+    // share leakage — orders of magnitude larger on a ~45k-USDC flow — still trips it.
+    uint256 internal constant DRAIN_SHARE_DUST = 10;
 
     function _rpcEnvVar() internal pure override returns (string memory) {
         return "ETH_NODE_URI_ARBITRUM";
@@ -59,11 +64,14 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         _warpWithAccrual(WARP);
         _enter(carol, 15_000e6);
 
-        // Final accrual, everyone exits fully.
+        // Final accrual, everyone exits fully. Exit at `maxRedeem` (the EIP-4626-recommended
+        // pattern): the wrapper's `maxRedeem` is liquidity-aware and, over a MetaMorpho source
+        // whose own `maxRedeem` floors ~1 source-share below `balanceOf`, lands a dust amount
+        // below the raw balance — so `redeem(balanceOf)` would revert `ERC4626ExceededMaxRedeem`.
         _warpWithAccrual(WARP);
-        _exit(bob, wrapper.balanceOf(bob));
-        _exit(carol, wrapper.balanceOf(carol));
-        _exit(alice, wrapper.balanceOf(alice));
+        _exit(bob, wrapper.maxRedeem(bob));
+        _exit(carol, wrapper.maxRedeem(carol));
+        _exit(alice, wrapper.maxRedeem(alice));
 
         _distributeFeesAndAssertFanOut();
         _drainAndAssertConservation();
@@ -71,7 +79,7 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
 
     /// Deposits revert while paused; withdrawals stay open (withdrawals-always-open).
     function test_withdrawalsRemainOpenWhilePaused() public {
-        uint256 shares = _deposit(alice, 10_000e6);
+        _deposit(alice, 10_000e6);
 
         vm.prank(vaultAdmin);
         wrapper.pause();
@@ -85,7 +93,10 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         vm.stopPrank();
 
         uint256 balBefore = asset.balanceOf(alice);
-        _redeem(alice, shares);
+        // Exit at `maxRedeem` (see the lifecycle test): over MetaMorpho the wrapper's
+        // liquidity-aware `maxRedeem` sits a dust below `balanceOf`, so redeeming the raw
+        // balance would revert; the pause-does-not-block-withdrawals property is what matters.
+        _redeem(alice, wrapper.maxRedeem(alice));
 
         assertGt(
             asset.balanceOf(alice),
@@ -234,11 +245,20 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         wrapper.setFeeRate(FeeType.Withdrawal, 0);
         vm.stopPrank();
 
-        _redeem(lifiRecipient, wrapper.balanceOf(lifiRecipient));
-        _redeem(integrator1, wrapper.balanceOf(integrator1));
-        _redeem(integrator2, wrapper.balanceOf(integrator2));
+        _redeem(lifiRecipient, wrapper.maxRedeem(lifiRecipient));
+        _redeem(integrator1, wrapper.maxRedeem(integrator1));
+        _redeem(integrator2, wrapper.maxRedeem(integrator2));
 
-        assertEq(wrapper.totalSupply(), 0, "shares left outstanding");
+        // A clean-drain `totalSupply() == 0` is unreachable over a MetaMorpho source: each
+        // holder exits at `maxRedeem`, which the source's own `balanceOf`-flooring `maxRedeem`
+        // leaves ~1 source-share below the raw balance, so a dust of shares stays outstanding.
+        // Bound the residue by VALUE instead — it must be economically nothing yet still catch
+        // real share leakage.
+        assertLe(
+            wrapper.convertToAssets(wrapper.totalSupply()),
+            DRAIN_SHARE_DUST,
+            "residual share value exceeds source-flooring dust"
+        );
         assertLe(wrapper.totalAssets(), DRAIN_DUST, "position not drained");
         assertLe(
             asset.balanceOf(address(wrapper)),

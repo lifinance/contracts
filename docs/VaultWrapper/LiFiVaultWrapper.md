@@ -29,6 +29,41 @@ withdrawal.
 - A single pluggable `IAccessGate` (zero = permissionless) enforced fail-closed on
   entry, share transfers, and exits.
 - Pause is enforced on the deposit/mint path only; withdrawals stay open.
+- The exit `max*` views are source-liquidity-aware — see
+  [Exit semantics](#exit-semantics).
+
+## Exit semantics
+
+- `maxRedeem` clamps the owner's balance to what the source can currently honor
+  (via the adapter's `maxWithdrawableValue`), with a full-position short-circuit
+  so it equals `balanceOf` on a fully-liquid source and only clamps when the
+  source is genuinely liquidity-limited (an Aave-style utilization cap, a paused
+  source). `maxWithdraw` inherits the clamp because OZ derives it as
+  `previewRedeem(maxRedeem(owner))`, so both exit entrypoints' `ERC4626Exceeded*`
+  guards are liquidity-aware and an exit within the reported max never reverts on
+  a source liquidity limit (the EIP-4626 guarantee).
+- Because `maxRedeem` consults the source's views, it reverts if those views
+  revert (a bricked source). This is fail-closed by design, consistent with the
+  gate-checked views, and a deliberate deviation from EIP-4626's expectation that
+  `max*` views never revert.
+- `previewRedeem`/`previewWithdraw` remain **liquidity-agnostic**: EIP-4626
+  requires previews to ignore withdrawal limits, so they value against the full
+  position and never consult `maxWithdrawableValue`.
+- Dust tradeoff on OZ-derived sources (e.g. MetaMorpho, whose own `maxRedeem`
+  floors ~1 source share below `balanceOf` even at full liquidity): a one-call
+  full exit via `redeem(balanceOf)` may hit `ERC4626ExceededMaxRedeem`. Callers
+  should exit via `redeem(maxRedeem(owner))`, which may leave residual dust —
+  bounded by one source share's value — that a follow-up call clears.
+- Sources that charge an exit fee (or pay out less than their reported value)
+  are **unsupported**: exits are exact-out and the wrapper reverts
+  `AdapterWithdrawShortfall` on a short-paying source, so onboarding such a
+  source freezes its exits rather than mispricing them. Cost-aware exit pricing
+  is deferred to a future release (instances are beacon-upgradeable; a
+  fee-charging source would also need a dedicated adapter).
+- The exact-out `withdraw` right at `maxWithdraw` sits on a known rounding
+  boundary: with a nonzero withdrawal fee, re-grossing the requested net amount
+  can land a wei past a source's exact liquidity cap — the one tolerated
+  artifact. `redeem` has no such boundary and is the guaranteed exit.
 
 ## Admin role
 
