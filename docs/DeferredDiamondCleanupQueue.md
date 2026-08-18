@@ -646,9 +646,12 @@ Three composed backstops, none silent:
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
 (possibly weeks), the `deployments/<network>.json` facet→address entry that
-`computeNamedFacetRemovals` uses to resolve the address (Fact 2) must survive until
-the parked task **retires** — longer than #2047's already-documented "don't prune
-until executed" window (Fact 10). Two mitigations, both in this spec:
+`computeNamedFacetRemovals` uses to resolve the address (Fact 2) must survive as long
+as the facet is still routed by the loupe — i.e. through the whole deferred window, and
+past a parked task that retires as `cancelled`/`superseded` without a removal. It is
+pruned only once that network's removal has **executed**, together with the
+`deployments/<network>.diamond.json` entry ([docs/DeploymentLogs.md](./DeploymentLogs.md)).
+Two mitigations, both in this spec:
 
 - The record stores `facetAddress` at enqueue (§4). The drain checks that address
   against the loupe **directly**; if the log entry was pruned but the address is still
@@ -657,7 +660,9 @@ until executed" window (Fact 10). Two mitigations, both in this spec:
   when the log no longer maps it — a minor extension to `computeNamedFacetRemovals`/
   `diffNamedFacets`. Flagged in §14 Q5.)*
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
-  executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
+  executed" warning (Fact 10) is **restated as a two-sided rule**: the entries stay
+  while the facet is still registered, and are deleted in the PR that records the
+  executed removal — the logs track current registration, not history.
 
 ---
 
@@ -691,8 +696,9 @@ rewriting it from *create the proposals* to *park them*:
   `enqueuer`. No Safe proposal is created at deprecation time.
 - The `prUrl` is **required** — `enqueueParkedTask` throws on a missing/blank `prUrl`
   (Fact 15), so the acceptance criterion is enforced at the source.
-- The existing "don't prune `deployments/*.json` until executed" warning becomes
-  "until the parked task **retires**" (§8 hazard).
+- The existing "don't prune `deployments/*.json` until executed" warning keeps its
+  floor and gains its other half: prune both logs **when** the removal executes
+  (§8 hazard, [docs/DeploymentLogs.md](./DeploymentLogs.md)).
 - Because the enqueue is part of the deprecation PR, the parked set is peer-reviewed
   at merge (§5 auditability mitigation).
 

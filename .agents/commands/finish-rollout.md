@@ -120,6 +120,15 @@ The diff MUST show the new contract/version in each impacted `<net>.diamond.json
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,
 investigate; commit nothing. Otherwise commit the diamond-log diff to the PR branch and push.
 
+**Removals in the same cut.** `updateDiamondLogs` rebuilds `Facets` from the loupe, so a facet
+the cut removed (a drained deferred-cleanup task rides along as extra `scheduleBatch` elements)
+disappears from `<net>.diamond.json` on its own — but the flat `deployments/<net>.json` is
+append-only. Delete each removed facet's entry there by hand in the same commit; both logs track
+current on-chain registration, not history
+([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)). Keep the entry when the facet is still
+routed by the loupe (removal not executed, or the parked task retired as
+cancelled/superseded).
+
 ## Phase 5 — PR finish (deploy mode only)
 
 1. `/pr-ready` (mandatory local review gate — resolve findings first).

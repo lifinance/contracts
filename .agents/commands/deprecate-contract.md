@@ -142,7 +142,7 @@ The command performs these steps in order:
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
-   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network — they are the address snapshot the drain relies on and the record of on-chain state.
+   - **⚠️ Deploy-log entries**: Leave the `deployments/*.json` facet→address entry (and the `deployments/*.diamond.json` facet entry) in place here — the facet is still registered on-chain, and the entry is the address snapshot the drain relies on. Both entries are pruned by whoever records the executed removal, not by this deprecation PR: the logs mirror current on-chain registration and are not deployment history ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 
@@ -268,15 +268,15 @@ Found additional occurrences of "RelayFacet" in the codebase:
      Total matches: 1
 
 ⚠️  Note:
-- Deployment log files (deployments/*.json) may contain historical references
+- Deployment log files (deployments/*.json) mirror current on-chain state — entries for still-registered facets stay
 - TypeScript type files (typechain/) are generated and will be regenerated
-- Some files may intentionally keep contract values for historical reference
+- Deployment logs keep the facet until its removal has executed on-chain (see docs/DeploymentLogs.md)
 
 Please review the above list and indicate which files/occurrences should be removed:
 - Type the file paths you want to clean up
 - Or say "none" if all occurrences should remain
 - Or say "all" to remove all occurrences (use with caution)
-- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` facet→address entry of any facet whose parked removal task (step 6) is still pending; those stay until the task retires (executed/cancelled/superseded)
+- Or say "deployments only" to remove only from deployment log files — but **never** the `deployments/*.json` facet→address entry of any facet still registered on the diamond; those go once the removal has executed on-chain
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  FINAL MANUAL STEPS REQUIRED
@@ -290,8 +290,9 @@ Please review the above list and indicate which files/occurrences should be remo
 
 3. ⚠️  On-chain removal (step 6): parked into the deferred diamond-cleanup queue
    for RelayFacet across the PROD diamonds that still register it — drained into a
-   Safe proposal on a later rollout. Do NOT clean deployments/*.json RelayFacet
-   entries until those parked tasks retire (executed/cancelled/superseded).
+   Safe proposal on a later rollout. Clean the deployments/*.json and
+   deployments/*.diamond.json RelayFacet entries per network once that network's
+   removal has EXECUTED on-chain — not before, and not never.
 
 Successfully deprecated RelayFacet.
 ```
