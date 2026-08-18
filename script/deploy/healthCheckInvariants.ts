@@ -1798,6 +1798,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     severity: 'error',
     scope: {},
     run: async (ctx) => {
+      // Tron carries only the generic Receiver: the bridge-specific ones are EVM-only, which is
+      // why receiver-executor-binding is scoped that way too. Grow this branch alongside the
+      // first bridge receiver deployed there.
       if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         await checkOwnershipTron(
           'Receiver',
