@@ -42,6 +42,7 @@ import {
   collectImmutableBindingChecks,
   isFacetContract,
   isZeroAddressValue,
+  redactUrls,
   TRON_ZERO_ADDRESS_BASE58,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
@@ -898,7 +899,7 @@ async function readAddressGetter(
 ): Promise<string> {
   if (ctx.isTron) {
     if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
-    return parseTronAddressOutput(
+    const parsed = parseTronAddressOutput(
       await callTronContract(
         address,
         `${getter}()`,
@@ -907,6 +908,12 @@ async function readAddressGetter(
         ctx.tronRpcUrl
       )
     )
+    // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
+    // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
+    // warning instead of an error-severity mismatch against a line of prose.
+    if (!parsed.startsWith('T') || parsed.length !== 34)
+      throw new Error(`malformed Tron address for ${getter}(): ${parsed}`)
+    return parsed
   }
   if (!ctx.publicClient) throw new Error('no EVM client configured')
   const value = await ctx.publicClient.readContract({
@@ -969,14 +976,15 @@ async function resolveBindingTargetAddress(
   liveFacets: Set<string>
 ): Promise<string | undefined> {
   if (isFacetContract(contractName)) {
-    if (!targetStateFacets.includes(contractName)) return undefined
-    if (!liveFacets.has(contractName)) {
+    // Liveness decides, not the target state: several facets are registered in a diamond
+    // without being listed for that network, and a stale binding hurts just as much there.
+    if (liveFacets.has(contractName))
+      return String(ctx.deployedContracts[contractName])
+    if (targetStateFacets.includes(contractName))
       ctx.logWarn(
         `${contractName} is in the target state but its deploy-log address is not registered in the diamond — immutable bindings not verified`
       )
-      return undefined
-    }
-    return String(ctx.deployedContracts[contractName])
+    return undefined
   }
 
   // Periphery: the registry is authoritative, but the deploy log is the only source for
@@ -985,9 +993,10 @@ async function resolveBindingTargetAddress(
     const registered = await readPeripheryRegistry(contractName, ctx)
     if (registered) return registered
   } catch (error: unknown) {
-    const errorMessage = (
-      error instanceof Error ? error.message : String(error)
-    ).split('\n')[0]
+    const errorMessage = redactUrls(
+      (error instanceof Error ? error.message : String(error)).split('\n')[0] ??
+        'unknown error'
+    )
     ctx.logWarn(
       `Could not read PeripheryRegistry for ${contractName} (falling back to deploy log): ${errorMessage}`
     )
@@ -1301,7 +1310,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'immutable-bindings-match-config',
     description:
-      'Immutable constructor bindings still match the config they were deployed from',
+      'Getter-annotated immutable constructor bindings still match the config they were deployed from',
     severity: 'error',
     scope: { environments: ['production'] },
     readsOnChainFacets: true,
@@ -1328,16 +1337,6 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      // Facets and periphery resolve their live address differently, and that split is decided by
-      // the presence of a facet source file: if the tree is not there, every facet would be
-      // misclassified as periphery and silently verified against a possibly-not-live address.
-      if (!existsSync(path.resolve(process.cwd(), 'src', 'Facets'))) {
-        ctx.logWarn(
-          'src/Facets not found — cannot tell facets from periphery, immutable bindings not verified'
-        )
-        return
-      }
-
       const targetStateFacets = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
       const facetListAvailable = ctx.onChainFacets.length > 0
       // Without the diamond's facet list every facet-typed entry would look un-live and warn;
@@ -1346,12 +1345,22 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         ctx.logWarn(
           'On-chain facet list unavailable — immutable bindings of facet-typed entries not verified'
         )
+      // Candidates must include every annotated facet, not just the target-state ones, or a
+      // facet registered on a chain that does not list it resolves as "not live" and is skipped.
+      const facetCandidates = [
+        ...new Set([
+          ...targetStateFacets,
+          ...checks
+            .map((check) => check.contractName)
+            .filter((name) => isFacetContract(name)),
+        ]),
+      ]
       const liveFacets = new Set(
         facetListAvailable
           ? resolveLiveFacetsFromLog(
               ctx.onChainFacets.map((facet) => facet.address),
               ctx.deployedContracts as Record<string, string>,
-              targetStateFacets
+              facetCandidates
             )
           : []
       )
@@ -1370,7 +1379,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
         if (!check.expectedAddress) {
           ctx.logWarn(
-            `${check.contractName} is deployed but ${check.configFileName} has no ${check.keyInConfigFile} value for this network — cannot verify ${check.getter}()`
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.resolvedKeyInConfigFile} value for this network — cannot verify ${check.getter}()`
           )
           continue
         }
@@ -1387,7 +1396,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               : getAddress(check.expectedAddress as Address)
         } catch {
           ctx.logError(
-            `${check.configFileName} ${check.keyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+            `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
           )
           continue
         }
@@ -1405,11 +1414,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
           if (isZeroAddressValue(onChainValue))
             ctx.logError(
-              `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.keyInConfigFile}`
+              `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.resolvedKeyInConfigFile}`
             )
           else if (onChainValue !== expectedValue)
             ctx.logError(
-              `${readLabel} is ${onChainValue} but ${check.configFileName} ${check.keyInConfigFile} expects ${expectedValue}`
+              `${readLabel} is ${onChainValue} but ${check.configFileName} ${check.resolvedKeyInConfigFile} expects ${expectedValue}`
             )
           else
             consola.success(
@@ -1421,9 +1430,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           // A revert here usually means the live build predates a rename of the getter, so the
           // binding stays unverified rather than wrong — say so, because a bare read failure
           // reads like a transient RPC blip instead of a hole in this check's coverage.
-          const errorMessage = (
-            error instanceof Error ? error.message : String(error)
-          ).split('\n')[0]
+          const errorMessage = redactUrls(
+            (error instanceof Error ? error.message : String(error)).split(
+              '\n'
+            )[0] ?? 'unknown error'
+          )
           ctx.logWarn(
             `${check.contractName}.${check.getter}() left unverified — read failed: ${errorMessage}`
           )

@@ -13,7 +13,9 @@ import {
   isValidConfigFileName,
   isZeroAddressValue,
   loadConfigFileFromDisk,
+  redactUrls,
   resolveConfigValue,
+  substituteConfigKeyPlaceholders,
   TRON_ZERO_ADDRESS_BASE58,
   type IDeployRequirementEntry,
 } from './immutableBindings'
@@ -161,6 +163,7 @@ describe('collectImmutableBindingChecks', () => {
         legacyGetters: [],
         configFileName: 'missing.json',
         keyInConfigFile: '.a',
+        resolvedKeyInConfigFile: '.a',
         expectedAddress: null,
       },
     ])
@@ -349,5 +352,39 @@ describe('deployRequirements.json getter annotations', () => {
       .filter(([, resolves]) => !resolves)
       .map(([key]) => key)
     expect(dead).toEqual([])
+  })
+})
+
+describe('redactUrls', () => {
+  it('strips a URL that tooling echoed back with the failing command', () => {
+    // troncast failures echo their own invocation, and the RPC URL in it can embed an API key.
+    const message =
+      '$ bun run script/troncast/index.ts call "TXYZ" "PORTAL() returns (address)" --rpc-url https://rpc.example.invalid/jsonrpc?apikey=not-a-real-key'
+    const redacted = redactUrls(message)
+    expect(redacted).not.toContain('not-a-real-key')
+    expect(redacted).not.toContain('example.invalid')
+    expect(redacted).toContain('<redacted-url>')
+  })
+
+  it('leaves a message without a URL untouched', () => {
+    expect(redactUrls('execution reverted')).toBe('execution reverted')
+  })
+})
+
+describe('substituteConfigKeyPlaceholders', () => {
+  it('substitutes both placeholders', () => {
+    expect(
+      substituteConfigKeyPlaceholders(
+        '.<NETWORK>.x.<ENVIRONMENT>',
+        'mainnet',
+        'production'
+      )
+    ).toBe('.mainnet.x.production')
+  })
+
+  it('is a no-op for a key without placeholders', () => {
+    expect(
+      substituteConfigKeyPlaceholders('.refundWallet', 'mainnet', 'production')
+    ).toBe('.refundWallet')
   })
 })

@@ -53,6 +53,8 @@ export interface IImmutableBindingCheck {
   legacyGetters: string[]
   configFileName: string
   keyInConfigFile: string
+  /** `keyInConfigFile` with placeholders substituted, for messages a human has to read. */
+  resolvedKeyInConfigFile: string
   /** Expected address as written in config, or null when config has no value for this network. */
   expectedAddress: string | null
 }
@@ -70,6 +72,36 @@ export function isZeroAddressValue(value: string): boolean {
   const trimmed = value.trim()
   if (trimmed === TRON_ZERO_ADDRESS_BASE58) return true
   return /^(0x|41)?0{40}$/i.test(trimmed)
+}
+
+/**
+ * Strip URLs from a message before it is logged.
+ *
+ * @remarks Tooling failures often echo the invocation that failed, and on Tron that invocation
+ *   carries the RPC URL — which frequently embeds an API key. CI masks those, local runs do not.
+ * @param message - raw error or diagnostic text
+ * @returns the message with every URL replaced by a placeholder
+ */
+export function redactUrls(message: string): string {
+  return message.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<redacted-url>')
+}
+
+/**
+ * Substitute the `<NETWORK>` / `<ENVIRONMENT>` placeholders in a registry config key.
+ *
+ * @param keyInConfigFile - dot path as written in the registry
+ * @param network - network key as in `config/networks.json`
+ * @param environment - `production` or `staging`
+ * @returns the key with placeholders replaced, for both lookup and human-readable output
+ */
+export function substituteConfigKeyPlaceholders(
+  keyInConfigFile: string,
+  network: string,
+  environment: string
+): string {
+  return keyInConfigFile
+    .replace(/<NETWORK>/g, network)
+    .replace(/<ENVIRONMENT>/g, environment)
 }
 
 /**
@@ -144,9 +176,11 @@ export function resolveConfigValue(
   network: string,
   environment: string
 ): string | null {
-  const segments = keyInConfigFile
-    .replace(/<NETWORK>/g, network)
-    .replace(/<ENVIRONMENT>/g, environment)
+  const segments = substituteConfigKeyPlaceholders(
+    keyInConfigFile,
+    network,
+    environment
+  )
     .replace(/^\./, '')
     .split('.')
 
@@ -204,6 +238,11 @@ export function collectImmutableBindingChecks(
         legacyGetters: configData.legacyGetters ?? [],
         configFileName: configData.configFileName,
         keyInConfigFile: configData.keyInConfigFile,
+        resolvedKeyInConfigFile: substituteConfigKeyPlaceholders(
+          configData.keyInConfigFile,
+          network,
+          environment
+        ),
         expectedAddress,
       })
     }
