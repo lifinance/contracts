@@ -149,7 +149,28 @@ describe('real deployRequirements.json reverse graph', () => {
   })
 
   it('excludes the timelock, which can repoint its diamond via setDiamondAddress', () => {
-    expect(collectTransitiveDependents('LiFiDiamond')).toEqual([])
+    expect(
+      collectTransitiveDependents('LiFiDiamond').map((d) => d.contract)
+    ).not.toContain('LiFiTimelockController')
+  })
+
+  it('covers the diamond bindings the requirements file omits', () => {
+    const dependents = collectTransitiveDependents('LiFiDiamond').map(
+      (d) => d.contract
+    )
+
+    expect(dependents).toContain('Permit2Proxy')
+    expect(dependents).toContain('GasZipPeriphery')
+    expect(dependents).not.toContain('LiFiTimelockController')
+  })
+
+  it('does not promise a health check for the diamond edges', () => {
+    const reminder = buildDependencyReminder('LiFiDiamond', 'mainnet', {
+      Permit2Proxy: '0x1111111111111111111111111111111111111111',
+    })
+
+    expect(reminder).toContain('Permit2Proxy')
+    expect(reminder).not.toContain('health check')
   })
 
   it('keeps every genuine cascade edge in the real graph', () => {

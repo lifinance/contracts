@@ -11,8 +11,9 @@
  * and `ERC20Proxy`; deriving it from the graph keeps it correct as `deployRequirements.json` grows
  * and narrows it to the dependents actually present on the target network.
  *
- * Non-fatal by design (same tier as `facetCompanionReminder`): the `receiver-executor-binding` and
- * `executor-erc20proxy-binding` health-check invariants are the enforcing gate after the fact.
+ * Non-fatal by design (same tier as `facetCompanionReminder`). The `receiver-executor-binding` and
+ * `executor-erc20proxy-binding` invariants enforce the Executor edges after the fact; the diamond
+ * edges below have no health check, so for those this reminder is the only signal.
  *
  * CLI (invoked from deploySingleContract.sh, best-effort — never blocks a deploy):
  *   bunx tsx script/deploy/resources/contractDependencyReminder.ts <ContractName> <network> <environment>
@@ -50,6 +51,41 @@ const UPDATABLE_DEPENDENCIES: Record<string, readonly string[]> = {
 }
 
 /**
+ * Construction bindings that `deployRequirements.json` does not record as `contractAddresses`.
+ * Both contracts hold `address public immutable LIFI_DIAMOND` with no setter and their deploy
+ * scripts read the address straight from the deploy log, so a redeployed diamond leaves them
+ * pointing at the old one — but the requirements file lists only their `configData`, so the
+ * reverse walk cannot see the edge.
+ */
+const ADDITIONAL_CONSTRUCTOR_BINDINGS: Record<string, readonly string[]> = {
+  GasZipPeriphery: ['LiFiDiamond'],
+  Permit2Proxy: ['LiFiDiamond'],
+}
+
+/** Fold {@link ADDITIONAL_CONSTRUCTOR_BINDINGS} into the recorded graph. */
+function withAdditionalBindings(
+  base: Record<string, IDependencyEntry>
+): Record<string, IDependencyEntry> {
+  const merged: Record<string, IDependencyEntry> = { ...base }
+  for (const [dependent, dependencies] of Object.entries(
+    ADDITIONAL_CONSTRUCTOR_BINDINGS
+  ))
+    merged[dependent] = {
+      ...merged[dependent],
+      contractAddresses: {
+        ...(merged[dependent]?.contractAddresses ?? {}),
+        ...Object.fromEntries(dependencies.map((name) => [name, {}])),
+      },
+    }
+  return merged
+}
+
+/** The recorded graph plus the bindings the requirements file omits. */
+const DEFAULT_DEPLOY_REQUIREMENTS = withAdditionalBindings(
+  deployRequirementsJson as Record<string, IDependencyEntry>
+)
+
+/**
  * Walk the reverse dependency graph: every contract that stores `contractName` at construction
  * with no way to update it, directly or through intermediates (ERC20Proxy → Executor → Receivers).
  * Pure; cycle-safe; sorted by contract name.
@@ -63,7 +99,7 @@ export function collectTransitiveDependents(
   deployRequirements: Record<
     string,
     IDependencyEntry
-  > = deployRequirementsJson as Record<string, IDependencyEntry>
+  > = DEFAULT_DEPLOY_REQUIREMENTS
 ): ITransitiveDependent[] {
   const dependentsOf = (name: string): string[] =>
     Object.entries(deployRequirements)
@@ -134,8 +170,7 @@ export function buildDependencyReminder(
       dependents.length === 1 ? 's' : ''
     } it at construction and cannot be ` +
     `repointed afterwards. ` +
-    `Redeploy and re-register each dependent (diamondUpdatePeriphery) after this deployment, ` +
-    `or the binding health checks will flag this network.`
+    `Redeploy and re-register each dependent (diamondUpdatePeriphery) after this deployment.`
   )
 }
 
