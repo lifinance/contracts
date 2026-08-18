@@ -1277,7 +1277,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const executorAddress = await resolvePeripheryAddress('Executor', ctx)
       if (!executorAddress) {
         ctx.logError(
-          'Executor found in neither the PeripheryRegistry nor the deploy log; cannot verify Receivers'
+          'Executor could not be resolved from the PeripheryRegistry or the deploy log; cannot verify Receivers'
         )
         return
       }
@@ -1445,9 +1445,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // for lookups that can only ever return the zero address.
       // Target state only names facets that are still current, so a retired facet lingering in the
       // flat log would otherwise be probed - a fifth of all probes on a real network, for lookups
-      // that can only ever return the zero address. No periphery contract is named `*Facet`.
+      // that can only ever return the zero address. Matching on `includes` mirrors
+      // deriveNonCoreFacets and catches the packed/versioned variants; no periphery name contains
+      // "Facet".
       const notPeriphery = (name: string): boolean =>
-        name.endsWith('Facet') ||
+        name.includes('Facet') ||
         name.startsWith('LiFiDiamond') ||
         ctx.coreFacetsToCheck.includes(name) ||
         ctx.nonCoreFacets.includes(name)
@@ -1492,22 +1494,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ))
         )
 
-      // One rate-limited RPC would otherwise emit a warning per candidate - dozens per network.
-      // The facets() read collapses the same failure into a single line; match that.
-      const rateLimited = registered.some(
+      // A rate-limited RPC would otherwise emit a warning per candidate - dozens per network - so
+      // those collapse into one line, the way the facets() read handles the same failure. Only
+      // rate-limit rejections collapse: any other failure is a distinct problem and keeps its own
+      // named warning.
+      const rateLimitedCount = registered.filter(
         (result) =>
           result.status === 'rejected' && isRateLimitError(result.reason)
-      )
-      if (rateLimited)
+      ).length
+      if (rateLimitedCount > 0)
         ctx.logWarn(
-          'RPC rate limit reached while reading the PeripheryRegistry; registry/log sync coverage is incomplete for this network'
+          `RPC rate limit reached while reading the PeripheryRegistry; ${rateLimitedCount} of ${candidates.length} periphery name(s) went unchecked on this network`
         )
 
       let inSync = 0
       candidates.forEach((name, index) => {
         const result = registered[index]
         if (result?.status !== 'fulfilled') {
-          if (rateLimited) return
+          if (result?.status === 'rejected' && isRateLimitError(result.reason))
+            return
           const reason =
             result?.status === 'rejected' ? String(result.reason) : 'no result'
           ctx.logWarn(

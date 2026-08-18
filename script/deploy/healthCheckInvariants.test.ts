@@ -532,6 +532,8 @@ interface IReceiverStub {
   failingRegistryNames?: string[]
   /** Make every registry read fail as a rate limit. */
   rateLimitAll?: boolean
+  /** Registry names whose read fails as a rate limit. */
+  rateLimitNames?: string[]
 }
 
 /** Records every registry lookup so cache behaviour can be asserted. */
@@ -566,7 +568,8 @@ function makeReceiverCtx(stub: IReceiverStub): {
         if (functionName === 'getPeripheryContract') {
           const name = String(args?.[0])
           registryQueries.push(name)
-          if (stub.rateLimitAll) throw new Error('429 Too Many Requests')
+          if (stub.rateLimitAll || stub.rateLimitNames?.includes(name))
+            throw new Error('429 Too Many Requests')
           if (stub.failingRegistryNames?.includes(name))
             throw new Error('registry rpc boom')
           return stub.registry?.[name] ?? ZERO
@@ -912,6 +915,38 @@ describe('periphery-registry-log-sync invariant', () => {
     await sync().run(ctx)
     expect(ctx.warnings).toHaveLength(1)
     expect(ctx.warnings[0]).toContain('rate limit')
+    expect(ctx.warnings[0]).toContain('went unchecked')
+  })
+
+  it('keeps a non-rate-limit failure named even when a rate limit also occurred', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      rateLimitNames: ['ReceiverStargateV2'],
+      failingRegistryNames: ['ReceiverChainflip'],
+    })
+    await sync().run(ctx)
+    expect(ctx.warnings.some((w) => w.includes('rate limit'))).toBe(true)
+    expect(
+      ctx.warnings.some(
+        (w) =>
+          w.includes('ReceiverChainflip') && w.includes('registry rpc boom')
+      )
+    ).toBe(true)
+    expect(ctx.warnings.some((w) => w.includes('ReceiverStargateV2'))).toBe(
+      false
+    )
+  })
+
+  it('skips a retired packed facet variant that lingers in the deploy log', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      deployedContracts: {
+        CBridgeFacetPacked: OIF_ON_CHAIN,
+        CelerIMFacetImmutable: STARGATE_ON_CHAIN,
+      },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('CBridgeFacetPacked')
+    expect(registryQueries).not.toContain('CelerIMFacetImmutable')
   })
 })
 
