@@ -188,15 +188,19 @@ same session as the upgrade proposals.
 - **Con:** a network that never gets another rollout keeps its orphans until it
   does. Acceptable, and covered by (A) as an escape hatch.
 
-> **Why not literally the _same_ Safe transaction as the upgrade?** The upgrade
-> cut is built in Solidity (`UpdateScriptBase.sol`, per facet); the removal cut
-> is built in TypeScript. Merging them into one on-chain `diamondCut` would mean
-> threading removal logic through the audited deploy scripts and across the
-> language boundary. `propose-to-safe.ts` can `scheduleBatch` multiple calls into
-> one Safe proposal, but wiring that to a specific deploy invocation couples
-> removal to deploy timing for little benefit. **One extra proposal per network,
-> in the same signing session**, delivers the batching goal without touching
-> Solidity. (Fact 9.)
+> **Why not literally the _same_ Safe transaction as the upgrade?** For this backstop
+> diff-engine step it stays a separate consolidated proposal: it runs through
+> `sendOrPropose`, not the `runPropose` drain hook, so it has no primary proposal's
+> `scheduleBatch` to append to. For the **parked-task named path** (the chosen hybrid, C),
+> the removals *are* folded into the upgrade proposal's `scheduleBatch` — one `diamondCut`
+> Remove element per stale facet, so a rollout signs exactly **one** proposal. That fold
+> needs no single on-chain `diamondCut` and no Solidity change: it happens purely in
+> TypeScript at the `runPropose` layer, where the upgrade's calldata is already TS — the
+> language boundary only ever mattered for a merged on-chain cut, not for a shared
+> `scheduleBatch`. The earlier plan of "one *extra* proposal in the same session" was
+> dropped for the named path because a separate proposal is still a full second
+> sign/schedule/execute. Accepted tradeoff: folded removals share the upgrade's timelock
+> op (reject-one = reject-all) — see DeferredDiamondCleanupQueue.md §6. (Fact 9.)
 
 ### (C) Hybrid — chosen
 
@@ -228,10 +232,10 @@ Pure, side-effect-free, unit-tested. Exposes both selection functions
 (`computeFacetRemovalDiff` for the backstop, `computeNamedFacetRemovals` for the
 primary named path), the pure cores (`diffFacets`, `diffNamedFacets`), and the
 pre-execute re-validation guard `revalidateRemovalsOnChain` / pure core
-`filterRePointedRemovals` — which the deferred-cleanup drain/execute consumer
-calls right before executing a queued removal to drop any selector re-pointed to a
-live facet (or already gone) during the timelock delay window
-(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
+`filterRePointedRemovals` — wired into `execute-pending-timelock-tx` immediately
+before `executeBatch`; under the fold any stale selector aborts the **entire**
+timelock batch (primary cut + removals)
+(see [docs/DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §4).
 Signature (illustrative):
 
 ```ts

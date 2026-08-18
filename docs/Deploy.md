@@ -39,14 +39,18 @@ If you only want to deploy a new diamond contract and use existing deployed face
 
    - For LI.FI developers: RPC URLs are stored in MongoDB and automatically synced to `.env`
    - For external developers: You must manually set RPC URLs in your `.env` file:
+
      ```
      ETH_NODE_URI_<NETWORKNAME>="<RPC_URL>"
      ```
+
      Example:
+
      ```
      ETH_NODE_URI_MAINNET="https://eth-mainnet.g.alchemy.com/v2/your-api-key"
      ETH_NODE_URI_POLYGON="https://polygon-mainnet.g.alchemy.com/v2/your-api-key"
      ```
+
    - See `.env.example` for the required format
    - Make sure to use reliable RPC providers for production deployments
 
@@ -78,6 +82,17 @@ Scripts:
 - [ ] Run the script `./scripts/scriptMaster.sh` and select `1) Deploy one specific contract to one network`
 - [ ] Choose the network
 - [ ] Choose the contract you want to deploy and choose to add it to the diamond or not (choose not if you plan to upgrade using a SAFE)
+
+### Propose registration without redeploying
+
+When bytecode is already in `deployments/<network>.json` (deferred diamond cuts, or recreate after deleting a Safe proposal), use propose-only — no CREATE3:
+
+```bash
+./script/tasks/proposeContractToNetworks.sh MayanFacet mainnet arbitrum base --production
+./script/tasks/proposeContractToNetworks.sh MayanFacet --all-where-deployed --production
+```
+
+Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 

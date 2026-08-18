@@ -34,10 +34,13 @@ EOF
 }
 
 # deployToNetworkWorker: Deploy CONTRACT to a single NETWORK and record the outcome.
-# Runs as a backgrounded job, so it writes "OK" to RESULT_FILE on success instead of a
+# Runs as a backgrounded job, so it writes "OK"/"FAILED" to RESULT_FILE instead of to a
 # parent-shell array - a background subshell cannot write those back (see
-# [CONV:PARALLEL-WORK]). A missing result file means failure, which also covers a
-# worker killed mid-deploy. Each worker runs in its own subshell, so the deploy
+# [CONV:PARALLEL-WORK]). Anything other than "OK", including a missing result file, means
+# failure; the missing case covers a worker killed mid-deploy. "OK" requires the network
+# to be fully done - contract deployed AND registered in the diamond (in production: a
+# Safe proposal for the registration exists), since a deployed but unregistered contract
+# is a half-finished rollout. Each worker runs in its own subshell, so the deploy
 # framework's non-local globals (NETWORK, CONTRACT, VERSION, ...) stay isolated per
 # network; WORKER_-prefixed locals are never touched by the framework. The launcher
 # prefixes every line of worker output with "[NETWORK] ", so messages here carry no
@@ -76,7 +79,8 @@ function deployToNetworkWorker() {
     success "<<<< done"
     return 0
   else
-    warning "<<<< FAILED"
+    echo "FAILED" >"$WORKER_RESULT_FILE"
+    warning "<<<< FAILED (deployment and/or diamond registration did not complete)"
     return 1
   fi
 }
@@ -418,8 +422,19 @@ function deployContractToNetworks() {
       success "$TARGET_NETWORK: OK ($DEPLOYED_ADDRESS)"
     fi
   done
+  # A failed network can still have a log entry, either from this run (deployed, then the
+  # diamond registration failed) or from an earlier one (this run's deploy failed). The two
+  # are indistinguishable here, so surface the address to check without calling it deployed.
+  local LOGGED_ADDRESS
   for TARGET_NETWORK in "${FAILED_NETWORKS[@]:-}"; do
-    [[ -n "$TARGET_NETWORK" ]] && error "$TARGET_NETWORK: FAILED"
+    if [[ -n "$TARGET_NETWORK" ]]; then
+      LOGGED_ADDRESS=$(getContractAddressFromDeploymentLogs "$TARGET_NETWORK" "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT") || LOGGED_ADDRESS=""
+      if [[ -n "$LOGGED_ADDRESS" ]]; then
+        error "$TARGET_NETWORK: FAILED (deployment log points at $LOGGED_ADDRESS - verify on-chain and registration state before re-running)"
+      else
+        error "$TARGET_NETWORK: FAILED (no address in deployment log)"
+      fi
+    fi
   done
   echo ""
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"

@@ -15,6 +15,33 @@ export function getCoreFacets({
 }
 
 /**
+ * Derive the non-core (target-state) facets to check for one network.
+ *
+ * IMPORTANT: `coreFacets` must be the FULL core list, never a list with per-network
+ * exclusions already applied. A core facet excluded for this network (GasZip unsupported, or
+ * grandfathered via CORE_FACET_EXEMPTIONS) is still a core facet — if it were filtered out
+ * using the post-exclusion list it would reappear here as "non-core" and be checked via
+ * target state anyway, silently defeating the exclusion it was just granted.
+ */
+export function deriveNonCoreFacets({
+  targetStateContracts,
+  coreFacets,
+  corePeriphery,
+}: {
+  targetStateContracts: string[]
+  coreFacets: string[]
+  corePeriphery: string[]
+}): string[] {
+  return targetStateContracts.filter(
+    (name) =>
+      !coreFacets.includes(name) &&
+      !corePeriphery.includes(name) &&
+      name !== 'LiFiDiamond' &&
+      name.includes('Facet')
+  )
+}
+
+/**
  * Get list of core periphery contracts from global config, with optional exclusions.
  */
 export function getCorePeriphery({

@@ -49,9 +49,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "TCyAJzpLJjGyUqPoQ9Kvm1Zjw9zDmXLUfU": {
+      "TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY": {
         "Name": "AllBridgeFacet",
-        "Version": "2.1.1"
+        "Version": "2.2.0"
       },
       "TMLwFQAjLQqCJDUNVCVd9c9Q8LLqbmhaW8": {
         "Name": "EcoFacet",
@@ -68,6 +68,14 @@
       "TQC7Upeh5DNcR2eZoYXpSok57FiJXCdNpp": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
+      },
+      "TBFPs7mxPN3nCrnmbjrJh6BS48VpGbu6oQ": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
+      },
+      "TMY1N6rC61Fu1C8qvZEhwb3WLR7iY1ERuW": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

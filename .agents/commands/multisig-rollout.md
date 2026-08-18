@@ -1,17 +1,18 @@
 ---
 name: multisig-rollout
-description: Orchestrates a PRODUCTION multisig rollout end-to-end — drives a facet/periphery deployment (by delegating to the `deploy-contract` skill) or a whitelist sync across many chains, then captures the Safe proposals, drafts a PR with the deployed addresses, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use whenever the user wants Safe multisig proposals produced and shepherded to signing: "roll out <Facet> vX.Y.Z to all chains", "upgrade <Contract> in production", "re-deploy <Contract> to every chain where it is running", "create the diamond cut proposals", "sync the whitelist for PR <N> and propose", or "add <chain> to Polymer CCTP and propagate the domain mappings". For a staging/test deploy with no proposal lifecycle, use `deploy-contract` directly instead. Requires the lifi-connect tunnel (MongoDB), gh, and the Slack MCP server.
-usage: /multisig-rollout <ContractName> | /multisig-rollout --whitelist-pr <PR number or URL>
+description: Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for "roll out <Facet> vX.Y.Z", "create the diamond cut proposals", "propose cuts for already-deployed X", "re-propose after deleting Safe txs", "sync the whitelist for PR <N>", or Polymer CCTP domain propagation. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP.
+usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
 # Multisig Rollout (LI.FI Contracts)
 
-Drives the production rollout lifecycle in two modes:
+Drives the production rollout lifecycle in three modes:
 
 - **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist sync, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
+- **propose-only mode** — bytecode already in `deployments/<net>.json` (deferred cuts, recreate-after-delete). Runs `proposeContractToNetworks.sh` — no CREATE3. Same signing/Slack tail as deploy.
 - **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
-Both modes converge on the same tail: capture proposals → (deploy mode only) draft PR with addresses → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
+All modes converge on the same tail: capture proposals → (deploy mode only, or propose-only when whitelist files dirty) draft PR → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
 **PolymerCCTP add-on**: a `PolymerCCTPFacet` rollout that adds a chain or CCTP corridor also has to propagate its chainId→CCTP-domain mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
 
@@ -23,7 +24,7 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 
 - **Never run `confirm-safe-tx.ts` yourself.** Signing uses the user's hardware wallet; only the human can do it. Your job ends at giving the exact command.
 - **Never post to Slack before the signature verification gate passes.** The Slack message asks the team to spend their time signing — it must be accurate.
-- **Production double opt-in**: the entry scripts (`deployContractToNetworks.sh` via `deploy-contract`, and `syncWhitelistToNetworks.sh`) require `--production` on the CLI *and* `PRODUCTION=true` in `.env`. Do not edit `.env` to satisfy this — if it mismatches, stop and tell the user.
+- **Production double opt-in**: the entry scripts (`deployContractToNetworks.sh` via `deploy-contract`, `proposeContractToNetworks.sh`, and `syncWhitelistToNetworks.sh`) require `--production` on the CLI *and* `PRODUCTION=true` in `.env`. Do not edit `.env` to satisfy this — if it mismatches, stop and tell the user.
 - `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` must NOT be `true` (it would bypass the Safe). Abort if set.
 - Confirm the resolved plan (contract/version/networks or PR/networks) with the user before executing — deployments cost gas and mint Safe proposals on many chains.
 
@@ -62,6 +63,14 @@ Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Pe
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
 ```
 
+### propose-only mode — resolve targets
+
+Triggered by `--propose-only <Contract>` (or natural language: “create the cuts”, “propose already-deployed”, “re-propose after delete”). **Do not deploy.**
+
+- Explicit networks if the user named them; otherwise `--all-where-deployed` (every network with a non-null address in `deployments/<net>.json`).
+- Report per network: log address, whether on-chain code exists, whether the diamond already registers that address.
+- Diamond-called periphery (`jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json`) → expect a second allowlist proposal per OK network (handled inside the script).
+
 ### whitelist mode — resolve targets
 
 If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
@@ -83,21 +92,31 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead before proceeding.
 
-After confirmation, in deploy mode invoke `deploy-contract`:
+Set the interaction model up front: this rollout is **semi-automated** — it will pause for Ledger signing; the user comes back saying “signed”; then you verify + post Slack. Do not let them do Phases 7–8 by hand.
+
+After confirmation:
+
+**deploy mode** — invoke `deploy-contract`:
 
 ```text
 /deploy-contract <Contract> <network...> --production
 ```
 
-It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), plus the allowlist sync for diamond-called periphery. It hands back a per-network table: contract, version, network, chainId, address, registration type, proposal created, verification status.
+It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), plus the allowlist sync for diamond-called periphery. Carry forward: deployed addresses, succeeded/failed networks, allowlist sync flag. Files changed on disk are committed in Phase 5.
 
-Carry forward: deployed addresses (for the PR table), succeeded/failed networks, whether the allowlist sync ran. Files changed on disk — `deployments/<net>.json`, plus `config/whitelist.json` / `config/whitelist.staging.json` when the allowlist synced — are committed in Phase 5.
+**propose-only mode** — run (do **not** call `deploy-contract`):
 
-Set the interaction model up front so the user knows the shape: tell them this rollout is **semi-automated** — at one point it will pause and ask them to sign the proposals with their hardware wallet, after which they come back to this chat and the skill finishes the rest (verify signatures + post Slack). Knowing the pause is coming is what stops them from completing those final steps by hand.
+```bash
+./script/tasks/proposeContractToNetworks.sh <Contract> <network...> --production
+# or
+./script/tasks/proposeContractToNetworks.sh <Contract> --all-where-deployed --production
+```
+
+Per-network outcomes: `OK` | `SKIP` (already-registered / duplicate-pending via Mongo `intentHash`) | `FAIL`. Continue with OK (+ note SKIPs); offer retry for FAILs. Identical pending proposals cannot be double-inserted (Mongo partial unique index); the script maps that to SKIP.
 
 ## Phase 3 — Execute sync (whitelist mode only)
 
-deploy mode already executed via `deploy-contract` in Phase 2. For whitelist mode, run in the background, monitor output, report per-network results:
+deploy / propose-only already executed in Phase 2. For whitelist mode, run in the background, monitor output, report per-network results:
 
 ```bash
 ./script/tasks/syncWhitelistToNetworks.sh <network...> --production
@@ -109,21 +128,27 @@ Ends with a per-network summary and exits `1` if any network failed. Failures do
 
 Facet removals are **no longer proposed by hand here.** When
 `DRAIN_PARKED_TASKS=true`, every production facet cut's `runPropose` call
-automatically drains that network's **parked** facet-removal tasks (the deferred
-diamond-cleanup queue) into **one** extra timelock `scheduleBatch` Remove per
-network, riding this rollout's signing session. No `cleanUpProdDiamond --auto`
-step is needed (design:
+automatically **folds** that network's **parked** facet-removal tasks (the
+deferred diamond-cleanup queue) into that network's facet-cut proposal — one extra
+`diamondCut` Remove element per parked facet, appended to the same timelock
+`scheduleBatch`. This adds **no** extra proposal: the removals ride the facet-cut
+proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design:
 [docs/DeferredDiamondCleanupQueue.md](../../docs/DeferredDiamondCleanupQueue.md) §6).
 
 - **Enable it for the rollout**: set `DRAIN_PARKED_TASKS=true` in the environment
   before Phase 2. Default **off** — keep it off for emergency / break-glass
   rollouts so unrelated removals never join an urgent signing set.
-- **PR-link surfacing**: each drained removal proposal carries the originating
-  deprecation PR(s) (`parkedTaskRefs`), shown at signing in `confirm-safe-tx`, in
-  `list-pending-proposals`, and in the Phase 8 Slack post — so the signer sees
-  **why** each facet is being removed.
-- **Best-effort**: a drain failure never blocks the primary proposal or the exit
-  code.
+- **PR-link surfacing**: the folded removals carry the originating deprecation
+  PR(s) (`parkedTaskRefs`) on the facet-cut proposal, shown at signing in
+  `confirm-safe-tx` and in `list-pending-proposals` — so the signer sees **why**
+  each facet is being removed.
+- **Best-effort (at propose time only)**: a drain *preparation* failure never
+  blocks the primary proposal or the exit code — the removals simply don't fold in.
+  But once folded, the removals execute atomically inside the primary's
+  `scheduleBatch`: if a folded facet is removed by another path during the timelock
+  delay, its `diamondCut` Remove reverts at execution and **the whole batch — incl.
+  the primary rollout cut — reverts** (docs/DeferredDiamondCleanupQueue.md §6). Keep
+  `DRAIN_PARKED_TASKS` off for time-critical rollouts if that risk is unacceptable.
 - **MongoDB privilege caveat**: the queue lives on the un-gated `MONGODB_URI`
   cluster (DB `deferred-cleanup`), so the drain needs no tunnel — but it does need
   the role to have `readWrite` **including index creation** on that DB. If the
@@ -165,20 +190,15 @@ Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSO
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) and **one more** when the Phase 3.5 deferred-cleanup drain proposed a removal (a single per-network `scheduleBatch` Remove carrying the origin-PR links). These are additive, not mutually exclusive: a network that did a periphery allowlist sync **and** a drain removal shows **three** proposals — so expect **two or three** per network when either or both apply. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) — so **one or two** per network. The Phase 3.5 deferred-cleanup drain adds **no** extra proposal: its removals are folded into the network's facet-cut proposal as extra `scheduleBatch` elements (visible via that proposal's `parkedTaskRefs`), so do **not** wait for or count a separate removal proposal. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
 
-## Phase 5 — Draft PR (deploy mode only)
+## Phase 5 — Draft PR (deploy mode; propose-only when files dirty)
 
-The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If a diamond-called periphery's allowlist synced, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too, or the repo's allowlist won't reflect the on-chain proposal. Model the PR on #1917:
+**deploy mode:** The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). If a diamond-called periphery's allowlist synced, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too. Model the PR on #1917. Delegate to `/create-pr` (as **draft**): stage deployment logs + any whitelist diffs; body includes `| Chain | Contract address | Safe nonce |` from Phases 2 and 4.
 
-Delegate the branch / commit / template / Linear ticket / push / create mechanic to `/create-pr` (as **draft**), passing:
+**propose-only mode:** usually no deployment-log changes — skip the PR unless allowlist sync dirtied `config/whitelist.json` / `config/whitelist.staging.json` (then open a small PR for those). Prefer an existing deploy PR (e.g. deferred-cut PR) as the Slack link when one already has the addresses.
 
-- **files to stage**: the deployment-log changes **and** any `config/whitelist.json` / `config/whitelist.staging.json` diff from Phase 2's allowlist sync. (`git status` after the deploy shows exactly what to stage.) The whitelist diff is allowed here because this PR targets `main` (rule 502).
-- **body** (the "Why"): staging bullet list (if any) + production table `| Chain | Contract address | Safe nonce |` from Phases 2 and 4, plus the note that production `<chain>.diamond.json` registries update only when the cuts execute. For a periphery rollout, note the whitelist proposal and the `whitelist.json` update too.
-
-Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the EXSC Linear-ticket requirement).
-
-Whitelist mode changes no files — skip this phase; the input PR plays the PR role in the Slack post.
+**whitelist mode:** no files — skip; the input PR is the Slack link.
 
 ## Phase 6 — Hand off signing (then wait for the user to come back)
 
@@ -214,7 +234,7 @@ Top-level:
 <N>x <Contract> v<version> deployment
 ```
 
-(whitelist mode: `<N>x whitelist sync — <short PR title>`)
+(propose-only: `<N>x <Contract> v<version> diamond cut`; whitelist: `<N>x whitelist sync — <short PR title>`)
 
 Thread reply (capture `ts` from the top-level; `@diamond_multisig_signers` MUST be the subteam syntax — plain text does not notify). Signing pings the multisig-signer group, not the PR-review group `@smartcontract_core` — the signer set includes a non-core member:
 
@@ -239,5 +259,6 @@ Summarize: networks rolled out (+ failures and their state), proposal nonces, PR
 
 - `list-pending-proposals.ts` exits `2` → tunnel down or `SC_MONGODB_URI` missing — tell the user, retry after they fix it.
 - Deploy succeeded but no proposal row → propose step failed; check the deploy log for the network, re-run that single network via `deploy-contract`.
-- Stale/future nonce warnings during signing → `confirm-safe-tx.ts` explains them inline; relay its guidance (usually: delete + re-propose, or execute the blocking nonce first).
+- Propose-only SKIP duplicate-pending → identical Safe intent already pending (Mongo `intentHash`); do not treat as failure.
+- Stale/future nonce warnings during signing → `confirm-safe-tx.ts` explains them inline; relay its guidance (usually: delete + re-propose via `--propose-only`, or execute the blocking nonce first).
 - Slack MCP missing → give the user both message texts verbatim to post manually; do not fall back to webhooks (wrong identity).
