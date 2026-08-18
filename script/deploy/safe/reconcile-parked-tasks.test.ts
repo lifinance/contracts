@@ -4,11 +4,13 @@
  * The pure decisions are exercised directly: {@link reconcileDecision} maps a task's
  * status + on-chain/proposal truth to a lifecycle transition,
  * {@link partitionByNetworkStatus} / {@link deprecatedNetworkDecision} /
- * {@link shouldCancelDeprecated} decide what happens to a task whose network is no
- * longer active (and, crucially, when a cancellation is allowed to be applied), and
+ * {@link shouldCancelDeprecated} decide what happens to a task whose network is
+ * outside the active set (and, crucially, when a cancellation may be applied),
  * {@link computeTtlAlerts} / {@link formatTtlAlertMessage} surface open tasks that
- * have aged past the TTL. The live CLI (Mongo/loupe/Slack wiring) is unit-test
- * exempt, mirroring the store's `getParkedTasksCollection()` carve-out.
+ * have aged past the TTL, and {@link computeSafeToPrune} /
+ * {@link formatSafeToPruneReport} name the deploy-log entries whose removal work
+ * is terminal. The live CLI (Mongo/loupe/Slack wiring) is unit-test exempt,
+ * mirroring the store's `getParkedTasksCollection()` carve-out.
  */
 
 import {
@@ -23,12 +25,17 @@ import { EnvironmentEnum } from '../../common/types'
 
 import { type IParkedTask } from './parked-tasks'
 import {
+  computeSafeToPrune,
   computeTtlAlerts,
   deprecatedNetworkDecision,
+  formatReconcileFailureMessage,
+  formatReopenAlertMessage,
+  formatSafeToPruneReport,
   formatTtlAlertMessage,
   partitionByNetworkStatus,
   parseTtlDays,
   reconcileDecision,
+  resolveFacetPresence,
   shouldCancelDeprecated,
 } from './reconcile-parked-tasks'
 
@@ -106,6 +113,146 @@ describe('reconcileDecision', () => {
     expect(
       reconcileDecision({ status: 'queued' }, { facetPresentOnChain: true })
     ).toBe('keep')
+  })
+
+  it('reopens an executed task whose facet is still routed (removal never landed)', () => {
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: true, proposalStatus: 'executed' }
+      )
+    ).toBe('reopen')
+  })
+
+  it('reopens a superseded task whose facet is still routed', () => {
+    expect(
+      reconcileDecision({ status: 'superseded' }, { facetPresentOnChain: true })
+    ).toBe('reopen')
+  })
+
+  it('keeps an executed task whose facet really is gone', () => {
+    expect(
+      reconcileDecision(
+        { status: 'executed' },
+        { facetPresentOnChain: false, proposalStatus: 'executed' }
+      )
+    ).toBe('keep')
+  })
+
+  it('keeps a superseded task whose facet really is gone', () => {
+    expect(
+      reconcileDecision(
+        { status: 'superseded' },
+        { facetPresentOnChain: false }
+      )
+    ).toBe('keep')
+  })
+
+  it('never revisits a cancelled task, present or not', () => {
+    expect(
+      reconcileDecision({ status: 'cancelled' }, { facetPresentOnChain: true })
+    ).toBe('keep')
+    expect(
+      reconcileDecision({ status: 'cancelled' }, { facetPresentOnChain: false })
+    ).toBe('keep')
+  })
+})
+
+describe('resolveFacetPresence', () => {
+  const task = { facetName: 'AcrossFacetV3', facetAddress: addr(0xabc) }
+
+  it('reports present when the facet NAME is routed, even though the stored address is not', () => {
+    // The worldchain regression: the task carried lisk's AcrossFacetV3 address, so
+    // an address-only check said "gone" while the named facet was still live.
+    expect(
+      resolveFacetPresence(
+        task,
+        new Set(['AcrossFacetV3']),
+        new Set(['0xdead'])
+      )
+    ).toBe(true)
+  })
+
+  it('reports present when only the stored address is routed (deploy-log entry pruned)', () => {
+    expect(
+      resolveFacetPresence(
+        task,
+        new Set(),
+        new Set([task.facetAddress.toLowerCase()])
+      )
+    ).toBe(true)
+  })
+
+  it('matches the stored address case-insensitively', () => {
+    expect(
+      resolveFacetPresence(
+        { ...task, facetAddress: addr(0xabc).toUpperCase() as Address },
+        new Set(),
+        new Set([addr(0xabc).toLowerCase()])
+      )
+    ).toBe(true)
+  })
+
+  it('reports absent when neither the name nor the address is routed', () => {
+    expect(
+      resolveFacetPresence(task, new Set(['OtherFacet']), new Set(['0xdead']))
+    ).toBe(false)
+  })
+})
+
+describe('formatReopenAlertMessage', () => {
+  it('returns an empty string when nothing was reopened', () => {
+    expect(formatReopenAlertMessage([])).toBe('')
+  })
+
+  it('groups reopened tasks by network and names the facet, prior status and PR', () => {
+    const msg = formatReopenAlertMessage([
+      {
+        network: 'worldchain',
+        facet: 'AcrossFacetV3',
+        prUrl: 'https://gh/pull/1',
+        from: 'executed',
+      },
+      {
+        network: 'lens',
+        facet: 'GenericSwapFacet',
+        prUrl: 'https://gh/pull/2',
+        from: 'superseded',
+      },
+    ])
+    expect(msg).toContain('2 deferred diamond-cleanup task(s)')
+    expect(msg).toContain('STILL ROUTED')
+    expect(msg).toContain('[worldchain]')
+    expect(msg).toContain('AcrossFacetV3 (was executed) → https://gh/pull/1')
+    expect(msg).toContain('[lens]')
+    expect(msg).toContain(
+      'GenericSwapFacet (was superseded) → https://gh/pull/2'
+    )
+  })
+})
+
+describe('formatReconcileFailureMessage', () => {
+  it('returns an empty string when every network was reconciled', () => {
+    expect(formatReconcileFailureMessage([])).toBe('')
+  })
+
+  it('names each skipped network, its environment and the reason', () => {
+    const msg = formatReconcileFailureMessage([
+      {
+        network: 'harmony',
+        environment: EnvironmentEnum.production,
+        reason: 'Chain harmony does not exist',
+      },
+      {
+        network: 'velas',
+        environment: EnvironmentEnum.production,
+        reason: 'no LiFiDiamond in deploy log',
+      },
+    ])
+    expect(msg).toContain('2 network(s) could not be reconciled')
+    expect(msg).toContain('NOT verified')
+    expect(msg).toContain('harmony:production — Chain harmony does not exist')
+    expect(msg).toContain('velas:production — no LiFiDiamond in deploy log')
   })
 })
 
@@ -315,5 +462,101 @@ describe('formatTtlAlertMessage', () => {
     expect(msg).toContain('65d')
     expect(msg).toContain('https://gh/pull/1')
     expect(msg).toContain('https://gh/pull/2')
+  })
+})
+
+describe('computeSafeToPrune', () => {
+  const always = () => true
+
+  it('reports a (network, facet) whose only task executed', () => {
+    const r = computeSafeToPrune([parked({ status: 'executed' })], always)
+    expect(r).toEqual([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'F',
+      },
+    ])
+  })
+
+  it('reports a superseded task (facet gone via another route)', () => {
+    const r = computeSafeToPrune([parked({ status: 'superseded' })], always)
+    expect(r).toHaveLength(1)
+  })
+
+  it('never reports while any task for the pair is still open', () => {
+    const r = computeSafeToPrune(
+      [
+        parked({ status: 'executed' }),
+        parked({ status: 'queued' }), // re-park of the same facet
+      ],
+      always
+    )
+    expect(r).toHaveLength(0)
+  })
+
+  it('never reports a cancelled-only group (intent abandoned, facet may be live)', () => {
+    const r = computeSafeToPrune([parked({ status: 'cancelled' })], always)
+    expect(r).toHaveLength(0)
+  })
+
+  it('filters entries whose deploy-log row is already gone', () => {
+    const r = computeSafeToPrune([parked({ status: 'executed' })], () => false)
+    expect(r).toHaveLength(0)
+  })
+
+  it('groups by network AND facet independently', () => {
+    const r = computeSafeToPrune(
+      [
+        parked({ status: 'executed', facetName: 'A' }),
+        parked({ status: 'queued', facetName: 'B' }),
+        parked({ status: 'superseded', facetName: 'A', network: 'optimism' }),
+      ],
+      always
+    )
+    expect(r).toEqual([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+      {
+        network: 'optimism',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+    ])
+  })
+})
+
+describe('formatSafeToPruneReport', () => {
+  it('returns empty string when nothing is prunable', () => {
+    expect(formatSafeToPruneReport([])).toBe('')
+  })
+
+  it('groups the report by network and names every facet', () => {
+    const msg = formatSafeToPruneReport([
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'A',
+      },
+      {
+        network: 'arbitrum',
+        environment: EnvironmentEnum.production,
+        facet: 'B',
+      },
+      {
+        network: 'optimism',
+        environment: EnvironmentEnum.production,
+        facet: 'C',
+      },
+    ])
+    expect(msg).toContain('3')
+    expect(msg).toContain('[arbitrum]')
+    expect(msg).toContain('[optimism]')
+    expect(msg).toContain('- A')
+    expect(msg).toContain('- B')
+    expect(msg).toContain('- C')
   })
 })

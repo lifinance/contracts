@@ -61,7 +61,7 @@ export interface IDrainOutcome {
   proposed: IParkedTaskRef[]
   /** Facets already absent on-chain → marked superseded. */
   superseded: string[]
-  /** Facets whose deploy-log entry was pruned but are still routed → kept + alerted. */
+  /** Facets still routed but not safely resolvable by address → kept + alerted. */
   prunedButRouted: IParkedTaskRef[]
   /** Protected facets parked in error → cancelled + alerted. */
   protectedCancelled: string[]
@@ -194,7 +194,7 @@ export async function prepareDrainNetwork(
       } else if (prunedNames.has(name)) {
         outcome.prunedButRouted.push({ facet: name, prUrl: task.prUrl })
         deps.alert(
-          `[${network}] ${name}: deploy-log entry pruned but address ${task.facetAddress} is still routed — NOT removing. Restore the deploy-log entry, then re-drain. Origin PR: ${task.prUrl}`
+          `[${network}] ${name}: address ${task.facetAddress} is still routed but could not be safely resolved (the deploy log maps it to another name, or multiple parked tasks claim it) — NOT removing. Investigate, then re-drain. Origin PR: ${task.prUrl}`
         )
       } else if (protectedNames.has(name)) {
         await deps.cancel(task.taskKey)
@@ -473,6 +473,7 @@ function buildLiveDeps(
     listQueued: () =>
       listParkedTasks(parkedTasks, {
         network: options.network,
+        environment,
         status: 'queued',
       }),
     computeRemovals: (names, nameToAddress) =>

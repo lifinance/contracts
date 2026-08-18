@@ -586,13 +586,21 @@ origin-PR lines to the signer.
         │                    │
         │       linked proposal executed + loupe confirms facet absent
         │                    ▼
-        │                executed  (terminal, = done)
-        │
-        └── operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
-             network no longer active in networks.json ──────┘ (queued only)
+        │       executed / superseded  (terminal, = done)
+        │                    │
+        └────────────────────┘ reconcile: facet NAME still routed → reopen (EXSC-774)
+
+             operator CLI (deprecation reverted / obsolete) ─► cancelled (terminal)
+             network outside the active set (opt-in) ────────┘ (queued only)
 ```
 
-All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
+`executed`/`superseded` are terminal but **not trusted**: every reconcile re-verifies
+them against the loupe, because a removal recorded as done that never actually landed
+was otherwise never re-checked and stayed invisible indefinitely (EXSC-774 — worldchain's
+`AcrossFacetV3` sat live for 18 days behind an `executed` record). `cancelled` is the only
+truly final state.
+
+All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 
 - **queued → proposed**: the drain, via the atomic `claimForProposal(parkedTasks,
   taskKey)` (`:324`) filtered on `status:'queued'` (§6 step 3). This is the dedup gate
@@ -609,6 +617,11 @@ All five transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 - **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
   — the facet is already absent on-chain (removed via another route); self-healing
   reconcile.
+- **executed/superseded → queued**: `reopenResolvedTask` — the reconcile finds the facet
+  still routed despite a terminal status, so the removal never landed. Clears
+  `resolvedAt`/`proposedAt`/`safeTxHash` and alerts the multisig-proposals channel.
+  `cancelled` is deliberately excluded (it records an operator's decision, not a claim
+  about on-chain state).
 - **→ cancelled**: `markCancelled` (`:383`) — an operator explicitly abandons the intent
   (deprecation reverted, facet re-added, or a protected facet queued in error). **Merged
   behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
@@ -666,13 +679,13 @@ Three composed backstops, none silent:
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **The backstop must survive a bad network.** The reconcile isolates each
-`(network, environment)` group, the optional proposal-store connection, and each
-cancellation: an unreachable chain or a missing RPC is logged and skipped, the
-remaining groups are still decided, the TTL alert still fires, and the run exits
-non-zero afterwards so the failure still reaches Slack. A single unresolvable network
-aborting the batch would silently disable backstop 2 for the whole fleet — which is
-how the first four scheduled runs were lost. (A network whose deploy log carries no
-LiFiDiamond is a legitimate skip, not a failure: warned about, not counted.)
+`(network, environment)` group, the optional proposal-store connection, each
+cancellation, and the sweep as a whole: an unreachable chain or a missing RPC is
+logged and collected as an `IReconcileFailure`, the remaining groups are still
+decided, and both the failure alert and the TTL alert still fire — every skipped
+network is named in Slack rather than exiting the job non-zero and losing the detail.
+A single unresolvable network aborting the batch would silently disable backstop 2
+for the whole fleet, which is how the first four scheduled runs were lost.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
 (possibly weeks), the `deployments/<network>.json` facet→address entry that
@@ -681,13 +694,20 @@ the parked task **retires** — longer than #2047's already-documented "don't pr
 until executed" window (Fact 10). Two mitigations, both in this spec:
 
 - The record stores `facetAddress` at enqueue (§4). The drain checks that address
-  against the loupe **directly**; if the log entry was pruned but the address is still
-  routed, the facet is **not** treated as superseded — it stays queued and alerts.
-  *(This needs a small engine affordance: resolve a named removal by stored address
-  when the log no longer maps it — a minor extension to `computeNamedFacetRemovals`/
-  `diffNamedFacets`. Flagged in §14 Q5.)*
+  against the loupe **directly**, and (EXSC-723) **resolves a pruned log entry by
+  address**: an unmapped on-chain address claimed by exactly one parked task's
+  stored `facetAddress` becomes a removal with its live loupe selectors — the log
+  entry is no longer load-bearing for the drain. Ambiguous cases (the log maps the
+  address to a *different* name, or two tasks claim one address) are never resolved:
+  they stay queued in `prunedButRouted` and alert for human investigation, so the
+  drain still never false-supersedes or wrong-cuts a live facet.
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
-  executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
+  executed" warning (Fact 10) is **strengthened** to "until the parked task retires" —
+  not for the drain (address-resolving, above) but because the health check's
+  queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
+  addresses to names through the log. The weekly reconcile job (§7) reports which
+  entries are **safe to prune** (every covering task terminal); pruning then is a
+  small reviewed PR.
 
 ---
 
@@ -753,7 +773,8 @@ only the PR-link surfacing (§6) and drops the manual `--auto` invocation.
 | No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9, 15; §7). |
 | Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts:119`); a queued protected facet is `cancelled` + alerted (§6). Inherits every #2047 guardrail (drift gate is N/A — named path). |
 | Deferred ≠ orphaned | Cold-network backstops: `--auto --all-networks` sweep + TTL Slack alert + observability CLI (§8). No silent truncation — the TTL alert names what's still queued. |
-| Deploy-log longevity | Address snapshot + loupe-by-address check so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). |
+| Deploy-log longevity | Address snapshot as a *fallback* so pruning the log doesn't false-`superseded` a live facet; strengthened `/deprecate-contract` warning (§8). Presence is resolved by facet **name** first — a snapshot address can be flat wrong, and an address-only check then reports "gone" about an address nobody asked about (EXSC-774). |
+| A resolution can be wrong | `executed`/`superseded` are re-verified against the loupe on every reconcile and reopened when the facet is still routed (§7). A stored terminal status is never taken as proof. |
 | Opt-in in v1 | `DRAIN_PARKED_TASKS` **default off; ON for rollouts, OFF for emergencies** (§6) — an urgent pause/break-glass proposal never drags unrelated removals into its signing set; reentrancy-guarded (§6). |
 | Direct-send safety | Drain no-ops on staging/testnet/`SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` (Fact 13; §12). |
 | Rule compliance | TS/Bash, no Python (`000:15`); viem (`200:14`); reuse helpers (`:24`); new helpers 100%-covered colocated tests (`:120`); `citty`/`consola`/`getEnvVar` CLI (`:116`); `I`-prefixed interfaces; injectable I/O + dry-run-default per #2047 convention (Fact 14). |
@@ -834,9 +855,13 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    **one** proposal — a separate proposal was still a full second sign/schedule/execute.
    Accepted tradeoff: removals are coupled to the upgrade's timelock op (reject-one =
    reject-all). See §6 Batching. **Built in `prepareDrainNetwork` / `proposeWithDrain`.**
-5. **Deploy-log hazard (§8).** Harden the drain to resolve by stored `facetAddress`
-   when the log entry was pruned (small engine extension), **and/or** just enforce
-   "don't prune the log until the parked task retires"? (Recommend both.)
+5. ~~**Deploy-log hazard (§8).**~~ **RESOLVED (EXSC-723):** both, plus detection.
+   The drain resolves a pruned entry by stored `facetAddress` (unambiguous
+   single-claim only; conflicts stay in `prunedButRouted` + alert), the queue-aware
+   health-check invariant `no-stale-registered-facets` flags any
+   deprecated-but-registered facet with no open parked task, and the reconcile job
+   reports deploy-log entries that are safe to prune once every covering task is
+   terminal.
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
    **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
    default, and whether that's per-network or global.

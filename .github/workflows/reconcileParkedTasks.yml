@@ -8,7 +8,7 @@
 # - Runs with --yes so transitions are applied and the alert is sent. Transitions touch only the
 #   un-gated MONGODB_URI queue (status flips), never on-chain state or the signing store.
 # - Per-network isolation: an unreachable chain is logged and skipped, the remaining networks and the
-#   TTL alert still run, and the job exits non-zero at the end so the failure still reaches Slack.
+#   TTL alert still run, and every skipped network is named in a Slack alert rather than lost.
 # - A task whose network is not active in networks.json is reported, never cancelled here: cancelling
 #   requires an operator naming one network (--network X --cancel-deprecated --yes), because
 #   networks.json is temporarily narrowed for pause rehearsals and this job runs unattended.

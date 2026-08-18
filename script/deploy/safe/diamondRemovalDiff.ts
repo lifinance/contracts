@@ -520,11 +520,13 @@ export interface INamedRemovalResult {
    */
   unresolved: `0x${string}`[]
   /**
-   * Requested names whose deploy-log entry was pruned (so the loupe address no
-   * longer resolves to the name) but whose stored `facetAddress` hint is still
-   * routed on-chain. NOT gone — the log was pruned prematurely. Surfaced (never
-   * removed, never superseded) so a human restores the log entry; empty unless a
-   * `nameToAddress` hint is supplied (spec §8 deploy-log longevity hazard).
+   * Requested names whose stored `facetAddress` hint is still routed on-chain but
+   * could NOT be safely resolved by address: the loupe address is mapped to a
+   * different name in the deploy log, or more than one requested name claims the
+   * same address. Surfaced (never removed, never superseded) so a human
+   * investigates; empty unless a `nameToAddress` hint is supplied. An
+   * unambiguous hint whose address is unmapped in the log resolves into
+   * `removals` instead (spec §8 deploy-log longevity hazard, EXSC-723).
    */
   prunedButRouted: { name: string; address: `0x${string}` }[]
 }
@@ -547,9 +549,11 @@ export function diffNamedFacets(params: {
   protectedNames: Set<string>
   /**
    * Optional `name → stored facetAddress` hint (e.g. a parked task's snapshot).
-   * A requested name that resolves via neither the log nor this hint stays in
-   * `notFoundOnChain`; one whose hinted address is still routed on-chain but is
-   * no longer in the log is moved to `prunedButRouted` instead (spec §8).
+   * A hinted address that is still routed on-chain, absent from the log, and
+   * claimed by exactly one requested name resolves into a removal with its live
+   * loupe selectors — log-independent by construction (spec §8, EXSC-723).
+   * Ambiguous or log-conflicting hints land in `prunedButRouted`; a name that
+   * resolves via neither the log nor the hint stays in `notFoundOnChain`.
    */
   nameToAddress?: Record<string, `0x${string}`>
 }): INamedRemovalResult {
@@ -575,9 +579,23 @@ export function diffNamedFacets(params: {
     prunedButRouted: [],
   }
 
+  // Reverse hint map for log-independent resolution: an unmapped on-chain
+  // address claimed by exactly ONE requested name is that facet (the log entry
+  // was pruned). Two names claiming one address is ambiguous — never resolved.
+  const hintNamesByAddress = new Map<string, string[]>()
+  for (const [name, hintAddress] of Object.entries(nameToAddress ?? {})) {
+    if (!requestedNames.has(name)) continue
+    const key = lower(hintAddress)
+    hintNamesByAddress.set(key, [...(hintNamesByAddress.get(key) ?? []), name])
+  }
+
   const foundOnChain = new Set<string>()
   for (const facet of onChainFacets) {
-    const name = addressToName[lower(facet.address)]
+    const logName = addressToName[lower(facet.address)]
+    const hintNames = logName
+      ? undefined
+      : hintNamesByAddress.get(lower(facet.address))
+    const name = logName ?? (hintNames?.length === 1 ? hintNames[0] : undefined)
     // On-chain but unmapped: could be a requested facet at an address the deploy
     // log doesn't list. Surface it rather than dropping it, so it isn't
     // misreported as "not on chain".
@@ -600,9 +618,10 @@ export function diffNamedFacets(params: {
     })
   }
 
-  // A name absent from the log is normally "gone", but if its stored address
-  // hint is still routed on-chain the log was pruned prematurely — keep it out
-  // of `notFoundOnChain` so the drain never false-supersedes a live facet.
+  // A still-unresolved name whose hinted address remains routed on-chain was NOT
+  // safely resolvable (log maps the address to another name, or the hint is
+  // ambiguous) — keep it out of `notFoundOnChain` so the drain never
+  // false-supersedes a live facet.
   const onChainAddresses = new Set(onChainFacets.map((f) => lower(f.address)))
   for (const name of requestedNames) {
     if (foundOnChain.has(name)) continue
@@ -624,7 +643,8 @@ export function diffNamedFacets(params: {
  *
  * @param io - Injectable I/O overrides for testing; defaults hit the real chain/files.
  * @param nameToAddress - Optional `name → stored facetAddress` hint (e.g. a parked
- *   task's snapshot) used to detect deploy-log-pruned-but-still-routed facets (spec §8).
+ *   task's snapshot). An unambiguous hint resolves a deploy-log-pruned facet by
+ *   address with live loupe selectors; conflicts land in `prunedButRouted` (spec §8).
  */
 export async function computeNamedFacetRemovals(
   network: string,

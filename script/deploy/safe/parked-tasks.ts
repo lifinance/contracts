@@ -125,6 +125,7 @@ export type IParkedTaskInput = Omit<
 /** Filters accepted by {@link listParkedTasks}. */
 export interface IListParkedTasksFilter {
   network?: string
+  environment?: EnvironmentEnum
   prUrl?: string
   status?: ParkedTaskStatus
 }
@@ -338,10 +339,10 @@ export async function enqueueParkedTask(
 }
 
 /**
- * Reads parked tasks, optionally filtered by network / prUrl / status.
+ * Reads parked tasks, optionally filtered by network / environment / prUrl / status.
  *
  * @param parkedTasks - The queue collection.
- * @param filter - Optional network (lowercased), prUrl, and status filters.
+ * @param filter - Optional network (lowercased), environment, prUrl, and status filters.
  * @returns The matching tasks.
  */
 export async function listParkedTasks(
@@ -350,6 +351,7 @@ export async function listParkedTasks(
 ): Promise<WithId<IParkedTask>[]> {
   const query: Filter<IParkedTask> = {}
   if (filter.network) query.network = { $eq: filter.network.toLowerCase() }
+  if (filter.environment) query.environment = { $eq: filter.environment }
   if (filter.prUrl) query.prUrl = { $eq: filter.prUrl }
   if (filter.status) query.status = { $eq: filter.status }
   return parkedTasks.find(query).toArray()
@@ -493,6 +495,52 @@ export async function setSafeTxHash(
   safeTxHash: string
 ): Promise<WithId<IParkedTask> | null> {
   return transition(parkedTasks, taskKey, ['proposed'], { safeTxHash })
+}
+
+/**
+ * Reopens a task that was resolved as done (`executed`/`superseded`) but whose
+ * facet is demonstrably still routed — the removal never actually landed. Sends it
+ * back to `queued` and clears the stale proposal linkage and resolution stamp so
+ * the next drain re-proposes it from scratch.
+ *
+ * `cancelled` is deliberately NOT reopenable: that state records an operator
+ * explicitly abandoning the intent, and re-queueing it would fight that decision.
+ *
+ * Reopening re-enters the *open* statuses the partial unique index covers, so it
+ * collides (E11000) when a fresh open task already exists for the same `taskKey`.
+ * That is a benign race — the facet is already tracked — so it returns `null`
+ * rather than throwing, mirroring {@link enqueueParkedTask}.
+ *
+ * @param parkedTasks - The queue collection.
+ * @param taskKey - The terminal task to reopen.
+ * @returns The reopened task, `null` if it was not `executed`/`superseded`, or
+ *   `null` if an open task for the same `taskKey` already exists.
+ */
+export async function reopenResolvedTask(
+  parkedTasks: Collection<IParkedTask>,
+  taskKey: string
+): Promise<WithId<IParkedTask> | null> {
+  try {
+    return await transition(
+      parkedTasks,
+      taskKey,
+      ['executed', 'superseded'],
+      { status: 'queued' },
+      { proposedAt: '', safeTxHash: '', resolvedAt: '' }
+    )
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 11000
+    ) {
+      consola.warn(
+        `Cannot reopen resolved task - an open task already tracks it.\n  Task key: ${taskKey}`
+      )
+      return null
+    }
+    throw error
+  }
 }
 
 /**

@@ -411,6 +411,85 @@ describe('diffNamedFacets', () => {
     expect(r.notFoundOnChain).toEqual(['OldFacet'])
     expect(r.removals).toHaveLength(0)
   })
+
+  it('resolves a pruned-log facet by its unambiguous stored-address hint (log-independent)', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1), sel(2)] }],
+      addressToName: {}, // deploy-log entry pruned
+      protectedNames: new Set(),
+      nameToAddress: { OldFacet: addr(9) },
+    })
+    expect(r.removals).toEqual([
+      { name: 'OldFacet', address: addr(9), selectors: [sel(1), sel(2)] },
+    ])
+    expect(r.unresolved).toHaveLength(0)
+    expect(r.prunedButRouted).toHaveLength(0)
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('refuses a protected facet even when resolved via the address hint', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['DiamondCutFacet']),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(['DiamondCutFacet']),
+      nameToAddress: { DiamondCutFacet: addr(9) },
+    })
+    expect(r.protectedSkipped).toEqual(['DiamondCutFacet'])
+    expect(r.removals).toHaveLength(0)
+    expect(r.prunedButRouted).toHaveLength(0)
+  })
+
+  it('never resolves an ambiguous hint (two names claiming one address) — surfaces both', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['FacetA', 'FacetB']),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      nameToAddress: { FacetA: addr(9), FacetB: addr(9) },
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unresolved).toEqual([addr(9)])
+    expect(r.prunedButRouted).toEqual(
+      expect.arrayContaining([
+        { name: 'FacetA', address: addr(9) },
+        { name: 'FacetB', address: addr(9) },
+      ])
+    )
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('keeps a hint whose address the log maps to a DIFFERENT name in prunedButRouted', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: { [addr(9)]: 'SomeOtherFacet' },
+      protectedNames: new Set(),
+      nameToAddress: { OldFacet: addr(9) },
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.prunedButRouted).toEqual([{ name: 'OldFacet', address: addr(9) }])
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('ignores hints for names that were not requested', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['OldFacet']),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      nameToAddress: { UnrequestedFacet: addr(9) },
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unresolved).toEqual([addr(9)])
+    expect(r.notFoundOnChain).toEqual(['OldFacet'])
+  })
 })
 
 describe('computeNamedFacetRemovals', () => {
