@@ -117,7 +117,14 @@ export function collectTransitiveDependents(
 
   while (queue.length > 0) {
     const current = queue.shift()
-    if (!current || results.has(current.contract)) continue
+    // A cycle can walk back to the deployed contract itself; it is the thing being redeployed,
+    // never its own dependent.
+    if (
+      !current ||
+      current.contract === contractName ||
+      results.has(current.contract)
+    )
+      continue
     results.set(current.contract, current.via)
 
     for (const dependent of dependentsOf(current.contract))

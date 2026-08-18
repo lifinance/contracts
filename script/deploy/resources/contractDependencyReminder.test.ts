@@ -48,9 +48,8 @@ describe('collectTransitiveDependents', () => {
       B: { contractAddresses: { A: {} } },
     }
 
-    // Sorted by contract name; A appears as its own transitive dependent through B.
+    // A is the contract being redeployed, so it is never reported as its own dependent.
     expect(collectTransitiveDependents('A', cyclic)).toEqual([
-      { contract: 'A', via: ['B'] },
       { contract: 'B', via: [] },
     ])
   })
