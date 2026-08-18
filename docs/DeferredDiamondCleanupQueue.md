@@ -645,7 +645,9 @@ Three composed backstops, none silent:
    `#dev-sc-multisig-proposals` stays reserved for please-sign announcements, so scheduled
    job output never competes with the signing worklist. Delivery requires `CI`: a local run
    (including the full-tunnel one §7 recommends) prints the alert to the console instead of
-   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery.
+   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery. On the
+   scheduled run an unset webhook fails the job instead of dropping the alert, so the backstop
+   cannot go quiet behind a green check.
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
