@@ -2267,7 +2267,6 @@
         "EmergencyPauseFacet": "1.0.1",
         "GasZipFacet": "2.0.5",
         "GenericSwapFacetV3": "2.0.0",
-        "LiFiIntentEscrowFacet": "1.1.2",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",

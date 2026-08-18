@@ -251,6 +251,7 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'hemi',
       'hyperevm',
       'immutablezkevm',
+      'injective',
       'ink',
       'kaia',
       'lens',
