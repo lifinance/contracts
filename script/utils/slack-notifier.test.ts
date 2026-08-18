@@ -173,7 +173,7 @@ describe('isUnattendedRun', () => {
     else process.env.CI = original
   })
 
-  it('is true under a scheduled CI run', () => {
+  it('is true under a GitHub Actions run, scheduled or dispatched', () => {
     process.env.CI = 'true'
     expect(isUnattendedRun()).toBe(true)
   })
@@ -186,5 +186,18 @@ describe('isUnattendedRun', () => {
   it('is false for an empty CI value', () => {
     process.env.CI = ''
     expect(isUnattendedRun()).toBe(false)
+  })
+
+  it.each(['false', 'FALSE', '0', 'no'])(
+    'treats CI=%s as an opt-out, not as CI',
+    (value) => {
+      process.env.CI = value
+      expect(isUnattendedRun()).toBe(false)
+    }
+  )
+
+  it('is true for any other non-empty value', () => {
+    process.env.CI = '1'
+    expect(isUnattendedRun()).toBe(true)
   })
 })

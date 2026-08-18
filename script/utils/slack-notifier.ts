@@ -64,9 +64,16 @@ const SLACK_TEXT_LIMIT = 2900
  *
  * `.env` is symlinked across worktrees, so the webhook is always populated
  * locally — presence of the URL cannot stand in for this check.
+ *
+ * A wrapper that exports `CI=false`/`CI=0` is opting OUT, so a plain truthiness
+ * check on the variable would hand it delivery — the very outcome it asked to avoid.
+ *
+ * @returns `true` under GitHub Actions (scheduled or manually dispatched), `false`
+ * in a developer shell unless `CI` is exported by hand to force delivery.
  */
 export function isUnattendedRun(): boolean {
-  return Boolean(process.env.CI)
+  const ci = String(process.env.CI ?? '').toLowerCase()
+  return !['', '0', 'false', 'no'].includes(ci)
 }
 
 export class SlackNotifier {

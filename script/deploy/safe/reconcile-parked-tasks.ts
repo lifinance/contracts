@@ -278,7 +278,13 @@ async function runTtlAlert(
   }
   consola.warn(message)
   const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
-  if (!apply || !webhookUrl) return
+  if (!apply) return
+  if (!webhookUrl) {
+    consola.info(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset — alert logged only.'
+    )
+    return
+  }
   if (!isUnattendedRun()) {
     consola.info(
       'Local run: alert logged only. Set CI=1 to deliver it to Slack.'

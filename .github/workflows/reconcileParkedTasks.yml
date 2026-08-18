@@ -14,7 +14,8 @@
 #   state machine. RPCs are fetched from MongoDB (fallback: public RPCs from networks.json).
 # - Triggers: weekly cron (Mon 08:00 UTC) + workflow_dispatch (manual). Upstream-only (skips on forks).
 # - Known limitations: needs MONGODB_URI (queue + RPCs); WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS optional
-#   (the TTL alert is skipped gracefully if the webhook secret is unset).
+#   (the TTL alert is skipped gracefully if the webhook secret is unset). Slack delivery also
+#   requires CI to be set, so a local run of the same script logs the alert instead of posting it.
 
 name: Reconcile Deferred Diamond-Cleanup Queue
 

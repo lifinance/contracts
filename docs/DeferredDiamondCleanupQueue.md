@@ -643,7 +643,9 @@ Three composed backstops, none silent:
    `#dev-sc-github-ci-notifications` (`WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS`), naming
    the network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
    `#dev-sc-multisig-proposals` stays reserved for please-sign announcements, so scheduled
-   job output never competes with the signing worklist.
+   job output never competes with the signing worklist. Delivery requires `CI`: a local run
+   (including the full-tunnel one §7 recommends) prints the alert to the console instead of
+   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery.
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
