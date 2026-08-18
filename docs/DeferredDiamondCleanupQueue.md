@@ -676,8 +676,12 @@ Three composed backstops, none silent:
    (match by facet+network) so the two paths don't double-propose.
 2. **TTL / age alert.** A scheduled job reads `parkedTasks`; any record `queued`
    longer than *N* days (default **30** `[unverified]` — team to set) → post to
-   `#dev-sc-multisig-proposals` via the existing webhook (Fact 12), naming the
-   network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-github-ci-notifications` (`WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS`), naming
+   the network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-multisig-proposals` stays reserved for please-sign announcements, so scheduled
+   job output never competes with the signing worklist. Delivery requires `CI`: a local run
+   (including the full-tunnel one §7 recommends) prints the alert to the console instead of
+   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery.
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **The backstop must survive a bad network.** The reconcile isolates each

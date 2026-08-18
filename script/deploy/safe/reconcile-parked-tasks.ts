@@ -20,7 +20,7 @@
  *     detects reverts; without it (loupe-only) a gone facet is `superseded`.
  *
  *  2. **TTL alert** — surface open tasks that have aged past the TTL (default 60d)
- *     to the multisig-proposals Slack channel, so a cold network that never gets
+ *     to the github-ci-notifications Slack channel, so a cold network that never gets
  *     another cut is never silently orphaned (spec §8 backstop).
  *
  *  3. **Safe-to-prune report** — name the `deployments/*.json` entries whose
@@ -58,7 +58,7 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import { SlackNotifier } from '../../utils/slack-notifier'
+import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
 
@@ -807,13 +807,17 @@ async function runReconcileAlerts(
   run: IReconcileRun,
   apply: boolean
 ): Promise<void> {
-  const webhookUrl = process.env.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
   const send = async (message: string): Promise<void> => {
-    if (apply && webhookUrl)
+    if (apply && webhookUrl && isUnattendedRun())
       await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
         text: message,
       })
   }
+  if (apply && webhookUrl && !isUnattendedRun())
+    consola.info(
+      'Local run: reconcile alerts logged only. Set CI=1 to deliver them to Slack.'
+    )
 
   const reopenMessage = formatReopenAlertMessage(run.reopened)
   if (reopenMessage) {
@@ -886,11 +890,23 @@ async function runTtlAlert(
     return
   }
   consola.warn(message)
-  const webhookUrl = process.env.WEBHOOK_DEV_SC_MULTISIG_PROPOSALS
-  if (apply && webhookUrl)
-    await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
-      text: message,
-    })
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  if (!apply) return
+  if (!webhookUrl) {
+    consola.info(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset — alert logged only.'
+    )
+    return
+  }
+  if (!isUnattendedRun()) {
+    consola.info(
+      'Local run: alert logged only. Set CI=1 to deliver it to Slack.'
+    )
+    return
+  }
+  await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
+    text: message,
+  })
 }
 
 const main = defineCommand({
