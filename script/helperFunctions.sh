@@ -10,6 +10,13 @@
 # to this file read so later `source`d scripts do not export unrelated locals by default.
 set -a
 source .env
+
+# Every script that re-sources this file re-reads .env, which would snap a failed-over
+# endpoint back to the one already proven inadequate. Re-applying the overrides here
+# keeps a switch made during deployment effective for the diamondCut that follows.
+if [[ -n "${LIFI_RPC_OVERRIDE_FILE:-}" && -f "${LIFI_RPC_OVERRIDE_FILE:-}" ]]; then
+  source "$LIFI_RPC_OVERRIDE_FILE"
+fi
 set +a
 
 NETWORKS_JSON_FILE_PATH="config/networks.json"
@@ -3945,16 +3952,18 @@ function tryRpcFailover() {
   local RPC_KEY
   RPC_KEY=$(getRPCEnvVarName "$NETWORK")
 
-  # Exclusions accumulate for as long as we stay on one network. Excluding only the
-  # current endpoint would let two bad ones be picked alternately until the retry
-  # budget is gone.
-  if [[ "${RPC_FAILOVER_NETWORK:-}" != "$NETWORK" ]]; then
-    RPC_FAILOVER_NETWORK="$NETWORK"
-    RPC_FAILOVER_EXCLUDED=""
+  # Exclusions accumulate per network, so returning to a network later in the same
+  # shell still remembers what already failed there. Excluding only the current
+  # endpoint would let two bad ones be picked alternately until the retry budget is
+  # gone; sharing one list across networks would exclude another chain's endpoints.
+  local EXCLUDED_KEY="RPC_FAILOVER_EXCLUDED_${RPC_KEY}"
+  local EXCLUDED="${!EXCLUDED_KEY:-}"
+  local CURRENT="${!RPC_KEY:-}"
+  if [[ -n "$CURRENT" ]] && ! printf '%s\n' "$EXCLUDED" | grep -qxF "$CURRENT"; then
+    EXCLUDED="${EXCLUDED:+${EXCLUDED}$'\n'}${CURRENT}"
+    printf -v "$EXCLUDED_KEY" '%s' "$EXCLUDED"
   fi
-  if [[ -n "${!RPC_KEY:-}" ]]; then
-    RPC_FAILOVER_EXCLUDED="${RPC_FAILOVER_EXCLUDED:+${RPC_FAILOVER_EXCLUDED}$'\n'}${!RPC_KEY}"
-  fi
+  local RPC_FAILOVER_EXCLUDED="$EXCLUDED"
 
   local NEW_RPC_URL RESOLVER_EXIT=0
   NEW_RPC_URL=$(printf '%s' "$FORGE_OUTPUT" |
@@ -3976,6 +3985,17 @@ function tryRpcFailover() {
   fi
 
   export "$RPC_KEY=$NEW_RPC_URL"
+
+  # Persist for scripts sourced later in the rollout (diamondUpdateFacet and friends),
+  # which re-read .env on entry. Owner-only: the value is a credential.
+  if [[ -z "${LIFI_RPC_OVERRIDE_FILE:-}" ]]; then
+    LIFI_RPC_OVERRIDE_FILE="$(mktemp -t lifi-rpc-override)"
+    export LIFI_RPC_OVERRIDE_FILE
+  fi
+  chmod 600 "$LIFI_RPC_OVERRIDE_FILE" 2>/dev/null || true
+  grep -v "^${RPC_KEY}=" "$LIFI_RPC_OVERRIDE_FILE" > "${LIFI_RPC_OVERRIDE_FILE}.tmp" 2>/dev/null || true
+  mv "${LIFI_RPC_OVERRIDE_FILE}.tmp" "$LIFI_RPC_OVERRIDE_FILE" 2>/dev/null || true
+  printf '%s=%q\n' "$RPC_KEY" "$NEW_RPC_URL" >> "$LIFI_RPC_OVERRIDE_FILE"
 
   # A MongoDB-sourced endpoint was never seen by the workflow's ::add-mask:: sweep over
   # the .env keys, and forge quotes the full URL in transport errors.
@@ -5081,7 +5101,7 @@ function executeAndCapture() {
     '{stdout: $stdout, stdoutRaw: $stdoutRaw, stderr: $stderr, returnCode: $returnCode}')
 
   # Explicit cleanup + restore previous EXIT trap
-  rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
+  rm -f "$STDOUT_LOG" "$STDERR_LOG" "$STDOUT_RAW_LOG" 2>/dev/null
   if [[ -n "$_OLD_EXIT_TRAP" ]]; then
     eval "$_OLD_EXIT_TRAP"
   else

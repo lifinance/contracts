@@ -341,7 +341,11 @@ function mentionsRealBroadcastArtifact(output: string): boolean {
     let match = pattern.exec(output)
     while (match !== null) {
       const path = match[1] ?? ''
-      if (path && !path.includes('/dry-run/')) return true
+      // A dry run writes the same file name one directory deeper, under `dry-run/`.
+      // Only that final segment counts: a checkout living under some unrelated
+      // `dry-run` directory would otherwise hide a real broadcast.
+      const isDryRun = /(^|\/)dry-run\/[^/]+$/.test(path)
+      if (path && !isDryRun) return true
       match = pattern.exec(output)
     }
   }

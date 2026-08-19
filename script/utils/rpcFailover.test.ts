@@ -807,6 +807,14 @@ describe('classifyForgeFailure against real forge output', () => {
     ).toBe('preBroadcast')
   })
 
+  // A checkout under a directory called dry-run must not hide a real broadcast.
+  it('still refuses failover when the repo path contains a dry-run directory', () => {
+    const output =
+      '{"status":"success","transactions":"/Users/x/dry-run/fp/broadcast/D.s.sol/42220/run-latest.json"}\nerror sending request'
+
+    expect(classifyForgeFailure(output)).toBe('postBroadcast')
+  })
+
   it('treats a bare transport error with no broadcast marker as pre-broadcast', () => {
     expect(
       classifyForgeFailure(
