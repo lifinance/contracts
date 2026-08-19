@@ -956,6 +956,12 @@ function tryGetAddress(value: string): Address | null {
  * that is not the expected contract) and belongs in the error channel. Transport failures are not
  * evidence of anything, so anything not clearly chain-level is treated as transient; a misjudged
  * network blip must never redden the fleet.
+ *
+ * One case this cannot decide alone: when the batched multicall's own `eth_call` fails with a
+ * message containing "execution reverted" - including a provider envelope that merely embeds the
+ * phrase - viem reports that to every read in the batch, so all of them look deterministic. The
+ * re-verify pass is what clears it, since the retry re-batches and a transport blip does not
+ * reproduce.
  */
 export function isDeterministicReadFailure(error: unknown): boolean {
   const seen = new Set<unknown>()
@@ -984,6 +990,28 @@ export function isDeterministicReadFailure(error: unknown): boolean {
     current = candidate.cause
   }
   return false
+}
+
+/**
+ * Report a failed contract read at the level its cause warrants, never throwing.
+ *
+ * Classification runs inside a `catch`, so it must not raise: an exotic error whose property
+ * access throws would otherwise abort the surrounding loop and leave the remaining contracts
+ * unchecked - the exact silent gap the per-read guard exists to prevent.
+ */
+function report(
+  ctx: IHealthCheckContext,
+  error: unknown,
+  message: string
+): void {
+  let deterministic = false
+  try {
+    deterministic = isDeterministicReadFailure(error)
+  } catch {
+    deterministic = false
+  }
+  if (deterministic) ctx.logError(message)
+  else ctx.logWarn(message)
 }
 
 /**
@@ -1350,10 +1378,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           // getter reverts is broken, not flaky.
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          const report = isDeterministicReadFailure(error)
-            ? ctx.logError
-            : ctx.logWarn
-          report(`Could not read ${name}.${getter}(): ${errorMessage}`)
+          report(
+            ctx,
+            error,
+            `Could not read ${name}.${getter}(): ${errorMessage}`
+          )
           continue
         }
 
@@ -1924,10 +1953,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          const report = isDeterministicReadFailure(error)
-            ? ctx.logError
-            : ctx.logWarn
-          report(`Could not read ${name} owner: ${errorMessage}`)
+          report(ctx, error, `Could not read ${name} owner: ${errorMessage}`)
           continue
         }
         if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))

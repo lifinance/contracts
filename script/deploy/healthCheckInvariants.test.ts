@@ -531,6 +531,10 @@ interface IReceiverStub {
   failingReads?: string[]
   /** Contract addresses whose non-registry reads revert on chain. */
   revertingReads?: string[]
+  /** Contract addresses that hold no code, so the call decodes nothing. */
+  zeroDataReads?: string[]
+  /** Contract addresses whose read throws an error that resists inspection. */
+  hostileErrorReads?: string[]
   /** Registry names whose read throws. */
   failingRegistryNames?: string[]
   /** Make every registry read fail as a rate limit. */
@@ -584,6 +588,22 @@ function makeReceiverCtx(stub: IReceiverStub): {
               name: 'ContractFunctionRevertedError',
             }),
           })
+        if (stub.zeroDataReads?.includes(address))
+          throw Object.assign(new Error('call failed'), {
+            name: 'ContractFunctionExecutionError',
+            cause: Object.assign(new Error('returned no data ("0x")'), {
+              name: 'ContractFunctionZeroDataError',
+            }),
+          })
+        if (stub.hostileErrorReads?.includes(address)) {
+          const hostile = new Error('hostile')
+          Object.defineProperty(hostile, 'cause', {
+            get() {
+              throw new Error('cause getter exploded')
+            },
+          })
+          throw hostile
+        }
         if (stub.failingReads?.includes(address)) throw new Error('rpc boom')
         if (functionName === 'owner') return stub.owner?.[address] ?? ZERO
         return stub.boundExecutor?.[address] ?? ZERO
@@ -1141,6 +1161,29 @@ describe('receiver read failures separate broken contracts from flaky RPCs', () 
     await invariant('receiver-owner').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+  })
+
+  it('errors on a receiver address that holds no code (real nested shape)', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      zeroDataReads: [OIF_ON_CHAIN],
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors.some((e) => e.includes('ReceiverOIF'))).toBe(true)
+  })
+
+  it('keeps checking the remaining receivers when an error resists inspection', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: {
+        ReceiverOIF: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      hostileErrorReads: [OIF_ON_CHAIN],
+      owner: { [STARGATE_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-owner').run(ctx)
+    // classification must never abort the loop: the later receiver is still reported
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
   })
 
   it('errors when a receiver binding getter reverts', async () => {
