@@ -1215,14 +1215,6 @@
             }
           }
         ],
-        "moonriver": [
-          {
-            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
-            "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
-            }
-          }
-        ],
         "sei": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
@@ -2117,31 +2109,6 @@
               "0x2646478b": "processRoute(address,uint256,address,uint256,address,bytes)"
             }
           },
-          {
-            "address": "0xf2614a233c7c3e7f08b1f887ba133a13f1eb2c55",
-            "functions": {
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0x2646478b": "processRoute(address,uint256,address,uint256,address,bytes)",
-              "0x47f8bd41": ""
-            }
-          },
-          {
-            "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
-            "functions": {
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xdd9c5f96": "",
-              "0xee623204": ""
-            }
-          },
-          {
-            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
-            "functions": {
-              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
-              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
-            }
-          }
-        ],
-        "moonriver": [
           {
             "address": "0xf2614a233c7c3e7f08b1f887ba133a13f1eb2c55",
             "functions": {
