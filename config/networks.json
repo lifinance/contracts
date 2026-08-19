@@ -457,7 +457,7 @@
     "safeAddress": "0x1289d28f5aACe12c5121f8f8597F16b25E29FEE4",
     "gasZipChainId": 31,
     "isZkEVM": false,
-    "targetEvmVersion": "cancun",
+    "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
     "customDeployFlags": "--legacy"
   },

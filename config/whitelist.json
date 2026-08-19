@@ -6348,7 +6348,7 @@
     "fuse": [
       {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0x79C3F5B651Ee5782Ba15d968B088458cd5f1f4EF",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7098,7 +7098,7 @@
     "lens": [
       {
         "name": "FeeForwarder",
-        "address": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
+        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9594,7 +9594,7 @@
     "zksync": [
       {
         "name": "FeeForwarder",
-        "address": "0x92870bEd7554532ddE5213aC0f304573D79AaB24",
+        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
