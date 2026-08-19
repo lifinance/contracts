@@ -11,7 +11,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 ///         dilution, and the fee-inclusive share/asset conversions. Centralizing the math
 ///         here gives auditing and fuzzing a single, side-effect-free surface; all state,
 ///         minting, and routing stay in the wrapper.
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 library LibVaultWrapperMath {
     using Math for uint256;
 

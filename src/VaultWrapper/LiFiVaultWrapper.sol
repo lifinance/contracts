@@ -58,7 +58,7 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      dust-denominator regime. EIP-5143 slippage overloads of
 ///      the four entrypoints bound the realized amount against in-flight share-price
 ///      or fee-rate changes.
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
     // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
