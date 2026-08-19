@@ -818,15 +818,12 @@ contract LiFiVaultWrapper is
     ) external onlyOwner nonReentrant {
         _accrueFees();
 
-        uint8 idx = uint8(_feeType);
         if (_newRateBps != 0) {
             (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(FACTORY)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
-            if (
-                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
-            ) {
+            if (_feeType == FeeType.Performance && _rate(_feeType) == 0) {
                 uint256 supply = totalSupply();
                 if (supply != 0) {
                     uint192 currentPps = _ceilPps(supply, totalAssets());
@@ -839,7 +836,7 @@ contract LiFiVaultWrapper is
                 }
             }
         }
-        _feeConfig.rateBps[idx] = _newRateBps;
+        _feeConfig.rateBps[uint8(_feeType)] = _newRateBps;
 
         emit FeeConfigUpdated(_feeType, _newRateBps);
     }
@@ -1058,8 +1055,8 @@ contract LiFiVaultWrapper is
     ///      crystallization price (rounded up) only when shares were actually minted — an
     ///      uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
-        bool mgmtEnabled = _feeConfig.rateBps[uint8(FeeType.Management)] != 0;
-        bool perfEnabled = _feeConfig.rateBps[uint8(FeeType.Performance)] != 0;
+        bool mgmtEnabled = _rate(FeeType.Management) != 0;
+        bool perfEnabled = _rate(FeeType.Performance) != 0;
         if (!mgmtEnabled && !perfEnabled) {
             lastMgmtAccrual = uint64(block.timestamp);
             return;
@@ -1141,7 +1138,7 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256 feeShares) {
-        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Management)];
+        uint16 rateBps = _rate(FeeType.Management);
         if (
             lastMgmtAccrual == 0 ||
             rateBps == 0 ||
@@ -1177,7 +1174,7 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256) {
-        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Performance)];
+        uint16 rateBps = _rate(FeeType.Performance);
         if (rateBps == 0) return 0;
 
         uint256 hwm = perfHighWaterMarkPps;
