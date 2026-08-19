@@ -618,26 +618,28 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   reconcile.
 - **executed/superseded → queued**: `reopenResolvedTask` — the reconcile finds the facet
   still routed despite a terminal status, so the removal never landed. Clears
-  `resolvedAt`/`proposedAt`/`safeTxHash` and alerts the CI-notifications channel.
+  `resolvedAt`/`proposedAt`/`safeTxHash`, **recomputes `taskKey`** from the row's own
+  fields (a legacy name-keyed row must re-enter the open index under the address key
+  the dedup guarantees are built on), and alerts the CI-notifications channel.
   Addressed by `_id`, not `taskKey`: the partial unique index covers only the open
   statuses, so one key can own several terminal rows (parked → executed → re-parked →
   executed) and a key-matched write could modify a different row than the one the sweep
-  decided on. Reopening also requires the facet to be **still removable**
-  (`isParkedFacetStillRemovable`): the name is deprecated (source deleted and absent
-  from `_targetState.json`, the removal engine's own gate) — or, for an address the
-  deploy log does not name, none of the selectors it routes belongs to a facet target
-  state expects. The second branch is what keeps a *superseded* version reopenable: the
-  live v2.0.0 owns the name in target state, so a name-only gate would withhold exactly
-  the co-registered case this queue exists for (real mainnet data: v1.0.0 routes
-  `0xb70fb9a5`/`0x6e067161`, neither in the 156-selector active union). A routed
-  address that IS expected again (an incident rollback re-cutting it, or a CREATE2
-  redeploy landing on the same address) is a deliberate re-add, so the reopen is
-  withheld and reported as an anomaly instead of queueing a `Remove` for a live facet.
-  Anything undecidable (no target-state entry, unreadable artifacts) withholds too.
-  `cancelled` is deliberately excluded (it records an operator's decision, not a claim
-  about on-chain state).
+  decided on. Reopening also requires the facet to be **still removable**, judged by
+  `computeFacetRemovalsByAddress` — the exact engine the drain removes through, so
+  eval and remover cannot disagree: the address must land in its `removals`
+  partition. An address it refuses (`protectedSkipped`, or `stillExpected` because
+  the deploy log names it as a target-state facet or it routes a selector an expected
+  facet owns) is a deliberate re-add (an incident rollback re-cutting it, or a CREATE2
+  redeploy landing on the same address), so the reopen is withheld and reported as an
+  anomaly instead of queueing a `Remove` for a live facet. The selector fallback is
+  what keeps a *superseded* version reopenable: the live successor owns the name in
+  target state, so a name-only gate would withhold exactly the co-registered case
+  this queue exists for. Anything undecidable (`unverifiable`: no target-state entry,
+  unreadable artifacts) withholds too. `cancelled` is deliberately excluded (it
+  records an operator's decision, not a claim about on-chain state).
 - **→ cancelled**: `markCancelled` (`:383`) — an operator explicitly abandons the intent
-  (deprecation reverted, facet re-added, or a protected facet queued in error). **Merged
+  (deprecation reverted, facet re-added, or a protected facet queued in error), via
+  `bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "<key>" --yes`. **Merged
   behaviour: restricted to `queued`** — cancelling a `proposed` task would orphan its
   already-minted Safe removal proposal from the origin-PR linkage (§6), so a claimed task
   must be `revertToQueued` first, then cancelled.
@@ -651,13 +653,15 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   the network was deprecated*.
   **Applying that cancellation is opt-in and single-network**
   (`--network <x> --cancel-deprecated --yes`): a non-active config entry is *not* proof
-  of deprecation — `config/networks.json` is deliberately narrowed to a handful of
-  networks for emergency-pause rehearsals (`f99db1607`, `216bad0e4`, both reverted days
-  later) and `status` is toggled back to `active` (`51a04fc64`). An unattended
+  of deprecation — `config/networks.json` is deliberately narrowed for emergency-pause
+  rehearsals and then restored. An unattended
   fleet-wide run that cancelled on that signal would read a temporary config as a
   fleet-wide deprecation and terminally empty the queue, with no undo (`cancelled` is
   terminal and re-enqueue needs origin-PR context). So the cron only ever **reports**
   these; `/deprecate-network` does the cancelling, once, for the network a human named.
+  Terminal tasks on a non-active network are also named in the failure alert — their
+  false-resolution re-check is suspended while the config excludes the chain, and that
+  suspension must be visible in Slack, not only the job log.
   A `proposed` task is **never** cancelled either way (same orphaned-proposal rule as
   above); it needs `revertToQueued` first, for which no operator CLI exists yet
   (EXSC-715).
@@ -668,14 +672,27 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   (`${kind}|${network}|${environment}|${facetAddress}`) filtered to
   `status ∈ {queued, proposed}` (Fact 15) — mirrors `unique_pending_intent_hash`
   (Fact 8). A repeat `/deprecate-contract` of the same facet hits E11000 and
-  `enqueueParkedTask` returns `null` — a harmless no-op. Rows parked before the key
-  moved from `facetName` to `facetAddress` (EXSC-775) must be migrated with
-  `bunx tsx script/deploy/safe/migrate-parked-task-keys.ts --apply`, or their stale
-  keys stop colliding with a re-enqueue and the queue can hold two open tasks for
-  one address — which would fold two identical `Remove` calls into one batch.
+  `enqueueParkedTask` returns `null` — a harmless no-op. `facetAddress` is validated
+  at enqueue: **EVM `0x` addresses only**, canonicalised to the checksummed form —
+  no consumer (the EVM drain, the viem-based reconcile) can process anything else,
+  so a non-EVM value would mint a row nothing can ever drain or verify.
+- **Legacy name-based keys.** Rows parked before the key moved from `facetName` to
+  `facetAddress` (EXSC-775) should be migrated with
+  `bunx tsx script/deploy/safe/migrate-parked-task-keys.ts --apply`, but the
+  invariant does not depend on the migration having run: the drain seeds its
+  duplicate-address guard with every open (`queued` **and** `proposed`) task, records
+  addresses even for lost claims, and `reopenResolvedTask` recomputes the key and
+  pre-checks open rows by address — so two open tasks for one address can never fold
+  two identical `Remove` calls into proposals, whatever their key format.
 - **Don't re-propose if pending.** The atomic `claimForProposal` flip (above) is the
   guarantee; a `proposed` record whose proposal is still `pending` is skipped.
 - **Safe re-runs.** The whole drain is idempotent: nothing `queued` ⇒ no-op.
+- **No contradiction is removed.** The drain refuses (keeps queued + alerts) a task
+  whose loupe-resolved deploy-log name disagrees with its parked `facetName`, one
+  whose address target state still expects (`stillExpected`), one whose removability
+  cannot be verified (`unverifiable`), and a legacy row whose stored address is not
+  a valid EVM address — each alert names the `cancel-parked-task.ts` command that
+  resolves it.
 
 ---
 

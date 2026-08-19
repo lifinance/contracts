@@ -31,11 +31,9 @@ import { consola } from 'consola'
 import {
   computeTaskKey,
   getParkedTasksCollection,
+  OPEN_STATUSES,
   type IParkedTask,
 } from './parked-tasks'
-
-/** Statuses under which a `taskKey` must stay unique (mirrors the partial index). */
-const OPEN_STATUSES = ['queued', 'proposed']
 
 const main = defineCommand({
   meta: {
@@ -121,7 +119,7 @@ const main = defineCommand({
       for (const task of collisions)
         consola.error(
           `COLLISION — ${task.network}/${task.facetName} @ ${task.facetAddress} (${task.status}) would take an open key another task already holds. ` +
-            `Cancel the duplicate, then re-run. Origin PR: ${task.prUrl}`
+            `Cancel the duplicate (bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes), then re-run. Origin PR: ${task.prUrl}`
         )
 
       consola.success(

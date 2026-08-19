@@ -39,14 +39,15 @@ jobs:
     # guard is false, so the job is skipped (neutral, not failed).
     if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read # required to checkout the repo and read config/deploy logs
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          persist-credentials: false # read-only reconcile; no git push/tag/submodule operations
+          submodules: recursive # forge build needs lib/ for the selector-union artifacts
+          persist-credentials: false # read-only reconcile; no git push/tag operations
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
@@ -55,6 +56,15 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+
+      # The reopen gate resolves removability through the removal engine, whose
+      # selector unions come from out/ artifacts — without them every unlogged
+      # address is "unverifiable" and the false-resolution reopen never fires.
+      - name: Build contracts (generate Foundry artifacts)
+        run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 
       - name: Fetch RPC endpoints from MongoDB
         run: |

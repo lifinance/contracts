@@ -818,7 +818,11 @@ function printAddressRemoval(result: IAddressRemovalResult): void {
     return
   }
 
-  if (result.removals.length === 0)
+  const refusedCount =
+    result.protectedSkipped.length +
+    result.unverifiable.length +
+    result.stillExpected.length
+  if (result.removals.length === 0 && refusedCount === 0)
     consola.success(
       `[${result.network}] none of the given addresses are registered here`
     )
@@ -839,9 +843,16 @@ function printAddressRemoval(result: IAddressRemovalResult): void {
         .join(', ')}`
     )
 
+  if (result.stillExpected.length > 0)
+    consola.error(
+      `🛑 REFUSED (target state still expects these — removing would take down a live facet): ${result.stillExpected
+        .map((s) => `${s.name ?? 'unnamed'} @ ${s.address} (${s.reason})`)
+        .join(', ')}`
+    )
+
   if (result.unverifiable.length > 0)
     consola.error(
-      `🛑 REFUSED (cannot verify the never-remove allowlist — the deploy log does not name these and the protected selectors are unavailable; run "forge build" and retry): ${result.unverifiable.join(
+      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions are unavailable; run "forge build" and retry): ${result.unverifiable.join(
         ', '
       )}`
     )
