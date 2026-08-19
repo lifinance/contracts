@@ -304,22 +304,28 @@ export async function formatBatchSetContractSelectorWhitelist(
     )
     return
   }
+  // Case folding is only safe for hex addresses. Base58 is case-sensitive, so
+  // folding a Tron address risks merging two distinct contracts into one group
+  // and attributing the merged selectors to whichever address came first.
+  const groupingKey = (address: string): string =>
+    address.startsWith('0x') || address.startsWith('0X')
+      ? address.toLowerCase()
+      : address
   const contractToSelectors = new Map<string, string[]>()
   for (let i = 0; i < contracts.length; i++) {
-    const contract = contracts[i]?.toLowerCase()
+    const contract = contracts[i]
     const selector = selectors[i]
     if (!contract || !selector) continue
-    if (!contractToSelectors.has(contract))
-      contractToSelectors.set(contract, [])
-    const selectorList = contractToSelectors.get(contract)
+    const key = groupingKey(contract)
+    if (!contractToSelectors.has(key)) contractToSelectors.set(key, [])
+    const selectorList = contractToSelectors.get(key)
     if (selectorList) selectorList.push(selector)
   }
 
-  // Grouping keys are lowercased, which mangles a base58 Tron address — so
-  // both the lookup below and the rendering use the address as passed in.
+  // Every lookup and the rendering use the address as supplied, not the key.
   const rows = [...contractToSelectors.entries()].map(
-    ([contract, selectorList]) => ({
-      contract: contracts.find((c) => c.toLowerCase() === contract) || contract,
+    ([key, selectorList]) => ({
+      contract: contracts.find((c) => groupingKey(c) === key) || key,
       selectorList,
     })
   )

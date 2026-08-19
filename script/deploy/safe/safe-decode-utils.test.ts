@@ -203,6 +203,25 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     return infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
   }
 
+  it('keeps case-variant base58 contracts in separate groups', async () => {
+    // Base58 is case-sensitive, so these are two different Tron contracts.
+    const tronA = 'TQ2Fh2FLdWkhCPMTGKBHGNhCzWNwLoxdYY'
+    const tronB = 'TQ2fh2fLdWkhCPMTGKBHGNhCzWNwLoxdYY'
+    stubFourByte({ [FALLBACK_ONLY]: FALLBACK_ONLY_SIGNATURE })
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [[tronA, tronB], [FALLBACK_ONLY, TRANSFER], false],
+      'tron'
+    )
+    const output = infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(output).toContain(tronA)
+    expect(output).toContain(tronB)
+    // One "Contract:" line per address — a merged group would print only one.
+    expect(output.match(/Contract:/g)?.length).toBe(2)
+  })
+
   it('resolves a selector missing from whitelist.json via the 4byte lookup', async () => {
     stubFourByte({
       [FALLBACK_ONLY]: FALLBACK_ONLY_SIGNATURE,
