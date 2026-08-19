@@ -385,7 +385,7 @@ contract LiFiVaultWrapper is
     /// @notice Returns the configured rate (bps) for a fee type.
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return The fee rate in basis points.
-    function feeRate(uint8 _feeType) external view returns (uint16) {
+    function feeRate(uint8 _feeType) public view returns (uint16) {
         if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
         return _feeConfig.rateBps[_feeType];
     }
@@ -394,8 +394,7 @@ contract LiFiVaultWrapper is
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
-        if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
-        return _feeConfig.rateBps[_feeType] != 0;
+        return feeRate(_feeType) != 0;
     }
 
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
@@ -471,12 +470,7 @@ contract LiFiVaultWrapper is
     ///      the standard entrypoint actually returns, so it also catches an integrator
     ///      fee-rate change landing between the caller's quote and execution.
 
-    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
-    ///         `_minShares` shares are minted.
-    /// @param _assets The exact asset amount to deposit.
-    /// @param _receiver The share receiver.
-    /// @param _minShares The minimum acceptable amount of shares minted.
-    /// @return shares The shares actually minted.
+    /// @inheritdoc ILiFiVaultWrapper
     function deposit(
         uint256 _assets,
         address _receiver,
@@ -486,12 +480,7 @@ contract LiFiVaultWrapper is
         if (shares < _minShares) revert SlippageExceeded(shares, _minShares);
     }
 
-    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
-    ///         `_maxAssets` assets are pulled.
-    /// @param _shares The exact share amount to mint.
-    /// @param _receiver The share receiver.
-    /// @param _maxAssets The maximum acceptable amount of assets pulled.
-    /// @return assets The assets actually pulled.
+    /// @inheritdoc ILiFiVaultWrapper
     function mint(
         uint256 _shares,
         address _receiver,
@@ -501,13 +490,7 @@ contract LiFiVaultWrapper is
         if (assets > _maxAssets) revert SlippageExceeded(assets, _maxAssets);
     }
 
-    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
-    ///         `_maxShares` shares are burned.
-    /// @param _assets The exact asset amount to withdraw.
-    /// @param _receiver The asset receiver.
-    /// @param _owner The share owner being exited.
-    /// @param _maxShares The maximum acceptable amount of shares burned.
-    /// @return shares The shares actually burned.
+    /// @inheritdoc ILiFiVaultWrapper
     function withdraw(
         uint256 _assets,
         address _receiver,
@@ -518,13 +501,7 @@ contract LiFiVaultWrapper is
         if (shares > _maxShares) revert SlippageExceeded(shares, _maxShares);
     }
 
-    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
-    ///         `_minAssets` assets are paid out.
-    /// @param _shares The exact share amount to redeem.
-    /// @param _receiver The asset receiver.
-    /// @param _owner The share owner being exited.
-    /// @param _minAssets The minimum acceptable amount of assets paid out.
-    /// @return assets The assets actually paid out.
+    /// @inheritdoc ILiFiVaultWrapper
     function redeem(
         uint256 _shares,
         address _receiver,
@@ -819,25 +796,15 @@ contract LiFiVaultWrapper is
     ) external onlyOwner nonReentrant {
         _accrueFees();
 
-        uint8 idx = uint8(_feeType);
         if (_newRateBps != 0) {
             (uint16 minBps, uint16 maxBps) = ILiFiVaultWrapperFactory(FACTORY)
                 .feeBounds(_feeType);
             if (_newRateBps < minBps || _newRateBps > maxBps)
                 revert FeeRateOutOfBounds(_newRateBps, minBps, maxBps);
-            if (
-                _feeType == FeeType.Performance && _feeConfig.rateBps[idx] == 0
-            ) {
+            if (_feeType == FeeType.Performance && _rate(_feeType) == 0) {
                 uint256 supply = totalSupply();
                 if (supply != 0) {
-                    uint192 currentPps = SafeCast.toUint192(
-                        LibVaultWrapperMath.pricePerShare(
-                            supply,
-                            totalAssets(),
-                            _decimalsOffset(),
-                            Math.Rounding.Ceil
-                        )
-                    );
+                    uint192 currentPps = _ceilPps(supply, totalAssets());
                     // Up-only: anchoring below the stored watermark would let the owner
                     // toggle the fee off/on at a trough and charge the recovery back to
                     // the old peak — the double-charge the watermark exists to prevent.
@@ -847,7 +814,7 @@ contract LiFiVaultWrapper is
                 }
             }
         }
-        _feeConfig.rateBps[idx] = _newRateBps;
+        _feeConfig.rateBps[uint8(_feeType)] = _newRateBps;
 
         emit FeeConfigUpdated(_feeType, _newRateBps);
     }
@@ -985,28 +952,24 @@ contract LiFiVaultWrapper is
 
     /// @dev Entry screen: the share receiver must be allowed by the gate (which is
     ///      expected to fold its own sanctions view into `isAllowed`). No-op when no
-    ///      gate is set.
+    ///      gate is set. Reverting form of `_depositAllowed`, so the entry predicate
+    ///      has one definition shared with the `maxDeposit`/`maxMint` views.
     /// @param _receiver The share receiver of the deposit/mint.
     function _checkDepositAccess(address _receiver) private view {
-        address gate = accessGate;
-        if (gate == address(0)) return;
-        if (!IAccessGate(gate).isAllowed(_receiver))
-            revert AccountNotAllowed(_receiver);
+        if (!_depositAllowed(_receiver)) revert AccountNotAllowed(_receiver);
     }
 
     /// @dev Exit screen: sanctions-only, so any non-sanctioned holder can always exit
     ///      (even after falling off an allowlist). Screens the share owner (freezes a
     ///      sanctioned holder's funds) AND the asset receiver (never pays assets out to a
     ///      sanctioned address; a non-sanctioned owner just picks another receiver).
-    ///      No-op when no gate is set.
+    ///      No-op when no gate is set. Reverting form of `_sanctioned`, so the exit
+    ///      predicate has one definition shared with the `maxWithdraw`/`maxRedeem` views.
     /// @param _owner The share owner being exited.
     /// @param _receiver The asset receiver of the exit.
     function _checkExitAccess(address _owner, address _receiver) private view {
-        address gate = accessGate;
-        if (gate == address(0)) return;
-        if (IAccessGate(gate).isSanctioned(_owner))
-            revert AccountSanctioned(_owner);
-        if (_receiver != _owner && IAccessGate(gate).isSanctioned(_receiver))
+        if (_sanctioned(_owner)) revert AccountSanctioned(_owner);
+        if (_receiver != _owner && _sanctioned(_receiver))
             revert AccountSanctioned(_receiver);
     }
 
@@ -1070,8 +1033,8 @@ contract LiFiVaultWrapper is
     ///      crystallization price (rounded up) only when shares were actually minted — an
     ///      uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
-        bool mgmtEnabled = _feeConfig.rateBps[uint8(FeeType.Management)] != 0;
-        bool perfEnabled = _feeConfig.rateBps[uint8(FeeType.Performance)] != 0;
+        bool mgmtEnabled = _rate(FeeType.Management) != 0;
+        bool perfEnabled = _rate(FeeType.Performance) != 0;
         if (!mgmtEnabled && !perfEnabled) {
             lastMgmtAccrual = uint64(block.timestamp);
             return;
@@ -1100,14 +1063,7 @@ contract LiFiVaultWrapper is
         // supply is sub-floor escapes the performance fee, which is bounded (a sub-floor vault
         // is dust) and consistent with the "no depositor transacts below the floor" invariant.
         if (perfEnabled && supply < MIN_SHARE_SUPPLY) {
-            perfHighWaterMarkPps = SafeCast.toUint192(
-                LibVaultWrapperMath.pricePerShare(
-                    supply,
-                    assets,
-                    _decimalsOffset(),
-                    Math.Rounding.Ceil
-                )
-            );
+            perfHighWaterMarkPps = _ceilPps(supply, assets);
             return;
         }
 
@@ -1116,21 +1072,36 @@ contract LiFiVaultWrapper is
             _mint(address(this), perfShares);
             _bookDilution(FeeType.Performance, perfShares);
             supply += perfShares;
-            // Ceil, not floor: a floored post-dilution price can fall a full pps step below the
-            // price the fee was just charged at, re-opening that step to be charged again on the
-            // next crossing (severe for low-decimal assets, where a step is a coarse slice of
-            // AUM). Rounding up keeps the watermark at/above the crystallization price, at most
-            // under-charging by one sub-step — the holder-favouring direction the rest of the
-            // fee math already rounds in.
-            perfHighWaterMarkPps = SafeCast.toUint192(
+            perfHighWaterMarkPps = _ceilPps(supply, assets);
+        }
+    }
+
+    /// @dev The price per share the performance-fee watermark is anchored at, narrowed to
+    ///      the watermark's storage width. Ceil, not floor: a floored post-dilution price
+    ///      can fall a full pps step below the price the fee was just charged at, re-opening
+    ///      that step to be charged again on the next crossing (severe for low-decimal
+    ///      assets, where a step is a coarse slice of AUM). Rounding up keeps the watermark
+    ///      at/above the crystallization price, at most under-charging by one sub-step — the
+    ///      holder-favouring direction the rest of the fee math already rounds in. Prices
+    ///      through `_decimalsOffset()`, so it is only valid once `initialize` has written
+    ///      `shareDecimalsOffset` (the provisional anchor there uses the pure floored
+    ///      overload instead).
+    /// @param _supply The share supply to price against.
+    /// @param _assets The gross assets to price against.
+    /// @return The ceil-rounded price per share, scaled by `LibVaultWrapperMath.PPS_SCALE`.
+    function _ceilPps(
+        uint256 _supply,
+        uint256 _assets
+    ) private view returns (uint192) {
+        return
+            SafeCast.toUint192(
                 LibVaultWrapperMath.pricePerShare(
-                    supply,
-                    assets,
+                    _supply,
+                    _assets,
                     _decimalsOffset(),
                     Math.Rounding.Ceil
                 )
             );
-        }
     }
 
     /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
@@ -1145,7 +1116,7 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256 feeShares) {
-        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Management)];
+        uint16 rateBps = _rate(FeeType.Management);
         if (
             lastMgmtAccrual == 0 ||
             rateBps == 0 ||
@@ -1181,7 +1152,7 @@ contract LiFiVaultWrapper is
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint256) {
-        uint16 rateBps = _feeConfig.rateBps[uint8(FeeType.Performance)];
+        uint16 rateBps = _rate(FeeType.Performance);
         if (rateBps == 0) return 0;
 
         uint256 hwm = perfHighWaterMarkPps;
