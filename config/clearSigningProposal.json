@@ -18,7 +18,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -85,7 +85,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -174,7 +174,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -241,7 +241,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -314,7 +314,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -381,7 +381,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -448,7 +448,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -521,7 +521,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -594,7 +594,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -667,7 +667,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -734,7 +734,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -807,7 +807,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -880,7 +880,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -947,7 +947,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1020,7 +1020,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1093,7 +1093,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1166,7 +1166,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1233,7 +1233,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1306,7 +1306,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1373,7 +1373,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1440,7 +1440,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1507,7 +1507,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1574,7 +1574,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1647,7 +1647,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1714,7 +1714,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1781,7 +1781,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1848,7 +1848,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1915,7 +1915,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -1982,7 +1982,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2049,7 +2049,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2125,7 +2125,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2221,7 +2221,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2323,7 +2323,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2419,7 +2419,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2521,7 +2521,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2617,7 +2617,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2713,7 +2713,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2815,7 +2815,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -2917,7 +2917,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3019,7 +3019,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3115,7 +3115,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3217,7 +3217,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3319,7 +3319,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3415,7 +3415,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3517,7 +3517,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3619,7 +3619,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3721,7 +3721,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3817,7 +3817,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -3919,7 +3919,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4015,7 +4015,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4111,7 +4111,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4207,7 +4207,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4303,7 +4303,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4405,7 +4405,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4501,7 +4501,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4597,7 +4597,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4693,7 +4693,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4789,7 +4789,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4885,7 +4885,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
@@ -4981,7 +4981,7 @@
         {
           "path": "_bridgeData.destinationChainId",
           "label": "Destination Chain",
-          "format": "raw",
+          "format": "chainId",
           "visible": "always"
         },
         {
