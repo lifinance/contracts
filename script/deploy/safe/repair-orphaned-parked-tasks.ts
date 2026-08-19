@@ -15,6 +15,7 @@
  */
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { type Collection } from 'mongodb'
 
 import 'dotenv/config'
 
@@ -22,8 +23,65 @@ import {
   getParkedTasksCollection,
   listParkedTasks,
   revertToQueued,
+  type IParkedTask,
 } from './parked-tasks'
-import { getSafeMongoCollection } from './safe-utils'
+import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
+
+export interface IRepairResult {
+  readonly orphans: number
+  readonly repaired: number
+  /** status=proposed tasks with no safeTxHash — cannot be judged, left untouched. */
+  readonly unlinked: number
+}
+
+/**
+ * Reverts every `proposed` task whose linked proposal is gone back to `queued`.
+ * A task is an orphan only when its `safeTxHash` has no document in the proposal
+ * store — a claim held by a live proposal is left alone.
+ */
+export async function repairOrphanedParkedTasks(
+  parkedTasks: Collection<IParkedTask>,
+  pendingTransactions: Collection<ISafeTxDocument>,
+  { apply, network }: { apply: boolean; network?: string }
+): Promise<IRepairResult> {
+  const tasks = await listParkedTasks(parkedTasks, {
+    status: 'proposed',
+    ...(network ? { network } : {}),
+  })
+  consola.info(`${tasks.length} task(s) in status=proposed`)
+
+  let orphans = 0
+  let repaired = 0
+  let unlinked = 0
+  for (const task of tasks) {
+    if (!task.safeTxHash) {
+      unlinked++
+      consola.warn(
+        `[${task.network}] ${task.facetName}: status=proposed with no safeTxHash — leaving for manual review`
+      )
+      continue
+    }
+    const proposal = await pendingTransactions.findOne({
+      safeTxHash: { $eq: task.safeTxHash },
+    })
+    if (proposal) continue
+
+    orphans++
+    consola.warn(
+      `[${task.network}] ${task.facetName}: linked proposal ${task.safeTxHash} is GONE → queued`
+    )
+    if (!apply) continue
+
+    const updated = await revertToQueued(parkedTasks, task.taskKey)
+    if (updated) repaired++
+    else
+      consola.error(
+        `[${task.network}] ${task.facetName}: transition failed (status changed under us?)`
+      )
+  }
+
+  return { orphans, repaired, unlinked }
+}
 
 const main = defineCommand({
   meta: {
@@ -60,37 +118,11 @@ const main = defineCommand({
     let orphans = 0
     let repaired = 0
     try {
-      const tasks = await listParkedTasks(parkedTasks, {
-        status: 'proposed',
-        ...(args.network ? { network: args.network } : {}),
-      })
-      consola.info(`${tasks.length} task(s) in status=proposed`)
-
-      for (const task of tasks) {
-        if (!task.safeTxHash) {
-          consola.warn(
-            `[${task.network}] ${task.facetName}: status=proposed with no safeTxHash — leaving for manual review`
-          )
-          continue
-        }
-        const proposal = await pendingTransactions.findOne({
-          safeTxHash: { $eq: task.safeTxHash },
-        })
-        if (proposal) continue
-
-        orphans++
-        consola.warn(
-          `[${task.network}] ${task.facetName}: linked proposal ${task.safeTxHash} is GONE → queued`
-        )
-        if (!apply) continue
-
-        const updated = await revertToQueued(parkedTasks, task.taskKey)
-        if (updated) repaired++
-        else
-          consola.error(
-            `[${task.network}] ${task.facetName}: transition failed (status changed under us?)`
-          )
-      }
+      ;({ orphans, repaired } = await repairOrphanedParkedTasks(
+        parkedTasks,
+        pendingTransactions,
+        { apply, ...(args.network ? { network: args.network } : {}) }
+      ))
     } finally {
       await safeClient.close()
       await tasksClient.close()
@@ -105,4 +137,4 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+if (import.meta.main) runMain(main)

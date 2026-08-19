@@ -31,7 +31,7 @@ const COMBINED_PROPOSAL_MAX_PAIRS = 300
 // A contract with no listed functions is whitelisted as approveTo-only under this
 // sentinel selector (LibAllowList.sol); omitting it reads the contract as absent
 // from config and would propose removing a live approveTo target.
-const APPROVE_TO_ONLY = '0xffffffff'
+export const APPROVE_TO_ONLY = '0xffffffff'
 
 const WHITELIST_ABI = parseAbi([
   'function getAllContractSelectorPairs() view returns (address[],bytes4[][])',
@@ -42,32 +42,36 @@ const REGISTRY_ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
 
-interface IPair {
+export interface IPair {
   contract: Address
   selector: Hex
 }
 
-const pairKey = (p: IPair): string =>
+export interface IWhitelistConfig {
+  DEXS?: {
+    contracts?: Record<
+      string,
+      { address: string; functions?: Record<string, string> }[]
+    >
+  }[]
+  PERIPHERY?: Record<
+    string,
+    { address: string; selectors?: { selector: string }[] }[]
+  >
+}
+
+export const pairKey = (p: IPair): string =>
   `${p.contract.toLowerCase()}|${p.selector.toLowerCase()}`
 
 /**
  * Collects every (contract, selector) pair the config says should be whitelisted
  * on a network, across both the DEXS and PERIPHERY sections.
  */
-function desiredPairs(network: string): IPair[] {
+export function desiredPairs(
+  config: IWhitelistConfig,
+  network: string
+): IPair[] {
   const out: IPair[] = []
-  const config = whitelistConfig as unknown as {
-    DEXS?: {
-      contracts?: Record<
-        string,
-        { address: string; functions?: Record<string, string> }[]
-      >
-    }[]
-    PERIPHERY?: Record<
-      string,
-      { address: string; selectors?: { selector: string }[] }[]
-    >
-  }
 
   for (const dex of config.DEXS ?? [])
     for (const entry of dex.contracts?.[network] ?? []) {
@@ -89,6 +93,23 @@ function desiredPairs(network: string): IPair[] {
   }
 
   return out
+}
+
+/**
+ * Splits the config-vs-chain difference into the pairs to whitelist and the pairs
+ * to de-whitelist. Keys are compared case-insensitively so a checksum-vs-lowercase
+ * address never reads as both an addition and a removal.
+ */
+export function diffPairs(
+  desired: IPair[],
+  actual: IPair[]
+): { toAdd: IPair[]; toRemove: IPair[] } {
+  const desiredKeys = new Set(desired.map(pairKey))
+  const actualKeys = new Set(actual.map(pairKey))
+  return {
+    toAdd: desired.filter((p) => !actualKeys.has(pairKey(p))),
+    toRemove: actual.filter((p) => !desiredKeys.has(pairKey(p))),
+  }
 }
 
 async function actualPairs(
@@ -183,13 +204,10 @@ const main = defineCommand({
         const rpcUrl = process.env[getRPCEnvVarName(network)]
         if (!rpcUrl) throw new Error(`no RPC configured for ${network}`)
 
-        const desired = desiredPairs(network)
-        const actual = await actualPairs(diamond, rpcUrl, network)
-        const desiredKeys = new Set(desired.map(pairKey))
-        const actualKeys = new Set(actual.map(pairKey))
-
-        const toAdd = desired.filter((p) => !actualKeys.has(pairKey(p)))
-        const toRemove = actual.filter((p) => !desiredKeys.has(pairKey(p)))
+        const { toAdd, toRemove } = diffPairs(
+          desiredPairs(whitelistConfig as unknown as IWhitelistConfig, network),
+          await actualPairs(diamond, rpcUrl, network)
+        )
 
         const total = toAdd.length + toRemove.length
         if (total > COMBINED_PROPOSAL_MAX_PAIRS) {
@@ -260,4 +278,4 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+if (import.meta.main) runMain(main)
