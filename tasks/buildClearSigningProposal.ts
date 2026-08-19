@@ -281,13 +281,98 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
-const CHAIN_FIELD: IField = {
-  path: '_bridgeData.destinationChainId',
-  label: 'Destination Chain',
-  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
-  // back to rendering numerically.
-  format: 'chainId',
-  visible: 'always',
+const LIFI_DATA_SOL = path.join(ROOT, 'src', 'Helpers', 'LiFiData.sol')
+const FACETS_DIR = path.join(ROOT, 'src', 'Facets')
+
+// A LI.FI-internal chain id below this is small enough to collide with a real
+// EIP-155 id, so a wallet resolving it through a chain registry would name the
+// wrong chain. Every id we mint above it is far outside the allocated range.
+const EIP155_COLLISION_THRESHOLD = 1e12
+
+// LI.FI-internal ids that DO collide with a registered EIP-155 chain, and the
+// name a registry resolves them to. Listing one here is an acknowledgement, not
+// a fix: bridges that can reach it fall back to `raw` below.
+const COLLIDING_LIFI_CHAIN_IDS: Record<string, string> = {
+  LIFI_CHAIN_ID_HYPERCORE: 'Geth Testnet',
+}
+
+// `LIFI_CHAIN_ID_X = <n>;` from LiFiData.sol. Parsed rather than duplicated so a
+// new internal id cannot be added there without this generator seeing it.
+function readLiFiChainIds(): Record<string, number> {
+  const src = fs.readFileSync(LIFI_DATA_SOL, 'utf8')
+  const ids: Record<string, number> = {}
+  for (const m of src.matchAll(
+    /uint256\s+internal\s+constant\s+(LIFI_CHAIN_ID_\w+)\s*=\s*(\d+)\s*;/gu
+  ))
+    ids[m[1] as string] = Number(m[2])
+
+  if (Object.keys(ids).length === 0)
+    throw new Error(
+      `no LIFI_CHAIN_ID_* constants parsed from ${LIFI_DATA_SOL} — the declaration shape changed; update the regex above`
+    )
+
+  for (const [name, value] of Object.entries(ids)) {
+    if (value >= EIP155_COLLISION_THRESHOLD) continue
+    if (name in COLLIDING_LIFI_CHAIN_IDS) continue
+    throw new Error(
+      `${name} = ${value} is inside EIP-155 range and unacknowledged. A wallet rendering ` +
+        `"Destination Chain" with format "chainId" would resolve it to some unrelated chain's ` +
+        `name. Check https://chainid.network/chains_mini.json: if ${value} is registered, add ` +
+        `${name} to COLLIDING_LIFI_CHAIN_IDS so bridges reaching it fall back to "raw".`
+    )
+  }
+  return ids
+}
+
+// Bridges whose `_bridgeData.destinationChainId` can carry a colliding id, keyed
+// by the identity `bridgeFacetName()` produces. Derived from the facet sources so
+// a new bridge reaching one of these chains is picked up without editing a list.
+function hypercoreCapableBridges(): Set<string> {
+  const ids = readLiFiChainIds()
+  const literals = Object.keys(COLLIDING_LIFI_CHAIN_IDS).map((n) => {
+    const v = ids[n]
+    if (v === undefined)
+      throw new Error(
+        `COLLIDING_LIFI_CHAIN_IDS lists ${n}, which no longer exists in ${LIFI_DATA_SOL}`
+      )
+    return { name: n, value: v }
+  })
+
+  const bridges = new Set<string>()
+  for (const file of fs.readdirSync(FACETS_DIR)) {
+    if (!file.endsWith('Facet.sol')) continue
+    const src = fs.readFileSync(path.join(FACETS_DIR, file), 'utf8')
+    // Facets reference the constant by name, except where a bridge maps chain
+    // ids in a numeric lookup and writes the literal (AcrossV4Swap).
+    const reaches = literals.some(
+      ({ name, value }) =>
+        src.includes(name) ||
+        new RegExp(`(?<![\\d_])${value}(?![\\d_])`, 'u').test(src)
+    )
+    if (reaches) bridges.add(file.replace(/Facet\.sol$/u, ''))
+  }
+  return bridges
+}
+
+const HYPERCORE_CAPABLE_BRIDGES = hypercoreCapableBridges()
+
+// Bridges that reached a colliding id but never matched an emitted format —
+// populated as formats are built, asserted empty in main(). Without this a
+// facet rename silently drops the `raw` fallback and ships a wrong chain name.
+const matchedHypercoreBridges = new Set<string>()
+
+function chainField(facet: string): IField {
+  const collides = HYPERCORE_CAPABLE_BRIDGES.has(facet)
+  if (collides) matchedHypercoreBridges.add(facet)
+  return {
+    path: '_bridgeData.destinationChainId',
+    label: 'Destination Chain',
+    // `chainId` renders the EIP-155 name. Our non-EVM ids are unregistered, so
+    // they degrade to the bare number — but the ids in COLLIDING_LIFI_CHAIN_IDS
+    // resolve to a real, wrong chain name, which is worse than showing digits.
+    format: collides ? 'raw' : 'chainId',
+    visible: 'always',
+  }
 }
 
 function bridgeFacetName(fnName: string): string {
@@ -507,7 +592,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
         params: { tokenPath: '_bridgeData.sendingAssetId' },
         visible: 'always',
       },
-      CHAIN_FIELD,
+      chainField(facet),
       RECEIVER_FIELD,
       ...extraReceiverFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
@@ -537,7 +622,7 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
         params: { tokenPath: '_bridgeData.sendingAssetId' },
         visible: 'always',
       },
-      CHAIN_FIELD,
+      chainField(facet),
       RECEIVER_FIELD,
       ...extraReceiverFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
@@ -962,6 +1047,24 @@ function main() {
     for (const f of failures) console.error(`   - ${f}\n`)
     console.error(
       'Generator refuses to write a partial proposal. The CI gate (verifyClearSigning) will fail until every user-facing function is covered.\n'
+    )
+    process.exit(1)
+  }
+
+  const unmatched = [...HYPERCORE_CAPABLE_BRIDGES].filter(
+    (b) => !matchedHypercoreBridges.has(b)
+  )
+  if (unmatched.length > 0) {
+    console.error(
+      `\n❌ buildClearSigningProposal: ${unmatched.length} bridge(s) reach a chain id in ` +
+        `COLLIDING_LIFI_CHAIN_IDS but matched no emitted format: ${unmatched.join(
+          ', '
+        )}.\n`
+    )
+    console.error(
+      `   These names come from the facet filename (<Name>Facet.sol) and must equal what\n` +
+        `   bridgeFacetName() derives from the function name. A mismatch means the "raw"\n` +
+        `   fallback was not applied and the descriptor would name the wrong chain.\n`
     )
     process.exit(1)
   }
