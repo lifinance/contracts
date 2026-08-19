@@ -66,7 +66,7 @@ export type ParkedTaskStatus =
   | 'superseded'
 
 /** Statuses under which a `taskKey` is still active and must stay unique. */
-const OPEN_STATUSES: ParkedTaskStatus[] = ['queued', 'proposed']
+export const OPEN_STATUSES: ParkedTaskStatus[] = ['queued', 'proposed']
 
 /** Name of the partial unique index the dedup guarantees depend on. */
 const OPEN_TASK_KEY_INDEX_NAME = 'unique_open_task_key'
@@ -127,16 +127,18 @@ export interface IListParkedTasksFilter {
   network?: string
   environment?: EnvironmentEnum
   prUrl?: string
-  status?: ParkedTaskStatus
+  /** One status, or several (matched with `$in` — e.g. {@link OPEN_STATUSES}). */
+  status?: ParkedTaskStatus | ParkedTaskStatus[]
 }
 
 /**
  * Normalises a facet address for use as a {@link computeTaskKey} segment.
  *
  * EVM addresses are case-insensitive, so lowercasing lets a checksummed and an
- * all-lower spelling of the same facet dedup against each other. Tron base58 is
- * case-SENSITIVE — `T…a` and `T…A` are different accounts — so a non-`0x` address
- * is kept verbatim rather than folded into a key that could collide.
+ * all-lower spelling of the same facet dedup against each other. A non-`0x`
+ * string is kept verbatim so the key stays a pure string function of a row's
+ * stored fields, whatever a legacy row holds — {@link enqueueParkedTask} refuses
+ * to create such rows.
  */
 function normaliseAddressForKey(facetAddress: string): string {
   const trimmed = facetAddress.trim()
@@ -144,22 +146,29 @@ function normaliseAddressForKey(facetAddress: string): string {
 }
 
 /**
- * Canonical stored spelling of a facet address: EVM addresses are checksummed, Tron
- * base58 is kept verbatim.
+ * Canonical stored spelling of a facet address: a checksummed EVM address.
  *
  * The stored value and {@link computeTaskKey} must never disagree about identity —
- * otherwise an EVM address parked in one capitalisation and re-parked in another
- * would carry two spellings for one key. Tron base58 is case-SENSITIVE, so folding
- * it would merge distinct accounts; it stays as given, which is safe because the
- * spelling always comes from the deploy log.
+ * otherwise an address parked in one capitalisation and re-parked in another
+ * would carry two spellings for one key.
+ *
+ * EVM-only by design: every consumer of the queue (the drain via the EVM Safe
+ * propose path, the reconcile via viem loupe reads) can only process EVM
+ * addresses, so accepting anything else would mint rows nothing can ever drain
+ * or verify. Tron parking becomes representable when a Tron-capable consumer
+ * exists.
  *
  * @param facetAddress - Address as supplied by the caller.
- * @returns The canonical form to store.
- * @throws If an `0x` address is not a valid EVM address.
+ * @returns The canonical checksummed form to store.
+ * @throws If the value is not a valid `0x` EVM address.
  */
 function canonicaliseFacetAddress(facetAddress: string): string {
   const trimmed = facetAddress.trim()
-  return trimmed.startsWith('0x') ? getAddress(trimmed) : trimmed
+  if (!trimmed.startsWith('0x'))
+    throw new Error(
+      `facetAddress must be a 0x EVM address (got "${trimmed}") — the queue is EVM-only: no consumer can drain or reconcile a non-EVM address`
+    )
+  return getAddress(trimmed)
 }
 
 /**
@@ -411,7 +420,10 @@ export async function listParkedTasks(
   if (filter.network) query.network = { $eq: filter.network.toLowerCase() }
   if (filter.environment) query.environment = { $eq: filter.environment }
   if (filter.prUrl) query.prUrl = { $eq: filter.prUrl }
-  if (filter.status) query.status = { $eq: filter.status }
+  if (filter.status)
+    query.status = Array.isArray(filter.status)
+      ? { $in: filter.status }
+      : { $eq: filter.status }
   return parkedTasks.find(query).sort({ taskKey: 1 }).toArray()
 }
 
@@ -583,11 +595,45 @@ export async function reopenResolvedTask(
   parkedTasks: Collection<IParkedTask>,
   id: ObjectId
 ): Promise<WithId<IParkedTask> | null> {
+  // Recompute the key from the row's own fields before re-entering the open
+  // index: a legacy row still carrying a name-based key would otherwise reopen
+  // under a key no fresh enqueue can collide with, silently disabling the
+  // E11000 duplicate-open protection this function documents.
+  const current = await parkedTasks.findOne({ _id: { $eq: id } })
+  if (!current) return null
+  const taskKey = computeTaskKey(
+    current.kind,
+    current.network,
+    current.environment,
+    current.facetAddress
+  )
+  // The unique index only catches same-KEY duplicates; an open legacy-keyed row
+  // for the same address would not collide, so check by address first. Not
+  // atomic, but the drain's own duplicate-address guard backstops the race.
+  const openRows = await parkedTasks
+    .find({
+      kind: { $eq: current.kind },
+      network: { $eq: current.network },
+      environment: { $eq: current.environment },
+      status: { $in: OPEN_STATUSES },
+    })
+    .toArray()
+  const duplicate = openRows.find(
+    (row) =>
+      !row._id.equals(id) &&
+      row.facetAddress.toLowerCase() === current.facetAddress.toLowerCase()
+  )
+  if (duplicate) {
+    consola.warn(
+      `Cannot reopen resolved task - an open task already tracks it.\n  Task id: ${id.toString()}`
+    )
+    return null
+  }
   try {
     return await parkedTasks.findOneAndUpdate(
       { _id: { $eq: id }, status: { $in: ['executed', 'superseded'] } },
       {
-        $set: { status: 'queued' },
+        $set: { status: 'queued', taskKey },
         $unset: { proposedAt: '', safeTxHash: '', resolvedAt: '' },
       },
       { returnDocument: 'after' }

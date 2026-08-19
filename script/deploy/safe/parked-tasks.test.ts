@@ -190,6 +190,15 @@ function createFakeCollection(
         },
       }
     },
+    async findOne(
+      filter: Filter<IParkedTask>
+    ): Promise<WithId<IParkedTask> | null> {
+      return (
+        (rows.find((r) => matchesFilter(r, filter)) as
+          | WithId<IParkedTask>
+          | undefined) ?? null
+      )
+    },
     async findOneAndUpdate(
       filter: Filter<IParkedTask>,
       update: UpdateFilter<IParkedTask>,
@@ -199,16 +208,16 @@ function createFakeCollection(
       if (!row) return null
       // The partial unique index applies to updates too, not only inserts: moving a
       // terminal row back into an open status collides with an existing open row
-      // for the same taskKey (reopenResolvedTask depends on this).
-      const nextStatus = (update.$set as Partial<IParkedTask> | undefined)
-        ?.status
+      // for the taskKey the update WRITES (reopenResolvedTask recomputes it).
+      const set = update.$set as Partial<IParkedTask> | undefined
+      const nextStatus = set?.status
+      const nextKey = set?.taskKey ?? row.taskKey
       if (
         nextStatus &&
         OPEN.includes(nextStatus) &&
         !OPEN.includes(row.status) &&
         rows.some(
-          (r) =>
-            r !== row && r.taskKey === row.taskKey && OPEN.includes(r.status)
+          (r) => r !== row && r.taskKey === nextKey && OPEN.includes(r.status)
         )
       )
         throw new FakeDuplicateKeyError()
@@ -263,7 +272,7 @@ describe('computeTaskKey', () => {
     ).toBe(`facet-removal|arbitrum|production|${FACET.toLowerCase()}`)
   })
 
-  it('keeps a non-0x (Tron base58) address verbatim — base58 is case-sensitive', () => {
+  it('keeps a non-0x value verbatim — the key stays a pure function of legacy row fields', () => {
     const tron = 'TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f' as Address
     expect(
       computeTaskKey('facet-removal', 'tron', EnvironmentEnum.production, tron)
@@ -323,15 +332,29 @@ describe('enqueueParkedTask', () => {
     )
   })
 
-  it('keeps a Tron base58 address verbatim (case-sensitive account identity)', async () => {
+  it('refuses a non-0x (Tron base58) address — no consumer can drain or reconcile it', async () => {
     const tron = 'TW7Xj4Zt7ZWvhKQyPnzUnFyfLmTsMLGvBn' as unknown as Address
     const coll = createFakeCollection()
-    await enqueueParkedTask(
-      coll,
-      buildInput({ network: 'tron', facetAddress: tron })
+    await expectRejects(
+      enqueueParkedTask(
+        coll,
+        buildInput({ network: 'tron', facetAddress: tron })
+      ),
+      /EVM-only/
     )
-    expect(coll.rows[0]?.facetAddress).toBe(tron)
-    expect(coll.rows[0]?.taskKey).toBe(`facet-removal|tron|production|${tron}`)
+    expect(coll.rows).toHaveLength(0)
+  })
+
+  it('refuses a mangled EVM address (0x lost in copy-paste)', async () => {
+    const coll = createFakeCollection()
+    await expectRejects(
+      enqueueParkedTask(
+        coll,
+        buildInput({ facetAddress: FACET.slice(2) as Address })
+      ),
+      /EVM-only/
+    )
+    expect(coll.rows).toHaveLength(0)
   })
 
   it('returns null on a duplicate open task (E11000), without throwing', async () => {
@@ -502,6 +525,21 @@ describe('listParkedTasks', () => {
     })
     expect(tasks).toHaveLength(1)
     expect(tasks[0]?.environment).toBe(EnvironmentEnum.production)
+  })
+
+  it('accepts a status array and matches any of them', async () => {
+    const coll = seed()
+    coll.rows.push({
+      ...coll.rows[0],
+      taskKey: 'facet-removal|arbitrum|production|C',
+      facetName: 'C',
+      status: 'proposed',
+    } as IParkedTask)
+    const open = await listParkedTasks(coll, {
+      network: 'arbitrum',
+      status: ['queued', 'proposed'],
+    })
+    expect(open.map((t) => t.status).sort()).toEqual(['proposed', 'queued'])
   })
 
   it('returns tasks in taskKey order, so the drain claims in the order the execute-time zip replays them', async () => {
@@ -694,6 +732,25 @@ describe('status transitions', () => {
 
   it('reopenResolvedTask returns null instead of throwing when an open task already tracks the facet', async () => {
     const coll = createFakeCollection([taskRow('executed'), taskRow('queued')])
+    expect(await reopenResolvedTask(coll, idOf(coll, 0))).toBeNull()
+    expect(coll.rows[0]?.status).toBe('executed')
+  })
+
+  it('reopenResolvedTask recomputes a legacy name-based key so dedup applies again', async () => {
+    // KEY above is the pre-EXSC-775 name form; without the recompute the row
+    // re-enters the open index under a key no fresh enqueue can collide with.
+    const coll = seedOne('executed')
+    const doc = await reopenResolvedTask(coll, idOf(coll, 0))
+    expect(doc?.taskKey).toBe(
+      `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
+    )
+  })
+
+  it('reopenResolvedTask refuses when an ADDRESS-keyed open task tracks the same facet', async () => {
+    const legacy = taskRow('executed')
+    const open = taskRow('queued')
+    open.taskKey = `facet-removal|arbitrum|production|${FACET.toLowerCase()}`
+    const coll = createFakeCollection([legacy, open])
     expect(await reopenResolvedTask(coll, idOf(coll, 0))).toBeNull()
     expect(coll.rows[0]?.status).toBe('executed')
   })
