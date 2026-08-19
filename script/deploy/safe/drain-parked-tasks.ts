@@ -21,7 +21,7 @@ import 'dotenv/config'
 
 import { consola } from 'consola'
 import { type WithId } from 'mongodb'
-import { getAddress, type Address, type Hex } from 'viem'
+import { getAddress, isAddress, type Address, type Hex } from 'viem'
 
 import { EnvironmentEnum, type IProposeToSafeOptions } from '../../common/types'
 import { SlackNotifier } from '../../utils/slack-notifier'
@@ -64,8 +64,14 @@ export interface IDrainOutcome {
   protectedCancelled: string[]
   /** Facets whose parked address is unrouted while their NAME still is → left queued + alerted. */
   suspectSnapshots: string[]
-  /** Facets whose protected status could not be verified → left queued + alerted. */
+  /** Facets whose removability could not be verified → left queued + alerted. */
   unverifiable: string[]
+  /** Facets whose parked address target state still expects (wrong snapshot) → left queued + alerted. */
+  stillExpected: string[]
+  /** Facets whose loupe-resolved deploy-log name disagrees with the parked label → left queued + alerted. */
+  nameMismatch: string[]
+  /** Tasks whose stored facetAddress is not a valid EVM address → left queued + alerted. */
+  invalidAddresses: string[]
   /** Second and later tasks sharing one facet address → left queued + alerted. */
   duplicateAddresses: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
@@ -98,6 +104,12 @@ export interface IDrainPreparation {
 export interface IDrainDeps {
   /** Queued tasks for this network/environment. */
   listQueued: () => Promise<WithId<IParkedTask>[]>
+  /**
+   * Already-claimed (`proposed`) tasks for this network/environment — their
+   * addresses seed the duplicate guard, since a pending proposal already carries
+   * their Remove and folding it again would revert the batch.
+   */
+  listProposed: () => Promise<WithId<IParkedTask>[]>
   /** Resolve the parked facet addresses against the live loupe. */
   computeRemovals: (addresses: Address[]) => Promise<IAddressRemovalResult>
   /** Atomic queued → proposed flip (dedup gate); `null` if lost the race. */
@@ -154,6 +166,9 @@ export async function prepareDrainNetwork(
     protectedCancelled: [],
     suspectSnapshots: [],
     unverifiable: [],
+    stillExpected: [],
+    nameMismatch: [],
+    invalidAddresses: [],
     duplicateAddresses: [],
     skippedAlreadyClaimed: [],
   }
@@ -164,7 +179,20 @@ export async function prepareDrainNetwork(
     outcome,
   }
 
-  const tasks = await deps.listQueued()
+  const allQueued = await deps.listQueued()
+  if (allQueued.length === 0) return empty
+
+  // Enqueue refuses non-EVM addresses, but a legacy row may still carry one; a
+  // single such row must not abort the whole network's drain via getAddress.
+  const tasks: WithId<IParkedTask>[] = []
+  for (const task of allQueued)
+    if (isAddress(task.facetAddress, { strict: false })) tasks.push(task)
+    else {
+      outcome.invalidAddresses.push(task.facetName)
+      deps.alert(
+        `[${network}] ${task.facetName}: stored facetAddress "${task.facetAddress}" is not a valid EVM address — the drain cannot process it. Cancel it (script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes) and re-enqueue with the correct address. Origin PR: ${task.prUrl}`
+      )
+    }
   if (tasks.length === 0) return empty
 
   const result = await deps.computeRemovals(
@@ -190,17 +218,29 @@ export async function prepareDrainNetwork(
     result.protectedSkipped.map((p) => lower(p.address))
   )
   // Deliberately NOT folded into protectedAddresses: that set cancels the task
-  // (terminal, "parked in error"), while an unverifiable address only means the
-  // protected-selector union could not be built — a tooling gap that must leave the
+  // (terminal, "parked in error"), while an unverifiable address only means a
+  // selector union could not be built — a tooling gap that must leave the
   // task queued for the next run.
   const unverifiableAddresses = new Set(result.unverifiable.map(lower))
+  const stillExpectedByAddress = new Map(
+    result.stillExpected.map((s) => [lower(s.address), s])
+  )
 
   const claimed: {
     task: WithId<IParkedTask>
     removal: { selectors: `0x${string}`[] }
   }[] = []
 
-  const claimedAddresses = new Set<string>()
+  // Seeded with already-claimed (proposed) addresses: their Remove is already in
+  // a pending proposal, and a row still carrying the pre-EXSC-775 name-based key
+  // does not collide with a re-enqueue of the same address in the unique index —
+  // folding the same Remove into a second batch makes whichever executes second
+  // revert, taking its whole `scheduleBatch` (primary proposal included) with it.
+  const claimedAddresses = new Set(
+    (await deps.listProposed())
+      .map((t) => lower(t.facetAddress))
+      .filter((a) => a.startsWith('0x'))
+  )
 
   try {
     for (const task of tasks) {
@@ -208,19 +248,28 @@ export async function prepareDrainNetwork(
       const address = lower(task.facetAddress)
       const removal = removalByAddress.get(address)
       if (removal) {
-        // One address, two open tasks: the partial unique index dedups on `taskKey`,
-        // so a row still carrying the pre-EXSC-775 name-based key does not collide
-        // with a re-enqueue of the same address. Folding the same Remove twice makes
-        // the second call revert, taking the whole `scheduleBatch` — the primary
-        // proposal included — with it.
         if (claimedAddresses.has(address)) {
           outcome.duplicateAddresses.push(name)
           deps.alert(
-            `[${network}] ${name} (${task.facetAddress}): a second open task carries this address — folding it in twice would revert the batch, so it stays queued. Run \`migrate-parked-task-keys.ts --apply\` and cancel the duplicate. Origin PR: ${task.prUrl}`
+            `[${network}] ${name} (${task.facetAddress}): another open task already carries this address — folding it in twice would revert the batch, so it stays queued. Cancel the duplicate (script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes), then run \`migrate-parked-task-keys.ts --apply\` to normalise legacy keys. Origin PR: ${task.prUrl}`
+          )
+          continue
+        }
+        // The engine resolved this address off the loupe; if the deploy log names
+        // it differently than the task's label, the snapshot points at another
+        // facet than the one the operator parked — never remove on a contradiction.
+        if (removal.name !== undefined && removal.name !== task.facetName) {
+          outcome.nameMismatch.push(name)
+          deps.alert(
+            `[${network}] ${name} (${task.facetAddress}): the deploy log names this address ${removal.name} — the parked label and the address disagree, so this is a wrong snapshot. Refusing to remove; cancel the task and re-enqueue with the right address. Origin PR: ${task.prUrl}`
           )
           continue
         }
         const won = await deps.claim(task.taskKey)
+        // Recorded even when the claim was lost: the winning drain is folding
+        // this address into ITS proposal, so a second task carrying the same
+        // address must not be claimed by this run either.
+        claimedAddresses.add(address)
         if (!won) {
           outcome.skippedAlreadyClaimed.push(name)
           deps.log(
@@ -228,8 +277,17 @@ export async function prepareDrainNetwork(
           )
           continue
         }
-        claimedAddresses.add(address)
         claimed.push({ task, removal })
+      } else if (stillExpectedByAddress.has(address)) {
+        outcome.stillExpected.push(name)
+        deps.alert(
+          `[${network}] ${name} (${task.facetAddress}): refusing to remove — ${
+            stillExpectedByAddress.get(address)?.reason ??
+            'target state expects it'
+          }. The parked address points at a LIVE facet (wrong snapshot?); cancel the task and re-enqueue with the right address. Origin PR: ${
+            task.prUrl
+          }`
+        )
       } else if (notFound.has(address)) {
         // An address can be absent because the facet really was removed, or because
         // the snapshot was wrong from the start (a task carrying another network's
@@ -257,7 +315,7 @@ export async function prepareDrainNetwork(
       } else if (unverifiableAddresses.has(address)) {
         outcome.unverifiable.push(name)
         deps.alert(
-          `[${network}] ${name} (${task.facetAddress}): cannot verify the never-remove allowlist for an address the deploy log does not name (protected selectors unavailable — run \`forge build\`) — leaving it queued. Origin PR: ${task.prUrl}`
+          `[${network}] ${name} (${task.facetAddress}): cannot verify removability — the network has no target-state entry, or the selector unions are unavailable (run \`forge build\`) — leaving it queued. Origin PR: ${task.prUrl}`
         )
       }
     }
@@ -533,6 +591,12 @@ function buildLiveDeps(
         environment,
         status: 'queued',
       }),
+    listProposed: () =>
+      listParkedTasks(parkedTasks, {
+        network: options.network,
+        environment,
+        status: 'proposed',
+      }),
     computeRemovals: (addresses) =>
       computeFacetRemovalsByAddress(options.network, environment, addresses),
     claim: (taskKey) => claimForProposal(parkedTasks, taskKey),
@@ -570,12 +634,20 @@ function logDrainSummary(outcome: IDrainOutcome): void {
     protectedCancelled,
     suspectSnapshots,
     unverifiable,
+    stillExpected,
+    nameMismatch,
+    invalidAddresses,
     duplicateAddresses,
   } = outcome
   // Refusals are counted, not just alerted: a run that left every queued task
   // untouched must never summarise as "nothing to do".
   const refused =
-    suspectSnapshots.length + unverifiable.length + duplicateAddresses.length
+    suspectSnapshots.length +
+    unverifiable.length +
+    stillExpected.length +
+    nameMismatch.length +
+    invalidAddresses.length +
+    duplicateAddresses.length
   if (
     proposed.length === 0 &&
     superseded.length === 0 &&
@@ -589,7 +661,9 @@ function logDrainSummary(outcome: IDrainOutcome): void {
     `[${outcome.network}] parked-task drain: ${proposed.length} folded in, ` +
       `${superseded.length} superseded, ${protectedCancelled.length} cancelled, ` +
       `${refused} left queued (${suspectSnapshots.length} suspect snapshot, ` +
-      `${unverifiable.length} unverifiable, ${duplicateAddresses.length} duplicate address)` +
+      `${unverifiable.length} unverifiable, ${stillExpected.length} still expected, ` +
+      `${nameMismatch.length} name mismatch, ${invalidAddresses.length} invalid address, ` +
+      `${duplicateAddresses.length} duplicate address)` +
       (outcome.safeTxHash ? ` → ${outcome.safeTxHash}` : '')
   )
 }

@@ -93,7 +93,9 @@ function addressResult(
     notFoundOnChain: [],
     protectedSkipped: [],
     unverifiable: [],
+    stillExpected: [],
     routedNames: new Set<string>(),
+    routedAddresses: new Set<string>(),
     ...over,
   }
 }
@@ -113,6 +115,7 @@ interface ISpyDeps extends IDrainDeps {
 function makeDeps(opts: {
   queued: WithId<IParkedTask>[]
   result: IAddressRemovalResult
+  proposed?: WithId<IParkedTask>[]
   claimFails?: Set<string>
   claimThrowsOn?: string
 }): ISpyDeps {
@@ -129,6 +132,7 @@ function makeDeps(opts: {
   const deps: ISpyDeps = {
     calls,
     listQueued: async () => opts.queued,
+    listProposed: async () => opts.proposed ?? [],
     computeRemovals: async () => opts.result,
     claim: async (taskKey) => {
       calls.claim.push(taskKey)
@@ -251,7 +255,129 @@ describe('prepareDrainNetwork', () => {
     // The duplicate stays queued — never superseded or cancelled behind the operator.
     expect(deps.calls.supersede).toEqual([])
     expect(deps.calls.cancel).toEqual([])
-    expect(deps.calls.alerts.join('\n')).toContain('second open task')
+    expect(deps.calls.alerts.join('\n')).toContain(
+      'another open task already carries this address'
+    )
+  })
+
+  it('skips a queued task whose address a PROPOSED task already carries (pending proposal)', async () => {
+    // Pre-EXSC-775 shape: a name-keyed row sits in `proposed` under pending
+    // proposal P1; a fresh address-keyed re-enqueue must not fold the same
+    // Remove into a second proposal.
+    const shared = facetAddr('SymbiosisFacet')
+    const pending = task('SymbiosisFacet', {
+      facetAddress: shared,
+      taskKey: 'facet-removal|arbitrum|production|SymbiosisFacet',
+      status: 'proposed',
+    })
+    const requeued = task('SymbiosisFacet', { facetAddress: shared })
+    const deps = makeDeps({
+      queued: [requeued],
+      proposed: [pending],
+      result: addressResult({ removals: [removal('SymbiosisFacet')] }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(prep.calls).toHaveLength(0)
+    expect(deps.calls.claim).toEqual([])
+    expect(prep.outcome.duplicateAddresses).toEqual(['SymbiosisFacet'])
+  })
+
+  it('blocks a second same-address task even when the first claim was LOST', async () => {
+    // A concurrent drain won task 1's claim; its Remove rides that drain's
+    // proposal, so task 2 (same address, different key) must not be claimed here.
+    const shared = facetAddr('SymbiosisFacet')
+    const first = task('SymbiosisFacet', { facetAddress: shared })
+    const second = task('SymbiosisFacet', {
+      facetAddress: shared,
+      taskKey: 'facet-removal|arbitrum|production|SymbiosisFacet',
+    })
+    const deps = makeDeps({
+      queued: [first, second],
+      result: addressResult({ removals: [removal('SymbiosisFacet')] }),
+      claimFails: new Set([first.taskKey]),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(deps.calls.claim).toEqual([first.taskKey])
+    expect(prep.calls).toHaveLength(0)
+    expect(prep.outcome.skippedAlreadyClaimed).toEqual(['SymbiosisFacet'])
+    expect(prep.outcome.duplicateAddresses).toEqual(['SymbiosisFacet'])
+  })
+
+  it('refuses a removal whose deploy-log name disagrees with the parked label', async () => {
+    // The task was parked as AcrossFacetV3 but its stored address is the live
+    // GenericSwapFacetV3 — removing it would take down the wrong facet under a
+    // misleading label on every signer surface.
+    const t = task('AcrossFacetV3')
+    const deps = makeDeps({
+      queued: [t],
+      result: addressResult({
+        removals: [
+          {
+            name: 'GenericSwapFacetV3',
+            address: t.facetAddress,
+            selectors: [sel(1)],
+          },
+        ],
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(prep.calls).toHaveLength(0)
+    expect(deps.calls.claim).toEqual([])
+    expect(prep.outcome.nameMismatch).toEqual(['AcrossFacetV3'])
+    expect(deps.calls.alerts.join('\n')).toContain('disagree')
+  })
+
+  it('refuses a removal the engine reports as still expected by target state', async () => {
+    const t = task('AcrossFacetV3')
+    const deps = makeDeps({
+      queued: [t],
+      result: addressResult({
+        stillExpected: [
+          {
+            name: 'GenericSwapFacetV3',
+            address: t.facetAddress,
+            reason:
+              'the deploy log names it GenericSwapFacetV3, which target state expects to stay registered',
+          },
+        ],
+      }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(prep.calls).toHaveLength(0)
+    expect(deps.calls.claim).toEqual([])
+    expect(deps.calls.supersede).toEqual([])
+    expect(deps.calls.cancel).toEqual([])
+    expect(prep.outcome.stillExpected).toEqual(['AcrossFacetV3'])
+    expect(deps.calls.alerts.join('\n')).toContain('LIVE facet')
+  })
+
+  it('skips (and alerts on) a legacy task whose stored address is not a valid EVM address', async () => {
+    const poison = task('TronFacet', {
+      facetAddress: 'TW7Xj4Zt7ZWvhKQyPnzUnFyfLmTsMLGvBn' as Address,
+    })
+    const good = task('OldFacet')
+    let requested: Address[] = []
+    const deps = makeDeps({
+      queued: [poison, good],
+      result: addressResult({ removals: [removal('OldFacet')] }),
+    })
+    const inner = deps.computeRemovals
+    deps.computeRemovals = async (addresses) => {
+      requested = addresses
+      return inner(addresses)
+    }
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(requested.map((a) => a.toLowerCase())).toEqual([
+      good.facetAddress.toLowerCase(),
+    ])
+    expect(prep.outcome.invalidAddresses).toEqual(['TronFacet'])
+    expect(prep.calls).toHaveLength(1)
+    expect(deps.calls.alerts.join('\n')).toContain('not a valid EVM address')
   })
 
   it('supersedes a task whose facet is already gone on-chain (no call emitted)', async () => {
