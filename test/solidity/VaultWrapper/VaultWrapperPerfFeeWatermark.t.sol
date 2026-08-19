@@ -32,7 +32,7 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
 
     /// @dev Credits the empty wrapper with a source-vault position without minting any
     ///      wrapper shares — the "donation to the predicted address" of the first defect.
-    function _donateToEmptyWrapper(uint256 _assets) internal {
+    function _donateToWrapperPosition(uint256 _assets) internal {
         asset.mint(address(this), _assets);
         asset.approve(address(underlying), _assets);
         underlying.deposit(_assets, address(wrapper));
@@ -50,7 +50,7 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
     function test_DonationToEmptyWrapperNotChargedToFirstDepositor() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
-        _donateToEmptyWrapper(1e15);
+        _donateToWrapperPosition(1e15);
         assertEq(wrapper.totalSupply(), 0);
         assertGt(wrapper.totalAssets(), 0);
 
@@ -68,6 +68,35 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
 
         // Alice keeps essentially her full principal (only sub-wei virtual-offset rounding
         // dust) — never the ~20% haircut the pre-fix watermark produced.
+        uint256 aliceAssets = wrapper.convertToAssets(
+            wrapper.balanceOf(alice)
+        );
+        assertGe(aliceAssets, (DEPOSIT * 9999) / 10_000);
+    }
+
+    function test_DustSupplyDonationNotChargedToNextDepositor() public {
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+
+        // Bob seeds then exits down to dust supply: exits are exempt from MIN_SHARE_SUPPLY,
+        // so an attacker can leave the vault holding a few shares of real supply — a regime
+        // where the perf dilution floors to zero and the watermark never ratchets.
+        _deposit(bob, DEPOSIT);
+        uint256 bobShares = wrapper.balanceOf(bob);
+        vm.prank(bob);
+        wrapper.redeem(bobShares - 1, bob, bob);
+
+        assertGt(wrapper.totalSupply(), 0);
+        assertLt(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
+
+        _donateToWrapperPosition(1e15);
+
+        _deposit(alice, DEPOSIT);
+
+        // A later accrual at full supply must not book the donation as a gain against Alice.
+        _deposit(makeAddr("carol"), DEPOSIT);
+
+        assertEq(_accruedFeeShares(), 0);
+
         uint256 aliceAssets = wrapper.convertToAssets(
             wrapper.balanceOf(alice)
         );

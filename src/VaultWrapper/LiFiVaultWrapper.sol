@@ -266,12 +266,13 @@ contract LiFiVaultWrapper is
             ? MIN_DECIMALS_OFFSET
             : derivedOffset;
 
-        // Anchor the performance watermark at the empty-vault share price, computed pure
-        // (supply and position are always 0 on a fresh single-shot-initialized proxy).
-        // Deliberately NOT read through the adapter: an underlying whose empty-position
-        // query reverts must not brick deployment. Assets donated to the predicted
-        // address before deployment therefore count as gain at the first accrual —
-        // charging a donation is harmless and disarms watermark-seeding games.
+        // Provisional anchor at the empty-vault share price, computed pure (supply and
+        // position are always 0 on a fresh single-shot-initialized proxy). Deliberately NOT
+        // read through the adapter: an underlying whose empty-position query reverts must not
+        // brick deployment. This par value is only a placeholder — `_accrueFees` re-floats the
+        // watermark to the live price on every accrual taken while supply is below the floor,
+        // so a donation to the predicted address is captured into the baseline (not booked as
+        // gain against the first depositor) the moment real supply is minted.
         perfHighWaterMarkPps = SafeCast.toUint192(
             LibVaultWrapperMath.pricePerShare(0, 0, _decimalsOffset())
         );
@@ -1062,9 +1063,12 @@ contract LiFiVaultWrapper is
     ///      accrue-at-old-rate-first guarantee). The cost is that elapsed time whose fee
     ///      floors to zero shares is dropped — at most ~one share's worth of assets per
     ///      accrual, favouring holders. The performance fee is charged AFTER the
-    ///      management dilution (perf is net of management), and its watermark ratchets
-    ///      to the post-crystallization share price only when shares were actually
-    ///      minted — an uncharged gain stays chargeable, unlike elapsed time.
+    ///      management dilution (perf is net of management). The watermark has two write
+    ///      paths: while supply is below the floor (no real holders), it floats to the live
+    ///      price and the perf fee is skipped, so a donation becomes the first depositor's
+    ///      baseline rather than their loss; at real supply it ratchets to the post-
+    ///      crystallization price (rounded up) only when shares were actually minted — an
+    ///      uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
         bool mgmtEnabled = _feeConfig.rateBps[uint8(FeeType.Management)] != 0;
         bool perfEnabled = _feeConfig.rateBps[uint8(FeeType.Performance)] != 0;
@@ -1084,11 +1088,18 @@ contract LiFiVaultWrapper is
             supply += mgmtShares;
         }
 
-        // While no holder shares exist, no performance fee can be owed, and any price rise is
-        // a donation to the (predicted) address, not yield. Float the watermark up to the
-        // current price so the first depositor's entry price becomes the baseline, instead of
-        // being booked as gain against their own principal on the next accrual.
-        if (perfEnabled && supply == 0) {
+        // Below the supply floor there are no real holders: no depositor can transact against
+        // a sub-floor supply (deposits enforce MIN_SHARE_SUPPLY; only floor-exempt exits reach
+        // it), so any price rise is a donation to the (predicted) address, not yield. A plain
+        // `supply == 0` guard is not enough — at dust supply the perf dilution floors to zero
+        // (`dilutionShares` ~ rate * supply, so it rounds to no shares while supply < 1/rate),
+        // leaving the watermark stale and the donation chargeable to the next real depositor.
+        // The floor (1e6) covers every rate: the widest sub-floor window is 1/rate = 1e4 at the
+        // 1 bps minimum. Float the watermark up to the current price so the first real
+        // depositor's entry price becomes the baseline. Trade-off: genuine yield earned while
+        // supply is sub-floor escapes the performance fee, which is bounded (a sub-floor vault
+        // is dust) and consistent with the "no depositor transacts below the floor" invariant.
+        if (perfEnabled && supply < MIN_SHARE_SUPPLY) {
             perfHighWaterMarkPps = SafeCast.toUint192(
                 LibVaultWrapperMath.pricePerShare(
                     supply,
