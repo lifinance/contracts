@@ -57,12 +57,20 @@ export const withSrvDnsFallback = async <T>(
     if (fallbackServers.length === 0) throw error
 
     const localServers = dns.getServers().join(', ')
+    try {
+      dns.setServers(fallbackServers)
+    } catch {
+      consola.warn(
+        `Ignoring MONGODB_DNS_SERVERS - not a valid list of IP addresses: ` +
+          fallbackServers.join(', ')
+      )
+      throw error
+    }
     consola.warn(
       `MongoDB SRV lookup failed via the local DNS resolver (${localServers}). ` +
         `Retrying via ${fallbackServers.join(', ')} - ` +
         `set MONGODB_DNS_SERVERS to override.`
     )
-    dns.setServers(fallbackServers)
     fallbackApplied = true
 
     return await connect()
