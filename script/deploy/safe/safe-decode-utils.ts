@@ -276,11 +276,20 @@ async function getPeripheryDeploymentCheckSuffix(
   return ` \u001b[31m(❌ mismatch: expected ${expectedDisplay})\u001b[0m`
 }
 
-function formatBatchSetContractSelectorWhitelist(
+/**
+ * Renders the contract/selector pairs of a `batchSetContractSelectorWhitelist`
+ * call. Signatures are resolved per pair from `config/whitelist.json` first —
+ * the only source that ties a signature to this contract on this network, and
+ * so the only one that earns the ✓ — then from the shared selector registry,
+ * then from the batched 4byte lookup. Without the latter two, a pair missing
+ * from this network's whitelist entry leaves the signer eyeballing a raw
+ * selector.
+ */
+export async function formatBatchSetContractSelectorWhitelist(
   args: readonly unknown[],
   network?: string,
   indent?: string
-): void {
+): Promise<void> {
   const pre = indent ?? ''
   if (!args || args.length < 3) {
     consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
@@ -305,14 +314,39 @@ function formatBatchSetContractSelectorWhitelist(
     const selectorList = contractToSelectors.get(contract)
     if (selectorList) selectorList.push(selector)
   }
+
+  // Grouping keys are lowercased, which mangles a base58 Tron address — so
+  // both the lookup below and the rendering use the address as passed in.
+  const rows = [...contractToSelectors.entries()].map(
+    ([contract, selectorList]) => ({
+      contract: contracts.find((c) => c.toLowerCase() === contract) || contract,
+      selectorList,
+    })
+  )
+
+  // One batched lookup for everything neither whitelist.json nor the local
+  // registry can answer, so rendering below stays synchronous per selector.
+  const fourByteSignatures = network
+    ? await resolveSelectorsViaFourByte(
+        rows.flatMap(({ contract, selectorList }) =>
+          selectorList.filter(
+            (selector) =>
+              !lookupWhitelistMetaForContractSelector(
+                network,
+                contract,
+                selector
+              ).signature?.trim() && !getLocalSelectorInfo(selector)
+          )
+        )
+      )
+    : new Map<string, string>()
+
   const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
   const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m'
   consola.info(`${pre}Action: ${actionColor}${actionText}\u001b[0m`)
   consola.info(`${pre}Total pairs: ${contracts.length}`)
   consola.info(`${pre}Pairs:`)
-  contractToSelectors.forEach((selectorList, contract) => {
-    const originalContract =
-      contracts.find((c) => c.toLowerCase() === contract) || contract
+  rows.forEach(({ contract: originalContract, selectorList }) => {
     let contractLabel = ''
     if (network) {
       const meta = lookupWhitelistMetaForContractSelector(
@@ -344,18 +378,32 @@ function formatBatchSetContractSelectorWhitelist(
         selector
       )
       const signature = meta.signature?.trim()
-      if (!signature) {
+      if (signature) {
+        const expected = computeSelectorFromSignature(signature)
+        const ok = expected.toLowerCase() === selector.toLowerCase()
+        const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
+        const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
         consola.info(
-          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
+          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
         )
         return
       }
-      const expected = computeSelectorFromSignature(signature)
-      const ok = expected.toLowerCase() === selector.toLowerCase()
-      const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
-      const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
+
+      const local = getLocalSelectorInfo(selector)
+      const fallbackSignature =
+        local?.signature ?? fourByteSignatures.get(selector.toLowerCase())
+      if (!fallbackSignature) {
+        consola.info(
+          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown)\u001b[0m`
+        )
+        return
+      }
+      // Sourced outside this network's whitelist entry, so the signature is
+      // not evidence that this contract exposes it — label the origin rather
+      // than showing the ✓ the whitelist path earns.
+      const source = local?.source ?? '4byte.sourcify.dev'
       consola.info(
-        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
+        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${fallbackSignature}\u001b[0m \u001b[90m(via ${source})\u001b[0m`
       )
     })
   })
@@ -777,7 +825,7 @@ export async function formatDecodedTxDataForDisplay(
       decoded?.functionName === 'batchSetContractSelectorWhitelist' &&
       decoded.args
     ) {
-      formatBatchSetContractSelectorWhitelist(decoded.args, network, pre)
+      await formatBatchSetContractSelectorWhitelist(decoded.args, network, pre)
       return
     }
 
