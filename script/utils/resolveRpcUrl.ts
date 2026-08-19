@@ -18,7 +18,11 @@ import { MongoClient } from 'mongodb'
 import networksConfig from '../../config/networks.json'
 import { withSrvDnsFallback } from '../deploy/shared/mongo-srv-dns'
 
-import { redactRpcUrl, resolveEndpoint } from './rpcFailover'
+import {
+  classifyForgeFailure,
+  redactRpcUrl,
+  resolveEndpoint,
+} from './rpcFailover'
 import { getRPCEnvVarName } from './utils'
 
 config()
@@ -34,6 +38,17 @@ const MONGO_TIMEOUT_MS = 8_000 // 8 seconds; a deploy must not stall on config l
  * Entries are newline-separated because a URL query string may legally contain commas.
  */
 const EXCLUDE_ENV_VAR = 'LIFI_RPC_EXCLUDE'
+
+/** Exit code telling the caller to retry on the same endpoint rather than switch. */
+const EXIT_NO_FAILOVER = 3
+
+async function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return ''
+  let text = ''
+  process.stdin.setEncoding('utf8')
+  for await (const chunk of process.stdin) text += chunk
+  return text
+}
 
 interface IMongoRpc {
   url: string
@@ -103,10 +118,28 @@ const main = defineCommand({
       description: 'Network key as used in config/networks.json',
       required: true,
     },
+    'after-failure': {
+      type: 'boolean',
+      description:
+        'Read a failed forge run from stdin and only resolve when the failure provably preceded any broadcast',
+      required: false,
+    },
   },
   async run({ args }) {
     const network = String(args.network)
     const envUrl = process.env[getRPCEnvVarName(network)]
+
+    // Forge output arrives on stdin, not as an argument: it routinely quotes the full
+    // RPC URL in transport errors, which would then be visible in the process table.
+    if (args['after-failure']) {
+      const failureClass = classifyForgeFailure(await readStdin())
+      if (failureClass !== 'preBroadcast') {
+        logger.info(
+          `not switching RPC endpoint for '${network}': failure classified as ${failureClass}, a transaction may already be in flight`
+        )
+        process.exit(EXIT_NO_FAILOVER)
+      }
+    }
     const networksJsonUrl = (
       networksConfig as Record<string, { rpcUrl?: string } | undefined>
     )[network]?.rpcUrl
@@ -115,7 +148,11 @@ const main = defineCommand({
       envUrl,
       mongoRpcs: await fetchMongoRpcs(network),
       networksJsonUrl,
-      exclude: process.env[EXCLUDE_ENV_VAR]?.split('\n')
+      exclude: [
+        ...(process.env[EXCLUDE_ENV_VAR]?.split('\n') ?? []),
+        // The endpoint that just failed must not be selected again.
+        ...(args['after-failure'] && envUrl ? [envUrl] : []),
+      ]
         .map((entry) => entry.trim())
         .filter(Boolean),
     })

@@ -424,6 +424,11 @@ deploySingleContract() {
     # Use handleForgeScriptError for consistent error handling
     else
       if ! handleForgeScriptError "forge script failed for $SCRIPT" "attempt $attempts/$MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT" "$NETWORK"; then
+        # Retrying the same inadequate endpoint just burns attempts, so try to move to
+        # a better one. This runs after the per-call `source .env` above, which would
+        # otherwise overwrite the exported override on the next invocation.
+        tryRpcFailover "$NETWORK" "${STDERR_CONTENT:-}
+${RAW_RETURN_DATA:-}" || true
         attempts=$((attempts + 1))
         sleep 1
         continue
