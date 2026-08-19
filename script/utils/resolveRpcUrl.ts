@@ -162,10 +162,24 @@ const main = defineCommand({
       process.exit(1)
     }
 
+    // Capabilities are reported because a chain-wide gap explains a deploy failure that
+    // no further failover can fix: no candidate serving eth_feeHistory, or none with a
+    // 1559-deserializable block, means the chain needs legacy transactions.
+    const missing = (
+      ['feeHistory', 'eip1559Block', 'gasPrice'] as const
+    ).filter((capability) => !selection.capabilities[capability])
+    const chainWide = missing.filter(
+      (capability) => !selection.chainCapabilities[capability]
+    )
+
     logger.info(
       `resolved RPC for '${network}': ${redactRpcUrl(selection.url)} (source: ${
         selection.source
-      })`
+      })${missing.length ? `; endpoint lacks ${missing.join(', ')}` : ''}${
+        chainWide.length
+          ? `; no endpoint on this chain provides ${chainWide.join(', ')}`
+          : ''
+      }`
     )
     process.stdout.write(selection.url)
   },
