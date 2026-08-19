@@ -438,8 +438,10 @@ describe('diffFacetsByAddress', () => {
     network: 'net',
     environment: PROD,
     diamondAddress: addr(0xd),
-    // Explicit "nothing is protected"; the unavailable case is undefined, tested below.
+    // Explicit "nothing is protected/expected"; the unavailable case is undefined, tested below.
     protectedSelectors: new Set<string>(),
+    expectedNames: new Set<string>(),
+    activeSelectors: new Set<string>(),
   }
 
   it('removes exactly the requested address, using its live loupe selectors', () => {
@@ -608,6 +610,75 @@ describe('diffFacetsByAddress', () => {
     expect(r.removals).toHaveLength(1)
     expect(r.removals[0]?.address).toBe(addr(1))
   })
+
+  it('refuses an address the deploy log names as a facet target state still expects', () => {
+    // The wrong-snapshot shape: the parked address points at the LIVE facet.
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'GenericSwapFacetV3' },
+      protectedNames: new Set(),
+      expectedNames: new Set(['GenericSwapFacetV3']),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.name).toBe('GenericSwapFacetV3')
+  })
+
+  it('refuses an UNLOGGED address that routes a selector an expected facet owns', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(5)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      activeSelectors: new Set([sel(5)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.address).toBe(addr(9))
+  })
+
+  it('reports a LOGGED non-protected address as unverifiable without a target-state entry', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+      expectedNames: undefined,
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(1)])
+  })
+
+  it('reports an UNLOGGED address as unverifiable when the active union is unavailable', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      activeSelectors: undefined,
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
+  })
+
+  it('exposes the loupe addresses so callers need no second read', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set<`0x${string}`>(),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.routedAddresses).toEqual(new Set([addr(1), addr(2)]))
+  })
 })
 
 describe('computeNamedFacetRemovals', () => {
@@ -657,6 +728,7 @@ describe('computeFacetRemovalsByAddress', () => {
         { address: addr(9), selectors: [sel(9)] },
       ],
       getAddressToName: async () => ({ [addr(1)]: 'SymbiosisFacet' }),
+      getExpectedNames: () => new Set(['SymbiosisFacet']),
       getFacetNames: () => new Set(['DiamondCutFacet']),
       getActiveSelectors: () => new Set([sel(0xc)]),
     })
@@ -664,6 +736,19 @@ describe('computeFacetRemovalsByAddress', () => {
     expect(r.removals).toEqual([
       { name: undefined, address: addr(9), selectors: [sel(9)] },
     ])
+  })
+
+  it('lands every address in unverifiable when the network has no target-state entry', async () => {
+    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(9), selectors: [sel(9)] }],
+      getAddressToName: async () => ({}),
+      getExpectedNames: () => undefined,
+      getFacetNames: () => new Set(['DiamondCutFacet']),
+      getActiveSelectors: () => new Set([sel(0xc)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
   })
 })
 
