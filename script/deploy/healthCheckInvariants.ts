@@ -949,6 +949,44 @@ function tryGetAddress(value: string): Address | null {
 }
 
 /**
+ * Does this read failure come from the chain rather than the transport?
+ *
+ * A revert - or a call to an address holding no code - is deterministic: it reproduces on every
+ * retry, so it is evidence the contract itself is wrong (a registry entry pointing at something
+ * that is not the expected contract) and belongs in the error channel. Transport failures are not
+ * evidence of anything, so anything not clearly chain-level is treated as transient; a misjudged
+ * network blip must never redden the fleet.
+ */
+export function isDeterministicReadFailure(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  for (let current = error; current && !seen.has(current); ) {
+    seen.add(current)
+    const candidate = current as {
+      name?: unknown
+      message?: unknown
+      cause?: unknown
+    }
+    const name = typeof candidate.name === 'string' ? candidate.name : ''
+    if (
+      name === 'ContractFunctionRevertedError' ||
+      name === 'ContractFunctionZeroDataError'
+    )
+      return true
+    const message =
+      typeof candidate.message === 'string'
+        ? candidate.message.toLowerCase()
+        : ''
+    if (
+      message.includes('execution reverted') ||
+      message.includes('returned no data')
+    )
+      return true
+    current = candidate.cause
+  }
+  return false
+}
+
+/**
  * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
  *
  * Registry state does not change during a run, but four invariants now probe overlapping name
@@ -1307,10 +1345,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         try {
           boundExecutor = getAddress(await readExecutor())
         } catch (error: unknown) {
-          // One flaky read must not abandon the receivers not yet checked.
+          // Report and move on either way: one failing receiver must not abandon the ones not yet
+          // checked. A chain-level failure is still an error, though - a receiver whose binding
+          // getter reverts is broken, not flaky.
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          ctx.logWarn(`Could not read ${name}.${getter}(): ${errorMessage}`)
+          const report = isDeterministicReadFailure(error)
+            ? ctx.logError
+            : ctx.logWarn
+          report(`Could not read ${name}.${getter}(): ${errorMessage}`)
           continue
         }
 
@@ -1881,7 +1924,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
-          ctx.logWarn(`Could not read ${name} owner: ${errorMessage}`)
+          const report = isDeterministicReadFailure(error)
+            ? ctx.logError
+            : ctx.logWarn
+          report(`Could not read ${name} owner: ${errorMessage}`)
           continue
         }
         if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))

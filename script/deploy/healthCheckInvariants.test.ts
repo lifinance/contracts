@@ -12,6 +12,7 @@ import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  isDeterministicReadFailure,
   RECEIVER_EXECUTOR_GETTERS,
   findDuplicateSelectors,
   getExemptCoreFacets,
@@ -526,8 +527,10 @@ interface IReceiverStub {
   boundExecutor?: Record<string, string>
   /** Contract address -> its owner. */
   owner?: Record<string, string>
-  /** Contract addresses whose non-registry reads throw. */
+  /** Contract addresses whose non-registry reads throw a transport failure. */
   failingReads?: string[]
+  /** Contract addresses whose non-registry reads revert on chain. */
+  revertingReads?: string[]
   /** Registry names whose read throws. */
   failingRegistryNames?: string[]
   /** Make every registry read fail as a rate limit. */
@@ -574,6 +577,13 @@ function makeReceiverCtx(stub: IReceiverStub): {
             throw new Error('registry rpc boom')
           return stub.registry?.[name] ?? ZERO
         }
+        if (stub.revertingReads?.includes(address))
+          throw Object.assign(new Error('call failed'), {
+            name: 'ContractFunctionExecutionError',
+            cause: Object.assign(new Error('execution reverted'), {
+              name: 'ContractFunctionRevertedError',
+            }),
+          })
         if (stub.failingReads?.includes(address)) throw new Error('rpc boom')
         if (functionName === 'owner') return stub.owner?.[address] ?? ZERO
         return stub.boundExecutor?.[address] ?? ZERO
@@ -1054,5 +1064,101 @@ describe('no-unexpected-facets without build output', () => {
     await invariant('no-unexpected-facets').run(ctx)
     expect(ctx.warnings).toHaveLength(1)
     expect(ctx.warnings[0]).toContain('no build output available')
+  })
+})
+
+describe('isDeterministicReadFailure', () => {
+  it('treats a contract revert as deterministic', () => {
+    expect(
+      isDeterministicReadFailure(
+        Object.assign(new Error('x'), { name: 'ContractFunctionRevertedError' })
+      )
+    ).toBe(true)
+  })
+
+  it('treats an address holding no code as deterministic', () => {
+    expect(
+      isDeterministicReadFailure(
+        Object.assign(new Error('x'), { name: 'ContractFunctionZeroDataError' })
+      )
+    ).toBe(true)
+  })
+
+  it('unwraps a nested cause chain', () => {
+    expect(
+      isDeterministicReadFailure(
+        Object.assign(new Error('outer'), {
+          cause: new Error('execution reverted'),
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('treats a rate limit as transient', () => {
+    expect(isDeterministicReadFailure(new Error('429 Too Many Requests'))).toBe(
+      false
+    )
+  })
+
+  it('treats a transport failure as transient', () => {
+    expect(isDeterministicReadFailure(new Error('HTTP request failed'))).toBe(
+      false
+    )
+  })
+
+  it('defaults an unrecognised failure to transient', () => {
+    expect(isDeterministicReadFailure('something odd')).toBe(false)
+  })
+
+  it('survives a self-referential cause chain', () => {
+    const looping = new Error('loop') as Error & { cause?: unknown }
+    looping.cause = looping
+    expect(isDeterministicReadFailure(looping)).toBe(false)
+  })
+})
+
+describe('receiver read failures separate broken contracts from flaky RPCs', () => {
+  it('errors when a receiver owner read reverts, and still checks the rest', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: {
+        ReceiverOIF: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      revertingReads: [OIF_ON_CHAIN],
+      owner: { [STARGATE_ON_CHAIN]: REFUND_WALLET },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors.some((e) => e.includes('ReceiverOIF'))).toBe(true)
+    // the loop continued: the healthy receiver was still read
+    expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(false)
+  })
+
+  it('only warns when a receiver owner read fails on transport', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      failingReads: [OIF_ON_CHAIN],
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+  })
+
+  it('errors when a receiver binding getter reverts', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      revertingReads: [OIF_ON_CHAIN],
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors.some((e) => e.includes('ReceiverOIF'))).toBe(true)
+  })
+
+  it('only warns when a receiver binding getter fails on transport', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverOIF: OIF_ON_CHAIN },
+      failingReads: [OIF_ON_CHAIN],
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
   })
 })
