@@ -985,28 +985,24 @@ contract LiFiVaultWrapper is
 
     /// @dev Entry screen: the share receiver must be allowed by the gate (which is
     ///      expected to fold its own sanctions view into `isAllowed`). No-op when no
-    ///      gate is set.
+    ///      gate is set. Reverting form of `_depositAllowed`, so the entry predicate
+    ///      has one definition shared with the `maxDeposit`/`maxMint` views.
     /// @param _receiver The share receiver of the deposit/mint.
     function _checkDepositAccess(address _receiver) private view {
-        address gate = accessGate;
-        if (gate == address(0)) return;
-        if (!IAccessGate(gate).isAllowed(_receiver))
-            revert AccountNotAllowed(_receiver);
+        if (!_depositAllowed(_receiver)) revert AccountNotAllowed(_receiver);
     }
 
     /// @dev Exit screen: sanctions-only, so any non-sanctioned holder can always exit
     ///      (even after falling off an allowlist). Screens the share owner (freezes a
     ///      sanctioned holder's funds) AND the asset receiver (never pays assets out to a
     ///      sanctioned address; a non-sanctioned owner just picks another receiver).
-    ///      No-op when no gate is set.
+    ///      No-op when no gate is set. Reverting form of `_sanctioned`, so the exit
+    ///      predicate has one definition shared with the `maxWithdraw`/`maxRedeem` views.
     /// @param _owner The share owner being exited.
     /// @param _receiver The asset receiver of the exit.
     function _checkExitAccess(address _owner, address _receiver) private view {
-        address gate = accessGate;
-        if (gate == address(0)) return;
-        if (IAccessGate(gate).isSanctioned(_owner))
-            revert AccountSanctioned(_owner);
-        if (_receiver != _owner && IAccessGate(gate).isSanctioned(_receiver))
+        if (_sanctioned(_owner)) revert AccountSanctioned(_owner);
+        if (_receiver != _owner && _sanctioned(_receiver))
             revert AccountSanctioned(_receiver);
     }
 
