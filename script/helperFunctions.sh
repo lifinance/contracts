@@ -3944,7 +3944,12 @@ function getRPCUrl() {
 # than returned so that forge picks it up through its foundry.toml alias.
 #
 # Usage: tryRpcFailover NETWORK FORGE_OUTPUT
+#   NETWORK      - Network key as used in config/networks.json
+#   FORGE_OUTPUT - Combined stderr and unextracted stdout from the failed run
+#
 # Returns: 0 when the endpoint was switched, 1 when it was not
+# Example: tryRpcFailover "celo" "$STDERR_CONTENT
+# $RAW_STDOUT_FULL"
 function tryRpcFailover() {
   local NETWORK="$1"
   local FORGE_OUTPUT="$2"

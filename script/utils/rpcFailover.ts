@@ -353,10 +353,9 @@ function mentionsRealBroadcastArtifact(output: string): boolean {
 }
 
 /**
- * Evidence that forge got as far as submitting a transaction, taken from observed
- * `forge script --broadcast --slow --json` output rather than from its documentation:
- * under `--json` the human-readable progress lines are suppressed, so the markers that
- * survive are the send/poll errors and the broadcast artifact path.
+ * Evidence that forge got as far as submitting a transaction. Under `--json` the
+ * human-readable progress lines are suppressed, so the markers that survive a broadcast
+ * are the send/poll errors and the artifact path.
  *
  * Once any of these appear a transport failure is ambiguous — the node may have
  * accepted the transaction and only the response was lost — so the endpoint is pinned.
@@ -366,16 +365,15 @@ const BROADCAST_EVIDENCE = [
   /transactions were discarded by the rpc node/i,
   /failed to poll/i,
   /onchain execution complete/i,
-  // Progress lines, suppressed by --json but present on the callers that omit it.
-  // A simulation prints "SIMULATION COMPLETE" instead, so these do not match a dry run.
+  // Present only when a caller omits --json. A simulation prints "SIMULATION COMPLETE"
+  // instead, so these never match a dry run.
   /sending transactions?\b/i,
   /waiting for receipts?/i,
   /sequence #/i,
 ]
 
 // A transaction that reached the mempool pins the endpoint: a different backend has a
-// different view of it, which is how switching mid-sequence produced a stuck pending
-// nonce on moonbeam during the FeeForwarder v2.0.0 rollout.
+// different view of it, so switching mid-sequence can strand the pending nonce.
 const POST_BROADCAST_SIGNATURES = [
   /already known/i,
   /known transaction/i,
@@ -390,9 +388,9 @@ const POST_BROADCAST_SIGNATURES = [
 ]
 
 /**
- * Failures that provably precede submission. Each is a string forge was observed to
- * emit: the fee-estimation errors come from an endpoint without `eth_feeHistory`, and
- * the header-validation error from a chain whose blocks carry no `mixHash`.
+ * Failures that provably precede submission: fee estimation on an endpoint that cannot
+ * serve a fee history, and header validation on a chain whose blocks omit the field
+ * forge's EIP-1559 path requires.
  */
 const PRE_BROADCAST_SIGNATURES = [
   /failed to get eip-?1559 fees/i,

@@ -1,3 +1,10 @@
+/**
+ * Unit tests for the capability-aware RPC endpoint resolver.
+ *
+ * Covers candidate collection and deduplication, endpoint probing, ranking, and the
+ * classification that decides whether a failed deploy may switch endpoints at all.
+ */
+
 import {
   describe,
   expect,
@@ -5,6 +12,7 @@ import {
   // eslint-disable-next-line import/no-unresolved, import/order
 } from 'bun:test'
 
+import { sleep } from './delay'
 import {
   classifyForgeFailure,
   collectCandidates,
@@ -314,8 +322,7 @@ describe('classifyForgeFailure', () => {
   })
 
   // A transaction that reached the mempool must pin the endpoint regardless of what
-  // else the output says: switching backends mid-sequence is what produced the
-  // moonbeam -32603 stall during the FeeForwarder rollout.
+  // else the output says.
   it('lets post-broadcast win when both signatures are present', () => {
     const mixed = 'missing field `mixHash`\nlater: already known'
     expect(classifyForgeFailure(mixed)).toBe('postBroadcast')
@@ -458,7 +465,7 @@ describe('probeRpcEndpoint', () => {
     const server = Bun.serve({
       port: 0,
       fetch: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5_000))
+        await sleep(5_000)
         return Response.json({ jsonrpc: '2.0', id: 1, result: '0x1' })
       },
     })
@@ -732,10 +739,9 @@ describe('regressions found in adversarial review', () => {
 })
 
 /**
- * Verbatim `forge script --broadcast --slow --json` output (forge 1.7.1) captured
- * against a mock node driven into each failure mode. Hand-written approximations were
- * how an earlier version of this suite came to "cover" a guard that could never fire:
- * under --json forge suppresses the progress lines those fixtures relied on.
+ * Verbatim `forge script --broadcast --slow --json` output (forge 1.7.1), captured
+ * against a mock node driven into each failure mode. Approximations are not usable
+ * here: --json suppresses the progress lines an approximation would tend to include.
  */
 const REAL_FORGE_OUTPUT = {
   // Endpoint answers everything except eth_feeHistory (the celo production symptom).
