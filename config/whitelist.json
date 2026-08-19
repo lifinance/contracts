@@ -2048,6 +2048,15 @@
             }
           }
         ],
+        "xlayer": [
+          {
+            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
+            "functions": {
+              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
+              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
+            }
+          }
+        ],
         "boba": [
           {
             "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
