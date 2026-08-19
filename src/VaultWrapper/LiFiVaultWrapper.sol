@@ -470,12 +470,7 @@ contract LiFiVaultWrapper is
     ///      the standard entrypoint actually returns, so it also catches an integrator
     ///      fee-rate change landing between the caller's quote and execution.
 
-    /// @notice Deposits exactly `_assets` for `_receiver`, reverting if fewer than
-    ///         `_minShares` shares are minted.
-    /// @param _assets The exact asset amount to deposit.
-    /// @param _receiver The share receiver.
-    /// @param _minShares The minimum acceptable amount of shares minted.
-    /// @return shares The shares actually minted.
+    /// @inheritdoc ILiFiVaultWrapper
     function deposit(
         uint256 _assets,
         address _receiver,
@@ -485,12 +480,7 @@ contract LiFiVaultWrapper is
         if (shares < _minShares) revert SlippageExceeded(shares, _minShares);
     }
 
-    /// @notice Mints exactly `_shares` for `_receiver`, reverting if more than
-    ///         `_maxAssets` assets are pulled.
-    /// @param _shares The exact share amount to mint.
-    /// @param _receiver The share receiver.
-    /// @param _maxAssets The maximum acceptable amount of assets pulled.
-    /// @return assets The assets actually pulled.
+    /// @inheritdoc ILiFiVaultWrapper
     function mint(
         uint256 _shares,
         address _receiver,
@@ -500,13 +490,7 @@ contract LiFiVaultWrapper is
         if (assets > _maxAssets) revert SlippageExceeded(assets, _maxAssets);
     }
 
-    /// @notice Withdraws exactly `_assets` to `_receiver`, reverting if more than
-    ///         `_maxShares` shares are burned.
-    /// @param _assets The exact asset amount to withdraw.
-    /// @param _receiver The asset receiver.
-    /// @param _owner The share owner being exited.
-    /// @param _maxShares The maximum acceptable amount of shares burned.
-    /// @return shares The shares actually burned.
+    /// @inheritdoc ILiFiVaultWrapper
     function withdraw(
         uint256 _assets,
         address _receiver,
@@ -517,13 +501,7 @@ contract LiFiVaultWrapper is
         if (shares > _maxShares) revert SlippageExceeded(shares, _maxShares);
     }
 
-    /// @notice Redeems exactly `_shares` to `_receiver`, reverting if fewer than
-    ///         `_minAssets` assets are paid out.
-    /// @param _shares The exact share amount to redeem.
-    /// @param _receiver The asset receiver.
-    /// @param _owner The share owner being exited.
-    /// @param _minAssets The minimum acceptable amount of assets paid out.
-    /// @return assets The assets actually paid out.
+    /// @inheritdoc ILiFiVaultWrapper
     function redeem(
         uint256 _shares,
         address _receiver,
