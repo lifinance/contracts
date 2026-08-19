@@ -467,14 +467,25 @@ a deliberate future option, not part of v1.
 
 ### Drain algorithm
 
-1. Query `parkedTasks` for `{network, environment, status:'queued'}`.
+1. Query `parkedTasks` for `{network, environment, status:'queued'}`. A legacy row
+   whose stored `facetAddress` is not a valid EVM address is skipped + alerted
+   (`invalidAddresses`) instead of aborting the network's drain.
 2. `computeFacetRemovalsByAddress(network, environment, addresses)` for those tasks'
    stored `facetAddress`es (never their names — see §8). Partition the result:
    - `notFoundOnChain` → mark those records **`superseded`** (that exact facet is
-     already gone — removed another way).
+     already gone — removed another way) — **unless** a facet of the task's NAME is
+     still routed (`suspectSnapshots`): the snapshot may be wrong, so the task stays
+     queued + alerts for a human.
    - `protectedSkipped` → mark **`cancelled`** + alert loudly (a protected facet
      should never have been queued — a bug in enqueue).
-   - `removals` → proceed.
+   - `stillExpected` → keep queued + alert (the address points at a facet target
+     state still expects — a wrong snapshot must never remove a live facet).
+   - `unverifiable` → keep queued + alert (no target-state entry, or the selector
+     unions are unavailable — run `forge build`).
+   - `removals` → proceed, but refuse (`nameMismatch`, keep queued + alert) any
+     removal whose engine-resolved deploy-log name disagrees with the task's
+     `facetName`, and skip (`duplicateAddresses`) any address already carried by
+     another open task or claimed earlier in this run.
 3. **Atomically** flip each removal's record `queued → proposed` via
    `claimForProposal(parkedTasks, taskKey)` (Fact 15) — the merged
    `findOneAndUpdate({taskKey, status:'queued'}, …)`. This is the dedup gate (§7): a
@@ -627,10 +638,12 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   decided on. Reopening also requires the facet to be **still removable**, judged by
   `computeFacetRemovalsByAddress` — the exact engine the drain removes through, so
   eval and remover cannot disagree: the address must land in its `removals`
-  partition. An address it refuses (`protectedSkipped`, or `stillExpected` because
-  the deploy log names it as a target-state facet or it routes a selector an expected
-  facet owns) is a deliberate re-add (an incident rollback re-cutting it, or a CREATE2
-  redeploy landing on the same address), so the reopen is withheld and reported as an
+  partition **and** its engine-resolved deploy-log name must agree with the task's
+  `facetName` (mirroring the drain's own name-mismatch refusal). An address the
+  engine refuses (`protectedSkipped`, or `stillExpected` because the deploy log
+  names it as a target-state facet or it routes a selector an expected facet owns)
+  is a deliberate re-add (an incident rollback re-cutting it, or a CREATE2 redeploy
+  landing on the same address), so the reopen is withheld and reported as an
   anomaly instead of queueing a `Remove` for a live facet. The selector fallback is
   what keeps a *superseded* version reopenable: the live successor owns the name in
   target state, so a name-only gate would withhold exactly the co-registered case
@@ -690,9 +703,10 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 - **No contradiction is removed.** The drain refuses (keeps queued + alerts) a task
   whose loupe-resolved deploy-log name disagrees with its parked `facetName`, one
   whose address target state still expects (`stillExpected`), one whose removability
-  cannot be verified (`unverifiable`), and a legacy row whose stored address is not
-  a valid EVM address — each alert names the `cancel-parked-task.ts` command that
-  resolves it.
+  cannot be verified (`unverifiable` — the remedy there is `forge build`, not a
+  cancellation), and a legacy row whose stored address is not a valid EVM address.
+  The wrong-snapshot alerts name the `cancel-parked-task.ts` command that retires
+  the task.
 
 ---
 

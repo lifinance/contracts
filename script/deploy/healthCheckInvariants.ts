@@ -982,9 +982,8 @@ export function splitByParkedCoverage(
  * network would hammer the shared cluster; one shared read serves them all.
  * A failed fetch degrades that network to a coverage warning instead of a false
  * alarm, and clears the cache so the next network retries — one transient blip
- * at process start must not blind the whole run (in-flight callers still share
- * the failing promise, so a hard outage costs at most one attempt per network,
- * the pre-cache behavior).
+ * at process start must not blind the whole run. In-flight callers share the
+ * failing promise, so a hard outage costs at most one attempt per network.
  */
 let openParkedByNetworkPromise:
   | Promise<Map<string, Set<string>> | { unreachable: string }>

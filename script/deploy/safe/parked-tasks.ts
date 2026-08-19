@@ -346,7 +346,9 @@ export async function getParkedTasksCollection(): Promise<{
  * @returns The insert result, or `null` if a duplicate open task already exists.
  * @throws Error if `prUrl`, `facetAddress` or `facetName` is missing or blank
  *   (prUrl is the PR-link requirement, spec §6; facetAddress is the task
- *   identity; facetName is its label, required so queue reports stay readable).
+ *   identity; facetName is its label, required so queue reports stay readable),
+ *   or if `facetAddress` is not a valid `0x` EVM address (the queue is
+ *   EVM-only — see {@link canonicaliseFacetAddress}).
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -618,10 +620,15 @@ export async function reopenResolvedTask(
       status: { $in: OPEN_STATUSES },
     })
     .toArray()
+  // Case-insensitive only for 0x addresses: a legacy non-EVM value is
+  // case-sensitive, so folding it could merge two distinct accounts.
+  const sameAddress = (a: string, b: string): boolean =>
+    a.startsWith('0x') && b.startsWith('0x')
+      ? a.toLowerCase() === b.toLowerCase()
+      : a === b
   const duplicate = openRows.find(
     (row) =>
-      !row._id.equals(id) &&
-      row.facetAddress.toLowerCase() === current.facetAddress.toLowerCase()
+      !row._id.equals(id) && sameAddress(row.facetAddress, current.facetAddress)
   )
   if (duplicate) {
     consola.warn(

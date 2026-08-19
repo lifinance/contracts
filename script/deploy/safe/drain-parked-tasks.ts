@@ -190,7 +190,7 @@ export async function prepareDrainNetwork(
     else {
       outcome.invalidAddresses.push(task.facetName)
       deps.alert(
-        `[${network}] ${task.facetName}: stored facetAddress "${task.facetAddress}" is not a valid EVM address — the drain cannot process it. Cancel it (script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes) and re-enqueue with the correct address. Origin PR: ${task.prUrl}`
+        `[${network}] ${task.facetName}: stored facetAddress "${task.facetAddress}" is not a valid EVM address — the drain cannot process it. Cancel it (bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes) and re-enqueue with the correct address. Origin PR: ${task.prUrl}`
       )
     }
   if (tasks.length === 0) return empty
@@ -232,10 +232,10 @@ export async function prepareDrainNetwork(
   }[] = []
 
   // Seeded with already-claimed (proposed) addresses: their Remove is already in
-  // a pending proposal, and a row still carrying the pre-EXSC-775 name-based key
-  // does not collide with a re-enqueue of the same address in the unique index —
-  // folding the same Remove into a second batch makes whichever executes second
-  // revert, taking its whole `scheduleBatch` (primary proposal included) with it.
+  // a pending proposal, and a legacy row keyed by facet NAME does not collide
+  // with a re-enqueue of the same address in the unique index — folding the same
+  // Remove into a second batch makes whichever executes second revert, taking
+  // its whole `scheduleBatch` (primary proposal included) with it.
   const claimedAddresses = new Set(
     (await deps.listProposed())
       .map((t) => lower(t.facetAddress))
@@ -247,11 +247,12 @@ export async function prepareDrainNetwork(
       const name = task.facetName
       const address = lower(task.facetAddress)
       const removal = removalByAddress.get(address)
+      const stillExpected = stillExpectedByAddress.get(address)
       if (removal) {
         if (claimedAddresses.has(address)) {
           outcome.duplicateAddresses.push(name)
           deps.alert(
-            `[${network}] ${name} (${task.facetAddress}): another open task already carries this address — folding it in twice would revert the batch, so it stays queued. Cancel the duplicate (script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes), then run \`migrate-parked-task-keys.ts --apply\` to normalise legacy keys. Origin PR: ${task.prUrl}`
+            `[${network}] ${name} (${task.facetAddress}): another open task already carries this address — folding it in twice would revert the batch, so it stays queued. Cancel the duplicate (bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes), then run \`bunx tsx script/deploy/safe/migrate-parked-task-keys.ts --apply\` to normalise legacy keys. If the other task is already \`proposed\`, this drain merely raced a concurrent one — no action needed. Origin PR: ${task.prUrl}`
           )
           continue
         }
@@ -261,7 +262,7 @@ export async function prepareDrainNetwork(
         if (removal.name !== undefined && removal.name !== task.facetName) {
           outcome.nameMismatch.push(name)
           deps.alert(
-            `[${network}] ${name} (${task.facetAddress}): the deploy log names this address ${removal.name} — the parked label and the address disagree, so this is a wrong snapshot. Refusing to remove; cancel the task and re-enqueue with the right address. Origin PR: ${task.prUrl}`
+            `[${network}] ${name} (${task.facetAddress}): the deploy log names this address ${removal.name} — the parked label and the address disagree, so this is a wrong snapshot. Refusing to remove; cancel the task (bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes) and re-enqueue with the right address. Origin PR: ${task.prUrl}`
           )
           continue
         }
@@ -278,15 +279,10 @@ export async function prepareDrainNetwork(
           continue
         }
         claimed.push({ task, removal })
-      } else if (stillExpectedByAddress.has(address)) {
+      } else if (stillExpected !== undefined) {
         outcome.stillExpected.push(name)
         deps.alert(
-          `[${network}] ${name} (${task.facetAddress}): refusing to remove — ${
-            stillExpectedByAddress.get(address)?.reason ??
-            'target state expects it'
-          }. The parked address points at a LIVE facet (wrong snapshot?); cancel the task and re-enqueue with the right address. Origin PR: ${
-            task.prUrl
-          }`
+          `[${network}] ${name} (${task.facetAddress}): refusing to remove — ${stillExpected.reason}. The parked address points at a LIVE facet (wrong snapshot?); cancel the task (bunx tsx script/deploy/safe/cancel-parked-task.ts --taskKey "${task.taskKey}" --yes) and re-enqueue with the right address. Origin PR: ${task.prUrl}`
         )
       } else if (notFound.has(address)) {
         // An address can be absent because the facet really was removed, or because

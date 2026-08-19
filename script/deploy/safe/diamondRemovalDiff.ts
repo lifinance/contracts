@@ -197,12 +197,21 @@ export function getFacetSourceNames(
 }
 
 let sourceContractNamesCache: Set<string> | undefined
-/** Memoized {@link getSourceContractNames} for the default root — the source tree is immutable per process. */
+/**
+ * Memoized {@link getSourceContractNames} for the default root — the source tree
+ * is immutable per process.
+ *
+ * @returns Basenames of every `.sol` source under `src/`.
+ */
 export const cachedSourceContractNames = (): Set<string> =>
   (sourceContractNamesCache ??= getSourceContractNames())
 
 let facetSourceNamesCache: Set<string> | undefined
-/** Memoized {@link getFacetSourceNames} for the default root. */
+/**
+ * Memoized {@link getFacetSourceNames} for the default root.
+ *
+ * @returns Basenames of every `.sol` source under `src/Facets/`.
+ */
 export const cachedFacetSourceNames = (): Set<string> =>
   (facetSourceNamesCache ??= getFacetSourceNames())
 
@@ -442,8 +451,8 @@ const defaultIO: IRemovalDiffIO = {
   getAddressToName: resolveAddressToName,
   getExpectedNames: getExpectedFacetNames,
   getActiveSelectors: collectActiveSelectors,
-  getSourceNames: () => getSourceContractNames(),
-  getFacetNames: () => getFacetSourceNames(),
+  getSourceNames: cachedSourceContractNames,
+  getFacetNames: cachedFacetSourceNames,
 }
 
 /**
@@ -563,8 +572,9 @@ export interface IAddressRemovalResult {
   /** Requested addresses that resolve to a never-remove facet — refused. */
   protectedSkipped: { name: string; address: `0x${string}` }[]
   /**
-   * Requested addresses whose protection could NOT be established: the deploy log
-   * cannot name them and the protected-selector union was unavailable. Distinct from
+   * Requested addresses whose removability could NOT be established: the network
+   * has no target-state entry, or a selector union (protected/active) needed for
+   * the checks was unavailable. Distinct from
    * {@link IAddressRemovalResult.protectedSkipped} because the two call for opposite
    * handling — a protected facet was parked in error (terminal), while an
    * unverifiable one is a tooling gap (retry after `forge build`), so a caller must

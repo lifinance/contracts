@@ -737,7 +737,7 @@ describe('status transitions', () => {
   })
 
   it('reopenResolvedTask recomputes a legacy name-based key so dedup applies again', async () => {
-    // KEY above is the pre-EXSC-775 name form; without the recompute the row
+    // KEY above is the legacy name form; without the recompute the row
     // re-enters the open index under a key no fresh enqueue can collide with.
     const coll = seedOne('executed')
     const doc = await reopenResolvedTask(coll, idOf(coll, 0))

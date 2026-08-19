@@ -1010,11 +1010,9 @@ async function reconcileAll(
           presentOnChain
         ) {
           const reason =
-            removable === undefined
-              ? `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions are unavailable — run \`forge build\`) — reopen withheld`
-              : `facet is routed again and the removal engine refuses it (${
-                  refusalReason ?? 'not removable'
-                }) — treated as a deliberate re-add, reopen withheld`
+            refusalReason !== undefined
+              ? `facet is routed again and the removal engine refuses it (${refusalReason}) — treated as a deliberate re-add, reopen withheld`
+              : `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions are unavailable — run \`forge build\`) — reopen withheld`
           consola.warn(
             `[${network}:${environment}] ${task.facetName}: ${reason}`
           )

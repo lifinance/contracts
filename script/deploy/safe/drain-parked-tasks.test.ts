@@ -231,7 +231,7 @@ describe('prepareDrainNetwork', () => {
   })
 
   it('folds one address in only once when two open tasks carry it', async () => {
-    // Pre-EXSC-775 rows keep the name-based `taskKey`, so the partial unique index
+    // Legacy rows keep the name-based `taskKey`, so the partial unique index
     // does not collide them with a re-enqueue of the same address. Two identical
     // Remove calls in one scheduleBatch would revert on the second, taking the
     // primary proposal with it.
@@ -261,7 +261,7 @@ describe('prepareDrainNetwork', () => {
   })
 
   it('skips a queued task whose address a PROPOSED task already carries (pending proposal)', async () => {
-    // Pre-EXSC-775 shape: a name-keyed row sits in `proposed` under pending
+    // Legacy shape: a name-keyed row sits in `proposed` under pending
     // proposal P1; a fresh address-keyed re-enqueue must not fold the same
     // Remove into a second proposal.
     const shared = facetAddr('SymbiosisFacet')
