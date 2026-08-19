@@ -68,7 +68,13 @@ function pinMarketplace(name, entry) {
     return false
   }
   const url = `https://github.com/${repo}.git`
-  const target = path.join(MARKETPLACES_DIR, name)
+  const base = path.resolve(MARKETPLACES_DIR)
+  const target = path.resolve(base, name)
+  const relative = path.relative(base, target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    console.error(`${TAG} ${name}: invalid name`)
+    process.exit(1)
+  }
   fs.mkdirSync(MARKETPLACES_DIR, { recursive: true })
 
   if (!fs.existsSync(target)) {
