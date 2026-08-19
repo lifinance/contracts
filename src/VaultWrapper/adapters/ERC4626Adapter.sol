@@ -25,7 +25,7 @@ import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 ///      credits fewer shares via an internal deposit fee) — measuring that cleanly is
 ///      rounding-sensitive; such non-standard sources are unsupported and require a
 ///      dedicated adapter rather than this reference one.
-/// @custom:version 1.0.0
+/// @custom:version 1.0.1
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
@@ -84,8 +84,13 @@ contract ERC4626Adapter is IYieldAdapter {
 
     /// @inheritdoc IYieldAdapter
     /// @dev Source floor valuation (`convertToAssets`) of the smaller of the holder's
-    ///      position and the source's current `maxRedeem`. Equals the full position value
-    ///      when the source imposes no active liquidity limit.
+    ///      position and the source's current `maxRedeem`, then clamped to the source's
+    ///      `maxWithdraw`. The wrapper always exits via exact-asset `IERC4626.withdraw`
+    ///      (which the source bounds by `maxWithdraw`), so the redeem-derived value alone
+    ///      would over-report on a source whose `maxWithdraw` is tighter than
+    ///      `convertToAssets(maxRedeem)` — EIP-4626 permits the two limits to diverge, and
+    ///      an over-report would revert an exit within the wrapper's reported max. Equals
+    ///      the full position value when the source imposes no active liquidity limit.
     function maxWithdrawableValue(
         address _underlying,
         address _holder
@@ -94,5 +99,8 @@ contract ERC4626Adapter is IYieldAdapter {
         uint256 redeemable = IERC4626(_underlying).maxRedeem(_holder);
         uint256 shares = redeemable < position ? redeemable : position;
         assets = IERC4626(_underlying).convertToAssets(shares);
+
+        uint256 withdrawable = IERC4626(_underlying).maxWithdraw(_holder);
+        if (withdrawable < assets) assets = withdrawable;
     }
 }

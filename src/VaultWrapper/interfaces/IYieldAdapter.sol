@@ -76,11 +76,14 @@ interface IYieldAdapter {
     /// @notice Gross position value `_holder` can withdraw from `_underlying` right now,
     ///         capped by the source's current withdrawal-liquidity limits.
     /// @dev Ordinary static call. Returns the source's floor valuation of
-    ///      `min(holder position, source maxRedeem)` — gross (no fee netting), because the
-    ///      wrapper feeds it into its own gross share math to clamp `maxRedeem`/
-    ///      `maxWithdraw` to what the source can honor. Equals the full position value
-    ///      when the source imposes no limit. MAY revert if the source's views revert;
-    ///      the wrapper treats that as fail-closed.
+    ///      `min(holder position, source maxRedeem)`, clamped to the source's `maxWithdraw`
+    ///      — gross (no fee netting), because the wrapper feeds it into its own gross share
+    ///      math to clamp `maxRedeem`/`maxWithdraw` to what the source can honor. The clamp
+    ///      to `maxWithdraw` matters because the wrapper exits via exact-asset `withdraw`,
+    ///      which the source bounds by `maxWithdraw`, and EIP-4626 permits that limit to be
+    ///      tighter than `convertToAssets(maxRedeem)`. Equals the full position value when
+    ///      the source imposes no limit. MAY revert if the source's views revert; the
+    ///      wrapper treats that as fail-closed.
     /// @param _underlying The yield source identifier.
     /// @param _holder The account whose position is valued (the wrapper).
     /// @return assets The gross, source-liquidity-capped position value.
