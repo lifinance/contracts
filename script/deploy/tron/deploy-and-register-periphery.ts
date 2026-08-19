@@ -1057,8 +1057,8 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             const outputSettlerTron =
               escrowConfig[networkName]?.OIFOutputSettlerSimple
-            // The OIF settlers are not deployed at the deterministic EVM vanity addresses on Tron,
-            // so the flat top-level keys must not be used here.
+            // Tron's OIF settlers are not at the deterministic EVM vanity addresses the flat
+            // top-level keys hold, so the network-scoped block is the only valid source here.
             if (!outputSettlerTron)
               throw new Error(
                 `OIFOutputSettlerSimple not found for ${networkName} in config/lifiintentescrow.json`

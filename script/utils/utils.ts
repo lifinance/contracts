@@ -382,7 +382,7 @@ export async function saveContractAddress(
 
   deployments[contract] = address
 
-  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2))
+  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
 }
 
 /**
