@@ -138,10 +138,11 @@ describe('resolveRpcUrl CLI', () => {
   )
 
   it(
-    'skips an excluded endpoint',
+    'skips an endpoint excluded via the environment',
     async () => {
       const server = healthyServer()
-      const url = `${server.url.origin}/only-candidate`
+      // A comma in the query string would be shredded by a comma-separated list.
+      const url = `${server.url.origin}/only-candidate?methods=eth_call,eth_getLogs`
       try {
         const result = await runCli(['definitelynotanetwork'], {
           ETH_NODE_URI_DEFINITELYNOTANETWORK: url,

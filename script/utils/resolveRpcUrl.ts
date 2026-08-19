@@ -31,6 +31,7 @@ const MONGO_TIMEOUT_MS = 8_000 // 8 seconds; a deploy must not stall on config l
 /**
  * Endpoints to skip arrive through the environment rather than a CLI flag: an RPC URL
  * passed as an argument is visible in the process table to every user on the machine.
+ * Entries are newline-separated because a URL query string may legally contain commas.
  */
 const EXCLUDE_ENV_VAR = 'LIFI_RPC_EXCLUDE'
 
@@ -114,7 +115,9 @@ const main = defineCommand({
       envUrl,
       mongoRpcs: await fetchMongoRpcs(network),
       networksJsonUrl,
-      exclude: process.env[EXCLUDE_ENV_VAR]?.split(',').filter(Boolean),
+      exclude: process.env[EXCLUDE_ENV_VAR]?.split('\n')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
     })
 
     if (!selection) {

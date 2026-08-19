@@ -16,6 +16,18 @@ import {
   type IRpcProbe,
 } from './rpcFailover'
 
+/**
+ * Returns a loopback URL whose port is guaranteed closed: the server is bound (so the
+ * OS picked a free port) and then stopped. Hard-coding a "surely dead" port instead
+ * would make these tests depend on what happens to be listening on the machine.
+ */
+const closedUrl = async (path = ''): Promise<string> => {
+  const server = Bun.serve({ port: 0, fetch: () => new Response('') })
+  const url = `${server.url.origin}${path}`
+  server.stop(true)
+  return url
+}
+
 const probe = (url: string, over: Partial<IRpcProbe> = {}): IRpcProbe => ({
   url,
   live: true,
@@ -214,6 +226,7 @@ describe('selectBestCandidate', () => {
     expect(best?.chainCapabilities).toEqual({
       feeHistory: true,
       eip1559Block: false,
+      gasPrice: true,
     })
   })
 
@@ -402,7 +415,7 @@ describe('probeRpcEndpoint', () => {
   })
 
   it('marks an endpoint dead when it is unreachable', async () => {
-    const result = await probeRpcEndpoint('http://127.0.0.1:1/', 500)
+    const result = await probeRpcEndpoint(await closedUrl('/'), 500)
     expect(result.live).toBe(false)
     expect(result.feeHistory).toBe(false)
   })
@@ -467,7 +480,7 @@ describe('probeRpcEndpoint', () => {
   // free-form error string would let a transport error quoting the full URL (forge does
   // exactly this) escape into logs downstream.
   it('exposes no free-form error text that could carry the URL into logs', async () => {
-    const result = await probeRpcEndpoint('http://127.0.0.1:1/secret-key', 300)
+    const result = await probeRpcEndpoint(await closedUrl('/secret-key'), 300)
 
     expect(Object.keys(result).sort()).toEqual([
       'eip1559Block',
@@ -505,7 +518,7 @@ describe('resolveEndpoint (negative controls)', () => {
   // resolver returns the dead primary and this fails.
   it('recovers via an alternative when the primary endpoint is dead', async () => {
     const server = healthyServer()
-    const deadPrimary = 'http://127.0.0.1:1/dead'
+    const deadPrimary = await closedUrl('/dead')
     try {
       const selection = await resolveEndpoint({
         envUrl: deadPrimary,
@@ -559,8 +572,8 @@ describe('resolveEndpoint (negative controls)', () => {
 
   it('returns null rather than a broken URL when every candidate is dead', async () => {
     const selection = await resolveEndpoint({
-      envUrl: 'http://127.0.0.1:1/dead-a',
-      mongoRpcs: [{ url: 'http://127.0.0.1:2/dead-b', priority: 1 }],
+      envUrl: await closedUrl('/dead-a'),
+      mongoRpcs: [{ url: await closedUrl('/dead-b'), priority: 1 }],
       timeoutMs: 300,
     })
 
@@ -584,5 +597,187 @@ describe('resolveEndpoint (negative controls)', () => {
     } finally {
       server.stop(true)
     }
+  })
+})
+
+describe('regressions found in adversarial review', () => {
+  // A transport error while submitting a signed transaction is ambiguous: the node may
+  // have accepted it and only the reply was lost. Treating it as pre-broadcast would
+  // resubmit through a different backend — the exact stuck-nonce failure this module
+  // exists to prevent.
+  it.each([
+    [
+      'timeout after submission started',
+      'Sending transactions [0/1]\nError: Failed to send transaction: error sending request for url (...): operation timed out',
+    ],
+    [
+      'connection dropped while waiting for a receipt',
+      'Waiting for receipts.\nError: error sending request: Connection refused',
+    ],
+    [
+      'transport error after the run was saved',
+      'Transactions saved to: /broadcast/Deploy.s.sol/1/run-latest.json\nerror sending request',
+    ],
+    [
+      'transport error alongside a transaction hash',
+      'hash: 0x2ab1f0dbb2be3d1a94e2a4b13b52c8dcb1b8cf7a2a8f2fd50c6cd7f2ef47a9b1\nerror sending request',
+    ],
+  ])(
+    'treats a transport failure as post-broadcast when %s',
+    (_label, output) => {
+      expect(classifyForgeFailure(output)).toBe('postBroadcast')
+    }
+  )
+
+  it.each([
+    ['geth known transaction', 'known transaction: 0xabc'],
+    ['besu uppercase code', 'TRANSACTION_ALREADY_KNOWN'],
+    ['nonce too high', 'server returned an error response: nonce too high'],
+    ['parity old nonce', 'OldNonce'],
+    ['already in the pool', 'transaction already in the pool'],
+    ['bare underpriced', 'transaction underpriced'],
+  ])('recognises %s as post-broadcast', (_label, output) => {
+    expect(classifyForgeFailure(output)).toBe('postBroadcast')
+  })
+
+  it('lets a mempool signature outrank a transport signature in mixed output', () => {
+    expect(
+      classifyForgeFailure(
+        'error sending request for url (...)\nknown transaction: 0xabc'
+      )
+    ).toBe('postBroadcast')
+  })
+
+  it('still allows failover for a fee-estimation failure with no broadcast evidence', () => {
+    expect(
+      classifyForgeFailure(
+        'Error: Failed to get EIP-1559 fees; deserialization error: missing field `mixHash`'
+      )
+    ).toBe('preBroadcast')
+  })
+
+  // A rate limiter answering HTTP 200 with a JSON body that has neither result nor
+  // error would otherwise probe as fully capable and outrank healthy endpoints.
+  it('treats a 200 response with no result as a failed call', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => Response.json({ message: 'Too Many Requests' }),
+    })
+    try {
+      const result = await probeRpcEndpoint(server.url.href, 1_000)
+      expect(result.live).toBe(false)
+      expect(result.feeHistory).toBe(false)
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  it('treats a null result as a failed call', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (req) => {
+        const body = (await req.json()) as { id: number }
+        return Response.json({ jsonrpc: '2.0', id: body.id, result: null })
+      },
+    })
+    try {
+      const result = await probeRpcEndpoint(server.url.href, 1_000)
+      expect(result.live).toBe(false)
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  // Present-but-null fails forge's deserialization exactly like a missing field.
+  it('does not count a null mixHash as EIP-1559 support', async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (req) => {
+        const body = (await req.json()) as { method: string; id: number }
+        const result =
+          body.method === 'eth_getBlockByNumber'
+            ? { baseFeePerGas: '0x1', mixHash: null, number: '0x1' }
+            : '0x1'
+        return Response.json({ jsonrpc: '2.0', id: body.id, result })
+      },
+    })
+    try {
+      const result = await probeRpcEndpoint(server.url.href, 1_000)
+      expect(result.live).toBe(true)
+      expect(result.eip1559Block).toBe(false)
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  // chainCapabilities is a union and may describe an endpoint that was not selected,
+  // so a caller deciding how to transact must read the winner's own capabilities.
+  it('reports the selected endpoint capabilities separately from the union', () => {
+    const candidates: IRpcCandidate[] = [
+      { url: 'https://a.example.com', source: 'env', priority: 0 },
+      { url: 'https://b.example.com', source: 'mongo', priority: 5 },
+    ]
+    const best = selectBestCandidate(candidates, [
+      probe('https://a.example.com', { eip1559Block: false, gasPrice: true }),
+      probe('https://b.example.com', { eip1559Block: true, gasPrice: false }),
+    ])
+
+    // Both score 2, so trust selects the env endpoint...
+    expect(best?.url).toBe('https://a.example.com')
+    // ...whose own block is not 1559-capable, even though the chain supports it.
+    expect(best?.capabilities.eip1559Block).toBe(false)
+    expect(best?.chainCapabilities.eip1559Block).toBe(true)
+  })
+
+  it('always reports capabilities matching the selected endpoint probe', () => {
+    const candidates: IRpcCandidate[] = [
+      { url: 'https://a.example.com', source: 'env', priority: 0 },
+      { url: 'https://b.example.com', source: 'mongo', priority: 5 },
+    ]
+    const probes = [
+      probe('https://a.example.com', { feeHistory: false }),
+      probe('https://b.example.com'),
+    ]
+    const best = selectBestCandidate(candidates, probes)
+    const winnerProbe = probes.find((entry) => entry.url === best?.url)
+
+    expect(best?.capabilities).toEqual({
+      feeHistory: winnerProbe?.feeHistory as boolean,
+      eip1559Block: winnerProbe?.eip1559Block as boolean,
+      gasPrice: winnerProbe?.gasPrice as boolean,
+    })
+  })
+
+  it('lets a lost gasPrice probe change the ranking outcome', () => {
+    const candidates: IRpcCandidate[] = [
+      { url: 'https://a.example.com', source: 'env', priority: 0 },
+      { url: 'https://b.example.com', source: 'mongo', priority: 5 },
+    ]
+    const best = selectBestCandidate(candidates, [
+      probe('https://a.example.com', { gasPrice: false }),
+      probe('https://b.example.com'),
+    ])
+
+    expect(best?.url).toBe('https://b.example.com')
+  })
+
+  // An authenticated and an anonymous URL for the same host are different endpoints;
+  // collapsing them drops the only candidate that can authenticate.
+  it('does not collapse a credentialed URL into an anonymous one', () => {
+    const result = collectCandidates({
+      envUrl: 'https://rpc.example.com/v1',
+      mongoRpcs: [{ url: 'https://user:key@rpc.example.com/v1', priority: 5 }],
+    })
+
+    expect(result).toHaveLength(2)
+  })
+
+  it('excludes an endpoint written with a different query-parameter order', () => {
+    const result = collectCandidates({
+      envUrl: 'https://rpc.example.com/r?b=2&a=1',
+      exclude: ['https://rpc.example.com/r?a=1&b=2'],
+    })
+
+    expect(result).toEqual([])
   })
 })

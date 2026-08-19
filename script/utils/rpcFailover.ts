@@ -21,20 +21,29 @@ export interface IRpcCandidate {
   priority: number
 }
 
-export interface IRpcProbe {
-  url: string
-  live: boolean
+export interface IRpcCapabilities {
   feeHistory: boolean
   /** Block carries both `baseFeePerGas` and `mixHash`, the pair forge's 1559 path deserializes. */
   eip1559Block: boolean
   gasPrice: boolean
 }
 
+export interface IRpcProbe extends IRpcCapabilities {
+  url: string
+  live: boolean
+}
+
 export interface IRpcSelection {
   url: string
   source: RpcSource
-  /** Union over live candidates: a capability absent here is a chain property, not a defect. */
-  chainCapabilities: { feeHistory: boolean; eip1559Block: boolean }
+  /** Capabilities of the selected endpoint. Use this to decide how to transact through it. */
+  capabilities: IRpcCapabilities
+  /**
+   * Union over live candidates. A capability false here is absent chain-wide, which
+   * makes it a chain property rather than a defect of any one endpoint. Never use this
+   * to decide how to transact — it may describe an endpoint that was not selected.
+   */
+  chainCapabilities: IRpcCapabilities
 }
 
 /** How a forge failure constrains endpoint switching. */
@@ -52,7 +61,8 @@ const PROBE_TIMEOUT_MS = 5_000 // 5 seconds; a candidate slower than this is not
  * Reduces an RPC URL to scheme and host.
  *
  * RPC URLs embed API keys in their path or query string, so this is the only form that
- * may be logged.
+ * may be logged. Note the limit of that guarantee: providers that key on the hostname
+ * itself (QuickNode) still expose their endpoint identifier here.
  *
  * @param url - Any candidate URL
  * @returns `scheme://host[:port]`, or a placeholder when the input cannot be parsed
@@ -68,15 +78,33 @@ export function redactRpcUrl(url: string): string {
 
 /**
  * Canonical form used to decide whether two candidate URLs are the same endpoint.
- * Returns null for anything that is not an http(s) URL.
+ *
+ * Credentials are part of the identity: an authenticated and an anonymous URL for the
+ * same host are different endpoints, and collapsing them would drop the only candidate
+ * that can authenticate. Query parameters are sorted so that the same endpoint written
+ * with a different parameter order still matches an exclusion.
+ *
+ * @returns The canonical key, or null for anything that is not an http(s) URL
  */
 function normalizeUrl(url: string): string | null {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+
+    const params = [...parsed.searchParams.entries()].sort(
+      ([aKey, aValue], [bKey, bValue]) =>
+        aKey.localeCompare(bKey) || aValue.localeCompare(bValue)
+    )
+    const query = params.map(([key, value]) => `${key}=${value}`).join('&')
+    const credentials = parsed.username
+      ? `${parsed.username}:${parsed.password}@`
+      : ''
     const path = parsed.pathname.replace(/\/+$/, '')
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${
-      parsed.search
+
+    return `${
+      parsed.protocol
+    }//${credentials}${parsed.host.toLowerCase()}${path}${
+      query ? `?${query}` : ''
     }`
   } catch {
     return null
@@ -165,7 +193,11 @@ async function callJsonRpc(
       result?: unknown
       error?: unknown
     }
+    // A rate limiter answering 200 with `{"message":"Too Many Requests"}` carries no
+    // error key either, so a present, non-null result is what makes a call successful.
     if (payload.error !== undefined) return { ok: false }
+    if (payload.result === undefined || payload.result === null)
+      return { ok: false }
     return { ok: true, result: payload.result }
   } catch {
     // Transport errors are swallowed on purpose: their message quotes the full URL,
@@ -209,17 +241,26 @@ export async function probeRpcEndpoint(
     ? (block.result as Record<string, unknown> | null)
     : null
 
+  // A field present but null fails forge's deserialization exactly like a missing one,
+  // so only a real hex string counts as support.
+  const hasHexField = (field: string) => typeof header?.[field] === 'string'
+
   return {
     url,
     live: true,
     feeHistory: feeHistory.ok,
-    eip1559Block:
-      header?.baseFeePerGas !== undefined && header?.mixHash !== undefined,
+    eip1559Block: hasHexField('baseFeePerGas') && hasHexField('mixHash'),
     gasPrice: gasPrice.ok,
   }
 }
 
 const CAPABILITY_KEYS = ['feeHistory', 'eip1559Block', 'gasPrice'] as const
+
+const capabilitiesOf = (probe: IRpcProbe): IRpcCapabilities => ({
+  feeHistory: probe.feeHistory,
+  eip1559Block: probe.eip1559Block,
+  gasPrice: probe.gasPrice,
+})
 
 /**
  * Picks the best endpoint from probed candidates.
@@ -232,7 +273,8 @@ const CAPABILITY_KEYS = ['feeHistory', 'eip1559Block', 'gasPrice'] as const
  *
  * @param candidates - Candidates in trust order
  * @param probes - Probe results, matched to candidates by URL
- * @returns The winner plus the chain's capability union, or null if none is live
+ * @returns The winner with its own capabilities and the chain's capability union, or
+ *   null if no candidate is live
  */
 export function selectBestCandidate(
   candidates: IRpcCandidate[],
@@ -271,21 +313,44 @@ export function selectBestCandidate(
   return {
     url: best.candidate.url,
     source: best.candidate.source,
+    capabilities: capabilitiesOf(best.probe),
     chainCapabilities: {
       feeHistory: scored.some((entry) => entry.probe.feeHistory),
       eip1559Block: scored.some((entry) => entry.probe.eip1559Block),
+      gasPrice: scored.some((entry) => entry.probe.gasPrice),
     },
   }
 }
+
+/**
+ * Evidence that forge got as far as submitting a transaction. Once any of these appear,
+ * a transport failure is ambiguous — the node may have accepted the transaction and
+ * only the response was lost — so the endpoint must be treated as pinned.
+ */
+const BROADCAST_EVIDENCE = [
+  /sending transactions?\b/i,
+  /waiting for receipts?/i,
+  /transactions saved to/i,
+  /sequence #/i,
+  /transaction[_ ]?hash/i,
+  /pending transaction/i,
+  /\bhash:\s*0x[0-9a-f]{64}/i,
+]
 
 // A transaction that reached the mempool pins the endpoint: a different backend has a
 // different view of it, which is how switching mid-sequence produced a stuck pending
 // nonce on moonbeam during the FeeForwarder v2.0.0 rollout.
 const POST_BROADCAST_SIGNATURES = [
   /already known/i,
-  /nonce too low/i,
-  /replacement transaction underpriced/i,
+  /known transaction/i,
+  /transaction_already_known/i,
+  /already in the pool/i,
+  /transaction already exists/i,
   /already imported/i,
+  /nonce too low/i,
+  /nonce too high/i,
+  /oldnonce/i,
+  /underpriced/i,
 ]
 
 const PRE_BROADCAST_SIGNATURES = [
@@ -305,12 +370,19 @@ const PRE_BROADCAST_SIGNATURES = [
 /**
  * Classifies a failed forge run by whether a transaction may already be in flight.
  *
+ * Transport failures are only safe to fail over from when nothing suggests a broadcast
+ * happened: `error sending request` while submitting a signed transaction is the
+ * canonical ambiguous case, because the node may have accepted it and lost the reply.
+ * Broadcast evidence therefore outranks every transport pattern.
+ *
  * @param output - Combined stderr and raw return data from the run
- * @returns `postBroadcast` if anything suggests a transaction reached the mempool,
- *   `preBroadcast` for a recognised connection or fee-estimation failure, otherwise
- *   `unknown`. Callers must only switch endpoints on `preBroadcast`.
+ * @returns `postBroadcast` if a transaction may have reached the mempool,
+ *   `preBroadcast` for a recognised failure that provably precedes submission,
+ *   otherwise `unknown`. Callers must only switch endpoints on `preBroadcast`.
  */
 export function classifyForgeFailure(output: string): ForgeFailureClass {
+  if (BROADCAST_EVIDENCE.some((pattern) => pattern.test(output)))
+    return 'postBroadcast'
   if (POST_BROADCAST_SIGNATURES.some((pattern) => pattern.test(output)))
     return 'postBroadcast'
   if (PRE_BROADCAST_SIGNATURES.some((pattern) => pattern.test(output)))
