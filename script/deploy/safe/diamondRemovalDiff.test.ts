@@ -666,6 +666,60 @@ describe('diffFacetsByAddress', () => {
     expect(r.unverifiable).toEqual([addr(9)])
   })
 
+  it('refuses a LOGGED deprecated facet that still routes a selector an expected facet owns', () => {
+    // Same held-back rule as diffFacets: the replacement's Add has not landed yet,
+    // so sweeping the shared selector out would break it until the cut ships.
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1), sel(5)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+      expectedNames: new Set(['ReplacementFacet']),
+      activeSelectors: new Set([sel(5)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.name).toBe('OldFacet')
+  })
+
+  it('resolves the real co-registered SymbiosisFacet shape (EXSC-750 mainnet data)', () => {
+    // Live v2.0.0 is logged and owns 0xe23b7a08/0xc46059b2; superseded v1.0.0 is
+    // unlogged and routes 0xb70fb9a5/0x6e067161 — the queue's core use case.
+    const LIVE = '0xa0353221443ca4e2e6a040f30a57b47f5a6d479d' as `0x${string}`
+    const STALE = '0x23Fc1b73Ff1B0f9C1e4A0B8dD5B0d0c0A0e0F000' as `0x${string}`
+    const params = {
+      ...base,
+      onChainFacets: [
+        {
+          address: LIVE,
+          selectors: ['0xe23b7a08', '0xc46059b2'] as `0x${string}`[],
+        },
+        {
+          address: STALE,
+          selectors: ['0xb70fb9a5', '0x6e067161'] as `0x${string}`[],
+        },
+      ],
+      addressToName: { [LIVE]: 'SymbiosisFacet' },
+      protectedNames: new Set(['DiamondCutFacet']),
+      expectedNames: new Set(['SymbiosisFacet']),
+      protectedSelectors: new Set<string>(),
+      activeSelectors: new Set(['0xe23b7a08', '0xc46059b2']),
+    }
+    // The stale version is removable; the live one is refused as stillExpected.
+    const stale = diffFacetsByAddress({
+      ...params,
+      requestedAddresses: new Set([STALE]),
+    })
+    expect(stale.removals.map((r) => r.address)).toEqual([STALE])
+    const live = diffFacetsByAddress({
+      ...params,
+      requestedAddresses: new Set([LIVE]),
+    })
+    expect(live.removals).toHaveLength(0)
+    expect(live.stillExpected[0]?.name).toBe('SymbiosisFacet')
+  })
+
   it('exposes the loupe addresses so callers need no second read', () => {
     const r = diffFacetsByAddress({
       ...base,

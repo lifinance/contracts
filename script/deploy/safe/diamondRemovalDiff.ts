@@ -782,7 +782,7 @@ export function diffFacetsByAddress(params: {
         result.protectedSkipped.push({ name, address: facet.address })
         continue
       }
-      if (!expectedNames) {
+      if (!expectedNames || !activeSelectors) {
         result.unverifiable.push(facet.address)
         continue
       }
@@ -791,6 +791,20 @@ export function diffFacetsByAddress(params: {
           name,
           address: facet.address,
           reason: `the deploy log names it ${name}, which target state expects to stay registered`,
+        })
+        continue
+      }
+      // Same held-back rule diffFacets applies: a selector an expected facet
+      // owns must not be swept out before that facet's Add re-points it — the
+      // refusal self-resolves once the replacement cut lands.
+      const activeHit = facet.selectors.find((selector) =>
+        activeSelectors.has(lower(selector))
+      )
+      if (activeHit !== undefined) {
+        result.stillExpected.push({
+          name,
+          address: facet.address,
+          reason: `routes selector ${activeHit}, which a target-state facet owns`,
         })
         continue
       }

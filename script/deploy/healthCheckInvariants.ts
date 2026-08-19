@@ -980,9 +980,11 @@ export function splitByParkedCoverage(
  * (lowercased `facetAddress` sets). The health check evaluates dozens of networks
  * concurrently in one process, and a Mongo connect/index-check/teardown per stale
  * network would hammer the shared cluster; one shared read serves them all.
- * `null` = queue unreachable (with the reason), so each network degrades to a
- * coverage warning instead of a false alarm. The rejection is cached too — one
- * outage must not retrigger a connection attempt per network.
+ * A failed fetch degrades that network to a coverage warning instead of a false
+ * alarm, and clears the cache so the next network retries — one transient blip
+ * at process start must not blind the whole run (in-flight callers still share
+ * the failing promise, so a hard outage costs at most one attempt per network,
+ * the pre-cache behavior).
  */
 let openParkedByNetworkPromise:
   | Promise<Map<string, Set<string>> | { unreachable: string }>
@@ -1011,6 +1013,7 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
         await client.close()
       }
     } catch (error: unknown) {
+      openParkedByNetworkPromise = undefined
       return {
         unreachable: error instanceof Error ? error.message : String(error),
       }

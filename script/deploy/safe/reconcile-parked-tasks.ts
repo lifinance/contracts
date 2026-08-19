@@ -58,6 +58,7 @@ import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { isAddress } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
@@ -84,6 +85,14 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Default cold-network TTL before a "still open" alert fires (spec §14 Q10). */
 const DEFAULT_TTL_DAYS = 60
+
+/**
+ * How long after `resolvedAt` a terminal task on a non-active network is still
+ * worth alerting about (its false-resolution re-check is suspended). Older
+ * resolutions survived weeks of re-checks while the chain was readable; alerting
+ * on them forever would bury the failure channel for deprecated networks.
+ */
+const TERMINAL_RECHECK_ALERT_DAYS = 60
 
 /** Lifecycle transition the reconcile should apply to a task. */
 export type ReconcileDecision =
@@ -746,6 +755,7 @@ async function reconcileAll(
     string,
     { network: string; environment: EnvironmentEnum; count: number }
   >()
+  const now = new Date()
   for (const task of deprecated) {
     const decision = deprecatedNetworkDecision(task)
     if (decision === 'keep' && task.status !== 'proposed') {
@@ -753,6 +763,13 @@ async function reconcileAll(
       // false-resolution re-check is suspended for it — reported per network in
       // the failure alert, since a narrowed networks.json silently suspending
       // the re-check fleet-wide must be visible in Slack, not only the job log.
+      // Scoped to RECENTLY resolved rows: a resolution that survived weeks of
+      // re-checks while the network was active is settled history, and a
+      // permanently deprecated network must not alert forever.
+      const ageDays = task.resolvedAt
+        ? (now.getTime() - task.resolvedAt.getTime()) / DAY_MS
+        : 0
+      if (ageDays >= TERMINAL_RECHECK_ALERT_DAYS) continue
       const key = `${task.network}:${task.environment}`
       const entry = terminalSkippedByNetwork.get(key) ?? {
         network: task.network,
@@ -869,9 +886,14 @@ async function reconcileAll(
       // removability and the suspect-snapshot signals all come from the exact
       // code the drain removes through, so eval and remover cannot disagree.
       let engine: Awaited<ReturnType<typeof computeFacetRemovalsByAddress>>
-      const validTasks = tasks.filter((t) => t.facetAddress.startsWith('0x'))
+      // Same validity gate as the drain (isAddress, not a 0x-prefix check): a
+      // truncated hex string would sail into the engine, land in
+      // notFoundOnChain, and be terminally resolved as superseded.
+      const validTasks = tasks.filter((t) =>
+        isAddress(t.facetAddress, { strict: false })
+      )
       for (const t of tasks)
-        if (!t.facetAddress.startsWith('0x'))
+        if (!isAddress(t.facetAddress, { strict: false }))
           anomalies.push({
             network,
             environment,
@@ -908,9 +930,11 @@ async function reconcileAll(
 
       const { routedAddresses, routedNames } = engine
       routedByNetworkEnv.set(`${network}:${environment}`, routedAddresses)
-      const removableAddresses = new Set(
-        engine.removals.map((r) => r.address.toLowerCase())
+      const removalNameByAddress = new Map(
+        engine.removals.map((r) => [r.address.toLowerCase(), r.name])
       )
+      const reopenedAddresses = new Set<string>()
+      const removableAddresses = new Set(removalNameByAddress.keys())
       const refusedByAddress = new Map<string, string>()
       for (const p of engine.protectedSkipped)
         refusedByAddress.set(
@@ -929,11 +953,23 @@ async function reconcileAll(
           task.status === 'proposed'
             ? await resolveProposalStatus(pendingTransactions, task.safeTxHash)
             : undefined
-        const removable = removableAddresses.has(address)
-          ? true
-          : refusedByAddress.has(address)
-          ? false
+        // The drain also refuses a removal whose engine-resolved deploy-log name
+        // disagrees with the parked label (wrong snapshot) — mirror it here or a
+        // reopen would promise a removal every drain then refuses.
+        const engineName = removableAddresses.has(address)
+          ? removalNameByAddress.get(address)
           : undefined
+        const nameMismatch =
+          engineName !== undefined && engineName !== task.facetName
+        const refusalReason = nameMismatch
+          ? `the deploy log names this address ${engineName}, which disagrees with the parked label ${task.facetName} — wrong snapshot; the drain would refuse it`
+          : refusedByAddress.get(address)
+        const removable =
+          removableAddresses.has(address) && !nameMismatch
+            ? true
+            : refusalReason !== undefined
+            ? false
+            : undefined
         const decision = reconcileDecision(task, {
           facetPresentOnChain: presentOnChain,
           proposalStatus,
@@ -977,7 +1013,7 @@ async function reconcileAll(
             removable === undefined
               ? `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions are unavailable — run \`forge build\`) — reopen withheld`
               : `facet is routed again and the removal engine refuses it (${
-                  refusedByAddress.get(address) ?? 'not removable'
+                  refusalReason ?? 'not removable'
                 }) — treated as a deliberate re-add, reopen withheld`
           consola.warn(
             `[${network}:${environment}] ${task.facetName}: ${reason}`
@@ -999,14 +1035,20 @@ async function reconcileAll(
         try {
           if (decision === 'reopen') {
             // Recorded in dry-run too, so the false-resolution alert is visible
-            // without --yes; only the Slack send is gated on applying.
-            if (!apply || (await reopenResolvedTask(parkedTasks, task._id)))
+            // without --yes; only the Slack send is gated on applying. Deduped
+            // by address either way — several terminal rows can share one
+            // address, apply-mode reopens exactly one (the store's address
+            // pre-check nulls the rest), and the dry-run count must match.
+            if (reopenedAddresses.has(address)) continue
+            if (!apply || (await reopenResolvedTask(parkedTasks, task._id))) {
+              reopenedAddresses.add(address)
               reopened.push({
                 network,
                 facet: task.facetName,
                 prUrl: task.prUrl,
                 from: task.status,
               })
+            }
             continue
           }
           if (!apply) continue

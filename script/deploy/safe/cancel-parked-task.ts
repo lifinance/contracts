@@ -42,12 +42,19 @@ const main = defineCommand({
   async run({ args }) {
     const { client, parkedTasks } = await getParkedTasksCollection()
     try {
-      const task = await parkedTasks.findOne({ taskKey: { $eq: args.taskKey } })
-      if (!task) {
+      // One key can own several rows (the open index covers only queued/proposed,
+      // so terminal history accumulates under it) — target the queued one, since
+      // that is the only row markCancelled can touch.
+      const rows = await parkedTasks
+        .find({ taskKey: { $eq: args.taskKey } })
+        .toArray()
+      if (rows.length === 0) {
         consola.error(`No parked task found for taskKey "${args.taskKey}"`)
         process.exitCode = 1
         return
       }
+      const task = rows.find((row) => row.status === 'queued') ?? rows[0]
+      if (!task) return
       consola.info(
         `${task.network}/${task.facetName} @ ${task.facetAddress} (${task.status}) — origin PR: ${task.prUrl}`
       )
