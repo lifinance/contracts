@@ -39,7 +39,7 @@ import {
   diffFacets,
   getExpectedFacetNames,
   getProtectedNames,
-  getSourceContractNames,
+  cachedSourceContractNames,
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
@@ -976,12 +976,47 @@ export function splitByParkedCoverage(
 }
 
 /**
- * Memoized `src/` walk — the health check evaluates every network in one process,
- * and the source set is identical for all of them.
+ * Open parked tasks fleet-wide, fetched once per process and grouped by network
+ * (lowercased `facetAddress` sets). The health check evaluates dozens of networks
+ * concurrently in one process, and a Mongo connect/index-check/teardown per stale
+ * network would hammer the shared cluster; one shared read serves them all.
+ * `null` = queue unreachable (with the reason), so each network degrades to a
+ * coverage warning instead of a false alarm. The rejection is cached too — one
+ * outage must not retrigger a connection attempt per network.
  */
-let sourceContractNamesCache: Set<string> | undefined
-const cachedSourceContractNames = (): Set<string> =>
-  (sourceContractNamesCache ??= getSourceContractNames())
+let openParkedByNetworkPromise:
+  | Promise<Map<string, Set<string>> | { unreachable: string }>
+  | undefined
+function fetchOpenParkedAddressesByNetwork(): Promise<
+  Map<string, Set<string>> | { unreachable: string }
+> {
+  return (openParkedByNetworkPromise ??= (async () => {
+    try {
+      const { getParkedTasksCollection, listParkedTasks, OPEN_STATUSES } =
+        await import('./safe/parked-tasks')
+      const { client, parkedTasks } = await getParkedTasksCollection()
+      try {
+        const open = await listParkedTasks(parkedTasks, {
+          environment: EnvironmentEnum.production,
+          status: OPEN_STATUSES,
+        })
+        const byNetwork = new Map<string, Set<string>>()
+        for (const task of open) {
+          const set = byNetwork.get(task.network) ?? new Set<string>()
+          set.add(task.facetAddress.toLowerCase())
+          byNetwork.set(task.network, set)
+        }
+        return byNetwork
+      } finally {
+        await client.close()
+      }
+    } catch (error: unknown) {
+      return {
+        unreachable: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })())
+}
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -1918,47 +1953,24 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      // Only stale networks touch the queue (and its mongodb dep).
-      let openParkedAddresses: Set<string>
-      try {
-        const { getParkedTasksCollection, listParkedTasks } = await import(
-          './safe/parked-tasks'
-        )
-        const { client, parkedTasks } = await getParkedTasksCollection()
-        try {
-          const open = [
-            ...(await listParkedTasks(parkedTasks, {
-              network: ctx.networkLower,
-              environment: EnvironmentEnum.production,
-              status: 'queued',
-            })),
-            ...(await listParkedTasks(parkedTasks, {
-              network: ctx.networkLower,
-              environment: EnvironmentEnum.production,
-              status: 'proposed',
-            })),
-          ]
-          // Keyed by ADDRESS, like the drain and the reconcile: a name maps to one
-          // deploy-log address, so a task whose address does not match the stale
-          // facet on-chain covers nothing the drain would actually remove — and
-          // counting it as coverage silences this backstop for the very facet it
-          // exists to surface (co-registered versions, EXSC-750/EXSC-775).
-          openParkedAddresses = new Set(
-            open.map((t) => t.facetAddress.toLowerCase())
-          )
-        } finally {
-          await client.close()
-        }
-      } catch (error: unknown) {
+      // Only stale networks consult the queue (fetched once per process — see
+      // fetchOpenParkedAddressesByNetwork). Coverage is keyed by ADDRESS, like
+      // the drain and the reconcile: a name maps to one deploy-log address, so a
+      // task whose address does not match the stale facet on-chain covers
+      // nothing the drain would actually remove — counting it as coverage would
+      // silence this backstop for the very facet it exists to surface
+      // (co-registered versions, EXSC-750/EXSC-775).
+      const openParked = await fetchOpenParkedAddressesByNetwork()
+      if ('unreachable' in openParked) {
         // An unreachable queue must not turn every parked removal into a false
         // alarm — surface the reduced coverage instead of guessing.
-        const errorMessage =
-          error instanceof Error ? error.message : String(error)
         ctx.logWarn(
-          `Parked-task queue unreachable — stale-facet coverage check skipped (${deprecated.length} stale facet(s) unverified): ${errorMessage}`
+          `Parked-task queue unreachable — stale-facet coverage check skipped (${deprecated.length} stale facet(s) unverified): ${openParked.unreachable}`
         )
         return
       }
+      const openParkedAddresses =
+        openParked.get(ctx.networkLower) ?? new Set<string>()
 
       const { parked, unparked } = splitByParkedCoverage(
         deprecated,
