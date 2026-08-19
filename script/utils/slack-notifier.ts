@@ -56,6 +56,26 @@ interface IProcessingStats {
 // posts instead of being dropped.
 const SLACK_TEXT_LIMIT = 2900
 
+/**
+ * Whether this process is the unattended scheduled run rather than a developer's
+ * shell. A local run reads its own console, so delivering its output to the shared
+ * channel only posts noise the team has to triage — and a rehearsal against a
+ * narrowed config posts alarms that are false by construction.
+ *
+ * `.env` is symlinked across worktrees, so the webhook is always populated
+ * locally — presence of the URL cannot stand in for this check.
+ *
+ * A wrapper that exports `CI=false`/`CI=0` is opting OUT, so a plain truthiness
+ * check on the variable would hand it delivery — the very outcome it asked to avoid.
+ *
+ * @returns `true` under GitHub Actions (scheduled or manually dispatched), `false`
+ * in a developer shell unless `CI` is exported by hand to force delivery.
+ */
+export function isUnattendedRun(): boolean {
+  const ci = String(process.env.CI ?? '').toLowerCase()
+  return !['', '0', 'false', 'no'].includes(ci)
+}
+
 export class SlackNotifier {
   private webhookUrl: string
   private startTime: Date

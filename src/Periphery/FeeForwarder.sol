@@ -3,12 +3,16 @@ pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InsufficientBalance } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
 /// @notice Forwards various fee amounts to designated recipients
-/// @custom:version 1.0.0
+/// @dev This contract is not intended to custody funds: a normal invocation forwards
+///      everything it receives and leaves no net balance behind. A balance that does
+///      accumulate anyway (e.g. a forced transfer) is never paid out as a caller refund
+///      and is recoverable only by the owner via WithdrawablePeriphery.
+/// @custom:version 2.0.0
 contract FeeForwarder is WithdrawablePeriphery {
     /// Types ///
 
@@ -73,7 +77,10 @@ contract FeeForwarder is WithdrawablePeriphery {
     }
 
     /// @notice Forwards native token fees to the specified recipients
-    /// @dev Any excess native tokens sent will be refunded to the caller. Transaction will revert if insufficient funds.
+    /// @dev The unspent part of msg.value will be refunded to the caller. An invocation may
+    ///      never distribute more than its own msg.value: it reverts with InsufficientBalance
+    ///      if the contract balance covered the shortfall, otherwise the failing transfer
+    ///      reverts first with ETHTransferFailed.
     ///      The tx will not revert if the array is empty, but will still emit the FeesForwarded event.
     /// @param _distributions Array of fee distributions containing recipients and amounts
     function forwardNativeFees(
@@ -81,31 +88,38 @@ contract FeeForwarder is WithdrawablePeriphery {
     ) external payable {
         // we do not check the length of the distributions array to save gas
 
-        // also we do not check sufficient msg.value / native balance to save gas
-        // the tx will revert anyway in this case
-
         // forward all native fee amounts to the recipients
+        uint256 totalDistributed;
         FeeDistribution calldata distribution;
         for (uint256 i; i < _distributions.length; ++i) {
             distribution = _distributions[i];
 
             // we do intentionally not check for amount == 0 to save gas
 
+            uint256 amount = distribution.amount;
+            unchecked {
+                totalDistributed += amount;
+            }
+
             LibAsset.transferNativeAsset(
                 payable(distribution.recipient),
-                distribution.amount
+                amount
             );
         }
 
-        // return any remaining native tokens to the caller
-        // since the contract is designed to not hold any funds and does not collect any dust
-        // we can safely return the remaining native balance to the caller
-        uint256 remainingNativeBalance = address(this).balance;
-        if (remainingNativeBalance != 0) {
-            LibAsset.transferNativeAsset(
-                payable(msg.sender),
-                remainingNativeBalance
-            );
+        // an invocation may only spend what its own caller funded: recipients receive
+        // native funds with all gas forwarded and can call back into this function, so
+        // spending against the contract balance would let a nested call draw on a stray
+        // balance or on a parent call's still-undistributed funds
+        if (totalDistributed > msg.value)
+            revert InsufficientBalance(totalDistributed, msg.value);
+
+        uint256 refundAmount;
+        unchecked {
+            refundAmount = msg.value - totalDistributed;
+        }
+        if (refundAmount != 0) {
+            LibAsset.transferNativeAsset(payable(msg.sender), refundAmount);
         }
 
         emit FeesForwarded(LibAsset.NULL_ADDRESS, _distributions);
