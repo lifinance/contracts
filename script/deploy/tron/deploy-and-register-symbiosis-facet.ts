@@ -143,9 +143,11 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         `backendSigner.${environment} not found in config/global.json`
       )
 
-    // Normalize before validating: Tron's zero address has a base58 encoding
-    // (T9yD14...) as well as the EVM hex one, and a raw string compare would
-    // read that as a configured router.
+    // The deployer's energy estimation ABI-encodes these via ethers, which
+    // rejects Tron base58, so every address is normalized to EVM hex. The
+    // checks below rely on that too: Tron's zero address also has a base58
+    // encoding (T9yD14...), which a raw string compare would read as a
+    // configured router.
     const constructorArgs = [
       tronAddressToHex(tronWeb, metaRouter),
       tronAddressToHex(tronWeb, gateway),
