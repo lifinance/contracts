@@ -124,7 +124,6 @@ linea = "${ETH_NODE_URI_LINEA}"
 lisk = "${ETH_NODE_URI_LISK}"
 megaeth = "${ETH_NODE_URI_MEGAETH}"
 monad= "${ETH_NODE_URI_MONAD}"
-moonbeam = "${ETH_NODE_URI_MOONBEAM}"
 nova = "${ETH_NODE_URI_NOVA}"
 mantle = "${ETH_NODE_URI_MANTLE}"
 metis = "${ETH_NODE_URI_METIS}"
@@ -205,7 +204,6 @@ megaeth = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://megaeth.blo
 metis = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088" }
 mode = { key = "${MODE_ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/34443/etherscan", chain = "34443" }
 monad = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=143", verifier = "custom", chain = "143" }
-moonbeam = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1284", chain = "1284" }
 morph = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer-api.morph.network/api", chain = "2818", verifier = "blockscout" }
 nibiru = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/6900/etherscan", chain = "6900" }
 optimism = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10", chain = "10" }

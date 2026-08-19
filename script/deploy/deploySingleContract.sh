@@ -106,6 +106,27 @@ deploySingleContract() {
     warning "$REFUND_REMINDER"
   fi
 
+  # Non-fatal reminder: warn if this facet declares a companion periphery contract
+  # (config/global.json -> facetPeripheryCouplings) that is absent from this network's deploy log.
+  # Deploying the facet before its Receiver is the normal order, so this is a nudge, not a gate -
+  # the facet-required-periphery health-check invariant is the enforcing check.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local COMPANION_REMINDER
+  COMPANION_REMINDER=$(bunx tsx script/deploy/resources/facetCompanionReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$COMPANION_REMINDER" ]]; then
+    warning "$COMPANION_REMINDER"
+  fi
+
+  # Non-fatal reminder: warn which already-deployed contracts bind this one immutably at
+  # construction and therefore need a redeploy afterwards (Executor -> all Receiver... contracts,
+  # ERC20Proxy -> Executor -> all Receiver... contracts). Derived from deployRequirements.json.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local DEPENDENCY_REMINDER
+  DEPENDENCY_REMINDER=$(bunx tsx script/deploy/resources/contractDependencyReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$DEPENDENCY_REMINDER" ]]; then
+    warning "$DEPENDENCY_REMINDER"
+  fi
+
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
