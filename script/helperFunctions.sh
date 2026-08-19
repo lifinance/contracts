@@ -10,6 +10,13 @@
 # to this file read so later `source`d scripts do not export unrelated locals by default.
 set -a
 source .env
+
+# Every script that re-sources this file re-reads .env, which would snap a failed-over
+# endpoint back to the one already proven inadequate. Re-applying the overrides here
+# keeps a switch made during deployment effective for the diamondCut that follows.
+if [[ -n "${LIFI_RPC_OVERRIDE_FILE:-}" && -f "${LIFI_RPC_OVERRIDE_FILE:-}" ]]; then
+  source "$LIFI_RPC_OVERRIDE_FILE"
+fi
 set +a
 
 NETWORKS_JSON_FILE_PATH="config/networks.json"
@@ -3927,6 +3934,83 @@ function getRPCUrl() {
   # return RPC URL
   echo "$RPC_URL"
 }
+
+# tryRpcFailover: point NETWORK at a different RPC endpoint after a failed forge run.
+#
+# Only switches when the failure provably preceded any broadcast; a transaction that
+# may have reached the mempool pins the endpoint, because a different backend has a
+# different view of it. The forge output is piped in rather than passed as an argument
+# since it routinely quotes the full RPC URL, and the resolved URL is exported rather
+# than returned so that forge picks it up through its foundry.toml alias.
+#
+# Usage: tryRpcFailover NETWORK FORGE_OUTPUT
+#   NETWORK      - Network key as used in config/networks.json
+#   FORGE_OUTPUT - Combined stderr and unextracted stdout from the failed run
+#
+# Returns: 0 when the endpoint was switched, 1 when it was not
+# Example: tryRpcFailover "celo" "$STDERR_CONTENT
+# $RAW_STDOUT_FULL"
+function tryRpcFailover() {
+  local NETWORK="$1"
+  local FORGE_OUTPUT="$2"
+
+  local RPC_KEY
+  RPC_KEY=$(getRPCEnvVarName "$NETWORK")
+
+  # Exclusions accumulate per network, so returning to a network later in the same
+  # shell still remembers what already failed there. Excluding only the current
+  # endpoint would let two bad ones be picked alternately until the retry budget is
+  # gone; sharing one list across networks would exclude another chain's endpoints.
+  local EXCLUDED_KEY="RPC_FAILOVER_EXCLUDED_${RPC_KEY}"
+  local EXCLUDED="${!EXCLUDED_KEY:-}"
+  local CURRENT="${!RPC_KEY:-}"
+  if [[ -n "$CURRENT" ]] && ! printf '%s\n' "$EXCLUDED" | grep -qxF "$CURRENT"; then
+    EXCLUDED="${EXCLUDED:+${EXCLUDED}$'\n'}${CURRENT}"
+    printf -v "$EXCLUDED_KEY" '%s' "$EXCLUDED"
+  fi
+  local RPC_FAILOVER_EXCLUDED="$EXCLUDED"
+
+  local NEW_RPC_URL RESOLVER_EXIT=0
+  NEW_RPC_URL=$(printf '%s' "$FORGE_OUTPUT" |
+    LIFI_RPC_EXCLUDE="$RPC_FAILOVER_EXCLUDED" bunx tsx script/utils/resolveRpcUrl.ts "$NETWORK" --after-failure) || RESOLVER_EXIT=$?
+
+  # Exit code 3 means the resolver declined on purpose (a transaction may be in
+  # flight); anything else is an operator-actionable failure worth surfacing.
+  case "$RESOLVER_EXIT" in
+    0) ;;
+    3) return 1 ;;
+    *)
+      warning "could not resolve an alternative RPC endpoint for '$NETWORK' (resolver exit $RESOLVER_EXIT)"
+      return 1
+      ;;
+  esac
+
+  if [[ -z "$NEW_RPC_URL" ]]; then
+    return 1
+  fi
+
+  export "$RPC_KEY=$NEW_RPC_URL"
+
+  # Persist for scripts sourced later in the rollout (diamondUpdateFacet and friends),
+  # which re-read .env on entry. Owner-only: the value is a credential.
+  if [[ -z "${LIFI_RPC_OVERRIDE_FILE:-}" ]]; then
+    LIFI_RPC_OVERRIDE_FILE="$(mktemp -t lifi-rpc-override)"
+    export LIFI_RPC_OVERRIDE_FILE
+  fi
+  chmod 600 "$LIFI_RPC_OVERRIDE_FILE" 2>/dev/null || true
+  grep -v "^${RPC_KEY}=" "$LIFI_RPC_OVERRIDE_FILE" > "${LIFI_RPC_OVERRIDE_FILE}.tmp" 2>/dev/null || true
+  mv "${LIFI_RPC_OVERRIDE_FILE}.tmp" "$LIFI_RPC_OVERRIDE_FILE" 2>/dev/null || true
+  printf '%s=%q\n' "$RPC_KEY" "$NEW_RPC_URL" >> "$LIFI_RPC_OVERRIDE_FILE"
+
+  # A MongoDB-sourced endpoint was never seen by the workflow's ::add-mask:: sweep over
+  # the .env keys, and forge quotes the full URL in transport errors.
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::add-mask::$NEW_RPC_URL"
+  fi
+
+  echo "switched RPC endpoint for '$NETWORK' after a pre-broadcast failure"
+  return 0
+}
 function getRpcUrlFromNetworksJson() {
   local NETWORK="$1"
 
@@ -4978,11 +5062,16 @@ function executeAndCapture() {
   local STDERR_LOG
   STDOUT_LOG="$(mktemp)"
   STDERR_LOG="$(mktemp)"
+  # forge's human-readable progress lines ("Sending transactions", "Waiting for
+  # receipts") are the only evidence of how far a run got, and JSON extraction below
+  # discards them, so keep an unextracted copy for failure classification.
+  local STDOUT_RAW_LOG
+  STDOUT_RAW_LOG="$(mktemp)"
 
   # Preserve caller EXIT trap (this file is sourced in many scripts)
   local _OLD_EXIT_TRAP
   _OLD_EXIT_TRAP="$(trap -p EXIT 2>/dev/null || true)"
-  trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null' EXIT
+  trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" "$STDOUT_RAW_LOG" 2>/dev/null' EXIT
 
   # Execute command with redirection
   eval "$COMMAND" >"$STDOUT_LOG" 2>"$STDERR_LOG"
@@ -4998,6 +5087,8 @@ function executeAndCapture() {
   echoDebug "=== STDERR_CONTENT (stderr) ==="
   echoDebug "$STDERR_CONTENT"
 
+  cp "$STDOUT_LOG" "$STDOUT_RAW_LOG" 2>/dev/null || true
+
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
@@ -5009,12 +5100,13 @@ function executeAndCapture() {
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
     --rawfile stdout "$STDOUT_LOG" \
+    --rawfile stdoutRaw "$STDOUT_RAW_LOG" \
     --rawfile stderr "$STDERR_LOG" \
     --argjson returnCode "$RETURN_CODE" \
-    '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
+    '{stdout: $stdout, stdoutRaw: $stdoutRaw, stderr: $stderr, returnCode: $returnCode}')
 
   # Explicit cleanup + restore previous EXIT trap
-  rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
+  rm -f "$STDOUT_LOG" "$STDERR_LOG" "$STDOUT_RAW_LOG" 2>/dev/null
   if [[ -n "$_OLD_EXIT_TRAP" ]]; then
     eval "$_OLD_EXIT_TRAP"
   else
@@ -5054,10 +5146,11 @@ function parseExecuteCommandResult() {
 
   # Parse JSON result and merge into single object using jq
   local PARSED
-  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stderr: .stderr, returnCode: .returnCode}')
+  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stdoutRaw: .stdoutRaw, stderr: .stderr, returnCode: .returnCode}')
 
   # Extract and set variables from merged JSON object
   RAW_RETURN_DATA=$(echo "$PARSED" | jq -r '.stdout')
+  RAW_STDOUT_FULL=$(echo "$PARSED" | jq -r '.stdoutRaw // ""')
   STDERR_CONTENT=$(echo "$PARSED" | jq -r '.stderr')
   RETURN_CODE=$(echo "$PARSED" | jq -r '.returnCode')
 
