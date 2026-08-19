@@ -145,6 +145,15 @@ function collectFns(): IAbiFn[] {
       fnNames.add(item.name)
     }
   }
+  // An empty `out/` yields zero functions, zero template failures, and an empty
+  // proposal written over the committed one — a silent wipe that reads as success.
+  if (Object.keys(out).length === 0) {
+    console.error(
+      `\n❌ buildClearSigningProposal: no facet artifacts found under ${OUT_DIR}.\n   fix:    run \`forge build\` first, then re-run this generator.\n`
+    )
+    process.exit(1)
+  }
+
   return Object.values(out).sort((a, b) =>
     collectionSignature(a).localeCompare(collectionSignature(b))
   )
@@ -275,9 +284,9 @@ const RECEIVER_FIELD: IField = {
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // No first-class "chainId" formatter in ERC-7730 v2; raw uint is rendered as-is.
-  // Wallets that know the chain registry can pretty-print it themselves.
-  format: 'raw',
+  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
+  // back to rendering numerically.
+  format: 'chainId',
   visible: 'always',
 }
 

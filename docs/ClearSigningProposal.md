@@ -24,14 +24,14 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
   "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
   "fields": [
     { "path": "_bridgeData.minAmount",          "label": "Amount to Bridge",   "format": "tokenAmount", "params": { "tokenPath": "_bridgeData.sendingAssetId" }, "visible": "always" },
-    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "raw",         "visible": "always" },
+    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "chainId",     "visible": "always" },
     { "path": "_bridgeData.receiver",           "label": "Recipient",         "format": "addressName", "params": { "types": ["eoa","contract"], "sources": ["local","ens"] }, "visible": "always" },
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
-Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain 137 for vitalik.eth"*.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name — any non-EVM synthetic id — falls back to the integer.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -92,7 +92,7 @@ The seven existing `display.formats` entries from the current registry descripto
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
 2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. Hop have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
-3. **`destinationChainId` as `raw`** — ERC-7730 v2 has no first-class `chainId` formatter. Wallets that know the [chainID registry](https://chainlist.org/) will pretty-print it; others show the integer. Acceptable trade-off vs. introducing per-chain string tables we'd have to maintain.
+3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
