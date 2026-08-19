@@ -41,6 +41,7 @@ import {
   isSuspectAddressSnapshot,
   resolveFacetPresence,
   shouldCancelDeprecated,
+  shouldWithholdSuspectResolution,
   ttlAlertDelivery,
 } from './reconcile-parked-tasks'
 
@@ -247,6 +248,65 @@ describe('isSuspectAddressSnapshot', () => {
         new Set(['OtherFacet']),
         new Set(['0xdead'])
       )
+    ).toBe(false)
+  })
+})
+
+describe('shouldWithholdSuspectResolution', () => {
+  const routedNames = new Set(['SymbiosisFacet'])
+  const routedAddresses = new Set([addr(0x2).toLowerCase()])
+  const suspect = {
+    facetName: 'SymbiosisFacet',
+    facetAddress: addr(0x1),
+  }
+
+  it('withholds the worldchain shape: unclaimed task, address gone, name routed', () => {
+    expect(
+      shouldWithholdSuspectResolution({
+        task: suspect,
+        decision: 'superseded',
+        routedNames,
+        routedAddresses,
+      })
+    ).toBe(true)
+  })
+
+  it('resolves a claimed removal — the claim proves the address was routed here', () => {
+    // The co-registered case (EXSC-750): the drain claimed v1.0.0 off this
+    // diamond's loupe, so its absence is that removal landing, not a bad snapshot.
+    // Withholding here would leave the task open forever on all 35 chains.
+    expect(
+      shouldWithholdSuspectResolution({
+        task: { ...suspect, safeTxHash: '0xfeed' },
+        decision: 'executed',
+        routedNames,
+        routedAddresses,
+      })
+    ).toBe(false)
+  })
+
+  it('never re-flags a task that needs no transition', () => {
+    // An already-terminal task decides `keep`; gating it would re-alert every run
+    // for a removal that completed correctly.
+    for (const decision of ['keep', 'reopen', 'revert', 'cancel'] as const)
+      expect(
+        shouldWithholdSuspectResolution({
+          task: suspect,
+          decision,
+          routedNames,
+          routedAddresses,
+        })
+      ).toBe(false)
+  })
+
+  it('does not withhold when the name is gone from the diamond too', () => {
+    expect(
+      shouldWithholdSuspectResolution({
+        task: suspect,
+        decision: 'superseded',
+        routedNames: new Set(['OtherFacet']),
+        routedAddresses,
+      })
     ).toBe(false)
   })
 })

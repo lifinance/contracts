@@ -66,6 +66,8 @@ export interface IDrainOutcome {
   suspectSnapshots: string[]
   /** Facets whose protected status could not be verified → left queued + alerted. */
   unverifiable: string[]
+  /** Second and later tasks sharing one facet address → left queued + alerted. */
+  duplicateAddresses: string[]
   /** Removals whose claim was lost to a concurrent drain → skipped this run. */
   skippedAlreadyClaimed: string[]
   /** The primary proposal's Safe tx hash, once claimed tasks are linked to it. */
@@ -152,6 +154,7 @@ export async function prepareDrainNetwork(
     protectedCancelled: [],
     suspectSnapshots: [],
     unverifiable: [],
+    duplicateAddresses: [],
     skippedAlreadyClaimed: [],
   }
   const empty: IDrainPreparation = {
@@ -197,12 +200,26 @@ export async function prepareDrainNetwork(
     removal: { selectors: `0x${string}`[] }
   }[] = []
 
+  const claimedAddresses = new Set<string>()
+
   try {
     for (const task of tasks) {
       const name = task.facetName
       const address = lower(task.facetAddress)
       const removal = removalByAddress.get(address)
       if (removal) {
+        // One address, two open tasks: the partial unique index dedups on `taskKey`,
+        // so a row still carrying the pre-EXSC-775 name-based key does not collide
+        // with a re-enqueue of the same address. Folding the same Remove twice makes
+        // the second call revert, taking the whole `scheduleBatch` — the primary
+        // proposal included — with it.
+        if (claimedAddresses.has(address)) {
+          outcome.duplicateAddresses.push(name)
+          deps.alert(
+            `[${network}] ${name} (${task.facetAddress}): a second open task carries this address — folding it in twice would revert the batch, so it stays queued. Run \`migrate-parked-task-keys.ts --apply\` and cancel the duplicate. Origin PR: ${task.prUrl}`
+          )
+          continue
+        }
         const won = await deps.claim(task.taskKey)
         if (!won) {
           outcome.skippedAlreadyClaimed.push(name)
@@ -211,6 +228,7 @@ export async function prepareDrainNetwork(
           )
           continue
         }
+        claimedAddresses.add(address)
         claimed.push({ task, removal })
       } else if (notFound.has(address)) {
         // An address can be absent because the facet really was removed, or because
@@ -221,7 +239,7 @@ export async function prepareDrainNetwork(
         if (result.routedNames.has(name)) {
           outcome.suspectSnapshots.push(name)
           deps.alert(
-            `[${network}] ${name} (${task.facetAddress}): parked address is NOT routed, but a facet named ${name} still is — refusing to supersede; verify the snapshot (wrong-network address?) before resolving. Origin PR: ${task.prUrl}`
+            `[${network}] ${name} (${task.facetAddress}): parked address is NOT routed, but a facet named ${name} still is — refusing to supersede. Adjudicate: if the origin PR parked another network's address, re-enqueue with this network's and cancel this task; if the facet was removed out-of-band, cancel it. Until then it stays queued and this alert repeats. Origin PR: ${task.prUrl}`
           )
           continue
         }
@@ -546,18 +564,32 @@ async function sendDrainSlackAlert(message: string): Promise<void> {
 
 /** Human-readable one-line summary of a drain run. */
 function logDrainSummary(outcome: IDrainOutcome): void {
-  const { proposed, superseded, protectedCancelled } = outcome
+  const {
+    proposed,
+    superseded,
+    protectedCancelled,
+    suspectSnapshots,
+    unverifiable,
+    duplicateAddresses,
+  } = outcome
+  // Refusals are counted, not just alerted: a run that left every queued task
+  // untouched must never summarise as "nothing to do".
+  const refused =
+    suspectSnapshots.length + unverifiable.length + duplicateAddresses.length
   if (
     proposed.length === 0 &&
     superseded.length === 0 &&
-    protectedCancelled.length === 0
+    protectedCancelled.length === 0 &&
+    refused === 0
   ) {
     consola.info(`[${outcome.network}] parked-task drain: nothing to do`)
     return
   }
   consola.success(
     `[${outcome.network}] parked-task drain: ${proposed.length} folded in, ` +
-      `${superseded.length} superseded, ${protectedCancelled.length} cancelled` +
+      `${superseded.length} superseded, ${protectedCancelled.length} cancelled, ` +
+      `${refused} left queued (${suspectSnapshots.length} suspect snapshot, ` +
+      `${unverifiable.length} unverifiable, ${duplicateAddresses.length} duplicate address)` +
       (outcome.safeTxHash ? ` → ${outcome.safeTxHash}` : '')
   )
 }

@@ -226,6 +226,34 @@ describe('prepareDrainNetwork', () => {
     expect(prep.claimedTaskKeys).toEqual([a.taskKey, b.taskKey])
   })
 
+  it('folds one address in only once when two open tasks carry it', async () => {
+    // Pre-EXSC-775 rows keep the name-based `taskKey`, so the partial unique index
+    // does not collide them with a re-enqueue of the same address. Two identical
+    // Remove calls in one scheduleBatch would revert on the second, taking the
+    // primary proposal with it.
+    const shared = facetAddr('SymbiosisFacet')
+    const first = task('SymbiosisFacet', { facetAddress: shared })
+    const second = task('SymbiosisFacet', {
+      facetAddress: shared,
+      taskKey: 'facet-removal|arbitrum|production|SymbiosisFacet',
+      prUrl: 'https://gh/pull/2199',
+    })
+    const deps = makeDeps({
+      queued: [first, second],
+      result: addressResult({ removals: [removal('SymbiosisFacet')] }),
+    })
+    const prep = await prepareDrainNetwork(NETWORK, PROD, deps)
+
+    expect(prep.calls).toHaveLength(1)
+    expect(deps.calls.claim).toEqual([first.taskKey])
+    expect(prep.claimedTaskKeys).toEqual([first.taskKey])
+    expect(prep.outcome.duplicateAddresses).toEqual(['SymbiosisFacet'])
+    // The duplicate stays queued — never superseded or cancelled behind the operator.
+    expect(deps.calls.supersede).toEqual([])
+    expect(deps.calls.cancel).toEqual([])
+    expect(deps.calls.alerts.join('\n')).toContain('second open task')
+  })
+
   it('supersedes a task whose facet is already gone on-chain (no call emitted)', async () => {
     const t = task('GoneFacet')
     const deps = makeDeps({

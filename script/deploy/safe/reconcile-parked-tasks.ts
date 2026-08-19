@@ -41,7 +41,8 @@
  * the cron never cancels, because that config is narrowed for pause rehearsals.
  *
  * The pure decisions ({@link reconcileDecision}, {@link resolveFacetPresence},
- * {@link deprecatedNetworkDecision}, {@link partitionByNetworkStatus},
+ * {@link shouldWithholdSuspectResolution}, {@link deprecatedNetworkDecision},
+ * {@link partitionByNetworkStatus},
  * {@link shouldCancelDeprecated}, {@link parseTtlDays}, {@link computeTtlAlerts},
  * {@link formatTtlAlertMessage},
  * {@link computeSafeToPrune}, {@link formatSafeToPruneReport}) are fully unit-tested;
@@ -273,11 +274,15 @@ export function resolveFacetPresence(
  *
  * This is the worldchain `AcrossFacetV3` failure: the task carried lisk's
  * address, so an address check truthfully answered "not routed", the task was
- * resolved as `executed`, and the facet stayed live for 18 days. It is NOT the
- * same shape as a legitimate co-registered removal, where the parked address is
- * gone *because it was just removed* — that case is only distinguishable by
- * whether the name's live address differs from the parked one, so the caller
- * treats a hit as an alert to investigate, never as a resolution.
+ * resolved as `executed`, and the facet stayed live for 18 days.
+ *
+ * A legitimate co-registered removal presents the identical loupe shape — the parked
+ * version is gone while its successor keeps the deploy-log name — and neither the log
+ * nor the loupe separates the two, since the log holds one address per name and that
+ * address is the routed one either way. Only the task's own history does, so the
+ * caller consults this exclusively for an UNCLAIMED task it is about to resolve: a
+ * linked `safeTxHash` proves the drain resolved this address off this diamond's
+ * loupe, making its absence that removal landing rather than a bad snapshot.
  *
  * @param task - The task's facet identity (name + stored address snapshot).
  * @param routedNames - Facet names currently routed, resolved via the deploy log.
@@ -293,6 +298,39 @@ export function isSuspectAddressSnapshot(
     !routedAddresses.has(task.facetAddress.toLowerCase()) &&
     routedNames.has(task.facetName)
   )
+}
+
+/**
+ * Whether a resolution must be withheld because the task's address snapshot is
+ * suspect ({@link isSuspectAddressSnapshot}) and nothing corroborates it.
+ *
+ * Two guards keep the suspicion from swallowing legitimate work:
+ *
+ * - Only the two RESOLVING decisions are gated. A task already terminal, or one
+ *   being reverted/reopened, needs no transition, and re-flagging it every run would
+ *   alert forever for removals that completed correctly.
+ * - A linked `safeTxHash` clears the task: the drain resolves selectors off this
+ *   diamond's own loupe before claiming, so a claim proves the parked address really
+ *   was routed here — its absence now is that removal landing, which is precisely
+ *   the co-registered case (EXSC-750). Without a claim nothing proves the address
+ *   was ever on this chain, so the contradiction goes to a human instead.
+ *
+ * @param params.task - Status, facet identity and proposal linkage of the task.
+ * @param params.decision - Transition {@link reconcileDecision} proposed.
+ * @param params.routedNames - Facet names currently routed, resolved via the deploy log.
+ * @param params.routedAddresses - Lowercased addresses currently routed by the loupe.
+ * @returns `true` when no transition may be applied.
+ */
+export function shouldWithholdSuspectResolution(params: {
+  task: Pick<IParkedTask, 'facetName' | 'facetAddress' | 'safeTxHash'>
+  decision: ReconcileDecision
+  routedNames: Set<string>
+  routedAddresses: Set<string>
+}): boolean {
+  const { task, decision, routedNames, routedAddresses } = params
+  if (decision !== 'executed' && decision !== 'superseded') return false
+  if (task.safeTxHash !== undefined) return false
+  return isSuspectAddressSnapshot(task, routedNames, routedAddresses)
 }
 
 /**
@@ -939,26 +977,6 @@ async function reconcileAll(
 
       for (const task of tasks) {
         const presentOnChain = resolveFacetPresence(task, routedAddresses)
-        // The address is gone while its name is still routed: either a superseded
-        // version was just removed, or the snapshot was wrong from the start (a task
-        // carrying another network's address, the worldchain/lisk shape). Resolving
-        // the second retires the task while the facet it targeted stays live, so no
-        // transition is applied and the contradiction is alerted instead.
-        if (isSuspectAddressSnapshot(task, routedNames, routedAddresses)) {
-          const reason = `parked address ${task.facetAddress} is not routed, but a facet named ${task.facetName} still is — wrong address snapshot? No transition applied`
-          consola.warn(
-            `[${network}:${environment}] ${task.facetName}: ${reason}`
-          )
-          anomalies.push({
-            network,
-            environment,
-            facet: task.facetName,
-            prUrl: task.prUrl,
-            reason,
-          })
-          continue
-        }
-
         const proposalStatus = await resolveProposalStatus(
           pendingTransactions,
           task.safeTxHash
@@ -981,6 +999,27 @@ async function reconcileAll(
         consola.info(
           `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
         )
+        if (
+          shouldWithholdSuspectResolution({
+            task,
+            decision,
+            routedNames,
+            routedAddresses,
+          })
+        ) {
+          const reason = `parked address ${task.facetAddress} is not routed, but a facet named ${task.facetName} still is, and no proposal ever claimed it — wrong address snapshot? No transition applied`
+          consola.warn(
+            `[${network}:${environment}] ${task.facetName}: ${reason}`
+          )
+          anomalies.push({
+            network,
+            environment,
+            facet: task.facetName,
+            prUrl: task.prUrl,
+            reason,
+          })
+          continue
+        }
         // A terminal task whose facet is routed again, yet no longer deprecated, is a
         // deliberate re-add (incident rollback, or a CREATE2 redeploy landing on the
         // same address). Reopening it would queue a Remove for a live facet target
