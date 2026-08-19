@@ -19,6 +19,8 @@ import { getAddress, type Hex } from 'viem'
 
 import {
   APPROVE_TO_ONLY,
+  assertRegisteredAddressIsDesired,
+  chunkPairs,
   desiredPairs,
   diffPairs,
   pairKey,
@@ -28,7 +30,8 @@ import {
 const NETWORK = 'arbitrum'
 const OTHER_NETWORK = 'polygon'
 
-const DEX_WITH_FUNCTIONS = '0x1111111111111111111111111111111111111111'
+// hex letters on purpose: an all-digit address makes any casing assertion vacuous
+const DEX_WITH_FUNCTIONS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff'
 const DEX_APPROVE_TO_ONLY = '0x2222222222222222222222222222222222222222'
 const PERIPHERY_WITH_SELECTORS = '0x3333333333333333333333333333333333333333'
 const PERIPHERY_APPROVE_TO_ONLY = '0x4444444444444444444444444444444444444444'
@@ -114,16 +117,15 @@ describe('desiredPairs', () => {
   })
 
   it('checksums addresses so config casing cannot fork a pair', () => {
+    const upper = `0x${DEX_WITH_FUNCTIONS.slice(2).toUpperCase()}`
+    expect(upper).not.toBe(DEX_WITH_FUNCTIONS) // guard: the fixture must have letters
     const [entry] = desiredPairs(
       {
         DEXS: [
           {
             contracts: {
               [NETWORK]: [
-                {
-                  address: DEX_WITH_FUNCTIONS.toUpperCase().replace('0X', '0x'),
-                  functions: { [SWAP]: 'swap(...)' },
-                },
+                { address: upper, functions: { [SWAP]: 'swap(...)' } },
               ],
             },
           },
@@ -132,6 +134,13 @@ describe('desiredPairs', () => {
       NETWORK
     )
     expect(entry?.contract).toBe(getAddress(DEX_WITH_FUNCTIONS))
+    // the diff must see the differently-cased config and on-chain forms as one pair
+    const { toAdd, toRemove } = diffPairs(
+      [pair(upper, SWAP)],
+      [pair(DEX_WITH_FUNCTIONS.toLowerCase(), SWAP)]
+    )
+    expect(toAdd).toEqual([])
+    expect(toRemove).toEqual([])
   })
 
   it('returns nothing for a network absent from both sections', () => {
@@ -172,5 +181,59 @@ describe('diffPairs', () => {
     const { toAdd, toRemove } = diffPairs(desired, [])
     expect(toAdd.map(pairKey)).toEqual(desired.map(pairKey))
     expect(toRemove).toEqual([])
+  })
+})
+
+describe('assertRegisteredAddressIsDesired', () => {
+  it('passes when the config lists the address being registered', () => {
+    expect(() =>
+      assertRegisteredAddressIsDesired(
+        desiredPairs(config, NETWORK),
+        getAddress(PERIPHERY_WITH_SELECTORS),
+        NETWORK
+      )
+    ).not.toThrow()
+  })
+
+  it('throws on a config that predates the deploy', () => {
+    // the stale-config inversion: the batch would register the new address while
+    // whitelisting the old one and de-whitelisting the new one
+    expect(() =>
+      assertRegisteredAddressIsDesired(
+        desiredPairs(config, NETWORK),
+        getAddress('0x9999999999999999999999999999999999999999'),
+        NETWORK
+      )
+    ).toThrow(/does not list/)
+  })
+
+  it('matches case-insensitively', () => {
+    expect(() =>
+      assertRegisteredAddressIsDesired(
+        [pair(DEX_WITH_FUNCTIONS.toLowerCase(), SWAP)],
+        getAddress(DEX_WITH_FUNCTIONS),
+        NETWORK
+      )
+    ).not.toThrow()
+  })
+})
+
+describe('chunkPairs', () => {
+  const many = Array.from({ length: 310 }, (_, i) =>
+    pair(`0x${(i + 1).toString(16).padStart(40, '0')}`, SWAP)
+  )
+
+  it('never emits a call above the per-call ceiling', () => {
+    const chunks = chunkPairs(many)
+    expect(chunks.every((c) => c.length <= 150)).toBe(true)
+    expect(chunks.flat().map(pairKey)).toEqual(many.map(pairKey))
+  })
+
+  it('emits one chunk when the set fits', () => {
+    expect(chunkPairs(many.slice(0, 7))).toHaveLength(1)
+  })
+
+  it('emits nothing for an empty set', () => {
+    expect(chunkPairs([])).toEqual([])
   })
 })

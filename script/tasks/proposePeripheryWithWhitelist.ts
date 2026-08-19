@@ -1,6 +1,5 @@
 // Proposes a diamond-called periphery contract's registration together with its
-// whitelist sync as ONE timelock scheduleBatch per network, instead of the two
-// separate proposals the deploy-then-sync path creates.
+// whitelist sync as ONE timelock scheduleBatch per network.
 import { spawnSync } from 'child_process'
 
 import { defineCommand, runMain } from 'citty'
@@ -27,6 +26,12 @@ import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 // can exceed a chain's block gas limit and become scheduled-but-unexecutable —
 // which would atomically block the registration it rides with.
 const COMBINED_PROPOSAL_MAX_PAIRS = 300
+
+// Per-call ceiling the standalone sync (script/tasks/diamondSyncWhitelist.sh) has
+// always used; a single call much larger than this risks the same gas limit.
+const WHITELIST_CALL_MAX_PAIRS = 150
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
 // A contract with no listed functions is whitelisted as approveTo-only under this
 // sentinel selector (LibAllowList.sol); omitting it reads the contract as absent
@@ -136,6 +141,68 @@ async function actualPairs(
   return out
 }
 
+/**
+ * Fails when the address about to be registered is not the one the config wants
+ * whitelisted — the signature of a `config/whitelist.json` that predates the
+ * deploy.
+ */
+export function assertRegisteredAddressIsDesired(
+  desired: IPair[],
+  registered: Address,
+  network: string
+): void {
+  const target = registered.toLowerCase()
+  if (desired.some((p) => p.contract.toLowerCase() === target)) return
+  const listed = [
+    ...new Set(
+      desired
+        .filter((p) => p.contract.toLowerCase() !== target)
+        .map((p) => p.contract)
+    ),
+  ]
+  throw new Error(
+    `config/whitelist.json does not list ${registered} for ${network} (it lists ${listed.length} other address(es)) — regenerate it with updateWhitelistPeriphery.ts before proposing`
+  )
+}
+
+/**
+ * Lowercased addresses among `pairs` that have no code on the chain. Whitelisting
+ * one reverts (`LibAllowList.addAllowedContractSelector` → `InvalidContract`), and
+ * because the batch is atomic that revert takes the registration down with it.
+ */
+async function codelessAddresses(
+  pairs: IPair[],
+  rpcUrl: string,
+  network: string
+): Promise<Set<string>> {
+  const client = createPublicClient({
+    chain: getViemChainForNetworkName(network),
+    transport: http(rpcUrl),
+  })
+  const unique = [...new Set(pairs.map((p) => p.contract))]
+  const codeless = new Set<string>()
+  for (const address of unique) {
+    if (address === ZERO_ADDRESS) {
+      codeless.add(address.toLowerCase())
+      continue
+    }
+    const code = await client.getBytecode({ address })
+    if (!code || code === '0x') codeless.add(address.toLowerCase())
+  }
+  return codeless
+}
+
+/** Splits pairs into per-call chunks of at most {@link WHITELIST_CALL_MAX_PAIRS}. */
+export function chunkPairs(
+  pairs: IPair[],
+  size = WHITELIST_CALL_MAX_PAIRS
+): IPair[][] {
+  const out: IPair[][] = []
+  for (let i = 0; i < pairs.length; i += size)
+    out.push(pairs.slice(i, i + size))
+  return out
+}
+
 /** batchSetContractSelectorWhitelist takes parallel arrays, so one pair per index. */
 function whitelistCalldata(pairs: IPair[], approved: boolean): Hex {
   return encodeFunctionData({
@@ -174,6 +241,18 @@ const main = defineCommand({
       .split(',')
       .map((n) => n.trim())
       .filter(Boolean)
+    if (!networks.length)
+      throw new Error('--networks resolved to an empty list')
+
+    // Tron has no Foundry/viem diamond path here; its proposals go through
+    // script/deploy/safe/propose-to-safe-tron.ts instead.
+    const tron = networks.filter((n) => n.startsWith('tron'))
+    if (tron.length)
+      throw new Error(
+        `${tron.join(
+          ', '
+        )} cannot be proposed through this script — use the Tron propose path`
+      )
 
     if (
       !(globalConfig as Record<string, unknown>).whitelistPeripheryFunctions ||
@@ -204,9 +283,35 @@ const main = defineCommand({
         const rpcUrl = process.env[getRPCEnvVarName(network)]
         if (!rpcUrl) throw new Error(`no RPC configured for ${network}`)
 
-        const { toAdd, toRemove } = diffPairs(
-          desiredPairs(whitelistConfig as unknown as IWhitelistConfig, network),
+        const desired = desiredPairs(
+          whitelistConfig as unknown as IWhitelistConfig,
+          network
+        )
+        // The standalone sync regenerates config/whitelist.json from the deploy
+        // logs before diffing; this script reads the committed file, so a stale
+        // one would de-whitelist the address being registered and whitelist the
+        // one it replaces — leaving the diamond unable to call it at all.
+        assertRegisteredAddressIsDesired(desired, peripheryAddress, network)
+
+        const diff = diffPairs(
+          desired,
           await actualPairs(diamond, rpcUrl, network)
+        )
+        const toRemove = diff.toRemove
+        // addAllowedContractSelector reverts with InvalidContract for a codeless
+        // address, and that revert would take the registration down with it —
+        // the whole scheduleBatch is atomic. Drop such pairs loudly instead.
+        const codeless = await codelessAddresses(diff.toAdd, rpcUrl, network)
+        if (codeless.size)
+          consola.warn(
+            `[${network}] skipping ${
+              codeless.size
+            } whitelist target(s) with no on-chain code: ${[...codeless].join(
+              ', '
+            )} — fix config/whitelist.json`
+          )
+        const toAdd = diff.toAdd.filter(
+          (p) => !codeless.has(p.contract.toLowerCase())
         )
 
         const total = toAdd.length + toRemove.length
@@ -228,18 +333,23 @@ const main = defineCommand({
             args: [contractName, peripheryAddress],
           }),
         ]
-        if (toRemove.length) {
+        for (const chunk of chunkPairs(toRemove)) {
           targets.push(diamond)
-          calldatas.push(whitelistCalldata(toRemove, false))
+          calldatas.push(whitelistCalldata(chunk, false))
         }
-        if (toAdd.length) {
+        for (const chunk of chunkPairs(toAdd)) {
           targets.push(diamond)
-          calldatas.push(whitelistCalldata(toAdd, true))
+          calldatas.push(whitelistCalldata(chunk, true))
         }
 
         consola.info(
           `[${network}] ${contractName}=${peripheryAddress} | batch calls=${calldatas.length} (remove=${toRemove.length}, add=${toAdd.length})`
         )
+        // The signer sees only calldata, so name every pair the batch touches.
+        for (const p of toRemove)
+          consola.info(`[${network}]   - ${p.contract} ${p.selector}`)
+        for (const p of toAdd)
+          consola.info(`[${network}]   + ${p.contract} ${p.selector}`)
 
         if (args.dryRun) {
           consola.success(`[${network}] dry-run: no proposal created`)

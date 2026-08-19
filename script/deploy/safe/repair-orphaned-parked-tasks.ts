@@ -1,11 +1,9 @@
 /**
  * Deferred diamond-cleanup queue — orphaned-claim repair.
  *
- * `delete-pending-proposals.ts` removes a proposal without releasing the parked
- * tasks it claimed, and `reconcile-parked-tasks.ts` cannot detect that: its
- * decision table only transitions on a linked proposal that `executed` or
- * `reverted`, so a claim pointing at a DELETED proposal falls through to `keep`
- * and the removal is never re-proposed by any future drain.
+ * A claim pointing at a DELETED proposal is unreachable: `reconcile-parked-tasks.ts`
+ * only transitions on a linked proposal that `executed` or `reverted`, so it falls
+ * through to `keep` and no future drain re-proposes the removal.
  *
  * This reverts exactly those claims to `queued`. A task is only touched when its
  * `safeTxHash` has no document in the shared proposal store, so a claim held by a
@@ -50,9 +48,9 @@ export async function repairOrphanedParkedTasks(
   })
   consola.info(`${tasks.length} task(s) in status=proposed`)
 
-  let orphans = 0
-  let repaired = 0
   let unlinked = 0
+  const linked: typeof tasks = []
+  const orphanTasks: typeof tasks = []
   for (const task of tasks) {
     if (!task.safeTxHash) {
       unlinked++
@@ -61,23 +59,57 @@ export async function repairOrphanedParkedTasks(
       )
       continue
     }
+    linked.push(task)
     const proposal = await pendingTransactions.findOne({
       safeTxHash: { $eq: task.safeTxHash },
     })
     if (proposal) continue
 
-    orphans++
+    orphanTasks.push(task)
     consola.warn(
       `[${task.network}] ${task.facetName}: linked proposal ${task.safeTxHash} is GONE → queued`
     )
-    if (!apply) continue
+  }
 
-    const updated = await revertToQueued(parkedTasks, task.taskKey)
-    if (updated) repaired++
-    else
-      consola.error(
-        `[${task.network}] ${task.facetName}: transition failed (status changed under us?)`
+  const orphans = orphanTasks.length
+  // A store that answers every lookup with null is indistinguishable from one
+  // where every proposal was deleted — except that the second is implausible.
+  // Refuse rather than release claims that live proposals still carry.
+  if (apply && orphans) {
+    const storeSize = await pendingTransactions.countDocuments({})
+    if (storeSize === 0)
+      throw new Error(
+        'proposal store is empty — refusing to repair (wrong SC_MONGODB_URI or a stale tunnel?)'
       )
+    if (linked.length > 1 && orphans === linked.length)
+      throw new Error(
+        `all ${orphans} linked claim(s) look orphaned — refusing to repair; verify SC_MONGODB_URI points at the production proposal store (${storeSize} docs)`
+      )
+  }
+
+  let repaired = 0
+  for (const task of apply ? orphanTasks : []) {
+    // one transient Mongo failure must not strand the remaining orphans
+    try {
+      // bind the revert to the hash we judged: a concurrent drain that re-proposed
+      // this task in the meantime keeps its newer claim
+      const updated = await revertToQueued(
+        parkedTasks,
+        task.taskKey,
+        task.safeTxHash
+      )
+      if (updated) repaired++
+      else
+        consola.error(
+          `[${task.network}] ${task.facetName}: transition failed (status or safeTxHash changed under us?)`
+        )
+    } catch (error) {
+      consola.error(
+        `[${task.network}] ${task.facetName}: transition threw — ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
   }
 
   return { orphans, repaired, unlinked }
@@ -112,20 +144,24 @@ const main = defineCommand({
 
     const { client: safeClient, pendingTransactions } =
       await getSafeMongoCollection()
-    const { client: tasksClient, parkedTasks } =
-      await getParkedTasksCollection()
 
     let orphans = 0
     let repaired = 0
+    let unlinked = 0
     try {
-      ;({ orphans, repaired } = await repairOrphanedParkedTasks(
-        parkedTasks,
-        pendingTransactions,
-        { apply, ...(args.network ? { network: args.network } : {}) }
-      ))
+      const { client: tasksClient, parkedTasks } =
+        await getParkedTasksCollection()
+      try {
+        ;({ orphans, repaired, unlinked } = await repairOrphanedParkedTasks(
+          parkedTasks,
+          pendingTransactions,
+          { apply, ...(args.network ? { network: args.network } : {}) }
+        ))
+      } finally {
+        await tasksClient.close()
+      }
     } finally {
       await safeClient.close()
-      await tasksClient.close()
     }
 
     consola.info(
@@ -133,6 +169,10 @@ const main = defineCommand({
         ? `repaired ${repaired}/${orphans} orphaned claim(s)`
         : `${orphans} orphaned claim(s) would be reverted to queued`
     )
+    if (unlinked)
+      consola.warn(
+        `${unlinked} proposed task(s) carry no safeTxHash and need manual review`
+      )
     if (apply && repaired !== orphans) process.exit(1)
   },
 })
