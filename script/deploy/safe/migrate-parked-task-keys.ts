@@ -108,10 +108,23 @@ const main = defineCommand({
           `  ${task.network}/${task.facetName} (${task.status}): ${task.taskKey} → ${newKey}`
         )
         if (args.apply)
-          await parkedTasks.updateOne(
-            { _id: task._id },
-            { $set: { taskKey: newKey } }
-          )
+          try {
+            await parkedTasks.updateOne(
+              { _id: task._id },
+              { $set: { taskKey: newKey } }
+            )
+          } catch (error: unknown) {
+            // The in-memory pre-check cannot see a concurrent enqueue; a write
+            // the index rejects must not abort the remaining rows — every row
+            // left un-migrated is a row without dedup protection.
+            collisions.push(task)
+            consola.error(
+              `  write failed for ${task.network}/${task.facetName}: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            )
+            continue
+          }
         if (isOpen) claimedOpenKeys.add(newKey)
         migrated++
       }

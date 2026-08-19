@@ -1434,8 +1434,24 @@ async function ensurePendingProposalIndex(
     ) {
       return
     }
-    // For other errors, log but don't fail - the application-level check still works
-    consola.warn('Failed to create pending proposal index:', error)
+    // Unauthorized (code 13): a permission-limited role cannot create indexes,
+    // which must not block proposing — the application-level dedup check still
+    // works and the index exists in every long-lived environment.
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 13
+    ) {
+      consola.warn(
+        'Cannot verify the pending-proposal dedup index (role lacks createIndex); relying on the application-level duplicate check:',
+        error
+      )
+      return
+    }
+    // Anything else (network failure, timeout) is a real connection problem —
+    // rethrow so the caller closes the client instead of proceeding without the
+    // database-level duplicate-prevention guarantee.
+    throw error
   }
 }
 

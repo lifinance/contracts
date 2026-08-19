@@ -832,6 +832,10 @@ async function reconcileAll(
       environment: s.environment,
       reason: `outside the active set in networks.json — ${s.count} resolved task(s) not re-verified against the loupe this run`,
     })
+  // Bounded per reason, not only per failure row: a fleet-wide narrowing puts
+  // every open task of a network into one row's detail, and an unbounded join
+  // would blow the Slack message budget on its own.
+  const MAX_BLOCKED_LISTED = 10
   for (const g of deprecatedByNetwork.values())
     if (g.blocked.length > 0)
       failures.push({
@@ -839,7 +843,15 @@ async function reconcileAll(
         environment: g.environment,
         reason: `outside the active set in networks.json — ${
           g.blocked.length
-        } parked task(s) not reconciled: ${g.blocked.join(', ')}`,
+        } parked task(s) not reconciled: ${g.blocked
+          .slice(0, MAX_BLOCKED_LISTED)
+          .join(', ')}${
+          g.blocked.length > MAX_BLOCKED_LISTED
+            ? ` … and ${
+                g.blocked.length - MAX_BLOCKED_LISTED
+              } more (see the job log)`
+            : ''
+        }`,
       })
 
   const byNetworkEnv = new Map<string, typeof candidates>()
@@ -1076,40 +1088,46 @@ async function reconcileAll(
   return { reopened, failures, anomalies, routedByNetworkEnv }
 }
 
-/** Logs and (when applying) sends the reconcile sweep's alerts. */
+/**
+ * Logs and (when applying) sends the reconcile sweep's alerts. Same delivery
+ * contract as the TTL alert ({@link ttlAlertDelivery}): an unattended applied
+ * run that has something to say but no webhook must FAIL, not stay green — the
+ * reopen alert is the job's strongest signal, and dropping it silently is the
+ * invisibility this job exists to prevent.
+ */
 async function runReconcileAlerts(
   run: IReconcileRun,
   apply: boolean
 ): Promise<void> {
   const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  const delivery = ttlAlertDelivery(apply, isUnattendedRun(), webhookUrl)
   const send = async (message: string): Promise<void> => {
-    if (apply && webhookUrl && isUnattendedRun())
+    if (delivery === 'send' && webhookUrl)
       await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
         text: message,
       })
   }
-  if (apply && webhookUrl && !isUnattendedRun())
+  if (delivery === 'local')
     consola.info(
       'Local run: reconcile alerts logged only. Set CI=1 to deliver them to Slack.'
     )
 
-  const reopenMessage = formatReopenAlertMessage(run.reopened, apply)
-  if (reopenMessage) {
-    consola.error(reopenMessage)
-    await send(reopenMessage)
+  const messages = [
+    { message: formatReopenAlertMessage(run.reopened, apply), error: true },
+    { message: formatReconcileAnomalyMessage(run.anomalies), error: false },
+    { message: formatReconcileFailureMessage(run.failures), error: false },
+  ].filter((m) => m.message !== '')
+
+  for (const { message, error } of messages) {
+    if (error) consola.error(message)
+    else consola.warn(message)
+    await send(message)
   }
 
-  const anomalyMessage = formatReconcileAnomalyMessage(run.anomalies)
-  if (anomalyMessage) {
-    consola.warn(anomalyMessage)
-    await send(anomalyMessage)
-  }
-
-  const failureMessage = formatReconcileFailureMessage(run.failures)
-  if (failureMessage) {
-    consola.warn(failureMessage)
-    await send(failureMessage)
-  }
+  if (delivery === 'misconfigured' && messages.length > 0)
+    throw new Error(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the reconcile alerts above cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    )
 }
 
 /**
