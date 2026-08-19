@@ -337,7 +337,7 @@ describe('classifyForgeFailure', () => {
 describe('probeRpcEndpoint', () => {
   const startServer = (
     handler: (method: string) => unknown | { error: unknown }
-  ) => {
+  ): ReturnType<typeof Bun.serve> => {
     const server = Bun.serve({
       port: 0,
       fetch: async (req) => {
@@ -502,7 +502,7 @@ describe('probeRpcEndpoint', () => {
 })
 
 describe('resolveEndpoint (negative controls)', () => {
-  const healthyServer = () =>
+  const healthyServer = (): ReturnType<typeof Bun.serve> =>
     Bun.serve({
       port: 0,
       fetch: async (req) => {

@@ -246,7 +246,8 @@ export async function probeRpcEndpoint(
 
   // A field present but null fails forge's deserialization exactly like a missing one,
   // so only a real hex string counts as support.
-  const hasHexField = (field: string) => typeof header?.[field] === 'string'
+  const hasHexField = (field: string): boolean =>
+    typeof header?.[field] === 'string'
 
   return {
     url,
@@ -297,7 +298,7 @@ export function selectBestCandidate(
 
   if (scored.length === 0) return null
 
-  const capabilityCount = (probe: IRpcProbe) =>
+  const capabilityCount = (probe: IRpcProbe): number =>
     CAPABILITY_KEYS.filter((key) => probe[key]).length
 
   const best = scored.reduce((winner, entry) => {

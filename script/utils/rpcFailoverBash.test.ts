@@ -19,7 +19,10 @@ import {
 
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 
-const runBash = async (script: string, cwd: string) => {
+const runBash = async (
+  script: string,
+  cwd: string
+): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
   const proc = Bun.spawn(['bash', '-c', script], {
     cwd,
     stdout: 'pipe',
@@ -41,7 +44,7 @@ const runBash = async (script: string, cwd: string) => {
  *
  * `exportBeforeSource` flips the order to prove the test can detect the mistake.
  */
-const buildHarness = (exportBeforeSource: boolean) => {
+const buildHarness = (exportBeforeSource: boolean): string => {
   const dir = mkdtempSync(join(tmpdir(), 'rpc-failover-'))
 
   writeFileSync(
@@ -115,7 +118,7 @@ describe('shell wiring', () => {
     'utf8'
   )
 
-  const lineOf = (haystack: string, needle: string) =>
+  const lineOf = (haystack: string, needle: string): number =>
     haystack.split('\n').findIndex((line) => line.includes(needle))
 
   it('invokes failover after the per-call `source .env`, not before', () => {
@@ -242,13 +245,13 @@ describe('failover wiring safeguards', () => {
   // getRPCUrl runs in tight per-selector loops; a probe there would cost minutes.
   it('leaves getRPCUrl free of resolver calls', () => {
     const start = helpers.indexOf('function getRPCUrl()')
-    const body = helpers.slice(
-      start,
-      helpers.indexOf('function tryRpcFailover')
-    )
+    const end = helpers.indexOf('function tryRpcFailover')
 
+    // Both offsets are asserted first: if either function is renamed or reordered the
+    // slice would silently cover a different region and the assertion would pass.
     expect(start).toBeGreaterThan(-1)
-    expect(body).not.toContain('resolveRpcUrl.ts')
+    expect(end).toBeGreaterThan(start)
+    expect(helpers.slice(start, end)).not.toContain('resolveRpcUrl.ts')
   })
 })
 
@@ -262,7 +265,14 @@ describe('tryRpcFailover (executed)', () => {
   // fail over at all is decided by classifyForgeFailure and covered in
   // rpcFailover.test.ts against captured forge output.
   // Patch the real function's resolver invocation by shadowing `bunx`.
-  const runWithFakeBunx = async (body: string) => {
+  const runWithFakeBunx = async (
+    body: string
+  ): Promise<{
+    stdout: string
+    stderr: string
+    exitCode: number
+    excludeLog: string
+  }> => {
     const dir = mkdtempSync(join(tmpdir(), 'rpc-failover-bunx-'))
     writeFileSync(join(dir, 'counter'), '0')
     writeFileSync(join(dir, 'exclude.log'), '')
@@ -364,7 +374,9 @@ describe('endpoint override survives later scripts re-reading .env', () => {
   // same reason the deploy did.
   const OVERRIDE = 'https://failover-endpoint.example/key'
 
-  const runWithOverrideFile = async (extraSourcing: string) => {
+  const runWithOverrideFile = async (
+    extraSourcing: string
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
     const dir = mkdtempSync(join(tmpdir(), 'rpc-override-'))
     const overrideFile = join(dir, 'override')
     writeFileSync(overrideFile, `ETH_NODE_URI_CELO=${OVERRIDE}\n`, {

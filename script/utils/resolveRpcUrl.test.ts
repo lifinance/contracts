@@ -36,8 +36,10 @@ async function runCli(
     cwd: REPO_ROOT,
     env: {
       ...process.env,
-      // Keep the run hermetic: no MongoDB lookup, no inherited endpoint config.
+      // Keep the run hermetic: no MongoDB lookup, and no exclusion list inherited from
+      // the developer's or runner's environment, which would silently change results.
       MONGODB_URI: '',
+      LIFI_RPC_EXCLUDE: '',
       ...env,
     },
     stdout: 'pipe',

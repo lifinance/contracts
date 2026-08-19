@@ -81,7 +81,9 @@ async function fetchMongoRpcs(network: string): Promise<IMongoRpc[]> {
     const doc = await client
       .db('blockchain-configs')
       .collection('RpcEndpoints')
-      .findOne({ chainName: network })
+      // Connect and server-selection timeouts do not bound the query itself; without
+      // this an established but unresponsive server would stall the deploy indefinitely.
+      .findOne({ chainName: network }, { timeoutMS: MONGO_TIMEOUT_MS })
 
     if (!doc || !Array.isArray(doc.rpcs)) return []
 
