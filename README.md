@@ -93,7 +93,7 @@ For more information on EIP-2535 you can view the entire EIP [here](https://eips
 
 ### Contract Flow<a name="contract-flow"></a>
 
-A basic example would be a user bridging from one chain to another using Across Protocol. The user would interact with the LI.FIDiamond contract which would pass the Across specific call to the AcrossFacetV4 which then passes required calls + parameters to Across Protocol's contracts.
+A basic example would be a user bridging from one chain to another using Across Protocol. The user would interact with the LI.FIDiamond contract which would pass the Across-specific call to the AcrossFacetV4 which then passes required calls + parameters to Across Protocol's contracts.
 
 The basic flow is illustrated below.
 
