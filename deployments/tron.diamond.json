@@ -76,6 +76,10 @@
       "TMY1N6rC61Fu1C8qvZEhwb3WLR7iY1ERuW": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
