@@ -143,6 +143,34 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         `backendSigner.${environment} not found in config/global.json`
       )
 
+    // Normalize before validating: Tron's zero address has a base58 encoding
+    // (T9yD14...) as well as the EVM hex one, and a raw string compare would
+    // read that as a configured router.
+    const constructorArgs = [
+      tronAddressToHex(tronWeb, metaRouter),
+      tronAddressToHex(tronWeb, gateway),
+      tronAddressToHex(tronWeb, onchainSwapV3),
+      tronAddressToHex(tronWeb, onchainSwapV3Gateway),
+      tronAddressToHex(tronWeb, backendSigner),
+    ]
+    const [, , onchainSwapV3Hex, onchainSwapV3GatewayHex, backendSignerHex] =
+      constructorArgs
+
+    // Mirror the constructor's own checks so a misconfiguration fails here
+    // rather than after paying for the deployment.
+    if (
+      (onchainSwapV3Hex === ZERO_ADDRESS) !==
+      (onchainSwapV3GatewayHex === ZERO_ADDRESS)
+    )
+      throw new Error(
+        'onchainSwapV3 and onchainSwapV3Gateway must both be set or both be zero in config/symbiosis.json'
+      )
+
+    if (backendSignerHex === ZERO_ADDRESS)
+      throw new Error(
+        `backendSigner.${environment} in config/global.json is the zero address`
+      )
+
     // Convert addresses to Tron format for display
     const metaRouterTron = evmHexToTronBase58(tronWeb, metaRouter)
     const gatewayTron = evmHexToTronBase58(tronWeb, gateway)
@@ -196,16 +224,6 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        // The deployer's energy estimation ABI-encodes these via ethers, which
-        // rejects Tron base58 - normalize every address to EVM hex first.
-        const constructorArgs = [
-          tronAddressToHex(tronWeb, metaRouter),
-          tronAddressToHex(tronWeb, gateway),
-          tronAddressToHex(tronWeb, onchainSwapV3),
-          tronAddressToHex(tronWeb, onchainSwapV3Gateway),
-          tronAddressToHex(tronWeb, backendSigner),
-        ]
-
         // Deploy using new utility
         const result = await deployContractWithLogging(
           deployer,
@@ -247,9 +265,11 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
+    const deferCut = process.env.DEFER_CUT === 'true'
+
     if (dryRun)
       consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
-    else if (process.env.DEFER_CUT === 'true')
+    else if (deferCut)
       consola.info(
         'DEFER_CUT=true - facet deployed, skipping diamondCut proposal'
       )
@@ -269,6 +289,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     consola.success(
       dryRun
         ? '\nDry run completed successfully! (no Safe tx created)'
+        : deferCut
+        ? '\nDeployment completed successfully! (diamondCut proposal deferred)'
         : '\nDeployment and proposal completed successfully!'
     )
   } catch (error: any) {
