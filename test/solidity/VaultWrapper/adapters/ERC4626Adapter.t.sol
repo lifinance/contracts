@@ -8,6 +8,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { MockERC4626Underlying } from "../mocks/MockERC4626Underlying.sol";
 import { MockLiquidityCappedERC4626 } from "../mocks/MockLiquidityCappedERC4626.sol";
+import { MockWithdrawCappedERC4626 } from "../mocks/MockWithdrawCappedERC4626.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC4626Adapter internal adapter;
@@ -71,6 +72,30 @@ contract ERC4626AdapterTest is Test {
         capped.setWithdrawable(300e18);
 
         // Position is worth 1_000e18 but only 300e18 is currently withdrawable.
+        assertEq(
+            adapter.maxWithdrawableValue(address(capped), address(this)),
+            300e18
+        );
+    }
+
+    function test_MaxWithdrawableValueClampsToWithdrawAxis() public {
+        MockWithdrawCappedERC4626 capped = new MockWithdrawCappedERC4626(
+            asset,
+            "WithdrawCapped",
+            "wcTKN"
+        );
+        asset.mint(address(this), 1_000e18);
+        asset.approve(address(capped), 1_000e18);
+        capped.deposit(1_000e18, address(this));
+        capped.setWithdrawCap(300e18);
+
+        // maxRedeem is unrestricted (full balance, worth 1_000e18), but withdraw is capped
+        // at 300e18. The adapter must report the withdraw-axis limit, since the wrapper
+        // exits via `withdraw`; reading maxRedeem alone would over-report 1_000e18.
+        assertEq(
+            capped.convertToAssets(capped.maxRedeem(address(this))),
+            1_000e18
+        );
         assertEq(
             adapter.maxWithdrawableValue(address(capped), address(this)),
             300e18

@@ -27,11 +27,14 @@ future release adds cost-aware exit pricing.
 ## Source liquidity view
 
 `maxWithdrawableValue` is the source-liquidity signal behind the wrapper's
-liquidity-aware `maxRedeem`/`maxWithdraw`: the source's floor valuation
-(`convertToAssets`) of `min(holder position, source.maxRedeem)`. It equals the
-full position value on a source with no active liquidity limit, and shrinks to
-what the source can currently honor under a limit (an Aave-style utilization
-cap, a paused source).
+liquidity-aware `maxRedeem`/`maxWithdraw`: the source's `maxWithdraw` for the
+holder — the assets it can honor on exit right now, already capped by both the
+holder's position and current withdrawal liquidity. The wrapper always exits via
+exact-asset `withdraw` (bounded by `maxWithdraw`), so this reads that axis rather
+than the source's share-side `maxRedeem`, which EIP-4626 lets diverge and which
+the wrapper never exercises. It equals the full position value on a source with
+no active liquidity limit, and shrinks to what the source can currently honor
+under a limit (an Aave-style utilization cap, a paused source).
 
 ## Functions
 
@@ -48,7 +51,7 @@ function deposit(address _asset, address _underlying, uint256 _assets) external 
 /// Redeem `_assets` from the yield source; returns the asset amount received.
 function withdraw(address _asset, address _underlying, uint256 _assets) external returns (uint256 withdrawn)
 
-/// Gross floor valuation of `min(holder position, source.maxRedeem)` — the source-liquidity signal.
+/// The source's `maxWithdraw` for the holder — the exit-liquidity signal (the wrapper exits via `withdraw`, not `redeem`).
 function maxWithdrawableValue(address _underlying, address _holder) external view returns (uint256 assets)
 ```
 

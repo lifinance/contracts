@@ -83,16 +83,19 @@ contract ERC4626Adapter is IYieldAdapter {
     }
 
     /// @inheritdoc IYieldAdapter
-    /// @dev Source floor valuation (`convertToAssets`) of the smaller of the holder's
-    ///      position and the source's current `maxRedeem`. Equals the full position value
+    /// @dev The source's `maxWithdraw` for the holder — the assets it can honor on exit
+    ///      right now, already capped by both the holder's position and the source's
+    ///      current withdrawal liquidity. This is the exact axis the wrapper exits on: it
+    ///      always redeems via exact-asset `IERC4626.withdraw`, which the source bounds by
+    ///      `maxWithdraw`. The source's share-side `maxRedeem` is deliberately not consulted
+    ///      — the wrapper never calls `redeem`, EIP-4626 lets the two limits diverge, and
+    ///      only `maxWithdraw` governs whether an exit reverts; folding `maxRedeem` in could
+    ///      only under-report an exit the source would honor. Equals the full position value
     ///      when the source imposes no active liquidity limit.
     function maxWithdrawableValue(
         address _underlying,
         address _holder
     ) external view returns (uint256 assets) {
-        uint256 position = IERC4626(_underlying).balanceOf(_holder);
-        uint256 redeemable = IERC4626(_underlying).maxRedeem(_holder);
-        uint256 shares = redeemable < position ? redeemable : position;
-        assets = IERC4626(_underlying).convertToAssets(shares);
+        assets = IERC4626(_underlying).maxWithdraw(_holder);
     }
 }

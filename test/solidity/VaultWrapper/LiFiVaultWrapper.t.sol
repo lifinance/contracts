@@ -102,10 +102,15 @@ contract LossyVault {
         return _shares;
     }
 
-    /// @dev Unlimited withdrawal liquidity: the whole balance is always redeemable, so the
-    ///      wrapper's liquidity clamp in `maxRedeem` is a no-op and the shortfall path under
-    ///      test is still reached (`ERC4626Adapter.maxWithdrawableValue` calls this).
+    /// @dev Unlimited withdrawal liquidity: the whole balance is always withdrawable, so the
+    ///      wrapper's liquidity clamp is a no-op and the shortfall path under test is still
+    ///      reached. `ERC4626Adapter.maxWithdrawableValue` reads `maxWithdraw`; `maxRedeem`
+    ///      is retained for any consumer that still reads the share axis.
     function maxRedeem(address _owner) external view returns (uint256) {
+        return balanceOf[_owner];
+    }
+
+    function maxWithdraw(address _owner) external view returns (uint256) {
         return balanceOf[_owner];
     }
 }
