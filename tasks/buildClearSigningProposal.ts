@@ -284,27 +284,46 @@ const RECEIVER_FIELD: IField = {
 const LIFI_DATA_SOL = path.join(ROOT, 'src', 'Helpers', 'LiFiData.sol')
 const FACETS_DIR = path.join(ROOT, 'src', 'Facets')
 
-// A LI.FI-internal chain id below this is small enough to collide with a real
-// EIP-155 id, so a wallet resolving it through a chain registry would name the
-// wrong chain. Every id we mint above it is far outside the allocated range.
-const EIP155_COLLISION_THRESHOLD = 1e12
+// ERC-7730 defines `chainId` as "converted to a Blockchain name using EIP-155
+// reference values", and EIP-155's table is these seven. A LI.FI-internal id
+// that lands on one is rendered as that chain's name — confidently wrong on a
+// signing screen, which is worse than showing digits.
+//
+// Wallets in practice resolve against a far larger registry (the Sourcify
+// reference runner uses chainid.network, ~2.7k entries, with ids as high as
+// 2.7e15 — well inside the range we mint from). This table therefore catches
+// the spec-guaranteed collisions only; see docs/ClearSigningProposal.md for the
+// residual gap and why it is not closed here.
+const EIP155_RESERVED_CHAIN_IDS: Record<number, string> = {
+  1: 'Ethereum Mainnet',
+  2: 'Expanse Mainnet',
+  3: 'Ropsten',
+  4: 'Rinkeby',
+  5: 'Goerli',
+  42: 'Kovan',
+  1337: 'Geth private chains (default)',
+}
 
-// LI.FI-internal ids that DO collide with a registered EIP-155 chain, and the
-// name a registry resolves them to. Listing one here is an acknowledgement, not
-// a fix: bridges that can reach it fall back to `raw` below.
+// LI.FI-internal ids known to collide, and the name a registry resolves them to.
+// Listing one is an acknowledgement, not a fix: bridges that reference it fall
+// back to `raw` below.
 const COLLIDING_LIFI_CHAIN_IDS: Record<string, string> = {
   LIFI_CHAIN_ID_HYPERCORE: 'Geth Testnet',
 }
 
 // `LIFI_CHAIN_ID_X = <n>;` from LiFiData.sol. Parsed rather than duplicated so a
 // new internal id cannot be added there without this generator seeing it.
-function readLiFiChainIds(): Record<string, number> {
+// Accepts every declaration spelling Solidity allows for these constants —
+// visibility, width, and hex/underscore literals — because a stricter pattern
+// silently skips the id instead of failing (`1_337` and `0x539` are both 1337).
+// bigint, not number: two ids already exceed Number.MAX_SAFE_INTEGER.
+function readLiFiChainIds(): Record<string, bigint> {
   const src = fs.readFileSync(LIFI_DATA_SOL, 'utf8')
-  const ids: Record<string, number> = {}
+  const ids: Record<string, bigint> = {}
   for (const m of src.matchAll(
-    /uint256\s+internal\s+constant\s+(LIFI_CHAIN_ID_\w+)\s*=\s*(\d+)\s*;/gu
+    /uint\d*\s+(?:internal|public|private)\s+constant\s+(LIFI_CHAIN_ID_\w+)\s*=\s*(0x[0-9a-fA-F_]+|[0-9_]+)\s*;/gu
   ))
-    ids[m[1] as string] = Number(m[2])
+    ids[m[1] as string] = BigInt((m[2] as string).replace(/_/gu, ''))
 
   if (Object.keys(ids).length === 0)
     throw new Error(
@@ -312,24 +331,36 @@ function readLiFiChainIds(): Record<string, number> {
     )
 
   for (const [name, value] of Object.entries(ids)) {
-    if (value >= EIP155_COLLISION_THRESHOLD) continue
-    if (name in COLLIDING_LIFI_CHAIN_IDS) continue
+    const reserved = EIP155_RESERVED_CHAIN_IDS[Number(value)]
+    if (!reserved || name in COLLIDING_LIFI_CHAIN_IDS) continue
     throw new Error(
-      `${name} = ${value} is inside EIP-155 range and unacknowledged. A wallet rendering ` +
-        `"Destination Chain" with format "chainId" would resolve it to some unrelated chain's ` +
-        `name. Check https://chainid.network/chains_mini.json: if ${value} is registered, add ` +
-        `${name} to COLLIDING_LIFI_CHAIN_IDS so bridges reaching it fall back to "raw".`
+      `${name} = ${value} is a reserved EIP-155 chain id ("${reserved}"). A wallet rendering ` +
+        `"Destination Chain" with format "chainId" would name that chain instead of the real ` +
+        `destination. Add ${name} to COLLIDING_LIFI_CHAIN_IDS so bridges referencing it fall ` +
+        `back to "raw".`
     )
   }
   return ids
 }
 
-// Bridges whose `_bridgeData.destinationChainId` can carry a colliding id, keyed
-// by the identity `bridgeFacetName()` produces. Derived from the facet sources so
-// a new bridge reaching one of these chains is picked up without editing a list.
-function hypercoreCapableBridges(): Set<string> {
+// Strip comments so a passing mention of a colliding id ("// HyperCore is 1337")
+// or a hex constant containing its digits cannot force a bridge to `raw`.
+function stripSolidityComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//gu, ' ').replace(/\/\/[^\n]*/gu, ' ')
+}
+
+// Bridges whose facet source references a colliding id, keyed by the identity
+// `bridgeFacetName()` produces. Names come from the artifact's own function
+// names rather than the filename: `AcrossFacetV4.sol` and `StargateFacetV2.sol`
+// show that filenames do not reliably carry the bridge identity, and a name that
+// matches no format would drop the fallback without anything noticing.
+//
+// This is a source-reference scan, NOT a reachability analysis — a facet can be
+// pointed at one of these chains by an owner call or a backend-signed payload
+// with no code change at all. docs/ClearSigningProposal.md records that gap.
+function bridgesReferencingCollidingChainIds(): Set<string> {
   const ids = readLiFiChainIds()
-  const literals = Object.keys(COLLIDING_LIFI_CHAIN_IDS).map((n) => {
+  const needles = Object.keys(COLLIDING_LIFI_CHAIN_IDS).map((n) => {
     const v = ids[n]
     if (v === undefined)
       throw new Error(
@@ -339,22 +370,40 @@ function hypercoreCapableBridges(): Set<string> {
   })
 
   const bridges = new Set<string>()
-  for (const file of fs.readdirSync(FACETS_DIR)) {
-    if (!file.endsWith('Facet.sol')) continue
-    const src = fs.readFileSync(path.join(FACETS_DIR, file), 'utf8')
+  // Same `.sol` filter as collectFns(): anything narrower skips real facets.
+  for (const file of fs
+    .readdirSync(FACETS_DIR)
+    .filter((f) => f.endsWith('.sol'))) {
+    const src = stripSolidityComments(
+      fs.readFileSync(path.join(FACETS_DIR, file), 'utf8')
+    )
     // Facets reference the constant by name, except where a bridge maps chain
     // ids in a numeric lookup and writes the literal (AcrossV4Swap).
-    const reaches = literals.some(
+    const references = needles.some(
       ({ name, value }) =>
         src.includes(name) ||
-        new RegExp(`(?<![\\d_])${value}(?![\\d_])`, 'u').test(src)
+        new RegExp(`(?<![\\w])${value}(?![\\w])`, 'u').test(src)
     )
-    if (reaches) bridges.add(file.replace(/Facet\.sol$/u, ''))
+    if (!references) continue
+
+    const artifact = path.join(OUT_DIR, file, file.replace(/\.sol$/u, '.json'))
+    if (!fs.existsSync(artifact)) continue
+    const { abi = [] } = JSON.parse(fs.readFileSync(artifact, 'utf8')) as {
+      abi: IAbiFn[]
+    }
+    for (const item of abi)
+      if (
+        item.type === 'function' &&
+        /^(?:start|swapAndStart)BridgeTokensVia/u.test(item.name)
+      )
+        bridges.add(bridgeFacetName(item.name))
   }
   return bridges
 }
 
-const HYPERCORE_CAPABLE_BRIDGES = hypercoreCapableBridges()
+// Lazily initialized in main(): reading LiFiData.sol at module load would throw a
+// bare stack trace before the friendly `out/`-is-empty check gets to run.
+let HYPERCORE_CAPABLE_BRIDGES = new Set<string>()
 
 // Bridges that reached a colliding id but never matched an emitted format —
 // populated as formats are built, asserted empty in main(). Without this a
@@ -961,6 +1010,7 @@ function isKnownNonUserFacing(fn: IAbiFn): boolean {
 
 function main() {
   const fns = collectFns()
+  HYPERCORE_CAPABLE_BRIDGES = bridgesReferencingCollidingChainIds()
   const out: Record<string, IFormatEntry> = {}
   // Hard-fail on any user-facing function the generator can't confidently
   // template. Silent skips would let a new facet land with no clear-signing,
