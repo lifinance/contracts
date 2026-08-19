@@ -3,6 +3,7 @@
 import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
+  ZERO_ADDRESS,
   createTronWeb,
   evmHexToTronBase58,
   tronAddressToHex,
@@ -123,6 +124,25 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         'Symbiosis metaRouter or gateway not found for tron in config/symbiosis.json'
       )
 
+    // The OnchainSwapV3 (syBTC -> Bitcoin) path has no Tron deployment, and the
+    // constructor accepts address(0) for it. backendSigner is not optional
+    // though - the constructor reverts on a zero signer even when that path is
+    // unreachable.
+    const onchainSwapV3 = tronSymbiosisConfig.onchainSwapV3 ?? ZERO_ADDRESS
+    const onchainSwapV3Gateway =
+      tronSymbiosisConfig.onchainSwapV3Gateway ?? ZERO_ADDRESS
+
+    const globalConfig = await Bun.file('config/global.json').json()
+    const backendSigner =
+      environment === EnvironmentEnum.production
+        ? globalConfig.backendSigner?.production
+        : globalConfig.backendSigner?.staging
+
+    if (!backendSigner)
+      throw new Error(
+        `backendSigner.${environment} not found in config/global.json`
+      )
+
     // Convert addresses to Tron format for display
     const metaRouterTron = evmHexToTronBase58(tronWeb, metaRouter)
     const gatewayTron = evmHexToTronBase58(tronWeb, gateway)
@@ -130,6 +150,17 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     consola.info('\nSymbiosis Configuration:')
     consola.info(`MetaRouter: ${metaRouterTron} (hex: ${metaRouter})`)
     consola.info(`Gateway: ${gatewayTron} (hex: ${gateway})`)
+    const unusedSuffix = (address: string) =>
+      address === ZERO_ADDRESS ? ' (not configured)' : ''
+    consola.info(
+      `OnchainSwapV3: ${onchainSwapV3}${unusedSuffix(onchainSwapV3)}`
+    )
+    consola.info(
+      `OnchainSwapV3Gateway: ${onchainSwapV3Gateway}${unusedSuffix(
+        onchainSwapV3Gateway
+      )}`
+    )
+    consola.info(`BackendSigner: ${backendSigner}`)
 
     // Prepare deployment plan
     const contracts = ['SymbiosisFacet']
@@ -143,11 +174,14 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     // Deploy SymbiosisFacet
     consola.info('\nDeploying SymbiosisFacet...')
 
-    const { exists, address, shouldRedeploy } = await checkExistingDeployment(
-      network,
-      'SymbiosisFacet',
-      dryRun
-    )
+    // checkExistingDeployment prompts "Redeploy?" whenever an address is already
+    // recorded, and without a TTY that prompt cancels the whole process before we
+    // can branch on the answer - so a non-interactive redeploy has to skip it.
+    const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
+
+    const { exists, address, shouldRedeploy } = forceRedeploy
+      ? { exists: false, address: null, shouldRedeploy: true }
+      : await checkExistingDeployment(network, 'SymbiosisFacet', dryRun)
 
     let facetAddress: string
     if (exists && !shouldRedeploy && address) {
@@ -162,8 +196,15 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        // Constructor arguments for SymbiosisFacet
-        const constructorArgs = [metaRouter, gateway]
+        // The deployer's energy estimation ABI-encodes these via ethers, which
+        // rejects Tron base58 - normalize every address to EVM hex first.
+        const constructorArgs = [
+          tronAddressToHex(tronWeb, metaRouter),
+          tronAddressToHex(tronWeb, gateway),
+          tronAddressToHex(tronWeb, onchainSwapV3),
+          tronAddressToHex(tronWeb, onchainSwapV3Gateway),
+          tronAddressToHex(tronWeb, backendSigner),
+        ]
 
         // Deploy using new utility
         const result = await deployContractWithLogging(
@@ -206,7 +247,13 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    if (!dryRun)
+    if (dryRun)
+      consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
+    else if (process.env.DEFER_CUT === 'true')
+      consola.info(
+        'DEFER_CUT=true - facet deployed, skipping diamondCut proposal'
+      )
+    else
       await proposeDiamondCut({
         facetName: 'SymbiosisFacet',
         facetAddressHex: tronAddressToHex(
@@ -216,8 +263,6 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         diamondAddress,
         network: network,
       })
-    else
-      consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 
