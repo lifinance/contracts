@@ -31,7 +31,7 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
 }
 ```
 
-Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name — any non-EVM synthetic id — falls back to the integer.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name falls back to the integer — that covers our non-EVM synthetic ids, and also the bridges pinned to `raw` because their destination id collides with a real EIP-155 chain (see point 3 below).
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -92,7 +92,12 @@ The seven existing `display.formats` entries from the current registry descripto
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
 2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. Hop have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
-3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
+3. **`destinationChainId` as `chainId`, except where a LI.FI id collides** — `chainId` is the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. Most LI.FI-internal ids (Solana, BTC, Sui, …) are unregistered and degrade to digits. `LIFI_CHAIN_ID_HYPERCORE` is the exception: it is `1337`, which EIP-155 reserves for "Geth private chains" and `chainid.network` resolves to **"Geth Testnet"** — so a Hypercore bridge would name a wrong chain on the signing screen, which is worse than showing digits. Bridges whose facet source references it (Mayan, Unit, PolymerCCTP, AcrossV4Swap) therefore keep `raw`.
+
+   Two limits of that mechanism are worth stating, because neither is closed by a check:
+
+   - **It is a source-reference scan, not reachability.** `validateBridgeData` only rejects `destinationChainId == block.chainid`; nothing else constrains the field. A facet can be pointed at a colliding chain by an owner call (`SupersetFacet.setChainIdToEid`) or by a backend-signed EIP-712 payload (NEARIntents, LayerSwap, Garden, LiFiIntentEscrowV2) with **no code change at all**, and no generator check — nor `verifyClearSigning` — can observe that. Adding such a route means adding the bridge to the colliding set here by hand.
+   - **The collision table is the EIP-155 one, not the wallet's.** The spec defines `chainId` in terms of EIP-155 reference values (7 ids), but the Sourcify reference runner resolves against `chainid.network` — ~2.7k entries, including ten at or above `1e12`, which is the range LI.FI mints its synthetic ids from. So the generator catches the spec-guaranteed collisions; a future LI.FI id landing on a registry-only entry would not be caught. Closing that would mean committing a registry snapshot and keeping it fresh.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
