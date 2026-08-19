@@ -84,6 +84,7 @@ const main = defineCommand({
 
       let migrated = 0
       let alreadyCurrent = 0
+      let writeFailures = 0
       const collisions: IParkedTask[] = []
 
       for (const task of tasks) {
@@ -116,12 +117,20 @@ const main = defineCommand({
           } catch (error: unknown) {
             // The in-memory pre-check cannot see a concurrent enqueue; a write
             // the index rejects must not abort the remaining rows — every row
-            // left un-migrated is a row without dedup protection.
-            collisions.push(task)
+            // left un-migrated is a row without dedup protection. Only a real
+            // duplicate-key rejection is a collision; anything else (a transient
+            // tunnel error) just needs a re-run, and telling the operator to
+            // cancel the row would drop a healthy removal.
+            const isDuplicate =
+              error instanceof Error &&
+              'code' in error &&
+              (error as { code: number }).code === 11000
+            if (isDuplicate) collisions.push(task)
+            else writeFailures++
             consola.error(
-              `  write failed for ${task.network}/${task.facetName}: ${
-                error instanceof Error ? error.message : String(error)
-              }`
+              `  write failed for ${task.network}/${task.facetName}${
+                isDuplicate ? ' (open-key collision)' : ' — re-run to retry'
+              }: ${error instanceof Error ? error.message : String(error)}`
             )
             continue
           }
@@ -138,9 +147,11 @@ const main = defineCommand({
       consola.success(
         `${migrated} ${
           args.apply ? 'migrated' : 'to migrate'
-        }, ${alreadyCurrent} already current, ${collisions.length} collision(s)`
+        }, ${alreadyCurrent} already current, ${
+          collisions.length
+        } collision(s), ${writeFailures} write failure(s)`
       )
-      if (collisions.length > 0) process.exitCode = 1
+      if (collisions.length > 0 || writeFailures > 0) process.exitCode = 1
     } catch (error: unknown) {
       consola.error(
         `Migration failed: ${

@@ -1426,22 +1426,24 @@ async function ensurePendingProposalIndex(
       }
     )
   } catch (error: unknown) {
-    // Index already exists with same options - this is fine
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as { code: number }).code === 85
-    ) {
+    const code =
+      error instanceof Error && 'code' in error
+        ? (error as { code: number }).code
+        : undefined
+    // 85 = exists with same options; 86 = exists with a drifted definition —
+    // definition drift must not hard-fail every Safe script fleet-wide.
+    if (code === 85 || code === 86) {
+      if (code === 86)
+        consola.warn(
+          'The pending-proposal dedup index exists with a different definition; relying on the existing index:',
+          error
+        )
       return
     }
     // Unauthorized (code 13): a permission-limited role cannot create indexes,
     // which must not block proposing — the application-level dedup check still
     // works and the index exists in every long-lived environment.
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as { code: number }).code === 13
-    ) {
+    if (code === 13) {
       consola.warn(
         'Cannot verify the pending-proposal dedup index (role lacks createIndex); relying on the application-level duplicate check:',
         error
