@@ -83,22 +83,48 @@ library LibVaultWrapperMath {
 
     /// @notice Price per share as a `PPS_SCALE`-scaled fixed-point value.
     /// @dev `convertToAssets(PPS_SCALE)` under OZ's virtual-offset convention:
-    ///      `pps = (totalAssets + 1) * PPS_SCALE / (totalSupply + 10**offset)`, rounded
-    ///      down. The same convention as the share/asset conversions so the performance
-    ///      watermark is measured on exactly the price depositors transact at.
+    ///      `pps = (totalAssets + 1) * PPS_SCALE / (totalSupply + 10**offset)`. The same
+    ///      convention as the share/asset conversions so the performance watermark is measured
+    ///      on exactly the price depositors transact at. Rounding is caller-chosen: gain
+    ///      measurement floors (under-measures, favouring holders); the high-water-mark ratchet
+    ///      ceils so a floored post-dilution price cannot fall a full step below the price the
+    ///      fee was crystallized at and re-charge that step on the next crossing.
     /// @param _totalSupply Current share supply.
     /// @param _totalAssets Gross assets under management.
     /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @param _rounding Rounding direction for the division.
     /// @return The current price per share, scaled by `PPS_SCALE`.
+    function pricePerShare(
+        uint256 _totalSupply,
+        uint256 _totalAssets,
+        uint8 _decimalsOffset,
+        Math.Rounding _rounding
+    ) internal pure returns (uint256) {
+        return
+            (_totalAssets + 1).mulDiv(
+                PPS_SCALE,
+                _totalSupply + 10 ** _decimalsOffset,
+                _rounding
+            );
+    }
+
+    /// @notice `pricePerShare` with the floored measurement convention.
+    /// @dev The default used by gain measurement and the empty-vault anchor; the watermark
+    ///      ratchet calls the rounding-aware overload with `Math.Rounding.Ceil` instead.
+    /// @param _totalSupply Current share supply.
+    /// @param _totalAssets Gross assets under management.
+    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
+    /// @return The current price per share, scaled by `PPS_SCALE`, rounded down.
     function pricePerShare(
         uint256 _totalSupply,
         uint256 _totalAssets,
         uint8 _decimalsOffset
     ) internal pure returns (uint256) {
         return
-            (_totalAssets + 1).mulDiv(
-                PPS_SCALE,
-                _totalSupply + 10 ** _decimalsOffset,
+            pricePerShare(
+                _totalSupply,
+                _totalAssets,
+                _decimalsOffset,
                 Math.Rounding.Floor
             );
     }
