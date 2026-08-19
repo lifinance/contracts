@@ -385,7 +385,7 @@ contract LiFiVaultWrapper is
     /// @notice Returns the configured rate (bps) for a fee type.
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return The fee rate in basis points.
-    function feeRate(uint8 _feeType) external view returns (uint16) {
+    function feeRate(uint8 _feeType) public view returns (uint16) {
         if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
         return _feeConfig.rateBps[_feeType];
     }
@@ -394,8 +394,7 @@ contract LiFiVaultWrapper is
     /// @param _feeType The FeeType ordinal (0-3).
     /// @return True if the fee type is enabled.
     function feeEnabled(uint8 _feeType) external view returns (bool) {
-        if (_feeType >= FEE_TYPE_COUNT) revert InvalidFeeType(_feeType);
-        return _feeConfig.rateBps[_feeType] != 0;
+        return feeRate(_feeType) != 0;
     }
 
     /// ERC-4626 entrypoints (reentrancy-guarded) ///
