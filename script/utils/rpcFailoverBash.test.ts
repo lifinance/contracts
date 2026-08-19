@@ -162,46 +162,52 @@ describe('shell wiring', () => {
   })
 })
 
-describe('failure classification receives forge progress output', () => {
-  // The retry loop classifies a failure from `RAW_STDOUT_FULL`, not `RAW_RETURN_DATA`.
-  // JSON extraction strips every human-readable line, and those lines carry the only
-  // evidence that forge began broadcasting — without them a dropped connection during
-  // receipt polling looks like a safe pre-broadcast failure and the endpoint is
-  // switched under an in-flight transaction.
-  it('keeps progress lines that JSON extraction discards', async () => {
+describe('failure classification receives forge broadcast markers', () => {
+  // forge's final --json object names the broadcast artifact, which is the evidence a
+  // transaction was actually sent. `extractJsonFromForgeOutput` is a no-op while stdout
+  // is a clean JSON stream, but as soon as one non-JSON line appears (a compiler
+  // notice, a warning) it keeps only the {"logs":...} object and the evidence is lost.
+  // Classifying from the unextracted copy removes that dependency entirely.
+  const FORGE_STDOUT =
+    'Compiler run successful!\\n' +
+    '{\\"logs\\":[],\\"returns\\":{}}\\n' +
+    '{\\"status\\":\\"success\\",\\"transactions\\":\\"/tmp/fp/broadcast/D.s.sol/42220/run-latest.json\\"}\\n'
+
+  it('keeps the broadcast artifact line that JSON extraction discards', async () => {
     const script = [
       'source script/helperFunctions.sh >/dev/null 2>&1',
-      // Stand in for forge: progress lines plus the JSON blob, exactly as forge --json emits.
-      `executeAndParse 'printf "Sending transactions [0/1]\\nWaiting for receipts.\\n{\\"logs\\":[],\\"returns\\":{}}\\n"' "true"`,
+      `executeAndParse 'printf "${FORGE_STDOUT}"' "true"`,
       'echo "EXTRACTED:$RAW_RETURN_DATA"',
       'echo "FULL:$RAW_STDOUT_FULL"',
     ].join('\n')
 
     const result = await runBash(script, REPO_ROOT)
 
-    // Extraction keeps only the JSON object...
+    // Extraction keeps only the trace object...
     expect(result.stdout).toContain('EXTRACTED:{"logs":[]')
-    expect(result.stdout).not.toMatch(/EXTRACTED:[^\n]*Sending transactions/)
-    // ...while the unextracted copy still carries the broadcast evidence.
-    expect(result.stdout).toContain('Sending transactions')
-    expect(result.stdout).toContain('Waiting for receipts')
+    expect(result.stdout).not.toMatch(/EXTRACTED:[^\n]*run-latest\.json/)
+    // ...while the unextracted copy still names the broadcast artifact.
+    expect(result.stdout).toMatch(/FULL:[\s\S]*run-latest\.json/)
   })
 
-  it('classifies that captured output as post-broadcast', async () => {
+  it('classifies the captured output as post-broadcast', async () => {
     const script = [
       'source script/helperFunctions.sh >/dev/null 2>&1',
-      `executeAndParse 'printf "Sending transactions [0/1]\\nerror sending request for url (https://x/key)\\n{\\"logs\\":[],\\"returns\\":{}}\\n"' "true"`,
-      // Feed exactly what the retry loop feeds the resolver.
-      'printf "%s\\n%s" "$STDERR_CONTENT" "$RAW_STDOUT_FULL" > /tmp/lifi-classify-input.txt',
+      `executeAndParse 'printf "${FORGE_STDOUT}"; printf "error sending request for url (x)" >&2' "true"`,
+      // Exactly what the retry loop hands to the resolver.
+      'printf "%s\\n%s" "$STDERR_CONTENT" "$RAW_STDOUT_FULL" > /tmp/lifi-classify-full.txt',
+      'printf "%s\\n%s" "$STDERR_CONTENT" "$RAW_RETURN_DATA" > /tmp/lifi-classify-extracted.txt',
     ].join('\n')
 
     await runBash(script, REPO_ROOT)
-
-    const captured = readFileSync('/tmp/lifi-classify-input.txt', 'utf8')
     const { classifyForgeFailure } = await import('./rpcFailover')
 
-    expect(captured).toContain('Sending transactions')
-    expect(classifyForgeFailure(captured)).toBe('postBroadcast')
+    const full = readFileSync('/tmp/lifi-classify-full.txt', 'utf8')
+    const extracted = readFileSync('/tmp/lifi-classify-extracted.txt', 'utf8')
+
+    expect(classifyForgeFailure(full)).toBe('postBroadcast')
+    // Same run classified from the extracted stdout: the guard cannot fire.
+    expect(classifyForgeFailure(extracted)).toBe('preBroadcast')
   })
 })
 

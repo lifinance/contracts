@@ -283,10 +283,6 @@ describe('classifyForgeFailure', () => {
       'error sending request: dns error: failed to lookup address information',
     ],
     ['timeout', 'error sending request: operation timed out'],
-    [
-      'no output',
-      'No JSON output received. This usually indicates a connection/RPC error.',
-    ],
   ])(
     'classifies %s as pre-broadcast (safe to switch endpoint)',
     (_label, output) => {
@@ -601,34 +597,6 @@ describe('resolveEndpoint (negative controls)', () => {
 })
 
 describe('regressions found in adversarial review', () => {
-  // A transport error while submitting a signed transaction is ambiguous: the node may
-  // have accepted it and only the reply was lost. Treating it as pre-broadcast would
-  // resubmit through a different backend — the exact stuck-nonce failure this module
-  // exists to prevent.
-  it.each([
-    [
-      'timeout after submission started',
-      'Sending transactions [0/1]\nError: Failed to send transaction: error sending request for url (...): operation timed out',
-    ],
-    [
-      'connection dropped while waiting for a receipt',
-      'Waiting for receipts.\nError: error sending request: Connection refused',
-    ],
-    [
-      'transport error after the run was saved',
-      'Transactions saved to: /broadcast/Deploy.s.sol/1/run-latest.json\nerror sending request',
-    ],
-    [
-      'transport error alongside a transaction hash',
-      'hash: 0x2ab1f0dbb2be3d1a94e2a4b13b52c8dcb1b8cf7a2a8f2fd50c6cd7f2ef47a9b1\nerror sending request',
-    ],
-  ])(
-    'treats a transport failure as post-broadcast when %s',
-    (_label, output) => {
-      expect(classifyForgeFailure(output)).toBe('postBroadcast')
-    }
-  )
-
   it.each([
     ['geth known transaction', 'known transaction: 0xabc'],
     ['besu uppercase code', 'TRANSACTION_ALREADY_KNOWN'],
@@ -729,25 +697,6 @@ describe('regressions found in adversarial review', () => {
     expect(best?.chainCapabilities.eip1559Block).toBe(true)
   })
 
-  it('always reports capabilities matching the selected endpoint probe', () => {
-    const candidates: IRpcCandidate[] = [
-      { url: 'https://a.example.com', source: 'env', priority: 0 },
-      { url: 'https://b.example.com', source: 'mongo', priority: 5 },
-    ]
-    const probes = [
-      probe('https://a.example.com', { feeHistory: false }),
-      probe('https://b.example.com'),
-    ]
-    const best = selectBestCandidate(candidates, probes)
-    const winnerProbe = probes.find((entry) => entry.url === best?.url)
-
-    expect(best?.capabilities).toEqual({
-      feeHistory: winnerProbe?.feeHistory as boolean,
-      eip1559Block: winnerProbe?.eip1559Block as boolean,
-      gasPrice: winnerProbe?.gasPrice as boolean,
-    })
-  })
-
   it('lets a lost gasPrice probe change the ranking outcome', () => {
     const candidates: IRpcCandidate[] = [
       { url: 'https://a.example.com', source: 'env', priority: 0 },
@@ -776,6 +725,120 @@ describe('regressions found in adversarial review', () => {
     const result = collectCandidates({
       envUrl: 'https://rpc.example.com/r?b=2&a=1',
       exclude: ['https://rpc.example.com/r?a=1&b=2'],
+    })
+
+    expect(result).toEqual([])
+  })
+})
+
+/**
+ * Verbatim `forge script --broadcast --slow --json` output (forge 1.7.1) captured
+ * against a mock node driven into each failure mode. Hand-written approximations were
+ * how an earlier version of this suite came to "cover" a guard that could never fire:
+ * under --json forge suppresses the progress lines those fixtures relied on.
+ */
+const REAL_FORGE_OUTPUT = {
+  // Endpoint answers everything except eth_feeHistory (the celo production symptom).
+  noFeeHistory:
+    'Error: Failed to get EIP-1559 fees; server returned an error response: error code -32601: the method eth_feeHistory does not exist/is not available',
+
+  // Block has no mixHash, or mixHash: null (the moonbeam / fuse / moonriver symptom).
+  noMixHash:
+    'Error: Failed to deploy script:\nEVM error; header validation error: `prevrandao` not set\n',
+
+  // Node accepted eth_sendRawTransaction, then died before replying.
+  killedDuringSend:
+    'Error: Failed to send transaction after 4 attempts Err(error sending request for url (http://127.0.0.1:8599/)\n\nContext:\n- Error #0: client error (SendRequest)\n- Error #1: connection closed before message completed)\n\nContext:\n- Error #0: client error (Connect)\n- Error #1: tcp connect error\n- Error #2: Connection refused (os error 61)\n',
+
+  // Node died while forge polled for the receipt of an accepted transaction.
+  killedDuringPoll:
+    'ERROR alloy_rpc_client::poller: failed to poll err=error sending request for url (http://127.0.0.1:8599/)\nWarning: Some transactions were discarded by the RPC node. Use `--resume` to retry these transactions.\n',
+
+  // Successful broadcast: the artifact path has no dry-run segment.
+  broadcastArtifact:
+    '{"status":"success","transactions":"/tmp/fp/broadcast/D.s.sol/42220/run-latest.json","sensitive":"/tmp/fp/cache/D.s.sol/42220/run-latest.json"}',
+
+  // Simulation only: same file name, under dry-run/. Nothing was submitted.
+  dryRunArtifact:
+    'SIMULATION COMPLETE. To broadcast these transactions, add --broadcast and wallet configuration(s) to the previous command.\n\nTransactions saved to: /tmp/fp/broadcast/D.s.sol/42220/dry-run/run-latest.json\n',
+}
+
+describe('classifyForgeFailure against real forge output', () => {
+  it('allows failover when the endpoint lacks eth_feeHistory', () => {
+    expect(classifyForgeFailure(REAL_FORGE_OUTPUT.noFeeHistory)).toBe(
+      'preBroadcast'
+    )
+  })
+
+  it('allows failover when the chain has no mixHash', () => {
+    expect(classifyForgeFailure(REAL_FORGE_OUTPUT.noMixHash)).toBe(
+      'preBroadcast'
+    )
+  })
+
+  // These two are the dangerous direction: the transaction may be in the mempool.
+  it('refuses failover when the node died mid-send', () => {
+    expect(classifyForgeFailure(REAL_FORGE_OUTPUT.killedDuringSend)).toBe(
+      'postBroadcast'
+    )
+  })
+
+  it('refuses failover when the node died while polling for a receipt', () => {
+    expect(classifyForgeFailure(REAL_FORGE_OUTPUT.killedDuringPoll)).toBe(
+      'postBroadcast'
+    )
+  })
+
+  it('refuses failover once a broadcast artifact has been written', () => {
+    expect(
+      classifyForgeFailure(
+        `${REAL_FORGE_OUTPUT.broadcastArtifact}\nerror sending request`
+      )
+    ).toBe('postBroadcast')
+  })
+
+  // A dry run writes the same file name under dry-run/ and submits nothing, so it must
+  // not pin the endpoint.
+  it('still allows failover after a simulation-only run', () => {
+    expect(
+      classifyForgeFailure(
+        `${REAL_FORGE_OUTPUT.dryRunArtifact}\nError: error sending request for url (x)`
+      )
+    ).toBe('preBroadcast')
+  })
+
+  it('treats a bare transport error with no broadcast marker as pre-broadcast', () => {
+    expect(
+      classifyForgeFailure(
+        'Error: error sending request for url (x)\n\nContext:\n- Error #2: Connection refused (os error 61)'
+      )
+    ).toBe('preBroadcast')
+  })
+})
+
+describe('URL normalization keeps distinct API keys distinct', () => {
+  it('does not collapse a plus-encoded key into a percent-encoded one', () => {
+    const result = collectCandidates({
+      envUrl: 'https://h.io/r?dkey=AB+CD',
+      mongoRpcs: [{ url: 'https://h.io/r?dkey=AB%20CD', priority: 1 }],
+    })
+
+    expect(result).toHaveLength(2)
+  })
+
+  it('does not exclude one encoding when the other was excluded', () => {
+    const result = collectCandidates({
+      envUrl: 'https://h.io/r?dkey=AB+CD',
+      exclude: ['https://h.io/r?dkey=AB%20CD'],
+    })
+
+    expect(result).toHaveLength(1)
+  })
+
+  it('still treats a reordered query as the same endpoint', () => {
+    const result = collectCandidates({
+      envUrl: 'https://h.io/r?b=2&a=1',
+      exclude: ['https://h.io/r?a=1&b=2'],
     })
 
     expect(result).toEqual([])

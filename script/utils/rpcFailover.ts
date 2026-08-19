@@ -91,11 +91,14 @@ function normalizeUrl(url: string): string | null {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
 
-    const params = [...parsed.searchParams.entries()].sort(
-      ([aKey, aValue], [bKey, bValue]) =>
-        aKey.localeCompare(bKey) || aValue.localeCompare(bValue)
-    )
-    const query = params.map(([key, value]) => `${key}=${value}`).join('&')
+    // Sorted over the RAW pairs: decoding would make "AB+CD" and "AB%20CD" — two
+    // genuinely different API keys — look like the same endpoint.
+    const query = parsed.search
+      .replace(/^\?/, '')
+      .split('&')
+      .filter(Boolean)
+      .sort()
+      .join('&')
     const credentials = parsed.username
       ? `${parsed.username}:${parsed.password}@`
       : ''
@@ -323,18 +326,47 @@ export function selectBestCandidate(
 }
 
 /**
- * Evidence that forge got as far as submitting a transaction. Once any of these appear,
- * a transport failure is ambiguous — the node may have accepted the transaction and
- * only the response was lost — so the endpoint must be treated as pinned.
+ * Paths forge prints for a broadcast it actually performed. A dry run writes the same
+ * file name under a `dry-run/` directory, which is why the path is inspected rather
+ * than matched as a bare string.
+ */
+const BROADCAST_ARTIFACT_PATTERNS = [
+  /"transactions"\s*:\s*"([^"]+)"/gi,
+  /transactions saved to:\s*(\S+)/gi,
+]
+
+function mentionsRealBroadcastArtifact(output: string): boolean {
+  for (const pattern of BROADCAST_ARTIFACT_PATTERNS) {
+    pattern.lastIndex = 0
+    let match = pattern.exec(output)
+    while (match !== null) {
+      const path = match[1] ?? ''
+      if (path && !path.includes('/dry-run/')) return true
+      match = pattern.exec(output)
+    }
+  }
+  return false
+}
+
+/**
+ * Evidence that forge got as far as submitting a transaction, taken from observed
+ * `forge script --broadcast --slow --json` output rather than from its documentation:
+ * under `--json` the human-readable progress lines are suppressed, so the markers that
+ * survive are the send/poll errors and the broadcast artifact path.
+ *
+ * Once any of these appear a transport failure is ambiguous — the node may have
+ * accepted the transaction and only the response was lost — so the endpoint is pinned.
  */
 const BROADCAST_EVIDENCE = [
+  /failed to send transaction/i,
+  /transactions were discarded by the rpc node/i,
+  /failed to poll/i,
+  /onchain execution complete/i,
+  // Progress lines, suppressed by --json but present on the callers that omit it.
+  // A simulation prints "SIMULATION COMPLETE" instead, so these do not match a dry run.
   /sending transactions?\b/i,
   /waiting for receipts?/i,
-  /transactions saved to/i,
   /sequence #/i,
-  /transaction[_ ]?hash/i,
-  /pending transaction/i,
-  /\bhash:\s*0x[0-9a-f]{64}/i,
 ]
 
 // A transaction that reached the mempool pins the endpoint: a different backend has a
@@ -353,18 +385,25 @@ const POST_BROADCAST_SIGNATURES = [
   /underpriced/i,
 ]
 
+/**
+ * Failures that provably precede submission. Each is a string forge was observed to
+ * emit: the fee-estimation errors come from an endpoint without `eth_feeHistory`, and
+ * the header-validation error from a chain whose blocks carry no `mixHash`.
+ */
 const PRE_BROADCAST_SIGNATURES = [
-  /missing field `?mixHash`?/i,
   /failed to get eip-?1559 fees/i,
+  /header validation error/i,
+  /prevrandao. not set/i,
+  /failed to deploy script/i,
+  /missing field `?mixHash`?/i,
   /-32601/,
-  /method .* does not exist/i,
+  /the method .* does not exist/i,
   /method not found/i,
   /connection refused/i,
   /dns error/i,
   /operation timed out/i,
   /\btimed out\b/i,
   /error sending request/i,
-  /no json output received/i,
 ]
 
 /**
@@ -375,12 +414,14 @@ const PRE_BROADCAST_SIGNATURES = [
  * canonical ambiguous case, because the node may have accepted it and lost the reply.
  * Broadcast evidence therefore outranks every transport pattern.
  *
- * @param output - Combined stderr and raw return data from the run
+ * @param output - Combined stderr and unextracted stdout from the run. Passing forge's
+ *   JSON-extracted stdout instead would drop the broadcast markers entirely.
  * @returns `postBroadcast` if a transaction may have reached the mempool,
  *   `preBroadcast` for a recognised failure that provably precedes submission,
  *   otherwise `unknown`. Callers must only switch endpoints on `preBroadcast`.
  */
 export function classifyForgeFailure(output: string): ForgeFailureClass {
+  if (mentionsRealBroadcastArtifact(output)) return 'postBroadcast'
   if (BROADCAST_EVIDENCE.some((pattern) => pattern.test(output)))
     return 'postBroadcast'
   if (POST_BROADCAST_SIGNATURES.some((pattern) => pattern.test(output)))
