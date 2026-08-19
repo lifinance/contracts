@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
@@ -121,13 +122,16 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         uint256 expectedHwm = LibVaultWrapperMath.pricePerShare(
             supply + expectedShares,
             assets,
-            wrapper.shareDecimalsOffset()
+            wrapper.shareDecimalsOffset(),
+            Math.Rounding.Ceil
         );
 
         _crystallize();
 
-        // The watermark equals the diluted (post-fee-mint) PPS, sitting below the
-        // pre-charge peak: holders' realized value is the new baseline.
+        // The watermark equals the diluted (post-fee-mint) PPS rounded up, sitting below the
+        // pre-charge peak: holders' realized value is the new baseline. Rounding up keeps a
+        // floored price from dropping a full step below the crystallization price and being
+        // re-charged on the next crossing.
         uint256 hwm = wrapper.perfHighWaterMarkPps();
         assertEq(hwm, expectedHwm);
         assertLt(hwm, ppsBeforeCharge);
@@ -254,8 +258,16 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Performance, PERF_RATE);
 
-        // The watermark re-anchored at the current (post-yield) PPS...
-        assertEq(wrapper.perfHighWaterMarkPps(), _pps());
+        // The watermark re-anchored at the current (post-yield) PPS, rounded up...
+        assertEq(
+            wrapper.perfHighWaterMarkPps(),
+            LibVaultWrapperMath.pricePerShare(
+                wrapper.totalSupply(),
+                wrapper.totalAssets(),
+                wrapper.shareDecimalsOffset(),
+                Math.Rounding.Ceil
+            )
+        );
         assertEq(_accruedFeeShares(), 0);
 
         // ...so crystallizing right away charges nothing...

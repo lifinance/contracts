@@ -58,7 +58,7 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      dust-denominator regime. EIP-5143 slippage overloads of
 ///      the four entrypoints bound the realized amount against in-flight share-price
 ///      or fee-rate changes.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
     // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
@@ -833,7 +833,8 @@ contract LiFiVaultWrapper is
                         LibVaultWrapperMath.pricePerShare(
                             supply,
                             totalAssets(),
-                            _decimalsOffset()
+                            _decimalsOffset(),
+                            Math.Rounding.Ceil
                         )
                     );
                     // Up-only: anchoring below the stored watermark would let the owner
@@ -1083,16 +1084,39 @@ contract LiFiVaultWrapper is
             supply += mgmtShares;
         }
 
+        // While no holder shares exist, no performance fee can be owed, and any price rise is
+        // a donation to the (predicted) address, not yield. Float the watermark up to the
+        // current price so the first depositor's entry price becomes the baseline, instead of
+        // being booked as gain against their own principal on the next accrual.
+        if (perfEnabled && supply == 0) {
+            perfHighWaterMarkPps = SafeCast.toUint192(
+                LibVaultWrapperMath.pricePerShare(
+                    supply,
+                    assets,
+                    _decimalsOffset(),
+                    Math.Rounding.Ceil
+                )
+            );
+            return;
+        }
+
         uint256 perfShares = _pendingPerformanceFee(supply, assets);
         if (perfShares != 0) {
             _mint(address(this), perfShares);
             _bookDilution(FeeType.Performance, perfShares);
             supply += perfShares;
+            // Ceil, not floor: a floored post-dilution price can fall a full pps step below the
+            // price the fee was just charged at, re-opening that step to be charged again on the
+            // next crossing (severe for low-decimal assets, where a step is a coarse slice of
+            // AUM). Rounding up keeps the watermark at/above the crystallization price, at most
+            // under-charging by one sub-step — the holder-favouring direction the rest of the
+            // fee math already rounds in.
             perfHighWaterMarkPps = SafeCast.toUint192(
                 LibVaultWrapperMath.pricePerShare(
                     supply,
                     assets,
-                    _decimalsOffset()
+                    _decimalsOffset(),
+                    Math.Rounding.Ceil
                 )
             );
         }
