@@ -4,6 +4,7 @@ import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
 
+import { withSrvDnsFallback } from '../deploy/shared/mongo-srv-dns'
 import { getRPCEnvVarName } from '../utils/utils'
 
 config()
@@ -25,7 +26,7 @@ async function fetchRpcEndpoints(): Promise<{
   const client = new MongoClient(MONGODB_URI)
 
   try {
-    await client.connect()
+    await withSrvDnsFallback(() => client.connect())
     const db = client.db('blockchain-configs')
     const collection = db.collection('RpcEndpoints')
 

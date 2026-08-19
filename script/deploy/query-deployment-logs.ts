@@ -27,6 +27,7 @@ import {
   mongoEq,
   ValidationUtils,
 } from './shared/mongo-log-utils'
+import { withSrvDnsFallback } from './shared/mongo-srv-dns'
 
 const config: IConfig = {
   mongoUri: getEnvVar('MONGODB_URI'),
@@ -53,7 +54,7 @@ class DeploymentLogQuerier {
 
   public async connect(): Promise<void> {
     try {
-      await this.client.connect()
+      await withSrvDnsFallback(() => this.client.connect())
       this.db = this.client.db(this.config.databaseName)
       const collectionName = this.environment
       this.collection = this.db.collection<IDeploymentRecord>(collectionName)

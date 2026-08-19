@@ -34,6 +34,7 @@ import {
   mongoEq,
   RecordTransformer,
 } from './shared/mongo-log-utils'
+import { withSrvDnsFallback } from './shared/mongo-srv-dns'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -98,7 +99,7 @@ class DeploymentLogManager {
 
     while (retryCount < maxRetries)
       try {
-        await this.client.connect()
+        await withSrvDnsFallback(() => this.client.connect())
         this.db = this.client.db(config.databaseName)
         const collectionName = this.environment
         this.collection = this.db.collection<IDeploymentRecord>(collectionName)

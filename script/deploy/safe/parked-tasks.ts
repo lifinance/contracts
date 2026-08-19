@@ -44,6 +44,7 @@ import { type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
 import { getEnvVar } from '../../utils/utils'
+import { withSrvDnsFallback } from '../shared/mongo-srv-dns'
 
 /** Database for the deferred diamond-cleanup queue inside the non-sensitive `MONGODB_URI` cluster. */
 const PARKED_TASKS_DB_NAME = 'deferred-cleanup'
@@ -271,7 +272,7 @@ export async function getParkedTasksCollection(): Promise<{
     .db(PARKED_TASKS_DB_NAME)
     .collection<IParkedTask>(PARKED_TASKS_COLLECTION_NAME)
   try {
-    await ensureParkedTasksIndexes(parkedTasks)
+    await withSrvDnsFallback(() => ensureParkedTasksIndexes(parkedTasks))
     return { client, parkedTasks }
   } catch (error) {
     await client.close()
