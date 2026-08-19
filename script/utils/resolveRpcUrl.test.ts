@@ -97,10 +97,12 @@ describe('resolveRpcUrl CLI', () => {
       try {
         const result = await runCli(['celo'], { ETH_NODE_URI_CELO: url })
 
+        // The guarantee is that no key-bearing URL escapes, not that a diagnostic was
+        // emitted: consola's level varies with the environment, so asserting the
+        // presence of a log line would make this test report on the runner instead.
         expect(result.stderr).not.toContain('secret-api-key')
         expect(result.stderr).not.toMatch(URL_WITH_PATH_OR_QUERY)
-        // The redacted form is expected and allowed.
-        expect(result.stderr).toContain(server.url.origin)
+        expect(result.stdout).toBe(url)
       } finally {
         server.stop(true)
       }

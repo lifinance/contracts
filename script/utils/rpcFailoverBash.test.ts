@@ -391,24 +391,41 @@ describe('endpoint override survives later scripts re-reading .env', () => {
     expect(result.stdout).toContain(`RESULT:${OVERRIDE}`)
   })
 
-  it('survives a bare re-read of .env', async () => {
-    const result = await runWithOverrideFile('set -a; source .env; set +a')
+  // Documents the boundary: the override travels through helperFunctions.sh, so a
+  // script that reads an env file directly still sees the configured endpoint.
+  it('does not survive a bare re-read of an env file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rpc-override-bare-'))
+    const envFile = join(dir, 'env-under-test')
+    writeFileSync(envFile, 'ETH_NODE_URI_CELO=https://configured.example/key\n')
+    try {
+      const result = await runBash(
+        [
+          `export ETH_NODE_URI_CELO="${OVERRIDE}"`,
+          `set -a; source ${envFile}; set +a`,
+          'echo "RESULT:$ETH_NODE_URI_CELO"',
+        ].join('\n'),
+        REPO_ROOT
+      )
 
-    // A bare re-read has no re-apply step, so the configured endpoint wins again.
-    // This documents the boundary: the override travels through helperFunctions.sh.
-    expect(result.stdout).not.toContain(`RESULT:${OVERRIDE}`)
+      expect(result.stdout).toContain('RESULT:https://configured.example/key')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
-  it('is a no-op when no override file is set', async () => {
+  // Uses a network absent from any env file, so the assertion holds whether or not
+  // the checkout has one.
+  it('leaves the environment untouched when no override file is set', async () => {
     const result = await runBash(
       [
         'unset LIFI_RPC_OVERRIDE_FILE',
+        'export ETH_NODE_URI_DEFINITELYNOTANETWORK="https://untouched.example/key"',
         'source script/helperFunctions.sh >/dev/null 2>&1',
-        'test -n "$ETH_NODE_URI_CELO" && echo "CONFIGURED_ENDPOINT_PRESENT"',
+        'echo "RESULT:$ETH_NODE_URI_DEFINITELYNOTANETWORK"',
       ].join('\n'),
       REPO_ROOT
     )
 
-    expect(result.stdout).toContain('CONFIGURED_ENDPOINT_PRESENT')
+    expect(result.stdout).toContain('RESULT:https://untouched.example/key')
   })
 })
