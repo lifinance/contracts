@@ -830,14 +830,7 @@ contract LiFiVaultWrapper is
             ) {
                 uint256 supply = totalSupply();
                 if (supply != 0) {
-                    uint192 currentPps = SafeCast.toUint192(
-                        LibVaultWrapperMath.pricePerShare(
-                            supply,
-                            totalAssets(),
-                            _decimalsOffset(),
-                            Math.Rounding.Ceil
-                        )
-                    );
+                    uint192 currentPps = _ceilPps(supply, totalAssets());
                     // Up-only: anchoring below the stored watermark would let the owner
                     // toggle the fee off/on at a trough and charge the recovery back to
                     // the old peak — the double-charge the watermark exists to prevent.
@@ -1096,14 +1089,7 @@ contract LiFiVaultWrapper is
         // supply is sub-floor escapes the performance fee, which is bounded (a sub-floor vault
         // is dust) and consistent with the "no depositor transacts below the floor" invariant.
         if (perfEnabled && supply < MIN_SHARE_SUPPLY) {
-            perfHighWaterMarkPps = SafeCast.toUint192(
-                LibVaultWrapperMath.pricePerShare(
-                    supply,
-                    assets,
-                    _decimalsOffset(),
-                    Math.Rounding.Ceil
-                )
-            );
+            perfHighWaterMarkPps = _ceilPps(supply, assets);
             return;
         }
 
@@ -1112,21 +1098,36 @@ contract LiFiVaultWrapper is
             _mint(address(this), perfShares);
             _bookDilution(FeeType.Performance, perfShares);
             supply += perfShares;
-            // Ceil, not floor: a floored post-dilution price can fall a full pps step below the
-            // price the fee was just charged at, re-opening that step to be charged again on the
-            // next crossing (severe for low-decimal assets, where a step is a coarse slice of
-            // AUM). Rounding up keeps the watermark at/above the crystallization price, at most
-            // under-charging by one sub-step — the holder-favouring direction the rest of the
-            // fee math already rounds in.
-            perfHighWaterMarkPps = SafeCast.toUint192(
+            perfHighWaterMarkPps = _ceilPps(supply, assets);
+        }
+    }
+
+    /// @dev The price per share the performance-fee watermark is anchored at, narrowed to
+    ///      the watermark's storage width. Ceil, not floor: a floored post-dilution price
+    ///      can fall a full pps step below the price the fee was just charged at, re-opening
+    ///      that step to be charged again on the next crossing (severe for low-decimal
+    ///      assets, where a step is a coarse slice of AUM). Rounding up keeps the watermark
+    ///      at/above the crystallization price, at most under-charging by one sub-step — the
+    ///      holder-favouring direction the rest of the fee math already rounds in. Prices
+    ///      through `_decimalsOffset()`, so it is only valid once `initialize` has written
+    ///      `shareDecimalsOffset` (the provisional anchor there uses the pure floored
+    ///      overload instead).
+    /// @param _supply The share supply to price against.
+    /// @param _assets The gross assets to price against.
+    /// @return The ceil-rounded price per share, scaled by `LibVaultWrapperMath.PPS_SCALE`.
+    function _ceilPps(
+        uint256 _supply,
+        uint256 _assets
+    ) private view returns (uint192) {
+        return
+            SafeCast.toUint192(
                 LibVaultWrapperMath.pricePerShare(
-                    supply,
-                    assets,
+                    _supply,
+                    _assets,
                     _decimalsOffset(),
                     Math.Rounding.Ceil
                 )
             );
-        }
     }
 
     /// @dev Single source of the management-fee computation, shared by `_accrueFees` and the
