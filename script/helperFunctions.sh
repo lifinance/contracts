@@ -3918,16 +3918,9 @@ function getRPCUrl() {
   # get RPC URL
   local RPC_URL="${!RPC_KEY}"
 
-  # no endpoint configured: ask the resolver, which also knows the MongoDB endpoints
-  # and networks.json. It prints only the URL on stdout; diagnostics go to stderr
-  # already redacted to scheme+host.
-  if [[ -z "$RPC_URL" ]]; then
-    RPC_URL=$(bunx tsx script/utils/resolveRpcUrl.ts "$NETWORK")
-  fi
-
   # check if RPC URL is empty
   if [[ -z "$RPC_URL" ]]; then
-    echo "Error: Empty RPC URL for network '$NETWORK'. Environment variable '$RPC_KEY' is not set or empty and no alternative endpoint could be resolved." >&2
+    echo "Error: Empty RPC URL for network '$NETWORK'. Environment variable '$RPC_KEY' is not set or empty." >&2
     return 1
   fi
 
@@ -3952,15 +3945,44 @@ function tryRpcFailover() {
   local RPC_KEY
   RPC_KEY=$(getRPCEnvVarName "$NETWORK")
 
-  local NEW_RPC_URL
+  # Exclusions accumulate for as long as we stay on one network. Excluding only the
+  # current endpoint would let two bad ones be picked alternately until the retry
+  # budget is gone.
+  if [[ "${RPC_FAILOVER_NETWORK:-}" != "$NETWORK" ]]; then
+    RPC_FAILOVER_NETWORK="$NETWORK"
+    RPC_FAILOVER_EXCLUDED=""
+  fi
+  if [[ -n "${!RPC_KEY:-}" ]]; then
+    RPC_FAILOVER_EXCLUDED="${RPC_FAILOVER_EXCLUDED:+${RPC_FAILOVER_EXCLUDED}$'\n'}${!RPC_KEY}"
+  fi
+
+  local NEW_RPC_URL RESOLVER_EXIT=0
   NEW_RPC_URL=$(printf '%s' "$FORGE_OUTPUT" |
-    LIFI_RPC_EXCLUDE="${!RPC_KEY:-}" bunx tsx script/utils/resolveRpcUrl.ts "$NETWORK" --after-failure) || return 1
+    LIFI_RPC_EXCLUDE="$RPC_FAILOVER_EXCLUDED" bunx tsx script/utils/resolveRpcUrl.ts "$NETWORK" --after-failure) || RESOLVER_EXIT=$?
+
+  # Exit code 3 means the resolver declined on purpose (a transaction may be in
+  # flight); anything else is an operator-actionable failure worth surfacing.
+  case "$RESOLVER_EXIT" in
+    0) ;;
+    3) return 1 ;;
+    *)
+      warning "could not resolve an alternative RPC endpoint for '$NETWORK' (resolver exit $RESOLVER_EXIT)"
+      return 1
+      ;;
+  esac
 
   if [[ -z "$NEW_RPC_URL" ]]; then
     return 1
   fi
 
   export "$RPC_KEY=$NEW_RPC_URL"
+
+  # A MongoDB-sourced endpoint was never seen by the workflow's ::add-mask:: sweep over
+  # the .env keys, and forge quotes the full URL in transport errors.
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::add-mask::$NEW_RPC_URL"
+  fi
+
   echo "switched RPC endpoint for '$NETWORK' after a pre-broadcast failure"
   return 0
 }
@@ -5015,11 +5037,16 @@ function executeAndCapture() {
   local STDERR_LOG
   STDOUT_LOG="$(mktemp)"
   STDERR_LOG="$(mktemp)"
+  # forge's human-readable progress lines ("Sending transactions", "Waiting for
+  # receipts") are the only evidence of how far a run got, and JSON extraction below
+  # discards them, so keep an unextracted copy for failure classification.
+  local STDOUT_RAW_LOG
+  STDOUT_RAW_LOG="$(mktemp)"
 
   # Preserve caller EXIT trap (this file is sourced in many scripts)
   local _OLD_EXIT_TRAP
   _OLD_EXIT_TRAP="$(trap -p EXIT 2>/dev/null || true)"
-  trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null' EXIT
+  trap 'rm -f "$STDOUT_LOG" "$STDERR_LOG" "$STDOUT_RAW_LOG" 2>/dev/null' EXIT
 
   # Execute command with redirection
   eval "$COMMAND" >"$STDOUT_LOG" 2>"$STDERR_LOG"
@@ -5035,6 +5062,8 @@ function executeAndCapture() {
   echoDebug "=== STDERR_CONTENT (stderr) ==="
   echoDebug "$STDERR_CONTENT"
 
+  cp "$STDOUT_LOG" "$STDOUT_RAW_LOG" 2>/dev/null || true
+
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
     RAW_RETURN_DATA=$(extractJsonFromForgeOutput "$RAW_RETURN_DATA")
@@ -5046,9 +5075,10 @@ function executeAndCapture() {
   local JSON_RESULT
   JSON_RESULT=$(jq -n \
     --rawfile stdout "$STDOUT_LOG" \
+    --rawfile stdoutRaw "$STDOUT_RAW_LOG" \
     --rawfile stderr "$STDERR_LOG" \
     --argjson returnCode "$RETURN_CODE" \
-    '{stdout: $stdout, stderr: $stderr, returnCode: $returnCode}')
+    '{stdout: $stdout, stdoutRaw: $stdoutRaw, stderr: $stderr, returnCode: $returnCode}')
 
   # Explicit cleanup + restore previous EXIT trap
   rm -f "$STDOUT_LOG" "$STDERR_LOG" 2>/dev/null
@@ -5091,10 +5121,11 @@ function parseExecuteCommandResult() {
 
   # Parse JSON result and merge into single object using jq
   local PARSED
-  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stderr: .stderr, returnCode: .returnCode}')
+  PARSED=$(echo "$RESULT" | jq -c '{stdout: .stdout, stdoutRaw: .stdoutRaw, stderr: .stderr, returnCode: .returnCode}')
 
   # Extract and set variables from merged JSON object
   RAW_RETURN_DATA=$(echo "$PARSED" | jq -r '.stdout')
+  RAW_STDOUT_FULL=$(echo "$PARSED" | jq -r '.stdoutRaw // ""')
   STDERR_CONTENT=$(echo "$PARSED" | jq -r '.stderr')
   RETURN_CODE=$(echo "$PARSED" | jq -r '.returnCode')
 

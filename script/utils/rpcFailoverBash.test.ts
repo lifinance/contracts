@@ -35,10 +35,11 @@ const runBash = async (script: string, cwd: string) => {
 
 /**
  * Reproduces the ordering that matters in `deploySingleContract()`: the function
- * re-reads `.env` on every call, then the retry loop exports an override, then forge
- * runs and resolves its endpoint from the environment.
+ * re-reads `.env` once on entry, then the retry loop exports an override, then forge
+ * runs and resolves its endpoint from the environment. An override written before that
+ * read is discarded.
  *
- * `exportBeforeSource` flips that order to prove the test can detect the mistake.
+ * `exportBeforeSource` flips the order to prove the test can detect the mistake.
  */
 const buildHarness = (exportBeforeSource: boolean) => {
   const dir = mkdtempSync(join(tmpdir(), 'rpc-failover-'))
@@ -158,5 +159,88 @@ describe('shell wiring', () => {
     expect(helpers).toMatch(
       /printf '%s' "\$FORGE_OUTPUT" \|[\s\S]{0,120}resolveRpcUrl\.ts/
     )
+  })
+})
+
+describe('failure classification receives forge progress output', () => {
+  // The retry loop classifies a failure from `RAW_STDOUT_FULL`, not `RAW_RETURN_DATA`.
+  // JSON extraction strips every human-readable line, and those lines carry the only
+  // evidence that forge began broadcasting — without them a dropped connection during
+  // receipt polling looks like a safe pre-broadcast failure and the endpoint is
+  // switched under an in-flight transaction.
+  it('keeps progress lines that JSON extraction discards', async () => {
+    const script = [
+      'source script/helperFunctions.sh >/dev/null 2>&1',
+      // Stand in for forge: progress lines plus the JSON blob, exactly as forge --json emits.
+      `executeAndParse 'printf "Sending transactions [0/1]\\nWaiting for receipts.\\n{\\"logs\\":[],\\"returns\\":{}}\\n"' "true"`,
+      'echo "EXTRACTED:$RAW_RETURN_DATA"',
+      'echo "FULL:$RAW_STDOUT_FULL"',
+    ].join('\n')
+
+    const result = await runBash(script, REPO_ROOT)
+
+    // Extraction keeps only the JSON object...
+    expect(result.stdout).toContain('EXTRACTED:{"logs":[]')
+    expect(result.stdout).not.toMatch(/EXTRACTED:[^\n]*Sending transactions/)
+    // ...while the unextracted copy still carries the broadcast evidence.
+    expect(result.stdout).toContain('Sending transactions')
+    expect(result.stdout).toContain('Waiting for receipts')
+  })
+
+  it('classifies that captured output as post-broadcast', async () => {
+    const script = [
+      'source script/helperFunctions.sh >/dev/null 2>&1',
+      `executeAndParse 'printf "Sending transactions [0/1]\\nerror sending request for url (https://x/key)\\n{\\"logs\\":[],\\"returns\\":{}}\\n"' "true"`,
+      // Feed exactly what the retry loop feeds the resolver.
+      'printf "%s\\n%s" "$STDERR_CONTENT" "$RAW_STDOUT_FULL" > /tmp/lifi-classify-input.txt',
+    ].join('\n')
+
+    await runBash(script, REPO_ROOT)
+
+    const captured = readFileSync('/tmp/lifi-classify-input.txt', 'utf8')
+    const { classifyForgeFailure } = await import('./rpcFailover')
+
+    expect(captured).toContain('Sending transactions')
+    expect(classifyForgeFailure(captured)).toBe('postBroadcast')
+  })
+})
+
+describe('failover wiring safeguards', () => {
+  const helpers = readFileSync(
+    join(REPO_ROOT, 'script', 'helperFunctions.sh'),
+    'utf8'
+  )
+
+  it('classifies from the unextracted stdout, not the JSON-extracted one', () => {
+    const deployScript = readFileSync(
+      join(REPO_ROOT, 'script', 'deploy', 'deploySingleContract.sh'),
+      'utf8'
+    )
+    const call = deployScript.slice(deployScript.indexOf('tryRpcFailover'))
+
+    expect(call).toContain('RAW_STDOUT_FULL')
+  })
+
+  it('accumulates exclusions so two bad endpoints cannot be chosen alternately', () => {
+    expect(helpers).toContain('RPC_FAILOVER_EXCLUDED')
+    expect(helpers).toMatch(
+      /RPC_FAILOVER_EXCLUDED="\$\{RPC_FAILOVER_EXCLUDED:\+/
+    )
+  })
+
+  it('masks a newly selected endpoint in GitHub Actions logs', () => {
+    expect(helpers).toContain('::add-mask::$NEW_RPC_URL')
+  })
+
+  // getRPCUrl runs in tight per-selector loops; a probe there would cost minutes.
+  it('leaves getRPCUrl free of resolver calls', () => {
+    const start = helpers.indexOf('function getRPCUrl()')
+    const body = helpers.slice(
+      start,
+      helpers.indexOf('function tryRpcFailover')
+    )
+
+    expect(start).toBeGreaterThan(-1)
+    expect(body).not.toContain('resolveRpcUrl.ts')
   })
 })
