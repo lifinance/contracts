@@ -41,7 +41,7 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { getTronWallet } from './tronUtils.js'
+import { encodeConstructorArgs, getTronWallet } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
   {
@@ -1115,7 +1115,7 @@ async function deployAndRegisterPeripheryImpl(options: {
                 network,
                 result.contractAddress,
                 version,
-                '0x',
+                await encodeConstructorArgs(constructorArgs),
                 false
               )
               await saveContractAddress(

@@ -903,7 +903,8 @@ export function printDeploymentSummary(
     summaryContent += 'Successful deployments:\n'
     successful.forEach((r) => {
       summaryContent += `  ${r.contract}: ${r.address}\n`
-      if (r.cost > 0) summaryContent += `    Cost: ${r.cost.toFixed(4)}\n`
+      if (r.cost > 0)
+        summaryContent += `    Cost: ${Number(r.cost).toFixed(4)}\n`
     })
   }
 
