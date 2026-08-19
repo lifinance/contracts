@@ -77,7 +77,12 @@ custody contract must never be left ownerless.
 deployed. It sets the identity (`underlying` / `adapter` / `owner` / `factory`),
 the initial fee configuration, receivers, and access gate; resolves the ERC-20
 asset via the adapter; derives the virtual-share offset from the asset decimals;
-and anchors the performance watermark at the empty-vault share price.
+and sets a provisional performance watermark at the empty-vault share price. That
+par value is only a placeholder: while total supply is below `MIN_SHARE_SUPPLY`
+(no real holders), each accrual re-floats the watermark to the live price and
+skips the performance fee, so assets donated to the instance's predicted address
+become the first real depositor's baseline instead of being charged to them as
+fabricated gain.
 
 ## Upgradeability and the FACTORY binding
 
