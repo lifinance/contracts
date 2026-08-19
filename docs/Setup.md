@@ -200,16 +200,20 @@ perfectly healthy from the shell.
 The tooling handles this on its own: the connection is retried once against public
 DNS servers, with a `WARN` naming the resolver that failed. Set
 `MONGODB_DNS_SERVERS` (comma-separated) if 1.1.1.1 / 8.8.8.8 are unreachable on
-your network, or fix it at the OS level with
+your network, or fix it at the OS level — on macOS, with `<service>` being your
+network service name as listed by `networksetup -listallnetworkservices`:
 
 ```bash
-networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8
+networksetup -setdnsservers "<service>" 1.1.1.1 8.8.8.8   # e.g. "Wi-Fi"
+networksetup -setdnsservers "<service>" empty              # restore DHCP-provided DNS
 ```
 
-To confirm the diagnosis, compare the two resolvers directly:
+To confirm the diagnosis, run the same SRV query through the local resolver and
+through a public one — the first fails, the second returns the record count:
 
 ```bash
-node -e "require('dns').resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log(e?e.code:r.length))"
+node -e "require('dns').resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log('local:',e?e.code:r.length))"
+node -e "const d=require('dns');d.setServers(['1.1.1.1']);d.resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log('public:',e?e.code:r.length))"
 ```
 
 ### Agent access

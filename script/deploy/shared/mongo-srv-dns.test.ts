@@ -111,15 +111,16 @@ describe('withSrvDnsFallback', () => {
   it('rethrows the original error when the configured servers are not valid IPs', async () => {
     process.env.MONGODB_DNS_SERVERS = 'not-an-ip'
     const before = dns.getServers()
+    const srvError = makeSrvError()
     let attempts = 0
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
     await expect(
       withSrvDnsFallback(async () => {
         attempts++
-        throw makeSrvError()
+        throw srvError
       })
-    ).rejects.toThrow('querySrv EBADRESP')
+    ).rejects.toBe(srvError)
 
     expect(attempts).toBe(1)
     expect(dns.getServers()).toEqual(before)
@@ -127,15 +128,16 @@ describe('withSrvDnsFallback', () => {
 
   it('rethrows the original error when the configured server list is empty', async () => {
     process.env.MONGODB_DNS_SERVERS = ' , '
+    const srvError = makeSrvError()
     let attempts = 0
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
     await expect(
       withSrvDnsFallback(async () => {
         attempts++
-        throw makeSrvError()
+        throw srvError
       })
-    ).rejects.toThrow('querySrv EBADRESP')
+    ).rejects.toBe(srvError)
 
     expect(attempts).toBe(1)
   })
