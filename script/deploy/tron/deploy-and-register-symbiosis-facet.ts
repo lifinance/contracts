@@ -175,8 +175,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     consola.info('\nDeploying SymbiosisFacet...')
 
     // checkExistingDeployment prompts "Redeploy?" whenever an address is already
-    // recorded, and without a TTY that prompt cancels the whole process before we
-    // can branch on the answer - so a non-interactive redeploy has to skip it.
+    // recorded, and with no TTY that prompt never resolves - the run just hangs.
+    // A non-interactive redeploy therefore has to skip the check entirely.
     const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
 
     const { exists, address, shouldRedeploy } = forceRedeploy
