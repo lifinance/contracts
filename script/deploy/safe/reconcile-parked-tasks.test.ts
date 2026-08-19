@@ -37,7 +37,6 @@ import {
   partitionByNetworkStatus,
   parseTtlDays,
   reconcileDecision,
-  isParkedFacetStillRemovable,
   isSuspectAddressSnapshot,
   resolveFacetPresence,
   shouldCancelDeprecated,
@@ -121,44 +120,44 @@ describe('reconcileDecision', () => {
     ).toBe('keep')
   })
 
-  it('reopens an executed task whose deprecated facet is still routed (removal never landed)', () => {
+  it('reopens an executed task whose facet is still routed and still removable', () => {
     expect(
       reconcileDecision(
         { status: 'executed' },
         {
           facetPresentOnChain: true,
           proposalStatus: 'executed',
-          facetDeprecated: true,
+          removable: true,
         }
       )
     ).toBe('reopen')
   })
 
-  it('reopens a superseded task whose deprecated facet is still routed', () => {
+  it('reopens a superseded task whose facet is still routed and still removable', () => {
     expect(
       reconcileDecision(
         { status: 'superseded' },
-        { facetPresentOnChain: true, facetDeprecated: true }
+        { facetPresentOnChain: true, removable: true }
       )
     ).toBe('reopen')
   })
 
-  it('does NOT reopen a routed facet that is no longer deprecated (incident rollback)', () => {
+  it('does NOT reopen a routed facet the removal engine refuses (incident rollback)', () => {
     // Re-cutting the same address (a rollback, or a CREATE2 redeploy) makes the facet
     // live and target-state-expected again; reopening would queue a Remove for it.
     expect(
       reconcileDecision(
         { status: 'executed' },
-        { facetPresentOnChain: true, facetDeprecated: false }
+        { facetPresentOnChain: true, removable: false }
       )
     ).toBe('keep')
   })
 
-  it('does NOT reopen when deprecation cannot be determined', () => {
+  it('does NOT reopen when removability cannot be determined', () => {
     expect(
       reconcileDecision(
         { status: 'executed' },
-        { facetPresentOnChain: true, facetDeprecated: undefined }
+        { facetPresentOnChain: true, removable: undefined }
       )
     ).toBe('keep')
   })
@@ -313,24 +312,27 @@ describe('shouldWithholdSuspectResolution', () => {
 
 describe('formatReopenAlertMessage', () => {
   it('returns an empty string when nothing was reopened', () => {
-    expect(formatReopenAlertMessage([])).toBe('')
+    expect(formatReopenAlertMessage([], true)).toBe('')
   })
 
   it('groups reopened tasks by network and names the facet, prior status and PR', () => {
-    const msg = formatReopenAlertMessage([
-      {
-        network: 'worldchain',
-        facet: 'AcrossFacetV3',
-        prUrl: 'https://gh/pull/1',
-        from: 'executed',
-      },
-      {
-        network: 'lens',
-        facet: 'GenericSwapFacet',
-        prUrl: 'https://gh/pull/2',
-        from: 'superseded',
-      },
-    ])
+    const msg = formatReopenAlertMessage(
+      [
+        {
+          network: 'worldchain',
+          facet: 'AcrossFacetV3',
+          prUrl: 'https://gh/pull/1',
+          from: 'executed',
+        },
+        {
+          network: 'lens',
+          facet: 'GenericSwapFacet',
+          prUrl: 'https://gh/pull/2',
+          from: 'superseded',
+        },
+      ],
+      true
+    )
     expect(msg).toContain('2 deferred diamond-cleanup task(s)')
     expect(msg).toContain('STILL ROUTED')
     expect(msg).toContain('[worldchain]')
@@ -339,6 +341,24 @@ describe('formatReopenAlertMessage', () => {
     expect(msg).toContain(
       'GenericSwapFacet (was superseded) → https://gh/pull/2'
     )
+    expect(msg).toContain('re-queued for removal')
+  })
+
+  it('never claims a dry run re-queued anything', () => {
+    const msg = formatReopenAlertMessage(
+      [
+        {
+          network: 'worldchain',
+          facet: 'AcrossFacetV3',
+          prUrl: 'https://gh/pull/1',
+          from: 'executed',
+        },
+      ],
+      false
+    )
+    expect(msg).toContain('NOT yet re-queued')
+    expect(msg).toContain('--yes')
+    expect(msg).not.toContain('— re-queued for removal')
   })
 })
 
@@ -383,88 +403,6 @@ describe('formatReconcileFailureMessage', () => {
     // Both rows are still listed — the count is deduped, the detail is not.
     expect(msg).toContain('ethereum:production')
     expect(msg).toContain('ethereum:staging')
-  })
-})
-
-describe('isParkedFacetStillRemovable', () => {
-  // Real mainnet facts (EXSC-750): the live SymbiosisFacet v2.0.0 is logged at
-  // 0xa0353221… and owns 0xe23b7a08/0xc46059b2; the superseded v1.0.0 at 0x23Fc1b73…
-  // is absent from the log and routes 0xb70fb9a5/0x6e067161.
-  const LIVE = '0xa0353221443ca4e2e6a040f30a57b47f5a6d479d'
-  const STALE = '0x23Fc1b73Ff1B0f9C1e4A0B8dD5B0d0c0A0e0F000'
-  const base = {
-    facetName: 'SymbiosisFacet',
-    addressToName: { [LIVE]: 'SymbiosisFacet' },
-    expectedNames: new Set(['SymbiosisFacet']),
-    sourceNames: new Set(['SymbiosisFacet']),
-    activeSelectors: new Set(['0xe23b7a08', '0xc46059b2']),
-  }
-
-  it('is removable when the name itself is deprecated (source gone, not expected)', () => {
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetName: 'GenericSwapFacet',
-        facetAddress: STALE,
-        expectedNames: new Set(['GenericSwapFacetV3']),
-        sourceNames: new Set(['GenericSwapFacetV3']),
-        routedSelectors: ['0xb70fb9a5'],
-      })
-    ).toBe(true)
-  })
-
-  it('is removable for a superseded version co-registered under a LIVE name', () => {
-    // The name-only gate says "expected + source exists" and would withhold here,
-    // dropping the very case EXSC-774 exists for.
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetAddress: STALE,
-        routedSelectors: ['0xb70fb9a5', '0x6e067161'],
-      })
-    ).toBe(true)
-  })
-
-  it('is NOT removable when the deploy log names the parked address (it is the live one)', () => {
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetAddress: LIVE,
-        routedSelectors: ['0xe23b7a08'],
-      })
-    ).toBe(false)
-  })
-
-  it('is NOT removable when an unlogged address routes a selector an expected facet owns', () => {
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetAddress: STALE,
-        routedSelectors: ['0xb70fb9a5', '0xE23B7A08'],
-      })
-    ).toBe(false)
-  })
-
-  it('is undecidable without a target-state entry', () => {
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetAddress: STALE,
-        expectedNames: undefined,
-        routedSelectors: ['0xb70fb9a5'],
-      })
-    ).toBeUndefined()
-  })
-
-  it('is undecidable when the active-selector union is unavailable', () => {
-    expect(
-      isParkedFacetStillRemovable({
-        ...base,
-        facetAddress: STALE,
-        activeSelectors: undefined,
-        routedSelectors: ['0xb70fb9a5'],
-      })
-    ).toBeUndefined()
   })
 })
 

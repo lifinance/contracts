@@ -13,8 +13,10 @@
  *     A `proposed` task whose linked proposal `reverted` while the facet is still
  *     present is reverted to `queued` so the next drain re-proposes. A task already
  *     resolved as done (`executed`/`superseded`) whose facet is STILL routed is a
- *     false resolution: it is reopened to `queued` and alerted, because a removal
- *     recorded as done was otherwise never re-checked and stayed invisible. The
+ *     false resolution: it is reopened to `queued` and alerted — a stored terminal
+ *     status is never taken as proof. Removability is judged by
+ *     `computeFacetRemovalsByAddress`, the exact engine the drain removes through,
+ *     so eval and remover cannot disagree. The
  *     `pendingTransactions` proposal status is an OPTIONAL signal: with tunnel
  *     access (`SC_MONGODB_URI`) the job distinguishes executed vs superseded and
  *     detects reverts; without it (loupe-only) a gone facet is `superseded`.
@@ -63,15 +65,7 @@ import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
 
-import {
-  collectActiveSelectors,
-  fetchOnChainFacets,
-  getExpectedFacetNames,
-  getFacetSourceNames,
-  getSourceContractNames,
-  resolveAddressToName,
-  resolveDiamondAddress,
-} from './diamondRemovalDiff'
+import { computeFacetRemovalsByAddress } from './diamondRemovalDiff'
 import {
   getParkedTasksCollection,
   listParkedTasks,
@@ -87,35 +81,6 @@ import { getSafeMongoCollection, type SafeTxStatus } from './safe-utils'
 
 /** Milliseconds in a day. */
 const DAY_MS = 24 * 60 * 60 * 1000
-
-/** Memoized `src/` walk — the sweep asks the same question for every network. */
-let sourceContractNamesCache: Set<string> | undefined
-const cachedSourceContractNames = (): Set<string> =>
-  (sourceContractNamesCache ??= getSourceContractNames())
-
-/**
- * Selector union owned by the network's target-state facets, or `undefined` when it
- * cannot be read. `collectActiveSelectors` throws on a missing artifact — correct for
- * the removal engine, which must fail closed, but here it is only one input to a
- * reopen decision that already withholds on `undefined`, and a reconcile sweep must
- * not die on a stale build.
- *
- * @param expectedNames - Target-state `LiFiDiamond` names for the network.
- * @returns Lowercased selectors, or `undefined` if unavailable.
- */
-function resolveActiveSelectors(
-  expectedNames: Set<string> | undefined
-): Set<string> | undefined {
-  if (!expectedNames) return undefined
-  try {
-    const facetNames = getFacetSourceNames()
-    return collectActiveSelectors(
-      [...expectedNames].filter((name) => facetNames.has(name))
-    )
-  } catch {
-    return undefined
-  }
-}
 
 /** Default cold-network TTL before a "still open" alert fires (spec §14 Q10). */
 const DEFAULT_TTL_DAYS = 60
@@ -144,14 +109,15 @@ export interface IReconcileContext {
   /** Linked proposal status, if `SC_MONGODB_URI` (tunnel) was reachable. */
   proposalStatus?: SafeTxStatus
   /**
-   * Whether the facet is still *deprecated* — source deleted AND absent from
-   * `_targetState.json`, the same gate the removal engine uses. `undefined` when it
-   * could not be determined (no target-state entry for the network). Only a
-   * deprecated facet may be re-queued for removal: an address that is routed again
-   * because it was legitimately re-cut (an incident rollback, or a CREATE2 redeploy
-   * landing on the same address) must not have its removal resurrected.
+   * Whether the removal engine (`computeFacetRemovalsByAddress` — the exact code
+   * the drain runs) would remove the task's address right now. `false` means the
+   * engine refused (protected, or target state still expects the facet — a
+   * deliberate re-add must not have its removal resurrected); `undefined` means
+   * it could not verify (no target-state entry, or selector unions unavailable).
+   * Only consulted for a resolved task that is still routed: reopening is only
+   * safe when eval and remover agree.
    */
-  facetDeprecated?: boolean
+  removable?: boolean
 }
 
 /**
@@ -159,11 +125,9 @@ export interface IReconcileContext {
  * (spec §7 state machine). Loupe-primary in both directions:
  *
  * - A task claiming to be done (`executed`/`superseded`) whose facet is still
- *   routed AND still deprecated is a false resolution — reopened to `queued` so the
- *   next drain re-proposes it. Without this, a removal that never executed is
- *   invisible forever, since terminal states were previously never re-checked. A
- *   routed facet that is no longer removable is a deliberate re-add, so the removal
- *   stays retired (see {@link isParkedFacetStillRemovable}).
+ *   routed AND still removable by the engine is a false resolution — reopened to
+ *   `queued` so the next drain re-proposes it. A routed facet the engine refuses
+ *   is a deliberate re-add, so the removal stays retired.
  * - An open task whose facet is gone becomes terminal (`executed` when its own
  *   proposal executed, else `superseded`).
  * - An open, still-present task whose linked proposal reverted goes back to `queued`.
@@ -171,7 +135,7 @@ export interface IReconcileContext {
  * `cancelled` is never revisited — it records a deliberate operator decision.
  *
  * @param task - The task (only its `status` matters here).
- * @param ctx - On-chain presence + optional linked-proposal status.
+ * @param ctx - On-chain presence + optional linked-proposal status + removability.
  * @returns The transition to apply (`keep` = no change).
  */
 export function reconcileDecision(
@@ -182,7 +146,7 @@ export function reconcileDecision(
 
   if (RESOLVED_STATUSES.includes(task.status)) {
     if (!ctx.facetPresentOnChain) return 'keep'
-    return ctx.facetDeprecated === true ? 'reopen' : 'keep'
+    return ctx.removable === true ? 'reopen' : 'keep'
   }
 
   if (!ctx.facetPresentOnChain) {
@@ -212,54 +176,6 @@ export function reconcileDecision(
  * @param routedAddresses - Lowercased addresses currently routed by the loupe.
  * @returns `true` while that exact address is still routed.
  */
-/**
- * Whether a parked facet is still *removable* — the gate a reopen must pass before a
- * retired removal is re-queued.
- *
- * Name-level deprecation (source deleted AND absent from target state) is the common
- * case, but it cannot answer the co-registered one: the superseded SymbiosisFacet
- * v1.0.0 shares its name with a live v2.0.0 that target state expects and whose
- * source exists (EXSC-750), so a name-only gate would withhold exactly the reopen
- * EXSC-774 exists for. An address the deploy log does not name therefore falls back
- * to selectors: the log holds the live address for every name it knows, so an
- * unlogged routed address is a superseded version, and it is removable when none of
- * the selectors it routes belongs to a facet target state still expects — the same
- * held-back rule the removal engine applies. Verified on real mainnet data: v1 routes
- * `0xb70fb9a5`/`0x6e067161`, neither in the 156-selector active union, while the live
- * v2 owns `0xe23b7a08`/`0xc46059b2`.
- *
- * Fails to `undefined` (the caller then withholds) whenever the inputs cannot answer it.
- *
- * @param params - Task identity plus the network's target state, sources, log and loupe facts.
- * @returns `true` removable, `false` deliberately live, `undefined` undecidable.
- */
-export function isParkedFacetStillRemovable(params: {
-  facetName: string
-  facetAddress: string
-  /** Lowercased address → deploy-log name for this network. */
-  addressToName: Record<string, string>
-  /** Target-state `LiFiDiamond` names, or `undefined` when the network has no entry. */
-  expectedNames: Set<string> | undefined
-  sourceNames: Set<string>
-  /** Lowercased selectors owned by target-state facets, or `undefined` if unavailable. */
-  activeSelectors: Set<string> | undefined
-  /** Selectors the loupe routes to the parked address. */
-  routedSelectors: string[]
-}): boolean | undefined {
-  const { facetName, expectedNames, sourceNames } = params
-  if (!expectedNames) return undefined
-  if (!expectedNames.has(facetName) && !sourceNames.has(facetName)) return true
-
-  const logged = params.addressToName[params.facetAddress.toLowerCase()]
-  if (logged !== undefined) return false
-
-  const activeSelectors = params.activeSelectors
-  if (!activeSelectors) return undefined
-  return params.routedSelectors.every(
-    (selector) => !activeSelectors.has(selector.toLowerCase())
-  )
-}
-
 export function resolveFacetPresence(
   task: Pick<IParkedTask, 'facetAddress'>,
   routedAddresses: Set<string>
@@ -360,14 +276,11 @@ export function deprecatedNetworkDecision(
 /**
  * Whether a deprecated-network task may actually be cancelled on this run.
  *
- * `config/networks.json` is NOT a deprecation signal: it is narrowed to a handful
- * of networks for emergency-pause rehearsals (`f99db1607`, `216bad0e4`, both
- * reverted days later — and both DELETE entries, so absence is no safer a signal
- * than `status`) and `status` is toggled back to `active` (`51a04fc64`). Replaying
- * `216bad0e4`'s config against the live queue routes 65 of 67 open tasks to this
- * path, and `cancelled` is terminal with no undo. So cancellation requires an
- * operator who named ONE network and passed `--cancel-deprecated --yes`; the
- * unattended cron only ever reports.
+ * `config/networks.json` is NOT a deprecation signal: it is temporarily narrowed
+ * (entries deleted, `status` toggled) for emergency-pause rehearsals, which would
+ * route most of the open queue to this path — and `cancelled` is terminal with no
+ * undo. So cancellation requires an operator who named ONE network and passed
+ * `--cancel-deprecated --yes`; the unattended cron only ever reports.
  *
  * @param decision - Transition from {@link deprecatedNetworkDecision}.
  * @param opts.apply - Whether the run applies transitions (`--yes`).
@@ -596,15 +509,17 @@ export function formatReconcileFailureMessage(
  * Formats the false-resolution alert. Returns `''` when nothing was reopened so
  * the caller can skip sending.
  *
- * This is the loud half of the fix: a reopened task is proof that a removal we
- * recorded as done never landed, which is exactly the failure that previously left
- * a deprecated facet live and unmonitored.
+ * A reopened task is proof that a removal recorded as done never landed — the
+ * one failure mode that leaves a deprecated facet live and unmonitored.
  *
  * @param reopened - Tasks reopened by this run.
+ * @param applied - Whether the run wrote the transitions; a dry run must not
+ *   claim tasks were re-queued when nothing was written.
  * @returns A Slack-ready message, or `''` if `reopened` is empty.
  */
 export function formatReopenAlertMessage(
-  reopened: IReopenedParkedTask[]
+  reopened: IReopenedParkedTask[],
+  applied: boolean
 ): string {
   if (reopened.length === 0) return ''
   const byNetwork = new Map<string, IReopenedParkedTask[]>()
@@ -614,7 +529,13 @@ export function formatReopenAlertMessage(
     byNetwork.set(r.network, list)
   }
   const lines = [
-    `🚨 ${reopened.length} deferred diamond-cleanup task(s) were marked done but their facet is STILL ROUTED — re-queued for removal:`,
+    `🚨 ${
+      reopened.length
+    } deferred diamond-cleanup task(s) were marked done but their facet is STILL ROUTED — ${
+      applied
+        ? 're-queued for removal:'
+        : 'NOT yet re-queued (dry run — pass --yes to apply):'
+    }`,
   ]
   for (const [network, list] of byNetwork) {
     lines.push(`[${network}]`)
@@ -780,9 +701,9 @@ async function resolveProposalStatus(
  * Reconciles every task that is not `cancelled`, grouped by (network, environment)
  * so the loupe and deploy log are fetched once each.
  *
- * Resolved (`executed`/`superseded`) tasks are re-verified alongside open ones:
- * trusting a stored terminal status is what made a removal that never executed
- * invisible indefinitely. Reopened tasks are returned so the caller can alert.
+ * Resolved (`executed`/`superseded`) tasks are re-verified alongside open ones —
+ * a stored terminal status is never taken as proof the removal landed. Reopened
+ * tasks are returned so the caller can alert.
  */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
@@ -821,13 +742,25 @@ async function reconcileAll(
     string,
     { network: string; environment: EnvironmentEnum; blocked: string[] }
   >()
-  let terminalSkipped = 0
+  const terminalSkippedByNetwork = new Map<
+    string,
+    { network: string; environment: EnvironmentEnum; count: number }
+  >()
   for (const task of deprecated) {
     const decision = deprecatedNetworkDecision(task)
     if (decision === 'keep' && task.status !== 'proposed') {
-      // Terminal on a network we cannot read: nothing to do, but it is no longer
-      // covered by the false-resolution re-check, so it is counted, not silent.
-      terminalSkipped++
+      // Terminal on a network we cannot read: nothing to write, but the
+      // false-resolution re-check is suspended for it — reported per network in
+      // the failure alert, since a narrowed networks.json silently suspending
+      // the re-check fleet-wide must be visible in Slack, not only the job log.
+      const key = `${task.network}:${task.environment}`
+      const entry = terminalSkippedByNetwork.get(key) ?? {
+        network: task.network,
+        environment: task.environment,
+        count: 0,
+      }
+      entry.count++
+      terminalSkippedByNetwork.set(key, entry)
       continue
     }
     const cancelling = shouldCancelDeprecated(decision, {
@@ -876,10 +809,12 @@ async function reconcileAll(
       )
     }
   }
-  if (terminalSkipped > 0)
-    consola.info(
-      `${terminalSkipped} resolved task(s) on networks outside the active set were not re-verified this run`
-    )
+  for (const s of terminalSkippedByNetwork.values())
+    failures.push({
+      network: s.network,
+      environment: s.environment,
+      reason: `outside the active set in networks.json — ${s.count} resolved task(s) not re-verified against the loupe this run`,
+    })
   for (const g of deprecatedByNetwork.values())
     if (g.blocked.length > 0)
       failures.push({
@@ -929,25 +864,28 @@ async function reconcileAll(
       // its parked tasks but leaves `networks.json`, so the loupe read throws), and
       // one such chain must not abort the sweep. Every network ordered after it
       // would otherwise never be reconciled at all — silently.
-      let onChain: Awaited<ReturnType<typeof fetchOnChainFacets>>
-      let addressToName: Record<string, string>
-      try {
-        const diamondAddress = await resolveDiamondAddress(network, environment)
-        if (!diamondAddress) {
-          consola.warn(
-            `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
-          )
-          failures.push({
+      //
+      // One engine call resolves every task address for the group: presence,
+      // removability and the suspect-snapshot signals all come from the exact
+      // code the drain removes through, so eval and remover cannot disagree.
+      let engine: Awaited<ReturnType<typeof computeFacetRemovalsByAddress>>
+      const validTasks = tasks.filter((t) => t.facetAddress.startsWith('0x'))
+      for (const t of tasks)
+        if (!t.facetAddress.startsWith('0x'))
+          anomalies.push({
             network,
             environment,
-            reason: 'no LiFiDiamond in deploy log',
+            facet: t.facetName,
+            prUrl: t.prUrl,
+            reason: `stored facetAddress "${t.facetAddress}" is not an EVM address — the queue is EVM-only; cancel and re-enqueue with the correct address`,
           })
-          continue
-        }
-        ;[onChain, addressToName] = await Promise.all([
-          fetchOnChainFacets(diamondAddress, network),
-          resolveAddressToName(network, environment),
-        ])
+      if (validTasks.length === 0) continue
+      try {
+        engine = await computeFacetRemovalsByAddress(
+          network,
+          environment,
+          validTasks.map((t) => t.facetAddress)
+        )
       } catch (error: unknown) {
         const reason = error instanceof Error ? error.message : String(error)
         consola.warn(
@@ -956,45 +894,50 @@ async function reconcileAll(
         failures.push({ network, environment, reason })
         continue
       }
-
-      const routedAddresses = new Set(
-        onChain.map((f) => f.address.toLowerCase())
-      )
-      routedByNetworkEnv.set(`${network}:${environment}`, routedAddresses)
-      const routedNames = new Set(
-        onChain
-          .map((f) => addressToName[f.address.toLowerCase()])
-          .filter((name): name is string => name !== undefined)
-      )
-
-      // A facet may only be re-queued for removal while it is still removable — the
-      // same gates the removal engine applies, so eval and remover cannot disagree.
-      const expectedNames = getExpectedFacetNames(network, environment)
-      const activeSelectors = resolveActiveSelectors(expectedNames)
-      const selectorsByAddress = new Map(
-        onChain.map((f) => [f.address.toLowerCase(), f.selectors as string[]])
-      )
-
-      for (const task of tasks) {
-        const presentOnChain = resolveFacetPresence(task, routedAddresses)
-        const proposalStatus = await resolveProposalStatus(
-          pendingTransactions,
-          task.safeTxHash
+      if (engine.diamondUnresolved) {
+        consola.warn(
+          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
         )
-        const facetDeprecated = isParkedFacetStillRemovable({
-          facetName: task.facetName,
-          facetAddress: task.facetAddress,
-          addressToName,
-          expectedNames,
-          sourceNames: cachedSourceContractNames(),
-          activeSelectors,
-          routedSelectors:
-            selectorsByAddress.get(task.facetAddress.toLowerCase()) ?? [],
+        failures.push({
+          network,
+          environment,
+          reason: 'no LiFiDiamond in deploy log',
         })
+        continue
+      }
+
+      const { routedAddresses, routedNames } = engine
+      routedByNetworkEnv.set(`${network}:${environment}`, routedAddresses)
+      const removableAddresses = new Set(
+        engine.removals.map((r) => r.address.toLowerCase())
+      )
+      const refusedByAddress = new Map<string, string>()
+      for (const p of engine.protectedSkipped)
+        refusedByAddress.set(
+          p.address.toLowerCase(),
+          `it resolves to a protected facet (${p.name})`
+        )
+      for (const s of engine.stillExpected)
+        refusedByAddress.set(s.address.toLowerCase(), s.reason)
+
+      for (const task of validTasks) {
+        const address = task.facetAddress.toLowerCase()
+        const presentOnChain = resolveFacetPresence(task, routedAddresses)
+        // Only a `proposed` task's decision reads the proposal status; skipping
+        // the lookup elsewhere spares one store round trip per historical task.
+        const proposalStatus =
+          task.status === 'proposed'
+            ? await resolveProposalStatus(pendingTransactions, task.safeTxHash)
+            : undefined
+        const removable = removableAddresses.has(address)
+          ? true
+          : refusedByAddress.has(address)
+          ? false
+          : undefined
         const decision = reconcileDecision(task, {
           facetPresentOnChain: presentOnChain,
           proposalStatus,
-          facetDeprecated,
+          removable,
         })
         consola.info(
           `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
@@ -1020,19 +963,22 @@ async function reconcileAll(
           })
           continue
         }
-        // A terminal task whose facet is routed again, yet no longer deprecated, is a
-        // deliberate re-add (incident rollback, or a CREATE2 redeploy landing on the
-        // same address). Reopening it would queue a Remove for a live facet target
-        // state expects to keep, so the reopen is withheld and reported.
+        // A terminal task whose facet is routed again, yet refused by the removal
+        // engine, is a deliberate re-add (incident rollback, or a CREATE2 redeploy
+        // landing on the same address). Reopening it would queue a Remove for a
+        // live facet target state expects to keep, so the reopen is withheld and
+        // reported.
         if (
           decision === 'keep' &&
           RESOLVED_STATUSES.includes(task.status) &&
           presentOnChain
         ) {
           const reason =
-            facetDeprecated === undefined
-              ? `facet is routed again but ${network}:${environment} has no target-state entry — cannot tell a re-add from a false resolution; reopen withheld`
-              : `facet is routed again and is not removable (target state expects it, or it routes selectors an expected facet owns) — treated as a deliberate re-add, reopen withheld`
+            removable === undefined
+              ? `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions are unavailable — run \`forge build\`) — reopen withheld`
+              : `facet is routed again and the removal engine refuses it (${
+                  refusedByAddress.get(address) ?? 'not removable'
+                }) — treated as a deliberate re-add, reopen withheld`
           consola.warn(
             `[${network}:${environment}] ${task.facetName}: ${reason}`
           )
@@ -1047,9 +993,9 @@ async function reconcileAll(
         }
         if (decision === 'keep') continue
 
-        // Per-task write isolation: a transient queue write must not unwind past the
-        // remaining tasks and every (network, environment) group ordered after this
-        // one — the abort-the-sweep failure this job was rebuilt to eliminate.
+        // Per-task write isolation: a transient queue write must not unwind past
+        // the remaining tasks and every (network, environment) group ordered
+        // after this one.
         try {
           if (decision === 'reopen') {
             // Recorded in dry-run too, so the false-resolution alert is visible
@@ -1107,7 +1053,7 @@ async function runReconcileAlerts(
       'Local run: reconcile alerts logged only. Set CI=1 to deliver them to Slack.'
     )
 
-  const reopenMessage = formatReopenAlertMessage(run.reopened)
+  const reopenMessage = formatReopenAlertMessage(run.reopened, apply)
   if (reopenMessage) {
     consola.error(reopenMessage)
     await send(reopenMessage)
