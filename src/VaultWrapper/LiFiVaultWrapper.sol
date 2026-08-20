@@ -1187,9 +1187,17 @@ contract LiFiVaultWrapper is
         uint256 _assets
     ) private view returns (uint256) {
         uint256 mgmtShares = _pendingManagementFee(_supply, _assets);
+        uint256 effectiveSupply = _supply + mgmtShares;
 
-        return
-            mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
+        // Mirror the sub-floor branch in `_accrueFees`: below `MIN_SHARE_SUPPLY` no
+        // performance shares are minted (the watermark is re-floated instead), so a
+        // preview that still charged them would price against dilution the accrual
+        // never creates, breaking preview/execution parity.
+        if (effectiveSupply < MIN_SHARE_SUPPLY) {
+            return mgmtShares;
+        }
+
+        return mgmtShares + _pendingPerformanceFee(effectiveSupply, _assets);
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 means disabled.

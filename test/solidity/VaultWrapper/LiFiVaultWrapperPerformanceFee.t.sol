@@ -426,7 +426,68 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         assertEq(wrapper.lifiFeeShares(), expectedShares - integratorPart);
     }
 
+    /// Sub-floor preview/execution parity ///
+
+    /// @dev Drives the wrapper into a sub-floor supply with a price gain above the
+    ///      watermark, the state where `_accrueFees` skips the performance fee but a
+    ///      preview must not diverge from what the operation actually charges/mints.
+    function _subFloorWithGain() internal {
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+
+        _deposit(alice, 2 * MIN_SHARE_SUPPLY);
+        uint256 leftBehind = MIN_SHARE_SUPPLY / 2;
+        uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
+        vm.prank(alice);
+        wrapper.redeem(toRedeem, alice, alice);
+        assertEq(wrapper.totalSupply(), leftBehind);
+
+        // Credit a position without minting shares so the price rises above the
+        // watermark while the supply stays below the floor.
+        _donateToWrapperPosition(1e15);
+
+        assertGt(_pps(), wrapper.perfHighWaterMarkPps());
+    }
+
+    function test_SubFloorPreviewMintMatchesExecution() public {
+        _subFloorWithGain();
+
+        // `mint` clears the floor post-op (0.5e6 + 1e6), so the operation is allowed.
+        uint256 shares = MIN_SHARE_SUPPLY;
+        uint256 quoted = wrapper.previewMint(shares);
+
+        asset.mint(bob, quoted);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), quoted);
+        uint256 spent = wrapper.mint(shares, bob);
+        vm.stopPrank();
+
+        assertEq(spent, quoted);
+    }
+
+    function test_SubFloorPreviewDepositMatchesExecution() public {
+        _subFloorWithGain();
+
+        uint256 assets = 1e15;
+        uint256 quoted = wrapper.previewDeposit(assets);
+
+        asset.mint(bob, assets);
+        vm.startPrank(bob);
+        asset.approve(address(wrapper), assets);
+        uint256 minted = wrapper.deposit(assets, bob);
+        vm.stopPrank();
+
+        assertEq(minted, quoted);
+    }
+
     /// Helpers ///
+
+    /// @dev Credits the wrapper with a source-vault position without minting any wrapper
+    ///      shares — a price gain that is not backed by a share mint.
+    function _donateToWrapperPosition(uint256 _assets) internal {
+        asset.mint(address(this), _assets);
+        asset.approve(address(underlying), _assets);
+        underlying.deposit(_assets, address(wrapper));
+    }
 
     function _newWrapperPerfOnly(
         uint16 _rate
