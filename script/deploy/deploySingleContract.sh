@@ -248,7 +248,17 @@ deploySingleContract() {
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
 
-      # Compute deploy salt for zk path and check for potential CREATE2 collision
+      # Compute deploy salt for zk path and check for potential CREATE2 collision.
+      # The zk build above populates zkout/ only, so the standard artifact the salt is derived from
+      # has to be ensured separately (see ensureStandardArtifactForSalt).
+      ensureStandardArtifactForSalt "$CONTRACT" || {
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
       local BYTECODE
       BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
 
