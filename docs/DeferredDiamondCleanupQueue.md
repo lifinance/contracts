@@ -665,6 +665,19 @@ until executed" window (Fact 10). Two mitigations, both in this spec:
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
   executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
 
+**Network-retirement hazard.** `/deprecate-network` removes the network from
+`config/networks.json` and its `deployments/*.json`, which takes away everything a
+parked task on that network needs: there is no RPC to read the loupe with, no deploy
+log to resolve the diamond from, and no future cut to ride along with. Such a task can
+never reach a terminal state on its own. The reconcile therefore partitions those tasks
+out **before** any I/O and reports them in the TTL alert as orphans to cancel, and
+treats a per-network error as a skip rather than an abort: otherwise a fleet loop that
+dies on its first unusable network takes the whole sweep — and this backstop alert,
+which runs after it — down with it.
+A network deprecation should still abandon the retired network's open tasks
+(`revertToQueued` then `markCancelled`, since `markCancelled` accepts only a `queued`
+task) rather than leave them for the alert to repeat.
+
 ---
 
 ## 9. Observability
