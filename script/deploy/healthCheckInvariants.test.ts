@@ -14,6 +14,7 @@ import {
   HEALTH_CHECK_INVARIANTS,
   isDeterministicReadFailure,
   RECEIVER_EXECUTOR_GETTERS,
+  RECEIVER_NAMES,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -784,6 +785,23 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(sync().scope.environments).toEqual(['production'])
   })
 
+  it('probes every receiver name even when no deploy log mentions it', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({})
+    await sync().run(ctx)
+    // Receivers are absent from corePeriphery and whitelistPeripheryFunctions, so without a static
+    // seed this check could only ever find the receivers a log already names.
+    for (const receiver of RECEIVER_NAMES)
+      expect(registryQueries).toContain(receiver)
+  })
+
+  it('flags the generic Receiver registered on chain and named by neither deploy log', async () => {
+    const { ctx } = makeReceiverCtx({ registry: { Receiver: OIF_ON_CHAIN } })
+    await sync().run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Receiver')
+    expect(ctx.warnings[0]).toContain('missing from the deploy log')
+  })
+
   it('flags a contract registered on chain but missing from the deploy log', async () => {
     const { ctx } = makeReceiverCtx({ registry: { ReceiverOIF: OIF_ON_CHAIN } })
     await sync().run(ctx)
@@ -981,6 +999,34 @@ describe('periphery-registry-log-sync invariant', () => {
 })
 
 describe('receiver coverage tracks the coupling registry', () => {
+  it('owner-checks the deprecated ReceiverAcrossV3, whose Executor binding is skipped', () => {
+    // The binding exclusion is about a stale Executor pointer; the contract is still
+    // WithdrawablePeriphery, so its owner stays security-relevant.
+    expect(
+      RECEIVER_EXECUTOR_GETTERS.some((r) => r.name === 'ReceiverAcrossV3')
+    ).toBe(false)
+    expect(RECEIVER_NAMES).toContain('ReceiverAcrossV3')
+  })
+
+  it('errors when ReceiverAcrossV3 has the wrong owner', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverAcrossV3: OIF_ON_CHAIN },
+      owner: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-owner').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV3')
+  })
+
+  it('leaves ReceiverAcrossV3 out of the Executor binding check', async () => {
+    const { ctx } = makeReceiverCtx({
+      registry: { ReceiverAcrossV3: OIF_ON_CHAIN },
+      boundExecutor: { [OIF_ON_CHAIN]: WRONG },
+    })
+    await invariant('receiver-executor-binding').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
   it('gives every coupled Receiver an executor-binding and owner check', () => {
     const checked = new Set(
       RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name)

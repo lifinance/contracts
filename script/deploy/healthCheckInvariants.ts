@@ -844,13 +844,33 @@ async function checkWhitelistIntegrity(
   }
 }
 
+/**
+ * Every Receiver periphery contract this repository knows how to deploy.
+ *
+ * Deliberately not derived from RECEIVER_EXECUTOR_GETTERS: that list is scoped to the Executor
+ * binding, so reusing it elsewhere inherits an exclusion made on binding grounds alone. None of
+ * these names is in `corePeriphery` or `whitelistPeripheryFunctions`, so a check that discovers
+ * periphery by probing names has to seed them from here or it can only ever see the receivers a
+ * deploy log already happens to name.
+ */
+export const RECEIVER_NAMES: string[] = [
+  'Receiver',
+  'ReceiverAcrossV3',
+  'ReceiverAcrossV4',
+  'ReceiverChainflip',
+  'ReceiverOIF',
+  'ReceiverStargateV2',
+]
+
 /** Every Receiver periphery contract and the getter that exposes its bound Executor. */
 export const RECEIVER_EXECUTOR_GETTERS: Array<{
   name: string
   getter: string
 }> = [
   // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
-  // binding is no longer kept current, so it is intentionally not checked here.
+  // binding is no longer kept current, so it is intentionally not checked here. Its owner is
+  // still checked (receiver-owner): a stale binding does not make a withdrawable contract's
+  // owner less security-relevant.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
   { name: 'ReceiverChainflip', getter: 'executor' },
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
@@ -1352,10 +1372,18 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
       const expectedExecutor = getAddress(executorAddress as Address)
 
-      for (const { name, getter } of RECEIVER_EXECUTOR_GETTERS) {
-        // Registry-first: a receiver live on chain but absent from the deploy log must not escape
-        // the only check that verifies its Executor binding.
-        const receiverAddress = await resolvePeripheryAddress(name, ctx)
+      // Registry-first: a receiver live on chain but absent from the deploy log must not escape
+      // the only check that verifies its Executor binding. Resolved in one pass so the batched
+      // multicall client can coalesce the reads instead of seeing them one await at a time.
+      const resolvedReceivers = await Promise.all(
+        RECEIVER_EXECUTOR_GETTERS.map(async ({ name, getter }) => ({
+          name,
+          getter,
+          receiverAddress: await resolvePeripheryAddress(name, ctx),
+        }))
+      )
+
+      for (const { name, getter, receiverAddress } of resolvedReceivers) {
         if (!receiverAddress) continue
 
         const receiver = getContract({
@@ -1516,8 +1544,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // The registry is a mapping(string => address) with no enumerator, so the on-chain side can
       // only be discovered by probing names - which bounds this check to names some source already
       // knows. Both deploy logs contribute, because a contract can be recorded in one and not the
-      // other. Facets are excluded because probing every facet name would multiply the RPC reads
-      // for lookups that can only ever return the zero address.
+      // other; RECEIVER_NAMES is seeded statically because no receiver appears in corePeriphery or
+      // whitelistPeripheryFunctions, so a log-derived candidate list could only ever find the
+      // receivers a log already names - circular for a check whose job is finding the ones it
+      // does not. Facets are excluded because probing every facet name would multiply the RPC
+      // reads for lookups that can only ever return the zero address.
       // Target state only names facets that are still current, so a retired facet lingering in the
       // flat log would otherwise be probed - a fifth of all probes on a real network, for lookups
       // that can only ever return the zero address. Matching on `includes` mirrors
@@ -1535,7 +1566,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ...Object.values(getFacetPeripheryCouplings()).map(
             (coupling) => coupling.requires
           ),
-          ...RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name),
+          ...RECEIVER_NAMES,
           ...Object.keys(ctx.deployedContracts),
           ...(ctx.diamondLogPeripheryNames ??
             loadDiamondLogPeripheryNames(ctx.networkLower)),
@@ -1936,12 +1967,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // Resolved registry-first so a receiver missing from - or stale in - the deploy log is still
       // covered; absent from both sources means the receiver genuinely is not on this chain. The
       // generic Receiver is included: resolving it from the log alone would check a contract the
-      // diamond no longer points at.
-      for (const { name } of [
-        { name: 'Receiver' },
-        ...RECEIVER_EXECUTOR_GETTERS,
-      ]) {
-        const address = await resolvePeripheryAddress(name, ctx)
+      // diamond no longer points at. Resolved in one pass so the batched multicall client can
+      // coalesce the reads instead of seeing them one await at a time.
+      const resolved = await Promise.all(
+        RECEIVER_NAMES.map(async (name) => ({
+          name,
+          address: await resolvePeripheryAddress(name, ctx),
+        }))
+      )
+
+      for (const { name, address } of resolved) {
         if (!address) continue
 
         let owner: Address
