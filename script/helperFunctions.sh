@@ -2102,14 +2102,16 @@ function mergeNetworkResults() {
 # ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
 # from exists, building it if necessary.
 #
-# The zkEVM deploy salt is derived from the *standard* artifact (out/<C>.sol/<C>.json) even though
-# the zk toolchain only ever writes zkout/ and out/zksync/, so a zkEVM-only run in a fresh checkout
-# has nothing to derive from. Deriving it from the zk artifact instead is not an option - that would
-# move the address of every zkEVM deployment made so far.
+# Both deploy paths derive their salt from the *standard* artifact (out/<C>.sol/<C>.json), and
+# neither is guaranteed to have one: the zk toolchain only ever writes zkout/ and out/zksync/, and
+# the non-zkEVM path is reachable through scriptMaster.sh, which only builds when
+# COMPILE_ON_STARTUP is true. On the zkEVM side, deriving from the zk artifact instead is not an
+# option - that would move the address of every zkEVM deployment made so far.
 #
 # Call this before getBytecodeFromArtifact instead of relying on that function's own existence
 # check: error() writes to stdout, so its message is swallowed by the `$(...)` around that call and
-# the deploy looks like it stopped for no reason.
+# the deploy looks like it stopped for no reason - leaving the salt to be derived from the error
+# text rather than from bytecode.
 #
 # Usage: ensureStandardArtifactForSalt CONTRACT
 #   CONTRACT - Name of the contract whose artifact is required

@@ -169,8 +169,16 @@ deploySingleContract() {
   # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
-    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
-    
+    ensureStandardArtifactForSalt "$CONTRACT" || {
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    }
+
+    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
+
     # get CREATE3_FACTORY_ADDRESS
     CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
     checkFailure $? "retrieve create3Factory address from networks.json"
@@ -198,7 +206,15 @@ deploySingleContract() {
     local EXECUTOR_DEPLOYSALT=""
     if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
       local EXECUTOR_BYTECODE
-      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+      ensureStandardArtifactForSalt "Executor" || {
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
+      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor") || return 1
       EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
     fi
 
