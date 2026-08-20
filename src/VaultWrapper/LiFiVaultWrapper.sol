@@ -906,8 +906,6 @@ contract LiFiVaultWrapper is
     ///      recovery path is the owner's instant `setAccessGate`. Gas-griefing the gate call
     ///      into a false failure is not a concern: there is no catch to reach, an OOG simply
     ///      reverts the operation.
-    ///      TODO(pause): any future inflow entrypoint (e.g. the V2 reward-injection path) must
-    ///      gate on `if (depositsPaused()) revert DepositsPaused();` like `deposit`/`mint`.
 
     /// @notice Sets or clears this instance's access gate.
     /// @dev Owner-only and instant, like every other per-vault setter — the integrator
