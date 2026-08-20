@@ -1,6 +1,8 @@
 // Proposes a diamond-called periphery contract's registration together with its
 // whitelist sync as ONE timelock scheduleBatch per network.
 import { spawnSync } from 'child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -119,12 +121,11 @@ export function diffPairs(
 
 async function actualPairs(
   diamond: Address,
-  rpcUrl: string,
   network: string
 ): Promise<IPair[]> {
   const client = createPublicClient({
     chain: getViemChainForNetworkName(network),
-    transport: http(rpcUrl),
+    transport: http(),
   })
   const [contracts, selectors] = await client.readContract({
     address: diamond,
@@ -172,12 +173,11 @@ export function assertRegisteredAddressIsDesired(
  */
 async function codelessAddresses(
   pairs: IPair[],
-  rpcUrl: string,
   network: string
 ): Promise<Set<string>> {
   const client = createPublicClient({
     chain: getViemChainForNetworkName(network),
-    transport: http(rpcUrl),
+    transport: http(),
   })
   const unique = [...new Set(pairs.map((p) => p.contract))]
   const codeless = new Set<string>()
@@ -293,15 +293,12 @@ const main = defineCommand({
         // one it replaces — leaving the diamond unable to call it at all.
         assertRegisteredAddressIsDesired(desired, peripheryAddress, network)
 
-        const diff = diffPairs(
-          desired,
-          await actualPairs(diamond, rpcUrl, network)
-        )
+        const diff = diffPairs(desired, await actualPairs(diamond, network))
         const toRemove = diff.toRemove
         // addAllowedContractSelector reverts with InvalidContract for a codeless
         // address, and that revert would take the registration down with it —
         // the whole scheduleBatch is atomic. Drop such pairs loudly instead.
-        const codeless = await codelessAddresses(diff.toAdd, rpcUrl, network)
+        const codeless = await codelessAddresses(diff.toAdd, network)
         if (codeless.size)
           consola.warn(
             `[${network}] skipping ${
@@ -388,4 +385,10 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+// `import.meta.main` is undefined under `bunx tsx` (Node <22.18 has no such
+// property), which would make this task exit 0 without doing anything.
+const isEntrypoint = () =>
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+
+if (isEntrypoint()) runMain(main)
