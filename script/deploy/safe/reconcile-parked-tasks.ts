@@ -16,10 +16,20 @@
  *
  *  2. **TTL alert** — surface open tasks that have aged past the TTL (default 60d)
  *     to the github-ci-notifications Slack channel, so a cold network that never gets
- *     another cut is never silently orphaned (spec §8 backstop).
+ *     another cut is never silently orphaned (spec §8 backstop). The same alert
+ *     carries what the reconcile could not resolve: tasks on a network retired from
+ *     `config/networks.json` (permanent orphans — no RPC, no deploy log, no future
+ *     cut) and network groups that errored this run.
+ *
+ * The sweep is per-network fault-isolated in both directions: a retired network is
+ * partitioned out before any I/O and a group that throws is recorded and skipped, so
+ * the alert runs for any reachable queue and only a group that errored fails the
+ * process. An unreadable queue still aborts both — the alert reads the same
+ * collection, so there is nothing to degrade to.
  *
  * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
- * {@link formatTtlAlertMessage}) are fully unit-tested; only the live CLI wiring
+ * {@link formatTtlAlertMessage}, {@link partitionRetiredNetworks} and the alert
+ * section formatters) are fully unit-tested; only the live CLI wiring
  * (Mongo/loupe/Slack) is unit-test exempt, mirroring `getParkedTasksCollection()`.
  * Dry-run by default (#2047 convention); pass `--yes` to apply transitions and
  * send the alert.
@@ -31,8 +41,10 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress } from 'viem'
 
+import { type EnvironmentEnum } from '../../common/types'
 import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
+import { networks } from '../../utils/viemScriptHelpers'
 
 import { fetchOnChainFacets, resolveDiamondAddress } from './diamondRemovalDiff'
 import {
@@ -160,6 +172,138 @@ export function formatTtlAlertMessage(
   return lines.join('\n')
 }
 
+/** An open task whose network `config/networks.json` no longer knows. */
+export interface IOrphanedParkedTask {
+  network: string
+  environment: EnvironmentEnum
+  facet: string
+  status: ParkedTaskStatus
+  prUrl: string
+}
+
+/** A (network, environment) group the reconcile could not evaluate this run. */
+export interface IReconcileFailure {
+  network: string
+  environment: EnvironmentEnum
+  /** Alert-safe error text — always via {@link redactErrorReason}, never a raw message. */
+  reason: string
+  taskCount: number
+}
+
+/**
+ * Splits open tasks into those whose network is still configured and those whose
+ * network has been retired from `config/networks.json`.
+ *
+ * A retired network has no RPC, no deploy log and will never receive another
+ * diamond cut, so its tasks can neither be reconciled against the loupe nor
+ * drained — they are orphans awaiting a human cancel. Filtering them out
+ * before any I/O is what keeps one retired network from aborting the whole sweep
+ * (and with it the TTL backstop that runs after it).
+ *
+ * @param tasks - Open tasks (any network).
+ * @param isNetworkKnown - Whether `config/networks.json` still has the network.
+ * @returns The reconcilable tasks and the orphans, both in input order.
+ */
+export function partitionRetiredNetworks(
+  tasks: IParkedTask[],
+  isNetworkKnown: (network: string) => boolean
+): { reconcilable: IParkedTask[]; orphaned: IOrphanedParkedTask[] } {
+  const reconcilable: IParkedTask[] = []
+  const orphaned: IOrphanedParkedTask[] = []
+  for (const t of tasks) {
+    if (isNetworkKnown(t.network)) {
+      reconcilable.push(t)
+      continue
+    }
+    orphaned.push({
+      network: t.network,
+      environment: t.environment,
+      facet: t.facetName,
+      status: t.status,
+      prUrl: t.prUrl,
+    })
+  }
+  return { reconcilable, orphaned }
+}
+
+/**
+ * Formats the retired-network section of the alert. Returns `''` when there are no
+ * orphans so the caller can drop the section.
+ *
+ * @param orphaned - Orphans from {@link partitionRetiredNetworks}.
+ * @returns A Slack-ready section, or `''` if `orphaned` is empty.
+ */
+export function formatOrphanedTaskMessage(
+  orphaned: IOrphanedParkedTask[]
+): string {
+  if (orphaned.length === 0) return ''
+  const lines = [
+    `🪦 ${orphaned.length} deferred diamond-cleanup task(s) sit on network(s) no longer in \`config/networks.json\` — they can never be drained; abandon them (\`revertToQueued\` first if \`proposed\`, then \`markCancelled\`) or re-add the network:`,
+  ]
+  for (const o of orphaned)
+    lines.push(
+      `   - [${o.network}:${o.environment}] ${o.facet} (${o.status}) → ${o.prUrl}`
+    )
+  return lines.join('\n')
+}
+
+/** Longest error text kept in an alert line; viem messages run to several hundred chars. */
+const MAX_REASON_LENGTH = 180
+
+/**
+ * Makes an error message safe to post outside the job log: strips every
+ * scheme-prefixed URL and collapses the rest to one line.
+ *
+ * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`) and the
+ * Mongo driver can echo its connection string, while Slack is outside the `::add-mask::`
+ * redaction that protects the workflow log — so a failure would otherwise publish the
+ * credential to the channel. Only the reason is redacted, never the whole alert: the TTL
+ * section's origin-PR links are what make it actionable.
+ *
+ * @param message - Raw error message.
+ * @returns A single-line, length-capped reason with `scheme://…` tokens replaced.
+ */
+export function redactErrorReason(message: string): string {
+  const redacted = message
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<redacted-url>')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return redacted.length > MAX_REASON_LENGTH
+    ? `${redacted.slice(0, MAX_REASON_LENGTH)}…`
+    : redacted
+}
+
+/**
+ * Formats the per-network failure section of the alert. Returns `''` when the sweep
+ * evaluated every group.
+ *
+ * @param failures - Groups the reconcile skipped after an error.
+ * @returns A Slack-ready section, or `''` if `failures` is empty.
+ */
+export function formatReconcileFailureMessage(
+  failures: IReconcileFailure[]
+): string {
+  if (failures.length === 0) return ''
+  const lines = [
+    `❌ the reconcile could not evaluate ${failures.length} network/environment group(s) this run — their tasks keep their current status:`,
+  ]
+  for (const f of failures)
+    lines.push(
+      `   - [${f.network}:${f.environment}] ${f.taskCount} task(s): ${f.reason}`
+    )
+  return lines.join('\n')
+}
+
+/**
+ * Joins the populated alert sections into one message.
+ *
+ * @param sections - Formatted sections, each `''` when it has nothing to report.
+ * @returns The non-empty sections separated by a blank line, or `''` if all are empty.
+ */
+export function joinAlertSections(...sections: string[]): string {
+  return sections.filter((s) => s !== '').join('\n\n')
+}
+
 export type TtlAlertDelivery = 'dry-run' | 'local' | 'misconfigured' | 'send'
 
 /**
@@ -201,13 +345,25 @@ async function resolveProposalStatus(
   return doc?.status
 }
 
-/** Reconciles every open task, grouped by (network, environment) so the loupe is fetched once each. */
+/** What one reconcile sweep could not resolve, for the alert and the exit code. */
+interface IReconcileOutcome {
+  orphaned: IOrphanedParkedTask[]
+  failures: IReconcileFailure[]
+}
+
+/**
+ * Reconciles every open task, grouped by (network, environment) so the loupe is
+ * fetched once each. Never throws for a single group: a retired network is
+ * partitioned out before any I/O and a group that errors is recorded and skipped,
+ * so one bad network cannot cost the rest of the sweep or the TTL alert that
+ * follows it. Failing to read the queue at all does still throw.
+ */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
   apply: boolean
-): Promise<void> {
-  const open = [
+): Promise<IReconcileOutcome> {
+  const allOpen = [
     ...(await listParkedTasks(parkedTasks, {
       network: networkFilter,
       status: 'queued',
@@ -217,9 +373,17 @@ async function reconcileAll(
       status: 'proposed',
     })),
   ]
+  const { reconcilable: open, orphaned } = partitionRetiredNetworks(
+    allOpen,
+    (network) => networks[network] !== undefined
+  )
+  for (const o of orphaned)
+    consola.warn(
+      `[${o.network}:${o.environment}] ${o.facet} (${o.status}) → network retired from config/networks.json, cannot reconcile`
+    )
   if (open.length === 0) {
     consola.info('No open parked tasks to reconcile')
-    return
+    return { orphaned, failures: [] }
   }
 
   const byNetworkEnv = new Map<string, typeof open>()
@@ -242,61 +406,94 @@ async function reconcileAll(
     pendingTransactions = col.pendingTransactions
   }
 
+  const failures: IReconcileFailure[] = []
   try {
     for (const tasks of byNetworkEnv.values()) {
       const first = tasks[0]
       if (!first) continue
       const { network, environment } = first
-      const diamondAddress = await resolveDiamondAddress(network, environment)
-      if (!diamondAddress) {
-        consola.warn(
-          `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
-        )
-        continue
-      }
-      const onChain = await fetchOnChainFacets(diamondAddress, network)
-      const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
+      try {
+        const diamondAddress = await resolveDiamondAddress(network, environment)
+        if (!diamondAddress) {
+          consola.warn(
+            `[${network}:${environment}] no LiFiDiamond in deploy log — skipping`
+          )
+          continue
+        }
+        const onChain = await fetchOnChainFacets(diamondAddress, network)
+        const routed = new Set(onChain.map((f) => f.address.toLowerCase()))
 
-      for (const task of tasks) {
-        const proposalStatus = await resolveProposalStatus(
-          pendingTransactions,
-          task.safeTxHash
+        for (const task of tasks) {
+          const proposalStatus = await resolveProposalStatus(
+            pendingTransactions,
+            task.safeTxHash
+          )
+          const decision = reconcileDecision(task, {
+            facetPresentOnChain: routed.has(
+              getAddress(task.facetAddress).toLowerCase()
+            ),
+            proposalStatus,
+          })
+          consola.info(
+            `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
+          )
+          if (!apply || decision === 'keep') continue
+          if (decision === 'executed')
+            await markExecuted(parkedTasks, task.taskKey)
+          else if (decision === 'superseded')
+            await markSuperseded(parkedTasks, task.taskKey)
+          else if (decision === 'revert')
+            await revertToQueued(parkedTasks, task.taskKey)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        consola.error(
+          `[${network}:${environment}] reconcile failed, continuing with the remaining networks: ${message}`
         )
-        const decision = reconcileDecision(task, {
-          facetPresentOnChain: routed.has(
-            getAddress(task.facetAddress).toLowerCase()
-          ),
-          proposalStatus,
+        failures.push({
+          network,
+          environment,
+          reason: redactErrorReason(message),
+          taskCount: tasks.length,
         })
-        consola.info(
-          `[${network}:${environment}] ${task.facetName} (${task.status}) → ${decision}`
-        )
-        if (!apply || decision === 'keep') continue
-        if (decision === 'executed')
-          await markExecuted(parkedTasks, task.taskKey)
-        else if (decision === 'superseded')
-          await markSuperseded(parkedTasks, task.taskKey)
-        else if (decision === 'revert')
-          await revertToQueued(parkedTasks, task.taskKey)
       }
     }
   } finally {
     await safeMongoClient?.close()
   }
+  return { orphaned, failures }
 }
 
-/** Computes and (when applying) sends the cold-network TTL alert. */
-async function runTtlAlert(
+/**
+ * Computes and (when applying) sends the queue alert: aged-past-TTL tasks plus
+ * whatever the reconcile could not resolve, so an orphan on a retired network or a
+ * network that errored is surfaced on the same weekly channel rather than only in
+ * the job log.
+ */
+async function runQueueAlert(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
   networkFilter: string | undefined,
   ttlDays: number,
-  apply: boolean
+  apply: boolean,
+  outcome: IReconcileOutcome
 ): Promise<void> {
   const all = await listParkedTasks(parkedTasks, { network: networkFilter })
-  const stale = computeTtlAlerts(all, new Date(), ttlDays)
-  const message = formatTtlAlertMessage(stale, ttlDays)
+  // A task on a retired network belongs in the orphan section only: the TTL section
+  // tells the reader to drain the network, which is exactly what cannot be done there.
+  const { reconcilable } = partitionRetiredNetworks(
+    all,
+    (network) => networks[network] !== undefined
+  )
+  const stale = computeTtlAlerts(reconcilable, new Date(), ttlDays)
+  const message = joinAlertSections(
+    formatTtlAlertMessage(stale, ttlDays),
+    formatOrphanedTaskMessage(outcome.orphaned),
+    formatReconcileFailureMessage(outcome.failures)
+  )
   if (!message) {
-    consola.info(`No parked tasks older than ${ttlDays}d`)
+    consola.info(
+      `No parked tasks older than ${ttlDays}d, and every network reconciled`
+    )
     return
   }
   consola.warn(message)
@@ -312,7 +509,7 @@ async function runTtlAlert(
   // 'misconfigured' — an unattended run reaching here has no webhook to post to.
   if (!webhookUrl)
     throw new Error(
-      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the TTL alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the queue alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
     )
   await new SlackNotifier(webhookUrl).sendNotificationWithRetry({
     text: message,
@@ -350,12 +547,25 @@ const main = defineCommand({
     // getParkedTasksCollection reads the un-gated MONGODB_URI cluster (no tunnel).
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
+    let outcome: IReconcileOutcome
     try {
-      await reconcileAll(parkedTasks, args.network, apply)
-      await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
+      outcome = await reconcileAll(parkedTasks, args.network, apply)
+      await runQueueAlert(parkedTasks, args.network, ttlDays, apply, outcome)
     } finally {
       await client.close()
     }
+    // Fail the run only for groups that errored — those are fixable (RPC, deploy
+    // log, Mongo) and worth a red cron. Orphans on a retired network are a queue
+    // data condition: they are reported in the alert every run until cancelled and
+    // must not keep the job permanently red.
+    if (outcome.failures.length > 0)
+      throw new Error(
+        `${
+          outcome.failures.length
+        } network/environment group(s) failed to reconcile: ${outcome.failures
+          .map((f) => `${f.network}:${f.environment}`)
+          .join(', ')}`
+      )
   },
 })
 

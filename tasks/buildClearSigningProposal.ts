@@ -424,6 +424,15 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
+  Frax: {
+    // FraxFacet additionally *enforces* bytes32(0) on EVM destinations (reverting
+    // InvalidCallData otherwise), so the "0x0 reads as N/A" property is guaranteed,
+    // not just conventional.
+    paramName: '_fraxData',
+    component: 'nonEVMReceiver',
+    type: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
 }
 
 function extraReceiverSpec(fn: IAbiFn): IExtraReceiver | null {
