@@ -77,16 +77,15 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
     function test_DustSupplyDonationNotChargedToNextDepositor() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
-        // Bob seeds then exits down to dust supply: exits are exempt from MIN_SHARE_SUPPLY,
-        // so an attacker can leave the vault holding a few shares of real supply — a regime
-        // where the perf dilution floors to zero and the watermark never ratchets.
+        // Bob seeds then exits down to dust supply (below DUST_SUPPLY_THRESHOLD) — a
+        // regime where the perf dilution floors to zero and the watermark never ratchets.
         _deposit(bob, DEPOSIT);
         uint256 bobShares = wrapper.balanceOf(bob);
         vm.prank(bob);
         wrapper.redeem(bobShares - 1, bob, bob);
 
         assertGt(wrapper.totalSupply(), 0);
-        assertLt(wrapper.totalSupply(), MIN_SHARE_SUPPLY);
+        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
 
         _donateToWrapperPosition(1e15);
 

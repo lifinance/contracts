@@ -101,8 +101,7 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
         // No prior deposits: totalSupply()/totalAssets() are zero, so the accrual at the
         // top of the first operation finds nothing to dilute. The 1-wei crystallizing
-        // deposit is the vault's first and mints 1e6 shares (18-dec asset, offset 6),
-        // so it clears the supply floor on its own.
+        // deposit is the vault's first and mints 1e6 shares (18-dec asset, offset 6).
         vm.warp(block.timestamp + YEAR);
         _crystallize();
 
@@ -111,9 +110,8 @@ contract LiFiVaultWrapperFeesTest is VaultWrapperFeeTestBase {
 
     function test_ZeroShareAccrualStillAdvancesBaseline() public {
         wrapper = _newWrapperMgmtOnly(MGMT_RATE);
-        // A tiny AUM (the smallest floor-clearing deposit) makes the per-second
-        // management fee floor to zero shares, so the accrual at the top of an
-        // operation mints nothing.
+        // A tiny AUM (1e6 asset-wei) makes the per-second management fee floor to
+        // zero shares, so the accrual at the top of an operation mints nothing.
         _deposit(alice, 1e6);
 
         vm.warp(block.timestamp + 1);

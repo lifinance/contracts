@@ -51,13 +51,12 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 ///      `isTransferable(from, to)`, and exits check `isSanctioned` on the share owner and
 ///      asset receiver — all fail-closed, so a misbehaving gate blocks the guarded
 ///      operation (including exits) until the owner swaps the gate. Inflation-attack
-///      protection is layered: the ERC-4626 virtual-share decimals offset is derived
-///      once at `initialize` (`18 - assetDecimals`, floored at a nonzero minimum so even
+///      protection is the ERC-4626 virtual-share decimals offset, derived once at
+///      `initialize` (`18 - assetDecimals`, floored at a nonzero minimum so even
 ///      high-decimal assets stay donation-resistant — strongest exactly where a donated
-///      wei buys the most), and a deposit-side supply floor keeps depositors out of the
-///      dust-denominator regime. EIP-5143 slippage overloads of
-///      the four entrypoints bound the realized amount against in-flight share-price
-///      or fee-rate changes.
+///      wei buys the most), plus the `ZeroSharesMinted` guard on zero-share deposits.
+///      EIP-5143 slippage overloads of the four entrypoints bound the realized amount
+///      against in-flight share-price or fee-rate changes.
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
@@ -96,25 +95,23 @@ contract LiFiVaultWrapper is
 
     /// @notice Lower bound on the derived virtual-share decimals offset, applied even when
     ///         the asset already has >= `TARGET_SHARE_DECIMALS` decimals (where the derived
-    ///         offset would otherwise be 0). The offset divides the asset cost of the
-    ///         fresh-vault donation grief: to push a deposit below the `MIN_SHARE_SUPPLY`
-    ///         floor an attacker must donate ~`MIN_SHARE_SUPPLY / 10 ** offset` times that
-    ///         deposit. A minimum of 6 (= log10(`MIN_SHARE_SUPPLY`)) caps that ratio at 1,
-    ///         so a donation can never block a deposit larger than itself — and since the
-    ///         donation accrues to the first real depositor, the grief is self-defeating.
-    ///         With offset 0 a ~1-token donation would block every sub-1M-token first
-    ///         deposit into an 18-decimal vault.
+    ///         offset would otherwise be 0). The offset is the sole inflation/donation
+    ///         defense: zeroing a deposit requires donating ~`10 ** offset` times it, and a
+    ///         depositor's rounding loss is bounded at ~`1 / 10 ** offset` of the donation
+    ///         (a deposit that would round to zero shares reverts `ZeroSharesMinted` in
+    ///         `_deposit`). At the minimum of 6 a donation never zeroes a deposit larger
+    ///         than one-millionth of it — and since the donation accrues to the vault, the
+    ///         grief is self-defeating. With offset 0 a ~1-token donation would zero every
+    ///         sub-1M-token first deposit into an 18-decimal vault.
     uint8 internal constant MIN_DECIMALS_OFFSET = 6;
 
-    /// @notice Deposit-side total-supply floor, in shares: after any deposit or mint
-    ///         the supply must be at least this (exits are exempt — see
-    ///         `_enforceSupplyFloor`). With the offset floored at `MIN_DECIMALS_OFFSET`,
-    ///         any nonzero first deposit already mints at least this many shares, so the
-    ///         floor is a backstop rather than the primary inflation guard: it catches
-    ///         the donation-inflated zero-share deposit and the sub-floor dust an exit can
-    ///         strand. At >= 18 share decimals it is at most ~1e-12 of one token, so no
-    ///         real deposit ever notices it.
-    uint256 internal constant MIN_SHARE_SUPPLY = 1e6;
+    /// @notice Dust-supply threshold for watermark maintenance in `_accrueFees`: below
+    ///         it the perf dilution can round to zero shares while the watermark goes
+    ///         stale. NOT an enforced deposit floor — the virtual-share offset alone
+    ///         bounds degenerate-state losses (see `MIN_DECIMALS_OFFSET`). Sized at
+    ///         10 ** `MIN_DECIMALS_OFFSET`, covering the widest stale window (1e4
+    ///         shares at the 1 bps minimum rate).
+    uint256 internal constant DUST_SUPPLY_THRESHOLD = 1e6;
 
     /// Immutables ///
 
@@ -402,9 +399,7 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxDeposit` from the
-    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers). The shared
-    ///      `_deposit` seam enforces the post-operation supply floor (see
-    ///      `_enforceSupplyFloor`).
+    ///      `maxDeposit == 0` view (which stays 0 for EIP-4626 consumers).
     function deposit(
         uint256 assets,
         address receiver
@@ -419,9 +414,7 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reverts `DepositsPaused` while any pause source is engaged, so the named reason
     ///      surfaces to callers rather than OZ's `ERC4626ExceededMaxMint` from the
-    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers). The shared
-    ///      `_deposit` seam enforces the post-operation supply floor (see
-    ///      `_enforceSupplyFloor`).
+    ///      `maxMint == 0` view (which stays 0 for EIP-4626 consumers).
     function mint(
         uint256 shares,
         address receiver
@@ -434,8 +427,6 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
-    ///      are exempt): an exit must always be able to empty the caller's position.
     function withdraw(
         uint256 assets,
         address receiver,
@@ -448,8 +439,6 @@ contract LiFiVaultWrapper is
     }
 
     /// @inheritdoc ERC4626Upgradeable
-    /// @dev Deliberately NOT floor-checked (see `_enforceSupplyFloor` for why exits
-    ///      are exempt): an exit must always be able to empty the caller's position.
     function redeem(
         uint256 shares,
         address receiver,
@@ -663,36 +652,6 @@ contract LiFiVaultWrapper is
 
     /// Internal ///
 
-    /// @dev Deposit-side supply floor: after a non-zero deposit/mint the total supply must
-    ///      be at least `MIN_SHARE_SUPPLY`, so no depositor ever transacts against a
-    ///      dust-sized share denominator (the first-depositor inflation attack's
-    ///      precondition), capping a donation-griefer's damage at ~`1/MIN_SHARE_SUPPLY`
-    ///      of the donation. A post-operation supply of exactly zero is rejected here too:
-    ///      it is reached when a non-zero deposit mints zero shares against a
-    ///      donation-inflated *empty* vault. The complementary case — a non-zero deposit
-    ///      minting zero shares while supply already sits at or above the floor (parked
-    ///      there by prior floor-exempt exits, then donation-inflated) — passes this check
-    ///      and is caught instead by the `shares == 0` guard in `_deposit`: a passing
-    ///      supply check alone does not imply the deposit minted anything.
-    ///      A zero-amount `deposit(0)`/`mint(0)` moves nothing and mints nothing, so the
-    ///      caller skips this check entirely: the no-op stays a no-op even in a sub-floor
-    ///      state. Exits are also deliberately exempt (they never call this): `_accrueFees`
-    ///      mints fee shares to this contract, so an exit-side check could revert the last
-    ///      holder's full exit against sub-floor fee-share residue — and exits must always
-    ///      work. An exit may therefore strand a sub-floor supply, but any non-zero deposit
-    ///      into that state is still protected by this check. Not reflected in the max*
-    ///      limit views (a documented EIP-4626 deviation): with the offset floored at
-    ///      `MIN_DECIMALS_OFFSET`, an ordinary deposit into a clean vault always clears the
-    ///      floor, so the only amounts `<= maxDeposit` that still revert are non-zero
-    ///      deposits that mint zero shares against a donation-inflated vault and deposits
-    ///      into an exit-stranded sub-floor vault — edge states not worth modeling in the
-    ///      limit views.
-    function _enforceSupplyFloor() private view {
-        uint256 supply = totalSupply();
-        if (supply < MIN_SHARE_SUPPLY)
-            revert SupplyBelowMinimum(supply, MIN_SHARE_SUPPLY);
-    }
-
     /// @dev Skims the entry fee and forwards the remaining deposited assets into the yield
     ///      source via the adapter. OZ's `_deposit` has already pulled the asset in and minted
     ///      shares. Reverts if the adapter reports the source accepted less than the net
@@ -703,13 +662,11 @@ contract LiFiVaultWrapper is
     ///      ERC-4626 source reverts on a zero-asset forward, so short-circuiting keeps `deposit`
     ///      non-reverting in exactly the cases where `previewDeposit` returns 0. A deposit
     ///      that would forward a non-zero net amount yet minted zero shares (assets rounded
-    ///      away against a donation-inflated price while supply sits at/above the floor)
-    ///      reverts `ZeroSharesMinted` before the forward, so the caller never loses assets
-    ///      to the pool for no shares. Pause is enforced upstream in `deposit`/`mint`. Both
-    ///      `deposit` and `mint` route through this seam, so the post-operation supply floor
-    ///      is enforced here once for every inflow entrypoint (a zero-amount call mints
-    ///      nothing and skips it); exits go through `_withdraw` and are structurally exempt
-    ///      (see `_enforceSupplyFloor`).
+    ///      away against a donation-inflated price) reverts `ZeroSharesMinted` before the
+    ///      forward, so the caller never loses assets to the pool for no shares — the only
+    ///      revert needed against donation griefs, since the virtual-share offset bounds every
+    ///      non-zero-share outcome's loss at ~`1 / 10 ** offset` of the donation. Pause is
+    ///      enforced upstream in `deposit`/`mint`.
     function _deposit(
         address caller,
         address receiver,
@@ -717,7 +674,6 @@ contract LiFiVaultWrapper is
         uint256 shares
     ) internal override {
         super._deposit(caller, receiver, assets, shares);
-        if (assets != 0) _enforceSupplyFloor();
 
         uint256 depositFee = LibVaultWrapperMath.feeOnTotal({
             _assets: assets,
@@ -1051,11 +1007,10 @@ contract LiFiVaultWrapper is
     ///      floors to zero shares is dropped — at most ~one share's worth of assets per
     ///      accrual, favouring holders. The performance fee is charged AFTER the
     ///      management dilution (perf is net of management). The watermark has two write
-    ///      paths: while supply is below the floor (no real holders), it floats to the live
-    ///      price and the perf fee is skipped, so a donation becomes the first depositor's
-    ///      baseline rather than their loss; at real supply it ratchets to the post-
-    ///      crystallization price (rounded up) only when shares were actually minted — an
-    ///      uncharged gain stays chargeable, unlike elapsed time.
+    ///      paths: at dust supply (below `DUST_SUPPLY_THRESHOLD`) it floats to the live
+    ///      price and the perf fee is skipped (see the inline comment); at real supply it
+    ///      ratchets to the post-crystallization price (rounded up) only when shares were
+    ///      actually minted — an uncharged gain stays chargeable, unlike elapsed time.
     function _accrueFees() private {
         bool mgmtEnabled = _rate(FeeType.Management) != 0;
         bool perfEnabled = _rate(FeeType.Performance) != 0;
@@ -1075,18 +1030,16 @@ contract LiFiVaultWrapper is
             supply += mgmtShares;
         }
 
-        // Below the supply floor there are no real holders: no depositor can transact against
-        // a sub-floor supply (deposits enforce MIN_SHARE_SUPPLY; only floor-exempt exits reach
-        // it), so any price rise is a donation to the (predicted) address, not yield. A plain
-        // `supply == 0` guard is not enough — at dust supply the perf dilution floors to zero
-        // (`dilutionShares` ~ rate * supply, so it rounds to no shares while supply < 1/rate),
-        // leaving the watermark stale and the donation chargeable to the next real depositor.
-        // The floor (1e6) covers every rate: the widest sub-floor window is 1/rate = 1e4 at the
-        // 1 bps minimum. Float the watermark up to the current price so the first real
-        // depositor's entry price becomes the baseline. Trade-off: genuine yield earned while
-        // supply is sub-floor escapes the performance fee, which is bounded (a sub-floor vault
-        // is dust) and consistent with the "no depositor transacts below the floor" invariant.
-        if (perfEnabled && supply < MIN_SHARE_SUPPLY) {
+        // Below the threshold the perf dilution can floor to zero shares
+        // (`dilutionShares` ~ rate * supply; widest window 1e4 shares at the 1 bps
+        // minimum) while the watermark goes stale, leaving a donation-driven price rise
+        // chargeable to the next depositor as fabricated gain — so float the watermark
+        // to the live price and skip the fee instead. Holders CAN sit at dust supply
+        // (deposits are not floor-checked), so genuine sub-threshold yield escapes the
+        // perf fee: an accepted, bounded leak (a sub-threshold position at par is
+        // ~1e-12 of a share token; inflating it forfeits more than half the donation
+        // to the virtual offset), never a depositor loss.
+        if (perfEnabled && supply < DUST_SUPPLY_THRESHOLD) {
             perfHighWaterMarkPps = _ceilPps(supply, assets);
             return;
         }
