@@ -386,19 +386,20 @@ async function transition(
   allowedFrom: ParkedTaskStatus[],
   set: Partial<IParkedTask>,
   unset?: Partial<Record<keyof IParkedTask, ''>>,
-  extraFilter?: Filter<IParkedTask>
+  expectedSafeTxHash?: string
 ): Promise<WithId<IParkedTask> | null> {
   const update: UpdateFilter<IParkedTask> = { $set: set }
   if (unset) update.$unset = unset
-  return parkedTasks.findOneAndUpdate(
-    {
-      taskKey: { $eq: taskKey },
-      status: { $in: allowedFrom },
-      ...(extraFilter ?? {}),
-    },
-    update,
-    { returnDocument: 'after' }
-  )
+  // Every value is operator-wrapped and the filter is built field by field, so
+  // no caller can widen the match or override the taskKey/status gate.
+  const filter: Filter<IParkedTask> = {
+    taskKey: { $eq: taskKey },
+    status: { $in: allowedFrom },
+  }
+  if (expectedSafeTxHash) filter.safeTxHash = { $eq: expectedSafeTxHash }
+  return parkedTasks.findOneAndUpdate(filter, update, {
+    returnDocument: 'after',
+  })
 }
 
 /**
@@ -524,6 +525,6 @@ export async function revertToQueued(
     ['proposed'],
     { status: 'queued' },
     { proposedAt: '', safeTxHash: '' },
-    expectedSafeTxHash ? { safeTxHash: { $eq: expectedSafeTxHash } } : undefined
+    expectedSafeTxHash
   )
 }
