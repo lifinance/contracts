@@ -251,15 +251,17 @@ export function formatOrphanedTaskMessage(
 const MAX_REASON_LENGTH = 180
 
 /**
- * Makes an error message safe to post outside the job log: strips every URL and
- * collapses it to one line.
+ * Makes an error message safe to post outside the job log: strips every
+ * scheme-prefixed URL and collapses the rest to one line.
  *
- * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`), and
- * Slack is outside the `::add-mask::` redaction that protects the workflow log — so an
- * RPC failure would otherwise publish the key to the channel.
+ * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`) and the
+ * Mongo driver can echo its connection string, while Slack is outside the `::add-mask::`
+ * redaction that protects the workflow log — so a failure would otherwise publish the
+ * credential to the channel. Only the reason is redacted, never the whole alert: the TTL
+ * section's origin-PR links are what make it actionable.
  *
  * @param message - Raw error message.
- * @returns A single-line, URL-free, length-capped reason.
+ * @returns A single-line, length-capped reason with `scheme://…` tokens replaced.
  */
 export function redactErrorReason(message: string): string {
   const redacted = message
