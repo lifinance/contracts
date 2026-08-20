@@ -38,6 +38,14 @@ import {
   resolveLiveFacetsFromLog,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
+import {
+  collectImmutableBindingChecks,
+  isFacetContract,
+  isZeroAddressValue,
+  redactUrls,
+  TRON_ZERO_ADDRESS_BASE58,
+  type IImmutableBindingCheck,
+} from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -835,9 +843,6 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
-/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
-const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
-
 /**
  * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
  *
@@ -865,7 +870,7 @@ async function readPeripheryRegistry(
     )
     if (!parsed.startsWith('T') || parsed.length !== 34)
       throw new Error(`malformed Tron address for ${name}: ${parsed}`)
-    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+    return parsed === TRON_ZERO_ADDRESS_BASE58 ? null : parsed
   }
 
   if (!ctx.publicClient) throw new Error('no EVM client configured')
@@ -878,6 +883,136 @@ async function readPeripheryRegistry(
   })
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
+}
+
+/**
+ * Read one address-typed getter on a deployed contract, on either chain family.
+ *
+ * @throws when no client is configured for the network or the call fails, so callers can tell
+ *   "could not read" apart from "read a wrong value"
+ */
+async function readAddressGetter(
+  address: string,
+  getter: string,
+  ctx: IHealthCheckContext
+): Promise<string> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        address,
+        `${getter}()`,
+        [],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
+    // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
+    // warning instead of an error-severity mismatch against a line of prose.
+    // A zero address in any encoding is a real answer the caller must report as an error, so
+    // it passes the shape check; anything else non-base58 is unusable output.
+    if (
+      !isZeroAddressValue(parsed) &&
+      (!parsed.startsWith('T') || parsed.length !== 34)
+    )
+      throw new Error(`malformed Tron address for ${getter}(): ${parsed}`)
+    return parsed
+  }
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const value = await ctx.publicClient.readContract({
+    address: getAddress(address as Address),
+    abi: parseAbi([`function ${getter}() external view returns (address)`]),
+    functionName: getter,
+  })
+  return getAddress(value as Address)
+}
+
+/**
+ * Read a binding's value, falling back to earlier names of the same getter when the current one
+ * is absent from the live build.
+ *
+ * @remarks Only a revert triggers the fallback: an unreachable RPC says nothing about which
+ *   getters the contract exposes, and retrying it would just multiply reads during an outage.
+ * @returns the value and the getter name that actually answered
+ * @throws the original error when neither the current nor any legacy getter can be read
+ */
+async function readBindingValue(
+  address: string,
+  check: IImmutableBindingCheck,
+  ctx: IHealthCheckContext
+): Promise<{ value: string; getterUsed: string }> {
+  try {
+    return {
+      value: await readAddressGetter(address, check.getter, ctx),
+      getterUsed: check.getter,
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Two error shapes mean "this build has no such function": a revert, and viem's zero-data
+    // error when the call returns "0x". Matching only reverts skips the fallback for the second,
+    // leaving the binding unverified. An unreachable RPC matches neither and must not retry.
+    if (
+      !/revert|returned no data/i.test(message) ||
+      check.legacyGetters.length === 0
+    )
+      throw error
+
+    for (const legacyGetter of check.legacyGetters)
+      try {
+        return {
+          value: await readAddressGetter(address, legacyGetter, ctx),
+          getterUsed: legacyGetter,
+        }
+      } catch {
+        continue
+      }
+    throw error
+  }
+}
+
+/**
+ * Resolve the address whose immutable bindings should be checked, or undefined when the contract
+ * is not in use on this network.
+ *
+ * @remarks A facet is only checked at the address the diamond actually serves. Between a facet's
+ *   deploy and its diamondCut the deploy log names a contract that is not live yet, and verifying
+ *   that one would report a stale on-chain binding as healthy.
+ */
+async function resolveBindingTargetAddress(
+  contractName: string,
+  ctx: IHealthCheckContext,
+  targetStateFacets: string[],
+  liveFacets: Set<string>
+): Promise<string | undefined> {
+  if (isFacetContract(contractName)) {
+    // Liveness decides, not the target state: several facets are registered in a diamond
+    // without being listed for that network, and a stale binding hurts just as much there.
+    if (liveFacets.has(contractName))
+      return String(ctx.deployedContracts[contractName])
+    if (targetStateFacets.includes(contractName))
+      ctx.logWarn(
+        `${contractName} is in the target state but its deploy-log address is not registered in the diamond — immutable bindings not verified`
+      )
+    return undefined
+  }
+
+  // Periphery: the registry is authoritative, but the deploy log is the only source for
+  // contracts the diamond never registers (e.g. LidoWrapper).
+  try {
+    const registered = await readPeripheryRegistry(contractName, ctx)
+    if (registered) return registered
+  } catch (error: unknown) {
+    const errorMessage = redactUrls(
+      (error instanceof Error ? error.message : String(error)).split('\n')[0] ??
+        'unknown error'
+    )
+    ctx.logWarn(
+      `Could not read PeripheryRegistry for ${contractName} (falling back to deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[contractName]
+  return logged ? String(logged) : undefined
 }
 
 /**
@@ -1179,6 +1314,141 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             `${name}.${getter}() is ${boundExecutor}, expected deployed Executor ${expectedExecutor}`
           )
         else consola.success(`${name} is bound to the deployed Executor`)
+      }
+    },
+  },
+  {
+    name: 'immutable-bindings-match-config',
+    description:
+      'Getter-annotated immutable constructor bindings still match the config they were deployed from',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'The live contract binds a stale address: redeploy it against the current config value and re-register it, or update the config entry if this chain genuinely still uses the old address.',
+    run: async (ctx) => {
+      // A contract like ReceiverAcrossV4 binds its counterparty immutably at construction, so a
+      // migrated integration cannot be fixed by editing config. Presence, executor-binding and
+      // owner checks all stay green while destination calls fail against a dead counterparty —
+      // only comparing the live binding against config surfaces it.
+      const checks = collectImmutableBindingChecks(
+        ctx.networkLower,
+        ctx.environment
+      )
+      if (checks.length === 0) return
+
+      // Config stores Tron counterparties in base58, so without TronWeb the expected value cannot
+      // be normalized and every comparison would fail on encoding rather than on drift.
+      const tronWeb = ctx.tronWeb
+      if (ctx.isTron && (!tronWeb || !ctx.tronRpcUrl)) {
+        ctx.logWarn(
+          'Tron client unavailable — immutable bindings not verified on this network'
+        )
+        return
+      }
+
+      const targetStateFacets = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
+      const facetListAvailable = ctx.onChainFacets.length > 0
+      // Without the diamond's facet list every facet-typed entry would look un-live and warn;
+      // facets-registered already reported whatever left this list empty.
+      if (!facetListAvailable)
+        ctx.logWarn(
+          'On-chain facet list unavailable — immutable bindings of facet-typed entries not verified'
+        )
+      // Candidates must include every annotated facet, not just the target-state ones, or a
+      // facet registered on a chain that does not list it resolves as "not live" and is skipped.
+      const facetCandidates = [
+        ...new Set([
+          ...targetStateFacets,
+          ...checks
+            .map((check) => check.contractName)
+            .filter((name) => isFacetContract(name)),
+        ]),
+      ]
+      const liveFacets = new Set(
+        facetListAvailable
+          ? resolveLiveFacetsFromLog(
+              ctx.onChainFacets.map((facet) => facet.address),
+              ctx.deployedContracts as Record<string, string>,
+              facetCandidates
+            )
+          : []
+      )
+
+      for (const check of checks) {
+        if (!facetListAvailable && isFacetContract(check.contractName)) continue
+
+        const address = await resolveBindingTargetAddress(
+          check.contractName,
+          ctx,
+          targetStateFacets,
+          liveFacets
+        )
+        // Not present on this chain — nothing to compare.
+        if (!address) continue
+
+        if (!check.expectedAddress) {
+          ctx.logWarn(
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.resolvedKeyInConfigFile} value for this network — cannot verify ${check.getter}()`
+          )
+          continue
+        }
+
+        // Normalize the config side before the read, and outside its try: config values are
+        // only known to be non-empty strings, so a malformed one throws here — folding that
+        // into the read's catch would report a broken config entry as an unverified binding
+        // and let this error-severity check pass on exactly the drift it exists to catch.
+        let expectedValue: string
+        try {
+          expectedValue =
+            ctx.isTron && tronWeb
+              ? ensureTronAddress(check.expectedAddress, tronWeb)
+              : getAddress(check.expectedAddress as Address)
+        } catch {
+          ctx.logError(
+            `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+          )
+          continue
+        }
+
+        try {
+          const { value: onChainValue, getterUsed } = await readBindingValue(
+            address,
+            check,
+            ctx
+          )
+
+          // Name the getter that answered, not the annotated one: on a chain running an older
+          // build they differ, and the reader needs to know which contract version was read.
+          const readLabel = `${check.contractName}.${getterUsed}()`
+
+          if (isZeroAddressValue(onChainValue))
+            ctx.logError(
+              `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.resolvedKeyInConfigFile}`
+            )
+          else if (onChainValue !== expectedValue)
+            ctx.logError(
+              `${readLabel} is ${onChainValue} but ${check.configFileName} ${check.resolvedKeyInConfigFile} expects ${expectedValue}`
+            )
+          else
+            consola.success(
+              `${readLabel} matches ${check.configFileName}${
+                getterUsed === check.getter ? '' : ' (pre-rename build)'
+              }`
+            )
+        } catch (error: unknown) {
+          // A revert here usually means the live build predates a rename of the getter, so the
+          // binding stays unverified rather than wrong — say so, because a bare read failure
+          // reads like a transient RPC blip instead of a hole in this check's coverage.
+          const errorMessage = redactUrls(
+            (error instanceof Error ? error.message : String(error)).split(
+              '\n'
+            )[0] ?? 'unknown error'
+          )
+          ctx.logWarn(
+            `${check.contractName}.${check.getter}() left unverified — read failed: ${errorMessage}`
+          )
+        }
       }
     },
   },
