@@ -98,4 +98,18 @@ contract ERC4626Adapter is IYieldAdapter {
     ) external view returns (uint256 assets) {
         assets = IERC4626(_underlying).maxWithdraw(_holder);
     }
+
+    /// @inheritdoc IYieldAdapter
+    /// @dev The source's `maxDeposit` for the holder — the assets it will accept on entry
+    ///      right now, capped by any supply/inflow limit. Returns `type(uint256).max` when
+    ///      the source imposes no cap (EIP-4626's own sentinel), which the wrapper passes
+    ///      through so an uncapped source keeps reporting unlimited deposit capacity. The
+    ///      wrapper always enters via exact-asset `IERC4626.deposit`, so `maxDeposit` — not
+    ///      the source's share-side `maxMint` — is the axis that governs an entry revert.
+    function maxDepositableValue(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 assets) {
+        assets = IERC4626(_underlying).maxDeposit(_holder);
+    }
 }

@@ -574,24 +574,48 @@ contract LiFiVaultWrapper is
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
     ///      the receiver, so EIP-4626 consumers see the vault as closed to deposits and do
     ///      not build deposits that would revert. Mirrors `deposit`'s guards; a reverting
-    ///      gate reverts this view too (fail-closed, like the entrypoint).
+    ///      gate reverts this view too (fail-closed, like the entrypoint). Otherwise clamps
+    ///      to the assets the source will currently accept (`adapter.maxDepositableValue`),
+    ///      keeping the EIP-4626 guarantee that a `deposit` within `maxDeposit` never reverts
+    ///      under a source inflow cap — the entry-side mirror of `maxRedeem`'s liquidity
+    ///      clamp. Reverts if the source's view reverts (fail-closed).
     function maxDeposit(
         address receiver
     ) public view override returns (uint256) {
         if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
-        return super.maxDeposit(receiver);
+        uint256 sourceCap = IYieldAdapter(adapter).maxDepositableValue(
+            underlying,
+            address(this)
+        );
+        uint256 selfMax = super.maxDeposit(receiver);
+
+        return sourceCap < selfMax ? sourceCap : selfMax;
     }
 
     /// @inheritdoc ERC4626Upgradeable
     /// @dev Reports 0 while any pause source is engaged, or while the access gate rejects
     ///      the receiver, so EIP-4626 consumers see the vault as closed to mints and do
     ///      not build mints that would revert. Mirrors `mint`'s guards; a reverting gate
-    ///      reverts this view too (fail-closed, like the entrypoint).
+    ///      reverts this view too (fail-closed, like the entrypoint). Otherwise clamps to
+    ///      the source's inflow cap (`adapter.maxDepositableValue`, floor-converted to
+    ///      shares), so a `mint` within `maxMint` never reverts under a source cap. An
+    ///      uncapped source returns `type(uint256).max`, passed through unconverted to avoid
+    ///      overflowing the share conversion. Reverts if the source's view reverts
+    ///      (fail-closed).
     function maxMint(address receiver) public view override returns (uint256) {
         if (depositsPaused() || !_depositAllowed(receiver)) return 0;
 
-        return super.maxMint(receiver);
+        uint256 sourceCap = IYieldAdapter(adapter).maxDepositableValue(
+            underlying,
+            address(this)
+        );
+        if (sourceCap == type(uint256).max) return super.maxMint(receiver);
+
+        uint256 mintCap = _convertToShares(sourceCap, Math.Rounding.Floor);
+        uint256 selfMax = super.maxMint(receiver);
+
+        return mintCap < selfMax ? mintCap : selfMax;
     }
 
     /// @inheritdoc ERC4626Upgradeable

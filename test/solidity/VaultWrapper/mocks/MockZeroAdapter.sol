@@ -38,4 +38,11 @@ contract MockZeroAdapter is IYieldAdapter {
     ) external pure returns (uint256) {
         return 0;
     }
+
+    function maxDepositableValue(
+        address,
+        address
+    ) external pure returns (uint256) {
+        return 0;
+    }
 }

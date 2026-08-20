@@ -113,6 +113,13 @@ contract LossyVault {
     function maxWithdraw(address _owner) external view returns (uint256) {
         return balanceOf[_owner];
     }
+
+    /// @dev Unlimited deposit capacity: `ERC4626Adapter.maxDepositableValue` reads
+    ///      `maxDeposit`, so the wrapper's inflow clamp is a no-op and the shortfall path
+    ///      under test is still reached.
+    function maxDeposit(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
 }
 
 contract LiFiVaultWrapperTest is Test {
