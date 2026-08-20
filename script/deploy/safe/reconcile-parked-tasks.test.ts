@@ -38,6 +38,7 @@ import {
   partitionByNetworkStatus,
   parseTtlDays,
   redactErrorReason,
+  reconcileExitError,
   reconcileDecision,
   isSuspectAddressSnapshot,
   resolveFacetPresence,
@@ -409,6 +410,45 @@ describe('formatReconcileFailureMessage', () => {
     // Both rows are still listed — the count is deduped, the detail is not.
     expect(msg).toContain('ethereum:production')
     expect(msg).toContain('ethereum:staging')
+  })
+})
+describe('reconcileExitError', () => {
+  const failure = (
+    kind: 'unreadable' | 'inactive-network',
+    network: string
+  ) => ({
+    network,
+    environment: EnvironmentEnum.production,
+    kind,
+    reason: 'reason',
+  })
+
+  it('exits 0 when the sweep collected nothing', () => {
+    expect(reconcileExitError([])).toBe('')
+  })
+
+  it('keeps the cron green for a network that merely left the active set', () => {
+    expect(
+      reconcileExitError([
+        failure('inactive-network', 'moonbeam'),
+        failure('inactive-network', 'harmony'),
+      ])
+    ).toBe('')
+  })
+
+  it('reddens the run for a group whose state could not be read', () => {
+    const msg = reconcileExitError([failure('unreadable', 'zksync')])
+    expect(msg).toContain('1 network/environment group(s)')
+    expect(msg).toContain('zksync:production')
+  })
+
+  it('reddens a mixed run and names only the unreadable groups', () => {
+    const msg = reconcileExitError([
+      failure('inactive-network', 'moonbeam'),
+      failure('unreadable', 'zksync'),
+    ])
+    expect(msg).toContain('zksync:production')
+    expect(msg).not.toContain('moonbeam')
   })
 })
 

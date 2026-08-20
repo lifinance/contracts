@@ -739,7 +739,8 @@ proposal-store connection, each cancellation, and the sweep as a whole: an
 unreachable chain, a missing RPC or a failed status write is logged and collected as
 an `IReconcileFailure`, the remaining tasks and groups are still decided, and both
 the failure alert and the TTL alert still fire — every skipped network is named in
-Slack rather than exiting the job non-zero and losing the detail. The write path needs
+Slack before the exit code is decided, so an `unreadable` group reddens the run without
+the detail collapsing into a bare non-zero exit. The write path needs
 the same isolation as the read path: an unguarded transition would unwind past every
 group ordered after it, which is the same fleet-wide freeze from the read side.
 A single unresolvable network aborting the batch would silently disable backstop 2
@@ -782,7 +783,9 @@ repeats in the alert until the task is cancelled and must not keep the cron red.
 A network deprecation should still abandon the retired network's open tasks rather
 than leave them for the alert to repeat: `reconcile-parked-tasks --network <x>
 --cancel-deprecated --yes` cancels the `queued` ones (§7), and a `proposed` one needs
-`revertToQueued` first because `markCancelled` accepts only a `queued` task.
+`revertToQueued` first because `markCancelled` accepts only a `queued` task. Flip the
+entry's `status` out of `active` before running it — while the network is still active
+its tasks go to the loupe path and the command is a silent no-op.
 
 ---
 

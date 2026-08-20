@@ -505,6 +505,26 @@ export interface IReconcileRun {
 }
 
 /**
+ * The message the run should die with, or `''` to exit 0.
+ *
+ * Exported so the red/green policy is testable: it is a per-row string literal
+ * ({@link IReconcileFailure.kind}) set at six call sites, and one wrong literal
+ * silently turns a red cron green.
+ *
+ * @param failures - Every failure the sweep collected.
+ * @returns An error message naming the `unreadable` groups, or `''` if there are none.
+ */
+export function reconcileExitError(failures: IReconcileFailure[]): string {
+  const unreadable = failures.filter((f) => f.kind === 'unreadable')
+  if (unreadable.length === 0) return ''
+  return `${
+    unreadable.length
+  } network/environment group(s) could not be reconciled: ${unreadable
+    .map((f) => `${f.network}:${f.environment}`)
+    .join(', ')}`
+}
+
+/**
  * Formats the unreconciled-network alert. Returns `''` when every network was
  * verified.
  *
@@ -519,7 +539,8 @@ export function formatReconcileFailureMessage(
   failures: IReconcileFailure[]
 ): string {
   if (failures.length === 0) return ''
-  // Keeps the worst case (a fleet-wide narrowing) under SlackNotifier's 2900-char budget.
+  // Bounds the worst case (a fleet-wide narrowing), which otherwise runs to several
+  // thousand characters of detail nobody reads past the first screen.
   const MAX_LISTED = 15
   // One entry per (network, environment), so the headline counts physical networks
   // rather than rows — two failing environments of one chain is still one network.
@@ -852,11 +873,19 @@ async function reconcileAll(
           `${task.facetName} (no longer queued — not cancelled)`
         )
     } catch (error: unknown) {
-      group.blocked.push(
-        `${task.facetName} (cancel failed: ${redactErrorReason(
-          error instanceof Error ? error.message : String(error)
-        )})`
+      const reason = redactErrorReason(
+        error instanceof Error ? error.message : String(error)
       )
+      group.blocked.push(`${task.facetName} (cancel failed: ${reason})`)
+      // Same fault class as a failed transition on the live path, so it gets the
+      // same severity: a store that refuses writes is fixable, and an operator
+      // scripting the deprecation reads the exit code, not the alert.
+      failures.push({
+        network: task.network,
+        environment: task.environment,
+        kind: 'unreadable',
+        reason: `${task.facetName}: cancel write failed — ${reason}`,
+      })
     }
   }
   for (const s of terminalSkippedByNetwork.values())
@@ -1225,7 +1254,13 @@ async function runTtlAlert(
   apply: boolean
 ): Promise<void> {
   const all = await listParkedTasks(parkedTasks, { network: networkFilter })
-  const stale = computeTtlAlerts(all, new Date(), ttlDays)
+  // A task outside the active set belongs in the failure alert only: this section's
+  // remedy is to drain the network, which is exactly what cannot be done there.
+  const { live } = partitionByNetworkStatus(
+    all,
+    new Set(getAllActiveNetworks().map((n) => n.id))
+  )
+  const stale = computeTtlAlerts(live, new Date(), ttlDays)
   const message = formatTtlAlertMessage(stale, ttlDays)
   if (!message) {
     consola.info(`No parked tasks older than ${ttlDays}d`)
@@ -1331,18 +1366,10 @@ const main = defineCommand({
     } finally {
       await client.close()
     }
-    // Red only for `unreadable` groups: those are fixable and worth a failed cron.
-    // An `inactive-network` row is a queue data condition reported every run until
-    // the tasks are cancelled, and must not keep the job permanently red.
-    const unreadable = run.failures.filter((f) => f.kind === 'unreadable')
-    if (unreadable.length > 0)
-      throw new Error(
-        `${
-          unreadable.length
-        } network/environment group(s) could not be reconciled: ${unreadable
-          .map((f) => `${f.network}:${f.environment}`)
-          .join(', ')}`
-      )
+    // Throws after the alerts, never before: a bare non-zero exit would lose the
+    // detail the alerts carry.
+    const failureExit = reconcileExitError(run.failures)
+    if (failureExit) throw new Error(failureExit)
   },
 })
 

@@ -12,7 +12,7 @@ usage: /deprecate-network <network1> [network2] [network3] ...
 
 This command completely removes a network (or multiple networks) from the codebase by:
 
-1. Cancelling the network's `queued` tasks in the deferred diamond-cleanup queue, first, while the config they depend on still exists (a `proposed` task is reported, never cancelled — it may have a live Safe proposal)
+1. Flipping the network's `status` to `inactive` in `config/networks.json`, then cancelling its `queued` tasks in the deferred diamond-cleanup queue while the config they depend on still exists (a `proposed` task is reported, never cancelled — it may have a live Safe proposal)
 2. Removing the network entry from `config/networks.json`
 3. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
 4. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
@@ -25,7 +25,7 @@ This command completely removes a network (or multiple networks) from the codeba
 1. Type `/deprecate-network` followed by one or more network names (space-separated)
 2. The command will automatically:
    - Validate that the networks exist in `config/networks.json`
-   - Cancel the network's `queued` parked diamond-cleanup tasks first (reporting any `proposed` one)
+   - Flip the network's `status` to `inactive`, then cancel its `queued` parked diamond-cleanup tasks (reporting any `proposed` one) — both before anything is removed
    - Remove network entries from `config/networks.json`
    - Remove RPC endpoint entries from `foundry.toml`
    - Remove etherscan entries from `foundry.toml`
@@ -224,6 +224,7 @@ The entire `"fantom"` entry (including both production and staging) will be remo
 Before executing, validate:
 
 - [ ] **Network exists**: Verify network exists in `config/networks.json` (warn if not found, but continue)
+- [ ] **Status flipped before cancelling**: `config/networks.json` shows the network as non-`active` — `--cancel-deprecated` is a silent no-op while it is still `active`
 - [ ] **Network name format**: Network names should match exactly (case-sensitive) as they appear in `config/networks.json`
 - [ ] **Multiple networks**: Support space-separated list of networks
 - [ ] **File existence**: Check if deployment files exist before attempting deletion (not an error if missing)
