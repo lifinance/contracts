@@ -170,7 +170,7 @@ deploySingleContract() {
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
     # getBytecodeFromArtifact reports a missing artifact via error(), which writes to stdout - so
-    # inside this substitution the message lands in BYTECODE and the salt gets derived from it
+    # without this guard, the message would land in BYTECODE and the salt would be derived from it
     if ! BYTECODE=$(getBytecodeFromArtifact "$CONTRACT"); then
       error "could not read bytecode for $CONTRACT from out/$CONTRACT.sol/$CONTRACT.json - the CREATE3 deploy salt cannot be derived without it, please run 'forge build' and try again"
       if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
