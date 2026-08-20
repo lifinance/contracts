@@ -1,7 +1,6 @@
 {
   "filter_paths": "lib",
   "solc_remaps": [
-    "@eth-optimism/=node_modules/@hop-protocol/sdk/node_modules/@eth-optimism/",
     "@uniswap/=node_modules/@uniswap/",
     "eth-gas-reporter/=node_modules/eth-gas-reporter/",
     "@openzeppelin/=lib/openzeppelin-contracts/",

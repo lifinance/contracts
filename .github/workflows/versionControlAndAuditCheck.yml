@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
-      group: sc-core-dev-approval-${{ github.event.pull_request.number }}
+      group: version-control-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
