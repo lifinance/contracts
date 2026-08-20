@@ -123,6 +123,22 @@ export const buildExplorerAddressUrl = (
 }
 
 /**
+ * Returns true when `url`'s host is `domain` itself or a subdomain of it.
+ *
+ * Compares parsed host labels rather than substrings, so a lookalike host such as
+ * `oklink.com.example.org` does not match.
+ */
+const isHostOrSubdomainOf = (url: string, domain: string): boolean => {
+  let host: string
+  try {
+    host = new URL(url).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
+/**
  * Builds a block explorer URL that links directly to the contract/code page
  * for a given network and address.
  *
@@ -151,12 +167,12 @@ export const buildExplorerContractPageUrl = (
   const addressUrl = buildExplorerAddressUrl(networkId, address)
   if (!addressUrl) return undefined
 
-  switch (network.verificationType) {
-    // OKLink contract pages live under /address/<address>/contract
-    case 'oklink': {
-      return `${addressUrl}/contract`
-    }
+  // OKLink contract pages live under /address/<address>/contract. Keyed off the explorer
+  // host, not verificationType, because a network's source can be verified elsewhere
+  // (e.g. Sourcify) while its explorer is still hosted by OKLink.
+  if (isHostOrSubdomainOf(base, 'oklink.com')) return `${addressUrl}/contract`
 
+  switch (network.verificationType) {
     // Vana contract tab uses a query parameter instead of a hash.
     case 'blockscout': {
       if (networkId === 'vana') return `${addressUrl}?tab=contract`
