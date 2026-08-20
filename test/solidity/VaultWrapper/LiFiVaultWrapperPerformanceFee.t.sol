@@ -248,6 +248,28 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
 
     /// setFeeRate: enable / disable / bounds ///
 
+    /// @dev The re-anchor is gated on enabling the PERFORMANCE fee specifically. Enabling a
+    ///      different fee type must leave the watermark where it is: re-anchoring it to the
+    ///      current price would write off the disabled-period gain that the later
+    ///      performance-fee enablement is supposed to price, so the widened gate is only
+    ///      visible on the watermark itself.
+    function test_SetFeeRateOtherFeeTypeDoesNotReanchorHwm() public {
+        _stackWithFactory(0); // performance disabled, so accrual never moves the watermark
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Management, 0, 1000);
+
+        _deposit(alice, DEPOSIT);
+        _simulateYield(200e18);
+
+        uint256 hwmBefore = wrapper.perfHighWaterMarkPps();
+        assertLt(hwmBefore, _pps()); // price has risen above the anchor
+
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Management, MGMT_RATE);
+
+        assertEq(wrapper.perfHighWaterMarkPps(), hwmBefore);
+    }
+
     function test_SetFeeRateEnablePerformanceReanchorsHwm() public {
         _stackWithFactory(0); // performance disabled at deploy
         _deposit(alice, DEPOSIT);

@@ -251,6 +251,66 @@ contract LiFiVaultWrapperFactoryTest is Test {
         assertEq(factory.defaultIntegratorShareBps(), 9999);
     }
 
+    function testRevert_NonOwnerCannotSetFeeBounds() public {
+        vm.prank(pauser);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                pauser
+            )
+        );
+
+        factory.setFeeBounds(FeeType.Performance, 100, 4000);
+    }
+
+    function testRevert_NonOwnerCannotSetDefaultSplit() public {
+        vm.prank(pauser);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                pauser
+            )
+        );
+
+        factory.setDefaultSplit(3000);
+    }
+
+    function test_SetFeeBoundsEmitsEvent() public {
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.FeeBoundsSet(
+            FeeType.Performance,
+            100,
+            4000
+        );
+
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 100, 4000);
+    }
+
+    /// @dev The cap is the only ceiling an integrator cannot renegotiate, so it is pinned
+    ///      one bps either side rather than at a value far above it.
+    function test_OwnerSetsPerformanceFeeBoundsAtExactCap() public {
+        vm.prank(owner);
+        factory.setFeeBounds(FeeType.Performance, 0, 5000);
+
+        (, uint16 maxBps) = factory.feeBounds(FeeType.Performance);
+        assertEq(maxBps, 5000);
+    }
+
+    function testRevert_SetPerformanceFeeBoundsOneBpsAboveCap() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
+
+        factory.setFeeBounds(FeeType.Performance, 0, 5001);
+    }
+
+    function testRevert_SetDepositFeeBoundsOneBpsAboveCap() public {
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.InvalidFeeBounds.selector);
+
+        factory.setFeeBounds(FeeType.Deposit, 0, 2001);
+    }
+
     function test_OwnerSetsLifiFeeRecipient() public {
         address newRecipient = makeAddr("newLifiRecipient");
         vm.expectEmit(true, false, false, false, address(factory));
@@ -311,6 +371,58 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.NotEmergencyPauser.selector);
         factory.globalPause();
+    }
+
+    /// @dev Lifting the breaker is as privileged as engaging it: an unguarded unpause
+    ///      would let anyone re-open deposits across every instance mid-incident.
+    function testRevert_NonPauserCannotGlobalUnpause() public {
+        vm.prank(pauser);
+        factory.globalPause();
+
+        vm.prank(owner);
+        vm.expectRevert(ILiFiVaultWrapperFactory.NotEmergencyPauser.selector);
+
+        factory.globalUnpause();
+
+        assertTrue(factory.globalPaused());
+    }
+
+    function test_GlobalPauseTogglesEmitEvents() public {
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.GlobalPauseSet(true, pauser);
+
+        vm.prank(pauser);
+        factory.globalPause();
+
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.GlobalPauseSet(false, pauser);
+
+        vm.prank(pauser);
+        factory.globalUnpause();
+    }
+
+    function test_RoleRotationsEmitEvents() public {
+        address newPauser = makeAddr("rotatedPauser");
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.RoleRotated(
+            keccak256("EMERGENCY_PAUSER"),
+            pauser,
+            newPauser
+        );
+
+        vm.prank(owner);
+        factory.setEmergencyPauser(newPauser);
+
+        address newManager = makeAddr("rotatedManager");
+        vm.expectEmit(true, false, false, true, address(factory));
+        emit ILiFiVaultWrapperFactory.RoleRotated(
+            keccak256("ONBOARDING_MANAGER"),
+            onboarder,
+            newManager
+        );
+
+        vm.prank(owner);
+        factory.setOnboardingManager(newManager);
     }
 
     function test_OwnerRotatesRoles() public {
