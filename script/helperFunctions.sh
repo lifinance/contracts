@@ -2407,9 +2407,8 @@ function verifyContract() {
       return 0
     fi
 
-    # The sourcify/blockscout/custom verifiers report success with this line instead of
-    # the etherscan-style "Response"/"Details" pair parsed below, so without this check a
-    # successful verification on those networks is recorded as a failure.
+    # The sourcify verifier reports success with this line and never emits the
+    # etherscan-style "Response"/"Details" pair parsed below.
     if echo "$VERIFY_OUTPUT" | grep -q "Contract successfully verified"; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
       return 0

@@ -151,12 +151,12 @@ export const buildExplorerContractPageUrl = (
   const addressUrl = buildExplorerAddressUrl(networkId, address)
   if (!addressUrl) return undefined
 
-  switch (network.verificationType) {
-    // OKLink contract pages live under /address/<address>/contract
-    case 'oklink': {
-      return `${addressUrl}/contract`
-    }
+  // OKLink contract pages live under /address/<address>/contract. Keyed off the explorer
+  // host, not verificationType, because a network's source can be verified elsewhere
+  // (e.g. Sourcify) while its explorer is still hosted by OKLink.
+  if (base.includes('oklink.com')) return `${addressUrl}/contract`
 
+  switch (network.verificationType) {
     // Vana contract tab uses a query parameter instead of a hash.
     case 'blockscout': {
       if (networkId === 'vana') return `${addressUrl}?tab=contract`
