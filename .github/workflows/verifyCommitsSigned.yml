@@ -35,6 +35,7 @@ jobs:
   verify-signed-commits:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: List PR commits and check verification
         id: check
@@ -122,6 +123,7 @@ jobs:
     needs: verify-signed-commits
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Validate upstream result
         run: |

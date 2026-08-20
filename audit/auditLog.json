@@ -707,6 +707,13 @@
       "auditReportPath": "./audit/reports/2026.07.31_PolymerCCTPFacet(v3.1.0).pdf",
       "auditCommitHash": "5a43f43be60dd3b5aba6dbb9d2f890e83689b4bf"
     },
+    "audit20260818": {
+      "auditCompletedOn": "18.08.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.08.18_FeeForwarder(v2.0.0).pdf",
+      "auditCommitHash": "22b3586ebf6b6fc85a1203c0a04c91d7f0342bf1"
+    },
     "audit20260820": {
       "auditCompletedOn": "20.08.2026",
       "auditedBy": "Sujith Somraaj (individual security researcher)",
@@ -818,7 +825,8 @@
       "1.0.1": ["audit20250109_3", "audit20250508"]
     },
     "FeeForwarder": {
-      "1.0.0": ["audit20251015"]
+      "1.0.0": ["audit20251015"],
+      "2.0.0": ["audit20260818"]
     },
     "FraxFacet": {
       "1.0.0": ["audit20260820"]

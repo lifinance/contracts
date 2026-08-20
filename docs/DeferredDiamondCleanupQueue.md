@@ -640,8 +640,14 @@ Three composed backstops, none silent:
    (match by facet+network) so the two paths don't double-propose.
 2. **TTL / age alert.** A scheduled job reads `parkedTasks`; any record `queued`
    longer than *N* days (default **30** `[unverified]` — team to set) → post to
-   `#dev-sc-multisig-proposals` via the existing webhook (Fact 12), naming the
-   network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-github-ci-notifications` (`WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS`), naming
+   the network, facets, and origin PRs, prompting a deliberate `--auto --network X` drain.
+   `#dev-sc-multisig-proposals` stays reserved for please-sign announcements, so scheduled
+   job output never competes with the signing worklist. Delivery requires `CI`: a local run
+   (including the full-tunnel one §7 recommends) prints the alert to the console instead of
+   posting it, so a rehearsal cannot page the team. Export `CI=1` to force delivery. On the
+   scheduled run an unset webhook fails the job instead of dropping the alert, so the backstop
+   cannot go quiet behind a green check.
 3. **Observability** (§9) makes the backlog visible on demand.
 
 **Deploy-log longevity hazard (important).** Because removal is now *deferred*
@@ -658,6 +664,19 @@ until executed" window (Fact 10). Two mitigations, both in this spec:
   `diffNamedFacets`. Flagged in §14 Q5.)*
 - `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
   executed" warning (Fact 10) is **strengthened** to "until the parked task retires."
+
+**Network-retirement hazard.** `/deprecate-network` removes the network from
+`config/networks.json` and its `deployments/*.json`, which takes away everything a
+parked task on that network needs: there is no RPC to read the loupe with, no deploy
+log to resolve the diamond from, and no future cut to ride along with. Such a task can
+never reach a terminal state on its own. The reconcile therefore partitions those tasks
+out **before** any I/O and reports them in the TTL alert as orphans to cancel, and
+treats a per-network error as a skip rather than an abort: otherwise a fleet loop that
+dies on its first unusable network takes the whole sweep — and this backstop alert,
+which runs after it — down with it.
+A network deprecation should still abandon the retired network's open tasks
+(`revertToQueued` then `markCancelled`, since `markCancelled` accepts only a `queued`
+task) rather than leave them for the alert to repeat.
 
 ---
 

@@ -236,15 +236,6 @@
       }
     }
   },
-  "HopFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "hop.json",
-        "keyInConfigFile": ".<NETWORK>.tokens",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "HyphenFacet": {
     "configData": {
       "_router": {

@@ -22,6 +22,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  zeroAddress,
   type Address,
   type Hex,
   type PublicClient,
@@ -31,6 +32,11 @@ import type { IWhitelistConfig, TargetState } from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
 import { SAFE_THRESHOLD } from './shared/constants'
+import {
+  evaluateFacetPeripheryCouplings,
+  getFacetPeripheryCouplings,
+  resolveLiveFacetsFromLog,
+} from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
@@ -234,6 +240,7 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'hemi',
       'hyperevm',
       'immutablezkevm',
+      'injective',
       'ink',
       'kaia',
       'lens',
@@ -243,7 +250,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'metis',
       'mode',
       'monad',
-      'moonbeam',
       'morph',
       'nibiru',
       'opbnb',
@@ -829,6 +835,51 @@ const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
+/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
+const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
+/**
+ * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
+ *
+ * @param name - the periphery contract name to look up
+ * @param ctx - the health-check context (supplies the diamond address and RPC client)
+ * @returns the registered address (checksummed hex on EVM, base58 on Tron), or null when the
+ *   registry holds the zero address — i.e. nothing is registered under that name
+ * @throws when the read fails, returns malformed output, or no client is configured, so callers
+ *   can tell "not registered" (null) apart from "could not determine" (throw)
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        ctx.diamondAddress,
+        'getPeripheryContract(string)',
+        [name],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    if (!parsed.startsWith('T') || parsed.length !== 34)
+      throw new Error(`malformed Tron address for ${name}: ${parsed}`)
+    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+  }
+
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const registry = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function getPeripheryContract(string) external view returns (address)',
+    ]),
+    client: ctx.publicClient,
+  })
+  const address = await registry.read.getPeripheryContract([name])
+  return address === zeroAddress ? null : getAddress(address)
+}
+
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
@@ -1234,6 +1285,114 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `Periphery contract ${periphery} registered in Diamond`
             )
         }
+      }
+    },
+  },
+  {
+    name: 'facet-required-periphery',
+    description:
+      'Every live facet with a declared companion periphery contract has one registered in the diamond',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+    run: async (ctx) => {
+      // Triggers on facets live in the diamond, not on target state: the failure this guards against
+      // is a facet being live while its companion is absent, and target state itself was missing the
+      // receiver in the incident that motivated the check (Robinhood, EXSC-682).
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable - facet/periphery coupling check skipped'
+        )
+        return
+      }
+
+      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
+      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
+      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
+      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      const couplings = getFacetPeripheryCouplings()
+      const liveFacets = resolveLiveFacetsFromLog(
+        ctx.onChainFacets.map((facet) => facet.address),
+        ctx.deployedContracts as Record<string, string>,
+        Object.keys(couplings)
+      )
+
+      const { required, skipped } = evaluateFacetPeripheryCouplings(
+        liveFacets,
+        ctx.networkLower,
+        couplings
+      )
+
+      for (const carveOut of skipped)
+        consola.info(
+          `⏭  ${carveOut.facet}: ${carveOut.companion} not required here — ${carveOut.reason}`
+        )
+
+      if (required.length === 0) return
+
+      const wanted = required.map((requirement) => requirement.companion)
+      // A companion is present iff the registry returns a non-null (non-zero) address. A read that
+      // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
+      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
+      const registered = new Map<string, boolean>()
+      const unresolved = new Set<string>()
+      const markUnresolved = (companion: string, reason: unknown): void => {
+        ctx.logWarn(
+          `Failed to read periphery registration for ${companion}: ${String(
+            reason
+          )}`
+        )
+        unresolved.add(companion)
+      }
+
+      // EVM reads fold into the batched multicall client (concurrent); Tron reads stay sequential
+      // to avoid spawning a troncast subprocess per companion at once.
+      if (ctx.isTron)
+        for (const companion of wanted)
+          try {
+            registered.set(
+              companion,
+              (await readPeripheryRegistry(companion, ctx)) !== null
+            )
+          } catch (error: unknown) {
+            markUnresolved(companion, error)
+          }
+      else {
+        const results = await Promise.allSettled(
+          wanted.map((companion) => readPeripheryRegistry(companion, ctx))
+        )
+        wanted.forEach((companion, index) => {
+          const result = results[index]
+          if (result?.status === 'fulfilled')
+            registered.set(companion, result.value !== null)
+          else markUnresolved(companion, result?.reason ?? 'no result')
+        })
+      }
+
+      for (const { companion, triggeredBy } of required) {
+        if (unresolved.has(companion)) {
+          ctx.logWarn(
+            `${triggeredBy.join(
+              ', '
+            )}: could not determine whether ${companion} is registered (lookup failed)`
+          )
+          continue
+        }
+
+        if (registered.get(companion)) {
+          consola.success(
+            `${companion} registered for ${triggeredBy.join(', ')}`
+          )
+          continue
+        }
+
+        ctx.logError(
+          `${triggeredBy.join(
+            ', '
+          )} live but companion ${companion} not registered in Diamond - destination calls for this integration are disabled on this network`
+        )
       }
     },
   },

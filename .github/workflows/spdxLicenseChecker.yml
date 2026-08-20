@@ -21,6 +21,7 @@ permissions: {}
 jobs:
   check-spdx-headers:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read # required to fetch repository contents
 

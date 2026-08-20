@@ -145,6 +145,15 @@ function collectFns(): IAbiFn[] {
       fnNames.add(item.name)
     }
   }
+  // An empty `out/` yields zero functions, zero template failures, and an empty
+  // proposal written over the committed one — a silent wipe that reads as success.
+  if (Object.keys(out).length === 0) {
+    console.error(
+      `\n❌ buildClearSigningProposal: no facet artifacts found under ${OUT_DIR}.\n   fix:    run \`forge build\` first, then re-run this generator.\n`
+    )
+    process.exit(1)
+  }
+
   return Object.values(out).sort((a, b) =>
     collectionSignature(a).localeCompare(collectionSignature(b))
   )
@@ -275,9 +284,9 @@ const RECEIVER_FIELD: IField = {
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // No first-class "chainId" formatter in ERC-7730 v2; raw uint is rendered as-is.
-  // Wallets that know the chain registry can pretty-print it themselves.
-  format: 'raw',
+  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
+  // back to rendering numerically.
+  format: 'chainId',
   visible: 'always',
 }
 
@@ -475,13 +484,7 @@ function variantTag(fnName: string): string | null {
   const erc20 = /ERC20(Packed|Min)$/u.test(fnName)
   const packed = /Packed$/u.test(fnName)
   const min = /Min$/u.test(fnName)
-  const layer = /HopL1/u.test(fnName)
-    ? 'L1'
-    : /HopL2/u.test(fnName)
-    ? 'L2'
-    : null
   const bits: string[] = []
-  if (layer) bits.push(layer)
   if (native) bits.push('native')
   else if (erc20) bits.push('ERC-20')
   if (packed) bits.push('packed')
@@ -826,8 +829,8 @@ SWAP_TEMPLATES.swapTokensGeneric = {
 // Anything that matches neither hits the unrecognized-prefix failure in main()
 // and blocks the PR via verifyClearSigning.yml.
 const NON_USER_FACING_PREFIXES = [
-  'init', // initCelerCircleBridge, initHop, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
-  'register', // registerBridge, registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
+  'init', // initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
+  'register', // registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
   'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
   'unset', // unsetChainIdToDomainId — owner/admin config (inverse of set*)
   'get', // getDeBridgeChainId, getDestinationChainsValue, getPeripheryContract, getStorage, getWhitelistedSelectorsForContract, getAllContractSelectorPairs — view-only
