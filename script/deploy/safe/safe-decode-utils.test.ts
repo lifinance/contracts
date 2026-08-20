@@ -24,6 +24,7 @@ import {
   getRoleName,
   formatRoleChange,
   formatBatchSetContractSelectorWhitelist,
+  formatWhitelistDeployLogCheck,
 } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
@@ -260,5 +261,100 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     const output = await capture([FALLBACK_ONLY])
     expect(output).toContain('signature unknown')
     expect(output).not.toContain('transfer(address,uint256)')
+  })
+})
+
+describe('formatWhitelistDeployLogCheck', () => {
+  const NETWORK = 'mainnet'
+  const LIVE = '0xC748171a028401BfD0c0F0a757ab4A1F93b00576'
+  const SUPERSEDED = '0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9'
+  const THIRD_PARTY = '0xeCCc2Ce02907c1C86B286FB50d1355384F55A298'
+
+  const check = (
+    overrides: Partial<Parameters<typeof formatWhitelistDeployLogCheck>[0]>
+  ): string =>
+    formatWhitelistDeployLogCheck({
+      network: NETWORK,
+      contractAddress: LIVE,
+      whitelisted: true,
+      ...overrides,
+    })
+
+  it('confirms an added pair whose address is the current deployment', () => {
+    const output = check({
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE,
+      deployLogName: 'FeeForwarder',
+    })
+    expect(output).toContain('✅ matches deployments')
+  })
+
+  it('flags an added pair the deploy log disagrees with', () => {
+    const output = check({
+      contractAddress: SUPERSEDED,
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE,
+    })
+    expect(output).toContain('❌ mismatch')
+    expect(output).toContain('FeeForwarder')
+  })
+
+  it('flags an added pair for a periphery the deploy log does not know', () => {
+    const output = check({ peripheryName: 'FeeForwarder' })
+    expect(output).toContain("❌ no deployments entry for 'FeeForwarder'")
+  })
+
+  it('accepts removing a superseded address without raising an alarm', () => {
+    const output = check({
+      contractAddress: SUPERSEDED,
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE,
+      whitelisted: false,
+    })
+    expect(output).toContain('superseded')
+    expect(output).not.toContain('❌')
+  })
+
+  it('warns when a removal targets the current deployment', () => {
+    const output = check({
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE,
+      deployLogName: 'FeeForwarder',
+      whitelisted: false,
+    })
+    expect(output).toContain('⚠️')
+    expect(output).toContain('FeeForwarder')
+  })
+
+  it('warns on a removal of a deploy-log address whitelist.json does not label', () => {
+    const output = check({ deployLogName: 'Executor', whitelisted: false })
+    expect(output).toContain('⚠️')
+    expect(output).toContain('Executor')
+  })
+
+  it('warns on a removal of an address the deploy log still points at under another name', () => {
+    const output = check({
+      contractAddress: SUPERSEDED,
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE,
+      deployLogName: 'FeeForwarderLegacy',
+      whitelisted: false,
+    })
+    expect(output).toContain('⚠️')
+    expect(output).toContain('FeeForwarderLegacy')
+    expect(output).not.toContain('superseded')
+  })
+  it('leaves third-party contracts unannotated in both directions', () => {
+    expect(check({ contractAddress: THIRD_PARTY })).toBe('')
+    expect(check({ contractAddress: THIRD_PARTY, whitelisted: false })).toBe('')
+  })
+
+  it('compares addresses case-insensitively', () => {
+    const output = check({
+      contractAddress: LIVE.toLowerCase(),
+      peripheryName: 'FeeForwarder',
+      registeredAddress: LIVE.toUpperCase().replace('0X', '0x'),
+    })
+    expect(output).toContain('✅ matches deployments')
   })
 })

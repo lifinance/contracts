@@ -45,6 +45,8 @@ export interface IFormatDecodedTxContext {
 export interface IWhitelistContractSelectorMeta {
   contractLabel?: string
   signature?: string
+  /** Set only for our own periphery, whose name can be cross-checked against the deploy log. */
+  peripheryName?: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -113,6 +115,7 @@ function lookupWhitelistMetaForContractSelector(
         return {
           contractLabel: entryName ? `PERIPHERY/${entryName}` : 'PERIPHERY',
           signature: signature ? String(signature) : undefined,
+          peripheryName: entryName,
         }
       }
     }
@@ -276,6 +279,120 @@ async function getPeripheryDeploymentCheckSuffix(
   return ` \u001b[31m(❌ mismatch: expected ${expectedDisplay})\u001b[0m`
 }
 
+function isSameAddress(network: string, a: string, b: string): boolean {
+  try {
+    return (
+      normalizeAddressForNetwork(network, a.trim()).toLowerCase() ===
+      normalizeAddressForNetwork(network, b.trim()).toLowerCase()
+    )
+  } catch {
+    return a.trim().toLowerCase() === b.trim().toLowerCase()
+  }
+}
+
+export interface IWhitelistDeployLogCheckInput {
+  network: string
+  contractAddress: string
+  /** Name under which `config/whitelist.json` claims this address is our periphery. */
+  peripheryName?: string
+  /** Deploy-log address for `peripheryName`. */
+  registeredAddress?: string
+  /** Deploy-log name whose current address is `contractAddress`. */
+  deployLogName?: string
+  /** The call's third argument: adding pairs when true, removing them when false. */
+  whitelisted: boolean
+}
+
+/**
+ * Cross-checks a whitelist pair's contract against the deploy log.
+ *
+ * `config/whitelist.json`'s PERIPHERY section is generated from the deploy log
+ * by `script/tasks/updateWhitelistPeriphery.ts`, so a disagreement between the
+ * two means the proposal was built from a stale whitelist — today that renders
+ * as a confident `(PERIPHERY/<name>)` label on the wrong address.
+ *
+ * The verdict depends on the direction: on a removal, absence from the deploy
+ * log is expected (the superseded address is gone from it) and presence is the
+ * alarm, because removing the selectors of an address the deploy log still
+ * points at un-whitelists the contract in use. Third-party contracts can never
+ * appear in the deploy log, so they stay unannotated rather than collecting a
+ * permanent ❌ that would teach signers to ignore the marker.
+ */
+export function formatWhitelistDeployLogCheck(
+  input: IWhitelistDeployLogCheckInput
+): string {
+  const {
+    network,
+    contractAddress,
+    peripheryName,
+    registeredAddress,
+    deployLogName,
+    whitelisted,
+  } = input
+
+  // A removal's verdict hangs on `deployLogName` alone: any address the deploy
+  // log still points at is live, whether or not whitelist.json labels it under
+  // that same name.
+  if (!whitelisted) {
+    if (deployLogName)
+      return ` \u001b[33m(⚠️ un-whitelists current '${deployLogName}')\u001b[0m`
+    if (!peripheryName) return ''
+    return registeredAddress
+      ? ` \u001b[90m(superseded '${peripheryName}')\u001b[0m`
+      : ` \u001b[90m(not in deployments)\u001b[0m`
+  }
+
+  if (!peripheryName)
+    return deployLogName
+      ? ` \u001b[90m(deployments: ${deployLogName})\u001b[0m`
+      : ''
+
+  if (registeredAddress) {
+    if (isSameAddress(network, registeredAddress, contractAddress))
+      return ` \u001b[32m(✅ matches deployments)\u001b[0m`
+    const expectedDisplay = formatAddressForNetworkCliDisplay(
+      network,
+      registeredAddress
+    )
+    return ` \u001b[31m(❌ mismatch: deployments has ${expectedDisplay} for '${peripheryName}')\u001b[0m`
+  }
+
+  return ` \u001b[31m(❌ no deployments entry for '${peripheryName}')\u001b[0m`
+}
+
+async function getWhitelistDeployLogCheckSuffix(
+  network: string,
+  contractAddress: string,
+  peripheryName: string | undefined,
+  whitelisted: boolean
+): Promise<string> {
+  const deployments = await getDeploymentsRecord(network)
+  if (!deployments)
+    return peripheryName ? ` \u001b[90m(deployments unavailable)\u001b[0m` : ''
+
+  const registeredRaw = peripheryName ? deployments[peripheryName] : undefined
+  const registeredAddress =
+    typeof registeredRaw === 'string' && registeredRaw
+      ? registeredRaw
+      : undefined
+
+  const deployLogName = Object.entries(deployments).find(
+    ([, value]) =>
+      typeof value === 'string' &&
+      value &&
+      isSameAddress(network, value, contractAddress)
+  )?.[0]
+
+  return formatWhitelistDeployLogCheck({
+    network,
+    contractAddress,
+    peripheryName,
+    registeredAddress,
+    deployLogName,
+    whitelisted,
+  })
+}
+
 /**
  * Renders the contract/selector pairs of a `batchSetContractSelectorWhitelist`
  * call. Signatures are resolved per pair from `config/whitelist.json` first —
@@ -347,6 +464,24 @@ export async function formatBatchSetContractSelectorWhitelist(
       )
     : new Map<string, string>()
 
+  // Resolved up front so the rendering loop below stays synchronous.
+  const deployLogSuffixes = new Map<string, string>()
+  if (network)
+    for (const { contract, selectorList } of rows)
+      deployLogSuffixes.set(
+        contract,
+        await getWhitelistDeployLogCheckSuffix(
+          network,
+          contract,
+          lookupWhitelistMetaForContractSelector(
+            network,
+            contract,
+            selectorList[0] ?? ''
+          ).peripheryName,
+          whitelisted
+        )
+      )
+
   const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
   const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m'
   consola.info(`${pre}Action: ${actionColor}${actionText}\u001b[0m`)
@@ -370,6 +505,7 @@ export async function formatBatchSetContractSelectorWhitelist(
     if (network) {
       const explorerUrl = buildExplorerContractPageUrl(network, displayContract)
       if (explorerUrl) contractLine += ` \u001b[36m${explorerUrl}\u001b[0m`
+      contractLine += deployLogSuffixes.get(originalContract) ?? ''
     }
     consola.info(`${pre}${contractLine}`)
     consola.info(`${pre}    Selectors:`)
