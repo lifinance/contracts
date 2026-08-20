@@ -391,7 +391,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         // deposit rounds to zero shares. The `shares == 0` guard must reject it,
         // else the assets are forwarded for free.
         _deposit(attacker, 1);
-        assertEq(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertEq(wrapper.totalSupply(), 10 ** wrapper.shareDecimalsOffset());
 
         MockERC4626 source = MockERC4626(address(underlying));
         uint256 donated = 3_000_000e18;
@@ -402,7 +402,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         source.transfer(address(wrapper), donatedShares);
         vm.stopPrank();
 
-        assertEq(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertEq(wrapper.totalSupply(), 10 ** wrapper.shareDecimalsOffset());
         assertGt(wrapper.totalAssets(), 0);
 
         uint256 victimDeposit = 1e18;
@@ -423,8 +423,8 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
     }
 
     function test_SmallFirstMintSucceeds() public {
-        // A first mint below the dust threshold is a valid entry.
-        uint256 shares = DUST_SUPPLY_THRESHOLD / 2;
+        // A first mint below the shares a 1-wei deposit mints is a valid entry.
+        uint256 shares = (10 ** wrapper.shareDecimalsOffset()) / 2;
         uint256 cost = wrapper.previewMint(shares);
         asset.mint(alice, cost);
         vm.startPrank(alice);
@@ -446,10 +446,11 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
     function test_DustSupplyIsDepositableAfterExit() public {
         // Exits can leave a dust supply; deposits and mints into that state must
-        // succeed. A plain deposit over-clears the threshold (offset-scaled), so the
-        // sub-threshold top-up is shown via an explicit mint.
-        _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
-        uint256 leftBehind = DUST_SUPPLY_THRESHOLD / 2;
+        // succeed. A plain deposit mints offset-scaled shares, so the dust-scale
+        // top-up is shown via an explicit mint.
+        uint256 dustScale = 10 ** wrapper.shareDecimalsOffset();
+        _deposit(alice, 2 * dustScale);
+        uint256 leftBehind = dustScale / 2;
         uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
 
         vm.prank(alice);
@@ -457,7 +458,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
         assertEq(wrapper.totalSupply(), leftBehind);
 
-        uint256 topUp = DUST_SUPPLY_THRESHOLD / 4;
+        uint256 topUp = dustScale / 4;
         uint256 cost = wrapper.previewMint(topUp);
         asset.mint(bob, cost);
         vm.startPrank(bob);
@@ -468,14 +469,14 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         assertEq(wrapper.totalSupply(), leftBehind + topUp);
         assertEq(wrapper.balanceOf(bob), topUp);
 
-        _deposit(bob, DUST_SUPPLY_THRESHOLD);
+        _deposit(bob, dustScale);
 
         assertGt(wrapper.totalSupply(), leftBehind + topUp);
     }
 
-    function test_SubThresholdDepositorLossBoundedByOffsetShare() public {
-        // A deposit against a donation-inflated empty vault can mint sub-threshold
-        // shares; the rounding loss is bounded by ~donation / 10**offset.
+    function test_DustSupplyDepositorLossBoundedByOffsetShare() public {
+        // A deposit against a donation-inflated empty vault can mint fewer shares
+        // than a 1-wei par deposit; the loss is bounded by ~donation / 10**offset.
         MockERC4626 source = MockERC4626(address(underlying));
         uint256 donated = 2_000_000e18;
         asset.mint(attacker, donated);
@@ -493,7 +494,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         vm.stopPrank();
 
         assertGt(shares, 0);
-        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertLt(wrapper.totalSupply(), 10 ** wrapper.shareDecimalsOffset());
 
         uint256 oneShareBound = donated /
             (10 ** wrapper.shareDecimalsOffset());
@@ -514,8 +515,9 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
 
         assertEq(wrapper.totalSupply(), 0);
 
-        _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
-        uint256 leftBehind = DUST_SUPPLY_THRESHOLD / 2;
+        uint256 dustScale = 10 ** wrapper.shareDecimalsOffset();
+        _deposit(alice, 2 * dustScale);
+        uint256 leftBehind = dustScale / 2;
         uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
 
         vm.prank(alice);
@@ -540,7 +542,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         FeeConfig memory fees;
         fees.rateBps[uint8(FeeType.Management)] = MGMT_RATE;
         wrapper = _newWrapper(fees);
-        _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
+        _deposit(alice, 2 * (10 ** wrapper.shareDecimalsOffset()));
 
         vm.warp(block.timestamp + 30 days);
         uint256 aliceShares = wrapper.balanceOf(alice);
@@ -555,7 +557,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
     }
 
     function test_FullExitToZeroSupplyPasses() public {
-        _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
+        _deposit(alice, 2 * (10 ** wrapper.shareDecimalsOffset()));
         uint256 allShares = wrapper.balanceOf(alice);
 
         vm.prank(alice);

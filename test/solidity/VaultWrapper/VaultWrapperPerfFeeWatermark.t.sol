@@ -30,6 +30,15 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
             );
     }
 
+    /// @dev Principal-free accrual trigger that keeps the fee counters intact:
+    ///      `distributeFees` pays them out, and a dust deposit trips solmate's
+    ///      ZERO_SHARES forward guard once the source pps exceeds 1. Re-setting the
+    ///      already-zero management rate accrues first and changes nothing.
+    function _accrueOnly() internal {
+        vm.prank(vaultAdmin);
+        wrapper.setFeeRate(FeeType.Management, 0);
+    }
+
     /// @dev Credits the empty wrapper with a source-vault position without minting any
     ///      wrapper shares — the "donation to the predicted address" of the first defect.
     function _donateToWrapperPosition(uint256 _assets) internal {
@@ -77,15 +86,16 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
     function test_DustSupplyDonationNotChargedToNextDepositor() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
-        // Bob seeds then exits down to dust supply (below DUST_SUPPLY_THRESHOLD) — a
-        // regime where the perf dilution floors to zero and the watermark never ratchets.
+        // Bob seeds then exits down to a supply so small the perf dilution floors to
+        // zero shares (dilutionShares ~ rate * supply, zero below 1/rate shares), so
+        // no fee mint can ratchet the watermark over the donation.
         _deposit(bob, DEPOSIT);
         uint256 bobShares = wrapper.balanceOf(bob);
         vm.prank(bob);
         wrapper.redeem(bobShares - 1, bob, bob);
 
         assertGt(wrapper.totalSupply(), 0);
-        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertLt(wrapper.totalSupply(), 10_000 / PERF_RATE);
 
         _donateToWrapperPosition(1e15);
 
@@ -102,44 +112,124 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertGe(aliceAssets, (DEPOSIT * 9999) / 10_000);
     }
 
-    function test_SubThresholdSupplyYieldEscapesPerfFee() public {
-        // Accepted leak: yield earned while supply is below DUST_SUPPLY_THRESHOLD
-        // escapes the performance fee — the accrual floats the watermark over it.
+    function test_DustSupplyYieldEscapesPerfFee() public {
+        // Accepted per-accrual leak: a gain whose perf dilution floors to zero shares
+        // (dilutionShares ~ rate * supply, zero below 1/rate shares) is forgiven — the
+        // accrual ratchets the watermark over it instead of minting.
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
         _deposit(bob, DEPOSIT);
         uint256 bobShares = wrapper.balanceOf(bob);
         vm.prank(bob);
-        wrapper.redeem(bobShares - 10, bob, bob);
+        wrapper.redeem(bobShares - 1, bob, bob);
 
         assertGt(wrapper.totalSupply(), 0);
-        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertLt(wrapper.totalSupply(), 10_000 / PERF_RATE);
 
-        // Genuine source-side yield at sub-threshold supply.
+        // Genuine source-side yield at dust supply.
         _simulateYield(1e18);
 
         assertGe(wrapper.totalAssets(), 1e18);
 
-        // The entry accrual floats the watermark over the gain; no fee shares minted.
+        // The entry accrual ratchets the watermark over the gain; no fee shares minted.
         _deposit(alice, DEPOSIT);
 
         assertEq(_accruedFeeShares(), 0);
         assertGt(wrapper.perfHighWaterMarkPps(), _parPps());
     }
 
+    function testFuzz_WatermarkNeverStaleAfterAccrual(
+        uint96 _gainRaw,
+        uint96 _depositRaw
+    ) public {
+        // After any perf-enabled accrual the mark must sit at/above the live price or
+        // fee shares were minted for the full gap — a stale mark lets pre-entry gains
+        // be charged to a later depositor as fabricated gain.
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+        uint256 dep = bound(uint256(_depositRaw), 1, 1_000e18);
+        uint256 gain = bound(uint256(_gainRaw), 1, 1_000e18);
+
+        _deposit(bob, dep);
+        _simulateYield(gain);
+        _accrueOnly();
+
+        uint256 livePps = LibVaultWrapperMath.pricePerShare(
+            wrapper.totalSupply(),
+            wrapper.totalAssets(),
+            wrapper.shareDecimalsOffset(),
+            Math.Rounding.Ceil
+        );
+
+        assertGe(wrapper.perfHighWaterMarkPps(), livePps);
+    }
+
+    function test_LossRecoveryNotChargedAgain() public {
+        // Up-only requirement: an accrual after a loss must not float the mark down,
+        // or recovering back to the old peak would be re-charged as new gain.
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+
+        _deposit(bob, DEPOSIT);
+        _simulateYield(100e18);
+        _accrueOnly();
+
+        uint256 feesAtPeak = _accruedFeeShares();
+        assertGt(feesAtPeak, 0);
+
+        _simulateLoss(100e18);
+        _accrueOnly();
+
+        _simulateYield(100e18);
+        _accrueOnly();
+
+        assertEq(_accruedFeeShares(), feesAtPeak);
+    }
+
+    function test_FrequentAccrualsForgiveOnlyBoundedFee() public {
+        // Ten sub-gain accruals vs one lump accrual of the same total gain: per-accrual
+        // forgiveness is only flooring slack, so frequent accruals cannot dodge a
+        // meaningful part of the fee.
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+        _deposit(bob, DEPOSIT);
+
+        uint256 totalGain = 1e18;
+        for (uint256 i = 0; i < 10; i++) {
+            _simulateYield(totalGain / 10);
+            _accrueOnly();
+        }
+        uint256 feeSplit = _accruedFeeShares();
+
+        // Fresh source too: yield minted to a shared source is split pro-rata with the
+        // first wrapper's position, which would halve the lump-path gain.
+        underlying = new MockERC4626(asset, "Yield Token", "yTOK");
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+        _deposit(bob, DEPOSIT);
+        _simulateYield(totalGain);
+        _accrueOnly();
+        uint256 feeSingle = _accruedFeeShares();
+
+        // The split path may slightly EXCEED the lump in share terms (~0.04% measured):
+        // earlier fee mints participate in later chunks' gains. Bounded both ways —
+        // no dodging low side, no runaway compounding high side.
+        assertLe(feeSplit, (feeSingle * 101) / 100);
+        // Slack: one flooring event per accrual (10) + 1.
+        assertGe(feeSplit + 10 + 1, (feeSingle * 9) / 10);
+    }
+
     function test_PreviewDepositMatchesExecutionAtDustSupply() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
-        // Dust supply with pps pushed above the watermark: the accrual skips the perf
-        // mint, so the preview must not quote pending perf shares either (EIP-4626:
-        // previewDeposit must not overstate what the deposit mints). Enough real
-        // shares are left that the pending perf dilution itself is non-zero.
+        // Dust supply (below the shares a 1-wei deposit mints) with pps pushed above
+        // the watermark — the regime that used to take a special accrual path. Preview
+        // and execution must agree on the perf dilution here like everywhere else
+        // (EIP-4626: previewDeposit must not overstate what the deposit mints). Enough
+        // real shares are left that the pending perf dilution itself is non-zero.
         _deposit(bob, DEPOSIT);
-        uint256 toRedeem = wrapper.balanceOf(bob) - DUST_SUPPLY_THRESHOLD / 2;
+        uint256 dustScale = 10 ** wrapper.shareDecimalsOffset();
+        uint256 toRedeem = wrapper.balanceOf(bob) - dustScale / 2;
         vm.prank(bob);
         wrapper.redeem(toRedeem, bob, bob);
 
-        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertLt(wrapper.totalSupply(), dustScale);
 
         _donateToWrapperPosition(1e15);
 

@@ -143,22 +143,22 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         assertEq(_accruedFeeShares(), sharesAfterCharge);
     }
 
-    function test_SubThresholdGainMintsNothingAndStaysChargeable() public {
+    function test_SubStepGainMintsNothingAndIsForgiven() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
         _deposit(alice, DEPOSIT);
 
         // A gain below one PPS unit (supply / PPS_SCALE = 1000 wei here) floors to a
-        // zero-share fee: nothing is minted and, unlike the management baseline, the
-        // watermark does NOT advance — the gain stays chargeable.
+        // zero-share fee: nothing is minted and, like the management baseline, the
+        // watermark ratchets over the gain — charged or forgiven per accrual, never
+        // left pending (forgiveness bounded by one PPS step of AUM per accrual).
         _simulateYield(500);
         uint256 hwmBefore = wrapper.perfHighWaterMarkPps();
         _crystallize();
 
         assertEq(_accruedFeeShares(), 0);
-        assertEq(wrapper.perfHighWaterMarkPps(), hwmBefore);
+        assertGt(wrapper.perfHighWaterMarkPps(), hwmBefore);
 
-        // Once the cumulative gain is material it is charged in full from the original
-        // watermark, not from the sub-threshold peak.
+        // A later material gain is charged from the advanced watermark.
         _simulateYield(200e18);
         _crystallize();
 
@@ -428,14 +428,16 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
 
     /// Dust-supply preview/execution parity ///
 
-    /// @dev Drives the wrapper into dust supply with a price gain above the watermark,
-    ///      the state where `_accrueFees` skips the performance fee but a preview must
-    ///      not diverge from what the operation actually charges/mints.
+    /// @dev Drives the wrapper into dust supply (below the shares a 1-wei deposit
+    ///      mints) with a price gain above the watermark — a once-special accrual
+    ///      regime where previews must agree with execution on the perf dilution like
+    ///      everywhere else.
     function _dustSupplyWithGain() internal {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
-        _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
-        uint256 leftBehind = DUST_SUPPLY_THRESHOLD / 2;
+        uint256 dustScale = 10 ** wrapper.shareDecimalsOffset();
+        _deposit(alice, 2 * dustScale);
+        uint256 leftBehind = dustScale / 2;
         uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
         vm.prank(alice);
         wrapper.redeem(toRedeem, alice, alice);
@@ -443,7 +445,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         assertEq(wrapper.totalSupply(), leftBehind);
 
         // Credit a position without minting shares so the price rises above the
-        // watermark while the supply stays below the threshold.
+        // watermark while the supply stays in the dust regime.
         _donateToWrapperPosition(1e15);
 
         assertGt(_pps(), wrapper.perfHighWaterMarkPps());
@@ -452,7 +454,7 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
     function test_DustSupplyPreviewMintMatchesExecution() public {
         _dustSupplyWithGain();
 
-        uint256 shares = DUST_SUPPLY_THRESHOLD;
+        uint256 shares = 10 ** wrapper.shareDecimalsOffset();
         uint256 quoted = wrapper.previewMint(shares);
 
         asset.mint(bob, quoted);
