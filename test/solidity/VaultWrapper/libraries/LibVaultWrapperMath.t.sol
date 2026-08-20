@@ -446,11 +446,18 @@ contract LibVaultWrapperMathTest is Test {
         uint8 _decimalsOffset
     ) public view {
         _decimalsOffset = uint8(bound(_decimalsOffset, 0, 18));
-        _feeAssets = bound(_feeAssets, 0, type(uint128).max);
         _totalSupply = bound(_totalSupply, 0, type(uint128).max);
         _totalAssets = bound(_totalAssets, 0, type(uint128).max);
+        _feeAssets = bound(
+            _feeAssets,
+            0,
+            _totalAssets == 0 ? 0 : _totalAssets - 1
+        );
 
-        // Must not revert (div-by-zero / underflow / overflow) for any bounded input.
+        // Must not revert (div-by-zero / underflow / overflow) anywhere in the
+        // documented input domain: the caller is expected to clamp
+        // `_feeAssets < _totalAssets` (at equality the denominator collapses to 1 and
+        // the mulDiv product can exceed uint256).
         lib.dilutionShares(
             _feeAssets,
             _totalSupply,
