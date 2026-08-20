@@ -105,8 +105,20 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     const portal = tronAddressToHex(tronWeb, portalTron)
 
+    const globalConfig = await Bun.file('config/global.json').json()
+    const backendSigner =
+      environment === EnvironmentEnum.production
+        ? globalConfig.backendSigner?.production
+        : globalConfig.backendSigner?.staging
+
+    if (!backendSigner)
+      throw new Error(
+        'Backend signer not found in config/global.json for this environment'
+      )
+
     consola.info('\nEco Configuration:')
     consola.info(`Portal: ${portalTron} (hex: ${portal})`)
+    consola.info(`Backend signer: ${backendSigner}`)
 
     const contracts = ['EcoFacet']
 
@@ -136,7 +148,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        const constructorArgs = [portal]
+        const constructorArgs = [portal, backendSigner]
 
         const result = await deployContractWithLogging(
           deployer,

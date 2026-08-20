@@ -29,6 +29,8 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param encodedRoute Encoded route data containing destination chain routing information
 /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
 /// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
+/// @param deadline Timestamp after which the backend signature is no longer valid
+/// @param signature Backend EIP-712 signature over the EcoPayload authorizing this bridge
 struct EcoData {
   bytes nonEVMReceiver;
   address prover;
@@ -36,6 +38,8 @@ struct EcoData {
   bytes encodedRoute;
   bytes32 solanaATA;
   address refundRecipient;
+  uint256 deadline;
+  bytes signature;
 }
 ```
 
@@ -116,6 +120,10 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet automatically approves the Eco Portal to spend `minAmount` (the fee-inclusive amount).
 
 - **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. The contract validates that the receiver address in the encoded route matches the specified receiver.
+
+- **Backend Signature (trust assumption)**: `encodedRoute` and `prover` are opaque, backend-supplied values whose full contents cannot be reconstructed and validated on-chain — the route encodes destination calls the facet does not interpret, and a malicious prover could mark an intent fulfilled without paying the destination. Both are therefore gated by a backend EIP-712 signature. The LI.FI backend signs an `EcoPayload` that commits to `transactionId`, `sendingAssetId`, `minAmount`, `destinationChainId`, `receiver`, `keccak256(nonEVMReceiver)`, `keccak256(encodedRoute)`, `prover`, `refundRecipient`, `rewardDeadline`, `solanaATA`, and `deadline`; the facet recovers the signer and requires it to equal the configured `BACKEND_SIGNER`. `deadline` bounds the signature's validity window. Integrators must obtain `signature` and `deadline` from the LI.FI backend per call; the destination receiver is not purely enforced on-chain for these flows.
+
+  - EIP-712 domain: `name = "LI.FI Eco Facet"`, `version = "1"`, `chainId` = the source chain, `verifyingContract` = the LiFiDiamond address.
 
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
 

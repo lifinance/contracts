@@ -181,6 +181,20 @@
       }
     }
   },
+  "EcoFacet": {
+    "configData": {
+      "_portal": {
+        "configFileName": "eco.json",
+        "keyInConfigFile": ".<NETWORK>.portal",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "GenericSwapFacetV3": {
     "configData": {
       "_nativeAddress": {
