@@ -22,7 +22,11 @@ import { EnvironmentEnum } from '../../common/types'
 import { type IParkedTask } from './parked-tasks'
 import {
   computeTtlAlerts,
+  formatOrphanedTaskMessage,
+  formatReconcileFailureMessage,
   formatTtlAlertMessage,
+  joinAlertSections,
+  partitionRetiredNetworks,
   reconcileDecision,
   ttlAlertDelivery,
 } from './reconcile-parked-tasks'
@@ -212,5 +216,113 @@ describe('ttlAlertDelivery', () => {
 
   it('does not report a misconfiguration on a local run with no webhook', () => {
     expect(ttlAlertDelivery(true, false, undefined)).toBe('local')
+  })
+})
+
+describe('partitionRetiredNetworks', () => {
+  const known = (n: string) => ['arbitrum', 'optimism'].includes(n)
+
+  it('keeps tasks whose network is still configured', () => {
+    const tasks = [
+      parked({ network: 'arbitrum' }),
+      parked({ network: 'optimism' }),
+    ]
+    const { reconcilable, orphaned } = partitionRetiredNetworks(tasks, known)
+    expect(reconcilable).toEqual(tasks)
+    expect(orphaned).toEqual([])
+  })
+
+  it('holds back a task on a retired network instead of letting it reach the loupe', () => {
+    const { reconcilable, orphaned } = partitionRetiredNetworks(
+      [
+        parked({ network: 'harmony', facetName: 'GenericSwapFacet' }),
+        parked({ network: 'arbitrum', facetName: 'AcrossFacetV3' }),
+      ],
+      known
+    )
+    expect(reconcilable.map((t) => t.network)).toEqual(['arbitrum'])
+    expect(orphaned).toEqual([
+      {
+        network: 'harmony',
+        environment: EnvironmentEnum.production,
+        facet: 'GenericSwapFacet',
+        status: 'queued',
+        prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+      },
+    ])
+  })
+
+  it('reports every retired network, not just the first one reached', () => {
+    const { reconcilable, orphaned } = partitionRetiredNetworks(
+      ['evmos', 'harmony', 'moonbeam', 'okx', 'velas'].map((network) =>
+        parked({ network })
+      ),
+      known
+    )
+    expect(reconcilable).toEqual([])
+    expect(orphaned.map((o) => o.network)).toEqual([
+      'evmos',
+      'harmony',
+      'moonbeam',
+      'okx',
+      'velas',
+    ])
+  })
+})
+
+describe('formatOrphanedTaskMessage', () => {
+  it('returns an empty string when no task sits on a retired network', () => {
+    expect(formatOrphanedTaskMessage([])).toBe('')
+  })
+
+  it('names the network, facet, status and PR of each orphan', () => {
+    const msg = formatOrphanedTaskMessage([
+      {
+        network: 'harmony',
+        environment: EnvironmentEnum.production,
+        facet: 'GenericSwapFacet',
+        status: 'queued',
+        prUrl: 'https://gh/pull/2046',
+      },
+    ])
+    expect(msg).toContain('config/networks.json')
+    expect(msg).toContain('harmony')
+    expect(msg).toContain('GenericSwapFacet')
+    expect(msg).toContain('queued')
+    expect(msg).toContain('https://gh/pull/2046')
+  })
+})
+
+describe('formatReconcileFailureMessage', () => {
+  it('returns an empty string when every network reconciled', () => {
+    expect(formatReconcileFailureMessage([])).toBe('')
+  })
+
+  it('names the failed group, its task count and the underlying reason', () => {
+    const msg = formatReconcileFailureMessage([
+      {
+        network: 'zksync',
+        environment: EnvironmentEnum.production,
+        reason: 'HTTP request failed',
+        taskCount: 3,
+      },
+    ])
+    expect(msg).toContain('zksync')
+    expect(msg).toContain('3 task(s)')
+    expect(msg).toContain('HTTP request failed')
+  })
+})
+
+describe('joinAlertSections', () => {
+  it('drops empty sections so a single populated one carries no blank padding', () => {
+    expect(joinAlertSections('', 'orphans', '')).toBe('orphans')
+  })
+
+  it('separates populated sections with a blank line', () => {
+    expect(joinAlertSections('ttl', 'orphans')).toBe('ttl\n\norphans')
+  })
+
+  it('returns an empty string when there is nothing to report', () => {
+    expect(joinAlertSections('', '', '')).toBe('')
   })
 })

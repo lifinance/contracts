@@ -18,6 +18,7 @@ This command completely removes a network (or multiple networks) from the codeba
 4. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
 5. Removing all deployment log files in `deployments/` directory that match the network name pattern
 6. Automatically updating the whitelist by running `bun update-whitelist-periphery`
+7. Cancelling any deferred diamond-cleanup task still parked on the network (manual queue transitions — there is no CLI for it)
 
 ## How to Use
 
@@ -116,14 +117,21 @@ When `/deprecate-network` is invoked with network names:
    - For deprecated networks: Move the network row(s) to the deprecated section
    - This is a manual step that must be done separately as the spreadsheet is not part of the codebase
 
-9. **Display summary**:
+9. **Cancel open parked diamond-cleanup tasks for the network**:
 
-   - List all networks successfully deprecated
-   - List all files removed
-   - List any warnings (e.g., network not found in networks.json, but found in foundry.toml)
-   - Display any errors encountered
+   - List them: `bunx tsx script/deploy/safe/list-parked-tasks.ts --network <network>`, and take every task still `queued` or `proposed`
+   - Those can never be drained once the network is gone — there is no RPC, no deploy log and no future diamond cut on it
+   - Abandon each one via the queue transitions in `script/deploy/safe/parked-tasks.ts`: `markCancelled` accepts only a `queued` task, so a `proposed` one needs `revertToQueued` first
+   - Leaving them open makes the weekly `reconcileParkedTasks` job report them as orphans every run
 
-10. **Search for remaining occurrences**:
+10. **Display summary**:
+
+    - List all networks successfully deprecated
+    - List all files removed
+    - List any warnings (e.g., network not found in networks.json, but found in foundry.toml)
+    - Display any errors encountered
+
+11. **Search for remaining occurrences**:
 
 - For each deprecated network, search the entire codebase for occurrences of the network name
 - Use case-insensitive search to find all matches (e.g., `grep -ri "fantom" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=out --exclude-dir=cache --exclude-dir=broadcast --exclude-dir=typechain --exclude-dir=lib`)
