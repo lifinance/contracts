@@ -33,10 +33,6 @@ abstract contract VaultWrapperFeeTestBase is Test {
     uint16 internal constant MGMT_RATE = 200; // 2% / year
     uint16 internal constant SPLIT = 8000; // integrator share used for every fee type here
     uint256 internal constant YEAR = 365 days;
-    // Mirror of the wrapper's internal DUST_SUPPLY_THRESHOLD (watermark-maintenance
-    // threshold in _accrueFees; equals 10 ** MIN_DECIMALS_OFFSET, the share count a
-    // 1-wei deposit mints); the production constant is internal.
-    uint256 internal constant DUST_SUPPLY_THRESHOLD = 1e6;
 
     /// @dev Dust `_crystallize` deposits. 1 wei suffices while the underlying's own PPS
     ///      is 1:1; suites that inflate the underlying raise it (solmate's MockERC4626

@@ -105,14 +105,6 @@ contract LiFiVaultWrapper is
     ///         sub-1M-token first deposit into an 18-decimal vault.
     uint8 internal constant MIN_DECIMALS_OFFSET = 6;
 
-    /// @notice Dust-supply threshold for watermark maintenance in `_accrueFees`: below
-    ///         it the perf dilution can round to zero shares while the watermark goes
-    ///         stale. NOT an enforced deposit floor — the virtual-share offset alone
-    ///         bounds degenerate-state losses (see `MIN_DECIMALS_OFFSET`). Sized at
-    ///         10 ** `MIN_DECIMALS_OFFSET`, covering the widest stale window (1e4
-    ///         shares at the 1 bps minimum rate).
-    uint256 internal constant DUST_SUPPLY_THRESHOLD = 1e6;
-
     /// Immutables ///
 
     /// @notice The factory bound to this implementation at construction: the only address
@@ -761,9 +753,8 @@ contract LiFiVaultWrapper is
     ///      retroactively; it never moves the watermark down, so toggling the fee off
     ///      and on after a drawdown cannot re-charge the recovery to the old peak. The
     ///      re-anchor is skipped while supply is zero: with no holders there is no
-    ///      disabled-period growth to exclude, and the price per share at zero supply is
-    ///      measured against the virtual offset alone, so a dust donation would otherwise
-    ///      park the watermark permanently out of reach.
+    ///      disabled-period growth to exclude, and the accrual's own up-only ratchet
+    ///      anchors the empty-vault price at the next operation.
     ///      `nonReentrant` because this is the only `_accrueFees` caller outside the entry/
     ///      exit/`distributeFees` guard: without it, a payout hook fired during
     ///      `distributeFees` could reenter here (owner-controlled receiver), book fresh fees,
@@ -1006,11 +997,10 @@ contract LiFiVaultWrapper is
     ///      accrue-at-old-rate-first guarantee). The cost is that elapsed time whose fee
     ///      floors to zero shares is dropped — at most ~one share's worth of assets per
     ///      accrual, favouring holders. The performance fee is charged AFTER the
-    ///      management dilution (perf is net of management). The watermark has two write
-    ///      paths: at dust supply (below `DUST_SUPPLY_THRESHOLD`) it floats to the live
-    ///      price and the perf fee is skipped (see the inline comment); at real supply it
-    ///      ratchets to the post-crystallization price (rounded up) only when shares were
-    ///      actually minted — an uncharged gain stays chargeable, unlike elapsed time.
+    ///      management dilution (perf is net of management). The watermark ratchets up to
+    ///      the live post-crystallization price (rounded up) on EVERY perf-enabled
+    ///      accrual: like elapsed time, a gain is charged or forgiven per accrual, never
+    ///      left pending against a stale mark.
     function _accrueFees() private {
         bool mgmtEnabled = _rate(FeeType.Management) != 0;
         bool perfEnabled = _rate(FeeType.Performance) != 0;
@@ -1029,27 +1019,23 @@ contract LiFiVaultWrapper is
             _bookDilution(FeeType.Management, mgmtShares);
             supply += mgmtShares;
         }
-
-        // Below the threshold the perf dilution can floor to zero shares
-        // (`dilutionShares` ~ rate * supply; widest window 1e4 shares at the 1 bps
-        // minimum) while the watermark goes stale, leaving a donation-driven price rise
-        // chargeable to the next depositor as fabricated gain — so float the watermark
-        // to the live price and skip the fee instead. Holders CAN sit at dust supply
-        // (deposits are not floor-checked), so genuine sub-threshold yield escapes the
-        // perf fee: an accepted, bounded leak (a sub-threshold position at par is at
-        // most ~1e-12 of a share token; inflating it forfeits more than half the donation
-        // to the virtual offset), never a depositor loss.
-        if (perfEnabled && supply < DUST_SUPPLY_THRESHOLD) {
-            perfHighWaterMarkPps = _ceilPps(supply, assets);
-            return;
-        }
+        if (!perfEnabled) return;
 
         uint256 perfShares = _pendingPerformanceFee(supply, assets);
         if (perfShares != 0) {
             _mint(address(this), perfShares);
             _bookDilution(FeeType.Performance, perfShares);
             supply += perfShares;
-            perfHighWaterMarkPps = _ceilPps(supply, assets);
+        }
+
+        // Up-only ratchet on every accrual: any gain above the mark is charged or
+        // forgiven now, never left stale, so pre-entry gains (yield or donation) cannot
+        // be charged to a later depositor at any supply. Per-accrual forgiveness is
+        // bounded by the fee math's flooring — sub-step dust, holder-favouring. Up-only,
+        // never assignment: floating down after a loss would re-charge the recovery.
+        uint192 currentPps = _ceilPps(supply, assets);
+        if (currentPps > perfHighWaterMarkPps) {
+            perfHighWaterMarkPps = currentPps;
         }
     }
 
@@ -1155,9 +1141,7 @@ contract LiFiVaultWrapper is
     /// @dev Fee-shares pending since the last accrual, used by the effective-supply
     ///      conversion overrides. Management first, then performance on the post-
     ///      management effective supply — the exact sequence `_accrueFees` crystallizes
-    ///      in, so previews match execution; that includes mirroring the accrual's
-    ///      dust-supply perf skip (below `DUST_SUPPLY_THRESHOLD` no perf shares are
-    ///      minted, so none may be quoted).
+    ///      in, so previews match execution.
     /// @param _supply The current total supply (pre-accrual).
     /// @param _assets The current total assets.
     /// @return The dilution shares pending.
@@ -1166,10 +1150,9 @@ contract LiFiVaultWrapper is
         uint256 _assets
     ) private view returns (uint256) {
         uint256 mgmtShares = _pendingManagementFee(_supply, _assets);
-        uint256 supplyAfterMgmt = _supply + mgmtShares;
-        if (supplyAfterMgmt < DUST_SUPPLY_THRESHOLD) return mgmtShares;
 
-        return mgmtShares + _pendingPerformanceFee(supplyAfterMgmt, _assets);
+        return
+            mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 means disabled.

@@ -100,14 +100,15 @@ accepted by design, every bound deriving from the offset alone:
   `ZeroSharesMinted`; assets are never taken for no shares. Zeroing a given
   deposit costs ~1e6× that deposit and the donation accrues to the vault, so
   the grief is self-defeating.
-- Deposits and mints can transact at dust supply (below
-  `DUST_SUPPLY_THRESHOLD`). A position held there is either dust (at most
-  ~1e-12 of a share token at par price) or subsidized by a donation of
-  which more than half is forfeited to the virtual-share offset on exit —
-  engineering the state is always loss-making.
-- Performance fees on gains earned below `DUST_SUPPLY_THRESHOLD` are forgiven
-  (the accrual floats the watermark instead). A bounded fee-revenue leak,
-  never a depositor loss; dodging fees this way costs more than the dodged fee.
+- Deposits and mints can transact at any dust supply. A position held there
+  is either dust (at most ~1e-12 of a share token at par price) or subsidized
+  by a donation of which more than half is forfeited to the virtual-share
+  offset on exit — engineering the state is always loss-making.
+- Performance-fee forgiveness is per accrual, sub-step rounding only: each
+  accrual forgives at most ~one share's worth of fee (the dilution rounds to
+  zero below that) — i.e. gain up to ~one share's value / feeRate — plus
+  sub-wei flooring of the gain measurement. Bounded, holder-favouring, never
+  a depositor loss.
 
 ## Admin role
 
@@ -122,12 +123,11 @@ deployed. It sets the identity (`underlying` / `adapter` / `owner` / `factory`),
 the initial fee configuration, receivers, and access gate; resolves the ERC-20
 asset via the adapter; derives the virtual-share offset from the asset decimals;
 and sets a provisional performance watermark at the empty-vault share price. That
-par value is only a placeholder: while total supply is below
-`DUST_SUPPLY_THRESHOLD` (1e6 shares — where the performance dilution rounds to
-zero shares), each accrual re-floats the watermark to the live price and skips
-the performance fee, so assets donated to the instance's predicted address become
-the next depositor's baseline instead of being charged to them as fabricated
-gain.
+par value is only a placeholder: every accrual ratchets the watermark up to the
+live price (charging the gain when the fee dilution mints shares, forgiving it
+when it rounds to zero), so assets donated to the instance's predicted address —
+empty or dust vault alike — become the next depositor's baseline instead of
+being charged to them as fabricated gain.
 
 ## Upgradeability and the FACTORY binding
 
