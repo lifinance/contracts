@@ -169,8 +169,18 @@ deploySingleContract() {
   # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
-    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
-    
+    # getBytecodeFromArtifact reports missing artifacts via error(), which writes to stdout - the
+    # message would be captured into BYTECODE here and the salt derived from it, so check the
+    # return code and report the failure outside the command substitution
+    if ! BYTECODE=$(getBytecodeFromArtifact "$CONTRACT"); then
+      error "could not read bytecode for $CONTRACT from out/$CONTRACT.sol/$CONTRACT.json - the CREATE3 deploy salt cannot be derived without it, please run 'forge build' and try again"
+      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    fi
+
     # get CREATE3_FACTORY_ADDRESS
     CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
     checkFailure $? "retrieve create3Factory address from networks.json"
@@ -198,7 +208,14 @@ deploySingleContract() {
     local EXECUTOR_DEPLOYSALT=""
     if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
       local EXECUTOR_BYTECODE
-      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+      if ! EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor"); then
+        error "could not read bytecode for Executor from out/Executor.sol/Executor.json - ERC20Proxy cannot pre-authorize the predicted Executor address without it, please run 'forge build' and try again"
+        if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      fi
       EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
     fi
 
