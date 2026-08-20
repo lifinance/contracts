@@ -1,6 +1,7 @@
 // Proposes a diamond-called periphery contract's registration together with its
 // whitelist sync as ONE timelock scheduleBatch per network.
 import { spawnSync } from 'child_process'
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,7 +22,6 @@ import 'dotenv/config'
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 import whitelistConfig from '../../config/whitelist.json'
-import { getRPCEnvVarName } from '../utils/utils'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 // executeBatch runs every inner call in one transaction, so an oversized batch
@@ -280,9 +280,6 @@ const main = defineCommand({
           deployments.default[contractName] ?? ''
         )
 
-        const rpcUrl = process.env[getRPCEnvVarName(network)]
-        if (!rpcUrl) throw new Error(`no RPC configured for ${network}`)
-
         const desired = desiredPairs(
           whitelistConfig as unknown as IWhitelistConfig,
           network
@@ -385,10 +382,19 @@ const main = defineCommand({
   },
 })
 
-// `import.meta.main` is undefined under `bunx tsx` (Node <22.18 has no such
-// property), which would make this task exit 0 without doing anything.
-const isEntrypoint = () =>
-  process.argv[1] !== undefined &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+// `import.meta.main` only exists on Node >= 22.18 and package.json allows
+// older, where it is undefined and the CLI would exit 0 without running. The
+// loader realpaths `import.meta.url`, so argv[1] needs realpathing too.
+const isEntrypoint = () => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return (
+      realpathSync(path.resolve(process.argv[1])) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    )
+  } catch {
+    return false
+  }
+}
 
 if (isEntrypoint()) runMain(main)
