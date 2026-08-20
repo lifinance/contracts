@@ -12,12 +12,12 @@ usage: /deprecate-network <network1> [network2] [network3] ...
 
 This command completely removes a network (or multiple networks) from the codebase by:
 
-1. Removing the network entry from `config/networks.json`
-2. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
-3. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
-4. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
-5. Removing all deployment log files in `deployments/` directory that match the network name pattern
-6. Cancelling the network's `queued` tasks in the deferred diamond-cleanup queue (a `proposed` task is reported, never cancelled — it may have a live Safe proposal)
+1. Cancelling the network's `queued` tasks in the deferred diamond-cleanup queue, first, while the config they depend on still exists (a `proposed` task is reported, never cancelled — it may have a live Safe proposal)
+2. Removing the network entry from `config/networks.json`
+3. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
+4. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
+5. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
+6. Removing all deployment log files in `deployments/` directory that match the network name pattern
 7. Automatically updating the whitelist by running `bun update-whitelist-periphery`
 
 ## How to Use
@@ -25,12 +25,12 @@ This command completely removes a network (or multiple networks) from the codeba
 1. Type `/deprecate-network` followed by one or more network names (space-separated)
 2. The command will automatically:
    - Validate that the networks exist in `config/networks.json`
+   - Cancel the network's `queued` parked diamond-cleanup tasks first (reporting any `proposed` one)
    - Remove network entries from `config/networks.json`
    - Remove RPC endpoint entries from `foundry.toml`
    - Remove etherscan entries from `foundry.toml`
    - Remove network entries from `script/deploy/_targetState.json`
    - Delete all deployment log files matching the network pattern
-   - Cancel the network's `queued` parked diamond-cleanup tasks (reporting any `proposed` one)
    - Automatically run `bun update-whitelist-periphery` to update the whitelist
    - Display a summary of all changes made
 
@@ -58,60 +58,16 @@ When `/deprecate-network` is invoked with network names:
    - If a network doesn't exist, warn the user but continue with other networks
    - Display list of networks to be deprecated for confirmation
 
-2. **Remove from `config/networks.json`**:
+2. **Cancel open parked diamond-cleanup tasks** (before anything destructive):
 
-   - Read the JSON file
-   - For each network, remove the entire network object (e.g., `"fantom": { ... }`)
-   - Write the updated JSON back to the file
-   - Preserve JSON formatting and indentation
-
-3. **Remove from `foundry.toml` - RPC endpoints**:
-
-   - Read `foundry.toml`
-   - Locate the `[rpc_endpoints]` section
-   - For each network, remove the line: `{network} = "${ETH_NODE_URI_{NETWORK}}"` (case-insensitive matching)
-   - Preserve TOML formatting and comments
-
-4. **Remove from `foundry.toml` - Etherscan**:
-
-   - Locate the `[etherscan]` section
-   - For each network, remove the entire etherscan entry block:
-
-     ```toml
-     {network} = { key = "...", url = "...", chain = "..." }
-     ```
-
-   - Handle entries that may span multiple lines
-   - Preserve TOML formatting and comments
-
-5. **Remove from `script/deploy/_targetState.json`**:
-
-   - Read the target state JSON file
-   - For each network, remove the entire network entry (e.g., `"fantom": { ... }`)
-   - This removes both production and staging environments for the network
-   - Use `jq` to remove the network: `jq 'del(.["{network}"])'` or equivalent
-   - Write the updated JSON back to the file
-   - Preserve JSON formatting and indentation
-   - If the network doesn't exist in target state, skip silently (not an error)
-
-6. **Remove deployment log files**:
-
-   - For each network, delete all files in `deployments/` directory matching:
-     - `{network}.json`
-     - `{network}.staging.json`
-     - `{network}.diamond.json`
-     - `{network}.diamond.staging.json`
-   - Use case-insensitive matching for network names
-   - If a file doesn't exist, skip silently (not an error)
-
-7. **Cancel parked diamond-cleanup tasks**:
-
-   **Precondition — step 2 must already be done.** `--cancel-deprecated` decides what
-   is deprecated by reading `config/networks.json`. Run before step 2 and the network
-   still counts as active, so its tasks are routed to the loupe instead of the
-   cancellation path and the command is a silent no-op. Verify first:
+   **Precondition — the network's `status` in `config/networks.json` must not be
+   `active` any more.** `--cancel-deprecated` decides what is deprecated by reading
+   that file, so with the entry still `active` its tasks are routed to the loupe
+   instead of the cancellation path and the command is a silent no-op. Set the entry
+   to `"status": "inactive"` before running it — the entry itself is only removed in
+   step 3, so the RPC and deploy logs the reconcile reads are still there. Verify:
    `jq -r '."{network}".status // "absent"' config/networks.json`
-   — it must print `absent` (or anything other than `active`) before you continue.
+   — it must print anything other than `active`.
 
    - List the network's open tasks:
      `bunx tsx script/deploy/safe/list-parked-tasks.ts --network {network} --status queued`
@@ -128,8 +84,56 @@ When `/deprecate-network` is invoked with network names:
      the proposal from its origin-PR linkage. It needs `revertToQueued` first, for which
      there is no operator CLI yet (EXSC-715) — surface it to the SC on-call rather than
      editing Mongo by hand.
-   - The weekly cron reports (never cancels) any task left on a non-active network, so a
-     missed cleanup shows up in the job log instead of failing the run.
+   - If a task will not transition, **abort the deprecation for that network** and report
+     its `taskKey`. Removing the config first and failing here strands the task
+     permanently — the weekly cron then reports (never cancels) it as sitting on a
+     non-active network every run.
+
+3. **Remove from `config/networks.json`**:
+
+   - Read the JSON file
+   - For each network, remove the entire network object (e.g., `"fantom": { ... }`)
+   - Write the updated JSON back to the file
+   - Preserve JSON formatting and indentation
+
+4. **Remove from `foundry.toml` - RPC endpoints**:
+
+   - Read `foundry.toml`
+   - Locate the `[rpc_endpoints]` section
+   - For each network, remove the line: `{network} = "${ETH_NODE_URI_{NETWORK}}"` (case-insensitive matching)
+   - Preserve TOML formatting and comments
+
+5. **Remove from `foundry.toml` - Etherscan**:
+
+   - Locate the `[etherscan]` section
+   - For each network, remove the entire etherscan entry block:
+
+     ```toml
+     {network} = { key = "...", url = "...", chain = "..." }
+     ```
+
+   - Handle entries that may span multiple lines
+   - Preserve TOML formatting and comments
+
+6. **Remove from `script/deploy/_targetState.json`**:
+
+   - Read the target state JSON file
+   - For each network, remove the entire network entry (e.g., `"fantom": { ... }`)
+   - This removes both production and staging environments for the network
+   - Use `jq` to remove the network: `jq 'del(.["{network}"])'` or equivalent
+   - Write the updated JSON back to the file
+   - Preserve JSON formatting and indentation
+   - If the network doesn't exist in target state, skip silently (not an error)
+
+7. **Remove deployment log files**:
+
+   - For each network, delete all files in `deployments/` directory matching:
+     - `{network}.json`
+     - `{network}.staging.json`
+     - `{network}.diamond.json`
+     - `{network}.diamond.staging.json`
+   - Use case-insensitive matching for network names
+   - If a file doesn't exist, skip silently (not an error)
 
 8. **Update whitelist**:
 

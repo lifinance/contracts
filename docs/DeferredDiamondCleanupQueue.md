@@ -768,6 +768,22 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   entries are **safe to prune** (every covering task terminal); pruning then is a
   small reviewed PR.
 
+**Network-retirement hazard.** `/deprecate-network` removes the network from
+`config/networks.json` and its `deployments/*.json`, which takes away everything a
+parked task on that network needs: there is no RPC to read the loupe with, no deploy
+log to resolve the diamond from, and no future cut to ride along with. Such a task can
+never reach a terminal state on its own. The reconcile therefore partitions those tasks
+out **before** any I/O and reports them in the unreconciled-network alert as
+`inactive-network` rows to cancel, and treats a per-network error as a skip rather than
+an abort: otherwise a fleet loop that dies on its first unusable network takes the whole
+sweep — and the TTL backstop alert, which runs after it — down with it. Only the
+`unreadable` rows (RPC, deploy log, queue write) fail the run; an `inactive-network` row
+repeats in the alert until the task is cancelled and must not keep the cron red.
+A network deprecation should still abandon the retired network's open tasks rather
+than leave them for the alert to repeat: `reconcile-parked-tasks --network <x>
+--cancel-deprecated --yes` cancels the `queued` ones (§7), and a `proposed` one needs
+`revertToQueued` first because `markCancelled` accepts only a `queued` task.
+
 ---
 
 ## 9. Observability

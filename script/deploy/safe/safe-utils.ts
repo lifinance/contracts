@@ -2325,10 +2325,12 @@ export async function decodeDiamondCut(
   indent?: string
 ) {
   const pre = indent ?? ''
+  // Green / yellow / red by escalating impact, so a Remove stands out in a cut
+  // that mixes actions.
   const actionMap: Record<number, string> = {
-    0: 'Add',
-    1: 'Replace',
-    2: 'Remove',
+    0: '\u001b[32mAdd\u001b[0m',
+    1: '\u001b[33mReplace\u001b[0m',
+    2: '\u001b[31mRemove\u001b[0m',
   }
 
   // Create selector map for efficient lookup

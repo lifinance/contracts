@@ -5,7 +5,9 @@
 #   re-queued. See script/deploy/safe/reconcile-parked-tasks.ts + docs/DeferredDiamondCleanupQueue.md §7/§8.
 # - TTL backstop: any open task older than the TTL (default 60d) is posted to the
 #   github-ci-notifications Slack channel so a cold network that never gets another cut is never
-#   silently orphaned (§8).
+#   silently orphaned (§8). The same alert lists tasks whose network has been retired from
+#   config/networks.json (unreconcilable orphans awaiting a cancel) and any network/environment
+#   group the sweep could not evaluate. Only the latter fails the run.
 # - Runs with --yes so transitions are applied and the alert is sent. Transitions touch only the
 #   un-gated MONGODB_URI queue (status flips), never on-chain state or the signing store.
 # - Per-network isolation: an unreachable chain is logged and skipped, the remaining networks and the
@@ -99,6 +101,8 @@ jobs:
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           webhook-type: incoming-webhook
+          # Surface a rejected/expired webhook instead of reporting a delivery that never happened.
+          errors: true
           payload: |
             {
               "text": ":warning: reconcile-parked-tasks run failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run #${{ github.run_number }}>"

@@ -439,7 +439,40 @@ export interface IReopenedParkedTask {
 export interface IReconcileFailure {
   network: string
   environment: EnvironmentEnum
+  /**
+   * `unreadable` is a fixable fault (RPC, deploy log, Mongo) and reddens the run;
+   * `inactive-network` is a queue data condition that repeats in the alert until the
+   * tasks are cancelled, so it must never keep the weekly cron permanently red.
+   */
+  kind: 'unreadable' | 'inactive-network'
+  /** Alert-safe error text — always via {@link redactErrorReason}, never a raw message. */
   reason: string
+}
+
+/** Longest error text kept in an alert line; viem messages run to several hundred chars. */
+const MAX_REASON_LENGTH = 180
+
+/**
+ * Makes an error message safe to post outside the job log: strips every
+ * scheme-prefixed URL and collapses the rest to one line.
+ *
+ * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`) and the
+ * Mongo driver can echo its connection string, while Slack is outside the `::add-mask::`
+ * redaction that protects the workflow log — so a failure would otherwise publish the
+ * credential to the channel. Only the reason is redacted, never the whole alert: the
+ * origin-PR links are what make it actionable.
+ *
+ * @param message - Raw error message.
+ * @returns A single-line, length-capped reason with `scheme://…` tokens replaced.
+ */
+export function redactErrorReason(message: string): string {
+  const redacted = message
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<redacted-url>')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return redacted.length > MAX_REASON_LENGTH
+    ? `${redacted.slice(0, MAX_REASON_LENGTH)}…`
+    : redacted
 }
 
 /**
@@ -820,9 +853,9 @@ async function reconcileAll(
         )
     } catch (error: unknown) {
       group.blocked.push(
-        `${task.facetName} (cancel failed: ${
+        `${task.facetName} (cancel failed: ${redactErrorReason(
           error instanceof Error ? error.message : String(error)
-        })`
+        )})`
       )
     }
   }
@@ -830,6 +863,7 @@ async function reconcileAll(
     failures.push({
       network: s.network,
       environment: s.environment,
+      kind: 'inactive-network',
       reason: `outside the active set in networks.json — ${s.count} resolved task(s) not re-verified against the loupe this run`,
     })
   // Bounded per reason, not only per failure row: a fleet-wide narrowing puts
@@ -841,6 +875,7 @@ async function reconcileAll(
       failures.push({
         network: g.network,
         environment: g.environment,
+        kind: 'inactive-network',
         reason: `outside the active set in networks.json — ${
           g.blocked.length
         } parked task(s) not reconciled: ${g.blocked
@@ -925,7 +960,12 @@ async function reconcileAll(
         consola.warn(
           `[${network}:${environment}] cannot read on-chain state — skipping: ${reason}`
         )
-        failures.push({ network, environment, reason })
+        failures.push({
+          network,
+          environment,
+          kind: 'unreadable',
+          reason: redactErrorReason(reason),
+        })
         continue
       }
       if (engine.diamondUnresolved) {
@@ -935,6 +975,7 @@ async function reconcileAll(
         failures.push({
           network,
           environment,
+          kind: 'unreadable',
           reason: 'no LiFiDiamond in deploy log',
         })
         continue
@@ -1076,7 +1117,10 @@ async function reconcileAll(
           failures.push({
             network,
             environment,
-            reason: `${task.facetName}: ${decision} write failed — ${reason}`,
+            kind: 'unreadable',
+            reason: `${
+              task.facetName
+            }: ${decision} write failed — ${redactErrorReason(reason)}`,
           })
           continue
         }
@@ -1252,11 +1296,11 @@ const main = defineCommand({
     // getParkedTasksCollection reads the un-gated MONGODB_URI cluster (no tunnel).
     getEnvVar('MONGODB_URI')
     const { client, parkedTasks } = await getParkedTasksCollection()
+    // Per-network throws are already contained inside reconcileAll; this guards
+    // the sweep as a whole (queue read, network config), because a throw here
+    // would otherwise skip both alert paths and the TTL backstop with them.
+    let run: IReconcileRun
     try {
-      // Per-network throws are already contained inside reconcileAll; this guards
-      // the sweep as a whole (queue read, network config), because a throw here
-      // would otherwise skip both alert paths and the TTL backstop with them.
-      let run: IReconcileRun
       try {
         run = await reconcileAll(
           parkedTasks,
@@ -1265,21 +1309,21 @@ const main = defineCommand({
           cancelDeprecated
         )
       } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        consola.error(`reconcile sweep aborted: ${message}`)
         run = {
           reopened: [],
           failures: [
             {
               network: args.network ?? 'all',
               environment: EnvironmentEnum.production,
-              reason: `reconcile sweep aborted: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
+              kind: 'unreadable',
+              reason: `reconcile sweep aborted: ${redactErrorReason(message)}`,
             },
           ],
           anomalies: [],
           routedByNetworkEnv: new Map(),
         }
-        consola.error(run.failures[0]?.reason)
       }
       await runReconcileAlerts(run, apply)
       await runTtlAlert(parkedTasks, args.network, ttlDays, apply)
@@ -1287,6 +1331,18 @@ const main = defineCommand({
     } finally {
       await client.close()
     }
+    // Red only for `unreadable` groups: those are fixable and worth a failed cron.
+    // An `inactive-network` row is a queue data condition reported every run until
+    // the tasks are cancelled, and must not keep the job permanently red.
+    const unreadable = run.failures.filter((f) => f.kind === 'unreadable')
+    if (unreadable.length > 0)
+      throw new Error(
+        `${
+          unreadable.length
+        } network/environment group(s) could not be reconciled: ${unreadable
+          .map((f) => `${f.network}:${f.environment}`)
+          .join(', ')}`
+      )
   },
 })
 

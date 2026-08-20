@@ -11,7 +11,8 @@
  * name the deploy-log entries whose removal work is terminal, and
  * {@link ttlAlertDelivery} decides whether an alert is posted, logged, or treated as a
  * misconfiguration. The live CLI (Mongo/loupe/Slack wiring) is unit-test exempt,
- * mirroring the store's `getParkedTasksCollection()` carve-out.
+ * mirroring the store's `getParkedTasksCollection()` carve-out. Error text bound for
+ * Slack goes through {@link redactErrorReason} first.
  */
 
 import {
@@ -36,6 +37,7 @@ import {
   formatTtlAlertMessage,
   partitionByNetworkStatus,
   parseTtlDays,
+  redactErrorReason,
   reconcileDecision,
   isSuspectAddressSnapshot,
   resolveFacetPresence,
@@ -372,11 +374,13 @@ describe('formatReconcileFailureMessage', () => {
       {
         network: 'harmony',
         environment: EnvironmentEnum.production,
+        kind: 'unreadable',
         reason: 'Chain harmony does not exist',
       },
       {
         network: 'velas',
         environment: EnvironmentEnum.production,
+        kind: 'unreadable',
         reason: 'no LiFiDiamond in deploy log',
       },
     ])
@@ -391,11 +395,13 @@ describe('formatReconcileFailureMessage', () => {
       {
         network: 'ethereum',
         environment: EnvironmentEnum.production,
+        kind: 'unreadable',
         reason: 'RPC timeout',
       },
       {
         network: 'ethereum',
         environment: EnvironmentEnum.staging,
+        kind: 'unreadable',
         reason: 'RPC timeout',
       },
     ])
@@ -806,5 +812,51 @@ describe('ttlAlertDelivery', () => {
 
   it('does not report a misconfiguration on a local run with no webhook', () => {
     expect(ttlAlertDelivery(true, false, undefined)).toBe('local')
+  })
+})
+
+describe('redactErrorReason', () => {
+  // Verbatim `error.message` of a viem HttpRequestError (viem@2.33.2) — the shape that
+  // reaches the catch block, carrying the endpoint an RPC URL's API key lives in.
+  const VIEM_HTTP_ERROR = [
+    'HTTP request failed.',
+    '',
+    'URL: https://lb.drpc.org/ogrpc?network=base&dkey=SECRET-KEY-VALUE',
+    'Request body: {"method":"eth_call"}',
+    '',
+    'Details: Was there a typo in the url or port?',
+    'Version: viem@2.33.2',
+  ].join('\n')
+
+  it('strips the endpoint out of a real viem HTTP error', () => {
+    const reason = redactErrorReason(VIEM_HTTP_ERROR)
+    expect(reason).not.toContain('SECRET-KEY-VALUE')
+    expect(reason).not.toContain('drpc.org')
+    expect(reason).toContain('<redacted-url>')
+    expect(reason).toContain('HTTP request failed.')
+  })
+
+  it('strips a mongo connection string, not only http endpoints', () => {
+    const reason = redactErrorReason(
+      'connect ECONNREFUSED mongodb+srv://user:pw@cluster.example.net/db'
+    )
+    expect(reason).not.toContain('pw@')
+    expect(reason).toContain('<redacted-url>')
+  })
+
+  it('collapses the message to one line so the alert layout survives', () => {
+    expect(redactErrorReason(VIEM_HTTP_ERROR)).not.toContain('\n')
+  })
+
+  it('caps an over-long message', () => {
+    const reason = redactErrorReason('x'.repeat(500))
+    expect(reason.length).toBeLessThanOrEqual(181)
+    expect(reason.endsWith('…')).toBe(true)
+  })
+
+  it('leaves a plain message untouched', () => {
+    expect(redactErrorReason('Deployments file not found for arbitrum')).toBe(
+      'Deployments file not found for arbitrum'
+    )
   })
 })
