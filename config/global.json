@@ -98,6 +98,12 @@
         "signature": "withdraw()"
       }
     ],
+    "LiFiDEXAggregator": [
+      {
+        "selector": "0x2646478b",
+        "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+      }
+    ],
     "Patcher": [
       {
         "selector": "0xefae576b",
