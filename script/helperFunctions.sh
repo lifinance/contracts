@@ -2099,6 +2099,9 @@ function mergeNetworkResults() {
   echo "All network results merged into $TARGET_STATE_PATH"
 }
 
+# ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
+# from exists, building it if necessary.
+#
 # The zkEVM deploy salt is derived from the *standard* artifact (out/<C>.sol/<C>.json) even though
 # the zk toolchain only ever writes zkout/ and out/zksync/, so a zkEVM-only run in a fresh checkout
 # has nothing to derive from. Deriving it from the zk artifact instead is not an option - that would
@@ -2107,9 +2110,15 @@ function mergeNetworkResults() {
 # Call this before getBytecodeFromArtifact instead of relying on that function's own existence
 # check: error() writes to stdout, so its message is swallowed by the `$(...)` around that call and
 # the deploy looks like it stopped for no reason.
+#
+# Usage: ensureStandardArtifactForSalt CONTRACT
+#   CONTRACT - Name of the contract whose artifact is required
+#
+# Returns: 0 if the artifact exists or was built; 1 (with an error) if it cannot be produced.
+# Example: ensureStandardArtifactForSalt "FeeForwarder"
 function ensureStandardArtifactForSalt() {
   # read function arguments into variables
-  local CONTRACT="$1"
+  local CONTRACT="${1:-}"
 
   if [[ -z "$CONTRACT" ]]; then
     error "contract name is required (access attempted by function 'ensureStandardArtifactForSalt')"
