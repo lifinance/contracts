@@ -459,7 +459,8 @@
     "isZkEVM": false,
     "targetEvmVersion": "london",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-    "customDeployFlags": "--legacy"
+    "customDeployFlags": "--legacy",
+    "devNotes": "RPC serves block headers without mixHash, so forge cannot derive prevrandao and any post-Merge evm_version aborts with \"header validation error: `prevrandao` not set\" while building the fork environment - before sending anything, which the deploy framework reports as a bare \"Failed to deploy script\" next to a misleading insufficient-funds warning. Hence targetEvmVersion london (the newest target that derives no prevrandao); --skip-simulation and block_prevrandao do not help. --legacy is separate and still needed: it routes fee estimation through eth_gasPrice."
   },
   "gnosis": {
     "name": "gnosis",
