@@ -20,12 +20,24 @@ import {
 import { consola } from 'consola'
 import { toFunctionSelector } from 'viem'
 
+import composerWhitelistJson from '../../../config/composerWhitelist.json'
+import whitelistJson from '../../../config/whitelist.json'
+import mainnetDeployments from '../../../deployments/mainnet.json'
+import tronDeployments from '../../../deployments/tron.json'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+
 import {
   getRoleName,
   formatRoleChange,
   formatBatchSetContractSelectorWhitelist,
   formatWhitelistDeployLogCheck,
 } from './safe-decode-utils'
+
+/** Fails the test loudly rather than silently skipping when repo data moves. */
+const required = <T>(value: T | undefined, what: string): T => {
+  if (value === undefined) throw new Error(`test fixture missing: ${what}`)
+  return value
+}
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
 // OpenZeppelin AccessControl role hashes (public, keccak256 of role names) —
@@ -265,17 +277,19 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
 })
 
 describe('formatWhitelistDeployLogCheck', () => {
+  // The decision table is exercised through explicit inputs, so these are
+  // deliberately role-neutral: which address is live and which is superseded is
+  // whatever the arguments of a given case say it is.
   const NETWORK = 'mainnet'
-  const LIVE = '0xC748171a028401BfD0c0F0a757ab4A1F93b00576'
-  const SUPERSEDED = '0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9'
-  const THIRD_PARTY = '0xeCCc2Ce02907c1C86B286FB50d1355384F55A298'
+  const ADDRESS_A = '0xC748171a028401BfD0c0F0a757ab4A1F93b00576'
+  const ADDRESS_B = '0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9'
 
   const check = (
     overrides: Partial<Parameters<typeof formatWhitelistDeployLogCheck>[0]>
   ): string =>
     formatWhitelistDeployLogCheck({
       network: NETWORK,
-      contractAddress: LIVE,
+      contractAddress: ADDRESS_A,
       whitelisted: true,
       ...overrides,
     })
@@ -283,7 +297,7 @@ describe('formatWhitelistDeployLogCheck', () => {
   it('confirms an added pair whose address is the current deployment', () => {
     const output = check({
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE,
+      registeredAddress: ADDRESS_A,
       deployLogName: 'FeeForwarder',
     })
     expect(output).toContain('✅ matches deployments')
@@ -291,11 +305,11 @@ describe('formatWhitelistDeployLogCheck', () => {
 
   it('flags an added pair the deploy log disagrees with', () => {
     const output = check({
-      contractAddress: SUPERSEDED,
+      contractAddress: ADDRESS_B,
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE,
+      registeredAddress: ADDRESS_A,
     })
-    expect(output).toContain('❌ mismatch')
+    expect(output).toContain('whitelist.json and deployments disagree')
     expect(output).toContain('FeeForwarder')
   })
 
@@ -306,9 +320,9 @@ describe('formatWhitelistDeployLogCheck', () => {
 
   it('accepts removing a superseded address without raising an alarm', () => {
     const output = check({
-      contractAddress: SUPERSEDED,
+      contractAddress: ADDRESS_B,
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE,
+      registeredAddress: ADDRESS_A,
       whitelisted: false,
     })
     expect(output).toContain('superseded')
@@ -318,7 +332,7 @@ describe('formatWhitelistDeployLogCheck', () => {
   it('warns when a removal targets the current deployment', () => {
     const output = check({
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE,
+      registeredAddress: ADDRESS_A,
       deployLogName: 'FeeForwarder',
       whitelisted: false,
     })
@@ -334,9 +348,9 @@ describe('formatWhitelistDeployLogCheck', () => {
 
   it('warns on a removal of an address the deploy log still points at under another name', () => {
     const output = check({
-      contractAddress: SUPERSEDED,
+      contractAddress: ADDRESS_B,
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE,
+      registeredAddress: ADDRESS_A,
       deployLogName: 'FeeForwarderLegacy',
       whitelisted: false,
     })
@@ -344,17 +358,138 @@ describe('formatWhitelistDeployLogCheck', () => {
     expect(output).toContain('FeeForwarderLegacy')
     expect(output).not.toContain('superseded')
   })
-  it('leaves third-party contracts unannotated in both directions', () => {
-    expect(check({ contractAddress: THIRD_PARTY })).toBe('')
-    expect(check({ contractAddress: THIRD_PARTY, whitelisted: false })).toBe('')
+  it('says nothing when neither source knows the address', () => {
+    expect(check({ contractAddress: ADDRESS_B })).toBe('')
+    expect(check({ contractAddress: ADDRESS_B, whitelisted: false })).toBe('')
   })
 
+  it('annotates an address the deploy log knows but whitelist.json does not label', () => {
+    const output = check({ deployLogName: 'Executor' })
+    expect(output).toContain('deployments: Executor')
+  })
   it('compares addresses case-insensitively', () => {
     const output = check({
-      contractAddress: LIVE.toLowerCase(),
+      contractAddress: ADDRESS_A.toLowerCase(),
       peripheryName: 'FeeForwarder',
-      registeredAddress: LIVE.toUpperCase().replace('0X', '0x'),
+      registeredAddress: ADDRESS_A.toUpperCase().replace('0X', '0x'),
     })
     expect(output).toContain('✅ matches deployments')
+  })
+})
+
+describe('whitelist pair rendering on Tron', () => {
+  // viem's decodeFunctionData yields hex for a Tron proposal while both
+  // config/whitelist.json and the deploy log store base58, so the periphery
+  // match has to be network-aware rather than a case fold.
+  it('resolves a periphery contract passed in the decoded hex form', async () => {
+    const name = 'FeeCollector'
+    const base58 = required(
+      (tronDeployments as Record<string, string>)[name],
+      `deployments/tron.json ->  `
+    )
+    const labelled = (
+      (whitelistJson as { PERIPHERY: Record<string, { name: string }[]> })
+        .PERIPHERY.tron ?? []
+    ).some((entry) => entry.name === name)
+    expect(labelled).toBe(true)
+
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [[normalizeAddressForNetwork('tron', base58)], ['0xe0cbc5f2'], true],
+      'tron'
+    )
+    const output = infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(output).toContain(`PERIPHERY/${name}`)
+    expect(output).toContain('✅ matches deployments')
+  })
+})
+
+describe('whitelist deploy-log check against the repo config', () => {
+  const render = async (
+    network: string,
+    address: string,
+    selector: string,
+    whitelisted: boolean
+  ): Promise<string> => {
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [[address], [selector], whitelisted],
+      network
+    )
+    const output = infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+    infoSpy.mockRestore()
+    return output
+  }
+
+  // Composer's whitelist entries are merged from config/composerWhitelist.json
+  // by updateWhitelistPeriphery.ts and never reach a deploy log, so checking
+  // them against deployments would flag every correct pair on every network.
+  it('checks a Composer pair against composerWhitelist.json, not the deploy log', async () => {
+    const composerEntries =
+      (
+        composerWhitelistJson as Record<
+          string,
+          { address: string; functionSelectors: { selector: string }[] }[]
+        >
+      ).mainnet ?? []
+    const entry = required(
+      composerEntries[0],
+      'composerWhitelist.json -> mainnet[0]'
+    )
+    const composerSelector = required(
+      entry.functionSelectors[0],
+      'composerWhitelist.json -> mainnet[0].functionSelectors[0]'
+    ).selector
+    const added = await render('mainnet', entry.address, composerSelector, true)
+    expect(added).toContain('matches composerWhitelist.json')
+    expect(added).not.toContain('no deployments entry')
+
+    const removed = await render(
+      'mainnet',
+      entry.address,
+      composerSelector,
+      false
+    )
+    expect(removed).toContain('composerWhitelist.json still lists')
+  })
+
+  it('says nothing about a third-party DEX contract in either direction', async () => {
+    const owned = new Set(
+      Object.values(
+        mainnetDeployments as unknown as Record<string, string>
+      ).map((address) => address.toLowerCase())
+    )
+    const dex = (
+      whitelistJson as unknown as {
+        DEXS: {
+          contracts?: Record<
+            string,
+            { address: string; functions?: Record<string, string> }[]
+          >
+        }[]
+      }
+    ).DEXS.flatMap((item) => item.contracts?.mainnet ?? []).find(
+      (contract) =>
+        !owned.has(contract.address.toLowerCase()) &&
+        Object.keys(contract.functions ?? {}).length > 0
+    )
+    expect(dex).toBeDefined()
+    if (!dex) return
+    const selector = required(
+      Object.keys(dex.functions ?? {})[0],
+      'a DEXS mainnet contract with at least one selector'
+    )
+
+    for (const whitelisted of [true, false]) {
+      const output = await render('mainnet', dex.address, selector, whitelisted)
+      expect(output).not.toContain('✅')
+      expect(output).not.toContain('❌')
+      expect(output).not.toContain('⚠️')
+      expect(output).not.toContain('deployments')
+    }
   })
 })

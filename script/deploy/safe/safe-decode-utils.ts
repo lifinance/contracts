@@ -15,13 +15,13 @@ import type { Abi, Address, Hex } from 'viem'
 import {
   bytesToHex,
   decodeFunctionData,
-  getAddress,
   keccak256,
   parseAbi,
   stringToHex,
   toFunctionSelector,
 } from 'viem'
 
+import composerWhitelist from '../../../config/composerWhitelist.json'
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
@@ -62,14 +62,6 @@ function getWhitelistJson(): unknown {
   return whitelistCache
 }
 
-function safeNormalizeAddress(address: string): string {
-  try {
-    return getAddress(address as Address).toLowerCase()
-  } catch {
-    return address.toLowerCase()
-  }
-}
-
 function computeSelectorFromSignature(signature: string): string {
   const hash = keccak256(stringToHex(signature))
   return `0x${hash.slice(2, 10)}`
@@ -84,7 +76,8 @@ function lookupWhitelistMetaForContractSelector(
   if (!isRecord(whitelist)) return {}
 
   const networkKey = network.toLowerCase()
-  const addr = safeNormalizeAddress(contractAddress)
+  const matchesQueriedAddress = (candidate: string): boolean =>
+    !!candidate && isSameAddress(network, candidate, contractAddress)
   const sel = selector.toLowerCase()
 
   const peripheryRoot = whitelist['PERIPHERY']
@@ -94,7 +87,7 @@ function lookupWhitelistMetaForContractSelector(
       const entry = peripheryNetwork.find((e) => {
         if (!isRecord(e)) return false
         const address = typeof e.address === 'string' ? e.address : ''
-        return safeNormalizeAddress(address) === addr
+        return matchesQueriedAddress(address)
       })
       if (isRecord(entry)) {
         const entryName =
@@ -132,7 +125,7 @@ function lookupWhitelistMetaForContractSelector(
       const contractEntry = contractsByNetwork.find((c) => {
         if (!isRecord(c)) return false
         const address = typeof c.address === 'string' ? c.address : ''
-        return safeNormalizeAddress(address) === addr
+        return matchesQueriedAddress(address)
       })
       if (!isRecord(contractEntry)) continue
       let signature: string | undefined
@@ -301,6 +294,12 @@ export interface IWhitelistDeployLogCheckInput {
   deployLogName?: string
   /** The call's third argument: adding pairs when true, removing them when false. */
   whitelisted: boolean
+  /**
+   * Set for a periphery whose whitelist entry comes from a config file rather
+   * than the deploy log, in which case that file is what the pair must agree
+   * with.
+   */
+  configSource?: { file: string; listsAddress: boolean }
 }
 
 /**
@@ -314,9 +313,13 @@ export interface IWhitelistDeployLogCheckInput {
  * The verdict depends on the direction: on a removal, absence from the deploy
  * log is expected (the superseded address is gone from it) and presence is the
  * alarm, because removing the selectors of an address the deploy log still
- * points at un-whitelists the contract in use. Third-party contracts can never
- * appear in the deploy log, so they stay unannotated rather than collecting a
- * permanent ❌ that would teach signers to ignore the marker.
+ * points at un-whitelists the contract in use. An address absent from the
+ * deploy log entirely stays unannotated — that is every third-party DEX, and a
+ * permanent ❌ there would teach signers to ignore the marker.
+ *
+ * Both sources read are the production ones, so a staging whitelist proposal
+ * gets no verdict — as it gets no `(PERIPHERY/…)` label today, for the same
+ * reason.
  */
 export function formatWhitelistDeployLogCheck(
   input: IWhitelistDeployLogCheckInput
@@ -328,7 +331,21 @@ export function formatWhitelistDeployLogCheck(
     registeredAddress,
     deployLogName,
     whitelisted,
+    configSource,
   } = input
+
+  // A config-backed periphery is absent from the deploy log by design, so that
+  // file — not the deploy log — is what its pairs must agree with.
+  if (configSource) {
+    const { file, listsAddress } = configSource
+    if (whitelisted)
+      return listsAddress
+        ? ` \u001b[32m(✅ matches ${file})\u001b[0m`
+        : ` \u001b[31m(❌ not listed in ${file})\u001b[0m`
+    return listsAddress
+      ? ` \u001b[33m(⚠️ un-whitelists an address ${file} still lists)\u001b[0m`
+      : ` \u001b[90m(no longer in ${file})\u001b[0m`
+  }
 
   // A removal's verdict hangs on `deployLogName` alone: any address the deploy
   // log still points at is live, whether or not whitelist.json labels it under
@@ -354,18 +371,58 @@ export function formatWhitelistDeployLogCheck(
       network,
       registeredAddress
     )
-    return ` \u001b[31m(❌ mismatch: deployments has ${expectedDisplay} for '${peripheryName}')\u001b[0m`
+    return ` \u001b[31m(❌ whitelist.json and deployments disagree: deployments has ${expectedDisplay} for '${peripheryName}')\u001b[0m`
   }
 
   return ` \u001b[31m(❌ no deployments entry for '${peripheryName}')\u001b[0m`
 }
 
-async function getWhitelistDeployLogCheckSuffix(
+/**
+ * `script/tasks/updateWhitelistPeriphery.ts` merges this periphery's whitelist
+ * entries from `config/composerWhitelist.json`; nothing ever writes it to a
+ * deploy log.
+ */
+const CONFIG_BACKED_PERIPHERY: Record<string, string> = {
+  Composer: 'composerWhitelist.json',
+}
+
+function getComposerListsAddress(
+  network: string,
+  contractAddress: string
+): boolean {
+  const perNetwork = (composerWhitelist as Record<string, unknown>)[
+    network.toLowerCase()
+  ]
+  if (!Array.isArray(perNetwork)) return false
+  return perNetwork.some(
+    (entry) =>
+      isRecord(entry) &&
+      typeof entry.address === 'string' &&
+      isSameAddress(network, entry.address, contractAddress)
+  )
+}
+
+export async function getWhitelistDeployLogCheckSuffix(
   network: string,
   contractAddress: string,
   peripheryName: string | undefined,
   whitelisted: boolean
 ): Promise<string> {
+  const configFile = peripheryName
+    ? CONFIG_BACKED_PERIPHERY[peripheryName]
+    : undefined
+  if (configFile)
+    return formatWhitelistDeployLogCheck({
+      network,
+      contractAddress,
+      peripheryName,
+      whitelisted,
+      configSource: {
+        file: configFile,
+        listsAddress: getComposerListsAddress(network, contractAddress),
+      },
+    })
+
   const deployments = await getDeploymentsRecord(network)
   if (!deployments)
     return peripheryName ? ` \u001b[90m(deployments unavailable)\u001b[0m` : ''
@@ -400,7 +457,8 @@ async function getWhitelistDeployLogCheckSuffix(
  * so the only one that earns the ✓ — then from the shared selector registry,
  * then from the batched 4byte lookup. Without the latter two, a pair missing
  * from this network's whitelist entry leaves the signer eyeballing a raw
- * selector.
+ * selector. Each contract line additionally carries the deploy-log verdict from
+ * `formatWhitelistDeployLogCheck`.
  */
 export async function formatBatchSetContractSelectorWhitelist(
   args: readonly unknown[],
@@ -464,7 +522,8 @@ export async function formatBatchSetContractSelectorWhitelist(
       )
     : new Map<string, string>()
 
-  // Resolved up front so the rendering loop below stays synchronous.
+  // Sequential, but only the first call reaches the filesystem: getDeployments
+  // memoizes per network for the process lifetime.
   const deployLogSuffixes = new Map<string, string>()
   if (network)
     for (const { contract, selectorList } of rows)
