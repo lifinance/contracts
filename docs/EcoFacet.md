@@ -29,6 +29,8 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param encodedRoute Encoded route data containing destination chain routing information
 /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
 /// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
+/// @param deadline Timestamp after which the backend signature is no longer valid
+/// @param signature Backend EIP-712 signature over the EcoPayload authorizing this bridge
 struct EcoData {
   bytes nonEVMReceiver;
   address prover;
@@ -36,6 +38,8 @@ struct EcoData {
   bytes encodedRoute;
   bytes32 solanaATA;
   address refundRecipient;
+  uint256 deadline;
+  bytes signature;
 }
 ```
 
@@ -58,6 +62,13 @@ The receiver address is specified differently depending on the destination chain
   - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
   - The contract validates that `solanaATA` matches the ATA encoded in the route
 
+- **For Tron destination chain**:
+  - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
+  - Provide the Tron address in `nonEVMReceiver` as a 32-byte left-padded address (`abi.encode(address)`)
+  - Leave `solanaATA` as `bytes32(0)`
+  - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
+  - The contract validates that `nonEVMReceiver` matches the receiver decoded from the encoded route
+
 Examples:
 
 ```solidity
@@ -71,6 +82,12 @@ ecoData.refundRecipient = msg.sender; // User address for refunds
 bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
 ecoData.nonEVMReceiver = solanaAddressBytes;     // Solana address as bytes
 ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
+ecoData.refundRecipient = msg.sender;            // User address for refunds
+
+// EVM to Tron bridge
+bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
+ecoData.nonEVMReceiver = abi.encode(tronAddr);   // Tron address, 32-byte left-padded
+ecoData.solanaATA = bytes32(0);                  // Zero for Tron
 ecoData.refundRecipient = msg.sender;            // User address for refunds
 ```
 
@@ -104,9 +121,13 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 - **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. The contract validates that the receiver address in the encoded route matches the specified receiver.
 
+- **Backend Signature (trust assumption)**: `encodedRoute` and `prover` are opaque, backend-supplied values whose full contents cannot be reconstructed and validated on-chain — the route encodes destination calls the facet does not interpret, and a malicious prover could mark an intent fulfilled without paying the destination. Both are therefore gated by a backend EIP-712 signature. The LI.FI backend signs an `EcoPayload` that commits to `transactionId`, `sendingAssetId`, `minAmount`, `destinationChainId`, `receiver`, `keccak256(nonEVMReceiver)`, `keccak256(encodedRoute)`, `prover`, `refundRecipient`, `rewardDeadline`, `solanaATA`, and `deadline`; the facet recovers the signer and requires it to equal the configured `BACKEND_SIGNER`. `deadline` bounds the signature's validity window. Integrators must obtain `signature` and `deadline` from the LI.FI backend per call; the destination receiver is not purely enforced on-chain for these flows.
+
+  - EIP-712 domain: `name = "LI.FI Eco Facet"`, `version = "1"`, `chainId` = the source chain, `verifyingContract` = the LiFiDiamond address.
+
 - **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
 
-- **TRON Compatibility**: TRON is treated as EVM-compatible in the smart contract validation logic since it uses the same Route struct encoding as EVM chains. Only Solana requires special non-EVM handling with `nonEVMReceiver` and `solanaATA` parameters.
+- **TRON Handling**: Tron follows the non-EVM receiver convention (`bridgeData.receiver` set to `NON_EVM_ADDRESS`, real recipient in `nonEVMReceiver`), matching the backend's generic non-EVM bridge-data builder and the other non-EVM facets. Because Tron uses the same Route struct encoding as EVM chains, its recipient is decoded from the route's final `transfer` call and cross-checked against `nonEVMReceiver`; a `BridgeToNonEVMChainBytes32` event is emitted. Solana keeps its own handling via `nonEVMReceiver` (base58 bytes) and `solanaATA`.
 
 - **Solana ATA Validation**: For Solana bridges, the contract validates that the Associated Token Account (ATA) specified in `solanaATA` matches the ATA encoded in bytes 251-283 of the route. The ATA is derived from the user's wallet address and the SPL token mint address, not the user's wallet address directly.
 
