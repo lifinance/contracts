@@ -210,6 +210,18 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         vm.expectRevert(ILiFiVaultWrapper.AssetDecimalsUnavailable.selector);
 
         new BeaconProxy(address(beacon), oversizedInit);
+
+        // A call that succeeds but returns nothing decodes as garbage rather than failing
+        // loudly, so the short-return case is rejected on its own length check.
+        bytes memory emptyReturnInit = _initCallFor(
+            address(
+                new AssetOnlyVault(address(new EmptyReturnDecimalsToken()))
+            )
+        );
+
+        vm.expectRevert(ILiFiVaultWrapper.AssetDecimalsUnavailable.selector);
+
+        new BeaconProxy(address(beacon), emptyReturnInit);
     }
 
     function test_DonationCannotBlockDepositLargerThanItself() public {
@@ -593,6 +605,12 @@ contract OversizedDecimalsToken {
     function decimals() external pure returns (uint256) {
         return 300;
     }
+}
+
+/// @dev Asset stub whose decimals() call succeeds but returns zero-length data, the
+///      non-compliant-token case OZ's probe reads as a successful call.
+contract EmptyReturnDecimalsToken {
+    fallback() external payable {}
 }
 
 /// @dev Minimal ERC-4626-shaped underlying exposing only asset(), so the wrapper resolves

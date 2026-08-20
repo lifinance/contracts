@@ -240,6 +240,12 @@ contract VaultWrapperPauseTest is Test {
 
         vm.prank(vaultAdmin);
         wrapper.pause();
+
+        vm.expectEmit(true, true, true, true, address(wrapper));
+        emit PauseSet(false, vaultAdmin);
+
+        vm.prank(vaultAdmin);
+        wrapper.unpause();
     }
 
     /// EIP-4626 deposit limits report closed while paused ///
