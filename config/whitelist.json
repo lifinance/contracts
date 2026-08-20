@@ -1215,14 +1215,6 @@
             }
           }
         ],
-        "moonriver": [
-          {
-            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
-            "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
-            }
-          }
-        ],
         "sei": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
@@ -2056,6 +2048,15 @@
             }
           }
         ],
+        "xlayer": [
+          {
+            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
+            "functions": {
+              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
+              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
+            }
+          }
+        ],
         "boba": [
           {
             "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
@@ -2117,31 +2118,6 @@
               "0x2646478b": "processRoute(address,uint256,address,uint256,address,bytes)"
             }
           },
-          {
-            "address": "0xf2614a233c7c3e7f08b1f887ba133a13f1eb2c55",
-            "functions": {
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0x2646478b": "processRoute(address,uint256,address,uint256,address,bytes)",
-              "0x47f8bd41": ""
-            }
-          },
-          {
-            "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
-            "functions": {
-              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
-              "0xdd9c5f96": "",
-              "0xee623204": ""
-            }
-          },
-          {
-            "address": "0xac4c6e212a361c968f1725b4d055b47e63f80b75",
-            "functions": {
-              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
-              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
-            }
-          }
-        ],
-        "moonriver": [
           {
             "address": "0xf2614a233c7c3e7f08b1f887ba133a13f1eb2c55",
             "functions": {
@@ -8680,88 +8656,6 @@
           {
             "selector": "0x00a32e6c",
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      }
-    ],
-    "moonbeam": [
-      {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x5215E9fd223BC909083fbdB2860213873046e45d",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
           }
         ]
       }

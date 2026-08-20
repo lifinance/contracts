@@ -250,7 +250,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'metis',
       'mode',
       'monad',
-      'moonbeam',
       'morph',
       'nibiru',
       'opbnb',
