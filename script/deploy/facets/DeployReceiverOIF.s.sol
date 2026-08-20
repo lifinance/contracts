@@ -39,7 +39,8 @@ contract DeployScript is DeployScriptBase {
             "/config/lifiintentescrow.json"
         );
         // allowNonContractAddress: true — OIFOutputSettlerSimple is a reserved, deterministically
-        // deployed vanity address (identical on every chain). ReceiverOIF is deployed on a chain
+        // deployed vanity address, identical on every EVM chain (Tron cannot reproduce it and
+        // carries its own address under the `tron` key in the same config file). ReceiverOIF is deployed on a chain
         // before the settler exists there, so the ref legitimately has no code yet (see EXSC-748).
         // It is a real non-zero address, so allowZeroAddress stays false.
         address outputSettler = _getConfigContractAddress(
