@@ -706,6 +706,13 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.07.31_PolymerCCTPFacet(v3.1.0).pdf",
       "auditCommitHash": "5a43f43be60dd3b5aba6dbb9d2f890e83689b4bf"
+    },
+    "audit20260820": {
+      "auditCompletedOn": "20.08.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.08.20_FraxFacet(v1.0.0).pdf",
+      "auditCommitHash": "3ae7e5f8180d97db785b0cc93947d3740f209bf5"
     }
   },
   "auditedContracts": {
@@ -813,6 +820,9 @@
     "FeeForwarder": {
       "1.0.0": ["audit20251015"]
     },
+    "FraxFacet": {
+      "1.0.0": ["audit20260820"]
+    },
     "GasZipFacet": {
       "2.0.0": ["audit20241107"],
       "2.0.2": ["audit20250110_1"],
@@ -863,6 +873,9 @@
     "IEcoPortal": {
       "1.0.0": ["audit20251001"],
       "1.1.0": ["audit20251020"]
+    },
+    "IFraxHopV2": {
+      "1.0.0": ["audit20260820"]
     },
     "IGarden": {
       "1.0.0": ["audit20250919"]
