@@ -102,9 +102,9 @@ accepted by design, every bound deriving from the offset alone:
   the grief is self-defeating.
 - Deposits and mints can transact at dust supply (below
   `DUST_SUPPLY_THRESHOLD`). A position held there is either dust (at most
-  ~1e-12 of a share token at par price) or subsidized by a donation of which more than
-  half is forfeited to the virtual-share offset on exit — engineering the
-  state is always loss-making.
+  ~1e-12 of a share token at par price) or subsidized by a donation of
+  which more than half is forfeited to the virtual-share offset on exit —
+  engineering the state is always loss-making.
 - Performance fees on gains earned below `DUST_SUPPLY_THRESHOLD` are forgiven
   (the accrual floats the watermark instead). A bounded fee-revenue leak,
   never a depositor loss; dodging fees this way costs more than the dodged fee.

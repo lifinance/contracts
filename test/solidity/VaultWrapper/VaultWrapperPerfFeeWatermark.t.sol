@@ -102,6 +102,31 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertGe(aliceAssets, (DEPOSIT * 9999) / 10_000);
     }
 
+    function test_SubThresholdSupplyYieldEscapesPerfFee() public {
+        // Accepted leak: yield earned while supply is below DUST_SUPPLY_THRESHOLD
+        // escapes the performance fee — the accrual floats the watermark over it.
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+
+        _deposit(bob, DEPOSIT);
+        uint256 bobShares = wrapper.balanceOf(bob);
+        vm.prank(bob);
+        wrapper.redeem(bobShares - 10, bob, bob);
+
+        assertGt(wrapper.totalSupply(), 0);
+        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+
+        // Genuine source-side yield at sub-threshold supply.
+        _simulateYield(1e18);
+
+        assertGe(wrapper.totalAssets(), 1e18);
+
+        // The entry accrual floats the watermark over the gain; no fee shares minted.
+        _deposit(alice, DEPOSIT);
+
+        assertEq(_accruedFeeShares(), 0);
+        assertGt(wrapper.perfHighWaterMarkPps(), _parPps());
+    }
+
     function test_PreviewDepositMatchesExecutionAtDustSupply() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
 
