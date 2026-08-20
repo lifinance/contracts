@@ -185,6 +185,7 @@ export interface IOrphanedParkedTask {
 export interface IReconcileFailure {
   network: string
   environment: EnvironmentEnum
+  /** Alert-safe error text — always via {@link redactErrorReason}, never a raw message. */
   reason: string
   taskCount: number
 }
@@ -244,6 +245,30 @@ export function formatOrphanedTaskMessage(
       `   - [${o.network}:${o.environment}] ${o.facet} (${o.status}) → ${o.prUrl}`
     )
   return lines.join('\n')
+}
+
+/** Longest error text kept in an alert line; viem messages run to several hundred chars. */
+const MAX_REASON_LENGTH = 180
+
+/**
+ * Makes an error message safe to post outside the job log: strips every URL and
+ * collapses it to one line.
+ *
+ * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`), and
+ * Slack is outside the `::add-mask::` redaction that protects the workflow log — so an
+ * RPC failure would otherwise publish the key to the channel.
+ *
+ * @param message - Raw error message.
+ * @returns A single-line, URL-free, length-capped reason.
+ */
+export function redactErrorReason(message: string): string {
+  const redacted = message
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<redacted-url>')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return redacted.length > MAX_REASON_LENGTH
+    ? `${redacted.slice(0, MAX_REASON_LENGTH)}…`
+    : redacted
 }
 
 /**
@@ -419,14 +444,14 @@ async function reconcileAll(
             await revertToQueued(parkedTasks, task.taskKey)
         }
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error)
+        const message = error instanceof Error ? error.message : String(error)
         consola.error(
-          `[${network}:${environment}] reconcile failed, continuing with the remaining networks: ${reason}`
+          `[${network}:${environment}] reconcile failed, continuing with the remaining networks: ${message}`
         )
         failures.push({
           network,
           environment,
-          reason,
+          reason: redactErrorReason(message),
           taskCount: tasks.length,
         })
       }

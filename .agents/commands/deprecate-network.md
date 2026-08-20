@@ -12,19 +12,20 @@ usage: /deprecate-network <network1> [network2] [network3] ...
 
 This command completely removes a network (or multiple networks) from the codebase by:
 
-1. Removing the network entry from `config/networks.json`
-2. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
-3. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
-4. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
-5. Removing all deployment log files in `deployments/` directory that match the network name pattern
-6. Automatically updating the whitelist by running `bun update-whitelist-periphery`
-7. Cancelling any deferred diamond-cleanup task still parked on the network (manual queue transitions — there is no CLI for it)
+1. Cancelling any deferred diamond-cleanup task still parked on the network, first, while the config it depends on still exists (manual queue transitions — there is no CLI for it)
+2. Removing the network entry from `config/networks.json`
+3. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
+4. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
+5. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
+6. Removing all deployment log files in `deployments/` directory that match the network name pattern
+7. Automatically updating the whitelist by running `bun update-whitelist-periphery`
 
 ## How to Use
 
 1. Type `/deprecate-network` followed by one or more network names (space-separated)
 2. The command will automatically:
    - Validate that the networks exist in `config/networks.json`
+   - Cancel any parked diamond-cleanup task still open on the networks
    - Remove network entries from `config/networks.json`
    - Remove RPC endpoint entries from `foundry.toml`
    - Remove etherscan entries from `foundry.toml`
@@ -57,21 +58,28 @@ When `/deprecate-network` is invoked with network names:
    - If a network doesn't exist, warn the user but continue with other networks
    - Display list of networks to be deprecated for confirmation
 
-2. **Remove from `config/networks.json`**:
+2. **Cancel open parked diamond-cleanup tasks** (before anything destructive):
+
+   - List them: `bunx tsx script/deploy/safe/list-parked-tasks.ts --network <network>`, and take every task still `queued` or `proposed`
+   - Those can never be drained once the network is gone — there is no RPC, no deploy log and no future diamond cut on it
+   - Abandon each one via the queue transitions in `script/deploy/safe/parked-tasks.ts`: `markCancelled` accepts only a `queued` task, so a `proposed` one needs `revertToQueued` first
+   - If a task will not transition, **abort the deprecation for that network** and report its `taskKey`. Removing the config first and failing here strands the task permanently — the weekly `reconcileParkedTasks` job then reports it as an orphan every run
+
+3. **Remove from `config/networks.json`**:
 
    - Read the JSON file
    - For each network, remove the entire network object (e.g., `"fantom": { ... }`)
    - Write the updated JSON back to the file
    - Preserve JSON formatting and indentation
 
-3. **Remove from `foundry.toml` - RPC endpoints**:
+4. **Remove from `foundry.toml` - RPC endpoints**:
 
    - Read `foundry.toml`
    - Locate the `[rpc_endpoints]` section
    - For each network, remove the line: `{network} = "${ETH_NODE_URI_{NETWORK}}"` (case-insensitive matching)
    - Preserve TOML formatting and comments
 
-4. **Remove from `foundry.toml` - Etherscan**:
+5. **Remove from `foundry.toml` - Etherscan**:
 
    - Locate the `[etherscan]` section
    - For each network, remove the entire etherscan entry block:
@@ -83,7 +91,7 @@ When `/deprecate-network` is invoked with network names:
    - Handle entries that may span multiple lines
    - Preserve TOML formatting and comments
 
-5. **Remove from `script/deploy/_targetState.json`**:
+6. **Remove from `script/deploy/_targetState.json`**:
 
    - Read the target state JSON file
    - For each network, remove the entire network entry (e.g., `"fantom": { ... }`)
@@ -93,7 +101,7 @@ When `/deprecate-network` is invoked with network names:
    - Preserve JSON formatting and indentation
    - If the network doesn't exist in target state, skip silently (not an error)
 
-6. **Remove deployment log files**:
+7. **Remove deployment log files**:
 
    - For each network, delete all files in `deployments/` directory matching:
      - `{network}.json`
@@ -103,26 +111,19 @@ When `/deprecate-network` is invoked with network names:
    - Use case-insensitive matching for network names
    - If a file doesn't exist, skip silently (not an error)
 
-7. **Update whitelist**:
+8. **Update whitelist**:
 
    - Automatically execute `bun update-whitelist-periphery` command
    - This ensures the whitelist configuration is updated to reflect the deprecated networks
    - If the command fails, report the error but don't abort (the network deprecation is already complete)
    - Display the command output for verification
 
-8. **Remind user to update Product Target Sheet**:
+9. **Remind user to update Product Target Sheet**:
 
    - Display a prominent reminder to manually update the Product Target State spreadsheet
    - The spreadsheet tracks contract deployments across networks: https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0
    - For deprecated networks: Move the network row(s) to the deprecated section
    - This is a manual step that must be done separately as the spreadsheet is not part of the codebase
-
-9. **Cancel open parked diamond-cleanup tasks for the network**:
-
-   - List them: `bunx tsx script/deploy/safe/list-parked-tasks.ts --network <network>`, and take every task still `queued` or `proposed`
-   - Those can never be drained once the network is gone — there is no RPC, no deploy log and no future diamond cut on it
-   - Abandon each one via the queue transitions in `script/deploy/safe/parked-tasks.ts`: `markCancelled` accepts only a `queued` task, so a `proposed` one needs `revertToQueued` first
-   - Leaving them open makes the weekly `reconcileParkedTasks` job report them as orphans every run
 
 10. **Display summary**:
 
