@@ -10,16 +10,17 @@ pragma solidity ^0.8.29;
 ///         than changing the factory or the wrapper implementation.
 /// @dev Methods split by how the wrapper invokes them, and this split is a security
 ///      invariant adapters MUST honour:
-///      - `resolveAsset`, `totalAssets`, and `maxWithdrawableValue` are invoked as
-///        ordinary (static) calls and run in the adapter's own context; they take an
-///        explicit `_holder`/`_underlying` and MUST be free of side effects.
+///      - `resolveAsset`, `totalAssets`, `maxWithdrawableValue`, and
+///        `maxDepositableValue` are invoked as ordinary (static) calls and run in the
+///        adapter's own context; they take an explicit `_holder`/`_underlying` and MUST
+///        be free of side effects.
 ///      - `deposit` and `withdraw` are invoked via `delegatecall` and therefore run in
 ///        the wrapper's context: `address(this)`, token balances, and yield-source
 ///        positions are the wrapper's. They MUST be stateless with respect to adapter
 ///        storage (no reads or writes of adapter state) so a shared adapter cannot
 ///        corrupt or be corrupted by the wrapper's storage layout; they may only act on
 ///        their arguments and external calls.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 interface IYieldAdapter {
     /// @notice Thrown when the adapter cannot resolve the underlying's asset.
     error AssetResolutionFailed();
@@ -87,6 +88,23 @@ interface IYieldAdapter {
     /// @param _holder The account whose position is valued (the wrapper).
     /// @return assets The gross, source-liquidity-capped position value.
     function maxWithdrawableValue(
+        address _underlying,
+        address _holder
+    ) external view returns (uint256 assets);
+
+    /// @notice Assets `_holder` can currently deposit into `_underlying`, capped by the
+    ///         source's own inflow limit (e.g. an ERC-4626 supply cap).
+    /// @dev Ordinary static call. Returns the source's `maxDeposit` for the holder — the
+    ///      assets it will accept on entry right now. A `type(uint256).max` return signals
+    ///      no active cap, which the wrapper passes through so an uncapped source keeps
+    ///      reporting unlimited deposit capacity. The wrapper folds this into its own
+    ///      `maxDeposit`/`maxMint` so an EIP-4626 consumer never sizes a deposit the source
+    ///      would reject — the entry-side mirror of `maxWithdrawableValue`. MAY revert if
+    ///      the source's view reverts; the wrapper treats that as fail-closed.
+    /// @param _underlying The yield source identifier.
+    /// @param _holder The account the deposit is credited to (the wrapper).
+    /// @return assets The source-cap-limited depositable amount.
+    function maxDepositableValue(
         address _underlying,
         address _holder
     ) external view returns (uint256 assets);

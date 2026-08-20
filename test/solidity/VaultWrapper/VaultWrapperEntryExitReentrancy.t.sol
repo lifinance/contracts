@@ -47,6 +47,10 @@ contract ReenteringSourceVault {
         return balanceOf[_holder];
     }
 
+    function maxDeposit(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
+
     function deposit(
         uint256 _assets,
         address _receiver

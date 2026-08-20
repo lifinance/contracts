@@ -29,8 +29,29 @@ withdrawal.
 - A single pluggable `IAccessGate` (zero = permissionless) enforced fail-closed on
   entry, share transfers, and exits.
 - Pause is enforced on the deposit/mint path only; withdrawals stay open.
+- The entry `max*` views are source-cap-aware — see
+  [Entry semantics](#entry-semantics).
 - The exit `max*` views are source-liquidity-aware — see
   [Exit semantics](#exit-semantics).
+
+## Entry semantics
+
+- `maxDeposit`/`maxMint` clamp to what the source will currently accept (via the
+  adapter's `maxDepositableValue`), so a `deposit`/`mint` within the reported max
+  never reverts under a source inflow cap (an ERC-4626 supply cap, e.g.
+  MetaMorpho). An uncapped source reports `type(uint256).max`, passed through
+  unchanged (`maxMint` skips the share conversion to avoid overflow) so the views
+  stay unbounded exactly when the source is. This is the entry-side mirror of the
+  exit-liquidity clamp below.
+- Both views report `0` while any pause source is engaged or the access gate
+  rejects the receiver, so EIP-4626 consumers see the vault as closed rather than
+  building a deposit that would revert `DepositsPaused`.
+- Because they consult the source's `maxDeposit`, they revert if that view
+  reverts (a bricked source) — fail-closed by design, the same deliberate
+  deviation from EIP-4626's never-revert expectation noted for the exit views.
+- `previewDeposit`/`previewMint` remain **cap-agnostic**: EIP-4626 requires
+  previews to ignore deposit limits, so they value the requested amount and never
+  consult `maxDepositableValue`.
 
 ## Exit semantics
 
