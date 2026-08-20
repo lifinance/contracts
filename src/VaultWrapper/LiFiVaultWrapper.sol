@@ -1036,8 +1036,8 @@ contract LiFiVaultWrapper is
         // chargeable to the next depositor as fabricated gain — so float the watermark
         // to the live price and skip the fee instead. Holders CAN sit at dust supply
         // (deposits are not floor-checked), so genuine sub-threshold yield escapes the
-        // perf fee: an accepted, bounded leak (a sub-threshold position at par is
-        // ~1e-12 of a share token; inflating it forfeits more than half the donation
+        // perf fee: an accepted, bounded leak (a sub-threshold position at par is at
+        // most ~1e-12 of a share token; inflating it forfeits more than half the donation
         // to the virtual offset), never a depositor loss.
         if (perfEnabled && supply < DUST_SUPPLY_THRESHOLD) {
             perfHighWaterMarkPps = _ceilPps(supply, assets);
@@ -1155,7 +1155,9 @@ contract LiFiVaultWrapper is
     /// @dev Fee-shares pending since the last accrual, used by the effective-supply
     ///      conversion overrides. Management first, then performance on the post-
     ///      management effective supply — the exact sequence `_accrueFees` crystallizes
-    ///      in, so previews match execution.
+    ///      in, so previews match execution; that includes mirroring the accrual's
+    ///      dust-supply perf skip (below `DUST_SUPPLY_THRESHOLD` no perf shares are
+    ///      minted, so none may be quoted).
     /// @param _supply The current total supply (pre-accrual).
     /// @param _assets The current total assets.
     /// @return The dilution shares pending.
@@ -1164,9 +1166,10 @@ contract LiFiVaultWrapper is
         uint256 _assets
     ) private view returns (uint256) {
         uint256 mgmtShares = _pendingManagementFee(_supply, _assets);
+        uint256 supplyAfterMgmt = _supply + mgmtShares;
+        if (supplyAfterMgmt < DUST_SUPPLY_THRESHOLD) return mgmtShares;
 
-        return
-            mgmtShares + _pendingPerformanceFee(_supply + mgmtShares, _assets);
+        return mgmtShares + _pendingPerformanceFee(supplyAfterMgmt, _assets);
     }
 
     /// @dev Reads the configured rate (bps) for a fee type; 0 means disabled.

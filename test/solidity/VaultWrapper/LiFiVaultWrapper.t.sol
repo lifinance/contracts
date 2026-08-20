@@ -468,7 +468,7 @@ contract LiFiVaultWrapperTest is Test {
     }
 
     function test_VirtualSharesGiveSecondDepositorFairShares() public {
-        // A minimal first deposit (1e6 asset-wei -> 1e12 shares at the minimum offset)
+        // A small first deposit (1e6 asset-wei -> 1e12 shares at the minimum offset)
         // must not let virtual-share accounting zero out a normal-sized second deposit
         // (the empty-vault edge the inflation attack targets).
         _deposit(alice, 1e6);

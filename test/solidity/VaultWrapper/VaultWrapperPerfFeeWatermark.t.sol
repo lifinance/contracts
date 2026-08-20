@@ -102,6 +102,33 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertGe(aliceAssets, (DEPOSIT * 9999) / 10_000);
     }
 
+    function test_PreviewDepositMatchesExecutionAtDustSupply() public {
+        wrapper = _newWrapperPerfOnly(PERF_RATE);
+
+        // Dust supply with pps pushed above the watermark: the accrual skips the perf
+        // mint, so the preview must not quote pending perf shares either (EIP-4626:
+        // previewDeposit must not overstate what the deposit mints). Enough real
+        // shares are left that the pending perf dilution itself is non-zero.
+        _deposit(bob, DEPOSIT);
+        uint256 toRedeem = wrapper.balanceOf(bob) - DUST_SUPPLY_THRESHOLD / 2;
+        vm.prank(bob);
+        wrapper.redeem(toRedeem, bob, bob);
+
+        assertLt(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+
+        _donateToWrapperPosition(1e15);
+
+        uint256 quote = wrapper.previewDeposit(DEPOSIT);
+        asset.mint(alice, DEPOSIT);
+        vm.startPrank(alice);
+        asset.approve(address(wrapper), DEPOSIT);
+        uint256 shares = wrapper.deposit(DEPOSIT, alice);
+        vm.stopPrank();
+
+        assertGt(shares, 0);
+        assertEq(shares, quote);
+    }
+
     function test_PricePerShareCeilRoundsUpAndDefaultFloors() public pure {
         uint256 floored = LibVaultWrapperMath.pricePerShare(
             2,

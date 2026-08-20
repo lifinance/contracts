@@ -423,7 +423,7 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
     }
 
     function test_SmallFirstMintSucceeds() public {
-        // Sub-1e6-share first mints used to revert on the removed supply floor.
+        // A first mint below the dust threshold is a valid entry.
         uint256 shares = DUST_SUPPLY_THRESHOLD / 2;
         uint256 cost = wrapper.previewMint(shares);
         asset.mint(alice, cost);
@@ -441,12 +441,13 @@ contract LiFiVaultWrapperProtectionsTest is VaultWrapperFeeTestBase {
         // from dust share counts.
         _deposit(alice, 1);
 
-        assertEq(wrapper.totalSupply(), DUST_SUPPLY_THRESHOLD);
+        assertEq(wrapper.totalSupply(), 10 ** wrapper.shareDecimalsOffset());
     }
 
     function test_DustSupplyIsDepositableAfterExit() public {
-        // Exits can leave a dust supply; entries into that state now succeed. The
-        // sub-threshold top-up is an explicit mint that used to revert.
+        // Exits can leave a dust supply; deposits and mints into that state must
+        // succeed. A plain deposit over-clears the threshold (offset-scaled), so the
+        // sub-threshold top-up is shown via an explicit mint.
         _deposit(alice, 2 * DUST_SUPPLY_THRESHOLD);
         uint256 leftBehind = DUST_SUPPLY_THRESHOLD / 2;
         uint256 toRedeem = wrapper.balanceOf(alice) - leftBehind;
