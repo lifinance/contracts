@@ -22,6 +22,10 @@ import { MockLiquidityCappedERC4626 } from "test/solidity/VaultWrapper/mocks/Moc
 contract VaultWrapperInvariantHandler is Test {
     uint256 internal constant NUM_ACTORS = 3;
 
+    // Mirror of the wrapper's internal DUST_SUPPLY_THRESHOLD: below it `_accrueFees`
+    // floats the watermark instead of ratcheting it.
+    uint256 internal constant DUST_SUPPLY_THRESHOLD = 1e6;
+
     // Deposits/mints are floored well above any price-per-share the bounded yield can push
     // the underlying to, so an underlying `deposit` never rounds to zero shares.
     uint256 internal constant MIN_ENTER = 1e18;
@@ -43,7 +47,8 @@ contract VaultWrapperInvariantHandler is Test {
     uint256 public ghostAssetsOut;
     /// @notice Assets ever injected into the underlying as external yield.
     uint256 public ghostYield;
-    /// @notice Highest high-water mark observed; the ratchet asserts it never regresses.
+    /// @notice Last observed high-water mark; asserted monotonic only for operations
+    ///         whose accrual ran at/above `DUST_SUPPLY_THRESHOLD` (see `_ratchetHwm`).
     uint256 public hwmFloor;
 
     constructor(
@@ -69,6 +74,7 @@ contract VaultWrapperInvariantHandler is Test {
         if (WRAPPER.depositsPaused()) return;
 
         address actor = _actor(_actorSeed);
+        uint256 preOpSupply = WRAPPER.totalSupply();
         uint256 assets = bound(_assets, MIN_ENTER, MAX_ENTER);
         ASSET.mint(actor, assets);
 
@@ -79,13 +85,14 @@ contract VaultWrapperInvariantHandler is Test {
         vm.stopPrank();
 
         ghostAssetsIn += assets;
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function mint(uint256 _actorSeed, uint256 _shares) external {
         if (WRAPPER.depositsPaused()) return;
 
         address actor = _actor(_actorSeed);
+        uint256 preOpSupply = WRAPPER.totalSupply();
         uint256 shares = bound(_shares, MIN_ENTER, MAX_ENTER);
         uint256 assets = WRAPPER.previewMint(shares);
         ASSET.mint(actor, assets);
@@ -97,7 +104,7 @@ contract VaultWrapperInvariantHandler is Test {
         vm.stopPrank();
 
         ghostAssetsIn += assets;
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function withdraw(uint256 _actorSeed, uint256 _assets) external {
@@ -108,13 +115,14 @@ contract VaultWrapperInvariantHandler is Test {
         uint256 ceiling = WRAPPER.maxWithdraw(actor);
         if (ceiling == 0) return;
 
+        uint256 preOpSupply = WRAPPER.totalSupply();
         uint256 assets = bound(_assets, 1, ceiling);
 
         vm.prank(actor);
         WRAPPER.withdraw(assets, actor, actor);
 
         ghostAssetsOut += assets;
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function redeem(uint256 _actorSeed, uint256 _shares) external {
@@ -126,19 +134,21 @@ contract VaultWrapperInvariantHandler is Test {
         uint256 ceiling = WRAPPER.maxRedeem(actor);
         if (ceiling == 0) return;
 
+        uint256 preOpSupply = WRAPPER.totalSupply();
         uint256 shares = bound(_shares, 1, ceiling);
 
         vm.prank(actor);
         uint256 received = WRAPPER.redeem(shares, actor, actor);
 
         ghostAssetsOut += received;
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function distributeFees() external {
+        uint256 preOpSupply = WRAPPER.totalSupply();
         WRAPPER.distributeFees();
 
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function injectYield(uint256 _amount) external {
@@ -162,13 +172,14 @@ contract VaultWrapperInvariantHandler is Test {
 
     function setFee(uint256 _typeSeed, uint256 _rateSeed) external {
         FeeType feeType = FeeType(bound(_typeSeed, 0, 3));
+        uint256 preOpSupply = WRAPPER.totalSupply();
         (, uint16 maxBps) = FACTORY.feeBounds(feeType);
         uint16 rate = uint16(bound(_rateSeed, 0, maxBps));
 
         vm.prank(VAULT_ADMIN);
         WRAPPER.setFeeRate(feeType, rate);
 
-        _ratchetHwm();
+        _ratchetHwm(preOpSupply);
     }
 
     function togglePause() external {
@@ -186,12 +197,18 @@ contract VaultWrapperInvariantHandler is Test {
         return actors[bound(_seed, 0, NUM_ACTORS - 1)];
     }
 
-    /// @dev Asserts the performance high-water mark never regresses across any operation that
-    ///      crystallizes fees, then advances the floor. The mark is re-anchored up-only on a
-    ///      fee re-enable and ratcheted up on a performance accrual, so it must be monotonic.
-    function _ratchetHwm() private {
+    /// @dev Asserts the performance high-water mark never regresses across an operation
+    ///      that crystallizes fees, then advances the floor. Monotonic only when the
+    ///      operation's accrual ran at/above `DUST_SUPPLY_THRESHOLD`: below it,
+    ///      `_accrueFees` floats the mark to the live price — which exits at dust supply
+    ///      collapse (virtual shares dominate) — so those operations only re-anchor.
+    ///      Gated on the PRE-operation supply because the accrual runs before the
+    ///      operation's own mint/burn.
+    function _ratchetHwm(uint256 _preOpSupply) private {
         uint256 current = WRAPPER.perfHighWaterMarkPps();
-        assertGe(current, hwmFloor, "high-water mark regressed");
+        if (_preOpSupply >= DUST_SUPPLY_THRESHOLD) {
+            assertGe(current, hwmFloor, "high-water mark regressed");
+        }
         hwmFloor = current;
     }
 }

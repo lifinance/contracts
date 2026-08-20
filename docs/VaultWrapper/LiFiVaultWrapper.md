@@ -24,8 +24,10 @@ withdrawal.
   time. `distributeFees` is permissionless and pays LI.FI's parts to the factory's
   live `lifiFeeRecipient` and the integrator's parts across its receiver wallets.
 - Inflation-attack protection: a per-instance ERC-4626 virtual-share decimals
-  offset derived at `initialize` (floored at a nonzero minimum) plus a deposit-side
-  supply floor.
+  offset derived at `initialize` (floored at a nonzero minimum of 6), plus a
+  `ZeroSharesMinted` revert on any deposit that would round to zero shares. There
+  is deliberately no enforced minimum share supply — see
+  [Donation griefing](#donation-griefing--accepted-bounds).
 - A single pluggable `IAccessGate` (zero = permissionless) enforced fail-closed on
   entry, share transfers, and exits.
 - Pause is enforced on the deposit/mint path only; withdrawals stay open.
@@ -86,6 +88,27 @@ withdrawal.
   can land a wei past a source's exact liquidity cap — the one tolerated
   artifact. `redeem` has no such boundary and is the guaranteed exit.
 
+## Donation griefing — accepted bounds
+
+There is deliberately no enforced minimum share supply. The virtual-share
+offset (minimum 6) is the sole inflation/donation defense; the following are
+accepted by design, every bound deriving from the offset alone:
+
+- A depositor's rounding loss against a donation-inflated price is bounded by
+  ~`donation / 10^offset` — at the minimum offset, one-millionth of what the
+  attacker burns. A deposit that would round to zero shares reverts
+  `ZeroSharesMinted`; assets are never taken for no shares. Zeroing a given
+  deposit costs ~1e6× that deposit and the donation accrues to the vault, so
+  the grief is self-defeating.
+- Deposits and mints can transact at dust supply (below
+  `DUST_SUPPLY_THRESHOLD`). A position held there is either dust (at most
+  ~1e-12 of a share token at par price) or subsidized by a donation of
+  which more than half is forfeited to the virtual-share offset on exit —
+  engineering the state is always loss-making.
+- Performance fees on gains earned below `DUST_SUPPLY_THRESHOLD` are forgiven
+  (the accrual floats the watermark instead). A bounded fee-revenue leak,
+  never a depositor loss; dodging fees this way costs more than the dodged fee.
+
 ## Admin role
 
 The per-vault admin is OZ's two-step `owner`
@@ -99,11 +122,12 @@ deployed. It sets the identity (`underlying` / `adapter` / `owner` / `factory`),
 the initial fee configuration, receivers, and access gate; resolves the ERC-20
 asset via the adapter; derives the virtual-share offset from the asset decimals;
 and sets a provisional performance watermark at the empty-vault share price. That
-par value is only a placeholder: while total supply is below `MIN_SHARE_SUPPLY`
-(no real holders), each accrual re-floats the watermark to the live price and
-skips the performance fee, so assets donated to the instance's predicted address
-become the first real depositor's baseline instead of being charged to them as
-fabricated gain.
+par value is only a placeholder: while total supply is below
+`DUST_SUPPLY_THRESHOLD` (1e6 shares — where the performance dilution rounds to
+zero shares), each accrual re-floats the watermark to the live price and skips
+the performance fee, so assets donated to the instance's predicted address become
+the next depositor's baseline instead of being charged to them as fabricated
+gain.
 
 ## Upgradeability and the FACTORY binding
 
