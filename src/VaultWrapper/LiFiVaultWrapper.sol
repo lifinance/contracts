@@ -215,8 +215,9 @@ contract LiFiVaultWrapper is
             _vaultWrapperAdmin == address(0)
         ) revert ZeroAddress();
         for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
-            if (_integratorShareBps[i] >= 10_000)
-                revert InvalidIntegratorShareBps(_integratorShareBps[i]);
+            if (
+                _integratorShareBps[i] >= LibVaultWrapperMath.BASIS_POINT_SCALE
+            ) revert InvalidIntegratorShareBps(_integratorShareBps[i]);
         }
 
         // Persist all calldata inputs before resolving the asset, so none of the calldata
