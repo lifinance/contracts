@@ -25,7 +25,7 @@ import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 ///      credits fewer shares via an internal deposit fee) — measuring that cleanly is
 ///      rounding-sensitive; such non-standard sources are unsupported and require a
 ///      dedicated adapter rather than this reference one.
-/// @custom:version 1.1.0
+/// @custom:version 1.0.0
 contract ERC4626Adapter is IYieldAdapter {
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
