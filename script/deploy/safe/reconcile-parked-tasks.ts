@@ -22,8 +22,10 @@
  *     cut) and network groups that errored this run.
  *
  * The sweep is per-network fault-isolated in both directions: a retired network is
- * partitioned out before any I/O and a group that throws is recorded and skipped.
- * The alert therefore always runs, and only a group that errored fails the process.
+ * partitioned out before any I/O and a group that throws is recorded and skipped, so
+ * the alert runs for any reachable queue and only a group that errored fails the
+ * process. An unreadable queue still aborts both — the alert reads the same
+ * collection, so there is nothing to degrade to.
  *
  * The pure decisions ({@link reconcileDecision}, {@link computeTtlAlerts},
  * {@link formatTtlAlertMessage}, {@link partitionRetiredNetworks} and the alert
@@ -265,7 +267,12 @@ export function formatReconcileFailureMessage(
   return lines.join('\n')
 }
 
-/** Joins the non-empty alert sections; `''` when every section is empty. */
+/**
+ * Joins the populated alert sections into one message.
+ *
+ * @param sections - Formatted sections, each `''` when it has nothing to report.
+ * @returns The non-empty sections separated by a blank line, or `''` if all are empty.
+ */
 export function joinAlertSections(...sections: string[]): string {
   return sections.filter((s) => s !== '').join('\n\n')
 }
@@ -322,7 +329,7 @@ interface IReconcileOutcome {
  * fetched once each. Never throws for a single group: a retired network is
  * partitioned out before any I/O and a group that errors is recorded and skipped,
  * so one bad network cannot cost the rest of the sweep or the TTL alert that
- * follows it.
+ * follows it. Failing to read the queue at all does still throw.
  */
 async function reconcileAll(
   parkedTasks: Parameters<typeof listParkedTasks>[0],
