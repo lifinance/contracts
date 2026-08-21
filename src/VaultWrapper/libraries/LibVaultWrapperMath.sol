@@ -23,7 +23,19 @@ library LibVaultWrapperMath {
 
     /// @notice Fixed-point scale of the price-per-share values (`pricePerShare` results
     ///         and the performance-fee high-water mark).
-    uint256 internal constant PPS_SCALE = 1e18;
+    /// @dev The performance fee measures gains on this grid AND anchors its watermark on
+    ///      it, so one unit of the grid is the smallest gain the fee can see: a coarse grid
+    ///      turns per-accrual rounding into a real slice of AUM, and accrual frequency is
+    ///      caller-controlled (`distributeFees` is permissionless). One unit is
+    ///      `10 ** offset / PPS_SCALE` of AUM, so `10 ** -(assetDecimals + 6)` while the
+    ///      offset tracks `18 - assetDecimals`, and finer once it bottoms out at
+    ///      `MIN_DECIMALS_OFFSET`: 1e-10 of AUM for a 4-decimal asset (the coarsest
+    ///      onboarded), 1e-12 at 6 decimals, which even one block of yield clears. At 1e18
+    ///      it was `10 ** -assetDecimals`: a whole USDC on a 1M USDC vault, which ordinary
+    ///      traffic crosses every few minutes. Headroom: par pps is
+    ///      `PPS_SCALE / 10 ** offset` (1e6..1e18 across the supported offsets) against the
+    ///      watermark's `uint192` ceiling of ~6.3e57.
+    uint256 internal constant PPS_SCALE = 1e24;
 
     /// @notice Fee taken on top of a net amount (gross = net + fee).
     /// @dev Used where `_assets` is the net amount the user wants moved (previewMint,
@@ -81,50 +93,27 @@ library LibVaultWrapperMath {
         if (feeAssets >= _totalAssets) feeAssets = _totalAssets - 1;
     }
 
-    /// @notice Price per share as a `PPS_SCALE`-scaled fixed-point value.
+    /// @notice Price per share as a `PPS_SCALE`-scaled fixed-point value, rounded down.
     /// @dev `convertToAssets(PPS_SCALE)` under OZ's virtual-offset convention:
     ///      `pps = (totalAssets + 1) * PPS_SCALE / (totalSupply + 10**offset)`. The same
-    ///      convention as the share/asset conversions so the performance watermark is measured
-    ///      on exactly the price depositors transact at. Rounding is caller-chosen: gain
-    ///      measurement floors (under-measures, favouring holders); the high-water-mark ratchet
-    ///      ceils so a floored post-dilution price cannot fall a full step below the price the
-    ///      fee was crystallized at and re-charge that step on the next crossing.
+    ///      convention as the share/asset conversions so the performance watermark is
+    ///      measured on exactly the price depositors transact at. Floored throughout:
+    ///      gain measurement and the watermark ratchet must share one rounding direction,
+    ///      or the mark lands off the price the fee was measured at and the gap is either
+    ///      re-charged or forgiven on the next accrual.
     /// @param _totalSupply Current share supply.
     /// @param _totalAssets Gross assets under management.
     /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
-    /// @param _rounding Rounding direction for the division.
     /// @return The current price per share, scaled by `PPS_SCALE`.
-    function pricePerShare(
-        uint256 _totalSupply,
-        uint256 _totalAssets,
-        uint8 _decimalsOffset,
-        Math.Rounding _rounding
-    ) internal pure returns (uint256) {
-        return
-            (_totalAssets + 1).mulDiv(
-                PPS_SCALE,
-                _totalSupply + 10 ** _decimalsOffset,
-                _rounding
-            );
-    }
-
-    /// @notice `pricePerShare` with the floored measurement convention.
-    /// @dev The default used by gain measurement and the empty-vault anchor; the watermark
-    ///      ratchet calls the rounding-aware overload with `Math.Rounding.Ceil` instead.
-    /// @param _totalSupply Current share supply.
-    /// @param _totalAssets Gross assets under management.
-    /// @param _decimalsOffset The ERC-4626 virtual-share decimals offset.
-    /// @return The current price per share, scaled by `PPS_SCALE`, rounded down.
     function pricePerShare(
         uint256 _totalSupply,
         uint256 _totalAssets,
         uint8 _decimalsOffset
     ) internal pure returns (uint256) {
         return
-            pricePerShare(
-                _totalSupply,
-                _totalAssets,
-                _decimalsOffset,
+            (_totalAssets + 1).mulDiv(
+                PPS_SCALE,
+                _totalSupply + 10 ** _decimalsOffset,
                 Math.Rounding.Floor
             );
     }
@@ -136,13 +125,12 @@ library LibVaultWrapperMath {
     ///      per share is at or below the watermark, so a net loss is never charged.
     ///      Clamped strictly below `_totalAssets` so the dilution-share denominator stays
     ///      positive even at extreme watermark/rate inputs.
-    ///      Precision: the price per share is a floored `PPS_SCALE`-scaled integer whose
-    ///      step is ~`10 ** -assetDecimals` of value (par PPS = `10 ** assetDecimals` for
-    ///      assets up to 12 decimals). A gain smaller than one step leaves the floored PPS
-    ///      unchanged and accrues nothing that round; the gain stays in AUM and is charged
-    ///      once cumulative gains cross a step. Negligible for mainstream assets (>= 6
-    ///      decimals, step <= 1e-6) but coarse for very-low-decimal assets (<= 3), which
-    ///      onboarding excludes rather than modeling here.
+    ///      Precision: the price per share is a floored `PPS_SCALE`-scaled integer, so a
+    ///      gain smaller than one unit of that grid leaves it unchanged and accrues nothing
+    ///      that round; the gain stays in AUM and is charged once cumulative gains cross a
+    ///      unit. `PPS_SCALE` is sized so that unit is far below one block of yield for
+    ///      every onboardable asset (see its doc), so the fee an accrual sequence collects
+    ///      does not depend on how often it is taken.
     /// @param _totalAssets Gross assets under management at accrual time.
     /// @param _totalSupply Current share supply.
     /// @param _hwmPps The high-water mark, a `PPS_SCALE`-scaled price per share.

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrapper.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
@@ -122,16 +121,14 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         uint256 expectedHwm = LibVaultWrapperMath.pricePerShare(
             supply + expectedShares,
             assets,
-            wrapper.shareDecimalsOffset(),
-            Math.Rounding.Ceil
+            wrapper.shareDecimalsOffset()
         );
 
         _crystallize();
 
-        // The watermark equals the diluted (post-fee-mint) PPS rounded up, sitting below the
-        // pre-charge peak: holders' realized value is the new baseline. Rounding up keeps a
-        // floored price from dropping a full step below the crystallization price and being
-        // re-charged on the next crossing.
+        // The watermark equals the diluted (post-fee-mint) PPS, sitting below the pre-charge
+        // peak: holders' realized value is the new baseline, so the next gain is measured
+        // from what they actually hold rather than from the pre-dilution peak.
         uint256 hwm = wrapper.perfHighWaterMarkPps();
         assertEq(hwm, expectedHwm);
         assertLt(hwm, ppsBeforeCharge);
@@ -143,22 +140,23 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         assertEq(_accruedFeeShares(), sharesAfterCharge);
     }
 
-    function test_SubStepGainMintsNothingAndIsForgiven() public {
+    function test_SubUnitGainMintsNothingAndStaysChargeable() public {
         wrapper = _newWrapperPerfOnly(PERF_RATE);
         _deposit(alice, DEPOSIT);
 
-        // A gain below one PPS unit (supply / PPS_SCALE = 1000 wei here) floors to a
-        // zero-share fee: nothing is minted and, like the management baseline, the
-        // watermark ratchets over the gain — charged or forgiven per accrual, never
-        // left pending (forgiveness bounded by one PPS step of AUM per accrual).
+        // A gain below one PPS unit (supply / PPS_SCALE = 1000 wei here) leaves the
+        // measured price unchanged: nothing is minted and the watermark does not move.
+        // It must NOT move — advancing over an un-charged gain would forgive it, and
+        // accrual frequency is caller-controlled through the permissionless
+        // `distributeFees`, so a caller accruing once per unit could forgive every gain.
         _simulateYield(500);
         uint256 hwmBefore = wrapper.perfHighWaterMarkPps();
         _crystallize();
 
         assertEq(_accruedFeeShares(), 0);
-        assertGt(wrapper.perfHighWaterMarkPps(), hwmBefore);
+        assertEq(wrapper.perfHighWaterMarkPps(), hwmBefore);
 
-        // A later material gain is charged from the advanced watermark.
+        // The gain stayed in AUM and is charged once cumulative gains cross a unit.
         _simulateYield(200e18);
         _crystallize();
 
@@ -280,14 +278,13 @@ contract LiFiVaultWrapperPerformanceFeeTest is VaultWrapperFeeTestBase {
         vm.prank(vaultAdmin);
         wrapper.setFeeRate(FeeType.Performance, PERF_RATE);
 
-        // The watermark re-anchored at the current (post-yield) PPS, rounded up...
+        // The watermark re-anchored at the current (post-yield) PPS...
         assertEq(
             wrapper.perfHighWaterMarkPps(),
             LibVaultWrapperMath.pricePerShare(
                 wrapper.totalSupply(),
                 wrapper.totalAssets(),
-                wrapper.shareDecimalsOffset(),
-                Math.Rounding.Ceil
+                wrapper.shareDecimalsOffset()
             )
         );
         assertEq(_accruedFeeShares(), 0);

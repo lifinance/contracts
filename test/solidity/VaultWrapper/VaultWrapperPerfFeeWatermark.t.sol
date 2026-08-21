@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { MockERC4626 } from "solmate/test/utils/mocks/MockERC4626.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
@@ -142,9 +141,9 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         uint96 _gainRaw,
         uint96 _depositRaw
     ) public {
-        // After any perf-enabled accrual the mark must sit at/above the live price or
-        // fee shares were minted for the full gap — a stale mark lets pre-entry gains
-        // be charged to a later depositor as fabricated gain.
+        // After any perf-enabled accrual the mark must sit at/above the live measured
+        // price or fee shares were minted for the full gap — a stale mark lets pre-entry
+        // gains be charged to a later depositor as fabricated gain.
         wrapper = _newWrapperPerfOnly(PERF_RATE);
         uint256 dep = bound(uint256(_depositRaw), 1, 1_000e18);
         uint256 gain = bound(uint256(_gainRaw), 1, 1_000e18);
@@ -156,11 +155,15 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         uint256 livePps = LibVaultWrapperMath.pricePerShare(
             wrapper.totalSupply(),
             wrapper.totalAssets(),
-            wrapper.shareDecimalsOffset(),
-            Math.Rounding.Ceil
+            wrapper.shareDecimalsOffset()
         );
 
         assertGe(wrapper.perfHighWaterMarkPps(), livePps);
+
+        // The same property from the fee side: nothing is left chargeable.
+        uint256 feesAfterAccrual = _accruedFeeShares();
+        _accrueOnly();
+        assertEq(_accruedFeeShares(), feesAfterAccrual);
     }
 
     function test_LossRecoveryNotChargedAgain() public {
@@ -184,10 +187,10 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertEq(_accruedFeeShares(), feesAtPeak);
     }
 
-    function test_FrequentAccrualsForgiveOnlyBoundedFee() public {
+    function test_FrequentAccrualsCollectTheSameFeeAsOneAccrual() public {
         // Ten sub-gain accruals vs one lump accrual of the same total gain: per-accrual
-        // forgiveness is only flooring slack, so frequent accruals cannot dodge a
-        // meaningful part of the fee.
+        // rounding is flooring slack only, so the fee cannot be moved by accrual
+        // frequency in either direction.
         wrapper = _newWrapperPerfOnly(PERF_RATE);
         _deposit(bob, DEPOSIT);
 
@@ -210,9 +213,7 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         // The split path may slightly EXCEED the lump in share terms (~0.04% measured):
         // earlier fee mints participate in later chunks' gains. Bounded both ways —
         // no dodging low side, no runaway compounding high side.
-        assertLe(feeSplit, (feeSingle * 101) / 100);
-        // Slack: one flooring event per accrual (10) + 1.
-        assertGe(feeSplit + 10 + 1, (feeSingle * 9) / 10);
+        assertApproxEqRel(feeSplit, feeSingle, 0.001e18); // 0.1%
     }
 
     function test_PreviewDepositMatchesExecutionAtDustSupply() public {
@@ -244,36 +245,30 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertEq(shares, quote);
     }
 
-    function test_PricePerShareCeilRoundsUpAndDefaultFloors() public pure {
-        uint256 floored = LibVaultWrapperMath.pricePerShare(
-            2,
-            6,
-            0,
-            Math.Rounding.Floor
+    function test_PricePerShareFloorsTheDivision() public pure {
+        // 7 * PPS_SCALE / 3 is not exact: the remainder is dropped, never rounded up, so
+        // the watermark anchor and the gain measurement share one price.
+        assertEq(
+            LibVaultWrapperMath.pricePerShare(2, 6, 0),
+            (7 * LibVaultWrapperMath.PPS_SCALE) / 3
         );
-        uint256 ceiled = LibVaultWrapperMath.pricePerShare(
-            2,
-            6,
-            0,
-            Math.Rounding.Ceil
-        );
-
-        // 7e18 / 3 is not exact: ceil is exactly one unit above floor.
-        assertEq(floored, 2333333333333333333);
-        assertEq(ceiled, 2333333333333333334);
-
-        // The parameterless overload keeps the floored measurement convention.
-        assertEq(LibVaultWrapperMath.pricePerShare(2, 6, 0), floored);
     }
 }
 
-/// @notice Second defect in isolation: a 6-decimal asset (one price-per-share step is a
-///         whole unit of a 1M vault) taking frequent sub-step yield. Deployed through the
-///         real factory stack so `distributeFees` (a principal-free, permissionless accrual
-///         trigger) is available. The pre-fix floored watermark re-charged a full step each
-///         crossing, confiscating ~76% of the yield; the fix caps it at the configured 20%.
-contract PerfFeeLowDecimalOverchargeTest is VaultWrapperFeeTestBase {
+/// @notice The price-per-share grid on a 6-decimal asset, where one unit of the grid used
+///         to be a whole token of a 1M vault. Both watermark defects this file guards lived
+///         here: anchoring below the measured price re-charged a full unit each crossing
+///         (~76% of the yield confiscated), and anchoring above it forgave a unit per
+///         crossing, which suppressed the fee entirely once accruals came more often than
+///         one unit of yield. Deployed through the real factory stack so `distributeFees`
+///         (a principal-free, permissionless accrual trigger) is available.
+contract PerfFeeLowDecimalGridTest is VaultWrapperFeeTestBase {
     uint16 internal constant PERF_RATE = 2000; // 20% of gains
+    uint256 internal constant PRINCIPAL = 1_000_000e6;
+    uint256 internal constant TOTAL_YIELD = 84e6;
+    /// @dev The fee is quantized to the price grid and each round's charge rounds up, so
+    ///      the collected total sits within a hair of the rate rather than exactly on it.
+    uint256 internal constant FEE_TOLERANCE = 0.001e18; // 0.1%
 
     function setUp() public override {
         asset = new MockERC20("USD Coin", "USDC", 6);
@@ -282,30 +277,41 @@ contract PerfFeeLowDecimalOverchargeTest is VaultWrapperFeeTestBase {
         _stackWithFactory(FeeType.Performance, PERF_RATE, 5000);
     }
 
-    function test_LowDecimalPerfFeeDoesNotOverchargeAcrossManyAccruals()
-        public
-    {
-        uint256 principal = 1_000_000e6;
-        _deposit(alice, principal);
-
-        uint256 drip = 210_000; // 0.21 USDC, below the 1 USDC price-per-share step
-        uint256 rounds = 400;
-        for (uint256 i = 0; i < rounds; i++) {
-            _simulateYield(drip);
-            wrapper.distributeFees();
-        }
-        wrapper.distributeFees();
-
-        uint256 totalYield = drip * rounds;
-
+    /// @dev Fee collected on `alice`'s position: what the holder does not get back.
+    function _feeCollected() internal returns (uint256) {
         uint256 aliceShares = wrapper.balanceOf(alice);
         vm.prank(alice);
         uint256 aliceOut = wrapper.redeem(aliceShares, alice, alice);
 
-        // Holder keeps the large majority of the yield: the cap is 20% and the floored
-        // measurement only ever under-charges. The pre-fix re-flooring left the holder
-        // <25%; here they retain well over half.
-        assertGe(aliceOut, principal + (totalYield * 60) / 100);
-        assertLe(aliceOut, principal + totalYield);
+        return PRINCIPAL + TOTAL_YIELD - aliceOut;
+    }
+
+    function _expectedFee() internal pure returns (uint256) {
+        return (TOTAL_YIELD * PERF_RATE) / 10_000;
+    }
+
+    function test_PerfFeeMatchesRateInOneAccrual() public {
+        _deposit(alice, PRINCIPAL);
+        _simulateYield(TOTAL_YIELD);
+        wrapper.distributeFees();
+
+        assertApproxEqRel(_feeCollected(), _expectedFee(), FEE_TOLERANCE);
+    }
+
+    /// @dev The same yield sliced into rounds each smaller than one unit of the price grid,
+    ///      with an accrual after every one. Accrual frequency is caller-controlled through
+    ///      the permissionless `distributeFees`, so the fee must not depend on it: two-sided
+    ///      bounds, since a leak in either direction is exploitable by whoever benefits.
+    function test_PerfFeeMatchesRateAcrossManyAccruals() public {
+        _deposit(alice, PRINCIPAL);
+
+        uint256 rounds = 400;
+        uint256 drip = TOTAL_YIELD / rounds; // 0.21 USDC per round
+        for (uint256 i = 0; i < rounds; i++) {
+            _simulateYield(drip);
+            wrapper.distributeFees();
+        }
+
+        assertApproxEqRel(_feeCollected(), _expectedFee(), FEE_TOLERANCE);
     }
 }

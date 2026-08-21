@@ -552,9 +552,12 @@ contract LibVaultWrapperMathTest is Test {
     /* ---------------------- pricePerShare / performanceFeeAssets ------------- */
 
     function test_PricePerShare_EmptyVaultIsOneToOne() public view {
-        // (0 + 1) * 1e18 / (0 + 10**offset)
-        assertEq(lib.pricePerShare(0, 0, 0), 1e18);
-        assertEq(lib.pricePerShare(0, 0, 3), 1e15);
+        // (0 + 1) * PPS_SCALE / (0 + 10**offset)
+        assertEq(lib.pricePerShare(0, 0, 0), LibVaultWrapperMath.PPS_SCALE);
+        assertEq(
+            lib.pricePerShare(0, 0, 3),
+            LibVaultWrapperMath.PPS_SCALE / 1e3
+        );
     }
 
     function testFuzz_PricePerShare_MatchesConvertToAssets(
@@ -571,7 +574,7 @@ contract LibVaultWrapperMathTest is Test {
         assertEq(
             lib.pricePerShare(_totalSupply, _totalAssets, _decimalsOffset),
             lib.convertToAssets({
-                _shares: 1e18,
+                _shares: LibVaultWrapperMath.PPS_SCALE,
                 _totalSupply: _totalSupply,
                 _pendingFeeShares: 0,
                 _totalAssets: _totalAssets,
@@ -597,13 +600,13 @@ contract LibVaultWrapperMathTest is Test {
     }
 
     function test_PerformanceFee_KnownValue() public view {
-        // supply 1000e18, assets 1200e18, hwm 1e18 => gain ~200e18; 20% => ~40e18.
+        // supply 1000e18, assets 1200e18, hwm at par => gain ~200e18; 20% => ~40e18.
         // The flooring of the PPS quantizes the gain to steps of supply/PPS_SCALE
-        // (1000 wei here), always in the holders' favour.
+        // (sub-wei here), always in the holders' favour.
         uint256 fee = lib.performanceFeeAssets(
             1200e18,
             1000e18,
-            1e18,
+            LibVaultWrapperMath.PPS_SCALE,
             2000,
             0
         );
