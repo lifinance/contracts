@@ -519,6 +519,34 @@ export function queueStatusReason(
   return undefined
 }
 
+/**
+ * Classifies a `blocked` row from its freshly-read on-chain state.
+ *
+ * - `done` — the controller executed it; reconcile the row to `executed`.
+ * - `gone` — the controller holds no timestamp for the id, so it was cancelled
+ *   (or never scheduled); reconcile the row to `cancelled`. Cancelling is the
+ *   documented remediation for a blocked op, so this is the common path, and
+ *   without it following that advice leaves a permanently misleading row.
+ * - `pending` — still a live operation; a candidate for the ready-check alert.
+ *
+ * Only a fully negative read counts as `gone`: a contradictory combination (from
+ * a mid-block RPC race, say) stays `pending` rather than being silently
+ * cancelled.
+ *
+ * @param state - On-chain flags for the operation.
+ * @returns Which reconciliation, if any, the row needs.
+ */
+export function classifyBlockedRow(state: {
+  isDone: boolean
+  isPending: boolean
+  isReady: boolean
+  isOperation: boolean
+}): 'done' | 'gone' | 'pending' {
+  if (state.isDone) return 'done'
+  if (!state.isPending && !state.isReady && !state.isOperation) return 'gone'
+  return 'pending'
+}
+
 /** A blocked row paired with its freshly-read on-chain readiness. */
 export interface IBlockedOpCandidate {
   doc: ITimelockQueueDoc
