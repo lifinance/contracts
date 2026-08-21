@@ -123,6 +123,15 @@ per-vault owner (the integrator) is therefore trusted not to brick its own
 exits. There is no instance-level counter-lever; the only subsystem-wide remedy
 is a beacon upgrade behind the 48h timelock.
 
+The same trust covers LI.FI's own cut. A gate the integrator controls can flag
+the live `lifiFeeRecipient` as sanctioned, so once `distributeFees` mints LI.FI's
+share-side fees (management, performance) to that address they can be neither
+redeemed nor transferred out — confiscating the accrued balance even though the
+recipient is read live from the factory. The integrator is trusted not to
+sanction the LI.FI recipient in its own gate. This reaches only the share-side
+fees; deposit and withdrawal fees settle in the asset token, which the gate does
+not touch.
+
 ## Admin role
 
 The per-vault admin is OZ's two-step `owner`
