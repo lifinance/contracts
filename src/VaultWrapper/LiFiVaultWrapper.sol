@@ -60,18 +60,12 @@ import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 /// @custom:version 1.0.0
 contract LiFiVaultWrapper is
     ERC4626Upgradeable,
-    // OZ v5's Ownable/Ownable2Step keep `_owner`/`_pendingOwner` in fixed ERC-7201
-    // namespaced slots, not sequential ones, so they add no slot to this layout and are
-    // collision-free behind a beacon proxy. They provide the per-vault admin role: `owner()`
-    // is the admin, transferred via the standard two-step `transferOwnership`/`acceptOwnership`.
+    // v5 Ownable2Step stores _owner/_pendingOwner in ERC-7201 namespaced slots (no
+    // sequential slot added here); provides the per-vault admin role via owner().
     Ownable2StepUpgradeable,
-    // OZ v5's ReentrancyGuard keeps its status in a fixed ERC-7201 namespaced slot
-    // (it is @custom:stateless), not a sequential one, so it occupies no slot in this
-    // layout and is collision-free behind a beacon proxy — which is why OZ ships no
-    // separate Upgradeable variant. The guard reverts only when that slot reads ENTERED,
-    // so a proxy's zero-valued slot (the implementation's constructor never ran in the
-    // proxy's storage context) reads as not-entered and the guard is correct from the
-    // first call.
+    // v5's core ReentrancyGuard (no Upgradeable variant exists) uses an ERC-7201 slot and
+    // reverts only on ENTERED, so a proxy's zero-valued slot reads not-entered and the guard
+    // is correct from the first call despite the impl constructor never running in proxy storage.
     ReentrancyGuard,
     ILiFiVaultWrapper
 {
