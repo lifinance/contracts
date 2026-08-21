@@ -8,7 +8,7 @@
  * contracts.
  */
 
-export type IWhitelistNetworkScope = Record<string, string[]>
+export type WhitelistNetworkScope = Record<string, string[]>
 
 /**
  * Whether a periphery contract may be whitelisted on a given network.
@@ -21,11 +21,36 @@ export type IWhitelistNetworkScope = Record<string, string[]>
 export function isNetworkInScope(
   contractName: string,
   networkName: string,
-  scope: IWhitelistNetworkScope = {}
+  scope: WhitelistNetworkScope = {}
 ): boolean {
   const allowedNetworks = scope[contractName]
   if (!allowedNetworks) return true
   return allowedNetworks.some(
     (allowed) => allowed.toLowerCase() === networkName.toLowerCase()
   )
+}
+
+/**
+ * Rejects a scope map that names a contract absent from the eligible set.
+ *
+ * Lookups in `isNetworkInScope` are case-sensitive and unmatched names fall through to
+ * "unscoped", so a typo would silently widen a contract to the whole fleet — the exact
+ * failure the scope map exists to prevent. Fail closed instead.
+ *
+ * @param scope - Contents of `whitelistPeripheryNetworks`.
+ * @param eligibleContracts - Keys of `whitelistPeripheryFunctions`.
+ * @throws When the scope map names a contract that is not whitelist-eligible.
+ */
+export function assertScopeContractsEligible(
+  scope: WhitelistNetworkScope,
+  eligibleContracts: Iterable<string>
+): void {
+  const eligible = new Set(eligibleContracts)
+  const unknown = Object.keys(scope).filter((name) => !eligible.has(name))
+  if (unknown.length > 0)
+    throw new Error(
+      `config/global.json whitelistPeripheryNetworks names contract(s) absent from whitelistPeripheryFunctions: ${unknown.join(
+        ', '
+      )}`
+    )
 }

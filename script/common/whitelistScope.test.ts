@@ -7,7 +7,10 @@ import {
 
 import globalConfig from '../../config/global.json'
 
-import { isNetworkInScope } from './whitelistScope'
+import {
+  assertScopeContractsEligible,
+  isNetworkInScope,
+} from './whitelistScope'
 
 describe('isNetworkInScope', () => {
   const scope = { LiFiDEXAggregator: ['bob', 'lens', 'opbnb'] }
@@ -34,6 +37,29 @@ describe('isNetworkInScope', () => {
 
   it('rejects every network for a contract scoped to an empty list', () => {
     expect(isNetworkInScope('X', 'mainnet', { X: [] })).toBe(false)
+  })
+})
+
+describe('assertScopeContractsEligible', () => {
+  it('accepts a scope map whose contracts are all eligible', () => {
+    expect(() =>
+      assertScopeContractsEligible({ LiFiDEXAggregator: ['bob'] }, [
+        'LiFiDEXAggregator',
+        'OutputValidator',
+      ])
+    ).not.toThrow()
+  })
+
+  it('rejects a scope map naming an ineligible contract', () => {
+    expect(() =>
+      assertScopeContractsEligible({ LifiDEXAggregator: ['bob'] }, [
+        'LiFiDEXAggregator',
+      ])
+    ).toThrow(/LifiDEXAggregator/)
+  })
+
+  it('accepts an empty scope map', () => {
+    expect(() => assertScopeContractsEligible({}, [])).not.toThrow()
   })
 })
 

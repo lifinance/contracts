@@ -12,8 +12,11 @@ import composerWhitelist from '../../config/composerWhitelist.json'
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 import type { INetworksObject } from '../common/types'
-import type { IWhitelistNetworkScope } from '../common/whitelistScope'
-import { isNetworkInScope } from '../common/whitelistScope'
+import type { WhitelistNetworkScope } from '../common/whitelistScope'
+import {
+  assertScopeContractsEligible,
+  isNetworkInScope,
+} from '../common/whitelistScope'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -62,10 +65,11 @@ type IComposerWhitelist = Record<string, IComposerNetworkConfig[]>
 const CONTRACT_SELECTORS: Record<PeripheryContract, ISelectorData[]> =
   globalConfig.whitelistPeripheryFunctions
 
-// Per-contract network allowlist loaded from global.json
-const CONTRACT_NETWORK_SCOPE: IWhitelistNetworkScope =
-  (globalConfig as { whitelistPeripheryNetworks?: IWhitelistNetworkScope })
+const CONTRACT_NETWORK_SCOPE: WhitelistNetworkScope =
+  (globalConfig as { whitelistPeripheryNetworks?: WhitelistNetworkScope })
     .whitelistPeripheryNetworks ?? {}
+
+assertScopeContractsEligible(CONTRACT_NETWORK_SCOPE, PERIPHERY_CONTRACTS)
 
 // Validation functions
 function isValidEthereumAddress(address: string): boolean {

@@ -52,6 +52,8 @@ jobs:
           filters: |
             ts:
               - 'script/**'
+              - 'config/global.json'
+              - 'config/networks.json'
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig*.json'
