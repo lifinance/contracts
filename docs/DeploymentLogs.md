@@ -66,16 +66,18 @@ is append-only — pruning it is always a manual edit.
 
 ## Reconciling a whole network (or the fleet)
 
-Two failure modes make a bulk sweep riskier than it looks, both hit during the EXSC-818 sweep:
+Two failure modes make a bulk sweep riskier than it looks:
 
 - **A partial RPC failure must never be read as "not live".** If any chain call for a network
   fails, leave that network **entirely** untouched and report it — otherwise a rate-limited
   `facetFunctionSelectors` call silently turns an address *correction* into a *deletion*.
 - **An unnamed diamond-log entry is not an absent one.** `Facets` entries with `"Name": ""` exist
   on several staging diamonds, so resolving a name only through the diamond log will conclude the
-  name is dead when it is merely unlabelled. Fall back to matching the address's on-chain selector
-  set against the `methodIdentifiers` of the compiled artifacts under `src/{Facets,Periphery,Security}`,
-  and only accept a match when exactly one candidate contains the whole set.
+  name is dead when it is merely unlabelled. Identify the address from its on-chain selectors
+  instead — `getContractNameFromSelectorsInOut` (`script/deploy/safe/safe-utils.ts`) matches them
+  against the `methodIdentifiers` of the compiled artifacts in `out/`, so run `forge build` first.
+  Accept a name only when exactly one artifact accounts for the whole selector set; anything
+  ambiguous stays untouched.
 
 `script/tasks/checkDeploymentAddressConsistency.ts` cross-checks the two files only where a name
 appears in both, so it cannot enforce this on its own: "in the flat log, absent from the diamond"
