@@ -385,15 +385,21 @@ async function transition(
   taskKey: string,
   allowedFrom: ParkedTaskStatus[],
   set: Partial<IParkedTask>,
-  unset?: Partial<Record<keyof IParkedTask, ''>>
+  unset?: Partial<Record<keyof IParkedTask, ''>>,
+  expectedSafeTxHash?: string
 ): Promise<WithId<IParkedTask> | null> {
   const update: UpdateFilter<IParkedTask> = { $set: set }
   if (unset) update.$unset = unset
-  return parkedTasks.findOneAndUpdate(
-    { taskKey: { $eq: taskKey }, status: { $in: allowedFrom } },
-    update,
-    { returnDocument: 'after' }
-  )
+  // Every value is operator-wrapped and the filter is built field by field, so
+  // no caller can widen the match or override the taskKey/status gate.
+  const filter: Filter<IParkedTask> = {
+    taskKey: { $eq: taskKey },
+    status: { $in: allowedFrom },
+  }
+  if (expectedSafeTxHash) filter.safeTxHash = { $eq: expectedSafeTxHash }
+  return parkedTasks.findOneAndUpdate(filter, update, {
+    returnDocument: 'after',
+  })
 }
 
 /**
@@ -503,17 +509,22 @@ export async function setSafeTxHash(
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The task to re-open.
- * @returns The reverted task, or `null` if it was not `proposed`.
+ * @param expectedSafeTxHash - When given, the revert only applies while the task
+ * still carries this hash, so a claim re-proposed by a concurrent drain between
+ * the caller's read and this write keeps its newer `safeTxHash`.
+ * @returns The reverted task, or `null` if it was not `proposed` (or moved on).
  */
 export async function revertToQueued(
   parkedTasks: Collection<IParkedTask>,
-  taskKey: string
+  taskKey: string,
+  expectedSafeTxHash?: string
 ): Promise<WithId<IParkedTask> | null> {
   return transition(
     parkedTasks,
     taskKey,
     ['proposed'],
     { status: 'queued' },
-    { proposedAt: '', safeTxHash: '' }
+    { proposedAt: '', safeTxHash: '' },
+    expectedSafeTxHash
   )
 }

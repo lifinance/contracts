@@ -33,8 +33,8 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2460bE223c78495d78Fe4d767f36D3F5c5B36dFE": {
-        "Name": "GenericSwapFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0x18Aa6BfBe85659a011e599C8756e4C2243477fFB": {
@@ -49,31 +49,19 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0xA127168c9FF6A851Ea0779DAc8bddE816C477539": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0xd3c5bb25207D7F4fAE5fd5ed8dbd17330cB8fA4e": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
-      },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x32f9EBAEA88bfE6b965108A2315AC2bE6253cC82",
       "Executor": "0x4c2fd9A794ac2337aD7AD547158B68397B6458A7",
       "FeeCollector": "0xC69994fd72824ca98F8a0B1E2ABc954E65a91cf4",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
