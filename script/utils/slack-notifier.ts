@@ -50,6 +50,26 @@ interface IProcessingStats {
   duration?: number
 }
 
+/** A timelock op the runner has stopped retrying because it keeps reverting. */
+interface IRepeatedRevertContext {
+  network: string
+  operationId: string
+  safeTxHash: string
+  /** Reverted attempts recorded so far. */
+  revertCount: number
+  lastRevertTxHash?: string
+}
+
+/** A blocked timelock op that is still executable on-chain. */
+interface IBlockedOperationContext {
+  network: string
+  operationId: string
+  safeTxHash: string
+  /** Why the runner refused it. */
+  reason: string
+  blockedAt?: Date
+}
+
 // Slack rejects any single block text element longer than 3000 chars with
 // `invalid_blocks`. Cap error/detail text below that so an oversized RPC error
 // (e.g. a Tron broadcast failure that echoes the whole raw transaction) still
@@ -562,6 +582,165 @@ export class SlackNotifier {
           text: `⚠️ *Action Required:* These Safe transactions must be re-executed to schedule them in the timelock.`,
         },
       })
+
+    this.appendRunLink(message)
+
+    await this.sendNotificationWithRetry(message)
+  }
+
+  /**
+   * Notify that a timelock op has reverted on-chain often enough that the runner
+   * has stopped retrying it.
+   *
+   * Goes to the CI notifications channel rather than the executor's own webhook:
+   * this is a standing problem for whoever is on shift, not a per-run result.
+   */
+  public async notifyRepeatedRevert(
+    context: IRepeatedRevertContext
+  ): Promise<void> {
+    const explorerUrl = this.getExplorerUrl(
+      context.network,
+      context.lastRevertTxHash
+    )
+    const message: ISlackMessage = {
+      text: `🛑 ${context.network}: a scheduled timelock operation keeps failing on-chain — please check / resolve / cancel it`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '🛑 Timelock Operation Keeps Reverting On-Chain',
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              `A scheduled timelock operation on *${context.network}* has reverted ` +
+              `*${context.revertCount}* time(s) on-chain. The runner has stopped retrying it, ` +
+              'so the upgrade it carries will not land until someone acts.',
+          },
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Network:*\n${context.network}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Operation ID:*\n\`${this.truncateHash(
+                context.operationId
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Safe Tx Hash:*\n\`${this.truncateHash(
+                context.safeTxHash
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Last Reverted Tx:*\n${
+                context.lastRevertTxHash
+                  ? explorerUrl
+                    ? `<${explorerUrl}|${this.truncateHash(
+                        context.lastRevertTxHash
+                      )}>`
+                    : `\`${this.truncateHash(context.lastRevertTxHash)}\``
+                  : 'unknown'
+              }`,
+            },
+          ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              '⚠️ *Action Required:* inspect the reverted tx to find which inner call fails. ' +
+              'A scheduled batch is immutable, so the usual outcomes are: fix the external ' +
+              'cause and re-drive it with `requeue-timelock-op.ts`, or cancel the operation ' +
+              'and re-propose a corrected batch. It is now `blocked` in the queue — ' +
+              `\`list-timelock-queue.ts --network ${context.network} --attention\` shows it.`,
+          },
+        },
+      ],
+    }
+
+    this.appendRunLink(message)
+
+    await this.sendNotificationWithRetry(message)
+  }
+
+  /**
+   * Notify that a timelock op is blocked but still executable on-chain.
+   *
+   * Re-raised on an interval rather than once, because a blocked op stays live
+   * and un-executed until an operator acts — a single notification at the moment
+   * of blocking is what let one sit unnoticed (EXSC-816).
+   */
+  public async notifyBlockedOperation(
+    context: IBlockedOperationContext
+  ): Promise<void> {
+    const message: ISlackMessage = {
+      text: `🚨 ${context.network}: timelock op blocked but ready to execute`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '🚨 Blocked Timelock Operation Still Ready',
+          },
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Network:*\n${context.network}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Operation ID:*\n\`${this.truncateHash(
+                context.operationId
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Safe Tx Hash:*\n\`${this.truncateHash(
+                context.safeTxHash
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Blocked Since:*\n${
+                context.blockedAt ? context.blockedAt.toISOString() : 'unknown'
+              }`,
+            },
+          ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Reason:*\n${this.truncateText(context.reason)}`,
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              '⚠️ *Action Required:* the delay has elapsed and this operation is executable, but the runner is refusing it. ' +
+              'Clear the cause, then re-drive it with `requeue-timelock-op.ts`, or cancel and re-propose. ' +
+              `Inspect with \`list-timelock-queue.ts --network ${context.network} --attention\`.`,
+          },
+        },
+      ],
+    }
 
     this.appendRunLink(message)
 

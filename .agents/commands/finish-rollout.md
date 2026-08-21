@@ -138,6 +138,14 @@ same networks).
 
 - `list-timelock-queue.ts` exit `2` → `MONGODB_URI` missing or cluster unreachable — relay,
   stop.
+- A correlated row is `status: "blocked"` → the pre-execute guard refused the batch and the
+  timelock op is still un-executed. The gate fails; do not treat it as done. **Report and
+  stop** — clearing a block is outside the finisher's authority (Hard rails: the workflow
+  dispatch is the only allowed nudge). Re-run the lister with `--attention`, relay
+  `statusReason` and whether the op is still executable on-chain, and hand it to an approved
+  operator: they clear the cause and run `requeue-timelock-op.ts` themselves, or — for a
+  fully-obsolete folded removal — cancel the op and re-propose the primary cut alone (see
+  `docs/DeferredDiamondCleanupQueue.md`).
 - Thread doesn't parse (format drift, missing PR link) → show what was extracted, ask.
 - PR already merged/closed in deploy mode → nothing to finish there; report and continue with
   the Slack closure only if the gate passed.

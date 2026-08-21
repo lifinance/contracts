@@ -14,6 +14,7 @@ import {
   parseCsvArg,
   parseStatusArg,
   statusKey,
+  needsAttention,
   toDisplayRow,
 } from './list-timelock-queue'
 import type { ITimelockQueueDoc } from './timelock-queue'
@@ -240,5 +241,78 @@ describe('toDisplayRow', () => {
     expect(row.executionTxHash).toBeUndefined()
     expect(row.executedAt).toBeUndefined()
     expect(row.onChainDone).toBeUndefined()
+  })
+})
+
+describe('toDisplayRow status reason', () => {
+  it('surfaces blockedReason and blockedAt for a blocked row', () => {
+    const row = toDisplayRow(
+      buildDoc({
+        status: 'blocked',
+        blockedReason: 'obsolete folded removals',
+        blockedAt: new Date('2026-08-21T03:00:00Z'),
+      }),
+      false,
+      true
+    )
+    expect(row.statusReason).toBe('obsolete folded removals')
+    expect(row.blockedAt).toBe('2026-08-21T03:00:00.000Z')
+  })
+
+  it('surfaces failureReason for a failed row', () => {
+    const row = toDisplayRow(
+      buildDoc({ status: 'failed', failureReason: 'operationId mismatch' }),
+      false,
+      false
+    )
+    expect(row.statusReason).toBe('operationId mismatch')
+  })
+
+  it('omits the reason for statuses that carry none', () => {
+    expect(
+      toDisplayRow(buildDoc({ status: 'queued' })).statusReason
+    ).toBeUndefined()
+  })
+})
+
+describe('needsAttention', () => {
+  // The EXSC-816 row: blocked, delay elapsed, still not executed — invisible to
+  // the runner and indistinguishable from a dead row in a flat listing.
+  it('flags a blocked row that is ready on-chain', () => {
+    const row = toDisplayRow(
+      buildDoc({ status: 'blocked', blockedReason: 'stale removals' }),
+      false,
+      true
+    )
+    expect(needsAttention(row)).toBe(true)
+  })
+
+  it('flags a failed row that is ready on-chain', () => {
+    const row = toDisplayRow(buildDoc({ status: 'failed' }), false, true)
+    expect(needsAttention(row)).toBe(true)
+  })
+
+  it('does not flag a queued row — the runner already picks those up', () => {
+    const row = toDisplayRow(buildDoc({ status: 'queued' }), false, true)
+    expect(needsAttention(row)).toBe(false)
+  })
+
+  it('does not flag a blocked row that is not ready yet', () => {
+    const row = toDisplayRow(buildDoc({ status: 'blocked' }), false, false)
+    expect(needsAttention(row)).toBe(false)
+  })
+
+  it('does not flag a row that is already done on-chain', () => {
+    const row = toDisplayRow(buildDoc({ status: 'blocked' }), true, true)
+    expect(needsAttention(row)).toBe(false)
+  })
+
+  it('does not flag a row whose on-chain checks were not run or failed', () => {
+    expect(needsAttention(toDisplayRow(buildDoc({ status: 'blocked' })))).toBe(
+      false
+    )
+    expect(
+      needsAttention(toDisplayRow(buildDoc({ status: 'blocked' }), null, null))
+    ).toBe(false)
   })
 })
