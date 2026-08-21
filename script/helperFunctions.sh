@@ -2142,6 +2142,12 @@ function extractFromVerificationOutput() {
   fi
 }
 
+# API-key values must never reach a log: verification runs in CI and in shared
+# transcripts, and a leaked explorer key cannot be un-leaked.
+function redactVerifyCmd() {
+  echo "$@" | sed -E 's/(--(etherscan|verifier)-api-key)[[:space:]]+[^[:space:]]+/\1 ***REDACTED***/g'
+}
+
 function verifyContract() {
   # read function arguments into variables
   local NETWORK=$1
@@ -2236,7 +2242,7 @@ function verifyContract() {
     )
   fi
 
-  echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echo "VERIFY_CMD: $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
   # Normalize constructor args: use only the first line to avoid passing multiline values
   # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
@@ -2355,13 +2361,13 @@ function verifyContract() {
   # Always add verifier URL and chain ID so Foundry/verifier use the correct chain (avoids "deployed on mainnet" and 404s)
   VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL" "--chain-id" "$CHAIN_ID")
 
-  echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echoDebug "VERIFY_CMD: $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
   # Attempt verification with retries (for cases where block explorer isn't synced)
   while [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
     echo "[info] ...using the following command: "
-    echo "[info] ${VERIFY_CMD[*]}"
+    echo "[info] $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
     # Execute verification command with --watch flag (will wait for completion)
     local VERIFY_EXIT_CODE=0
