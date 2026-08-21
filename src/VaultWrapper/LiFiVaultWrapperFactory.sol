@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.29;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -17,8 +17,17 @@ import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.
 ///         deploy authorization, and a factory-level global circuit breaker.
 ///         This contract does not custody user funds; it only deploys and
 ///         configures wrapper instances.
+/// @dev Deployed behind a TransparentUpgradeableProxy; its logic is upgradeable by
+///      the proxy's ProxyAdmin, owned by the same 48h subsystem timelock that owns
+///      this factory. Because the logic is upgradeable, the `CAP_*` fee-cap constants
+///      below and the split validation are guarantees of the CURRENT bytecode only —
+///      a future timelocked upgrade could change them.
 /// @custom:version 1.0.0
-contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
+contract LiFiVaultWrapperFactory is
+    Initializable,
+    Ownable2StepUpgradeable,
+    ILiFiVaultWrapperFactory
+{
     /// Constants ///
 
     /// @notice Immutable upper cap for the performance fee (bps); 50%.
@@ -43,13 +52,12 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
     bytes32 internal constant ROLE_ONBOARDING_MANAGER =
         keccak256("ONBOARDING_MANAGER");
 
-    /// Immutables ///
-
-    /// @notice The UpgradeableBeacon holding the shared implementation every vault wrapper delegatecalls to.
-    address public immutable BEACON;
-
     /// Storage ///
 
+    /// @notice The UpgradeableBeacon holding the shared implementation every vault
+    ///         wrapper delegatecalls to. Set once in `initialize`; storage rather than
+    ///         an immutable because the logic sits behind a proxy.
+    address public beacon;
     /// @notice Address authorized to toggle the global circuit breaker.
     address public emergencyPauser;
     /// @notice Address authorized to approve and revoke integrators.
@@ -91,19 +99,30 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
 
     /// Constructor ///
 
+    /// @notice Locks the logic contract so it can never be initialized directly; the
+    ///         factory is only ever used through its TransparentUpgradeableProxy.
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// Initializer ///
+
     /// @notice Initializes the factory with a beacon and role addresses.
+    /// @dev Called once through the proxy at deploy (guarded by `initializer`). `_owner`
+    ///      becomes the factory's Ownable2Step owner; the proxy's separate ProxyAdmin,
+    ///      which controls upgrades, is owned by the same address (the subsystem timelock).
     /// @param _beacon        Address of the UpgradeableBeacon holding the wrapper implementation.
     /// @param _owner         Address that will own the factory.
     /// @param _emergencyPauser Address authorized to trigger global pause.
     /// @param _onboardingManager Address authorized to assign/revoke the deployer for each integrator namespace.
     /// @param _lifiFeeRecipient Recipient of LI.FI's fee share.
-    constructor(
+    function initialize(
         address _beacon,
         address _owner,
         address _emergencyPauser,
         address _onboardingManager,
         address _lifiFeeRecipient
-    ) Ownable(_owner) {
+    ) external initializer {
         if (
             _beacon == address(0) ||
             _emergencyPauser == address(0) ||
@@ -112,7 +131,9 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
         ) revert ZeroAddress();
         if (_beacon.code.length == 0) revert InvalidContract();
 
-        BEACON = _beacon;
+        __Ownable_init(_owner);
+
+        beacon = _beacon;
         emergencyPauser = _emergencyPauser;
         onboardingManager = _onboardingManager;
         lifiFeeRecipient = _lifiFeeRecipient;
@@ -390,7 +411,7 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
         return
             abi.encodePacked(
                 type(BeaconProxy).creationCode,
-                abi.encode(BEACON, bytes(""))
+                abi.encode(beacon, bytes(""))
             );
     }
 

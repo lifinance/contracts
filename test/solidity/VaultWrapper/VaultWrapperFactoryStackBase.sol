@@ -7,6 +7,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Shared factory-stack bring-up for the vault-wrapper fork and invariant suites:
 ///         deploys the adapter, beacon, and factory, approves the adapter and the underlying,
@@ -29,19 +30,8 @@ abstract contract VaultWrapperFactoryStackBase is Test {
         uint16[4] memory _bounds
     ) internal {
         adapter = new ERC4626Adapter();
-        // The implementation binds the factory allowed to call initialize at
-        // construction; the factory is the second CREATE after the implementation
-        // (beacon in between), so its address is predictable here.
-        address predictedFactory = vm.computeCreateAddress(
-            address(this),
-            vm.getNonce(address(this)) + 2
-        );
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper(predictedFactory)),
-            makeAddr("beaconOwner")
-        );
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
+        (beacon, factory) = VaultWrapperFactoryDeployer.deploy(
+            makeAddr("beaconOwner"),
             makeAddr("owner"),
             makeAddr("pauser"),
             makeAddr("onboarder"),

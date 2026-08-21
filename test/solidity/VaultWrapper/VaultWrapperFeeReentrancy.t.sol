@@ -9,6 +9,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 interface IReenterHook {
     function onTokensReceived() external;
@@ -91,18 +92,8 @@ contract VaultWrapperFeeReentrancyTest is Test {
         adapter = new ERC4626Adapter();
         ownerHook = new ReenteringFeeOwner();
 
-        // The implementation binds the factory allowed to call initialize; the factory is
-        // the second CREATE after the implementation (beacon in between).
-        address predictedFactory = vm.computeCreateAddress(
+        (beacon, factory) = VaultWrapperFactoryDeployer.deploy(
             address(this),
-            vm.getNonce(address(this)) + 2
-        );
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper(predictedFactory)),
-            address(this)
-        );
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
             owner,
             makeAddr("pauser"),
             onboarder,

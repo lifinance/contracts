@@ -10,7 +10,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
+import { defaultReceivers, VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Shared scaffolding for the vault-wrapper fee-engine suites: the direct
 ///         beacon-proxy setup (real inflatable `MockERC4626`), the factory stack for
@@ -135,18 +135,9 @@ abstract contract VaultWrapperFeeTestBase is Test {
         uint16 _maxBps
     ) internal {
         // The setUp implementation is bound to this test contract, so the factory
-        // stack needs its own implementation+beacon bound to the factory — the
-        // second CREATE after the implementation (beacon in between).
-        address predictedFactory = vm.computeCreateAddress(
+        // stack needs its own implementation+beacon+proxy bound to the factory proxy.
+        (, factory) = VaultWrapperFactoryDeployer.deploy(
             address(this),
-            vm.getNonce(address(this)) + 2
-        );
-        UpgradeableBeacon stackBeacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper(predictedFactory)),
-            address(this)
-        );
-        factory = new LiFiVaultWrapperFactory(
-            address(stackBeacon),
             owner,
             makeAddr("pauser"),
             makeAddr("onboarder"),

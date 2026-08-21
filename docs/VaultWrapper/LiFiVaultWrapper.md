@@ -184,6 +184,11 @@ proxy storage), and it is the source every instance reads for the factory-level
 global circuit breaker (`globalPaused`), fee bounds, and `lifiFeeRecipient`, as well
 as the `initialize` caller check.
 
+`FACTORY` points at the factory's `TransparentUpgradeableProxy`, not its logic
+contract, so the factory's own logic can be upgraded (through the proxy's
+timelock-owned `ProxyAdmin`) without changing the address instances read from — see
+[LiFiVaultWrapperFactory.md](./LiFiVaultWrapperFactory.md#upgradeability).
+
 Because that reference lives in implementation bytecode rather than per-instance
 storage, a beacon upgrade to an implementation constructed with a **different**
 factory address silently repoints all live instances' config authority — for

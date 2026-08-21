@@ -12,6 +12,8 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeType, FEE_TYPE_COUNT } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { DeployLiFiVaultWrapperFactory } from "../../../script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol";
 import { UpdateVaultWrapperConfig } from "../../../script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @title VaultWrapperDeployScriptsTest
 /// @author LI.FI (https://li.fi)
@@ -55,9 +57,14 @@ contract VaultWrapperDeployScriptsTest is Test {
     function test_DeploySystem_WiresGovernance() public view {
         assertEq(beacon.owner(), address(timelock));
         assertEq(factory.owner(), address(timelock));
-        assertEq(factory.BEACON(), address(beacon));
+        assertEq(factory.beacon(), address(beacon));
         assertEq(beacon.implementation(), address(impl));
         assertEq(impl.FACTORY(), address(factory));
+
+        ProxyAdmin admin = ProxyAdmin(
+            VaultWrapperFactoryDeployer.proxyAdmin(address(factory))
+        );
+        assertEq(admin.owner(), address(timelock));
 
         assertEq(factory.emergencyPauser(), pauser);
         assertEq(factory.onboardingManager(), onboarder);

@@ -30,10 +30,11 @@ vendored v4.9.2 core.
 
 ```
                         48h TimelockController                emergencyPauser
-                     (owns factory + beacon)               onboardingManager
+                (owns factory proxy admin + beacon)       onboardingManager
                                 |                                   |
                                 v                                   v
    UpgradeableBeacon  <----  LiFiVaultWrapperFactory  ----  global circuit breaker,
+                             (TransparentUpgradeableProxy)
    (shared impl)             - underlying allowlist          fee bounds, splits,
         |                    - approved adapters             lifiFeeRecipient
         | upgradeTo          - CREATE2 deploy (namespace)
@@ -51,9 +52,12 @@ vendored v4.9.2 core.
                                   (ReferenceAccessGate)  (ERC-4626 vault)
 ```
 
-Every instance reads its factory (an **implementation immutable**, `FACTORY`) live
-for the global pause flag, fee bounds, and `lifiFeeRecipient`. A beacon
-`upgradeTo` repoints every live instance at once.
+Every instance reads its factory (an **implementation immutable**, `FACTORY`,
+bound to the factory **proxy**) live for the global pause flag, fee bounds, and
+`lifiFeeRecipient`. A beacon `upgradeTo` repoints every live instance's logic at
+once; a factory-logic upgrade goes through the proxy's `ProxyAdmin` (also
+timelock-owned) and is invisible to instances because they hold the stable proxy
+address.
 
 ## Contracts
 
@@ -81,7 +85,7 @@ suites, plus `mocks/`); the Foundry deploy scripts live under
 
 | Role | Held by | Can do | Constraints |
 | --- | --- | --- | --- |
-| Factory owner | dedicated 48h `TimelockController` | every factory setter (allowlist, adapter approvals, fee bounds, default split, `lifiFeeRecipient`, role rotation), beacon `upgradeTo` | all changes pass the 48h delay |
+| Factory owner | dedicated 48h `TimelockController` | every factory setter (allowlist, adapter approvals, fee bounds, default split, `lifiFeeRecipient`, role rotation), beacon `upgradeTo`, factory-logic upgrade via the proxy `ProxyAdmin` | all changes pass the 48h delay |
 | Emergency pauser | EOA/Safe set by the owner | `globalPause` / `globalUnpause` (deposit circuit breaker) | no delay; cannot block withdrawals |
 | Onboarding manager | EOA/Safe set by the owner | assign/revoke an integrator's deployer; may deploy any instance | — |
 | Approved integrator deployer | per-namespace, set by onboarding manager | `deploy` under its namespace | integrator share ≤ factory default (can give LI.FI more, never less) |
@@ -95,8 +99,9 @@ close the deposit/mint path.
 Four fee types, each split between LI.FI and the integrator at accrual time and
 paid out by a permissionless `distributeFees`. **Every fee type is optional** — a
 zero rate disables it, so an instance can enable any subset (or none). Each type
-is bounded by an **immutable bytecode cap**; governance sets adjustable bounds
-within it.
+is bounded by a bytecode `constant` cap; governance sets adjustable bounds within
+it. Because the factory is upgradeable, that cap is a guarantee of the current
+factory logic only — a future timelocked factory-logic upgrade could change it.
 
 | Fee type | Cap | Kind |
 | --- | --- | --- |
@@ -114,9 +119,13 @@ only. Full mechanics: [LiFiVaultWrapper.md](./LiFiVaultWrapper.md).
 Consolidated from the per-contract docs; each links to its full treatment.
 
 - **Governance is trusted within the 48h delay.** The timelock owns the factory
-  and the beacon. A beacon upgrade can replace instance logic arbitrarily, so the
-  timelock is the ultimate authority over every live instance. Every impl the
-  beacon points to must be constructed with the same `FACTORY` address — see
+  (through its proxy `ProxyAdmin`) and the beacon. Two upgrade vectors sit behind
+  the delay: a beacon `upgradeTo` replaces instance logic arbitrarily, and a
+  factory-logic upgrade through the proxy can rewrite factory rules — including the
+  fee caps and split validation that are otherwise fixed in bytecode. The timelock
+  is therefore the ultimate authority over every live instance and over the factory
+  rules themselves. Every impl the beacon points to must be constructed with the
+  same `FACTORY` address (the factory proxy) — see
   [upgradeability](./LiFiVaultWrapper.md#upgradeability-and-the-factory-binding).
 - **The per-vault owner (integrator) is trusted not to act against its own
   depositors or against LI.FI's fee recipient.** It installs arbitrary access-gate
@@ -163,7 +172,7 @@ over both an unlimited source and a fuzzed-liquidity source, with
 - **OpenZeppelin v5** — `@openzeppelin/contracts` core and
   `@openzeppelin/contracts-upgradeable` (`ERC4626Upgradeable`,
   `Ownable2StepUpgradeable`, `UpgradeableBeacon`, `BeaconProxy`,
-  `TimelockController`, `Create2`).
+  `TransparentUpgradeableProxy`, `ProxyAdmin`, `TimelockController`, `Create2`).
 - **Solady** — `MetadataReaderLib` (reads underlying token metadata defensively).
 - **Optional, integrator-side** — `ReferenceAccessGate` can back `isSanctioned`
   with an external Chainalysis `SanctionsList` (identical signature); the bundled
@@ -180,7 +189,13 @@ over both an unlimited source and a fuzzed-liquidity source, with
   live instance. Changing the adapter a wrapper routes through is only reachable
   through a beacon `upgradeTo` to new implementation logic, i.e. under the 48h
   timelock.
-- The factory and beacon are deployed and wired by
+- The factory is deployed behind a `TransparentUpgradeableProxy`; its logic is
+  upgradeable through the proxy's `ProxyAdmin`, owned by the 48h timelock (the
+  same authority that owns the factory and beacon). The logic contract's
+  initializers are disabled at construction; factory state is set once through
+  `initialize` on the proxy at deploy. Instances bind to the proxy address, so a
+  factory-logic upgrade is transparent to them.
+- The factory (proxy + logic) and beacon are deployed and wired by
   `script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol` and owned by
   the 48h timelock. Per-network parameters come from `config/vaultWrapper.json`.
 - Factory config is timelock-owned: `UpdateVaultWrapperConfig.s.sol` does not
