@@ -59,6 +59,10 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
     address public lifiFeeRecipient;
     /// @notice Whether deposits are globally halted; read by every vault wrapper.
     bool public globalPaused;
+    /// @notice Integrator fee share (bps) applied to a deploy that does not override
+    ///         it; LI.FI receives the remaining (100% - this value). Snapshotted into
+    ///         each instance at deploy.
+    uint16 public defaultIntegratorShareBps;
 
     /// @notice Whether a yield source is permitted as a wrapper underlying.
     mapping(address => bool) public allowedUnderlying;
@@ -69,10 +73,6 @@ contract LiFiVaultWrapperFactory is Ownable2Step, ILiFiVaultWrapperFactory {
     mapping(address => bool) public approvedAdapter;
     /// @notice Adjustable min/max fee bps per fee type, within the immutable caps.
     mapping(FeeType => FeeBounds) public feeBounds;
-    /// @notice Integrator fee share (bps) applied to a deploy that does not override
-    ///         it; LI.FI receives the remaining (100% - this value). Snapshotted into
-    ///         each instance at deploy.
-    uint16 public defaultIntegratorShareBps;
 
     /// @notice Whether an address is a wrapper instance deployed by this factory.
     mapping(address => bool) public isInstance;
