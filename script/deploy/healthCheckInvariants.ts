@@ -845,32 +845,22 @@ async function checkWhitelistIntegrity(
 }
 
 /**
- * Every Receiver periphery contract this repository knows how to deploy.
+ * Every Receiver periphery contract still in service, and the getter exposing its bound Executor.
  *
- * Deliberately not derived from RECEIVER_EXECUTOR_GETTERS: that list is scoped to the Executor
- * binding, so reusing it elsewhere inherits an exclusion made on binding grounds alone. None of
- * these names is in `corePeriphery` or `whitelistPeripheryFunctions`, so a check that discovers
- * periphery by probing names has to seed them from here or it can only ever see the receivers a
- * deploy log already happens to name.
+ * The one list of receivers this file checks, for both the Executor binding and ownership. It is
+ * exactly the set of coupling companions in `config/global.json`, which is what keeps the
+ * discovery in periphery-registry-log-sync covering every live receiver without naming any here.
+ *
+ * Deprecated receivers are deliberately absent, not merely unbound: `Receiver` was deleted from
+ * `src/Periphery` in #1002 and `ReceiverAcrossV3` is superseded by V4, and neither appears in any
+ * network's target state. Both are still registered on chain on many networks, but the remedy for
+ * that is deregistration plus a deploy-log purge, not a health check that asserts a deprecated
+ * contract's owner forever.
  */
-export const RECEIVER_NAMES: string[] = [
-  'Receiver',
-  'ReceiverAcrossV3',
-  'ReceiverAcrossV4',
-  'ReceiverChainflip',
-  'ReceiverOIF',
-  'ReceiverStargateV2',
-]
-
-/** Every Receiver periphery contract and the getter that exposes its bound Executor. */
 export const RECEIVER_EXECUTOR_GETTERS: Array<{
   name: string
   getter: string
 }> = [
-  // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
-  // binding is no longer kept current, so it is intentionally not checked here. Its owner is
-  // still checked (receiver-owner): a stale binding does not make a withdrawable contract's
-  // owner less security-relevant.
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
   { name: 'ReceiverChainflip', getter: 'executor' },
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
@@ -1544,11 +1534,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // The registry is a mapping(string => address) with no enumerator, so the on-chain side can
       // only be discovered by probing names - which bounds this check to names some source already
       // knows. Both deploy logs contribute, because a contract can be recorded in one and not the
-      // other; RECEIVER_NAMES is seeded statically because no receiver appears in corePeriphery or
-      // whitelistPeripheryFunctions, so a log-derived candidate list could only ever find the
-      // receivers a log already names - circular for a check whose job is finding the ones it
-      // does not. Facets are excluded because probing every facet name would multiply the RPC
-      // reads for lookups that can only ever return the zero address.
+      // other. Receivers reach this list twice over - as coupling companions and via
+      // RECEIVER_EXECUTOR_GETTERS - so no receiver in service depends on a log naming it first.
+      // Facets are excluded because probing every facet name would multiply the RPC reads for
+      // lookups that can only ever return the zero address.
       // Target state only names facets that are still current, so a retired facet lingering in the
       // flat log would otherwise be probed - a fifth of all probes on a real network, for lookups
       // that can only ever return the zero address. Matching on `includes` mirrors
@@ -1566,7 +1555,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ...Object.values(getFacetPeripheryCouplings()).map(
             (coupling) => coupling.requires
           ),
-          ...RECEIVER_NAMES,
+          ...RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name),
           ...Object.keys(ctx.deployedContracts),
           ...(ctx.diamondLogPeripheryNames ??
             loadDiamondLogPeripheryNames(ctx.networkLower)),
@@ -1945,32 +1934,20 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     name: 'receiver-owner',
     description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
-    scope: {},
+    // evm-only, matching receiver-executor-binding: every receiver in service is EVM-only. The
+    // Tron branch this replaces could only ever no-op - it looked up the deleted generic Receiver
+    // in a deploy log that has never carried it. Scope this back when a receiver lands on Tron.
+    scope: { chains: 'evm-only' },
     run: async (ctx) => {
-      // Tron carries only the generic Receiver: the bridge-specific ones are EVM-only, which is
-      // why receiver-executor-binding is scoped that way too. Grow this branch alongside the
-      // first bridge receiver deployed there.
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
-        await checkOwnershipTron(
-          'Receiver',
-          ctx.refundWallet,
-          ctx.deployedContracts,
-          ctx.tronRpcUrl,
-          ctx.tronWeb,
-          ctx.logError
-        )
-        return
-      }
       if (!ctx.publicClient) return
       const publicClient = ctx.publicClient
 
       // Resolved registry-first so a receiver missing from - or stale in - the deploy log is still
-      // covered; absent from both sources means the receiver genuinely is not on this chain. The
-      // generic Receiver is included: resolving it from the log alone would check a contract the
-      // diamond no longer points at. Resolved in one pass so the batched multicall client can
-      // coalesce the reads instead of seeing them one await at a time.
+      // covered; absent from both sources means the receiver genuinely is not on this chain.
+      // Resolved in one pass so the batched multicall client can coalesce the reads instead of
+      // seeing them one await at a time.
       const resolved = await Promise.all(
-        RECEIVER_NAMES.map(async (name) => ({
+        RECEIVER_EXECUTOR_GETTERS.map(async ({ name }) => ({
           name,
           address: await resolvePeripheryAddress(name, ctx),
         }))
