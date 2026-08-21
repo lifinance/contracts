@@ -33,10 +33,6 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xcc8AA07E93fC6EB22E200F287ED2b6e10B023408": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x988eF13024846c61A16756ff2801Cb44e98a97e8": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"

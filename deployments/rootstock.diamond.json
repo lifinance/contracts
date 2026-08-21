@@ -37,10 +37,6 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
-        "Name": "GenericSwapFacet",
-        "Version": "2.0.0"
-      },
       "0x381e58bB5EE59184a3380293bf1Bb86c92C278fD": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"

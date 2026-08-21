@@ -25,10 +25,6 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x6Ab7503bbE2dF1ACA8F3ba9099649EB2E2c0B363": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"

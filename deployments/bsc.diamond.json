@@ -17,10 +17,6 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
-      },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
@@ -28,14 +24,6 @@
       "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
-      },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
       },
       "0xaa7911Ce0bab34fd8D4DdfA161004CB7e4BE1958": {
         "Name": "GardenFacet",
@@ -48,10 +36,6 @@
       "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A": {
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
-      },
-      "0x5A1B851bC64f6AdaCaE8123aB52142b4A592B3aC": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -68,14 +52,6 @@
       "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
-      },
-      "0x1D2Ff501e5c4Ff066e0Fdc4aBd10e17B228E16D1": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
-      },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",

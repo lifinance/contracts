@@ -25,10 +25,6 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x0263A66912E06cCcbd5dC1Aa870f7271E24a7F72": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
@@ -68,10 +64,6 @@
       "0x390b9A9d7Ad4c62E4F3AD04256f87c977774Fce6": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
-      },
-      "0x76b0e123923075f362Dc1ED7a48D7aD3ed7C5663": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
       },
       "0x6D2b543c86de1794a363eBf16C3Cd7Ae33CB7e4d": {
         "Name": "SymbiosisFacet",

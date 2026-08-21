@@ -29,10 +29,6 @@
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
       "0xd04034AE565062D105D55C2de41C48A8838316FA": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
@@ -68,10 +64,6 @@
       "0x8FF9A6Ed7844a808E11d046de48B0259e79F86b1": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
-      },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",

@@ -33,10 +33,6 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2460bE223c78495d78Fe4d767f36D3F5c5B36dFE": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x18Aa6BfBe85659a011e599C8756e4C2243477fFB": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
@@ -48,14 +44,6 @@
       "0x7c2003Db4a3E2a9b8D03Fd72b2BF4A9ceC53A625": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
-      },
-      "0xA127168c9FF6A851Ea0779DAc8bddE816C477539": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0xd3c5bb25207D7F4fAE5fd5ed8dbd17330cB8fA4e": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",

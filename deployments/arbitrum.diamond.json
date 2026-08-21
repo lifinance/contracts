@@ -5,10 +5,6 @@
         "Name": "DiamondCutFacet",
         "Version": ""
       },
-      "0x7D507e6E89C52aE610b8D0151c8cb24c24e43bdb": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
-      },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -49,14 +45,6 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
-      },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
@@ -64,14 +52,6 @@
       "0xFa93141130a11FdaB7C6c800dfB93a5d19Da6aA4": {
         "Name": "ChainflipFacet",
         "Version": "1.0.0"
-      },
-      "0x6eF81a18E1E432C289DC0d1a670B78E8bbF9AA35": {
-        "Name": "HopFacetPacked",
-        "Version": "1.0.6"
-      },
-      "0xd84d9A8Bf830496C4DEc917bC27D22E09E01cB8A": {
-        "Name": "HopFacet",
-        "Version": "2.0.0"
       },
       "0xB2d2D9e94B8C690aE642c71B3Cc080E5893CE839": {
         "Name": "GardenFacet",

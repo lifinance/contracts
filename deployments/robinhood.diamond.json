@@ -21,10 +21,6 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0339c0585F233Ba96f44B689729C62b4E6186531": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xB129ce9C3fCD55726Ff314a2764d3937FA496071": {
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
@@ -48,10 +44,6 @@
       "0x628Aa47ba1739EaBD021e7e48d308320cB984378": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
-      },
-      "0xdF12A02DD62305AB8295b347FDD6057e581A44c8": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
       },
       "0xB2b9903cfCe365e1521D7B961bfCe0d6635D49a9": {
         "Name": "AcrossFacetV4",

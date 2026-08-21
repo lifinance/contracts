@@ -29,10 +29,6 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x44105f5168597BF1F08530aA05fBC920727964BE": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xF3FA0BEaC43108B1C164d4D7aCb039F61B79cCC3": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
@@ -48,10 +44,6 @@
       "0x36d7709C1AC38365cBE04374C929DC9173d84A83": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0xc6299f6b43a7A20a18Ef0A595e62C09fdd7AD5e3": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
       },
       "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
         "Name": "GasZipFacet",

@@ -33,10 +33,6 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e": {
-        "Name": "GenericSwapFacet",
-        "Version": "2.0.0"
-      },
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
@@ -49,10 +45,6 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
       "0x1F2872f7133F4fCbfCE1947C5376b4Ed5865dC97": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
@@ -61,25 +53,13 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.0"
       },
-      "0xFd796bf7Ff74d414b99CacF6F216eAC24bF3aC8E": {
-        "Name": "AcrossFacetPacked",
-        "Version": "1.0.0"
-      },
       "0x9535A1AFd986FA9a2D324657116F02C364edebFf": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
-      "0x21a786957c69424A4353Afe743242Bd9Db3cC07b": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
-      },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
-      },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
       },
       "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3": {
         "Name": "GlacisFacet",

@@ -33,10 +33,6 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xa27992F9ef326527F85898E645AFF1d99E9609E3": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x51504500fBFB459684E020154Dc9B2DE912d0B92": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"

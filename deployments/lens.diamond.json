@@ -29,10 +29,6 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xD69298878d2615DF57B4FADDd402f63a96A9bFd1": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xA16895a5be2375152c02Db599a6bB1Dd881E3342": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
@@ -45,17 +41,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x2c636F69B7Ffee07f5551d90a1a89ef2EF63080D": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
-      },
       "0x9e35dF8fEEB14A36F66f0225a090Fb592B30DDfD": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
-      },
-      "0x8c1CEC0B4f813BAF31ac3d9A9A29CF5c71B309d3": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
       },
       "0x318110911546B5A6f3424C0fbdfD392D8e549D21": {
         "Name": "AcrossFacetV4",

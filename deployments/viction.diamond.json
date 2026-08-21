@@ -29,10 +29,6 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xAF69C0E3BBBf6AdE78f1466f86DfF86d64C8dA2A": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xD1317DA862AC5C145519E60D24372dc186EF7426": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"

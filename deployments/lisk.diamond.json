@@ -33,10 +33,6 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0xd2B3b3605e630232c13111458Ae3a97d13c8F477": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xBa713B18c806EcdEEE49FAec623dE2D872192872": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
@@ -52,14 +48,6 @@
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
-      },
-      "0x5052fc5c7486162deDf7458E1f7c6ABaFbcd6895": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
-      },
-      "0x90ADbFc03002aaA3d9FEdf2517D593CfD93e6c57": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.0.0"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",

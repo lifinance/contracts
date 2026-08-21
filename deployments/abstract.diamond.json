@@ -33,10 +33,6 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x67Ae9269BB0363d4d1171eFCB750AAA0D62c0903": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0x8A942C47151Ee6209c5De84Aa033678eE9663787": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"

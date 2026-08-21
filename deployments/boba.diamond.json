@@ -33,14 +33,6 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
-        "Version": "1.0.0"
-      },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
