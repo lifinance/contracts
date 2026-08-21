@@ -424,6 +424,15 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     type: 'bytes32',
     label: 'Non-EVM Recipient',
   },
+  Frax: {
+    // FraxFacet additionally *enforces* bytes32(0) on EVM destinations (reverting
+    // InvalidCallData otherwise), so the "0x0 reads as N/A" property is guaranteed,
+    // not just conventional.
+    paramName: '_fraxData',
+    component: 'nonEVMReceiver',
+    type: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
 }
 
 function extraReceiverSpec(fn: IAbiFn): IExtraReceiver | null {
@@ -475,13 +484,7 @@ function variantTag(fnName: string): string | null {
   const erc20 = /ERC20(Packed|Min)$/u.test(fnName)
   const packed = /Packed$/u.test(fnName)
   const min = /Min$/u.test(fnName)
-  const layer = /HopL1/u.test(fnName)
-    ? 'L1'
-    : /HopL2/u.test(fnName)
-    ? 'L2'
-    : null
   const bits: string[] = []
-  if (layer) bits.push(layer)
   if (native) bits.push('native')
   else if (erc20) bits.push('ERC-20')
   if (packed) bits.push('packed')
@@ -826,8 +829,8 @@ SWAP_TEMPLATES.swapTokensGeneric = {
 // Anything that matches neither hits the unrecognized-prefix failure in main()
 // and blocks the PR via verifyClearSigning.yml.
 const NON_USER_FACING_PREFIXES = [
-  'init', // initCelerCircleBridge, initHop, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
-  'register', // registerBridge, registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
+  'init', // initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
+  'register', // registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
   'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
   'unset', // unsetChainIdToDomainId — owner/admin config (inverse of set*)
   'get', // getDeBridgeChainId, getDestinationChainsValue, getPeripheryContract, getStorage, getWhitelistedSelectorsForContract, getAllContractSelectorPairs — view-only

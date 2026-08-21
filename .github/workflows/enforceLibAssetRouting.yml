@@ -46,7 +46,6 @@ jobs:
             "src/Facets/AcrossFacetPacked.sol"
             "src/Facets/AcrossFacetPackedV3.sol"
             "src/Facets/CBridgeFacetPacked.sol"
-            "src/Facets/HopFacetPacked.sol"
             # pre-existing direct call sites grandfathered when this check was introduced (EXSC-300);
             # do NOT add new files here without an explicit architectural decision
             "src/Helpers/WithdrawablePeriphery.sol"

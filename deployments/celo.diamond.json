@@ -25,12 +25,12 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xc31F4392EE89d81E7303e2c1CDE210414F39E2ea": {
-        "Name": "CBridgeFacet",
+      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
+        "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x63fE6c5B4338116E4cC9BC536A8b61AA16003C50": {
-        "Name": "GenericSwapFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3": {
@@ -69,12 +69,8 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
-        "Name": "RelayDepositoryFacet",
-        "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
+      "0xf18E7d025BdB3e0DD952Cc9b20A977f6E296DF45": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       }
     },
@@ -82,10 +78,10 @@
       "ERC20Proxy": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "Executor": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

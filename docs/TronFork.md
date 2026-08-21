@@ -506,6 +506,21 @@ bun script/deploy/tron/deploy-and-register-periphery.ts
 bun script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
+
+### Per-network contract references in `config/`
+
+Most integration configs hold one address that is valid on every EVM chain. Tron cannot
+reproduce EVM vanity/CREATE3 addresses, so any such reference needs a Tron-specific entry —
+`config/eco.json`, `config/allbridge.json` and `config/symbiosis.json` all keep a `tron`
+block for this reason, and `config/lifiintentescrow.json` carries one for the OIF settlers
+(`lifiEscrowInputSettler`, `OIFOutputSettlerSimple`).
+
+The Tron deploy scripts read the block for the resolved network (`tron` in production,
+`tronshasta` otherwise) and throw when it is missing, so the mistake surfaces before any
+energy is spent — left unguarded the address resolves to zero and the constructor reverts
+on-chain. A Shasta deploy of the intent contracts therefore needs a `tronshasta` block
+added first.
+
 ### TronCast — a Cast-like CLI for Tron
 
 Located in `script/troncast/` on the fork, see that repo's

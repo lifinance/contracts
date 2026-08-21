@@ -25,9 +25,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808": {
+        "Name": "DeBridgeDlnFacet",
+        "Version": "1.0.1"
       },
       "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8": {
         "Name": "GenericSwapFacetV3",
@@ -60,17 +60,13 @@
       "0x5AB03562C8990b9f6cBC2f2607523D766D4Bd7a9": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
-      },
-      "0xdB6010f6255a94E691289f6b7b75A5ebc4b41808": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
       "Executor": "0x765FAa0FFb5557c6CcE2Ea1097d50ACfD5f5C58c",
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
