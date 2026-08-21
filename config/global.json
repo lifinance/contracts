@@ -143,6 +143,17 @@
       }
     ]
   },
+  "whitelistPeripheryNetworks": {
+    "LiFiDEXAggregator": [
+      "bob",
+      "lens",
+      "lisk",
+      "opbnb",
+      "vana",
+      "viction",
+      "worldchain"
+    ]
+  },
   "facetPeripheryCouplings": {
     "AcrossFacetV4": {
       "requires": "ReceiverAcrossV4",

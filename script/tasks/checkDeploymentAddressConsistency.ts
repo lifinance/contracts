@@ -17,6 +17,9 @@ import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
 
+import type { IWhitelistNetworkScope } from '../common/whitelistScope'
+import { isNetworkInScope } from '../common/whitelistScope'
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 export interface INetworkSources {
@@ -141,18 +144,23 @@ export function findMismatches(sources: INetworkSources[]): IMismatch[] {
  * @param sources - Per-network source data from `loadSources`.
  * @param whitelistEligible - Periphery names that are expected to be whitelisted
  *   (the keys of `config/global.json` → `whitelistPeripheryFunctions`).
+ * @param networkScope - Per-contract network allowlist from `config/global.json` →
+ *   `whitelistPeripheryNetworks`. A contract listed there is only expected to be
+ *   whitelisted on the networks it names.
  * @returns One gap per eligible, deployed-but-unwhitelisted periphery; empty if none.
  * @remarks Only periphery names in `whitelistEligible` are considered, so contracts
  *   that are intentionally never whitelisted (Receivers, proxies, Executor) are ignored.
  */
 export function findCoverageGaps(
   sources: INetworkSources[],
-  whitelistEligible: Set<string>
+  whitelistEligible: Set<string>,
+  networkScope: IWhitelistNetworkScope = {}
 ): ICoverageGap[] {
   const gaps: ICoverageGap[] = []
   for (const s of sources) {
     for (const [name, address] of Object.entries(s.diamondPeriphery)) {
       if (!whitelistEligible.has(name)) continue
+      if (!isNetworkInScope(name, s.network, networkScope)) continue
       if (!address || address.trim() === '') continue
       if (isEmpty(s.whitelistPeriphery[name]))
         gaps.push({ network: s.network, contract: name, address })
@@ -300,6 +308,23 @@ export function loadWhitelistEligible(
     whitelistPeripheryFunctions?: Record<string, unknown>
   }>(`${repoRoot}/config/global.json`).whitelistPeripheryFunctions
   return new Set(Object.keys(fns ?? {}))
+}
+
+/**
+ * Reads the per-contract network allowlist from `config/global.json` →
+ * `whitelistPeripheryNetworks`.
+ * @param repoRoot - Repository root. Defaults to this repo.
+ * @returns Map of periphery name to the networks it may be whitelisted on (empty
+ *   when the key is absent, i.e. no contract is network-scoped).
+ */
+export function loadWhitelistNetworkScope(
+  repoRoot: string = REPO_ROOT
+): IWhitelistNetworkScope {
+  return (
+    readJson<{
+      whitelistPeripheryNetworks?: IWhitelistNetworkScope
+    }>(`${repoRoot}/config/global.json`).whitelistPeripheryNetworks ?? {}
+  )
 }
 
 function report(mismatches: IMismatch[]): void {
@@ -510,7 +535,11 @@ if (import.meta.main) {
       sources = loadSources()
     }
     const mismatches = findMismatches(sources)
-    const gaps = findCoverageGaps(sources, eligible)
+    const gaps = findCoverageGaps(
+      sources,
+      eligible,
+      loadWhitelistNetworkScope()
+    )
     report(mismatches)
     reportCoverageGaps(gaps)
     if (mismatches.length > 0 || gaps.length > 0) {
