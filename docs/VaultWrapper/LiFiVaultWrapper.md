@@ -129,6 +129,30 @@ The per-vault admin is OZ's two-step `owner`
 (`transferOwnership` / `acceptOwnership`). `renounceOwnership` is disabled — a
 custody contract must never be left ownerless.
 
+## Fee rate changes — trust model
+
+`setFeeRate` accrues at the OLD rate first, so management and performance fees
+are never charged retroactively across a change. The asset-side deposit and
+withdrawal rates have no such carry-over: a new rate binds the next transaction
+in the same block. The owner can therefore raise the withdrawal rate to the
+factory bound for exactly the block that carries a victim's already-signed
+`redeem`/`withdraw` and lower it afterwards — a one-block fee sandwich against
+plain ERC-4626 callers.
+
+This is accepted design. The per-vault owner (the integrator) is trusted not to
+act against its own depositors — the same trust the access gate already requires.
+Three things bound it:
+
+- The rate can never exceed the factory's live `feeBounds` for the type, which
+  LI.FI governance sets within the immutable bytecode cap (20% for both deposit
+  and withdrawal). Setting the bound to the smallest workable value shrinks the
+  worst case.
+- The EIP-5143 slippage overloads bound the assets a caller actually pays, so a
+  caller that passes a floor is protected regardless of an in-flight rate change.
+- The owner authority model is pluggable: an integrator that wants to give up the
+  instant-change lever can own its instance through a timelock, making every rate
+  change delayed and publicly visible before it can bind.
+
 ## Initialization
 
 `initialize` is called once by the factory immediately after the proxy is

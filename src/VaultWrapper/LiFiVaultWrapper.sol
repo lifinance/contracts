@@ -756,6 +756,14 @@ contract LiFiVaultWrapper is
     ///      re-anchor is skipped while supply is zero: with no holders there is no
     ///      disabled-period growth to exclude, and the accrual's own up-only ratchet
     ///      anchors the empty-vault price at the next operation.
+    ///      The asset-side deposit/withdrawal rates carry no equivalent old-rate accrual:
+    ///      a new rate binds the next transaction in the same block, so the owner could
+    ///      briefly raise the withdrawal rate around a victim's already-signed exit. This
+    ///      is accepted design — the integrator is trusted not to act against its own
+    ///      depositors (the same trust the access gate requires), the rate is capped by the
+    ///      factory's live `feeBounds`, the EIP-5143 overloads bound what a caller actually
+    ///      pays, and an integrator can own its instance through a timelock to make every
+    ///      rate change delayed and publicly visible before it binds.
     ///      `nonReentrant` because this is the only `_accrueFees` caller outside the entry/
     ///      exit/`distributeFees` guard: without it, a payout hook fired during
     ///      `distributeFees` could reenter here (owner-controlled receiver), book fresh fees,
