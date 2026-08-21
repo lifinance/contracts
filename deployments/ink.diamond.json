@@ -80,16 +80,20 @@
       "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
+      },
+      "0xF4a0f420Ce1c2FFf450f0EF713b419B7DF7E7b2E": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xE16150617A4560925ef8e68E8efa3D68Bec3Bb7F",
       "Executor": "0xCA847a739BA26238488cb85A2a28A4ad677716e1",
       "FeeCollector": "0x8295805320853d6B28778fC8f5199327e62e3d87",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
+      "LidoWrapper": "",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",

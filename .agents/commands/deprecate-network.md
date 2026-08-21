@@ -12,7 +12,7 @@ usage: /deprecate-network <network1> [network2] [network3] ...
 
 This command completely removes a network (or multiple networks) from the codebase by:
 
-1. Cancelling any deferred diamond-cleanup task still parked on the network, first, while the config it depends on still exists (manual queue transitions — there is no CLI for it)
+1. Flipping the network's `status` to `inactive` in `config/networks.json`, then cancelling its `queued` tasks in the deferred diamond-cleanup queue while the config they depend on still exists (a `proposed` task is reported, never cancelled — it may have a live Safe proposal)
 2. Removing the network entry from `config/networks.json`
 3. Removing the RPC endpoint entry from `foundry.toml` under `[rpc_endpoints]`
 4. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
@@ -25,7 +25,7 @@ This command completely removes a network (or multiple networks) from the codeba
 1. Type `/deprecate-network` followed by one or more network names (space-separated)
 2. The command will automatically:
    - Validate that the networks exist in `config/networks.json`
-   - Cancel any parked diamond-cleanup task still open on the networks
+   - Flip the network's `status` to `inactive`, then cancel its `queued` parked diamond-cleanup tasks (reporting any `proposed` one) — both before anything is removed
    - Remove network entries from `config/networks.json`
    - Remove RPC endpoint entries from `foundry.toml`
    - Remove etherscan entries from `foundry.toml`
@@ -60,10 +60,34 @@ When `/deprecate-network` is invoked with network names:
 
 2. **Cancel open parked diamond-cleanup tasks** (before anything destructive):
 
-   - List them: `bunx tsx script/deploy/safe/list-parked-tasks.ts --network <network>`, and take every task still `queued` or `proposed`
-   - Those can never be drained once the network is gone — there is no RPC, no deploy log and no future diamond cut on it
-   - Abandon each one via the queue transitions in `script/deploy/safe/parked-tasks.ts`: `markCancelled` accepts only a `queued` task, so a `proposed` one needs `revertToQueued` first
-   - If a task will not transition, **abort the deprecation for that network** and report its `taskKey`. Removing the config first and failing here strands the task permanently — the weekly `reconcileParkedTasks` job then reports it as an orphan every run
+   **Precondition — the network's `status` in `config/networks.json` must not be
+   `active` any more.** `--cancel-deprecated` decides what is deprecated by reading
+   that file, so with the entry still `active` its tasks are routed to the loupe
+   instead of the cancellation path and the command is a silent no-op. Set the entry
+   to `"status": "inactive"` before running it — the entry itself is only removed in
+   step 3, so the RPC and deploy logs the reconcile reads are still there. Verify:
+   `jq -r '."{network}".status // "absent"' config/networks.json`
+   — it must print anything other than `active`.
+
+   - List the network's open tasks:
+     `bunx tsx script/deploy/safe/list-parked-tasks.ts --network {network} --status queued`
+     (repeat with `--status proposed`)
+   - A facet removal parked for a network that is going away can never be drained — the
+     reconcile cannot reach a chain `config/networks.json` no longer describes — so
+     cancel the `queued` ones:
+     `bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --network {network} --cancel-deprecated --yes`
+     Run it **once per network**; `--cancel-deprecated` refuses to run fleet-wide on
+     purpose, so a temporarily narrowed `networks.json` can never cancel the whole queue.
+     Drop `--yes` first to preview.
+   - A `proposed` task is **not** cancelled by that command: its Safe removal proposal is
+     already live and `markCancelled` accepts `queued` only, so cancelling it would cut
+     the proposal from its origin-PR linkage. It needs `revertToQueued` first, for which
+     there is no operator CLI yet (EXSC-715) — surface it to the SC on-call rather than
+     editing Mongo by hand.
+   - If a task will not transition, **abort the deprecation for that network** and report
+     its `taskKey`. Removing the config first and failing here strands the task
+     permanently — the weekly cron then reports (never cancels) it as sitting on a
+     non-active network every run.
 
 3. **Remove from `config/networks.json`**:
 
@@ -200,6 +224,7 @@ The entire `"fantom"` entry (including both production and staging) will be remo
 Before executing, validate:
 
 - [ ] **Network exists**: Verify network exists in `config/networks.json` (warn if not found, but continue)
+- [ ] **Status flipped before cancelling**: `config/networks.json` shows the network as non-`active` — `--cancel-deprecated` is a silent no-op while it is still `active`
 - [ ] **Network name format**: Network names should match exactly (case-sensitive) as they appear in `config/networks.json`
 - [ ] **Multiple networks**: Support space-separated list of networks
 - [ ] **File existence**: Check if deployment files exist before attempting deletion (not an error if missing)
@@ -244,6 +269,7 @@ After the command completes, you **must** manually update the Product Target Sta
 - `foundry.toml` - Foundry configuration (removes RPC and etherscan entries)
 - `script/deploy/_targetState.json` - Target state configuration (removes network entries for both production and staging)
 - `deployments/{network}*.json` - Deployment log files (deletes matching files)
+- `deferred-cleanup.parkedTasks` (MongoDB) - Parked diamond-cleanup tasks (cancels the network's `queued` ones only)
 - Whitelist configuration files - Updated via `bun update-whitelist-periphery` command
 
 ## Implementation Notes
