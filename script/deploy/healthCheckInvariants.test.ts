@@ -4,14 +4,18 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
+import { EnvironmentEnum } from '../common/types'
 
 import {
   CORE_FACET_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
+  findDeprecatedLiveFacets,
+  splitByParkedCoverage,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExpectedPairs,
@@ -150,6 +154,138 @@ describe('findDuplicateSelectors', () => {
   })
 })
 
+describe('splitByParkedCoverage', () => {
+  const V1 = '0x00000000000000000000000000000000000000A1'
+  const V2 = '0x00000000000000000000000000000000000000a2'
+  const facet = (name: string, address: string) => ({
+    name,
+    address: address as Hex,
+    selectors: ['0xdeadbeef'] as Hex[],
+  })
+
+  it('counts a facet as covered when an open task carries its exact address', () => {
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set([V1.toLowerCase()])
+    )
+    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(unparked).toHaveLength(0)
+  })
+
+  it('does NOT count a same-NAME task on a different address as coverage', () => {
+    // Both SymbiosisFacet versions routed (EXSC-750) with a task for v1 only: keying
+    // on the name would classify v2 as expected-pending and never warn about it.
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1), facet('SymbiosisFacet', V2)],
+      new Set([V1.toLowerCase()])
+    )
+    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(unparked.map((f) => f.address)).toEqual([V2])
+  })
+
+  it('matches addresses case-insensitively', () => {
+    const { parked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set([V1.toUpperCase().replace('0X', '0x').toLowerCase()])
+    )
+    expect(parked).toHaveLength(1)
+  })
+
+  it('reports everything as uncovered when the queue holds no open task', () => {
+    const { parked, unparked } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      new Set()
+    )
+    expect(parked).toHaveLength(0)
+    expect(unparked).toHaveLength(1)
+  })
+})
+
+describe('findDeprecatedLiveFacets', () => {
+  const LIVE = '0x00000000000000000000000000000000000000AA'
+  const KEEP = '0x00000000000000000000000000000000000000bb'
+  const SELECTORS: Hex[] = ['0xdeadbeef']
+
+  /** A deprecated facet: routed, in the deploy log, absent from target state, source gone. */
+  function base(): Parameters<typeof findDeprecatedLiveFacets>[0] {
+    return {
+      networkLower: 'worldchain',
+      environment: EnvironmentEnum.production,
+      onChainFacets: [{ address: LIVE, selectors: SELECTORS }],
+      deployedContracts: { AcrossFacetV3: LIVE },
+      expectedNames: new Set(['AcrossFacetV4']),
+      protectedNames: new Set(['DiamondCutFacet']),
+      sourceNames: new Set(['AcrossFacetV4']),
+    }
+  }
+
+  it('flags a facet that is routed, absent from target state and whose source is gone', () => {
+    const found = findDeprecatedLiveFacets(base())
+    expect(found).toHaveLength(1)
+    expect(found[0]?.name).toBe('AcrossFacetV3')
+    expect(found[0]?.selectors).toEqual(SELECTORS)
+  })
+
+  it('ignores a facet that target state still expects', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        expectedNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a facet whose source still exists (target-state drift, not a deprecation)', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        sourceNames: new Set(['AcrossFacetV3']),
+      })
+    ).toHaveLength(0)
+  })
+
+  it('never flags a protected facet, even when target state omits it', () => {
+    expect(
+      findDeprecatedLiveFacets({
+        ...base(),
+        deployedContracts: { DiamondCutFacet: LIVE },
+      })
+    ).toHaveLength(0)
+  })
+
+  it('ignores a routed address the deploy log cannot name (no-unexpected-facets owns that)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), deployedContracts: {} })
+    ).toHaveLength(0)
+  })
+
+  it('matches deploy-log addresses case-insensitively', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      deployedContracts: { AcrossFacetV3: LIVE.toLowerCase() },
+    })
+    expect(found).toHaveLength(1)
+  })
+
+  it('returns nothing when the network has no target-state entry (would flag everything)', () => {
+    expect(
+      findDeprecatedLiveFacets({ ...base(), expectedNames: undefined })
+    ).toHaveLength(0)
+  })
+
+  it('reports only the deprecated facet when an expected one is routed alongside it', () => {
+    const found = findDeprecatedLiveFacets({
+      ...base(),
+      onChainFacets: [
+        { address: LIVE, selectors: SELECTORS },
+        { address: KEEP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV3: LIVE, AcrossFacetV4: KEEP },
+    })
+    expect(found.map((f) => f.name)).toEqual(['AcrossFacetV3'])
+  })
+})
+
 describe('isInvariantApplicable', () => {
   it('applies everywhere for an empty scope', () => {
     const inv = makeInvariant({})
@@ -226,6 +362,17 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     const names = HEALTH_CHECK_INVARIANTS.map((i) => i.name)
     expect(names).toContain('executor-erc20proxy-binding')
     expect(names).toContain('receiver-executor-binding')
+  })
+
+  it('includes the queue-aware stale-facet invariant as a production warning', () => {
+    const inv = HEALTH_CHECK_INVARIANTS.find(
+      (i) => i.name === 'no-stale-registered-facets'
+    )
+    expect(inv).toBeDefined()
+    expect(inv?.severity).toBe('warning')
+    expect(inv?.scope.environments).toEqual(['production'])
+    expect(inv?.scope.skipTestnet).toBe(true)
+    expect(inv?.readsOnChainFacets).toBe(true)
   })
 })
 

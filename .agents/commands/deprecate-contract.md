@@ -142,7 +142,7 @@ The command performs these steps in order:
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
-   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network — they are the address snapshot the drain relies on and the record of on-chain state.
+   - **⚠️ Deploy-log entries**: Do not remove `deployments/*.json` facet→address entries until the parked removal task (step 6) has **retired** (executed, cancelled, or superseded) on that network. The drain can resolve a pruned entry by the task's stored address, but the health check maps on-chain addresses to names through the log — pruning early degrades its stale-facet coverage. The weekly reconcile job reports which entries are safe to prune; remove them in a follow-up PR then.
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 

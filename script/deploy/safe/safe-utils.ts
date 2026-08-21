@@ -1426,16 +1426,34 @@ async function ensurePendingProposalIndex(
       }
     )
   } catch (error: unknown) {
-    // Index already exists with same options - this is fine
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as { code: number }).code === 85
-    ) {
+    const code =
+      error instanceof Error && 'code' in error
+        ? (error as { code: number }).code
+        : undefined
+    // 85 = exists with same options; 86 = exists with a drifted definition —
+    // definition drift must not hard-fail every Safe script fleet-wide.
+    if (code === 85 || code === 86) {
+      if (code === 86)
+        consola.warn(
+          'The pending-proposal dedup index exists with a different definition; relying on the existing index:',
+          error
+        )
       return
     }
-    // For other errors, log but don't fail - the application-level check still works
-    consola.warn('Failed to create pending proposal index:', error)
+    // Unauthorized (code 13): a permission-limited role cannot create indexes,
+    // which must not block proposing — the application-level dedup check still
+    // works and the index exists in every long-lived environment.
+    if (code === 13) {
+      consola.warn(
+        'Cannot verify the pending-proposal dedup index (role lacks createIndex); relying on the application-level duplicate check:',
+        error
+      )
+      return
+    }
+    // Anything else (network failure, timeout) is a real connection problem —
+    // rethrow so the caller closes the client instead of proceeding without the
+    // database-level duplicate-prevention guarantee.
+    throw error
   }
 }
 
@@ -1480,8 +1498,15 @@ export async function getSafeMongoCollection(): Promise<{
     'pendingTransactions'
   )
 
-  // Ensure the partial unique index exists for duplicate prevention
-  await ensurePendingProposalIndex(pendingTransactions)
+  // Ensure the partial unique index exists for duplicate prevention. The client is
+  // already connected here, so a failure must close it before rethrowing — an
+  // orphaned client is unreachable to the caller and keeps the process alive.
+  try {
+    await ensurePendingProposalIndex(pendingTransactions)
+  } catch (error) {
+    await client.close().catch(() => undefined)
+    throw error
+  }
 
   return { client, pendingTransactions }
 }
@@ -2300,10 +2325,12 @@ export async function decodeDiamondCut(
   indent?: string
 ) {
   const pre = indent ?? ''
+  // Green / yellow / red by escalating impact, so a Remove stands out in a cut
+  // that mixes actions.
   const actionMap: Record<number, string> = {
-    0: 'Add',
-    1: 'Replace',
-    2: 'Remove',
+    0: '\u001b[32mAdd\u001b[0m',
+    1: '\u001b[33mReplace\u001b[0m',
+    2: '\u001b[31mRemove\u001b[0m',
   }
 
   // Create selector map for efficient lookup
