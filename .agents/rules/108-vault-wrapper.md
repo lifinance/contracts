@@ -58,6 +58,24 @@ and counter-intuitive against the repo's Diamond-era conventions.
 - Beacon `upgradeTo` is owner-gated and the owner is the subsystem governance
   (a dedicated 48h timelock). Never add an upgrade path that bypasses it.
 
+## Factory proxy ([CONV:VW-FACTORY-PROXY])
+
+- `LiFiVaultWrapperFactory` is itself upgradeable: it is deployed behind an OZ v5
+  `TransparentUpgradeableProxy`, so it is `Initializable` + `Ownable2StepUpgradeable`,
+  the constructor only calls `_disableInitializers()`, and all constructor-era state
+  (beacon, roles, fee recipient, default split) is set once in `initialize` on the
+  proxy. State (including `beacon`) lives in proxy storage — not `immutable`.
+- The proxy's `ProxyAdmin` (the sole upgrade authority) is owned by the **same 48h
+  timelock** that owns the factory and beacon, so a factory-logic upgrade passes the
+  same delay. Never add a factory upgrade path that bypasses the ProxyAdmin/timelock.
+- The wrapper implementation binds its `FACTORY` immutable to the **proxy** address
+  (predicted via CREATE3 before deploy), so instances read live factory state through
+  a stable address across factory-logic upgrades.
+- Consequence for the fee caps ([CONV:VW-FEES]): the `CAP_*` bytecode constants and
+  the `< 100%` split validation are guarantees of the **current** factory logic only —
+  a timelocked upgrade can change them. Keep docs honest about this; do not describe
+  the caps as immutable guarantees.
+
 ## OpenZeppelin version ([CONV:VW-OZ-VERSION])
 
 - The subsystem builds on **OpenZeppelin v5** — `@openzeppelin/contracts-upgradeable`

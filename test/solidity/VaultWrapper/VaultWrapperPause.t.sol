@@ -12,7 +12,7 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig, DeployParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
-import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
+import { defaultReceivers, VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Minimal stand-in for the factory: deploys the instance (so it is the
 ///         `factory`/initializer the wrapper reads back) and exposes a toggleable global
@@ -338,18 +338,8 @@ contract VaultWrapperGlobalPauseE2ETest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
-        // The implementation binds the factory allowed to call initialize; the factory
-        // is the second CREATE after the implementation (beacon in between).
-        address predictedFactory = vm.computeCreateAddress(
+        (beacon, factory) = VaultWrapperFactoryDeployer.deploy(
             address(this),
-            vm.getNonce(address(this)) + 2
-        );
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper(predictedFactory)),
-            address(this)
-        );
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
             owner,
             pauser,
             onboarder,

@@ -12,13 +12,27 @@ called by the Diamond, and does not follow Diamond patterns. It builds on
 OpenZeppelin v5. It does not custody user funds; it only deploys and configures
 wrapper instances.
 
+## Upgradeability
+
+The factory is deployed behind an OpenZeppelin v5 **TransparentUpgradeableProxy**.
+The proxy's `ProxyAdmin` — the only address that can upgrade the factory logic —
+is owned by the **same 48h TimelockController** that owns the factory, so a
+factory-logic upgrade passes the same 48h delay as every other governance action.
+The logic contract's initializers are locked at construction
+(`_disableInitializers()`); state lives in the proxy and is set once through
+`initialize` at deploy.
+
+The address every wrapper instance is bound to (its `FACTORY`) is the **proxy**,
+so instances keep reading a stable factory address across logic upgrades.
+
 ## Governance
 
 The factory is owned by a dedicated **48h TimelockController** (the subsystem
 governance). Every configuration setter below is `onlyOwner`, so it can only be
 called by scheduling a batch through the timelock and executing it after the 48h
-delay (see `script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol`). Two
-roles sit outside the timelock:
+delay (see `script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol`). The
+timelock also owns the proxy's `ProxyAdmin` (factory-logic upgrades) and the
+beacon (instance-logic upgrades). Two roles sit outside the timelock:
 
 - **emergencyPauser** — trips the global circuit breaker (`globalPause` /
   `globalUnpause`).
@@ -54,7 +68,7 @@ delay.
 
 ## Fee caps
 
-Each fee type is bounded by an **immutable** bytecode cap; governance can only set
+Each fee type is bounded by a bytecode `constant` cap; governance can only set
 adjustable bounds within it:
 
 | Fee type    | Cap    |
@@ -63,6 +77,11 @@ adjustable bounds within it:
 | management  | 10%    |
 | deposit     | 20%    |
 | withdrawal  | 20%    |
+
+Because the factory is upgradeable (see [Upgradeability](#upgradeability)), these
+caps are a guarantee of the **current logic** only — a future factory-logic
+upgrade, itself gated by the 48h timelock, could change them or the split
+validation.
 
 ## Integrator onboarding (onboarding manager)
 

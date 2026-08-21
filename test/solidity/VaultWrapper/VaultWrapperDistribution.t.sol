@@ -11,6 +11,7 @@ import { ILiFiVaultWrapper } from "lifi/VaultWrapper/interfaces/ILiFiVaultWrappe
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { LibVaultWrapperMath } from "lifi/VaultWrapper/libraries/LibVaultWrapperMath.sol";
+import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { FeeType, FeeConfig, DeployParams, FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 
 /// @notice A blacklisting ERC20: `transfer` reverts to any blocked address (mirrors USDC).
@@ -84,18 +85,8 @@ contract VaultWrapperDistributionTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         underlying = new MockERC4626(asset, "Yield Token", "yTKN");
         adapter = new ERC4626Adapter();
-        // The implementation binds the factory allowed to call initialize; the factory
-        // is the second CREATE after the implementation (beacon in between).
-        address predictedFactory = vm.computeCreateAddress(
+        (beacon, factory) = VaultWrapperFactoryDeployer.deploy(
             address(this),
-            vm.getNonce(address(this)) + 2
-        );
-        beacon = new UpgradeableBeacon(
-            address(new LiFiVaultWrapper(predictedFactory)),
-            address(this)
-        );
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
             owner,
             makeAddr("pauser"),
             onboarder,

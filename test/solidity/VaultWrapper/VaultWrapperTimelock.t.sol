@@ -8,17 +8,28 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
+
+/// @notice Upgrade target proving a factory-logic upgrade takes effect: extends the
+///         factory (identical storage layout) and adds a version() selector absent
+///         from V1.
+contract MockFactoryV2 is LiFiVaultWrapperFactory {
+    function version() external pure returns (uint256) {
+        return 2;
+    }
+}
 
 /// @title VaultWrapperTimelockTest
 /// @notice Integration tests for the dedicated 48h timelock that governs the vault
-///         wrapper factory slow-path and beacon upgrades (S10).
+///         wrapper factory slow-path, beacon upgrades, and factory-logic upgrades (S10).
 contract VaultWrapperTimelockTest is Test {
     uint256 internal constant MIN_DELAY = 48 hours;
 
     TimelockController internal timelock;
     LiFiVaultWrapperFactory internal factory;
     UpgradeableBeacon internal beacon;
-    LiFiVaultWrapper internal impl;
     ERC4626Adapter internal adapter;
 
     address internal multisig = makeAddr("multisig");
@@ -28,15 +39,6 @@ contract VaultWrapperTimelockTest is Test {
     address internal stranger = makeAddr("stranger");
 
     function setUp() public {
-        // The factory is the fourth CREATE in this setUp (impl, beacon, timelock,
-        // factory); the implementation binds the factory address at construction.
-        address predictedFactory = vm.computeCreateAddress(
-            address(this),
-            vm.getNonce(address(this)) + 3
-        );
-        impl = new LiFiVaultWrapper(predictedFactory);
-        beacon = new UpgradeableBeacon(address(impl), address(this));
-
         address[] memory proposers = new address[](1);
         proposers[0] = multisig;
 
@@ -50,14 +52,16 @@ contract VaultWrapperTimelockTest is Test {
             address(0)
         );
 
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
+        // The timelock owns the beacon, the factory, and the factory proxy's ProxyAdmin,
+        // so every beacon upgrade, factory slow-path call, and factory-logic upgrade is
+        // gated by the 48h delay.
+        (beacon, factory) = VaultWrapperFactoryDeployer.deploy(
+            address(timelock),
             address(timelock),
             pauser,
             onboarder,
             lifiRecipient
         );
-        beacon.transferOwnership(address(timelock));
 
         adapter = new ERC4626Adapter();
     }
@@ -67,6 +71,11 @@ contract VaultWrapperTimelockTest is Test {
     function test_TimelockOwnsFactoryAndBeacon() public view {
         assertEq(factory.owner(), address(timelock));
         assertEq(beacon.owner(), address(timelock));
+
+        ProxyAdmin admin = ProxyAdmin(
+            VaultWrapperFactoryDeployer.proxyAdmin(address(factory))
+        );
+        assertEq(admin.owner(), address(timelock));
     }
 
     function test_TimelockRolesAndDelay() public view {
@@ -241,6 +250,71 @@ contract VaultWrapperTimelockTest is Test {
         );
 
         beacon.upgradeTo(address(newImpl));
+    }
+
+    /// Factory-logic upgrade gating ///
+
+    function test_FactoryLogicUpgradeViaTimelock() public {
+        ProxyAdmin admin = ProxyAdmin(
+            VaultWrapperFactoryDeployer.proxyAdmin(address(factory))
+        );
+        address newLogic = address(new LiFiVaultWrapperFactory());
+        bytes memory data = abi.encodeCall(
+            ProxyAdmin.upgradeAndCall,
+            (ITransparentUpgradeableProxy(address(factory)), newLogic, "")
+        );
+
+        _schedule(address(admin), data);
+        vm.warp(block.timestamp + MIN_DELAY);
+        _execute(stranger, address(admin), data);
+
+        assertEq(factory.beacon(), address(beacon));
+        assertEq(factory.owner(), address(timelock));
+    }
+
+    function test_FactoryLogicUpgradePreservesStateAndAddsBehavior() public {
+        // A pre-upgrade state change that must survive the upgrade.
+        vm.prank(onboarder);
+        factory.setApprovedIntegratorDeployer(bytes32("NS"), stranger);
+
+        ProxyAdmin admin = ProxyAdmin(
+            VaultWrapperFactoryDeployer.proxyAdmin(address(factory))
+        );
+        address newLogic = address(new MockFactoryV2());
+        bytes memory data = abi.encodeCall(
+            ProxyAdmin.upgradeAndCall,
+            (ITransparentUpgradeableProxy(address(factory)), newLogic, "")
+        );
+
+        _schedule(address(admin), data);
+        vm.warp(block.timestamp + MIN_DELAY);
+        _execute(stranger, address(admin), data);
+
+        assertEq(MockFactoryV2(address(factory)).version(), 2);
+        assertEq(factory.approvedIntegratorDeployer(bytes32("NS")), stranger);
+        assertEq(factory.beacon(), address(beacon));
+        assertEq(factory.owner(), address(timelock));
+    }
+
+    function testRevert_FactoryLogicUpgradeDirectByMultisig() public {
+        ProxyAdmin admin = ProxyAdmin(
+            VaultWrapperFactoryDeployer.proxyAdmin(address(factory))
+        );
+        address newLogic = address(new LiFiVaultWrapperFactory());
+
+        vm.prank(multisig);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                multisig
+            )
+        );
+
+        admin.upgradeAndCall(
+            ITransparentUpgradeableProxy(address(factory)),
+            newLogic,
+            ""
+        );
     }
 
     /// Emergency pause stays outside the timelock ///

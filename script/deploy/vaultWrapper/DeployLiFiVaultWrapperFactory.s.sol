@@ -5,6 +5,9 @@ import { Script, stdJson } from "forge-std/Script.sol";
 import { DSTest } from "ds-test/test.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { ICREATE3Factory } from "create3-factory/ICREATE3Factory.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
@@ -14,24 +17,28 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Deploys and wires the vault wrapper system deterministically via the
 ///         shared CREATE3 factory: the dedicated 48h timelock, the vault wrapper
-///         implementation, its upgradeable beacon, the vault wrapper factory, and
-///         the ERC-4626 yield adapter. The timelock owns both the factory and the
-///         beacon, so every factory slow-path call and every beacon upgrade is
-///         gated by the 48h delay.
+///         implementation, its upgradeable beacon, the vault wrapper factory (a
+///         TransparentUpgradeableProxy in front of the factory logic), and the
+///         ERC-4626 yield adapter. The timelock owns the factory, the beacon, and
+///         the proxy's ProxyAdmin, so every factory slow-path call, every beacon
+///         upgrade, and every factory-logic upgrade is gated by the 48h delay.
 /// @dev Standalone forge-std Script (see [CONV:VW-DEPLOY-DIR]) — it does not extend
 ///      DeployScriptBase. Per-network parameters are read from the scoped
 ///      config/vaultWrapper.json under the `NETWORK` key; the only env vars are
 ///      PRIVATE_KEY, NETWORK, and DEPLOYSALT (the salt prefix). Deploy order:
-///      TimelockController -> LiFiVaultWrapper(predicted factory) ->
-///      UpgradeableBeacon(impl, timelock) -> LiFiVaultWrapperFactory(beacon,
-///      owner=timelock, ...) -> ERC4626Adapter. Each contract is deployed through the
-///      CREATE3 factory under its own salt, so the address depends only on
-///      (deployer, salt) and is independent of constructor args and deploy order —
-///      mainnets sharing the same CREATE3 factory therefore get matching system
-///      addresses, and the factory's address can be predicted and bound into the
-///      implementation before the factory exists. Deploying via the CREATE3 proxy is
-///      safe here because every ownership/role is set from a constructor argument,
-///      never msg.sender. Timelock roles: the LI.FI multisig is proposer AND canceller (OZ
+///      TimelockController -> LiFiVaultWrapper(predicted factory proxy) ->
+///      UpgradeableBeacon(impl, timelock) -> LiFiVaultWrapperFactory logic ->
+///      TransparentUpgradeableProxy(logic, admin owner=timelock, initialize(...)) ->
+///      ERC4626Adapter. Each contract is deployed through the CREATE3 factory under
+///      its own salt, so the address depends only on (deployer, salt) and is
+///      independent of constructor args and deploy order — mainnets sharing the same
+///      CREATE3 factory therefore get matching system addresses, and the factory
+///      PROXY address (salt "LiFiVaultWrapperFactory") can be predicted and bound into
+///      the implementation before the proxy exists. The wrapper implementation binds
+///      to the proxy, not the logic, so instances read live factory state through a
+///      stable address across factory-logic upgrades. Deploying via the CREATE3 proxy
+///      is safe here because every ownership/role is set from a constructor argument
+///      or the proxy initializer, never msg.sender. Timelock roles: the LI.FI multisig is proposer AND canceller (OZ
 ///      grants both to each proposer); the executor role is open (address(0)); the
 ///      optional admin is renounced (address(0)), so the timelock is self-administered.
 ///      Because the factory owner is the 48h timelock, post-deploy configuration —
@@ -144,8 +151,17 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         beacon = UpgradeableBeacon(
             _deployBeacon(address(impl), address(timelock))
         );
+        address factoryLogic = _deploy(
+            "LiFiVaultWrapperFactoryImpl",
+            type(LiFiVaultWrapperFactory).creationCode
+        );
         factory = LiFiVaultWrapperFactory(
-            _deployFactory(_cfg, address(beacon), address(timelock))
+            _deployFactoryProxy(
+                _cfg,
+                factoryLogic,
+                address(beacon),
+                address(timelock)
+            )
         );
         erc4626Adapter = ERC4626Adapter(
             _deploy("ERC4626Adapter", type(ERC4626Adapter).creationCode)
@@ -153,12 +169,14 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
         vm.stopBroadcast();
 
-        _verifyWiring(_cfg, factory, timelock, beacon, impl);
+        _verifyWiring(_cfg, factory, timelock, beacon, impl, factoryLogic);
 
         emit log_named_address("Timelock", address(timelock));
         emit log_named_address("Implementation", address(impl));
         emit log_named_address("Beacon", address(beacon));
+        emit log_named_address("FactoryLogic", factoryLogic);
         emit log_named_address("Factory", address(factory));
+        emit log_named_address("ProxyAdmin", _proxyAdmin(address(factory)));
         emit log_named_address("ERC4626Adapter", address(erc4626Adapter));
     }
 
@@ -210,16 +228,18 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     ///      turning a silent governance error into a loud failure that tells the
     ///      operator to deploy under a fresh DEPLOYSALT.
     /// @param _cfg The intended deploy config.
-    /// @param _factory The resolved factory.
+    /// @param _factory The resolved factory (proxy).
     /// @param _timelock The resolved timelock.
     /// @param _beacon The resolved beacon.
-    /// @param _impl The resolved implementation.
+    /// @param _impl The resolved wrapper implementation.
+    /// @param _factoryLogic The resolved factory logic behind the proxy.
     function _verifyWiring(
         DeployConfig memory _cfg,
         LiFiVaultWrapperFactory _factory,
         TimelockController _timelock,
         UpgradeableBeacon _beacon,
-        LiFiVaultWrapper _impl
+        LiFiVaultWrapper _impl,
+        address _factoryLogic
     ) internal view {
         if (_timelock.getMinDelay() != MIN_DELAY)
             revert WiringMismatch("timelock.minDelay");
@@ -235,9 +255,15 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         if (_impl.FACTORY() != address(_factory))
             revert WiringMismatch("impl.expectedFactory");
 
+        address admin = _proxyAdmin(address(_factory));
+        if (admin.code.length == 0)
+            revert WiringMismatch("factory.proxyAdmin");
+        if (ProxyAdmin(admin).owner() != address(_timelock))
+            revert WiringMismatch("factory.proxyAdmin.owner");
+
         if (_factory.owner() != address(_timelock))
             revert WiringMismatch("factory.owner");
-        if (_factory.BEACON() != address(_beacon))
+        if (_factory.beacon() != address(_beacon))
             revert WiringMismatch("factory.beacon");
         if (_factory.emergencyPauser() != _cfg.emergencyPauser)
             revert WiringMismatch("factory.emergencyPauser");
@@ -245,6 +271,11 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
             revert WiringMismatch("factory.onboardingManager");
         if (_factory.lifiFeeRecipient() != _cfg.lifiFeeRecipient)
             revert WiringMismatch("factory.lifiFeeRecipient");
+
+        // The logic contract must not be usable on its own: its initializers are
+        // locked by the constructor's _disableInitializers().
+        if (_factoryLogic.code.length == 0)
+            revert WiringMismatch("factory.logic");
     }
 
     /// @notice Deploys the dedicated 48h timelock (proposer/canceller = multisig,
@@ -285,29 +316,50 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
             );
     }
 
-    /// @notice Deploys the vault wrapper factory owned by the timelock.
+    /// @notice Deploys the factory's TransparentUpgradeableProxy, initialized in the
+    ///         same call. The proxy is the stable "factory" address every wrapper reads
+    ///         from; its ProxyAdmin (auto-deployed by the proxy) and the factory owner
+    ///         are both the timelock.
     /// @param _cfg The validated deploy config (roles + fee recipient).
+    /// @param _logic The factory logic contract the proxy delegates to.
     /// @param _beacon The beacon the factory clones instances from.
-    /// @param _timelock The factory owner (subsystem governance).
-    /// @return The deployed factory address.
-    function _deployFactory(
+    /// @param _timelock The factory owner and the ProxyAdmin owner (subsystem governance).
+    /// @return The deployed factory proxy address.
+    function _deployFactoryProxy(
         DeployConfig memory _cfg,
+        address _logic,
         address _beacon,
         address _timelock
     ) internal returns (address) {
+        bytes memory initData = abi.encodeCall(
+            LiFiVaultWrapperFactory.initialize,
+            (
+                _beacon,
+                _timelock,
+                _cfg.emergencyPauser,
+                _cfg.onboardingManager,
+                _cfg.lifiFeeRecipient
+            )
+        );
+
         return
             _deploy(
                 "LiFiVaultWrapperFactory",
                 abi.encodePacked(
-                    type(LiFiVaultWrapperFactory).creationCode,
-                    abi.encode(
-                        _beacon,
-                        _timelock,
-                        _cfg.emergencyPauser,
-                        _cfg.onboardingManager,
-                        _cfg.lifiFeeRecipient
-                    )
+                    type(TransparentUpgradeableProxy).creationCode,
+                    abi.encode(_logic, _timelock, initData)
                 )
+            );
+    }
+
+    /// @notice Reads the ProxyAdmin address from a TransparentUpgradeableProxy's
+    ///         ERC-1967 admin slot.
+    /// @param _proxy The proxy to inspect.
+    /// @return The proxy's ProxyAdmin address.
+    function _proxyAdmin(address _proxy) internal view returns (address) {
+        return
+            address(
+                uint160(uint256(vm.load(_proxy, ERC1967Utils.ADMIN_SLOT)))
             );
     }
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.29;
 
 import { Test } from "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
@@ -40,22 +41,28 @@ contract BeaconUpgradeTest is Test {
     bytes32 internal constant NS = bytes32("Coinbase");
 
     function setUp() public virtual {
-        // The factory is the fourth CREATE in this setUp (implV1, implV2, beacon,
-        // factory); both implementations bind that factory at construction.
-        address predictedFactory = vm.computeCreateAddress(
+        // Both implementations bind the factory PROXY at construction. CREATE order after
+        // the factory logic: implV1 (n), implV2 (n+1), beacon (n+2), proxy (n+3).
+        LiFiVaultWrapperFactory logic = new LiFiVaultWrapperFactory();
+        address predictedProxy = vm.computeCreateAddress(
             address(this),
             vm.getNonce(address(this)) + 3
         );
-        implV1 = new LiFiVaultWrapper(predictedFactory);
-        implV2 = new MockVaultWrapperV2(predictedFactory);
-        beacon = new UpgradeableBeacon(address(implV1), address(this));
-        beacon.transferOwnership(owner);
-        factory = new LiFiVaultWrapperFactory(
-            address(beacon),
-            owner,
-            pauser,
-            onboarder,
-            lifiRecipient
+        implV1 = new LiFiVaultWrapper(predictedProxy);
+        implV2 = new MockVaultWrapperV2(predictedProxy);
+        beacon = new UpgradeableBeacon(address(implV1), owner);
+        bytes memory initData = abi.encodeCall(
+            LiFiVaultWrapperFactory.initialize,
+            (address(beacon), owner, pauser, onboarder, lifiRecipient)
+        );
+        factory = LiFiVaultWrapperFactory(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(logic),
+                    owner,
+                    initData
+                )
+            )
         );
         adapter = new ERC4626Adapter();
         underlying = new MockERC4626Underlying(assetToken);
