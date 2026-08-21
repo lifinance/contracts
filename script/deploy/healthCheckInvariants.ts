@@ -845,17 +845,14 @@ async function checkWhitelistIntegrity(
 }
 
 /**
- * Every Receiver periphery contract still in service, and the getter exposing its bound Executor.
+ * Every Receiver periphery contract in service, and the getter exposing its bound Executor.
  *
- * The one list of receivers this file checks, for both the Executor binding and ownership. It is
- * exactly the set of coupling companions in `config/global.json`, which is what keeps the
- * discovery in periphery-registry-log-sync covering every live receiver without naming any here.
+ * The one list of receivers this file checks, for both the Executor binding and ownership.
  *
- * Deprecated receivers are deliberately absent, not merely unbound: `Receiver` was deleted from
- * `src/Periphery` in #1002 and `ReceiverAcrossV3` is superseded by V4, and neither appears in any
- * network's target state. Both are still registered on chain on many networks, but the remedy for
- * that is deregistration plus a deploy-log purge, not a health check that asserts a deprecated
- * contract's owner forever.
+ * A receiver with no `src/Periphery` source and no target-state entry belongs nowhere in here,
+ * even while instances stay registered on chain: an invariant that asserts a retired contract's
+ * owner can only ever report state nobody intends to change. Same call the file already makes for
+ * FeeCollector below.
  */
 export const RECEIVER_EXECUTOR_GETTERS: Array<{
   name: string
@@ -1934,9 +1931,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     name: 'receiver-owner',
     description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
-    // evm-only, matching receiver-executor-binding: every receiver in service is EVM-only. The
-    // Tron branch this replaces could only ever no-op - it looked up the deleted generic Receiver
-    // in a deploy log that has never carried it. Scope this back when a receiver lands on Tron.
+    // KNOWN GAP: ReceiverOIF is live on Tron (#2220) and this leaves it unchecked. The Tron path
+    // needs its own sequential implementation - checkOwnershipTron spawns one troncast subprocess
+    // per read, so the batched resolution below cannot be reused there. Tracked separately rather
+    // than half-built here; receiver-executor-binding has carried the same gap since before it.
     scope: { chains: 'evm-only' },
     run: async (ctx) => {
       if (!ctx.publicClient) return

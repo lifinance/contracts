@@ -782,13 +782,23 @@ describe('periphery-registry-log-sync invariant', () => {
       expect(registryQueries).toContain(name)
   })
 
-  it('does not probe the deprecated receivers', async () => {
-    // Both are deleted or superseded and in no network's target state; the fix for their lingering
-    // on-chain registrations is deregistration, not a check that reports them forever.
+  it('does not seed a deprecated receiver no deploy log names', async () => {
     const { ctx, registryQueries } = makeReceiverCtx({})
     await sync().run(ctx)
     expect(registryQueries).not.toContain('Receiver')
     expect(registryQueries).not.toContain('ReceiverAcrossV3')
+  })
+
+  it('still reconciles a deprecated receiver a deploy log names', async () => {
+    // Not a contradiction of the test above: a log entry is a claim this invariant exists to
+    // check, whatever the contract's status. Only the static seed drops the deprecated names.
+    const { ctx, registryQueries } = makeReceiverCtx({
+      deployedContracts: { Receiver: STARGATE_ON_CHAIN },
+      registry: { Receiver: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).toContain('Receiver')
+    expect(ctx.warnings.some((w) => w.includes('Receiver'))).toBe(true)
   })
 
   it('flags a contract registered on chain but missing from the deploy log', async () => {
@@ -989,31 +999,31 @@ describe('periphery-registry-log-sync invariant', () => {
 
 describe('receiver coverage tracks the coupling registry', () => {
   it('checks no receiver that is deprecated', () => {
-    // The checked set is exactly the coupling companions: no deleted or superseded receiver, and
-    // nothing a live coupling needs is missing.
+    // Deliberately one-directional. Asserting set EQUALITY against the coupling companions would
+    // forbid ever checking a receiver that has no facet coupling, which is the wrong thing to
+    // make hard; the reverse direction is covered below.
     const checked = RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name)
     expect(checked).not.toContain('Receiver')
     expect(checked).not.toContain('ReceiverAcrossV3')
-    expect([...checked].sort()).toEqual(
-      [
-        ...new Set(
-          Object.values(getFacetPeripheryCouplings()).map(
-            (coupling) => coupling.requires
-          )
-        ),
-      ].sort()
-    )
   })
 
-  it('ignores a deprecated receiver still registered on chain', async () => {
+  it('ignores a deprecated receiver while still checking the live ones alongside it', async () => {
+    // The live receiver with the wrong owner is the positive control: without it, an empty errors
+    // array would also pass if the loop never ran at all.
     const { ctx } = makeReceiverCtx({
-      registry: { Receiver: OIF_ON_CHAIN, ReceiverAcrossV3: OIF_ON_CHAIN },
-      owner: { [OIF_ON_CHAIN]: WRONG },
-      boundExecutor: { [OIF_ON_CHAIN]: WRONG },
+      registry: {
+        Receiver: OIF_ON_CHAIN,
+        ReceiverAcrossV3: OIF_ON_CHAIN,
+        ReceiverStargateV2: STARGATE_ON_CHAIN,
+      },
+      owner: { [OIF_ON_CHAIN]: WRONG, [STARGATE_ON_CHAIN]: WRONG },
+      boundExecutor: { [OIF_ON_CHAIN]: WRONG, [STARGATE_ON_CHAIN]: WRONG },
     })
     await invariant('receiver-owner').run(ctx)
     await invariant('receiver-executor-binding').run(ctx)
-    expect(ctx.errors).toEqual([])
+    expect(ctx.errors).toHaveLength(2)
+    for (const error of ctx.errors)
+      expect(error).toContain('ReceiverStargateV2')
   })
 
   it('gives every coupled Receiver an executor-binding and owner check', () => {
