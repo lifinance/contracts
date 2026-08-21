@@ -19,7 +19,9 @@ pragma solidity ^0.8.29;
 ///        positions are the wrapper's. They MUST be stateless with respect to adapter
 ///        storage (no reads or writes of adapter state) so a shared adapter cannot
 ///        corrupt or be corrupted by the wrapper's storage layout; they may only act on
-///        their arguments and external calls.
+///        their arguments and external calls. Because a direct call would instead run in
+///        the adapter's own context, adapters MUST reject non-`delegatecall` invocation
+///        of these two methods (see `ERC4626Adapter.onlyDelegateCall`).
 /// @custom:version 1.0.0
 interface IYieldAdapter {
     /// @notice Thrown when the adapter cannot resolve the underlying's asset.

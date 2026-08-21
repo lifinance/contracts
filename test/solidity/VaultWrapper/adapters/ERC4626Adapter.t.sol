@@ -101,4 +101,16 @@ contract ERC4626AdapterTest is Test {
             300e18
         );
     }
+
+    function testRevert_DirectDepositCall() public {
+        vm.expectRevert(ERC4626Adapter.DirectCallNotAllowed.selector);
+
+        adapter.deposit(address(asset), address(vault), 1e18);
+    }
+
+    function testRevert_DirectWithdrawCall() public {
+        vm.expectRevert(ERC4626Adapter.DirectCallNotAllowed.selector);
+
+        adapter.withdraw(address(asset), address(vault), 1e18);
+    }
 }
