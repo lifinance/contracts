@@ -75,13 +75,14 @@ and counter-intuitive against the repo's Diamond-era conventions.
   `[CONV:LICENSE]`'s pragma rule for this subsystem only): OZ v5.6.1's
   `ERC4626Upgradeable` requires `^0.8.24` and the toolchain emits `mcopy` (cancun), so
   `^0.8.17` would be a provably false floor. The subsystem is only ever deployed by LI.FI
-  with the repo's default compiler, so it pins that exact version (`^0.8.29`) rather than a
+  with the repo's default compiler, so it sets the pragma floor at `^0.8.29` rather than a
   lower "honest minimum" — a lower floor would buy nothing (verification and bytecode key
   off the exact compiler, not the pragma range) at the cost of a separate floor build. Every
   file under `src/VaultWrapper/`, `test/solidity/VaultWrapper/`, and `script/deploy/vaultWrapper/`
-  pins `^0.8.29`. Because that equals the default compile version, the ordinary build is the
-  floor check; the subsystem is excluded from the `solc_floor` profile (which only compiles
-  the Diamond's 0.8.17 floor) and needs no profile of its own.
+  declares `^0.8.29` (a range that still admits later 0.8.x); `foundry.toml` separately pins
+  compilation to the exact `0.8.29`. Because that pinned version is the repo default, the
+  ordinary build is the floor check; the subsystem is excluded from the `solc_floor` profile
+  (which only compiles the Diamond's 0.8.17 floor) and needs no profile of its own.
 
 ## Identity and onboarding ([CONV:VW-IDENTITY])
 
