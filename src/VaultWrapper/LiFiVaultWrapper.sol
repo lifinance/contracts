@@ -214,10 +214,10 @@ contract LiFiVaultWrapper is
             ) revert InvalidIntegratorShareBps(_integratorShareBps[i]);
         }
 
-        // Persist all calldata inputs before resolving the asset, so none of the calldata
-        // parameters stay live across that external call. `initialize` would otherwise
-        // exceed the stack limit without via_ir (the receiver set is a two-slot calldata
-        // array; see the subsystem OZ-v5 stack-pressure note).
+        // Persist every calldata input before resolving the asset, then read
+        // adapter/underlying from storage (not the calldata params) for that external call:
+        // without via_ir, keeping the deep calldata params live across it blows the stack
+        // (see the subsystem OZ-v5 stack-pressure note). Do not reorder.
         _setIntegratorFeeReceivers(_receivers);
         __Ownable_init(_vaultWrapperAdmin);
         underlying = _underlying;
@@ -230,9 +230,6 @@ contract LiFiVaultWrapper is
         }
         lastMgmtAccrual = uint64(block.timestamp);
 
-        // Resolve the asset only after every calldata input is persisted, reading
-        // adapter/underlying from storage rather than the deep calldata params, to keep
-        // this external call shallow on the stack.
         address asset = IYieldAdapter(adapter).resolveAsset(underlying);
         if (asset == address(0)) revert ZeroAddress();
 
