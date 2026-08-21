@@ -1,10 +1,11 @@
 # Deployment Address Consistency Check
 # - validates that contract addresses are consistent across config/whitelist.json,
-#   deployments/<network>.json, and deployments/<network>.diamond.json
+#   deployments/<network>.json, and deployments/<network>.diamond.json, and that no
+#   periphery is whitelisted outside its config/global.json whitelistPeripheryNetworks scope
 # - skips draft PRs to support the two-step deploy workflow:
 #   step 1 (deploy facet, open draft PR) may have flat log ahead of diamond.json;
 #   step 2 (execute timelock) completes the update; PR is then marked ready for review
-# - path-gated: only runs when whitelist or deployment files change
+# - path-gated: only runs when whitelist, global config, or deployment files change
 # - scoped per-PR: checks only networks changed vs the PR base branch (--base),
 #   so pre-existing drift on untouched networks does not block unrelated PRs;
 #   a manual workflow_dispatch run falls back to the full-repo audit (all networks)
@@ -15,6 +16,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - 'config/global.json'
       - 'config/whitelist.json'
       - 'deployments/**'
   workflow_dispatch: # allows manual triggering from the Actions tab for testing
