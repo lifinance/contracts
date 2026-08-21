@@ -31,6 +31,9 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { createPublicClient, http, parseAbi, type Hex } from 'viem'
 
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import {
@@ -39,6 +42,7 @@ import {
   deserializeScheduleParams,
   getTimelockQueueCollection,
   queueStatusReason,
+  REVERT_TALLY_UNSET,
   staleStatusMetadataUnset,
   type ITimelockQueueDoc,
 } from './timelock-queue'
@@ -87,12 +91,16 @@ export function validateRequeue(
   onChain: IOnChainOpState,
   force: boolean
 ): RequeueVerdict {
-  if (derivedOperationId.toLowerCase() !== doc.operationId.toLowerCase())
+  // Exact equality, deliberately not case-insensitive: the runner's own trust
+  // check compares these with `!==` and marks any difference as a tampered row.
+  // Accepting a case variant here would requeue a row the very next executor
+  // pass sends straight back to `failed`.
+  if (derivedOperationId !== doc.operationId)
     return {
       ok: false,
       reason:
         `operationId mismatch (stored=${doc.operationId}, derived from stored params=${derivedOperationId}). ` +
-        'The row does not describe the operation it claims to; refusing even with --force.',
+        'The stored id must match byte-for-byte, as the runner also requires; refusing even with --force.',
     }
 
   if (doc.status === 'queued')
@@ -197,7 +205,11 @@ const cmd = defineCommand({
   },
   async run({ args }) {
     const network = args.network.toLowerCase()
-    const operationId = args.operationId as Hex
+    // Operation ids are keccak hashes, so case carries no meaning — but the row
+    // stores the lowercase form `computeOperationIdBatch` produces and the Mongo
+    // lookup matches exactly. Normalise so a mixed-case id copied out of a block
+    // explorer still finds its row instead of reporting "no queue row".
+    const operationId = args.operationId.toLowerCase() as Hex
 
     if (!/^0x[0-9a-fA-F]{64}$/.test(operationId)) {
       consola.error(
@@ -245,6 +257,34 @@ const cmd = defineCommand({
         params.salt
       )
 
+      // The row's timelockAddress is an untrusted queue value, so it is checked
+      // against the deployment log and never used for the reads: pointing them
+      // at an address the row supplies would let a tampered row answer its own
+      // "is this safe to re-drive?" questions. Mirrors the runner's trust check,
+      // which would otherwise mark this row `failed` right after a requeue.
+      const deploymentData = (await getDeployments(
+        network as SupportedChain,
+        EnvironmentEnum.production
+      )) as { LiFiTimelockController?: string }
+      if (!deploymentData.LiFiTimelockController) {
+        consola.error(
+          `No LiFiTimelockController deployed on "${network}"; nothing to re-drive against.`
+        )
+        process.exit(1)
+      }
+      const timelockAddress = normalizeAddressForNetwork(
+        network,
+        deploymentData.LiFiTimelockController
+      )
+      if (doc.timelockAddress.toLowerCase() !== timelockAddress.toLowerCase()) {
+        consola.error(
+          `Refusing to requeue: row records timelock ${doc.timelockAddress} but the deployment for ` +
+            `"${network}" is ${timelockAddress}. The runner rejects this mismatch too, so a requeue ` +
+            'would only mark the row failed. Reconcile the row against the deployment log first.'
+        )
+        process.exit(1)
+      }
+
       const publicClient = createPublicClient({
         chain: getViemChainForNetworkName(network),
         transport: http(),
@@ -258,7 +298,7 @@ const cmd = defineCommand({
           | 'isOperationDone'
       ) =>
         publicClient.readContract({
-          address: doc.timelockAddress,
+          address: timelockAddress,
           abi: TIMELOCK_STATUS_ABI,
           functionName,
           args: [operationId],
@@ -307,23 +347,22 @@ const cmd = defineCommand({
         {
           ...byOperationId(network, operationId),
           status: { $eq: doc.status },
+          // `updatedAt` acts as the version: two operators racing the same row
+          // would otherwise both pass the status guard.
+          updatedAt: { $eq: doc.updatedAt },
         },
         {
+          // $inc rather than a computed value, so the tally cannot be clobbered
+          // by a concurrent writer that read the same starting count.
+          $inc: { requeueCount: 1 },
           $set: {
             status: 'queued',
             requeuedAt: now,
             updatedAt: now,
-            requeueCount: (doc.requeueCount ?? 0) + 1,
           },
-          // The revert tally is cleared alongside the status metadata: a requeue
-          // asserts the operator believes the cause is gone, so the fresh
-          // attempt gets the full retry budget rather than blocking again
-          // immediately.
           $unset: {
             ...staleStatusMetadataUnset('queued'),
-            revertCount: '',
-            lastRevertAt: '',
-            lastRevertTxHash: '',
+            ...REVERT_TALLY_UNSET,
           },
         }
       )

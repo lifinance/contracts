@@ -567,6 +567,20 @@ const STATUS_OWNED_METADATA: Readonly<
 }
 
 /**
+ * `$unset` document clearing the revert tally.
+ *
+ * Applies to every path that returns a row to `queued` — an operator requeue and
+ * a re-enqueue alike. Both mean "try this again from scratch", so carrying the
+ * old tally over would hand the fresh attempt no retry budget at all: one revert
+ * would immediately re-cross {@link REVERT_BLOCK_THRESHOLD}.
+ */
+export const REVERT_TALLY_UNSET: Readonly<Record<string, ''>> = {
+  revertCount: '',
+  lastRevertAt: '',
+  lastRevertTxHash: '',
+}
+
+/**
  * Builds the `$unset` document that strips metadata belonging to every status
  * other than the one being written.
  *
@@ -764,10 +778,14 @@ export async function enqueueTimelockOpIfApplicable(
             executionHash,
             updatedAt: now,
           },
-          // Re-enqueueing an existing row resets it to `queued`; clear any
-          // previous block or failure bookkeeping so the row does not carry a
-          // reason that no longer describes its status.
-          $unset: staleStatusMetadataUnset('queued'),
+          // Re-enqueueing an existing row resets it to `queued`; clear the
+          // previous block/failure bookkeeping so the row carries no reason that
+          // contradicts its status, and the revert tally so the fresh attempt
+          // gets a full retry budget.
+          $unset: {
+            ...staleStatusMetadataUnset('queued'),
+            ...REVERT_TALLY_UNSET,
+          },
         },
         { upsert: true }
       )

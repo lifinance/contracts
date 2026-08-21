@@ -145,13 +145,21 @@ describe('validateRequeue', () => {
     expect(reasonOf(v)).toMatch(/not pending on-chain/)
   })
 
-  it('compares operationIds case-insensitively', () => {
+  // The executor's own trust check compares these with `!==`, so accepting a
+  // case variant here would requeue a row the next executor pass immediately
+  // marks `failed` as a tampered row.
+  it('requires the stored operationId to match byte-for-byte', () => {
     const v = validateRequeue(
       row({ operationId: OP_ID.toUpperCase().replace('0X', '0x') as Hex }),
       OP_ID,
       READY,
       false
     )
-    expect(v.ok).toBe(true)
+    expect(v.ok).toBe(false)
+    expect(reasonOf(v)).toMatch(/byte-for-byte/)
+  })
+
+  it('accepts an exactly matching operationId', () => {
+    expect(validateRequeue(row(), OP_ID, READY, false).ok).toBe(true)
   })
 })
