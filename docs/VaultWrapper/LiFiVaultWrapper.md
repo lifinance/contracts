@@ -110,6 +110,19 @@ accepted by design, every bound deriving from the offset alone:
   sub-wei flooring of the gain measurement. Bounded, holder-favouring, never
   a depositor loss.
 
+## Access gate — trust model
+
+The pluggable `IAccessGate` is the one per-vault privilege with **no factory
+allowlist** behind it: unlike `adapter` and `underlying`, the owner installs
+arbitrary gate code through `setAccessGate` with no vetting. This is deliberate.
+The gate runs fail-closed on entry, transfers, and exits, so a faulty or hostile
+gate can freeze the integrator's own depositors while the fee engine keeps
+accruing on the frozen AUM — but that blast radius is confined to the
+integrator's own product, and `setAccessGate` reverses it instantly. The
+per-vault owner (the integrator) is therefore trusted not to brick its own
+exits. There is no instance-level counter-lever; the only subsystem-wide remedy
+is a beacon upgrade behind the 48h timelock.
+
 ## Admin role
 
 The per-vault admin is OZ's two-step `owner`

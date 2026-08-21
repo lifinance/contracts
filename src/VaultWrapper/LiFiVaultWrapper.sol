@@ -910,9 +910,14 @@ contract LiFiVaultWrapper is
 
     /// @notice Sets or clears this instance's access gate.
     /// @dev Owner-only and instant, like every other per-vault setter — the integrator
-    ///      brings their own authority model (EOA/multisig/timelock). The gate is not
-    ///      probed or validated: a misconfigured gate closes the instance fail-closed
-    ///      until this setter repairs it, and only harms the integrator's own product.
+    ///      brings their own authority model (EOA/multisig/timelock). Unlike `adapter`
+    ///      and `underlying`, the gate carries no factory allowlist: the per-vault owner
+    ///      (the integrator) installs arbitrary gate code here with no vetting. This is
+    ///      deliberate — a faulty or hostile gate closes only that integrator's own
+    ///      product fail-closed (freezing its own depositors) and is reversible here at
+    ///      any moment, so the owner is trusted not to brick its own exits. The gate is
+    ///      not probed or validated: a misconfigured gate closes the instance fail-closed
+    ///      until this setter repairs it.
     /// @param _accessGate The new gate; address(0) = fully permissionless.
     function setAccessGate(address _accessGate) external onlyOwner {
         accessGate = _accessGate;
