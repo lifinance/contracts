@@ -63,6 +63,8 @@ Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Pe
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
 ```
 
+Also resolve any **required companion periphery** before confirming the plan — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain, or destination calls stay disabled there. `deploy-contract` Phase 1 carries the detection recipes; run them here too, since propose-only and whitelist modes never call that skill.
+
 ### propose-only mode — resolve targets
 
 Triggered by `--propose-only <Contract>` (or natural language: “create the cuts”, “propose already-deployed”, “re-propose after delete”). **Do not deploy.**
