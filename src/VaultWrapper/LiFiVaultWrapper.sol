@@ -68,9 +68,10 @@ contract LiFiVaultWrapper is
     // OZ v5's ReentrancyGuard keeps its status in a fixed ERC-7201 namespaced slot
     // (it is @custom:stateless), not a sequential one, so it occupies no slot in this
     // layout and is collision-free behind a beacon proxy — which is why OZ ships no
-    // separate Upgradeable variant. The check treats the proxy's uninitialized status
-    // slot as NOT_ENTERED, so the guard is correct from the first call even though the
-    // implementation's constructor never ran in the proxy's storage context.
+    // separate Upgradeable variant. The guard reverts only when that slot reads ENTERED,
+    // so a proxy's zero-valued slot (the implementation's constructor never ran in the
+    // proxy's storage context) reads as not-entered and the guard is correct from the
+    // first call.
     ReentrancyGuard,
     ILiFiVaultWrapper
 {
@@ -755,6 +756,14 @@ contract LiFiVaultWrapper is
     ///      re-anchor is skipped while supply is zero: with no holders there is no
     ///      disabled-period growth to exclude, and the accrual's own up-only ratchet
     ///      anchors the empty-vault price at the next operation.
+    ///      The asset-side deposit/withdrawal rates carry no equivalent old-rate accrual:
+    ///      a new rate binds the next transaction in the same block, so the owner could
+    ///      briefly raise the withdrawal rate around a victim's already-signed exit. This
+    ///      is accepted design — the integrator is trusted not to act against its own
+    ///      depositors (the same trust the access gate requires), the rate is capped by the
+    ///      factory's live `feeBounds`, the EIP-5143 overloads bound what a caller actually
+    ///      pays, and an integrator can own its instance through a timelock to make every
+    ///      rate change delayed and publicly visible before it binds.
     ///      `nonReentrant` because this is the only `_accrueFees` caller outside the entry/
     ///      exit/`distributeFees` guard: without it, a payout hook fired during
     ///      `distributeFees` could reenter here (owner-controlled receiver), book fresh fees,
@@ -912,9 +921,14 @@ contract LiFiVaultWrapper is
 
     /// @notice Sets or clears this instance's access gate.
     /// @dev Owner-only and instant, like every other per-vault setter — the integrator
-    ///      brings their own authority model (EOA/multisig/timelock). The gate is not
-    ///      probed or validated: a misconfigured gate closes the instance fail-closed
-    ///      until this setter repairs it, and only harms the integrator's own product.
+    ///      brings their own authority model (EOA/multisig/timelock). Unlike `adapter`
+    ///      and `underlying`, the gate carries no factory allowlist: the per-vault owner
+    ///      (the integrator) installs arbitrary gate code here with no vetting. This is
+    ///      deliberate — a faulty or hostile gate closes only that integrator's own
+    ///      product fail-closed (freezing its own depositors) and is reversible here at
+    ///      any moment, so the owner is trusted not to brick its own exits. The gate is
+    ///      not probed or validated: a misconfigured gate closes the instance fail-closed
+    ///      until this setter repairs it.
     /// @param _accessGate The new gate; address(0) = fully permissionless.
     function setAccessGate(address _accessGate) external onlyOwner {
         accessGate = _accessGate;
@@ -999,9 +1013,13 @@ contract LiFiVaultWrapper is
     ///      floors to zero shares is dropped — at most ~one share's worth of assets per
     ///      accrual, favouring holders. The performance fee is charged AFTER the
     ///      management dilution (perf is net of management). The watermark ratchets up to
-    ///      the live post-crystallization price on EVERY perf-enabled accrual: like
-    ///      elapsed time, a gain is charged or forgiven per accrual, never left pending
-    ///      against a stale mark.
+    ///      the post-crystallization price on EVERY perf-enabled accrual, but that price is
+    ///      measured on the floored `PPS_SCALE` grid: a gain of at least one grid unit is
+    ///      charged now, while a smaller gain moves neither the fee nor the mark and is
+    ///      neither charged nor forgiven — it stays in AUM and is charged once cumulative
+    ///      gains cross a grid unit. The collected fee is therefore independent of how
+    ///      often accrual runs (see `LibVaultWrapperMath.performanceFeeAssets`), unlike the
+    ///      management side above, whose sub-share elapsed time IS dropped per accrual.
     function _accrueFees() private {
         bool mgmtEnabled = _rate(FeeType.Management) != 0;
         bool perfEnabled = _rate(FeeType.Performance) != 0;
@@ -1029,10 +1047,12 @@ contract LiFiVaultWrapper is
             supply += perfShares;
         }
 
-        // Up-only ratchet on every accrual: any gain above the mark is charged or
-        // forgiven now, never left stale, so pre-entry gains (yield or donation) cannot
-        // be charged to a later depositor at any supply. Up-only, never assignment:
-        // floating down after a loss would re-charge the recovery.
+        // Up-only ratchet on every accrual, to the floored grid price: a gain of at least
+        // one PPS grid unit above the mark is charged now (so pre-entry gains — yield or
+        // donation — cannot be charged to a later depositor at any supply); a smaller gain
+        // leaves the floored price, and so the mark, unchanged and stays in AUM until
+        // cumulative gains cross a grid unit. Up-only, never assignment: floating down
+        // after a loss would re-charge the recovery.
         uint192 currentPps = _postDilutionPps(supply, assets);
         if (currentPps > perfHighWaterMarkPps) {
             perfHighWaterMarkPps = currentPps;
@@ -1204,9 +1224,10 @@ contract LiFiVaultWrapper is
     ///      split dust (at most 1 wei per accrual) goes to LI.FI. Accumulation
     ///      SATURATES at the uint128 counter max instead of reverting: this runs
     ///      inside `_accrueFees` on every operation including exits, so an
-    ///      overflowing counter must under-attribute payout entitlements (unreachable
-    ///      for any real asset — it requires a cumulative fee of 2^128 wei) rather
-    ///      than permanently brick withdrawals.
+    ///      overflowing counter must under-attribute payout entitlements rather than
+    ///      permanently brick withdrawals. Unreachable for any real vault — it needs a
+    ///      cumulative accrued 2^128 in the counter's own unit: fee-shares for the
+    ///      share-side counters, asset-wei for the asset-side ones.
     /// @param _feeType The fee type whose share to apply.
     /// @param _feeTotal The total fee amount to split.
     /// @param _lifiAccrued Current LI.FI counter value.

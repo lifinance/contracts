@@ -15,8 +15,10 @@ import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 ///      `delegatecall` from a wrapper (they run in the wrapper's context and act only on
 ///      their arguments). `resolveAsset`/`totalAssets` are ordinary view calls.
 ///      This contract is not intended to custody funds; under `delegatecall` the assets
-///      and yield-source shares belong to the calling wrapper, and a direct call holds
-///      nothing.
+///      and yield-source shares belong to the calling wrapper. `deposit`/`withdraw` are
+///      `onlyDelegateCall` — a direct call reverts `DirectCallNotAllowed`, so the adapter
+///      never runs `forceApprove` in its own (fund-less) context and cannot be made to
+///      grant a stray allowance from the shared singleton.
 ///      Assumes a STANDARD ERC-4626 (deposit consumes exactly the requested assets,
 ///      withdraw returns exactly the requested assets) over a non-fee-on-transfer asset.
 ///      `deposit`/`withdraw` return the wrapper's asset balance delta and the wrapper
@@ -27,6 +29,26 @@ import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
 ///      dedicated adapter rather than this reference one.
 /// @custom:version 1.0.0
 contract ERC4626Adapter is IYieldAdapter {
+    /// @dev This adapter's own deployed address, captured at construction. Under
+    ///      `delegatecall` the running `address(this)` is the calling wrapper, so it
+    ///      never equals `SELF`; a direct call to the deployed adapter does — which is
+    ///      how `onlyDelegateCall` tells the two apart.
+    address private immutable SELF = address(this);
+
+    /// @notice Thrown when a `delegatecall`-only method is invoked directly on the
+    ///         deployed adapter.
+    error DirectCallNotAllowed();
+
+    /// @dev Restricts a method to the `delegatecall` path. A direct call runs with
+    ///      `address(this) == SELF` and is rejected; under `delegatecall` the wrapper's
+    ///      address differs from `SELF` and the call proceeds. Guards `deposit`/`withdraw`
+    ///      only: without it a direct call runs `forceApprove` in the adapter's own
+    ///      context, planting an attacker-chosen allowance from the shared singleton.
+    modifier onlyDelegateCall() {
+        if (address(this) == SELF) revert DirectCallNotAllowed();
+        _;
+    }
+
     /// @inheritdoc IYieldAdapter
     function resolveAsset(
         address _underlying
@@ -54,7 +76,7 @@ contract ERC4626Adapter is IYieldAdapter {
         address _asset,
         address _underlying,
         uint256 _assets
-    ) external returns (uint256 deposited) {
+    ) external onlyDelegateCall returns (uint256 deposited) {
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
         SafeERC20.forceApprove(IERC20(_asset), _underlying, _assets);
         IERC4626(_underlying).deposit({
@@ -72,7 +94,7 @@ contract ERC4626Adapter is IYieldAdapter {
         address _asset,
         address _underlying,
         uint256 _assets
-    ) external returns (uint256 withdrawn) {
+    ) external onlyDelegateCall returns (uint256 withdrawn) {
         uint256 balanceBefore = IERC20(_asset).balanceOf(address(this));
         IERC4626(_underlying).withdraw({
             assets: _assets,

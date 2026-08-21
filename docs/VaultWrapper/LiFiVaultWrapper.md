@@ -110,11 +110,57 @@ accepted by design, every bound deriving from the offset alone:
   sub-wei flooring of the gain measurement. Bounded, holder-favouring, never
   a depositor loss.
 
+## Access gate — trust model
+
+The pluggable `IAccessGate` is the one per-vault privilege with **no factory
+allowlist** behind it: unlike `adapter` and `underlying`, the owner installs
+arbitrary gate code through `setAccessGate` with no vetting. This is deliberate.
+The gate runs fail-closed on entry, transfers, and exits, so a faulty or hostile
+gate can freeze the integrator's own depositors while the fee engine keeps
+accruing on the frozen AUM — but that blast radius is confined to the
+integrator's own product, and `setAccessGate` reverses it instantly. The
+per-vault owner (the integrator) is therefore trusted not to brick its own
+exits. There is no instance-level counter-lever; the only subsystem-wide remedy
+is a beacon upgrade behind the 48h timelock.
+
+The same trust covers LI.FI's own cut. A gate the integrator controls can flag
+the live `lifiFeeRecipient` as sanctioned, so once `distributeFees` mints LI.FI's
+share-side fees (management, performance) to that address they can be neither
+redeemed nor transferred out — confiscating the accrued balance even though the
+recipient is read live from the factory. The integrator is trusted not to
+sanction the LI.FI recipient in its own gate. This reaches only the share-side
+fees; deposit and withdrawal fees settle in the asset token, which the gate does
+not touch.
+
 ## Admin role
 
 The per-vault admin is OZ's two-step `owner`
 (`transferOwnership` / `acceptOwnership`). `renounceOwnership` is disabled — a
 custody contract must never be left ownerless.
+
+## Fee rate changes — trust model
+
+`setFeeRate` accrues at the OLD rate first, so management and performance fees
+are never charged retroactively across a change. The asset-side deposit and
+withdrawal rates have no such carry-over: a new rate binds the next transaction
+in the same block. The owner can therefore raise the withdrawal rate to the
+factory bound for exactly the block that carries a victim's already-signed
+`redeem`/`withdraw` and lower it afterwards — a one-block fee sandwich against
+plain ERC-4626 callers.
+
+This is accepted design. The per-vault owner (the integrator) is trusted not to
+act against its own depositors — the same trust the access gate already requires.
+Three things bound it:
+
+- The rate can never exceed the factory's live `feeBounds` for the type, which
+  LI.FI governance sets within the immutable bytecode cap (20% for both deposit
+  and withdrawal). Setting the bound to the smallest workable value shrinks the
+  worst case.
+- The EIP-5143 slippage overloads bound the assets a caller actually pays, so a
+  caller that passes a floor is protected regardless of an in-flight rate change.
+- The owner authority model is pluggable: an integrator that wants to give up the
+  instant-change lever can own its instance through a timelock, making every rate
+  change delayed and publicly visible before it can bind.
 
 ## Initialization
 

@@ -11,6 +11,13 @@ The adapter is **stateless** — it holds no storage, so `deposit`/`withdraw` ar
 safe to `delegatecall` from a wrapper (they run in the wrapper's context and act
 only on their arguments). It is not intended to custody funds.
 
+`deposit`/`withdraw` are guarded `onlyDelegateCall`: a direct call to the deployed
+singleton reverts `DirectCallNotAllowed`. Without the guard a direct call would run
+`forceApprove` in the adapter's own context and plant an attacker-chosen ERC-20
+allowance from the shared singleton — harmless only while the adapter holds no
+balance, but armable in advance and permanent. The guard enforces the
+delegatecall-only invariant in code rather than relying on that convention.
+
 ## Assumptions
 
 Assumes a **standard ERC-4626** vault (deposit consumes exactly the requested
