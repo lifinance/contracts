@@ -20,10 +20,12 @@
 #       (REVERT_BLOCK_THRESHOLD) in case the cause is transient, then blocked and escalated to
 #       the CI notifications channel — it is no longer retried every 10 minutes forever.
 #     * Slack delivery is best-effort: SlackNotifier retries, then logs and returns. A webhook
-#       outage therefore does NOT fail this workflow, and the alert is not re-sent later — the
-#       execution.log artifact and the queue row (status `blocked`, with its reason) remain the
-#       durable record. A MISSING webhook secret is different: that fails the run outright,
-#       rather than letting a run that had an escalation to deliver finish green.
+#       outage therefore does NOT fail this workflow, and this run does not replay the failed
+#       delivery. The situation is not lost, though: the row is now `blocked`, so the
+#       blocked-operation check re-raises it on later runs once the throttle interval has
+#       elapsed, and execution.log plus the queue row (status and reason) are the durable record.
+#       A MISSING webhook secret is different: that fails the run outright, rather than letting a
+#       run that had an escalation to deliver finish green.
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
 #     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the
