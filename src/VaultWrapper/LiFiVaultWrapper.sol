@@ -164,8 +164,7 @@ contract LiFiVaultWrapper is
     /// @notice Performance-fee high-water mark: the highest post-crystallization price
     ///         per share (scaled by `LibVaultWrapperMath.PPS_SCALE`). Anchored at
     ///         `initialize`, re-anchored upward (never down) when the performance fee
-    ///         is enabled from disabled, and ratcheted whenever a performance accrual
-    ///         mints shares.
+    ///         is enabled from disabled, and ratcheted on every performance accrual.
     uint192 public perfHighWaterMarkPps;
 
     /// @notice Integrator payout wallets (1..50) with their bps split, each packed into one
@@ -259,10 +258,10 @@ contract LiFiVaultWrapper is
         // Provisional anchor at the empty-vault share price, computed pure (supply and
         // position are always 0 on a fresh single-shot-initialized proxy). Deliberately NOT
         // read through the adapter: an underlying whose empty-position query reverts must not
-        // brick deployment. This par value is only a placeholder — `_accrueFees` re-floats the
-        // watermark to the live price on every accrual taken while supply is below the floor,
-        // so a donation to the predicted address is captured into the baseline (not booked as
-        // gain against the first depositor) the moment real supply is minted.
+        // brick deployment. This par value is only a placeholder — `_accrueFees` ratchets the
+        // watermark to the live price on every accrual, so a donation to the predicted address
+        // is captured into the baseline (not booked as gain against the first depositor) the
+        // moment real supply is minted.
         perfHighWaterMarkPps = SafeCast.toUint192(
             LibVaultWrapperMath.pricePerShare(0, 0, _decimalsOffset())
         );
@@ -784,7 +783,10 @@ contract LiFiVaultWrapper is
             if (_feeType == FeeType.Performance && _rate(_feeType) == 0) {
                 uint256 supply = totalSupply();
                 if (supply != 0) {
-                    uint192 currentPps = _ceilPps(supply, totalAssets());
+                    uint192 currentPps = _postDilutionPps(
+                        supply,
+                        totalAssets()
+                    );
                     // Up-only: anchoring below the stored watermark would let the owner
                     // toggle the fee off/on at a trough and charge the recovery back to
                     // the old peak — the double-charge the watermark exists to prevent.
@@ -1010,9 +1012,9 @@ contract LiFiVaultWrapper is
     ///      floors to zero shares is dropped — at most ~one share's worth of assets per
     ///      accrual, favouring holders. The performance fee is charged AFTER the
     ///      management dilution (perf is net of management). The watermark ratchets up to
-    ///      the live post-crystallization price (rounded up) on EVERY perf-enabled
-    ///      accrual: like elapsed time, a gain is charged or forgiven per accrual, never
-    ///      left pending against a stale mark.
+    ///      the live post-crystallization price on EVERY perf-enabled accrual: like
+    ///      elapsed time, a gain is charged or forgiven per accrual, never left pending
+    ///      against a stale mark.
     function _accrueFees() private {
         bool mgmtEnabled = _rate(FeeType.Management) != 0;
         bool perfEnabled = _rate(FeeType.Performance) != 0;
@@ -1042,29 +1044,28 @@ contract LiFiVaultWrapper is
 
         // Up-only ratchet on every accrual: any gain above the mark is charged or
         // forgiven now, never left stale, so pre-entry gains (yield or donation) cannot
-        // be charged to a later depositor at any supply. Per-accrual forgiveness is
-        // bounded by the fee math's flooring — sub-step dust, holder-favouring. Up-only,
-        // never assignment: floating down after a loss would re-charge the recovery.
-        uint192 currentPps = _ceilPps(supply, assets);
+        // be charged to a later depositor at any supply. Up-only, never assignment:
+        // floating down after a loss would re-charge the recovery.
+        uint192 currentPps = _postDilutionPps(supply, assets);
         if (currentPps > perfHighWaterMarkPps) {
             perfHighWaterMarkPps = currentPps;
         }
     }
 
     /// @dev The price per share the performance-fee watermark is anchored at, narrowed to
-    ///      the watermark's storage width. Ceil, not floor: a floored post-dilution price
-    ///      can fall a full pps step below the price the fee was just charged at, re-opening
-    ///      that step to be charged again on the next crossing (severe for low-decimal
-    ///      assets, where a step is a coarse slice of AUM). Rounding up keeps the watermark
-    ///      at/above the crystallization price, at most under-charging by one sub-step — the
-    ///      holder-favouring direction the rest of the fee math already rounds in. Prices
-    ///      through `_decimalsOffset()`, so it is only valid once `initialize` has written
-    ///      `shareDecimalsOffset` (the provisional anchor there uses the pure floored
-    ///      overload instead).
-    /// @param _supply The share supply to price against.
+    ///      the watermark's storage width. Call with the supply that already includes any
+    ///      fee-shares minted this accrual: the mark must land on the price holders are
+    ///      left holding AFTER the dilution, so the next gain is measured from there. An
+    ///      anchor above that price forgives the difference and one below re-charges it,
+    ///      and either way the error repeats per accrual — a caller-controlled variable,
+    ///      since `distributeFees` is permissionless. Floored, the same direction gain
+    ///      measurement rounds, so the mark cannot land off the measured price by rounding
+    ///      alone. Prices through `_decimalsOffset()`, so it is only valid once
+    ///      `initialize` has written `shareDecimalsOffset`.
+    /// @param _supply The share supply to price against, including fee-shares just minted.
     /// @param _assets The gross assets to price against.
-    /// @return The ceil-rounded price per share, scaled by `LibVaultWrapperMath.PPS_SCALE`.
-    function _ceilPps(
+    /// @return The price per share, scaled by `LibVaultWrapperMath.PPS_SCALE`.
+    function _postDilutionPps(
         uint256 _supply,
         uint256 _assets
     ) private view returns (uint192) {
@@ -1073,8 +1074,7 @@ contract LiFiVaultWrapper is
                 LibVaultWrapperMath.pricePerShare(
                     _supply,
                     _assets,
-                    _decimalsOffset(),
-                    Math.Rounding.Ceil
+                    _decimalsOffset()
                 )
             );
     }
