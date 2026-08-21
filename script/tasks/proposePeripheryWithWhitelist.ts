@@ -385,7 +385,7 @@ const main = defineCommand({
 // `import.meta.main` only exists on Node >= 22.18 and package.json allows
 // older, where it is undefined and the CLI would exit 0 without running. The
 // loader realpaths `import.meta.url`, so argv[1] needs realpathing too.
-const isEntrypoint = () => {
+const isEntrypoint = (): boolean => {
   if (process.argv[1] === undefined) return false
   try {
     return (
