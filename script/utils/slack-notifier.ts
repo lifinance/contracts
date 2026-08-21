@@ -569,6 +569,82 @@ export class SlackNotifier {
   }
 
   /**
+   * Notify that a timelock op is blocked but still executable on-chain.
+   *
+   * Re-raised on an interval rather than once, because a blocked op stays live
+   * and un-executed until an operator acts — a single notification at the moment
+   * of blocking is what let one sit unnoticed (EXSC-816).
+   */
+  public async notifyBlockedOperation(context: {
+    network: string
+    operationId: string
+    safeTxHash: string
+    reason: string
+    blockedAt?: Date
+  }): Promise<void> {
+    const message: ISlackMessage = {
+      text: `🚨 ${context.network}: timelock op blocked but ready to execute`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '🚨 Blocked Timelock Operation Still Ready',
+          },
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Network:*\n${context.network}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Operation ID:*\n\`${this.truncateHash(
+                context.operationId
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Safe Tx Hash:*\n\`${this.truncateHash(
+                context.safeTxHash
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Blocked Since:*\n${
+                context.blockedAt ? context.blockedAt.toISOString() : 'unknown'
+              }`,
+            },
+          ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Reason:*\n${this.truncateText(context.reason)}`,
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              '⚠️ *Action Required:* the delay has elapsed and this operation is executable, but the runner is refusing it. ' +
+              'Clear the cause, then re-drive it with `requeue-timelock-op.ts`, or cancel and re-propose. ' +
+              `Inspect with \`list-timelock-queue.ts --network ${context.network} --attention\`.`,
+          },
+        },
+      ],
+    }
+
+    this.appendRunLink(message)
+
+    await this.sendNotificationWithRetry(message)
+  }
+
+  /**
    * Helper to get explorer URL for a transaction
    * Dynamically pulls explorer URL from networks.json configuration
    */

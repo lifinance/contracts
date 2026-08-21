@@ -10,6 +10,12 @@
 #       unintended execution.
 #     * Runs script/deploy/safe/execute-pending-timelock-tx.ts, captures log, posts Slack fallback on failure
 #     * Uploads execution.log as an artifact (7-day retention)
+#     * Re-checks `blocked` queue rows every run: reconciles them to `executed` or
+#       `cancelled` once the controller says so, and otherwise re-alerts (throttled, see
+#       BLOCKED_ALERT_INTERVAL_MS) while they stay executable on-chain. A blocked row is a
+#       standing operator task, not a failure of this run, so it does not fail the job —
+#       the recurring Slack alert is the signal. Clear the cause, then re-drive with
+#       script/deploy/safe/requeue-timelock-op.ts.
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
 #     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the

@@ -9,13 +9,18 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 import {
+  BLOCKED_ALERT_INTERVAL_MS,
   byOperationId,
   computeOperationIdBatch,
   decodeScheduleBatch,
   deserializeScheduleParams,
   ensureTimelockQueueIndexes,
   isScheduleBatchCalldata,
+  queueStatusReason,
+  selectBlockedNeedingAlert,
   serializeScheduleParams,
+  TIMELOCK_QUEUE_STATUSES,
+  type IBlockedOpCandidate,
   type IScheduleBatchParams,
   type ITimelockQueueDoc,
 } from './timelock-queue'
@@ -393,5 +398,125 @@ describe('ensureTimelockQueueIndexes', () => {
     })
     await ensureTimelockQueueIndexes(coll)
     expect(coll.createIndexCalls).toHaveLength(2)
+  })
+})
+
+describe('TIMELOCK_QUEUE_STATUSES', () => {
+  it('includes blocked as a distinct state from failed', () => {
+    expect(TIMELOCK_QUEUE_STATUSES).toContain('blocked')
+    expect(TIMELOCK_QUEUE_STATUSES).toContain('failed')
+  })
+})
+
+describe('queueStatusReason', () => {
+  it('reads blockedReason for a blocked row', () => {
+    expect(
+      queueStatusReason({
+        status: 'blocked',
+        blockedReason: 'obsolete folded removals',
+        failureReason: 'stale',
+      })
+    ).toBe('obsolete folded removals')
+  })
+
+  it('reads failureReason for a failed row', () => {
+    expect(
+      queueStatusReason({
+        status: 'failed',
+        blockedReason: 'obsolete folded removals',
+        failureReason: 'operationId mismatch',
+      })
+    ).toBe('operationId mismatch')
+  })
+
+  it('returns undefined for statuses that carry no reason', () => {
+    expect(
+      queueStatusReason({ status: 'queued', blockedReason: 'ignored' })
+    ).toBeUndefined()
+    expect(queueStatusReason({ status: 'executed' })).toBeUndefined()
+  })
+})
+
+describe('selectBlockedNeedingAlert', () => {
+  const now = new Date('2026-08-21T12:00:00Z')
+
+  const blocked = (
+    overrides: Partial<ITimelockQueueDoc> = {}
+  ): ITimelockQueueDoc =>
+    ({
+      operationId: '0xabc' as Hex,
+      network: 'mode',
+      chainId: 34443,
+      status: 'blocked',
+      blockedReason: 'obsolete folded removals',
+      safeTxHash: '0xdead',
+      ...overrides,
+    } as ITimelockQueueDoc)
+
+  it('alerts on a ready blocked op that has never been alerted', () => {
+    const out = selectBlockedNeedingAlert(
+      [{ doc: blocked(), onChainReady: true }],
+      now
+    )
+    expect(out).toHaveLength(1)
+  })
+
+  it('stays silent while inside the throttle window', () => {
+    const doc = blocked({
+      blockedAlertedAt: new Date(now.getTime() - 60 * 60 * 1000),
+    })
+    expect(
+      selectBlockedNeedingAlert([{ doc, onChainReady: true }], now)
+    ).toHaveLength(0)
+  })
+
+  it('re-alerts once the throttle window has elapsed', () => {
+    const doc = blocked({
+      blockedAlertedAt: new Date(now.getTime() - BLOCKED_ALERT_INTERVAL_MS),
+    })
+    expect(
+      selectBlockedNeedingAlert([{ doc, onChainReady: true }], now)
+    ).toHaveLength(1)
+  })
+
+  it('does not alert on an op that is not ready on-chain', () => {
+    expect(
+      selectBlockedNeedingAlert([{ doc: blocked(), onChainReady: false }], now)
+    ).toHaveLength(0)
+  })
+
+  // A failed readiness read must not manufacture an alert about an op we could
+  // not actually observe.
+  it('does not alert when the readiness check failed', () => {
+    expect(
+      selectBlockedNeedingAlert([{ doc: blocked(), onChainReady: null }], now)
+    ).toHaveLength(0)
+  })
+
+  it('ignores rows that are not blocked', () => {
+    const candidates: IBlockedOpCandidate[] = [
+      { doc: blocked({ status: 'queued' }), onChainReady: true },
+      { doc: blocked({ status: 'failed' }), onChainReady: true },
+      { doc: blocked({ status: 'executed' }), onChainReady: true },
+    ]
+    expect(selectBlockedNeedingAlert(candidates, now)).toHaveLength(0)
+  })
+
+  it('selects only the rows that qualify out of a mixed batch', () => {
+    const fresh = blocked({ operationId: '0xfresh' as Hex })
+    const throttled = blocked({
+      operationId: '0xthrottled' as Hex,
+      blockedAlertedAt: new Date(now.getTime() - 1000),
+    })
+    const notReady = blocked({ operationId: '0xnotready' as Hex })
+    const out = selectBlockedNeedingAlert(
+      [
+        { doc: fresh, onChainReady: true },
+        { doc: throttled, onChainReady: true },
+        { doc: notReady, onChainReady: false },
+      ],
+      now
+    )
+    expect(out.map((d) => d.operationId)).toEqual(['0xfresh'])
   })
 })

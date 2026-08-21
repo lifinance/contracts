@@ -35,6 +35,7 @@ import {
 import { confirmTimelockExecution } from './confirm-timelock-execution'
 import {
   buildRemovalSnapshotFromPayloads,
+  describeStaleRemovals,
   mapLoupeResult,
   revalidateRemovalsOnChain,
 } from './diamondRemovalDiff'
@@ -49,6 +50,10 @@ import {
   computeOperationIdBatch,
   deserializeScheduleParams,
   getTimelockQueueCollection,
+  markTimelockOpBlocked,
+  markTimelockOpFailedInQueue,
+  selectBlockedNeedingAlert,
+  type IBlockedOpCandidate,
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
@@ -57,6 +62,13 @@ interface IPendingFetchResult {
   network: INetworksObject[string]
   /** Number of queued timelock ops for this network (on-chain ready count unknown until processNetwork runs). */
   pendingInMongoCount: number
+  /**
+   * Number of `blocked` timelock ops for this network. Never executed, but a
+   * network with only blocked rows must still be processed so `alertBlockedOps`
+   * can re-check them on-chain — skipping it is what made a blocked op invisible
+   * (EXSC-816).
+   */
+  blockedInMongoCount: number
   /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
   fetchError?: unknown
 }
@@ -241,19 +253,10 @@ const cmd = defineCommand({
         networksToProcess.map((network) => fetchPendingForNetwork(network))
       )
 
-      const networksWithPending = fetchResults.filter(
-        (r) => r.pendingInMongoCount > 0
-      )
       const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
-
-      consola.info(
-        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
-          networksWithPending.length
-        } have pending timelock tx(s)${
-          networksWithPending.length > 0
-            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
-            : ''
-        }`
+      const networksWithPending = selectNetworksToProcess(
+        fetchResults,
+        networksToProcess.length
       )
       if (networksWithFetchError.length > 0) {
         consola.warn(
@@ -351,19 +354,10 @@ const cmd = defineCommand({
         networksToProcess.map((network) => fetchPendingForNetwork(network))
       )
 
-      const networksWithPending = fetchResults.filter(
-        (r) => r.pendingInMongoCount > 0
-      )
       const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
-
-      consola.info(
-        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
-          networksWithPending.length
-        } have pending timelock tx(s)${
-          networksWithPending.length > 0
-            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
-            : ''
-        }`
+      const networksWithPending = selectNetworksToProcess(
+        fetchResults,
+        networksToProcess.length
       )
       if (networksWithFetchError.length > 0) {
         consola.warn(
@@ -499,6 +493,48 @@ async function checkOperationStatus(
 }
 
 /**
+ * Decides which pre-checked networks are worth opening an RPC for, and reports
+ * the split.
+ *
+ * A network with only `blocked` rows has nothing to execute but must still be
+ * processed so {@link alertBlockedOps} can re-check those rows on-chain — the
+ * omission that let a ready-but-blocked op go unreported (EXSC-816).
+ *
+ * @param fetchResults - Per-network queue pre-check results.
+ * @param totalChecked - How many networks were pre-checked (for the log line).
+ * @returns The networks to process.
+ */
+function selectNetworksToProcess(
+  fetchResults: IPendingFetchResult[],
+  totalChecked: number
+): IPendingFetchResult[] {
+  const queuedNetworks = fetchResults.filter((r) => r.pendingInMongoCount > 0)
+  const blockedNetworks = fetchResults.filter((r) => r.blockedInMongoCount > 0)
+
+  consola.info(
+    `Checked ${totalChecked} network(s) (MongoDB only); ${
+      queuedNetworks.length
+    } have pending timelock tx(s)${
+      queuedNetworks.length > 0
+        ? `: ${queuedNetworks.map((r) => r.network.name).join(', ')}`
+        : ''
+    }`
+  )
+  if (blockedNetworks.length > 0)
+    consola.warn(
+      `${
+        blockedNetworks.length
+      } network(s) have blocked timelock op(s) awaiting operator action: ${blockedNetworks
+        .map((r) => `${r.network.name} (${r.blockedInMongoCount})`)
+        .join(', ')}`
+    )
+
+  return fetchResults.filter(
+    (r) => r.pendingInMongoCount > 0 || r.blockedInMongoCount > 0
+  )
+}
+
+/**
  * Fetches queued timelock ops for a network from the auto-execution queue.
  *
  * Reads from the non-sensitive `MONGODB_URI` cluster. Ops
@@ -526,9 +562,192 @@ async function fetchQueuedTimelockOps(
 }
 
 /**
+ * Fetches `blocked` timelock ops for a network — rows the pre-execute guard
+ * refused for a durable reason. Never executed by this runner; read only so
+ * {@link alertBlockedOps} can keep them visible for as long as they stay
+ * executable on-chain.
+ *
+ * @param networkName - Lowercase network name to filter by.
+ * @returns Blocked rows for the network.
+ */
+async function fetchBlockedTimelockOps(
+  networkName: string
+): Promise<ITimelockQueueDoc[]> {
+  const { client, timelockQueue } = await getTimelockQueueCollection()
+  try {
+    return await timelockQueue
+      .find({
+        network: { $eq: networkName.toLowerCase() },
+        status: { $eq: 'blocked' },
+      })
+      .toArray()
+  } finally {
+    await client.close()
+  }
+}
+
+/**
+ * Re-checks every `blocked` row for this network against the chain and keeps it
+ * from going quiet.
+ *
+ * Three outcomes matter. A blocked op that turns out to be `isOperationDone`
+ * (executed by hand, or by another path) is reconciled to `executed`, and one the
+ * controller no longer knows about is reconciled to `cancelled` — both stop being
+ * reported. A blocked op that is still `isOperationReady` is a live, executable
+ * operation the runner is deliberately ignoring: it gets a Slack alert, throttled
+ * by `blockedAlertedAt` so a standing block re-raises every few hours instead of
+ * once (EXSC-816) or every ten minutes.
+ *
+ * Never executes anything and never fails the run: a standing block is an
+ * already-reported condition, not a malfunction of this run.
+ *
+ * @returns Count of blocked rows still executable on-chain.
+ */
+async function alertBlockedOps(
+  publicClient: PublicClient,
+  timelockAddress: Address,
+  networkName: string,
+  isDryRun: boolean,
+  slackNotifier?: SlackNotifier
+): Promise<number> {
+  let blockedRows: ITimelockQueueDoc[]
+  try {
+    blockedRows = await fetchBlockedTimelockOps(networkName)
+  } catch (error) {
+    consola.warn(
+      `[${networkName}] Could not read blocked timelock ops: ${error}`
+    )
+    return 0
+  }
+  if (blockedRows.length === 0) return 0
+
+  const candidates: IBlockedOpCandidate[] = []
+  const doneRows: ITimelockQueueDoc[] = []
+  const goneRows: ITimelockQueueDoc[] = []
+  for (const row of blockedRows)
+    try {
+      // Readiness is read from the canonical controller, never the address the
+      // row carries. Surface a divergence rather than letting it silence the
+      // alert — going quiet is the failure mode this pass exists to prevent.
+      if (row.timelockAddress.toLowerCase() !== timelockAddress.toLowerCase())
+        consola.warn(
+          `[${networkName}] Blocked op ${row.operationId} records timelock ${row.timelockAddress}, ` +
+            `but the deployment's controller is ${timelockAddress}; reading readiness from the canonical one.`
+        )
+      const { isDone, isPending, isReady } = await checkOperationStatus(
+        publicClient,
+        timelockAddress,
+        row.operationId,
+        networkName
+      )
+      if (isDone) doneRows.push(row)
+      else if (!isPending && !isReady) {
+        // Neither done nor pending: the controller no longer holds a timestamp
+        // for this id, so it was cancelled (or never scheduled). That is the
+        // documented remediation for a blocked op — record it so the row stops
+        // claiming a state it left.
+        const stillExists = await publicClient.readContract({
+          address: timelockAddress,
+          abi: TIMELOCK_ABI,
+          functionName: 'isOperation',
+          args: [row.operationId],
+        })
+        if (stillExists) candidates.push({ doc: row, onChainReady: isReady })
+        else goneRows.push(row)
+      } else candidates.push({ doc: row, onChainReady: isReady })
+    } catch (error) {
+      consola.warn(
+        `[${networkName}] On-chain check failed for blocked op ${row.operationId}: ${error}`
+      )
+      candidates.push({ doc: row, onChainReady: null })
+    }
+
+  const stillExecutable = candidates.filter(
+    (c) => c.onChainReady === true
+  ).length
+  const now = new Date()
+  const toAlert = selectBlockedNeedingAlert(candidates, now)
+
+  if (doneRows.length > 0 || goneRows.length > 0 || toAlert.length > 0)
+    try {
+      const { client, timelockQueue } = await getTimelockQueueCollection()
+      try {
+        for (const row of goneRows) {
+          consola.info(
+            `[${networkName}] Blocked op ${row.operationId} no longer exists on the controller (cancelled); reconciling queue row to cancelled.`
+          )
+          if (!isDryRun)
+            await timelockQueue.updateOne(
+              byOperationId(networkName, row.operationId),
+              {
+                $set: {
+                  status: 'cancelled',
+                  cancelledAt: now,
+                  updatedAt: now,
+                },
+              }
+            )
+        }
+        for (const row of doneRows) {
+          consola.info(
+            `[${networkName}] Blocked op ${row.operationId} is done on-chain; reconciling queue row to executed.`
+          )
+          if (!isDryRun)
+            await timelockQueue.updateOne(
+              byOperationId(networkName, row.operationId),
+              { $set: { status: 'executed', executedAt: now, updatedAt: now } }
+            )
+        }
+        for (const row of toAlert) {
+          consola.error(
+            `[${networkName}] 🚨 Blocked timelock op ${row.operationId} is READY on-chain and will not be auto-executed. ` +
+              `Reason: ${row.blockedReason ?? 'unknown'}`
+          )
+          if (isDryRun) continue
+          if (slackNotifier)
+            try {
+              await slackNotifier.notifyBlockedOperation({
+                network: networkName,
+                operationId: row.operationId,
+                safeTxHash: row.safeTxHash,
+                reason: row.blockedReason ?? 'unknown',
+                blockedAt: row.blockedAt,
+              })
+            } catch (error) {
+              consola.warn(
+                `[${networkName}] Failed to send blocked-op notification:`,
+                error
+              )
+            }
+          // Stamped regardless of Slack success: the console/CI log already
+          // carries the alert, and a webhook outage must not turn the throttle
+          // into a per-run alert storm once Slack recovers.
+          await timelockQueue.updateOne(
+            byOperationId(networkName, row.operationId),
+            { $set: { blockedAlertedAt: now, updatedAt: now } }
+          )
+        }
+      } finally {
+        await client.close()
+      }
+    } catch (error) {
+      consola.warn(
+        `[${networkName}] Could not update blocked timelock rows: ${error}`
+      )
+    }
+
+  if (stillExecutable > 0)
+    consola.warn(
+      `[${networkName}] ⚠️ ${stillExecutable} blocked timelock op(s) still executable on-chain — ` +
+        `inspect with: bunx tsx ./script/deploy/safe/list-timelock-queue.ts --network ${networkName} --attention`
+    )
+  return stillExecutable
+}
+
+/**
  * Pre-checks a single network using the queue only (no RPC). Returns how
- * many queued timelock ops exist for the network. processNetwork always
- * opens a fresh RPC and re-fetches queued rows for on-chain ready check.
+ * many queued and blocked timelock ops exist for the network. processNetwork
+ * always opens a fresh RPC and re-fetches queued rows for on-chain ready check.
  */
 async function fetchPendingForNetwork(
   network: INetworksObject[string]
@@ -536,6 +755,7 @@ async function fetchPendingForNetwork(
   const empty: IPendingFetchResult = {
     network,
     pendingInMongoCount: 0,
+    blockedInMongoCount: 0,
   }
   try {
     const deploymentData = (await getDeployments(
@@ -545,10 +765,14 @@ async function fetchPendingForNetwork(
 
     if (!deploymentData.LiFiTimelockController) return empty
 
-    const rows = await fetchQueuedTimelockOps(network.name)
+    const [queuedRows, blockedRows] = await Promise.all([
+      fetchQueuedTimelockOps(network.name),
+      fetchBlockedTimelockOps(network.name),
+    ])
     return {
       network,
-      pendingInMongoCount: rows.length,
+      pendingInMongoCount: queuedRows.length,
+      blockedInMongoCount: blockedRows.length,
     }
   } catch (err) {
     consola.error(
@@ -612,6 +836,16 @@ async function processNetwork(
       publicClient,
       privateKeyHex: process.env.PRIVATE_KEY_PRODUCTION,
     })
+
+    // Runs before the ready-operations check so a network whose only rows are
+    // blocked still gets its on-chain re-check and alert.
+    await alertBlockedOps(
+      publicClient,
+      timelockAddress,
+      network.name,
+      isDryRun,
+      slackNotifier
+    )
 
     const {
       readyOperations,
@@ -833,15 +1067,11 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has empty arrays; marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'empty schedule arrays',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'empty schedule arrays'
           )
           continue
         }
@@ -852,15 +1082,11 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has inconsistent array lengths; marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'inconsistent schedule array lengths',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'inconsistent schedule array lengths'
           )
           continue
         }
@@ -879,15 +1105,11 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ operationId mismatch on queue row (stored=${row.operationId}, derived=${opId}); marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'operationId mismatch — possible tampered row',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'operationId mismatch — possible tampered row'
           )
           continue
         }
@@ -900,15 +1122,11 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ timelockAddress mismatch on queue row (stored=${row.timelockAddress}, canonical=${timelockAddress}); marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'timelockAddress mismatch with deployment',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'timelockAddress mismatch with deployment'
           )
           continue
         }
@@ -1100,35 +1318,41 @@ async function getPendingOperations(
 }
 
 /**
- * Marks a timelock queue row `failed` so the cron does not retry a batch that
- * failed pre-execute re-validation (stale folded removals). Best-effort: a Mongo
- * error is logged and does not change the caller's abort decision.
+ * Marks a timelock queue row `blocked` so the cron stops retrying a batch that
+ * failed pre-execute re-validation, without burying it: blocked rows stay
+ * visible in `list-timelock-queue`, are re-alerted by {@link alertBlockedOps}
+ * while they remain executable on-chain, and can be re-driven with
+ * `requeue-timelock-op.ts` once the cause is cleared.
+ *
+ * Best-effort: a Mongo error is logged and does not change the caller's abort
+ * decision.
  */
-async function markTimelockOpFailed(
+async function blockTimelockOp(
   networkName: string,
   operationId: Hex,
-  failureReason: string,
+  reason: string,
   networkPrefix: string
 ): Promise<void> {
   try {
     const { client, timelockQueue } = await getTimelockQueueCollection()
     try {
-      await timelockQueue.updateOne(byOperationId(networkName, operationId), {
-        $set: {
-          status: 'failed',
-          failureReason,
-          updatedAt: new Date(),
-        },
-      })
+      await markTimelockOpBlocked(
+        timelockQueue,
+        networkName,
+        operationId,
+        reason
+      )
       consola.info(
-        `${networkPrefix} Marked queue row ${operationId} as failed (${failureReason})`
+        `${networkPrefix} Marked queue row ${operationId} as blocked (${reason}). ` +
+          `Re-drive with: bunx tsx ./script/deploy/safe/requeue-timelock-op.ts ` +
+          `--network ${networkName} --operationId ${operationId}`
       )
     } finally {
       await client.close()
     }
   } catch (error) {
     consola.warn(
-      `${networkPrefix} Failed to mark timelock queue row failed: ${error}`
+      `${networkPrefix} Failed to mark timelock queue row blocked: ${error}`
     )
   }
 }
@@ -1137,6 +1361,19 @@ async function markTimelockOpFailed(
 const FACETS_LOUPE_ABI = parseAbi([
   'function facets() view returns ((address facetAddress, bytes4[] functionSelectors)[])',
 ])
+
+/**
+ * Verdict of the pre-execute removal guard. `retry` and `blocked` both refuse
+ * the current run; they differ in what they persist, and conflating them is what
+ * turned a recoverable abort into a dead end (EXSC-816):
+ *
+ * - `ok` — safe to execute.
+ * - `retry` — a transient outage (parked-tasks queue or loupe RPC unreachable).
+ *   The row stays `queued`, so the next cron tick tries again on its own.
+ * - `blocked` — a durable condition an operator must clear. The row is flipped
+ *   to `blocked`: still visible, still re-alerted, never auto-retried.
+ */
+type GuardOutcome = 'ok' | 'retry' | 'blocked'
 
 /**
  * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
@@ -1148,11 +1385,7 @@ const FACETS_LOUPE_ABI = parseAbi([
  * (covers unlink after a best-effort drain link failure, and legacy
  * `cleanUpProdDiamond` until those removals park too).
  *
- * Transient Mongo/RPC failures refuse the run but leave the queue row `queued`
- * for retry. Only durable snapshot/stale/unvalidated failures mark the row
- * `failed`.
- *
- * @returns `'ok'` to continue execution, `'failed'` when the op must not run.
+ * @returns See {@link GuardOutcome}.
  */
 async function revalidateFoldedRemovalsOrAbort(
   operation: ITimelockOperation,
@@ -1161,7 +1394,7 @@ async function revalidateFoldedRemovalsOrAbort(
   isDryRun: boolean,
   notifyFailure: (error: unknown) => Promise<void>,
   publicClient: PublicClient
-): Promise<'ok' | 'failed'> {
+): Promise<GuardOutcome> {
   if (!operation.safeTxHash) return 'ok'
 
   const alertFailure = async (error: unknown): Promise<void> => {
@@ -1185,13 +1418,13 @@ async function revalidateFoldedRemovalsOrAbort(
     const removeHint = buildRemovalSnapshotFromPayloads(operation.payloads, [])
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
-      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (left queued for retry):`,
+      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (row left queued, next run retries):`,
       error
     )
     await alertFailure(
       new Error('parked-tasks queue unreachable for Remove revalidation')
     )
-    return 'failed'
+    return 'retry'
   }
 
   const built = buildRemovalSnapshotFromPayloads(
@@ -1212,14 +1445,14 @@ async function revalidateFoldedRemovalsOrAbort(
     const reason = `Remove diamondCut(s) present (${built.removeCutCount}) but no parked tasks for safeTxHash ${operation.safeTxHash} — cannot revalidate; aborting whole batch`
     consola.error(`${networkPrefix} ❌ ${reason}`)
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         'Remove cuts without parked-task snapshot — cannot revalidate',
         networkPrefix
       )
     await alertFailure(new Error(reason))
-    return 'failed'
+    return 'blocked'
   }
 
   if (built.kind === 'mismatch') {
@@ -1227,7 +1460,7 @@ async function revalidateFoldedRemovalsOrAbort(
       `${networkPrefix} ❌ Folded-removal snapshot mismatch — aborting whole batch: ${built.reason}`
     )
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         `folded-removal snapshot mismatch: ${built.reason}`,
@@ -1236,7 +1469,7 @@ async function revalidateFoldedRemovalsOrAbort(
     await alertFailure(
       new Error(`folded-removal snapshot mismatch: ${built.reason}`)
     )
-    return 'failed'
+    return 'blocked'
   }
 
   const diamondAddress = parked[0]?.diamondAddress
@@ -1245,19 +1478,19 @@ async function revalidateFoldedRemovalsOrAbort(
       `${networkPrefix} ❌ Parked tasks missing diamondAddress — aborting whole batch`
     )
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         'parked tasks missing diamondAddress',
         networkPrefix
       )
     await alertFailure(new Error('parked tasks missing diamondAddress'))
-    return 'failed'
+    return 'blocked'
   }
 
-  let stale: Awaited<ReturnType<typeof revalidateRemovalsOnChain>>['stale']
+  let revalidated: Awaited<ReturnType<typeof revalidateRemovalsOnChain>>
   try {
-    ;({ stale } = await revalidateRemovalsOnChain(
+    revalidated = await revalidateRemovalsOnChain(
       networkName,
       diamondAddress,
       built.snapshot,
@@ -1271,44 +1504,39 @@ async function revalidateFoldedRemovalsOrAbort(
           return mapLoupeResult(raw)
         },
       }
-    ))
+    )
   } catch (error) {
     // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
-      `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (left queued for retry):`,
+      `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (row left queued, next run retries):`,
       error
     )
     await alertFailure(error)
-    return 'failed'
+    return 'retry'
   }
 
-  if (stale.length === 0) {
+  if (revalidated.stale.length === 0) {
     consola.info(
       `${networkPrefix} ✅ Pre-execute removal revalidation OK (${built.snapshot.length} folded facet(s))`
     )
     return 'ok'
   }
 
-  const detail = stale
-    .map(
-      (s) =>
-        `${s.facet}:${s.selector} (${s.reason}${
-          s.currentAddress ? `→${s.currentAddress}` : ''
-        })`
-    )
-    .join('; ')
+  const { fullyObsolete, detail, remediation } =
+    describeStaleRemovals(revalidated)
+  const headline = fullyObsolete
+    ? 'Stale folded removals, ALL obsolete — aborting whole batch (primary cut included)'
+    : 'Stale folded removals — aborting whole batch (primary cut included)'
   consola.error(
-    `${networkPrefix} ❌ Stale folded removals — aborting whole batch (primary cut included). Cancel the timelock op and re-propose after a fresh loupe drain. Stale: ${detail}`
+    `${networkPrefix} ❌ ${headline}. ${remediation} Stale: ${detail}`
   )
+  const reason = `${
+    fullyObsolete ? 'obsolete' : 'stale'
+  } folded removals: ${detail}`
   if (!isDryRun)
-    await markTimelockOpFailed(
-      networkName,
-      operation.id,
-      `stale folded removals: ${detail}`,
-      networkPrefix
-    )
-  await alertFailure(new Error(`stale folded removals: ${detail}`))
-  return 'failed'
+    await blockTimelockOp(networkName, operation.id, reason, networkPrefix)
+  await alertFailure(new Error(`${reason}. ${remediation}`))
+  return 'blocked'
 }
 
 async function executeOperation(
@@ -1413,7 +1641,7 @@ async function executeOperation(
       notifyFailure,
       publicClient
     )
-    if (guard === 'failed') return 'failed'
+    if (guard !== 'ok') return 'failed'
   }
 
   try {

@@ -24,6 +24,8 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import {
   getTimelockQueueCollection,
+  queueStatusReason,
+  TIMELOCK_QUEUE_STATUSES,
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
@@ -32,7 +34,7 @@ const TIMELOCK_STATUS_ABI = parseAbi([
   'function isOperationReady(bytes32 id) view returns (bool)',
 ])
 
-const QUEUE_STATUSES = ['queued', 'executed', 'cancelled', 'failed'] as const
+const QUEUE_STATUSES = TIMELOCK_QUEUE_STATUSES
 
 type QueueStatusArg = (typeof QUEUE_STATUSES)[number] | 'all'
 
@@ -49,6 +51,29 @@ export interface IQueueDisplayRow {
   onChainDone?: boolean | null
   /** Present only with --checkOnChain for not-done rows; true = delay elapsed, executable now. */
   onChainReady?: boolean | null
+  /** Reason text for a `blocked` or `failed` row. */
+  statusReason?: string
+  /** Set on `blocked` rows. */
+  blockedAt?: string
+}
+
+/**
+ * True when a row is a live operation the runner will not pick up: executable
+ * on-chain right now, but parked in a status the executor does not read.
+ *
+ * This is the combination worth shouting about — it reads identically to a
+ * long-dead row in a flat listing, which is how one stayed invisible for hours
+ * (EXSC-816). Requires `--checkOnChain` for `onChainReady` to be populated.
+ *
+ * @param row - Display row, ideally with on-chain fields filled in.
+ * @returns Whether the row needs operator attention.
+ */
+export function needsAttention(row: IQueueDisplayRow): boolean {
+  return (
+    row.onChainReady === true &&
+    row.onChainDone !== true &&
+    row.status !== 'queued'
+  )
 }
 
 /**
@@ -192,6 +217,9 @@ export function toDisplayRow(
   if (doc.executedAt) row.executedAt = doc.executedAt.toISOString()
   if (onChainDone !== undefined) row.onChainDone = onChainDone
   if (onChainReady !== undefined) row.onChainReady = onChainReady
+  const reason = queueStatusReason(doc)
+  if (reason) row.statusReason = reason
+  if (doc.blockedAt) row.blockedAt = doc.blockedAt.toISOString()
   return row
 }
 
@@ -317,14 +345,22 @@ const cmd = defineCommand({
     },
     status: {
       type: 'string',
-      description:
-        'Filter by status: queued|executed|cancelled|failed|all (default all)',
+      description: `Filter by status: ${QUEUE_STATUSES.join(
+        '|'
+      )}|all (default all)`,
       required: false,
     },
     checkOnChain: {
       type: 'boolean',
       description:
         "Cross-check isOperationDone on each row's timelock controller",
+      required: false,
+      default: false,
+    },
+    attention: {
+      type: 'boolean',
+      description:
+        'Only show rows that are executable on-chain but in a status the runner ignores (implies --checkOnChain)',
       required: false,
       default: false,
     },
@@ -383,27 +419,49 @@ const cmd = defineCommand({
       payloadNeedles
     )
 
+    // --attention is defined in terms of on-chain readiness, so it cannot be
+    // evaluated without the cross-check.
+    const checkOnChain = Boolean(args.checkOnChain) || Boolean(args.attention)
+
     let doneByKey = new Map<string, boolean | null>()
     let readyByKey = new Map<string, boolean | null>()
     let onChainErrors = 0
-    if (args.checkOnChain && rows.length > 0)
+    if (checkOnChain && rows.length > 0)
       ({
         doneByKey,
         readyByKey,
         errorCount: onChainErrors,
       } = await checkOnChainStatus(rows))
 
-    const displayRows = rows.map((row) =>
+    let displayRows = rows.map((row) =>
       toDisplayRow(
         row,
-        args.checkOnChain
+        checkOnChain
           ? doneByKey.get(statusKey(row.network, row.operationId)) ?? null
           : undefined,
-        args.checkOnChain
+        checkOnChain
           ? readyByKey.get(statusKey(row.network, row.operationId))
           : undefined
       )
     )
+
+    const attentionRows = displayRows.filter(needsAttention)
+    if (args.attention) displayRows = attentionRows
+
+    if (!args.json && attentionRows.length > 0) {
+      consola.error(
+        `🚨 ${attentionRows.length} timelock op(s) are READY on-chain but in a status the runner ignores — these will never auto-execute:`
+      )
+      for (const row of attentionRows)
+        consola.error(
+          `   [${row.network}] ${row.operationId} — ${row.status}${
+            row.statusReason ? `: ${row.statusReason}` : ''
+          }`
+        )
+      consola.error(
+        '   Re-drive with: bunx tsx ./script/deploy/safe/requeue-timelock-op.ts --network <network> --operationId <id>'
+      )
+    }
 
     if (args.json) console.log(JSON.stringify(displayRows, null, 2))
     else if (displayRows.length === 0) consola.info('No matching queue rows.')
@@ -428,8 +486,10 @@ const cmd = defineCommand({
         consola.info(`   safeTxHash: ${row.safeTxHash}`)
         if (row.executionTxHash)
           consola.info(`   executionTxHash: ${row.executionTxHash}`)
+        if (row.statusReason) consola.info(`   reason: ${row.statusReason}`)
         consola.info(
           `   createdAt: ${row.createdAt}` +
+            (row.blockedAt ? ` — blockedAt: ${row.blockedAt}` : '') +
             (row.executedAt ? ` — executedAt: ${row.executedAt}` : '')
         )
       }

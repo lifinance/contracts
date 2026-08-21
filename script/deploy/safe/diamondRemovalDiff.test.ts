@@ -14,6 +14,7 @@ import {
   diffNamedFacets,
   extractRemoveFacetCuts,
   fetchOnChainFacets,
+  describeStaleRemovals,
   filterRePointedRemovals,
   getExpectedFacetNames,
   getFacetSourceNames,
@@ -526,6 +527,69 @@ describe('filterRePointedRemovals', () => {
     ])
     expect(r.stillRemovable).toHaveLength(0)
     expect(r.stale).toHaveLength(3)
+  })
+})
+
+describe('describeStaleRemovals', () => {
+  const snapshot: IFacetRemoval[] = [
+    { name: 'AcrossFacetV3', address: addr(2), selectors: [sel(1), sel(2)] },
+  ]
+
+  // The EXSC-816 shape: an old AcrossFacetV3 was replaced, so every snapshotted
+  // selector now routes to the live successor and the Remove removes nothing.
+  it('flags a removal whose every selector has moved on as fully obsolete', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(7), selectors: [sel(1), sel(2)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(true)
+    expect(d.detail).toContain('AcrossFacetV3')
+    expect(d.detail).toContain('re-pointed')
+    expect(d.remediation).toContain('no-op')
+    expect(d.remediation).toContain('re-propose the primary cut(s) alone')
+  })
+
+  it('flags a partially stale removal as needing a re-draft, not obsolete', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1)] },
+      { address: addr(7), selectors: [sel(2)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.remediation).toContain('fresh loupe drain')
+  })
+
+  // Re-pointing was the intuitive-but-wrong remediation: those selectors route
+  // to a live facet, and Remove zeroes them regardless of owner.
+  it('warns against re-pointing in both shapes', () => {
+    const obsolete = describeStaleRemovals(
+      filterRePointedRemovals(snapshot, [
+        { address: addr(7), selectors: [sel(1), sel(2)] },
+      ])
+    )
+    const partial = describeStaleRemovals(
+      filterRePointedRemovals(snapshot, [
+        { address: addr(2), selectors: [sel(1)] },
+        { address: addr(7), selectors: [sel(2)] },
+      ])
+    )
+    for (const d of [obsolete, partial])
+      expect(d.remediation).toMatch(/Do NOT re-point/)
+  })
+
+  it('renders already-gone selectors without a current address', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.detail).toBe(`AcrossFacetV3:${sel(2)} (already-gone)`)
+  })
+
+  it('reports no staleness as not obsolete with empty detail', () => {
+    const d = describeStaleRemovals({ stillRemovable: snapshot, stale: [] })
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.detail).toBe('')
   })
 })
 

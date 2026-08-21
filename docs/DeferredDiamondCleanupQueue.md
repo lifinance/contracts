@@ -520,11 +520,26 @@ the primary cut with it. Two failure modes in the delay window: (1) selector alr
 gone → on-chain `FunctionDoesNotExist` revert of the whole batch; (2) selector
 **re-pointed** to a live facet → the Remove (`facetAddress = 0`) would *succeed* and
 silently delete the live selector. The pre-execute guard in `execute-pending-timelock-tx`
-(§4) refuses both before `executeBatch`, marking the queue row `failed` so the cron does
-not retry. The prepare-time partition still shrinks the window; the schedule remains
-immutable once queued. Exposure is low in practice (parked removals target already-
-deprecated facets), but larger than the old separate-proposal design. Mitigations if the
-guard ever false-positives a rollout: cancel the op, or gate `DRAIN_PARKED_TASKS` off.
+(§4) refuses both before `executeBatch`, marking the queue row `blocked` so the cron does
+not retry it blindly. `blocked` — not `failed` — because the timelock op stays live and
+executable on-chain: the runner keeps re-checking it, re-alerts to Slack while it remains
+`isOperationReady`, and `requeue-timelock-op.ts` re-drives it once the cause is cleared.
+`failed` is reserved for rows that can never run as stored (tampered row, on-chain revert).
+Marking a still-executable op `failed` made it invisible to every consumer and stalled a
+production rollout for hours (EXSC-816). The prepare-time partition still shrinks the
+window; the schedule remains immutable once queued. Exposure is low in practice (parked
+removals target already-deprecated facets), but larger than the old separate-proposal
+design. Mitigations if the guard ever false-positives a rollout: cancel the op, or gate
+`DRAIN_PARKED_TASKS` off.
+
+**When the guard fires, the removal is usually obsolete rather than wrong.** If *every*
+snapshotted selector is stale, the doomed facet has already been replaced or unlinked, so
+the folded `Remove` removes nothing and the only real casualty is the primary cut riding
+in the same immutable batch — cancel and re-propose the primary cut alone; the parked task
+resolves itself to `superseded` because `reconcileDecision` matches the loupe by address.
+Re-pointing the removal at the selectors' *current* address is never the fix: `Remove`
+zeroes a selector regardless of which facet owns it, so that would delete live selectors.
+`describeStaleRemovals` encodes this distinction and emits the matching remediation.
 A rare false abort can also come from same-ms `proposedAt` ties mis-ordering the
 trailing-N Remove zip (fail-safe, not silent delete) — accepted until claim-time
 append indexing ships. Flagged for governance review; the default-off flag remains
