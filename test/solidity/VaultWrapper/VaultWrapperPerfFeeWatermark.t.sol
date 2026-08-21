@@ -187,10 +187,10 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         assertEq(_accruedFeeShares(), feesAtPeak);
     }
 
-    function test_FrequentAccrualsForgiveOnlyBoundedFee() public {
+    function test_FrequentAccrualsCollectTheSameFeeAsOneAccrual() public {
         // Ten sub-gain accruals vs one lump accrual of the same total gain: per-accrual
-        // forgiveness is only flooring slack, so frequent accruals cannot dodge a
-        // meaningful part of the fee.
+        // rounding is flooring slack only, so the fee cannot be moved by accrual
+        // frequency in either direction.
         wrapper = _newWrapperPerfOnly(PERF_RATE);
         _deposit(bob, DEPOSIT);
 
@@ -213,9 +213,7 @@ contract PerfFeeDonationWatermarkTest is VaultWrapperFeeTestBase {
         // The split path may slightly EXCEED the lump in share terms (~0.04% measured):
         // earlier fee mints participate in later chunks' gains. Bounded both ways —
         // no dodging low side, no runaway compounding high side.
-        assertLe(feeSplit, (feeSingle * 101) / 100);
-        // Slack: one flooring event per accrual (10) + 1.
-        assertGe(feeSplit + 10 + 1, (feeSingle * 9) / 10);
+        assertApproxEqRel(feeSplit, feeSingle, 0.001e18); // 0.1%
     }
 
     function test_PreviewDepositMatchesExecutionAtDustSupply() public {
