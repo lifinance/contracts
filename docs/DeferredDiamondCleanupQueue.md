@@ -529,8 +529,9 @@ Marking a still-executable op `failed` made it invisible to every consumer and s
 production rollout for hours (EXSC-816). The prepare-time partition still shrinks the
 window; the schedule remains immutable once queued. Exposure is low in practice (parked
 removals target already-deprecated facets), but larger than the old separate-proposal
-design. Mitigations if the guard ever false-positives a rollout: cancel the op, or gate
-`DRAIN_PARKED_TASKS` off.
+design. Mitigation if the guard ever false-positives a rollout: cancel the op, then
+re-propose with `DRAIN_PARKED_TASKS` unset — gating the flag off on its own changes nothing
+about an already-scheduled batch, which is immutable once queued.
 
 **When the guard fires, the removal is usually obsolete rather than wrong.** If *every*
 snapshotted selector is stale, the doomed facet has already been replaced or unlinked, so
