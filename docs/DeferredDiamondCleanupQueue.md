@@ -767,7 +767,9 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   addresses to names through the log in order to detect them at all (its queue
   coverage check is address-keyed, like the drain). The weekly reconcile job (§7) reports which
   entries are **safe to prune** (every covering task terminal); pruning then is a
-  small reviewed PR.
+  small reviewed PR — and it is a *floor*, not a licence to keep the entry forever: once a
+  network's removal has executed, the entry goes from both `deployments/<network>.json` and
+  `deployments/<network>.diamond.json` ([docs/DeploymentLogs.md](./DeploymentLogs.md)).
 
 **Network-retirement hazard.** `/deprecate-network` removes the network from
 `config/networks.json` and its `deployments/*.json`, which takes away everything a
