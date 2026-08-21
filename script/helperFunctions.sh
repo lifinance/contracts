@@ -2145,7 +2145,7 @@ function extractFromVerificationOutput() {
 # API-key values must never reach a log: verification runs in CI and in shared
 # transcripts, and a leaked explorer key cannot be un-leaked.
 function redactVerifyCmd() {
-  echo "$*" | sed -E 's/(--(etherscan|verifier)-api-key)[[:space:]]+[^[:space:]]+/\1 ***REDACTED***/g'
+  echo "$@" | sed -E 's/(--(etherscan|verifier)-api-key)[[:space:]]+[^[:space:]]+/\1 ***REDACTED***/g'
 }
 
 function verifyContract() {
