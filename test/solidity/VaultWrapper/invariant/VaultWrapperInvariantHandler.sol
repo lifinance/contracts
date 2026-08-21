@@ -88,6 +88,15 @@ contract VaultWrapperInvariantHandler is Test {
         address actor = _actor(_actorSeed);
         uint256 shares = bound(_shares, MIN_ENTER, MAX_ENTER);
         uint256 assets = WRAPPER.previewMint(shares);
+        // `deposit` bounds the assets it pulls to MAX_ENTER; `mint` bounds shares, so an
+        // inflated price-per-share (a yield injection into a near-empty vault) can make
+        // `previewMint` demand an out-of-band asset amount. Keep `mint` inside the same
+        // realistic magnitude band by skipping those: a fee on such an amount would saturate
+        // the wrapper's uint128 fee counters — a deliberately-unreachable regime (see
+        // `_saturatingAddUint128`) this suite does not model. At any realistic price per share
+        // a mint of up to MAX_ENTER shares costs well under MAX_ENTER assets, so normal
+        // coverage is unaffected.
+        if (assets > MAX_ENTER) return;
         ASSET.mint(actor, assets);
 
         vm.startPrank(actor);
