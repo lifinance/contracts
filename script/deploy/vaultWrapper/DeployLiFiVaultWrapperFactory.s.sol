@@ -272,10 +272,22 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         if (_factory.lifiFeeRecipient() != _cfg.lifiFeeRecipient)
             revert WiringMismatch("factory.lifiFeeRecipient");
 
-        // The logic contract must not be usable on its own: its initializers are
-        // locked by the constructor's _disableInitializers().
-        if (_factoryLogic.code.length == 0)
-            revert WiringMismatch("factory.logic");
+        // The proxy must delegate to exactly the logic deployed this run. CREATE3
+        // salts exclude creation code, so a re-run that reuses the proxy salt keeps
+        // the live implementation slot pointing at the old logic while the earlier
+        // through-proxy checks still pass — this catches that stale linkage.
+        address liveImpl = address(
+            uint160(
+                uint256(
+                    vm.load(
+                        address(_factory),
+                        ERC1967Utils.IMPLEMENTATION_SLOT
+                    )
+                )
+            )
+        );
+        if (liveImpl != _factoryLogic)
+            revert WiringMismatch("factory.implementation");
     }
 
     /// @notice Deploys the dedicated 48h timelock (proposer/canceller = multisig,
