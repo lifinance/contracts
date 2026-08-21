@@ -92,16 +92,20 @@
       "0x4Bbe85750F2625F058285bf6ff857cd90746E1ac": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0xc5b0546842F572bC3328D38151b1EEeaE3428dAc": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x3E8EDF9CC2591a7dB1A36DBB73A10d8746368D61",
       "Executor": "0x1F050386e23d81fC81C154a8F8616DEa3826b777",
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
-      "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
+      "FeeForwarder": "0xba072Bf218314E51d5c3d254800d799840ae6a25",
       "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
+      "LidoWrapper": "",
       "OutputValidator": "0x905F229f14Ec9e7Dd7428417CfBe7DBf1e1FD386",
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
