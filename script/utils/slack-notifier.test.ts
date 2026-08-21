@@ -201,3 +201,44 @@ describe('isUnattendedRun', () => {
     expect(isUnattendedRun()).toBe(true)
   })
 })
+
+describe('SlackNotifier.notifyRepeatedRevert', () => {
+  it('states the problem and the required action in a deliverable payload', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyRepeatedRevert({
+      network: 'mode',
+      operationId: `0x${'c4'.repeat(32)}`,
+      safeTxHash: `0x${'b4'.repeat(32)}`,
+      revertCount: 3,
+      lastRevertTxHash: `0x${'37'.repeat(32)}`,
+    })
+
+    const payload = getPayload()
+    // The fallback text is what surfaces in the notification list, so it has to
+    // carry the meaning on its own.
+    expect(payload.text).toContain('keeps failing on-chain')
+    expect(payload.text).toContain('mode')
+
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    const flat = JSON.stringify(blocks)
+    expect(flat).toContain('Action Required')
+    expect(flat).toContain('requeue-timelock-op.ts')
+    expect(flat).toContain('3')
+
+    // Every block must sit under Slack's per-element cap or the whole post is
+    // rejected with invalid_blocks and the alert is silently lost.
+    for (const block of blocks)
+      expect(block.text?.text?.length ?? 0).toBeLessThanOrEqual(3000)
+  })
+
+  it('renders without a last-revert hash', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyRepeatedRevert({
+      network: 'mode',
+      operationId: `0x${'c4'.repeat(32)}`,
+      safeTxHash: 'unknown',
+      revertCount: 5,
+    })
+    expect(JSON.stringify(getPayload().blocks)).toContain('unknown')
+  })
+})

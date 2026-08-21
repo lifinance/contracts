@@ -569,6 +569,97 @@ export class SlackNotifier {
   }
 
   /**
+   * Notify that a timelock op has reverted on-chain often enough that the runner
+   * has stopped retrying it.
+   *
+   * Goes to the CI notifications channel rather than the executor's own webhook:
+   * this is a standing problem for whoever is on shift, not a per-run result.
+   */
+  public async notifyRepeatedRevert(context: {
+    network: string
+    operationId: string
+    safeTxHash: string
+    revertCount: number
+    lastRevertTxHash?: string
+  }): Promise<void> {
+    const explorerUrl = this.getExplorerUrl(
+      context.network,
+      context.lastRevertTxHash
+    )
+    const message: ISlackMessage = {
+      text: `🛑 ${context.network}: a scheduled timelock operation keeps failing on-chain — please check / resolve / cancel it`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '🛑 Timelock Operation Keeps Reverting On-Chain',
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              `A scheduled timelock operation on *${context.network}* has reverted ` +
+              `*${context.revertCount}* time(s) on-chain. The runner has stopped retrying it, ` +
+              'so the upgrade it carries will not land until someone acts.',
+          },
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Network:*\n${context.network}`,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Operation ID:*\n\`${this.truncateHash(
+                context.operationId
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Safe Tx Hash:*\n\`${this.truncateHash(
+                context.safeTxHash
+              )}\``,
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Last Reverted Tx:*\n${
+                context.lastRevertTxHash
+                  ? explorerUrl
+                    ? `<${explorerUrl}|${this.truncateHash(
+                        context.lastRevertTxHash
+                      )}>`
+                    : `\`${this.truncateHash(context.lastRevertTxHash)}\``
+                  : 'unknown'
+              }`,
+            },
+          ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text:
+              '⚠️ *Action Required:* inspect the reverted tx to find which inner call fails. ' +
+              'A scheduled batch is immutable, so the usual outcomes are: fix the external ' +
+              'cause and re-drive it with `requeue-timelock-op.ts`, or cancel the operation ' +
+              'and re-propose a corrected batch. It is now `blocked` in the queue — ' +
+              `\`list-timelock-queue.ts --network ${context.network} --attention\` shows it.`,
+          },
+        },
+      ],
+    }
+
+    this.appendRunLink(message)
+
+    await this.sendNotificationWithRetry(message)
+  }
+
+  /**
    * Notify that a timelock op is blocked but still executable on-chain.
    *
    * Re-raised on an interval rather than once, because a blocked op stays live

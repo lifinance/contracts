@@ -73,6 +73,19 @@ export const TIMELOCK_QUEUE_STATUSES = [
 export const BLOCKED_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 /**
+ * How many reverted `executeBatch` attempts a row absorbs before the runner
+ * stops retrying it and blocks it for an operator.
+ *
+ * Not 1, because a revert is not always durable: the diamond can be paused, or a
+ * value-bearing inner call can be temporarily underfunded, and those clear on
+ * their own. Not unbounded either — before this threshold existed, a batch whose
+ * payload could never succeed was re-attempted every ten minutes forever, and
+ * re-alerted every time. Three attempts is roughly half an hour of self-healing
+ * on the 10-minute cron.
+ */
+export const REVERT_BLOCK_THRESHOLD = 3
+
+/**
  * Schedule parameters as decoded from a `scheduleBatch` Safe tx (BigInts).
  * Used internally before serialization for Mongo storage.
  */
@@ -141,6 +154,17 @@ export interface ITimelockQueueDoc {
   requeuedAt?: Date
   /** How many times this row has been re-driven. */
   requeueCount?: number
+  /**
+   * Reverted `executeBatch` attempts since the last requeue. Only a requeue
+   * resets it — an attempt that fails for some other reason (RPC error, missing
+   * receipt) leaves it alone, because those say nothing about whether the
+   * payload itself can succeed.
+   */
+  revertCount?: number
+  /** Timestamp of the most recent reverted attempt. */
+  lastRevertAt?: Date
+  /** Hash of the most recent reverted `executeBatch` tx, for triage. */
+  lastRevertTxHash?: string
 }
 
 /**
@@ -517,6 +541,51 @@ export function queueStatusReason(
   if (doc.status === 'blocked') return doc.blockedReason
   if (doc.status === 'failed') return doc.failureReason
   return undefined
+}
+
+/**
+ * Records a reverted `executeBatch` attempt and returns the new revert tally.
+ *
+ * The row stays `queued` — deciding whether the tally has run out is the
+ * caller's job via {@link shouldBlockAfterRevert}, so a transient revert still
+ * gets its retries.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param network - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param txHash - Hash of the reverted `executeBatch` tx.
+ * @returns Total reverted attempts recorded for this row since its last requeue.
+ */
+export async function recordTimelockOpRevert(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  network: string,
+  operationId: Hex,
+  txHash: string
+): Promise<number> {
+  const now = new Date()
+  const updated = await timelockQueue.findOneAndUpdate(
+    byOperationId(network, operationId),
+    {
+      $inc: { revertCount: 1 },
+      $set: { lastRevertAt: now, lastRevertTxHash: txHash, updatedAt: now },
+    },
+    { returnDocument: 'after' }
+  )
+  return updated?.revertCount ?? 0
+}
+
+/**
+ * Whether a row has reverted often enough to stop auto-retrying it.
+ *
+ * @param revertCount - Tally from {@link recordTimelockOpRevert}.
+ * @param threshold - Attempts to allow; defaults to {@link REVERT_BLOCK_THRESHOLD}.
+ * @returns Whether the runner should block the row instead of retrying.
+ */
+export function shouldBlockAfterRevert(
+  revertCount: number,
+  threshold: number = REVERT_BLOCK_THRESHOLD
+): boolean {
+  return revertCount >= threshold
 }
 
 /**

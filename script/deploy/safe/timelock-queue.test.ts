@@ -18,7 +18,10 @@ import {
   ensureTimelockQueueIndexes,
   isScheduleBatchCalldata,
   queueStatusReason,
+  recordTimelockOpRevert,
+  REVERT_BLOCK_THRESHOLD,
   selectBlockedNeedingAlert,
+  shouldBlockAfterRevert,
   serializeScheduleParams,
   TIMELOCK_QUEUE_STATUSES,
   type IBlockedOpCandidate,
@@ -601,5 +604,84 @@ describe('classifyBlockedRow', () => {
         isOperation: false,
       })
     ).toBe('done')
+  })
+})
+
+describe('shouldBlockAfterRevert', () => {
+  it('keeps retrying below the threshold so a transient revert can clear', () => {
+    expect(shouldBlockAfterRevert(1)).toBe(false)
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD - 1)).toBe(false)
+  })
+
+  it('blocks once the retry budget is spent', () => {
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD)).toBe(true)
+  })
+
+  // The pre-fix behaviour was an unbounded retry loop, so anything past the
+  // threshold must stay blocked rather than wrapping back to retrying.
+  it('stays blocked past the threshold', () => {
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD + 10)).toBe(true)
+  })
+
+  it('honours an explicit threshold', () => {
+    expect(shouldBlockAfterRevert(1, 1)).toBe(true)
+    expect(shouldBlockAfterRevert(4, 5)).toBe(false)
+  })
+
+  it('does not block a row that has never reverted', () => {
+    expect(shouldBlockAfterRevert(0)).toBe(false)
+  })
+})
+
+describe('recordTimelockOpRevert', () => {
+  /** Minimal findOneAndUpdate stand-in capturing the update document. */
+  function createFakeRevertCollection(returnedCount: number | undefined) {
+    const calls: { filter: unknown; update: unknown }[] = []
+    const api = {
+      async findOneAndUpdate(filter: unknown, update: unknown) {
+        calls.push({ filter, update })
+        return returnedCount === undefined
+          ? null
+          : ({ revertCount: returnedCount } as ITimelockQueueDoc)
+      },
+      calls,
+    }
+    return api as unknown as Collection<ITimelockQueueDoc> & {
+      calls: typeof calls
+    }
+  }
+
+  it('increments the tally and returns the new count', async () => {
+    const collection = createFakeRevertCollection(2)
+    const count = await recordTimelockOpRevert(
+      collection,
+      'mode',
+      '0xabc' as Hex,
+      '0xtx'
+    )
+    expect(count).toBe(2)
+    const update = collection.calls[0]?.update as {
+      $inc: Record<string, number>
+      $set: Record<string, unknown>
+    }
+    expect(update.$inc).toEqual({ revertCount: 1 })
+    expect(update.$set.lastRevertTxHash).toBe('0xtx')
+  })
+
+  it('scopes the update to the row by network and operationId', async () => {
+    const collection = createFakeRevertCollection(1)
+    await recordTimelockOpRevert(collection, 'Mode', '0xabc' as Hex, '0xtx')
+    expect(collection.calls[0]?.filter).toEqual({
+      network: { $eq: 'mode' },
+      operationId: { $eq: '0xabc' },
+    })
+  })
+
+  // A missing row must not read as "0 reverts so far, keep retrying forever".
+  it('returns 0 when the row is gone', async () => {
+    const collection = createFakeRevertCollection(undefined)
+    expect(
+      await recordTimelockOpRevert(collection, 'mode', '0xabc' as Hex, '0xtx')
+    ).toBe(0)
   })
 })

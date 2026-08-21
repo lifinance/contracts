@@ -55,6 +55,8 @@ export interface IQueueDisplayRow {
   statusReason?: string
   /** Set on `blocked` rows. */
   blockedAt?: string
+  /** Reverted execution attempts since the last requeue; omitted when none. */
+  revertCount?: number
 }
 
 /**
@@ -220,6 +222,7 @@ export function toDisplayRow(
   const reason = queueStatusReason(doc)
   if (reason) row.statusReason = reason
   if (doc.blockedAt) row.blockedAt = doc.blockedAt.toISOString()
+  if (doc.revertCount) row.revertCount = doc.revertCount
   return row
 }
 
@@ -487,6 +490,8 @@ const cmd = defineCommand({
         if (row.executionTxHash)
           consola.info(`   executionTxHash: ${row.executionTxHash}`)
         if (row.statusReason) consola.info(`   reason: ${row.statusReason}`)
+        if (row.revertCount)
+          consola.info(`   on-chain reverts: ${row.revertCount}`)
         consola.info(
           `   createdAt: ${row.createdAt}` +
             (row.blockedAt ? ` — blockedAt: ${row.blockedAt}` : '') +

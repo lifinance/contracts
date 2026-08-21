@@ -306,11 +306,17 @@ const cmd = defineCommand({
           updatedAt: now,
           requeueCount: (doc.requeueCount ?? 0) + 1,
         },
+        // The revert tally is cleared too: a requeue asserts the operator
+        // believes the cause is gone, so the fresh attempt gets the full retry
+        // budget rather than blocking again immediately.
         $unset: {
           blockedReason: '',
           blockedAt: '',
           blockedAlertedAt: '',
           failureReason: '',
+          revertCount: '',
+          lastRevertAt: '',
+          lastRevertTxHash: '',
         },
       })
 

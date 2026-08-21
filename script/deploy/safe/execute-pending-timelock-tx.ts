@@ -27,6 +27,7 @@ import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
+  isUnattendedRun,
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
@@ -53,7 +54,10 @@ import {
   getTimelockQueueCollection,
   markTimelockOpBlocked,
   markTimelockOpFailedInQueue,
+  recordTimelockOpRevert,
+  REVERT_BLOCK_THRESHOLD,
   selectBlockedNeedingAlert,
+  shouldBlockAfterRevert,
   type IBlockedOpCandidate,
   type ITimelockQueueDoc,
 } from './timelock-queue'
@@ -1352,6 +1356,101 @@ async function getPendingOperations(
 }
 
 /**
+ * Records a reverted `executeBatch` and, once the row has burned its retry
+ * budget, blocks it and alerts the CI notifications channel.
+ *
+ * Reverting is the one execution failure that is usually about the payload
+ * rather than the environment, so retrying it forever burns gas and buries the
+ * signal under an alert every ten minutes. Past
+ * {@link REVERT_BLOCK_THRESHOLD} the row becomes `blocked`, which hands it to
+ * the machinery that already exists for operator-owned states: `--attention` in
+ * the lister, the recurring standing-block reminder, and
+ * `requeue-timelock-op.ts` once the cause is cleared.
+ *
+ * The escalation goes to `WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS` (same
+ * convention as `reconcile-parked-tasks.ts`). An unattended run that has this
+ * alert to deliver and no webhook configured throws rather than dropping it —
+ * a silently undelivered alert is the failure mode this whole change exists to
+ * remove.
+ *
+ * Best-effort on the bookkeeping: a Mongo error is logged and does not change
+ * the caller's decision, which is already "this run failed".
+ */
+async function handleRevertedExecution(
+  networkName: string,
+  operation: ITimelockOperation,
+  txHash: string,
+  networkPrefix: string
+): Promise<void> {
+  let revertCount: number
+  try {
+    const { client, timelockQueue } = await getTimelockQueueCollection()
+    try {
+      revertCount = await recordTimelockOpRevert(
+        timelockQueue,
+        networkName,
+        operation.id,
+        txHash
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    consola.warn(
+      `${networkPrefix} Could not record the reverted attempt for ${operation.id}: ${error}`
+    )
+    return
+  }
+
+  if (!shouldBlockAfterRevert(revertCount)) {
+    consola.warn(
+      `${networkPrefix} Operation ${operation.id} has reverted ${revertCount}/${REVERT_BLOCK_THRESHOLD} time(s); ` +
+        'leaving it queued in case the cause is transient.'
+    )
+    return
+  }
+
+  await blockTimelockOp(
+    networkName,
+    operation.id,
+    `executeBatch reverted on-chain ${revertCount} time(s); last tx ${txHash}`,
+    networkPrefix
+  )
+
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  if (!webhookUrl) {
+    const message =
+      `${networkPrefix} Operation ${operation.id} was blocked after ${revertCount} on-chain reverts, ` +
+      'but WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset so the alert cannot be delivered. ' +
+      'Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    if (isUnattendedRun()) throw new Error(message)
+    consola.warn(`${message} (local run: logged only)`)
+    return
+  }
+
+  try {
+    await new SlackNotifier(
+      webhookUrl,
+      process.env.TIMELOCK_RUN_URL
+    ).notifyRepeatedRevert({
+      network: networkName,
+      operationId: operation.id,
+      safeTxHash: operation.safeTxHash ?? 'unknown',
+      revertCount,
+      lastRevertTxHash: txHash,
+    })
+    consola.info(
+      `${networkPrefix} Alerted the CI notifications channel about ${operation.id}`
+    )
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} Failed to alert the CI notifications channel about ${operation.id}:`,
+      error
+    )
+  }
+}
+
+/**
  * Marks a timelock queue row `blocked` so the cron stops retrying a batch that
  * failed pre-execute re-validation, without burying it: blocked rows stay
  * visible in `list-timelock-queue`, are re-alerted by {@link alertBlockedOps}
@@ -1763,6 +1862,13 @@ async function executeOperation(
         await notifyFailure(
           new Error(`executeBatch tx ${result.hash} reverted on-chain`)
         )
+        if (!isDryRun && networkName)
+          await handleRevertedExecution(
+            networkName,
+            operation,
+            result.hash,
+            networkPrefix
+          )
         return 'failed'
       }
 
