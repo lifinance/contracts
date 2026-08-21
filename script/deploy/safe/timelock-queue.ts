@@ -27,6 +27,7 @@ import {
 } from 'viem'
 
 import { getEnvVar } from '../../utils/utils'
+import { withSrvDnsFallback } from '../shared/mongo-srv-dns'
 
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -122,7 +123,7 @@ export async function getTimelockQueueCollection(): Promise<{
     TIMELOCK_QUEUE_COLLECTION_NAME
   )
   try {
-    await ensureTimelockQueueIndexes(timelockQueue)
+    await withSrvDnsFallback(() => ensureTimelockQueueIndexes(timelockQueue))
     return { client, timelockQueue }
   } catch (error) {
     await client.close()

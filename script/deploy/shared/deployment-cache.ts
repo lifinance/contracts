@@ -15,6 +15,7 @@ import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
 import { type IDeploymentRecord, type IConfig } from './mongo-log-utils'
+import { withSrvDnsFallback } from './mongo-srv-dns'
 
 /**
  * Metadata for the deployment cache
@@ -443,7 +444,7 @@ export class DeploymentCache {
       const client = new MongoClient(this.mongoConfig.mongoUri)
 
       try {
-        await client.connect()
+        await withSrvDnsFallback(() => client.connect())
         const collection = client
           .db(this.mongoConfig.databaseName)
           .collection<IDeploymentRecord>(environment)

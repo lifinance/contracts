@@ -183,9 +183,43 @@ bun run safe:tunnel                       # ensure the tunnel, then exit
 bun run safe:tunnel bun confirm-safe-tx   # ensure, then run (any command)
 ```
 
+### `querySrv EBADRESP` when connecting to MongoDB
+
+If a Mongo-touching script fails immediately with
+
+```text
+Error: querySrv EBADRESP _mongodb._tcp.<cluster>.mongodb.net
+```
+
+the problem is the DNS resolver of the network you are on, not your credentials,
+the tunnel, or Atlas. Some routers re-encode SRV answers with a name-compression
+pointer in the target field, which RFC 2782 forbids; Node's resolver rejects those
+packets while `dig`, `host` and macOS's own resolver accept them — so DNS looks
+perfectly healthy from the shell.
+
+The tooling handles this on its own: the connection is retried once against public
+DNS servers, with a `WARN` naming the resolver that failed. Set
+`MONGODB_DNS_SERVERS` (comma-separated) if 1.1.1.1 / 8.8.8.8 are unreachable on
+your network, or fix it at the OS level — on macOS, with `<service>` being your
+network service name as listed by `networksetup -listallnetworkservices`:
+
+```bash
+networksetup -setdnsservers "<service>" 1.1.1.1 8.8.8.8   # e.g. "Wi-Fi"
+networksetup -setdnsservers "<service>" empty              # restore DHCP-provided DNS
+```
+
+To confirm the diagnosis, run the same SRV query through the local resolver and
+through a public one — the first fails, the second returns the record count:
+
+```bash
+node -e "require('dns').resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log('local:',e?e.code:r.length))"
+node -e "const d=require('dns');d.setServers(['1.1.1.1']);d.resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log('public:',e?e.code:r.length))"
+```
+
 ### Agent access
 
 Running an automated agent (Claude Code, Cursor, etc.) against this repo? The
 agent-specific guidance — what an agent must **not** do, and how commands differ
 in a non-interactive shell — is in **[Setup-agents.md](Setup-agents.md)**. The
 steps above are the human path.
+

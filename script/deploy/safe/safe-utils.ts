@@ -49,6 +49,7 @@ import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import { withSrvDnsFallback } from '../shared/mongo-srv-dns'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
@@ -1481,7 +1482,7 @@ export async function getSafeMongoCollection(): Promise<{
     serverSelectionTimeoutMS: 10_000, // 10 seconds
   })
   try {
-    await client.connect()
+    await withSrvDnsFallback(() => client.connect())
   } catch (error) {
     await client.close().catch(() => undefined)
     const detail = error instanceof Error ? error.message : String(error)

@@ -4,6 +4,7 @@ import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
 import { mongoEq } from '../deploy/shared/mongo-log-utils'
+import { withSrvDnsFallback } from '../deploy/shared/mongo-srv-dns'
 
 const main = defineCommand({
   meta: {
@@ -43,7 +44,7 @@ const main = defineCommand({
     const client = new MongoClient(MONGODB_URI)
     let exitCode = 0
     try {
-      await client.connect()
+      await withSrvDnsFallback(() => client.connect())
       const db = client.db('blockchain-configs')
       const collection = db.collection('RpcEndpoints')
 

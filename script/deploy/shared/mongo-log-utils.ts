@@ -13,6 +13,8 @@ import {
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
+import { withSrvDnsFallback } from './mongo-srv-dns'
+
 /**
  * Represents a deployment record stored in MongoDB
  * @interface IDeploymentRecord
@@ -171,8 +173,9 @@ export class DatabaseConnectionManager {
 
     while (retryCount < maxRetries)
       try {
-        this.client = new MongoClient(this.config.mongoUri)
-        await this.client.connect()
+        const client = new MongoClient(this.config.mongoUri)
+        this.client = client
+        await withSrvDnsFallback(() => client.connect())
         this.db = this.client.db(this.config.databaseName)
         this.isConnected = true
         // Use stderr so stdout stays JSON-only when used from bash (e.g. query-deployment-logs batch)
