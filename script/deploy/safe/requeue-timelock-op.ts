@@ -39,6 +39,7 @@ import {
   deserializeScheduleParams,
   getTimelockQueueCollection,
   queueStatusReason,
+  staleStatusMetadataUnset,
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
@@ -299,26 +300,41 @@ const cmd = defineCommand({
       }
 
       const now = new Date()
-      await timelockQueue.updateOne(byOperationId(network, operationId), {
-        $set: {
-          status: 'queued',
-          requeuedAt: now,
-          updatedAt: now,
-          requeueCount: (doc.requeueCount ?? 0) + 1,
+      // Compare-and-swap on the status this run validated. Between the findOne
+      // and here the cron can execute the op or reconcile it to cancelled, and
+      // an unguarded write would resurrect a terminal row to `queued`.
+      const result = await timelockQueue.updateOne(
+        {
+          ...byOperationId(network, operationId),
+          status: { $eq: doc.status },
         },
-        // The revert tally is cleared too: a requeue asserts the operator
-        // believes the cause is gone, so the fresh attempt gets the full retry
-        // budget rather than blocking again immediately.
-        $unset: {
-          blockedReason: '',
-          blockedAt: '',
-          blockedAlertedAt: '',
-          failureReason: '',
-          revertCount: '',
-          lastRevertAt: '',
-          lastRevertTxHash: '',
-        },
-      })
+        {
+          $set: {
+            status: 'queued',
+            requeuedAt: now,
+            updatedAt: now,
+            requeueCount: (doc.requeueCount ?? 0) + 1,
+          },
+          // The revert tally is cleared alongside the status metadata: a requeue
+          // asserts the operator believes the cause is gone, so the fresh
+          // attempt gets the full retry budget rather than blocking again
+          // immediately.
+          $unset: {
+            ...staleStatusMetadataUnset('queued'),
+            revertCount: '',
+            lastRevertAt: '',
+            lastRevertTxHash: '',
+          },
+        }
+      )
+
+      if (result.matchedCount === 0) {
+        consola.error(
+          `Refusing to requeue: ${operationId} on ${network} is no longer '${doc.status}' — ` +
+            'it was executed, cancelled or requeued concurrently while this run was validating it. Re-run to see its current state.'
+        )
+        process.exit(1)
+      }
 
       consola.success(
         `Requeued ${operationId} on ${network} (was '${doc.status}'). ` +

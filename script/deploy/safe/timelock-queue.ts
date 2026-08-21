@@ -497,9 +497,12 @@ export async function markTimelockOpBlocked(
       blockedAt: now,
       updatedAt: now,
     },
-    // Drop any previous alert stamp so the new block alerts on the next run
-    // instead of inheriting an old row's throttle window.
-    $unset: { blockedAlertedAt: '' },
+    $unset: {
+      ...staleStatusMetadataUnset('blocked'),
+      // Also drop any previous alert stamp so the new block alerts on the next
+      // run instead of inheriting an earlier block's throttle window.
+      blockedAlertedAt: '',
+    },
   })
 }
 
@@ -525,6 +528,7 @@ export async function markTimelockOpFailedInQueue(
       failureReason: reason,
       updatedAt: new Date(),
     },
+    $unset: staleStatusMetadataUnset('failed'),
   })
 }
 
@@ -541,6 +545,45 @@ export function queueStatusReason(
   if (doc.status === 'blocked') return doc.blockedReason
   if (doc.status === 'failed') return doc.failureReason
   return undefined
+}
+
+/**
+ * Metadata that only makes sense while a row carries a particular status, keyed
+ * by the status that owns it.
+ *
+ * Anything listed here must not outlive its status: `list-timelock-queue` prints
+ * these fields whenever they are present, so an `executed` row that kept
+ * `blockedAt` reports a block timestamp it no longer has.
+ *
+ * Deliberately excludes the revert tally (`revertCount` and friends), which
+ * describes execution attempts rather than a status and is cleared only by an
+ * operator requeue.
+ */
+const STATUS_OWNED_METADATA: Readonly<
+  Partial<Record<TimelockQueueStatus, readonly string[]>>
+> = {
+  blocked: ['blockedReason', 'blockedAt', 'blockedAlertedAt'],
+  failed: ['failureReason'],
+}
+
+/**
+ * Builds the `$unset` document that strips metadata belonging to every status
+ * other than the one being written.
+ *
+ * Every status transition should apply this, so adding a new status-owned field
+ * to {@link STATUS_OWNED_METADATA} is enough to have all transitions clear it.
+ *
+ * @param newStatus - The status about to be written.
+ * @returns A Mongo `$unset` document; empty when nothing needs clearing.
+ */
+export function staleStatusMetadataUnset(
+  newStatus: TimelockQueueStatus
+): Record<string, ''> {
+  const unset: Record<string, ''> = {}
+  for (const [status, fields] of Object.entries(STATUS_OWNED_METADATA))
+    if (status !== newStatus)
+      for (const field of fields ?? []) unset[field] = ''
+  return unset
 }
 
 /**
@@ -722,13 +765,9 @@ export async function enqueueTimelockOpIfApplicable(
             updatedAt: now,
           },
           // Re-enqueueing an existing row resets it to `queued`; clear any
-          // previous block bookkeeping so the row does not carry a reason that
-          // no longer describes its status.
-          $unset: {
-            blockedReason: '',
-            blockedAt: '',
-            blockedAlertedAt: '',
-          },
+          // previous block or failure bookkeeping so the row does not carry a
+          // reason that no longer describes its status.
+          $unset: staleStatusMetadataUnset('queued'),
         },
         { upsert: true }
       )

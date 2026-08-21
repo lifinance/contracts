@@ -776,6 +776,15 @@ export function describeStaleRemovals(
     )
     .join('; ')
 
+  // Nothing stale means the caller has no abort to explain. Returning one of the
+  // two remediation texts here would assert staleness that does not exist.
+  if (revalidated.stale.length === 0)
+    return {
+      fullyObsolete: false,
+      detail: '',
+      remediation: 'No stale folded removal selectors were detected.',
+    }
+
   const fullyObsolete = revalidated.stillRemovable.length === 0
   const remediation = fullyObsolete
     ? 'Every folded removal selector has already left its doomed facet, so the Remove cut is now a no-op. A scheduled timelock batch is immutable, so it cannot be dropped in place: cancel this op and re-propose the primary cut(s) alone. The parked task needs no repair — reconcileParkedTasks matches the loupe by address and will resolve it to `superseded`. Do NOT re-point the removal at the current address: those selectors route to a live facet and Remove would delete them.'

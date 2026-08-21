@@ -12,6 +12,7 @@ import 'dotenv/config'
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { Collection, UpdateFilter } from 'mongodb'
 import type { Address, Hex, PublicClient } from 'viem'
 import { encodeFunctionData, formatEther, parseAbi } from 'viem'
 
@@ -58,6 +59,7 @@ import {
   REVERT_BLOCK_THRESHOLD,
   selectBlockedNeedingAlert,
   shouldBlockAfterRevert,
+  staleStatusMetadataUnset,
   type IBlockedOpCandidate,
   type ITimelockQueueDoc,
 } from './timelock-queue'
@@ -626,6 +628,37 @@ async function countQueuedAndBlockedOps(networkName: string): Promise<{
 }
 
 /**
+ * Applies a reconciliation write only while the row is still `blocked`.
+ *
+ * `alertBlockedOps` reads its rows up front, then does per-row RPC work before
+ * writing, so an operator running `requeue-timelock-op.ts` in that window could
+ * otherwise have their `queued` row overwritten by a decision made against the
+ * older state. Guarding on `status` makes each write a compare-and-swap; a
+ * no-match means the operator won, which is the correct outcome and only worth a
+ * debug line.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param networkName - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param update - The Mongo update to apply if the row is still blocked.
+ */
+async function reconcileBlockedRow(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  networkName: string,
+  operationId: Hex,
+  update: UpdateFilter<ITimelockQueueDoc>
+): Promise<void> {
+  const result = await timelockQueue.updateOne(
+    { ...byOperationId(networkName, operationId), status: { $eq: 'blocked' } },
+    update
+  )
+  if (result.matchedCount === 0)
+    consola.debug(
+      `[${networkName}] Skipped reconciling ${operationId}: no longer blocked (concurrently requeued or reconciled).`
+    )
+}
+
+/**
  * Re-checks every `blocked` row for this network against the chain and keeps it
  * from going quiet.
  *
@@ -721,14 +754,17 @@ async function alertBlockedOps(
             `[${networkName}] Blocked op ${row.operationId} no longer exists on the controller (cancelled); reconciling queue row to cancelled.`
           )
           if (!isDryRun)
-            await timelockQueue.updateOne(
-              byOperationId(networkName, row.operationId),
+            await reconcileBlockedRow(
+              timelockQueue,
+              networkName,
+              row.operationId,
               {
                 $set: {
                   status: 'cancelled',
                   cancelledAt: now,
                   updatedAt: now,
                 },
+                $unset: staleStatusMetadataUnset('cancelled'),
               }
             )
         }
@@ -737,9 +773,14 @@ async function alertBlockedOps(
             `[${networkName}] Blocked op ${row.operationId} is done on-chain; reconciling queue row to executed.`
           )
           if (!isDryRun)
-            await timelockQueue.updateOne(
-              byOperationId(networkName, row.operationId),
-              { $set: { status: 'executed', executedAt: now, updatedAt: now } }
+            await reconcileBlockedRow(
+              timelockQueue,
+              networkName,
+              row.operationId,
+              {
+                $set: { status: 'executed', executedAt: now, updatedAt: now },
+                $unset: staleStatusMetadataUnset('executed'),
+              }
             )
         }
         for (const row of toAlert) {
@@ -766,9 +807,13 @@ async function alertBlockedOps(
           // Stamped regardless of Slack success: the console/CI log already
           // carries the alert, and a webhook outage must not turn the throttle
           // into a per-run alert storm once Slack recovers.
-          await timelockQueue.updateOne(
-            byOperationId(networkName, row.operationId),
-            { $set: { blockedAlertedAt: now, updatedAt: now } }
+          await reconcileBlockedRow(
+            timelockQueue,
+            networkName,
+            row.operationId,
+            {
+              $set: { blockedAlertedAt: now, updatedAt: now },
+            }
           )
         }
       } finally {
@@ -1926,6 +1971,7 @@ async function executeOperation(
                 executionTxHash: hash,
                 updatedAt: now,
               },
+              $unset: staleStatusMetadataUnset('executed'),
             }
           )
           consola.info(

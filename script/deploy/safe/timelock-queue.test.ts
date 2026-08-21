@@ -22,6 +22,7 @@ import {
   REVERT_BLOCK_THRESHOLD,
   selectBlockedNeedingAlert,
   shouldBlockAfterRevert,
+  staleStatusMetadataUnset,
   serializeScheduleParams,
   TIMELOCK_QUEUE_STATUSES,
   type IBlockedOpCandidate,
@@ -683,5 +684,62 @@ describe('recordTimelockOpRevert', () => {
     expect(
       await recordTimelockOpRevert(collection, 'mode', '0xabc' as Hex, '0xtx')
     ).toBe(0)
+  })
+})
+
+describe('staleStatusMetadataUnset', () => {
+  // The visible bug this prevents: list-timelock-queue prints blockedAt whenever
+  // it exists, so a terminal row that kept it reports a block it no longer has.
+  it('clears blocked metadata when leaving blocked for a terminal status', () => {
+    for (const status of ['executed', 'cancelled', 'failed'] as const) {
+      const unset = staleStatusMetadataUnset(status)
+      expect(unset).toHaveProperty('blockedReason')
+      expect(unset).toHaveProperty('blockedAt')
+      expect(unset).toHaveProperty('blockedAlertedAt')
+    }
+  })
+
+  it('keeps blocked metadata when writing blocked', () => {
+    const unset = staleStatusMetadataUnset('blocked')
+    expect(unset).not.toHaveProperty('blockedReason')
+    expect(unset).not.toHaveProperty('blockedAt')
+    expect(unset).toHaveProperty('failureReason')
+  })
+
+  it('keeps failureReason when writing failed', () => {
+    const unset = staleStatusMetadataUnset('failed')
+    expect(unset).not.toHaveProperty('failureReason')
+    expect(unset).toHaveProperty('blockedReason')
+  })
+
+  it('clears every status-owned field when returning to queued', () => {
+    expect(staleStatusMetadataUnset('queued')).toEqual({
+      blockedReason: '',
+      blockedAt: '',
+      blockedAlertedAt: '',
+      failureReason: '',
+    })
+  })
+
+  // The revert tally describes attempts, not a status, and is cleared only by an
+  // operator requeue — a status transition must not silently reset it.
+  it('never clears the revert tally', () => {
+    for (const status of [
+      'queued',
+      'blocked',
+      'failed',
+      'executed',
+      'cancelled',
+    ] as const) {
+      const unset = staleStatusMetadataUnset(status)
+      expect(unset).not.toHaveProperty('revertCount')
+      expect(unset).not.toHaveProperty('lastRevertAt')
+      expect(unset).not.toHaveProperty('lastRevertTxHash')
+    }
+  })
+
+  it('produces a Mongo-shaped $unset document', () => {
+    for (const value of Object.values(staleStatusMetadataUnset('queued')))
+      expect(value).toBe('')
   })
 })

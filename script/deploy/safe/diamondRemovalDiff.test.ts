@@ -586,10 +586,24 @@ describe('describeStaleRemovals', () => {
     expect(d.detail).toBe(`AcrossFacetV3:${sel(2)} (already-gone)`)
   })
 
-  it('reports no staleness as not obsolete with empty detail', () => {
+  // Guards against emitting one of the two staleness remediations for an input
+  // that has no stale selectors at all.
+  it('reports no staleness without claiming any selector is stale', () => {
     const d = describeStaleRemovals({ stillRemovable: snapshot, stale: [] })
     expect(d.fullyObsolete).toBe(false)
     expect(d.detail).toBe('')
+    expect(d.remediation).toBe(
+      'No stale folded removal selectors were detected.'
+    )
+    expect(d.remediation).not.toMatch(/cancel this op/)
+  })
+
+  // An empty snapshot has nothing removable, which must not be mistaken for
+  // "every selector moved on".
+  it('does not call an empty snapshot fully obsolete', () => {
+    const d = describeStaleRemovals({ stillRemovable: [], stale: [] })
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.remediation).not.toMatch(/no-op/)
   })
 })
 
