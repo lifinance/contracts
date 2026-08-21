@@ -1,9 +1,10 @@
 # LI.FI Earn Vault Wrapper
 
-Audit entry point for the LI.FI Earn Vault Wrapper subsystem (`src/VaultWrapper/`).
-This page ties the components together, states the trust model and invariants in
-one place, and links to the per-contract references. Read it first, then the
-contract docs for detail.
+Reference overview for the LI.FI Earn Vault Wrapper subsystem
+(`src/VaultWrapper/`) — the entry point to the project, and a suitable starting
+point for an audit. It ties the components together, states the roles, trust
+model, and invariants in one place, and links to the per-contract references.
+Read it first, then the contract docs for detail.
 
 ## What it is
 
@@ -54,7 +55,7 @@ Every instance reads its factory (an **implementation immutable**, `FACTORY`) li
 for the global pause flag, fee bounds, and `lifiFeeRecipient`. A beacon
 `upgradeTo` repoints every live instance at once.
 
-## Contracts in scope
+## Contracts
 
 | Contract | Path | Custodies funds | Reference |
 | --- | --- | --- | --- |
@@ -72,11 +73,9 @@ for the global pause flag, fee bounds, and `lifiFeeRecipient`. A beacon
 `ReferenceAccessGate` is a **template**: each integrator deploys or forks its own
 gate. LI.FI does not operate it and does not guarantee its safety.
 
-**Out of scope:** `test/solidity/VaultWrapper/**` (unit, fork, and invariant
-suites, plus `mocks/`) and the Foundry deploy scripts under
-`script/deploy/vaultWrapper/` (`DeployLiFiVaultWrapperFactory.s.sol`,
-`UpdateVaultWrapperConfig.s.sol`), unless the audit engagement states otherwise.
-The exact audited commit is pinned in `audit/auditLog.json` at audit time.
+Tests live under `test/solidity/VaultWrapper/**` (unit, fork, and invariant
+suites, plus `mocks/`); the Foundry deploy scripts live under
+`script/deploy/vaultWrapper/`.
 
 ## Roles and governance
 
@@ -94,8 +93,10 @@ close the deposit/mint path.
 ## Fee model (summary)
 
 Four fee types, each split between LI.FI and the integrator at accrual time and
-paid out by a permissionless `distributeFees`. Each is bounded by an **immutable
-bytecode cap**; governance sets adjustable bounds within it.
+paid out by a permissionless `distributeFees`. **Every fee type is optional** — a
+zero rate disables it, so an instance can enable any subset (or none). Each type
+is bounded by an **immutable bytecode cap**; governance sets adjustable bounds
+within it.
 
 | Fee type | Cap | Kind |
 | --- | --- | --- |
@@ -118,14 +119,18 @@ Consolidated from the per-contract docs; each links to its full treatment.
   beacon points to must be constructed with the same `FACTORY` address — see
   [upgradeability](./LiFiVaultWrapper.md#upgradeability-and-the-factory-binding).
 - **The per-vault owner (integrator) is trusted not to act against its own
-  depositors.** It can install arbitrary access-gate code (no factory allowlist
-  behind the gate) and can move the withdrawal rate within the factory bound for a
-  single block. Blast radius is confined to that integrator's own product and is
-  reversible. See [access gate trust model](./LiFiVaultWrapper.md#access-gate--trust-model)
+  depositors or against LI.FI's fee recipient.** It installs arbitrary access-gate
+  code (no factory allowlist behind the gate) and can move the withdrawal rate
+  within the factory bound for a single block; its gate could also sanction the
+  live `lifiFeeRecipient` and freeze LI.FI's share-side fees after they are minted
+  (deposit and withdrawal fees settle in the asset, which the gate never touches).
+  Every such lever is confined to that integrator's own product and is reversible.
+  See [access gate trust model](./LiFiVaultWrapper.md#access-gate--trust-model)
   and [fee rate changes](./LiFiVaultWrapper.md#fee-rate-changes--trust-model).
-- **A hostile integrator gate can confiscate LI.FI's share-side fees** by
-  sanctioning the live `lifiFeeRecipient` after those shares are minted. Deposit
-  and withdrawal fees settle in the asset and are untouched by the gate.
+- **Yield sources and adapters are curated by governance.** A wrapper can only be
+  deployed over an underlying on the factory allowlist and an approved adapter,
+  both set by the factory owner (the 48h timelock) via `setUnderlyingAllowed` /
+  `setAdapterApproved`. Integrators cannot introduce their own yield source.
 - **Yield sources must be standard ERC-4626** over a non-fee-on-transfer asset.
   Sources that charge deposit/exit fees or credit fewer shares than assets are
   unsupported and require a dedicated adapter — see
@@ -170,6 +175,11 @@ over both an unlimited source and a fuzzed-liquidity source, with
   seeded by the chain-independent `bytes32 namespace`, giving cross-chain address
   parity when the factory and beacon sit at matching addresses per chain (the
   CREATE3 system deploy provides this).
+- A wrapper's `adapter` (like `underlying` and `owner`) is bound once in
+  `initialize` and has **no per-instance setter** — it cannot be re-pointed on a
+  live instance. Changing the adapter a wrapper routes through is only reachable
+  through a beacon `upgradeTo` to new implementation logic, i.e. under the 48h
+  timelock.
 - The factory and beacon are deployed and wired by
   `script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol` and owned by
   the 48h timelock. Per-network parameters come from `config/vaultWrapper.json`.
