@@ -5,7 +5,6 @@
   "AccessManagerFacet": "0xF72c17d1e3b047Ff8f7e9617c6b7E4c9c335eD08",
   "WithdrawFacet": "0xdcf9bef6B1197979876cEfbAA4507F68A50Ce8Ad",
   "PeripheryRegistryFacet": "0x2Db2A9Df6f42eeA36f4f9003be8C0cCd2d439bd0",
-  "GenericSwapFacet": "0x2e640bB8452aA810ED8c259054661E9BE3f2704B",
   "CalldataVerificationFacet": "0x70A18260Be23D9E154cad53e049A55B95221EA82",
   "LiFiDiamond": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
   "GenericSwapFacetV3": "0xf24c9914D3a89F16aD9C87fa549FF24359a31715",
