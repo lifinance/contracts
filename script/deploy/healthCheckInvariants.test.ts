@@ -1281,7 +1281,7 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     return ctx
   }
 
-  const covering = () =>
+  const covering = (): Map<string, Map<string, string>> =>
     new Map([['testnet1', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
 
   it('downgrades a routed-but-pruned facet to expected-pending when a parked removal covers it', async () => {
