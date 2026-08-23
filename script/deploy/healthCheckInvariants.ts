@@ -2299,8 +2299,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       if (ctx.environment === 'production' && !ctx.isTestnet) {
         const openParked =
           ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
-        if (!('unreachable' in openParked))
-          parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
+        if ('unreachable' in openParked)
+          consola.info(
+            `Parked-task queue unreachable — expected-pending downgrade skipped, unlogged facets warn as-is: ${openParked.unreachable}`
+          )
+        else parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
       }
       const compiledSelectors =
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
