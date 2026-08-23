@@ -85,8 +85,12 @@ Two failure modes make a bulk sweep riskier than it looks:
   unregisters periphery at deprecation, so `getPeripheryContract` keeps resolving deprecated
   contracts indefinitely. When the name still has a source in `src/`, a hit at a different
   address is a correction — rewrite the entry rather than deleting the only flat-log record of
-  a live contract. When the source is gone, the entry is removed no matter what the registry
-  says.
+  a live contract — but verify the resolved address's identity first by probing its dispatcher
+  for the current source's selectors. A staging registry can still point at a pre-release
+  prototype under a different ABI while the newer, source-matching deployment sits at the
+  logged address; then the log entry stays and the **registry** is what needs fixing
+  (re-register the current address). When the source is gone, the entry is removed no matter
+  what the registry says.
 - **An unnamed diamond-log entry is not an absent one.** `Facets` entries with `"Name": ""` exist
   on several staging diamonds, so resolving a name only through the diamond log will conclude the
   name is dead when it is merely unlabelled. Identify the address from its on-chain selectors
