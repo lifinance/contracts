@@ -767,7 +767,7 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   `no-stale-registered-facets` while the log still names it, `no-unexpected-facets`
   (expected-pending, keyed by the same open-task addresses) once it is pruned. A
   `cancelled` task keeps — or restores — both entries, since cancellation is an operator
-  decision, not a claim about the chain: the facet is live. The weekly reconcile job (§7)
+  decision, not a claim about the chain. The weekly reconcile job (§7)
   still reports loupe-verified prune candidates (`executed`/`superseded`) for entries kept
   past parking — and executed removal remains a *floor*, not a licence to keep the entry
   forever: once a network's removal has executed, the entry goes from both

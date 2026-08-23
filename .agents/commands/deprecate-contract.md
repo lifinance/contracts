@@ -142,7 +142,7 @@ The command performs these steps in order:
    - **Search codebase**: Search entire codebase for all occurrences of contract name(s) (excluding generated dirs: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`)
    - **Group and present**: Group results by file with line numbers and context
    - **User review required**: Present organized list and explicitly prompt user to review each occurrence
-   - **⚠️ Deploy-log entries**: Once the parked task (step 6) is open (`queued`/`proposed`) for a network, the `deployments/<network>.json` facet→address entry and the `deployments/<network>.diamond.json` entry **may be pruned in the deprecation PR itself** — the drain is address-keyed and does not need the log entry, and the queue-aware health-check invariants (`no-unexpected-facets`, `no-stale-registered-facets`) report the still-routed facet as expected-pending until the removal executes, so pruning at park time no longer degrades coverage; a routed address with neither a log entry nor an open task is exactly what warns. A network with **no** open task keeps both entries. One rule survives unchanged: a task retiring as `cancelled` means no removal ever executed and the facet is live — restore (or keep) both entries for that network (`superseded` is different: the loupe already confirmed the facet gone via another route, so its entries go). The logs mirror current on-chain registration, not deployment history ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)); `updateDiamondLogs` regenerates a pruned diamond-log entry from the loupe until the removal executes — cosmetic churn, not a signal to restore anything.
+   - **⚠️ Deploy-log entries**: Once the parked task (step 6) is open (`queued`/`proposed`) for a network, the `deployments/<network>.json` facet→address entry and the `deployments/<network>.diamond.json` entry **may be pruned in the deprecation PR itself** — the drain is address-keyed and does not need the log entry, and the queue-aware health-check invariants (`no-unexpected-facets`, `no-stale-registered-facets`) report the still-routed facet as expected-pending until the removal executes, so pruning at park time no longer degrades coverage; a routed address with neither a log entry nor an open task is exactly what warns. A network with **no** open task keeps both entries. One rule survives unchanged: a task retiring as `cancelled` means no removal ever executed and the facet must be treated as live — restore (or keep) both entries for that network (`superseded` is different: the loupe already confirmed the facet gone via another route, so its entries go). The logs mirror current on-chain registration, not deployment history ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)); `updateDiamondLogs` regenerates a pruned diamond-log entry from the loupe until the removal executes — cosmetic churn, not a signal to restore anything.
    - **Wait for input**: Wait for user input before removing additional files (user must confirm which files/occurrences to clean up)
    - **Re-run tests if cleanup performed**: If user removes additional files in this step, run `forge test` again to ensure all tests still pass
 
@@ -270,7 +270,7 @@ Found additional occurrences of "RelayFacet" in the codebase:
 ⚠️  Note:
 - Deployment log files (deployments/*.json) mirror current on-chain state — entries covered by an open parked task may be pruned now; uncovered ones stay
 - TypeScript type files (typechain/) are generated and will be regenerated
-- A parked task retiring as cancelled means the facet is live — restore that network's entries (see docs/DeploymentLogs.md)
+- A parked task retiring as cancelled means the facet must be treated as live — restore that network's entries (see docs/DeploymentLogs.md)
 
 Please review the above list and indicate which files/occurrences should be removed:
 - Type the file paths you want to clean up
@@ -294,7 +294,7 @@ Please review the above list and indicate which files/occurrences should be remo
    deployments/*.diamond.json may be pruned in this PR for every network whose
    parked task is open (queued/proposed); networks without a task keep theirs
    until their removal EXECUTES. If a task later retires as cancelled, restore
-   that network's entries — the facet is live.
+   that network's entries — the facet must be treated as live.
 
 Successfully deprecated RelayFacet.
 ```
