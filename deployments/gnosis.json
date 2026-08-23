@@ -10,7 +10,6 @@
   "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
   "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
   "Receiver": "0x5439f8ca43f832DD21a28C5BF038dad4c07ad02c",
-  "ServiceFeeCollector": "0x894b3e1e30Be0727eb138d2cceb0A99d2Fc4C55D",
   "OmniBridgeFacet": "0x3C826D17B47DB69E1a9C1e32E10768d3709f1b9A",
   "CalldataVerificationFacet": "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0",
   "LiFuelFeeCollector": "0xc02FFcdD914DbA646704439c6090BAbaD521d04C",

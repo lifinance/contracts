@@ -40,15 +40,17 @@ plus this repo's git history for the log files themselves.
 | Situation | Action |
 | --- | --- |
 | `/deprecate-contract` removed the facet from the codebase only | keep both entries — the facet is still registered on-chain, and the health check's stale-facet invariant needs the log to map that address to a name |
+| A **periphery** contract was deprecated (source deleted) | remove the flat-log entry even while the registry still resolves the name — nothing unregisters periphery on-chain, so registry residue is not liveness, and no invariant needs the mapping. The residue itself is input for a `registerPeripheryContract(name, address(0))` cleanup proposal |
 | Removal executed on-chain (drain, `cleanUpProdDiamond`, or a manually executed timelock op) | remove the contract from `<network>.json` and its address entry from `<network>.diamond.json` |
-| The logged address is dead but the **same name is live at another address** | correct the entry to the live address; do not delete it |
+| The logged address is dead but the **same name is live at another address** | correct the entry to the live address if the contract still exists in `src/`; a deprecated contract's entry is deleted, not corrected |
 | Deployed but **not yet cut or registered** (pending rollout, or periphery called directly without registry wiring) | keep the flat-log entry — the flat log is the only place the pending address lives |
 | Periphery replaced with a new address | nothing to prune — the deploy script overwrites the address in place |
 | Network deprecated | `/deprecate-network` deletes the whole set of files |
 | Flat log for an environment whose diamond was never deployed | delete the file **only after confirming the bring-up is abandoned** — no diamond on-chain, no open rollout task. A bring-up in progress keeps its flat log even before the diamond exists (lines above: deployed-ahead-of-cut entries live here) |
 
 For facet entries the loupe decides, not the target state, and not whether the Solidity source
-still exists; for periphery entries the registry decides (below). A
+still exists. Periphery is asymmetric: the registry decides only for contracts still in `src/` —
+a deprecated periphery entry goes regardless of registry residue (below). A
 contract whose source was deleted but which is still cut **stays** in the logs; a contract whose
 source is still in `src/` but whose logged address is no longer routed **goes**. Confirm before
 pruning:
@@ -79,9 +81,12 @@ Two failure modes make a bulk sweep riskier than it looks:
   both answer zero to the probes above while being current. Before deleting such an entry, check
   the address for code and the name for a source in `src/` — when both are present, the entry is
   pending, not stale, unless a newer deployment of the same name supersedes it.
-- **A registry hit at a different address is a correction, not a deletion.** When
-  `getPeripheryContract(name)` resolves to a live address other than the logged one, rewrite the
-  entry to that address — deleting it loses the only flat-log record of a live contract.
+- **A registry hit is not proof of use — for a deprecated name it is residue.** Nothing
+  unregisters periphery at deprecation, so `getPeripheryContract` keeps resolving deprecated
+  contracts indefinitely. When the name still has a source in `src/`, a hit at a different
+  address is a correction — rewrite the entry rather than deleting the only flat-log record of
+  a live contract. When the source is gone, the entry is removed no matter what the registry
+  says.
 - **An unnamed diamond-log entry is not an absent one.** `Facets` entries with `"Name": ""` exist
   on several staging diamonds, so resolving a name only through the diamond log will conclude the
   name is dead when it is merely unlabelled. Identify the address from its on-chain selectors
