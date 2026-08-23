@@ -766,7 +766,9 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
   addresses to names through the log in order to detect them at all (its queue
   coverage check is address-keyed, like the drain). The weekly reconcile job (§7) reports which
-  entries are **safe to prune** (every covering task terminal); pruning then is a
+  entries are **safe to prune** (the covering removal executed and the loupe no longer routes
+  the facet — a task that ends `cancelled` or `superseded` keeps both entries, since terminal
+  status alone proves nothing about the chain); pruning then is a
   small reviewed PR — and it is a *floor*, not a licence to keep the entry forever: once a
   network's removal has executed, the entry goes from both `deployments/<network>.json` and
   `deployments/<network>.diamond.json` ([docs/DeploymentLogs.md](./DeploymentLogs.md)).

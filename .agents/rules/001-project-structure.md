@@ -119,8 +119,10 @@ Use remappings defined in `remappings.txt`:
 ## Deployment Logs (`deployments/`)
 
 `deployments/<network>.json` and `deployments/<network>.diamond.json` describe **current**
-on-chain state, not deployment history: a contract that is no longer registered on the diamond is
-removed from both in the PR that records the removal. Past deployments come from the MongoDB
+on-chain state, not deployment history: a facet the Diamond loupe no longer routes, or a
+periphery contract the `PeripheryRegistry` no longer resolves, is removed from both in the PR
+that records the removal — each kind is checked against its own source of truth, never the
+other's. Past deployments come from the MongoDB
 deployment log and this repo's git history. When to prune, and when not to:
 [docs/DeploymentLogs.md](../../docs/DeploymentLogs.md).
 
