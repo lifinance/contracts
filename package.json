@@ -49,7 +49,6 @@
     "prettier-plugin-solidity": "^1.0.0-beta.19",
     "solhint": "^5.0.5",
     "solhint-plugin-prettier": "^0.0.5",
-    "solidity-coverage": "^0.8.14",
     "ts-generator": "^0.1.1",
     "tsc-files": "^1.1.4",
     "tsx": "4.21.0",
@@ -63,7 +62,9 @@
     "protobufjs": "7.5.5",
     "google-gax": "3.1.4",
     "socks": "2.8.9",
-    "axios": "1.18.1"
+    "axios": "1.18.1",
+    "smol-toml": "1.7.1",
+    "validator": "13.15.23"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
@@ -148,7 +149,7 @@
     "mongodb": "^6.13.0",
     "notify-send": "^0.1.2",
     "pino": "^7.9.2",
-    "tronweb": "^6.0.3",
+    "tronweb": "^6.1.1",
     "viem": "^2.22.16"
   },
   "lint-staged": {
