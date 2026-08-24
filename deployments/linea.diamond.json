@@ -81,8 +81,8 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x57F4d19AeC341F50BaBB55beDF73C4B87EE400ba": {
-        "Name": "SymbiosisFacet",
+      "0xD0559AC5e6A5F20b3c3af7fbA02E5d671b9e47ba": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0xf7B252c92e34589a062659417d3a851cc3dF043F": {
