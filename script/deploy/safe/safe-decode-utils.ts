@@ -450,10 +450,23 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-function formatDecodedArg(arg: unknown, network?: string): string {
+/**
+ * Renders one decoded ABI argument for display.
+ *
+ * @param arg - Decoded argument value (may be a bigint, tuple, or array).
+ * @param network - When set, addresses are rendered in the network's format.
+ * @returns Display string for the argument.
+ */
+export function formatDecodedArg(arg: unknown, network?: string): string {
   if (arg === undefined || arg === null) return String(arg)
   if (typeof arg === 'bigint') return arg.toString()
-  if (typeof arg === 'object') return JSON.stringify(arg)
+  // Tuple and array args (e.g. initFrax's (chainId, eid) pairs) carry nested
+  // bigints, which plain JSON.stringify throws on — losing the whole decode and
+  // leaving the operator approving a payload they were never shown.
+  if (typeof arg === 'object')
+    return JSON.stringify(arg, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    )
   const s = String(arg)
   if (
     network !== undefined &&
