@@ -239,7 +239,9 @@ export function classifyPrefetchResults(
   results: IPendingFetchResult[]
 ): IPrefetchOutcome {
   const withPending = results.filter((r) => r.pendingInMongoCount > 0)
-  const failed = results.filter((r) => r.fetchError)
+  // Must match how assemblePrefetchResults records a failure: a falsy thrown
+  // value would otherwise make the network read as checked-with-0-pending.
+  const failed = results.filter((r) => r.fetchError !== undefined)
   return {
     withPending,
     skipped: results.filter((r) => r.skipReason),

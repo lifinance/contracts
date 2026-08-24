@@ -149,6 +149,18 @@ describe('classifyPrefetchResults', () => {
     expect(outcome.mustExitWithError).toBe(true)
   })
 
+  it('counts a falsy thrown value as a failure, not as a checked network', () => {
+    // assemblePrefetchResults records a failure with `!== undefined`, so a
+    // truthiness test here would let `throw ''` read as checked-with-0-pending.
+    const outcome = classifyPrefetchResults([
+      result('mainnet', { fetchError: '' }),
+      result('base'),
+    ])
+
+    expect(outcome.failed.map((r) => r.network.name)).toEqual(['mainnet'])
+    expect(outcome.mustExitWithError).toBe(true)
+  })
+
   it('trusts "0 pending" when every network was reached', () => {
     const outcome = classifyPrefetchResults([result('mainnet'), result('base')])
 
