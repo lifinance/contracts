@@ -7,7 +7,6 @@
         "@arbitrum/sdk": "^3.0.0",
         "@cowprotocol/cow-sdk": "^5.10.3",
         "@ethersproject/abi": "^5.8.0",
-        "@layerzerolabs/lz-v2-utilities": "^2.3.21",
         "@ledgerhq/hw-app-eth": "^6.43.0",
         "@ledgerhq/hw-transport-node-hid": "^6.29.5",
         "@lifi/tron-devkit": "^1.0.1",
@@ -263,8 +262,6 @@
     "@humanwhocodes/object-schema": ["@humanwhocodes/object-schema@2.0.3", "", {}, "sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA=="],
 
     "@isaacs/cliui": ["@isaacs/cliui@8.0.2", "", { "dependencies": { "string-width": "^5.1.2", "string-width-cjs": "npm:string-width@^4.2.0", "strip-ansi": "^7.0.1", "strip-ansi-cjs": "npm:strip-ansi@^6.0.1", "wrap-ansi": "^8.1.0", "wrap-ansi-cjs": "npm:wrap-ansi@^7.0.0" } }, "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA=="],
-
-    "@layerzerolabs/lz-v2-utilities": ["@layerzerolabs/lz-v2-utilities@2.3.44", "", { "dependencies": { "@ethersproject/abi": "^5.7.0", "@ethersproject/address": "^5.7.0", "@ethersproject/bignumber": "^5.7.0", "@ethersproject/bytes": "^5.7.0", "@ethersproject/keccak256": "^5.7.0", "@ethersproject/solidity": "^5.7.0", "bs58": "^5.0.0", "tiny-invariant": "^1.3.1" } }, "sha512-0p7tdJCf6BSmN38tAnO7WyOoC84NDTCQt1MqPBomXTyIux1RLpkS82jcxv92+E+1LNulhHIx5W62gaKKx27B2A=="],
 
     "@ledgerhq/cryptoassets-evm-signatures": ["@ledgerhq/cryptoassets-evm-signatures@13.5.10", "", { "dependencies": { "@ledgerhq/live-env": "^2.12.0", "axios": "1.7.7" } }, "sha512-1s0a6P2E4KKDbk12eVmJfvSA/zmTC8GKuXz+XVVYJIY+xPWs4B3qtPLXC2EpdZhj7GOehj8i0csxlV3rhQRC6w=="],
 
@@ -2108,8 +2105,6 @@
 
     "@isaacs/cliui/strip-ansi": ["strip-ansi@7.1.0", "", { "dependencies": { "ansi-regex": "^6.0.1" } }, "sha512-iq6eVVI64nQQTRYq2KtEg2d2uU7LElhTJwsH4YzIHZshxlgZms/wIc4VoDQTlG/IvVIrBKG06CrZnp0qv7hkcQ=="],
 
-    "@layerzerolabs/lz-v2-utilities/bs58": ["bs58@5.0.0", "", { "dependencies": { "base-x": "^4.0.0" } }, "sha512-r+ihvQJvahgYT50JD05dyJNKlmmSlMoOGwn1lCcEzanPglg7TxYjioQUYehQ9mAR/+hOSd2jRc/Z2y5UxBymvQ=="],
-
     "@mayanfinance/swap-sdk/bs58": ["bs58@6.0.0", "", { "dependencies": { "base-x": "^5.0.0" } }, "sha512-PD0wEnEYg6ijszw/u8s+iI3H17cTymlrwkKhDhPZq+Sokl3AU4htyBFTjAeNAlCCmg0f53g6ih3jATyCKftTfw=="],
 
     "@mayanfinance/swap-sdk/ethers": ["ethers@6.15.0", "", { "dependencies": { "@adraffy/ens-normalize": "1.10.1", "@noble/curves": "1.2.0", "@noble/hashes": "1.3.2", "@types/node": "22.7.5", "aes-js": "4.0.0-beta.5", "tslib": "2.7.0", "ws": "8.17.1" } }, "sha512-Kf/3ZW54L4UT0pZtsY/rf+EkBU7Qi5nnhonjUb8yTXcxH3cdcWrV2cRyk0Xk/4jK6OoHhxxZHriyhje20If2hQ=="],
@@ -2525,8 +2520,6 @@
     "@isaacs/cliui/string-width/emoji-regex": ["emoji-regex@9.2.2", "", {}, "sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg=="],
 
     "@isaacs/cliui/strip-ansi/ansi-regex": ["ansi-regex@6.1.0", "", {}, "sha512-7HSX4QQb4CspciLpVFwyRe79O3xsIZDDLER21kERQ71oaPodF8jL725AgJMFAYbooIqolJoRLuM81SpeUkpkvA=="],
-
-    "@layerzerolabs/lz-v2-utilities/bs58/base-x": ["base-x@4.0.1", "", {}, "sha512-uAZ8x6r6S3aUM9rbHGVOIsR15U/ZSc82b3ymnCPsT45Gk1DDvhDPdIgB5MrhirZWt+5K0EEPQH985kNqZgNPFw=="],
 
     "@mayanfinance/swap-sdk/bs58/base-x": ["base-x@5.0.1", "", {}, "sha512-M7uio8Zt++eg3jPj+rHMfCC+IuygQHHCOU+IYsVtik6FWjuYpVt/+MRKcgsAMHh8mMFAwnB+Bs+mTrFiXjMzKg=="],
 
