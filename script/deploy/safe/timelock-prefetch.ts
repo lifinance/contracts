@@ -1,11 +1,11 @@
 /**
  * Fleet pre-check for the timelock executor: which networks have queued ops.
  *
- * Split out of `execute-pending-timelock-tx.ts` so the logic is importable —
- * that module calls `runMain` at module scope, and the `import.meta.main` guard
- * used elsewhere in this directory is not an option there: the script runs via
- * `bunx tsx`, where `import.meta.main` is `undefined` and the guard would turn
- * the CLI into a silent no-op.
+ * Lives outside `execute-pending-timelock-tx.ts` because that module calls
+ * `runMain` at module scope and so cannot be imported by tests. Guarding it with
+ * `import.meta.main`, as some siblings in this directory do, is not an option:
+ * the CLI runs under `bunx tsx`, where `import.meta.main` is `undefined`, so the
+ * guard would silently turn the whole command into a no-op.
  */
 
 import { consola } from 'consola'

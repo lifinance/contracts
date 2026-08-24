@@ -229,7 +229,9 @@ const cmd = defineCommand({
     if (isDryRun)
       consola.info('Running in DRY RUN mode - no transactions will be sent')
 
-    // Process networks: scan once (one RPC per network), then process only networks with ready ops. We do not reuse prefetch RPC clients so execution always uses a fresh connection.
+    // The prefetch is queue-only over a single MongoDB connection; processNetwork
+    // then opens a fresh RPC per network so execution never reuses a connection
+    // that idled through a long interactive pause.
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
