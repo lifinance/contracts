@@ -126,7 +126,9 @@ disappears from `<net>.diamond.json` on its own — but the flat `deployments/<n
 append-only. Delete each removed facet's entry there by hand in the same commit; both logs track
 current on-chain registration, not history
 ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)). Keep the entry when the facet is still
-routed by the loupe (removal not executed, or the parked task retired as cancelled/superseded).
+routed by the loupe (removal not executed, or the parked task retired as cancelled —
+cancellation proves nothing about routing). `superseded` is loupe-verified gone, so
+delete that entry with the rest of the cut.
 
 ## Phase 5 — PR finish (deploy mode only)
 
