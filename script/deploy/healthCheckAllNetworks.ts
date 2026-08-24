@@ -106,7 +106,6 @@ const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
 // mangled in the very message they exist to clarify.
 const ADDRESS_MASK = '[address]'
 const COUNT_MASK = '[n]'
-const REDACTED_URL_MASK = '[redacted-url]'
 
 /** Cause used when a network failed without the runner capturing any error text. */
 const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
@@ -131,7 +130,7 @@ function collapseWhitespace(text: string): string {
  */
 export function normalizeFailureCause(detail: string): string {
   return collapseWhitespace(
-    redactUrls(detail, REDACTED_URL_MASK)
+    redactUrls(detail)
       .replace(EVM_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(TRON_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(/\b\d+\b/g, COUNT_MASK)

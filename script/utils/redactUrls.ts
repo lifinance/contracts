@@ -11,20 +11,22 @@
 export const MAX_REASON_LENGTH = 180
 
 /**
- * Replace every `scheme://…` token with a placeholder, leaving the rest of the text intact.
- * Length and whitespace are left alone so callers that do their own capping (e.g. a grouped
- * digest) do not lose text to a cap they did not choose.
+ * Marker left where an endpoint was. Square brackets, not angle brackets: every consumer of
+ * this module publishes to Slack, which parses `<...>` as a link element and would mangle the
+ * marker in the very alert it exists to make safe.
+ */
+const REDACTED_URL_MARKER = '[redacted-url]'
+
+/**
+ * Replace every `scheme://…` token with {@link REDACTED_URL_MARKER}, leaving the rest of the
+ * text intact. Length and whitespace are left alone so callers that do their own capping
+ * (e.g. a grouped digest) do not lose text to a cap they did not choose.
  *
  * @param message - Raw text that may embed an endpoint.
- * @param placeholder - Replacement token. Callers rendering Slack mrkdwn pass a bracket-free
- * one, because Slack parses `<...>` as a link element and would mangle the default.
  * @returns The same text with `scheme://…` tokens replaced.
  */
-export function redactUrls(
-  message: string,
-  placeholder = '<redacted-url>'
-): string {
-  return message.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, placeholder)
+export function redactUrls(message: string): string {
+  return message.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, REDACTED_URL_MARKER)
 }
 
 /**
