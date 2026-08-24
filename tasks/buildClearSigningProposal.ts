@@ -288,11 +288,10 @@ const CHAIN_ENUM_REF = `$.metadata.enums.${CHAIN_ENUM_NAME}`
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // Not `chainId`: that format is defined only over EIP-155 values, and this
-  // field also carries LI.FI's synthetic non-EVM ids (LiFiData.sol), for which
-  // the spec defines no rendering — wallets diverge. An enum LI.FI authors
-  // renders identically everywhere, and an id missing from it degrades to the
-  // decimal number rather than to a wallet-specific guess.
+  // `chainId` is defined only over EIP-155 values and specifies no fallback,
+  // while this field also carries LI.FI's synthetic non-EVM ids (LiFiData.sol) —
+  // implementations diverge on those. An enum resolves from the descriptor
+  // alone, so every wallet renders the same string.
   format: 'enum',
   params: { $ref: CHAIN_ENUM_REF },
   visible: 'always',
@@ -308,8 +307,7 @@ const CHAIN_FIELD: IField = {
 // LI.FI bridges to ~80 destinations, so the list is the 32 highest-value ones:
 // every non-EVM destination (an opaque synthetic id a user cannot recognise)
 // plus the EVM chains with the broadest bridge-route support. An id that is not
-// listed renders as its decimal number — identical on every wallet, and no
-// worse than the `raw` format this replaces.
+// listed renders as its decimal number, identically on every wallet.
 const CHAIN_ENUM_MAX_ENTRIES = 32
 
 const CHAIN_DISPLAY_NAMES: Record<string, string> = {

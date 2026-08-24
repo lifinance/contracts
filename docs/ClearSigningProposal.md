@@ -21,17 +21,17 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
 ```json
 {
   "intent": "Bridge via <Bridge>",
-  "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+  "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
   "fields": [
     { "path": "_bridgeData.minAmount",          "label": "Amount to Bridge",   "format": "tokenAmount", "params": { "tokenPath": "_bridgeData.sendingAssetId" }, "visible": "always" },
-    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "chainId",     "visible": "always" },
+    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "enum",        "params": { "$ref": "$.metadata.enums.lifiChains" }, "visible": "always" },
     { "path": "_bridgeData.receiver",           "label": "Recipient",         "format": "addressName", "params": { "types": ["eoa","contract"], "sources": ["local","ens"] }, "visible": "always" },
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
-Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name — any non-EVM synthetic id — falls back to the integer.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to Polygon for vitalik.eth"*. A destination absent from `metadata.enums.lifiChains` falls back to its decimal chain id.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -64,7 +64,7 @@ Adds the head of the swap chain (`_swapData.[0]`) as a separate field:
 ```json
 {
   "intent": "Swap & Bridge via <Bridge>",
-  "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}"
+  "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via <Bridge> to {_bridgeData.destinationChainId} for {_bridgeData.receiver}"
 }
 ```
 
@@ -92,7 +92,9 @@ The seven existing `display.formats` entries from the current registry descripto
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
 2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. StargateV2 have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
-3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
+3. **`destinationChainId` as `enum`** — resolved through `$.metadata.enums.lifiChains`, a LI.FI-authored chain-id → name map, so the wallet shows "Polygon" instead of `137`. `chainId`, the format that looks the part, is defined only over EIP-155 reference values and specifies no fallback, while this field also carries LI.FI's synthetic non-EVM ids (`src/Helpers/LiFiData.sol`) — implementations diverge on those, and on the names of EIP-155 chains too. An enum resolves entirely from the descriptor, so every wallet renders the same string.
+
+   The map holds at most 32 entries: `erc7730 lint`, which the registry runs in its `validate descriptors` job, rejects a larger `EnumDefinition` even though `specs/erc7730-v2.schema.json` sets no limit. It therefore covers every non-EVM destination plus the EVM chains with the broadest route support; any other id renders as its decimal number. `tasks/buildClearSigningProposal.ts` logs which chains fall back on every run, and refuses to emit a map that exceeds the cap or that names an id absent from both `config/networks.json` and `src/Helpers/LiFiData.sol`.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
@@ -100,76 +102,76 @@ The seven existing `display.formats` entries from the current registry descripto
 
 | Function | `intent` | `interpolatedIntent` |
 |---|---|---|
-| `startBridgeTokensViaAcross` | Bridge via Across | Bridge {_bridgeData.minAmount} via Across to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaAcross` | Bridge via Across | Bridge {_bridgeData.minAmount} via Across to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaAcrossERC20Min` | Bridge via Across (ERC-20, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossERC20Packed` | Bridge via Across (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossNativeMin` | Bridge via Across (native, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossNativePacked` | Bridge via Across (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV3` | Bridge via AcrossV3 | Bridge {_bridgeData.minAmount} via AcrossV3 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaAcrossV3` | Bridge via AcrossV3 | Bridge {_bridgeData.minAmount} via AcrossV3 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaAcrossV3ERC20Min` | Bridge via AcrossV3 (ERC-20, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV3ERC20Packed` | Bridge via AcrossV3 (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV3NativeMin` | Bridge via AcrossV3 (native, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV3NativePacked` | Bridge via AcrossV3 (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4` | Bridge via AcrossV4 | Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaAcrossV4` | Bridge via AcrossV4 | Bridge {_bridgeData.minAmount} via AcrossV4 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaAcrossV4ERC20Min` | Bridge via AcrossV4 (ERC-20, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV4ERC20Packed` | Bridge via AcrossV4 (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV4NativeMin` | Bridge via AcrossV4 (native, min) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaAcrossV4NativePacked` | Bridge via AcrossV4 (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4Swap` | Bridge via AcrossV4Swap | Bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaAllBridge` | Bridge via AllBridge | Bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaArbitrumBridge` | Bridge via ArbitrumBridge | Bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCelerCircleBridge` | Bridge via CelerCircleBridge | Bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaChainflip` | Bridge via Chainflip | Bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaDeBridgeDln` | Bridge via DeBridgeDln | Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaEco` | Bridge via Eco | Bridge {_bridgeData.minAmount} via Eco to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGarden` | Bridge via Garden | Bridge {_bridgeData.minAmount} via Garden to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGasZip` | Bridge via GasZip | Bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGlacis` | Bridge via Glacis | Bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGnosisBridge` | Bridge via GnosisBridge | Bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaLiFiIntentEscrowV2` | Bridge via LiFiIntentEscrowV2 | Bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaMayan` | Bridge via Mayan | Bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaMegaETHBridge` | Bridge via MegaETHBridge | Bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaNEARIntents` | Bridge via NEARIntents | Bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaOmniBridge` | Bridge via OmniBridge | Bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaOptimismBridge` | Bridge via OptimismBridge | Bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPioneer` | Bridge via Pioneer | Bridge {_bridgeData.minAmount} via Pioneer to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPolygonBridge` | Bridge via PolygonBridge | Bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPolymerCCTP` | Bridge via PolymerCCTP | Bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaRelayDepository` | Bridge via RelayDepository | Bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaSquid` | Bridge via Squid | Bridge {_bridgeData.minAmount} via Squid to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaStargate` | Bridge via Stargate | Bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaSymbiosis` | Bridge via Symbiosis | Bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaThorSwap` | Bridge via ThorSwap | Bridge {_bridgeData.minAmount} via ThorSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaUnit` | Bridge via Unit | Bridge {_bridgeData.minAmount} via Unit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcross` | Swap & Bridge via Across | Swap then bridge {_bridgeData.minAmount} via Across to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV3` | Swap & Bridge via AcrossV3 | Swap then bridge {_bridgeData.minAmount} via AcrossV3 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV4` | Swap & Bridge via AcrossV4 | Swap then bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV4Swap` | Swap & Bridge via AcrossV4Swap | Swap then bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAllBridge` | Swap & Bridge via AllBridge | Swap then bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaArbitrumBridge` | Swap & Bridge via ArbitrumBridge | Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaCelerCircleBridge` | Swap & Bridge via CelerCircleBridge | Swap then bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaChainflip` | Swap & Bridge via Chainflip | Swap then bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaDeBridgeDln` | Swap & Bridge via DeBridgeDln | Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaEco` | Swap & Bridge via Eco | Swap then bridge {_bridgeData.minAmount} via Eco to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGarden` | Swap & Bridge via Garden | Swap then bridge {_bridgeData.minAmount} via Garden to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGasZip` | Swap & Bridge via GasZip | Swap then bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGlacis` | Swap & Bridge via Glacis | Swap then bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGnosisBridge` | Swap & Bridge via GnosisBridge | Swap then bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` | Swap & Bridge via LiFiIntentEscrowV2 | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaMayan` | Swap & Bridge via Mayan | Swap then bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaMegaETHBridge` | Swap & Bridge via MegaETHBridge | Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaNEARIntents` | Swap & Bridge via NEARIntents | Swap then bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaOmniBridge` | Swap & Bridge via OmniBridge | Swap then bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaOptimismBridge` | Swap & Bridge via OptimismBridge | Swap then bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPioneer` | Swap & Bridge via Pioneer | Swap then bridge {_bridgeData.minAmount} via Pioneer to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPolygonBridge` | Swap & Bridge via PolygonBridge | Swap then bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPolymerCCTP` | Swap & Bridge via PolymerCCTP | Swap then bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaRelayDepository` | Swap & Bridge via RelayDepository | Swap then bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaSquid` | Swap & Bridge via Squid | Swap then bridge {_bridgeData.minAmount} via Squid to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaStargate` | Swap & Bridge via Stargate | Swap then bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaSymbiosis` | Swap & Bridge via Symbiosis | Swap then bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaThorSwap` | Swap & Bridge via ThorSwap | Swap then bridge {_bridgeData.minAmount} via ThorSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaUnit` | Swap & Bridge via Unit | Swap then bridge {_bridgeData.minAmount} via Unit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaAcrossV4Swap` | Bridge via AcrossV4Swap | Bridge {_bridgeData.minAmount} via AcrossV4Swap to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaAllBridge` | Bridge via AllBridge | Bridge {_bridgeData.minAmount} via AllBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaArbitrumBridge` | Bridge via ArbitrumBridge | Bridge {_bridgeData.minAmount} via ArbitrumBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaCelerCircleBridge` | Bridge via CelerCircleBridge | Bridge {_bridgeData.minAmount} via CelerCircleBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaChainflip` | Bridge via Chainflip | Bridge {_bridgeData.minAmount} via Chainflip to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaDeBridgeDln` | Bridge via DeBridgeDln | Bridge {_bridgeData.minAmount} via DeBridgeDln to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaEco` | Bridge via Eco | Bridge {_bridgeData.minAmount} via Eco to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaGarden` | Bridge via Garden | Bridge {_bridgeData.minAmount} via Garden to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaGasZip` | Bridge via GasZip | Bridge {_bridgeData.minAmount} via GasZip to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaGlacis` | Bridge via Glacis | Bridge {_bridgeData.minAmount} via Glacis to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaGnosisBridge` | Bridge via GnosisBridge | Bridge {_bridgeData.minAmount} via GnosisBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaLiFiIntentEscrowV2` | Bridge via LiFiIntentEscrowV2 | Bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaMayan` | Bridge via Mayan | Bridge {_bridgeData.minAmount} via Mayan to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaMegaETHBridge` | Bridge via MegaETHBridge | Bridge {_bridgeData.minAmount} via MegaETHBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaNEARIntents` | Bridge via NEARIntents | Bridge {_bridgeData.minAmount} via NEARIntents to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaOmniBridge` | Bridge via OmniBridge | Bridge {_bridgeData.minAmount} via OmniBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaOptimismBridge` | Bridge via OptimismBridge | Bridge {_bridgeData.minAmount} via OptimismBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaPioneer` | Bridge via Pioneer | Bridge {_bridgeData.minAmount} via Pioneer to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaPolygonBridge` | Bridge via PolygonBridge | Bridge {_bridgeData.minAmount} via PolygonBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaPolymerCCTP` | Bridge via PolymerCCTP | Bridge {_bridgeData.minAmount} via PolymerCCTP to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaRelayDepository` | Bridge via RelayDepository | Bridge {_bridgeData.minAmount} via RelayDepository to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaSquid` | Bridge via Squid | Bridge {_bridgeData.minAmount} via Squid to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaStargate` | Bridge via Stargate | Bridge {_bridgeData.minAmount} via Stargate to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaSymbiosis` | Bridge via Symbiosis | Bridge {_bridgeData.minAmount} via Symbiosis to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaThorSwap` | Bridge via ThorSwap | Bridge {_bridgeData.minAmount} via ThorSwap to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `startBridgeTokensViaUnit` | Bridge via Unit | Bridge {_bridgeData.minAmount} via Unit to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaAcross` | Swap & Bridge via Across | Swap then bridge {_bridgeData.minAmount} via Across to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaAcrossV3` | Swap & Bridge via AcrossV3 | Swap then bridge {_bridgeData.minAmount} via AcrossV3 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaAcrossV4` | Swap & Bridge via AcrossV4 | Swap then bridge {_bridgeData.minAmount} via AcrossV4 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaAcrossV4Swap` | Swap & Bridge via AcrossV4Swap | Swap then bridge {_bridgeData.minAmount} via AcrossV4Swap to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaAllBridge` | Swap & Bridge via AllBridge | Swap then bridge {_bridgeData.minAmount} via AllBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaArbitrumBridge` | Swap & Bridge via ArbitrumBridge | Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaCelerCircleBridge` | Swap & Bridge via CelerCircleBridge | Swap then bridge {_bridgeData.minAmount} via CelerCircleBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaChainflip` | Swap & Bridge via Chainflip | Swap then bridge {_bridgeData.minAmount} via Chainflip to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaDeBridgeDln` | Swap & Bridge via DeBridgeDln | Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaEco` | Swap & Bridge via Eco | Swap then bridge {_bridgeData.minAmount} via Eco to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaGarden` | Swap & Bridge via Garden | Swap then bridge {_bridgeData.minAmount} via Garden to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaGasZip` | Swap & Bridge via GasZip | Swap then bridge {_bridgeData.minAmount} via GasZip to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaGlacis` | Swap & Bridge via Glacis | Swap then bridge {_bridgeData.minAmount} via Glacis to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaGnosisBridge` | Swap & Bridge via GnosisBridge | Swap then bridge {_bridgeData.minAmount} via GnosisBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` | Swap & Bridge via LiFiIntentEscrowV2 | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaMayan` | Swap & Bridge via Mayan | Swap then bridge {_bridgeData.minAmount} via Mayan to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaMegaETHBridge` | Swap & Bridge via MegaETHBridge | Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaNEARIntents` | Swap & Bridge via NEARIntents | Swap then bridge {_bridgeData.minAmount} via NEARIntents to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaOmniBridge` | Swap & Bridge via OmniBridge | Swap then bridge {_bridgeData.minAmount} via OmniBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaOptimismBridge` | Swap & Bridge via OptimismBridge | Swap then bridge {_bridgeData.minAmount} via OptimismBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaPioneer` | Swap & Bridge via Pioneer | Swap then bridge {_bridgeData.minAmount} via Pioneer to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaPolygonBridge` | Swap & Bridge via PolygonBridge | Swap then bridge {_bridgeData.minAmount} via PolygonBridge to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaPolymerCCTP` | Swap & Bridge via PolymerCCTP | Swap then bridge {_bridgeData.minAmount} via PolymerCCTP to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaRelayDepository` | Swap & Bridge via RelayDepository | Swap then bridge {_bridgeData.minAmount} via RelayDepository to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaSquid` | Swap & Bridge via Squid | Swap then bridge {_bridgeData.minAmount} via Squid to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaStargate` | Swap & Bridge via Stargate | Swap then bridge {_bridgeData.minAmount} via Stargate to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaSymbiosis` | Swap & Bridge via Symbiosis | Swap then bridge {_bridgeData.minAmount} via Symbiosis to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaThorSwap` | Swap & Bridge via ThorSwap | Swap then bridge {_bridgeData.minAmount} via ThorSwap to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
+| `swapAndStartBridgeTokensViaUnit` | Swap & Bridge via Unit | Swap then bridge {_bridgeData.minAmount} via Unit to {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapTokensGeneric` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver} |
 | `swapTokensMultipleV3ERC20ToERC20` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver} |
 | `swapTokensMultipleV3ERC20ToNative` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver} |

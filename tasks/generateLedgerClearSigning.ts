@@ -260,6 +260,35 @@ function mergeMetadataEnums(
   return next
 }
 
+// A `$ref` in display.formats that points at a missing `metadata.enums` entry is
+// accepted by `erc7730 format` but rejected by `erc7730 lint`, which only runs
+// once the sync has already force-pushed and opened the upstream PR. Catching it
+// here keeps a dangling reference from surfacing as a red public PR.
+function assertEnumRefsResolve(
+  display: ILedgerDisplay,
+  metadata: ILedgerMetadata | undefined
+): void {
+  const available = new Set(Object.keys(metadata?.enums ?? {}))
+  const dangling = new Set<string>()
+  const refPattern = /"\$ref"\s*:\s*"\$\.metadata\.enums\.([^".]+)"/gu
+
+  for (const match of JSON.stringify(display.formats ?? {}).matchAll(
+    refPattern
+  )) {
+    const name = match[1] as string
+    if (!available.has(name)) dangling.add(name)
+  }
+
+  if (dangling.size > 0)
+    throw new Error(
+      `Dangling enum reference(s) in display.formats: ${[...dangling]
+        .map((name) => `$.metadata.enums.${name}`)
+        .join(', ')}. Available: ${
+        available.size > 0 ? [...available].join(', ') : '(none)'
+      }.\n   fix:    regenerate config/clearSigningProposal.json with tasks/buildClearSigningProposal.ts so its .enums block matches the formats that reference it.`
+    )
+}
+
 function listFacetArtifacts(facetsDir: string, outDir: string): string[] {
   const facetFiles = fs
     .readdirSync(facetsDir)
@@ -579,7 +608,7 @@ const main = defineCommand({
     skipDisplayMerge: {
       type: 'boolean',
       description:
-        'Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
+        'Do not merge display.formats or metadata.enums from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
       default: false,
     },
     printDiff: {
@@ -741,6 +770,8 @@ const main = defineCommand({
         'No output path available. Provide --ledgerFilePath (in-place) or --outputFilePath.'
       )
     }
+
+    assertEnumRefsResolve(nextDisplay, nextMetadata)
 
     writePrettyJson(outputPath, nextLedger)
     console.log(`Updated ${outputPath}`)
