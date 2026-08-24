@@ -1357,7 +1357,7 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "TRX",
     "wrappedNativeAddress": "TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a",
-    "status": "active",
+    "status": "inactive",
     "type": "testnet",
     "rpcUrl": "https://api.shasta.trongrid.io",
     "verificationType": "tronscan",
