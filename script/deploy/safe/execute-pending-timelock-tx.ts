@@ -45,21 +45,17 @@ import {
 } from './parked-tasks'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import {
+  classifyPrefetchResults,
+  fetchPendingForNetworks,
+  type IPendingFetchResult,
+} from './timelock-prefetch'
+import {
   byOperationId,
   computeOperationIdBatch,
   deserializeScheduleParams,
   getTimelockQueueCollection,
   type ITimelockQueueDoc,
 } from './timelock-queue'
-
-/** Result of pre-checking a network (queue only, no RPC). Used to decide which networks to process; processNetwork always opens a fresh RPC and re-fetches queued ops to verify on-chain readiness. */
-interface IPendingFetchResult {
-  network: INetworksObject[string]
-  /** Number of queued timelock ops for this network (on-chain ready count unknown until processNetwork runs). */
-  pendingInMongoCount: number
-  /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
-  fetchError?: unknown
-}
 
 // TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
@@ -237,44 +233,10 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
-      const fetchResults = await Promise.all(
-        networksToProcess.map((network) => fetchPendingForNetwork(network))
+      const networksWithPending = await prefetchNetworksWithPendingOps(
+        networksToProcess
       )
-
-      const networksWithPending = fetchResults.filter(
-        (r) => r.pendingInMongoCount > 0
-      )
-      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
-
-      consola.info(
-        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
-          networksWithPending.length
-        } have pending timelock tx(s)${
-          networksWithPending.length > 0
-            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
-            : ''
-        }`
-      )
-      if (networksWithFetchError.length > 0) {
-        consola.warn(
-          `Prefetch failed for ${
-            networksWithFetchError.length
-          } network(s): ${networksWithFetchError
-            .map((r) => r.network.name)
-            .join(', ')}`
-        )
-      }
-
-      if (networksWithPending.length === 0) {
-        if (networksWithFetchError.length > 0) {
-          consola.error(
-            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
-          )
-          process.exit(1)
-        }
-        consola.success('No networks with pending timelock transactions.')
-        return
-      }
+      if (networksWithPending.length === 0) return
 
       consola.info(
         'Processing networks with pending txs (fresh RPC per network).'
@@ -346,45 +308,10 @@ const cmd = defineCommand({
     } else {
       consola.info('🔄 Checking all networks for pending operations...')
 
-      // Pre-check all networks in parallel; only process those with ready operations
-      const fetchResults = await Promise.all(
-        networksToProcess.map((network) => fetchPendingForNetwork(network))
+      const networksWithPending = await prefetchNetworksWithPendingOps(
+        networksToProcess
       )
-
-      const networksWithPending = fetchResults.filter(
-        (r) => r.pendingInMongoCount > 0
-      )
-      const networksWithFetchError = fetchResults.filter((r) => r.fetchError)
-
-      consola.info(
-        `Checked ${networksToProcess.length} network(s) (MongoDB only); ${
-          networksWithPending.length
-        } have pending timelock tx(s)${
-          networksWithPending.length > 0
-            ? `: ${networksWithPending.map((r) => r.network.name).join(', ')}`
-            : ''
-        }`
-      )
-      if (networksWithFetchError.length > 0) {
-        consola.warn(
-          `Prefetch failed for ${
-            networksWithFetchError.length
-          } network(s): ${networksWithFetchError
-            .map((r) => r.network.name)
-            .join(', ')}`
-        )
-      }
-
-      if (networksWithPending.length === 0) {
-        if (networksWithFetchError.length > 0) {
-          consola.error(
-            'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
-          )
-          process.exit(1)
-        }
-        consola.success('No networks with pending timelock transactions.')
-        return
-      }
+      if (networksWithPending.length === 0) return
 
       consola.info(
         'Processing networks with pending txs sequentially (fresh RPC per network).'
@@ -526,37 +453,57 @@ async function fetchQueuedTimelockOps(
 }
 
 /**
- * Pre-checks a single network using the queue only (no RPC). Returns how
- * many queued timelock ops exist for the network. processNetwork always
- * opens a fresh RPC and re-fetches queued rows for on-chain ready check.
+ * Pre-checks the fleet, reports the outcome, and returns only the networks that
+ * have queued ops.
+ *
+ * Exits non-zero when nothing is pending but some networks could not be checked:
+ * "0 pending" is only trustworthy if every network was actually reached.
+ *
+ * @param networksToProcess - Networks to pre-check.
+ * @returns Networks with at least one queued op; empty when there is no work.
  */
-async function fetchPendingForNetwork(
-  network: INetworksObject[string]
-): Promise<IPendingFetchResult> {
-  const empty: IPendingFetchResult = {
-    network,
-    pendingInMongoCount: 0,
-  }
-  try {
-    const deploymentData = (await getDeployments(
-      network.name as SupportedChain,
-      EnvironmentEnum.production
-    )) as { LiFiTimelockController?: string }
+async function prefetchNetworksWithPendingOps(
+  networksToProcess: INetworksObject[string][]
+): Promise<IPendingFetchResult[]> {
+  const { withPending, skipped, failed, mustExitWithError } =
+    classifyPrefetchResults(await fetchPendingForNetworks(networksToProcess))
 
-    if (!deploymentData.LiFiTimelockController) return empty
-
-    const rows = await fetchQueuedTimelockOps(network.name)
-    return {
-      network,
-      pendingInMongoCount: rows.length,
-    }
-  } catch (err) {
-    consola.error(
-      `[${network.name}] Prefetch failed (pending count may have been skipped):`,
-      err
+  consola.info(
+    `Checked ${networksToProcess.length - skipped.length} of ${
+      networksToProcess.length
+    } network(s) (MongoDB only); ${
+      withPending.length
+    } have pending timelock tx(s)${
+      withPending.length > 0
+        ? `: ${withPending.map((r) => r.network.name).join(', ')}`
+        : ''
+    }`
+  )
+  if (skipped.length > 0)
+    consola.info(
+      `Skipped ${
+        skipped.length
+      } network(s) without a production timelock: ${skipped
+        .map((r) => `${r.network.name} (${r.skipReason})`)
+        .join(', ')}`
     )
-    return { ...empty, fetchError: err }
+  if (failed.length > 0)
+    consola.warn(
+      `Prefetch failed for ${failed.length} network(s): ${failed
+        .map((r) => r.network.name)
+        .join(', ')}`
+    )
+
+  if (mustExitWithError) {
+    consola.error(
+      'No networks with pending timelock txs; some networks failed to fetch. Exiting with error to avoid silently skipping work.'
+    )
+    process.exit(1)
   }
+  if (withPending.length === 0)
+    consola.success('No networks with pending timelock transactions.')
+
+  return withPending
 }
 
 async function processNetwork(
