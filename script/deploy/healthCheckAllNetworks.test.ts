@@ -321,3 +321,15 @@ describe('formatConsolidatedOutput', () => {
     expect(output).toContain('failed_count=2')
   })
 })
+
+describe('normalizeFailureCause Slack safety', () => {
+  it('uses mask tokens that survive Slack mrkdwn', () => {
+    // Slack parses <...> as a link element, so an angle-bracketed mask would be mangled or
+    // dropped in the message it exists to clarify.
+    const normalized = normalizeFailureCause(
+      'Stale: 0x3fc68470a35072c3a49ac28187c2cc0d4ad1bc57 / 0x2646478b, 3 pairs'
+    )
+    expect(normalized).not.toContain('<')
+    expect(normalized).not.toContain('>')
+  })
+})

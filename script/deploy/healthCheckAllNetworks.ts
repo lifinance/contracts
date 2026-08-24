@@ -101,6 +101,11 @@ export interface IFailureGroup {
 const EVM_ADDRESS_PATTERN = /0x[a-fA-F0-9]{40}/g
 const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
 
+// Slack parses <...> as a link element, so the masks must avoid angle brackets or they would be
+// mangled in the very message they exist to clarify.
+const ADDRESS_MASK = '[address]'
+const COUNT_MASK = '[n]'
+
 /** Cause used when a network failed without the runner capturing any error text. */
 const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
 
@@ -113,19 +118,26 @@ function collapseWhitespace(text: string): string {
  * Reduce a per-network failure detail to the shape shared by every network failing for the same
  * reason. Standalone integers are masked so "1 stale pair" and "2 stale pairs" group together;
  * the `\b` anchors keep digits inside an identifier (LiFiIntentEscrowFacetV2) intact. Pure.
+ *
+ * Note the masks are the price of grouping: the digest names the cause, and the workflow run
+ * still holds the per-network addresses and counts.
  */
 export function normalizeFailureCause(detail: string): string {
   return collapseWhitespace(
     detail
-      .replace(EVM_ADDRESS_PATTERN, '<address>')
-      .replace(TRON_ADDRESS_PATTERN, '<address>')
-      .replace(/\b\d+\b/g, '<n>')
+      .replace(EVM_ADDRESS_PATTERN, ADDRESS_MASK)
+      .replace(TRON_ADDRESS_PATTERN, ADDRESS_MASK)
+      .replace(/\b\d+\b/g, COUNT_MASK)
   )
 }
 
 /**
  * Group failed networks by normalized cause, widest blast radius first. Turns "17 networks
  * failed" into the two or three root causes actually behind it. Pure.
+ *
+ * Grouping keys off the whole detail, which `runOneNetwork` already trims to the last 5 errors —
+ * so a network failing more than five ways groups by its tail, and can land in its own group
+ * rather than beside networks sharing its first cause.
  */
 export function groupFailuresByCause(
   results: IHealthCheckResult[]
