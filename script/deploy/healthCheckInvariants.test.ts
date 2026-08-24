@@ -42,6 +42,8 @@ function makeCtx(): IHealthCheckContext {
     isTestnet: false,
     supportsGasZip: true,
     onChainFacets: [],
+    // Empty coverage, so no test ever reaches the real parked-task queue.
+    openParkedRemovals: new Map(),
     errors,
     warnings,
     logError: (msg: string) => {
@@ -1257,6 +1259,88 @@ describe('selector identity in the facet invariants', () => {
     await invariant('facet-required-periphery').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain(coupled)
+  })
+})
+
+describe('no-unexpected-facets parked-removal coverage', () => {
+  const PRUNED = '0xCCCC000000000000000000000000000000000003'
+  const PR_URL = 'https://github.com/lifinance/contracts/pull/9999'
+
+  function makePrunedCtx(
+    openParkedRemovals: IHealthCheckContext['openParkedRemovals'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      onChainFacets: [{ address: PRUNED, selectors: ['0x11111111'] }],
+      deployedContracts: {},
+      compiledFacetSelectors: { AcrossFacetV4: ['0x11111111'] },
+      openParkedRemovals,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (): Map<string, Map<string, string>> =>
+    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+
+  it('downgrades a routed-but-pruned facet to expected-pending when a parked removal covers it', async () => {
+    const ctx = makePrunedCtx(covering())
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still warns when the open task covers a different address', async () => {
+    const ctx = makePrunedCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([['0xdddd000000000000000000000000000000000004', PR_URL]]),
+        ],
+      ])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('keys coverage by network, not fleet-wide', async () => {
+    const ctx = makePrunedCtx(
+      new Map([['othernet', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('degrades to the plain warning when the queue is unreachable', async () => {
+    const ctx = makePrunedCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('absent from the deploy log')
+  })
+
+  it('does not consult the queue on staging', async () => {
+    const ctx = makePrunedCtx(covering(), { environment: 'staging' })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('does not consult the queue on testnets', async () => {
+    const ctx = makePrunedCtx(covering(), { isTestnet: true })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('warns on the uncovered facet while downgrading the covered one', async () => {
+    const UNCOVERED = '0xEEEE000000000000000000000000000000000005'
+    const ctx = makePrunedCtx(covering(), {
+      onChainFacets: [
+        { address: PRUNED, selectors: ['0x11111111'] },
+        { address: UNCOVERED, selectors: ['0x22222222'] },
+      ],
+    })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain(UNCOVERED)
   })
 })
 

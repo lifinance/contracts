@@ -135,6 +135,14 @@ export interface IHealthCheckContext {
    * address. Optional because tests build partial contexts; absent simply means uncached reads.
    */
   peripheryRegistryCache?: Map<string, Promise<string | null>>
+  /**
+   * Open parked-removal coverage (network → lowercased facet address → PR URL). Undefined =
+   * fetch from the parked-task queue (the default); injectable so the queue-aware invariants
+   * are testable without a MongoDB connection.
+   */
+  openParkedRemovals?:
+    | Map<string, Map<string, string>>
+    | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -1175,7 +1183,7 @@ export function splitByParkedCoverage(
 
 /**
  * Open parked tasks fleet-wide, fetched once per process and grouped by network
- * (lowercased `facetAddress` sets). The health check evaluates dozens of networks
+ * (lowercased `facetAddress` → PR URL maps). The health check evaluates dozens of networks
  * concurrently in one process, and a Mongo connect/index-check/teardown per stale
  * network would hammer the shared cluster; one shared read serves them all.
  * A failed fetch degrades that network to a coverage warning instead of a false
@@ -1184,10 +1192,10 @@ export function splitByParkedCoverage(
  * failing promise, so a hard outage costs at most one attempt per network.
  */
 let openParkedByNetworkPromise:
-  | Promise<Map<string, Set<string>> | { unreachable: string }>
+  | Promise<Map<string, Map<string, string>> | { unreachable: string }>
   | undefined
 function fetchOpenParkedAddressesByNetwork(): Promise<
-  Map<string, Set<string>> | { unreachable: string }
+  Map<string, Map<string, string>> | { unreachable: string }
 > {
   return (openParkedByNetworkPromise ??= (async () => {
     try {
@@ -1199,11 +1207,11 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
           environment: EnvironmentEnum.production,
           status: OPEN_STATUSES,
         })
-        const byNetwork = new Map<string, Set<string>>()
+        const byNetwork = new Map<string, Map<string, string>>()
         for (const task of open) {
-          const set = byNetwork.get(task.network) ?? new Set<string>()
-          set.add(task.facetAddress.toLowerCase())
-          byNetwork.set(task.network, set)
+          const map = byNetwork.get(task.network) ?? new Map<string, string>()
+          map.set(task.facetAddress.toLowerCase(), task.prUrl)
+          byNetwork.set(task.network, map)
         }
         return byNetwork
       } finally {
@@ -2275,33 +2283,57 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
+      const unlogged = ctx.onChainFacets.filter(
+        (facet) => !knownAddresses.has(facet.address.toLowerCase())
+      )
+      if (unlogged.length === 0) {
+        consola.success('All on-chain facets are known deployed contracts')
+        return
+      }
+      // A facet pruned from the deploy log at park time is still routed until its
+      // removal executes; an open parked task covering the address makes it
+      // expected-pending, not rogue. The queue is a production-mainnet construct
+      // (see no-stale-registered-facets), and an unreachable queue must not
+      // suppress the warning — degrade to reporting as if nothing were covered.
+      let parkedRemovals = new Map<string, string>()
+      if (ctx.environment === 'production' && !ctx.isTestnet) {
+        const openParked =
+          ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
+        if ('unreachable' in openParked)
+          consola.info(
+            `Parked-task queue unreachable — expected-pending downgrade skipped, unlogged facets warn as-is: ${openParked.unreachable}`
+          )
+        else parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
+      }
       const compiledSelectors =
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
-      let unexpected = 0
-      for (const facet of ctx.onChainFacets)
-        if (!knownAddresses.has(facet.address.toLowerCase())) {
-          unexpected++
-          const identified = identifyFacetBySelectorSet(
-            facet.selectors,
-            compiledSelectors
+      for (const facet of unlogged) {
+        const prUrl = parkedRemovals.get(facet.address.toLowerCase())
+        if (prUrl) {
+          consola.info(
+            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${prUrl})`
           )
-          if (identified)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
-            )
-          // Without build output there is nothing to match against, so say that rather than
-          // reporting an identity check that never ran.
-          else if (Object.keys(compiledSelectors).length === 0)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
-            )
-          else
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
-            )
+          continue
         }
-      if (unexpected === 0)
-        consola.success('All on-chain facets are known deployed contracts')
+        const identified = identifyFacetBySelectorSet(
+          facet.selectors,
+          compiledSelectors
+        )
+        if (identified)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
+          )
+        // Without build output there is nothing to match against, so say that rather than
+        // reporting an identity check that never ran.
+        else if (Object.keys(compiledSelectors).length === 0)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
+          )
+        else
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
+          )
+      }
     },
   },
   {
@@ -2357,7 +2389,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // nothing the drain would actually remove — counting it as coverage would
       // silence this backstop for the very facet it exists to surface
       // (co-registered versions, EXSC-750/EXSC-775).
-      const openParked = await fetchOpenParkedAddressesByNetwork()
+      const openParked =
+        ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
       if ('unreachable' in openParked) {
         // An unreachable queue must not turn every parked removal into a false
         // alarm — surface the reduced coverage instead of guessing.
@@ -2366,8 +2399,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const openParkedAddresses =
-        openParked.get(ctx.networkLower) ?? new Set<string>()
+      const openParkedAddresses = new Set(
+        (openParked.get(ctx.networkLower) ?? new Map<string, string>()).keys()
+      )
 
       const { parked, unparked } = splitByParkedCoverage(
         deprecated,
