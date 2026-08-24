@@ -1,6 +1,6 @@
 # Weekly Test Coverage Report
 # - Runs the (Foundry) test-coverage measurement on a weekly schedule instead of on every PR and
-#   posts the result to the SC-general Slack channel.
+#   posts the result to the dev-sc-github-ci-notifications Slack channel.
 # - Replaces the per-commit coverage gate (enforceTestCoverage.yml, removed in EXSC-675): coverage
 #   is slow, non-parallelizable, and flaky on live-RPC fork tests, and never fails for low coverage
 #   since we sit well above target — so it belongs on a low-frequency reporting cadence, not the
@@ -24,10 +24,11 @@ concurrency:
 
 jobs:
   coverage-report:
-    # Upstream-only: the coverage run needs lifinance/contracts' MongoDB RPCs and the SC-general
-    # Slack webhook, which forks (e.g. contracts-tron, which syncs workflows) do not have.
+    # Upstream-only: the coverage run needs lifinance/contracts' MongoDB RPCs and the
+    # CI-notifications Slack webhook, which forks (e.g. contracts-tron, which syncs workflows) do not have.
     if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read # required to fetch repository contents
       actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
@@ -190,7 +191,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           webhook-type: incoming-webhook
           payload: |
             {

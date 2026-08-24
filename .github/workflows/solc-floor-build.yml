@@ -38,6 +38,7 @@ jobs:
     # Determines whether files that can influence compilation were touched.
     # Always runs (cheap) so the downstream solc-floor-build-required can report status.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read # required to fetch repository contents
       pull-requests: read # required by dorny/paths-filter to read changed files on PRs
@@ -73,6 +74,7 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read # required to fetch repository contents and submodules
     steps:
@@ -102,6 +104,7 @@ jobs:
     needs: [detect-changes, solc-floor-build]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions: {} # aggregator only reads job results, no repo access needed
     steps:
       - name: Validate upstream result

@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x83C8F21F9Eab6DC2c8496C2c06eB7A352929a8Ca": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
+      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
+        "Name": "AcrossV4SwapFacet",
+        "Version": "1.0.0"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -29,13 +29,13 @@
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
+      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
+        "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0xE0c5e721b40D54f2aA09418B1237db9d88220C73": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xaa7911Ce0bab34fd8D4DdfA161004CB7e4BE1958": {
         "Name": "GardenFacet",
@@ -49,9 +49,9 @@
         "Name": "OmniBridgeFacet",
         "Version": "1.0.0"
       },
-      "0x5A1B851bC64f6AdaCaE8123aB52142b4A592B3aC": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -69,13 +69,13 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x1D2Ff501e5c4Ff066e0Fdc4aBd10e17B228E16D1": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
+      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -120,40 +120,16 @@
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
-      },
-      "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
-        "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x2beEf67989a236e9CA97E8F731050bf7E8039e90": {
-        "Name": "AcrossV4SwapFacet",
-        "Version": "1.0.0"
-      },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
-      },
-      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
-        "Name": "SymbiosisFacet",
-        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

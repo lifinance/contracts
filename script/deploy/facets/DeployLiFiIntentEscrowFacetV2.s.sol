@@ -28,7 +28,8 @@ contract DeployScript is DeployScriptBase {
         );
 
         // allowNonContractAddress: true — lifiEscrowInputSettler is a reserved, deterministically
-        // deployed vanity address (identical on every chain). The facet is deployed on a chain
+        // deployed vanity address, identical on every EVM chain (Tron cannot reproduce it and
+        // carries its own address under the `tron` key in the same config file). The facet is deployed on a chain
         // before the settler exists there, so the ref legitimately has no code yet (see EXSC-748).
         // It is a real non-zero address, so allowZeroAddress stays false.
         address lifiIntentEscrowSettler = _getConfigContractAddress(
