@@ -62,6 +62,7 @@ import { isAddress } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { redactErrorReason } from '../../utils/redactUrls'
 import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
@@ -447,32 +448,6 @@ export interface IReconcileFailure {
   kind: 'unreadable' | 'inactive-network'
   /** Alert-safe error text — always via {@link redactErrorReason}, never a raw message. */
   reason: string
-}
-
-/** Longest error text kept in an alert line; viem messages run to several hundred chars. */
-const MAX_REASON_LENGTH = 180
-
-/**
- * Makes an error message safe to post outside the job log: strips every
- * scheme-prefixed URL and collapses the rest to one line.
- *
- * Viem embeds the full endpoint in `error.message` (`URL: https://…/<api-key>`) and the
- * Mongo driver can echo its connection string, while Slack is outside the `::add-mask::`
- * redaction that protects the workflow log — so a failure would otherwise publish the
- * credential to the channel. Only the reason is redacted, never the whole alert: the
- * origin-PR links are what make it actionable.
- *
- * @param message - Raw error message.
- * @returns A single-line, length-capped reason with `scheme://…` tokens replaced.
- */
-export function redactErrorReason(message: string): string {
-  const redacted = message
-    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<redacted-url>')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return redacted.length > MAX_REASON_LENGTH
-    ? `${redacted.slice(0, MAX_REASON_LENGTH)}…`
-    : redacted
 }
 
 /**

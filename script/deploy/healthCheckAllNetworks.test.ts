@@ -333,3 +333,56 @@ describe('normalizeFailureCause Slack safety', () => {
     expect(normalized).not.toContain('>')
   })
 })
+
+describe('normalizeFailureCause redaction', () => {
+  // Shape of a viem HttpRequestError message: the endpoint carries the provider credential, and
+  // the digest publishes to Slack, which sits outside the workflow log's masking.
+  const VIEM_HTTP_ERROR = [
+    'HTTP request failed.',
+    '',
+    'URL: https://lb.example.org/ogrpc?network=base&dkey=DUMMY-TEST-VALUE',
+    'Request body: {"method":"eth_call"}',
+  ].join('\n')
+
+  it('redacts a credentialed endpoint before it can reach Slack', () => {
+    const cause = normalizeFailureCause(VIEM_HTTP_ERROR)
+    expect(cause).not.toContain('DUMMY-TEST-VALUE')
+    expect(cause).not.toContain('lb.example.org')
+    // The useful part of the message survives, so the alert still says what broke.
+    expect(cause).toContain('HTTP request failed.')
+  })
+
+  it('redacts a mongo connection string too', () => {
+    const cause = normalizeFailureCause(
+      'connect ECONNREFUSED mongodb+srv://someuser:somepass@cluster.example.net/db'
+    )
+    expect(cause).not.toContain('someuser:somepass')
+    expect(cause).not.toContain('cluster.example.net')
+  })
+
+  it('keeps the redaction placeholder free of Slack link syntax', () => {
+    const cause = normalizeFailureCause(VIEM_HTTP_ERROR)
+    expect(cause).not.toContain('<')
+    expect(cause).not.toContain('>')
+    expect(cause).toContain('[redacted-url]')
+  })
+
+  it('still groups two networks whose only difference is the redacted endpoint', () => {
+    const groups = groupFailuresByCause([
+      {
+        network: 'base',
+        status: 'failed',
+        warnings: 0,
+        detail: 'HTTP request failed. URL: https://a.example.org/?k=AAA',
+      },
+      {
+        network: 'polygon',
+        status: 'failed',
+        warnings: 0,
+        detail: 'HTTP request failed. URL: https://b.example.org/?k=BBB',
+      },
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.networks).toEqual(['base', 'polygon'])
+  })
+})

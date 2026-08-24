@@ -24,6 +24,7 @@ import {
 import { type Address } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
+import { redactErrorReason } from '../../utils/redactUrls'
 
 import { type IParkedTask } from './parked-tasks'
 import {
@@ -37,7 +38,6 @@ import {
   formatTtlAlertMessage,
   partitionByNetworkStatus,
   parseTtlDays,
-  redactErrorReason,
   reconcileExitError,
   reconcileDecision,
   isSuspectAddressSnapshot,

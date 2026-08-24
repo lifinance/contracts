@@ -15,6 +15,7 @@ import { consola } from 'consola'
 
 import type { INetwork } from '../common/types'
 import { mapWithConcurrency } from '../utils/mapWithConcurrency'
+import { redactUrls } from '../utils/redactUrls'
 import { getAllActiveNetworks } from '../utils/viemScriptHelpers'
 
 import { runHealthCheckForNetwork } from './healthCheck'
@@ -105,6 +106,7 @@ const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
 // mangled in the very message they exist to clarify.
 const ADDRESS_MASK = '[address]'
 const COUNT_MASK = '[n]'
+const REDACTED_URL_MASK = '[redacted-url]'
 
 /** Cause used when a network failed without the runner capturing any error text. */
 const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
@@ -121,10 +123,15 @@ function collapseWhitespace(text: string): string {
  *
  * Note the masks are the price of grouping: the digest names the cause, and the workflow run
  * still holds the per-network addresses and counts.
+ *
+ * Endpoints are redacted FIRST, before any other masking: a detail can be a raw viem or Mongo
+ * error carrying a credentialed URL, and this text is published to Slack, which is outside the
+ * workflow log's masking. Redacting also happens to improve grouping — two networks failing on
+ * the same RPC fault differ only in their endpoint.
  */
 export function normalizeFailureCause(detail: string): string {
   return collapseWhitespace(
-    detail
+    redactUrls(detail, REDACTED_URL_MASK)
       .replace(EVM_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(TRON_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(/\b\d+\b/g, COUNT_MASK)
