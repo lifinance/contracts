@@ -186,9 +186,9 @@ The `FraxFacet` equivalent (`config/frax.json` `mappings`, chainId→LayerZero E
 bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
 ```
 
-Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array). Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping `setChainIdToDomainId`, created carrying one signature — same lifecycle as every other proposal here.
+Variants (both scripts): `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array); the Frax script also takes `--dryRun` to print the per-network diff without proposing. Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping the facet's setter (`setChainIdToDomainId` / `setFraxChainIdToEid`), created carrying one signature — same lifecycle as every other proposal here.
 
-**Scope impact on the tail:** these proposals land on chains *beyond* the deploy target — potentially every live PolymerCCTP chain. Fold them into the rest of the run — capture them in Phase 4, add their networks + nonces to the PR table in Phase 5 (and stage the `config/polymercctp.json` diff — it targets `main`), verify them in Phase 7, list their networks in the Phase 8 Slack post. The runner signs them alongside the deploy proposals in Phase 6.
+**Scope impact on the tail:** these proposals land on chains *beyond* the deploy target — potentially every live PolymerCCTP or FraxFacet chain. Fold them into the rest of the run — capture them in Phase 4, add their networks + nonces to the PR table in Phase 5 (and stage the config diff — `config/polymercctp.json` or `config/frax.json` — it targets `main`), verify them in Phase 7, list their networks in the Phase 8 Slack post. The runner signs them alongside the deploy proposals in Phase 6.
 
 ## Phase 4 — Capture proposals
 

@@ -12,13 +12,13 @@
  * 5) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
- * bun script/tasks/proposeFraxChainIdMappings.ts --environment production
+ * bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
  *
  * Single network:
- * bun script/tasks/proposeFraxChainIdMappings.ts --network arbitrum --environment production
+ * bunx tsx script/tasks/proposeFraxChainIdMappings.ts --network arbitrum --environment production
  *
  * Preview without proposing:
- * bun script/tasks/proposeFraxChainIdMappings.ts --environment production --dryRun
+ * bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production --dryRun
  */
 
 import fs from 'fs'
@@ -119,7 +119,12 @@ async function filterMappingsNeedingUpdate(params: {
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({ chain, transport: http() })
 
-  const errorsAbi = parseAbi(['error UnsupportedChainId(uint256 chainId)'])
+  const errorsAbi = parseAbi([
+    'error UnsupportedChainId(uint256 chainId)',
+    // the diamond's fallback when the selector is not routed — a facet whose
+    // bytecode is deployed but whose diamondCut has not executed yet
+    'error FunctionDoesNotExist()',
+  ])
 
   const results = await client.multicall({
     contracts: mappings.map((m) => ({
@@ -152,8 +157,19 @@ async function filterMappingsNeedingUpdate(params: {
           needingUpdate.push(mapping)
           continue
         }
-      } catch {
-        // not UnsupportedChainId
+        if (decoded.errorName === 'FunctionDoesNotExist')
+          throw new Error(
+            `FraxFacet is not cut into the diamond on ${network} yet (getFraxChainIdToEid is unrouted). ` +
+              `Its address is in the deployment log, but the diamondCut that runs initFrax has not executed — ` +
+              `execute that cut before propagating mappings.`
+          )
+      } catch (e: unknown) {
+        // rethrow our own diagnosis; a decode miss just means some other revert
+        if (
+          e instanceof Error &&
+          e.message.includes('not cut into the diamond')
+        )
+          throw e
       }
     }
 
@@ -162,7 +178,8 @@ async function filterMappingsNeedingUpdate(params: {
         ? result.error.message
         : String(result.error)
     throw new Error(
-      `Failed to read chainId ${mapping.chainId.toString()} on ${network}: ${message}`
+      `Failed to read ${mappings.length} chainId(s) on ${network} (first: ` +
+        `${mapping.chainId.toString()}): ${message}`
     )
   }
 
@@ -356,7 +373,11 @@ const main = defineCommand({
     }
 
     if (eligibleNetworks.length === 0) {
-      consola.warn('No eligible networks found (FraxFacet not deployed).')
+      consola.error(
+        `No eligible networks found: FraxFacet is not present in any ${environment} deployment log. ` +
+          `Nothing was proposed.`
+      )
+      process.exitCode = 1
       return
     }
 
@@ -385,13 +406,8 @@ const main = defineCommand({
 
         if (!isNonZeroAddressString(diamondRaw))
           throw new Error(`Missing LiFiDiamond deployment on ${network}`)
-        if (!isNonZeroAddressString(timelockRaw))
-          throw new Error(
-            `Missing LiFiTimelockController deployment on ${network}`
-          )
 
         const diamondAddress = getAddress(diamondRaw as Address)
-        const timelockAddress = getAddress(timelockRaw as Address)
 
         const mappingsToUpdate = await filterMappingsNeedingUpdate({
           network,
@@ -419,6 +435,14 @@ const main = defineCommand({
           results.push({ network, ok: true })
           continue
         }
+
+        // only needed to build the proposal, so it must not gate the dry-run diff
+        if (!isNonZeroAddressString(timelockRaw))
+          throw new Error(
+            `Missing LiFiTimelockController deployment on ${network}`
+          )
+
+        const timelockAddress = getAddress(timelockRaw as Address)
 
         const calldata = await buildTimelockScheduleBatchCalldata({
           network,

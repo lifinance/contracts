@@ -198,8 +198,13 @@ bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
 ```
 
 which diffs config against each diamond's storage and proposes a timelock-wrapped
-`setFraxChainIdToEid` only where an entry is missing or stale (`--dryRun` previews the
-diff; re-running after execution is a no-op).
+`setFraxChainIdToEid` only where an entry is missing or stale. `--dryRun` previews the
+diff without proposing.
+
+> Re-run only once the scheduled ops have **executed**. The diff is read from diamond
+> storage, which a merely scheduled timelock op has not yet changed, and each proposal
+> carries a fresh salt — so re-running during the delay window re-proposes the same
+> mappings and burns a Safe nonce on every chain.
 
 ## Tempo (EndpointV2Alt) special case
 

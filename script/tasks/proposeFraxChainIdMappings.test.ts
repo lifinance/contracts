@@ -8,7 +8,13 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { decodeFunctionData, parseAbi } from 'viem'
+import {
+  decodeErrorResult,
+  decodeFunctionData,
+  encodeErrorResult,
+  parseAbi,
+  toFunctionSelector,
+} from 'viem'
 
 import {
   encodeSetFraxChainIdToEid,
@@ -27,7 +33,7 @@ interface IFraxConfig {
 }
 
 const fraxConfig = readJson<IFraxConfig>('config/frax.json')
-const networks = readJson<Record<string, { chainId: number; status: string }>>(
+const networks = readJson<Record<string, { chainId: number }>>(
   'config/networks.json'
 )
 
@@ -35,20 +41,20 @@ describe('config/frax.json', () => {
   // Every chain in `hop` is a routable Frax destination, but only chains present in
   // `mappings` get an EID written into diamond storage by initFrax/setFraxChainIdToEid.
   // A hop entry without a mapping therefore reverts UnsupportedChainId at bridge time
-  // on every diamond, which is exactly how stable/tempo/somnia/katana shipped unusable.
+  // on every diamond.
   it('has a mappings entry for every chain listed under hop', () => {
     const mapped = new Set(fraxConfig.mappings.map((m) => m.chainId))
 
-    const missing = Object.keys(fraxConfig.hop).filter((network) => {
+    const unknown: string[] = []
+    const missing: string[] = []
+    for (const network of Object.keys(fraxConfig.hop)) {
       const chainId = networks[network]?.chainId
-      if (chainId === undefined)
-        throw new Error(
-          `hop network "${network}" is not in config/networks.json`
-        )
-      return !mapped.has(chainId)
-    })
+      if (chainId === undefined) unknown.push(network)
+      else if (!mapped.has(chainId)) missing.push(network)
+    }
 
-    expect(missing).toEqual([])
+    // reported together: an unknown hop entry must not mask a missing mapping
+    expect({ missing, unknown }).toEqual({ missing: [], unknown: [] })
   })
 
   it('has no duplicate or zero-EID mappings', () => {
@@ -101,12 +107,54 @@ describe('encodeSetFraxChainIdToEid', () => {
 
     expect(decoded.functionName).toBe('setFraxChainIdToEid')
     expect(decoded.args[0]).toEqual(mappings)
+    // named-tuple decoding is order-independent, so only the selector pins the
+    // ChainIdConfig field order; a swap would encode a call that reverts on-chain
+    expect(encodeSetFraxChainIdToEid(mappings).slice(0, 10)).toBe('0xa8e13b68')
+  })
+})
+
+describe('diamond revert selectors', () => {
+  // The propose task tells UnsupportedChainId (mapping unset -> propose it) apart from
+  // FunctionDoesNotExist (facet not cut in yet -> abort with an actionable message).
+  // Both are decoded from raw bytes, so the selectors must match the deployed contracts.
+  it('matches the selectors the contracts actually revert with', () => {
+    expect(toFunctionSelector('UnsupportedChainId(uint256)')).toBe('0xa5dab5fe')
+    expect(toFunctionSelector('FunctionDoesNotExist()')).toBe('0xa9ad62f8')
+  })
+
+  it('decodes each revert payload to the right error', () => {
+    const abi = parseAbi([
+      'error UnsupportedChainId(uint256 chainId)',
+      'error FunctionDoesNotExist()',
+    ])
+
+    expect(
+      decodeErrorResult({
+        abi,
+        data: encodeErrorResult({
+          abi,
+          errorName: 'UnsupportedChainId',
+          args: [988n],
+        }),
+      }).errorName
+    ).toBe('UnsupportedChainId')
+
+    expect(decodeErrorResult({ abi, data: '0xa9ad62f8' }).errorName).toBe(
+      'FunctionDoesNotExist'
+    )
   })
 })
 
 describe('getRevertData', () => {
   it('reads the raw revert bytes viem parks on `raw`', () => {
-    expect(getRevertData({ cause: { raw: '0x1234' } })).toBe('0x1234')
+    // viem's ContractFunctionRevertedError defines `data` as present-but-undefined
+    // and carries the bytes on `raw`, so an `in` check would short-circuit here
+    const revertedError: Record<string, unknown> = {
+      data: undefined,
+      raw: '0xa5dab5fe',
+    }
+    expect('data' in revertedError).toBe(true)
+    expect(getRevertData({ cause: revertedError })).toBe('0xa5dab5fe')
   })
 
   it('returns undefined when there is no revert payload', () => {

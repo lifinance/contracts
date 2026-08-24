@@ -1,3 +1,9 @@
+/**
+ * Pure helpers for the Frax chainId -> LayerZero EID mapping stored per diamond.
+ * Import from the propose task or its tests; the CLI module itself runs on import,
+ * so anything unit-testable belongs here.
+ */
+
 import fs from 'fs'
 import path from 'path'
 
@@ -20,7 +26,8 @@ export const GET_FRAX_CHAIN_ID_TO_EID_ABI = parseAbi([
  * Validates and normalizes the `mappings` array of `config/frax.json`.
  * @param parsed - Parsed contents of a frax config file
  * @returns One `{ chainId, lzEid }` entry per config row
- * @throws When `mappings` is missing/empty or any row has a zero chainId or lzEid
+ * @throws When `mappings` is missing/empty, a row has a zero chainId or lzEid, or a
+ *         chainId arrived rounded because it exceeds the safe integer range
  */
 export function parseFraxMappings(parsed: {
   mappings?: Array<{ chainId: unknown; lzEid: unknown }>
@@ -29,6 +36,16 @@ export function parseFraxMappings(parsed: {
     throw new Error('Invalid config file format: missing mappings')
 
   const mappings: IFraxChainIdMapping[] = parsed.mappings.map((m, idx) => {
+    // JSON.parse has already coerced to double, so a chainId past 2^53 arrives
+    // silently rounded — BigInt(String(...)) would preserve the wrong value
+    if (typeof m.chainId === 'number' && !Number.isSafeInteger(m.chainId))
+      throw new Error(
+        `Invalid mapping at index ${idx}: chainId=${String(
+          m.chainId
+        )} exceeds ` +
+          `the safe integer range; quote it as a string in the config`
+      )
+
     const chainId = BigInt(String(m.chainId))
     const lzEid = Number(m.lzEid)
 
@@ -53,6 +70,7 @@ export function parseFraxMappings(parsed: {
 /**
  * Reads and validates `config/frax.json` from the current working directory.
  * @returns The configured chainId -> LayerZero EID mappings
+ * @throws When the file is missing, is not valid JSON, or fails `parseFraxMappings`
  */
 export function loadFraxMappings(): IFraxChainIdMapping[] {
   const filePath = path.join(process.cwd(), 'config', 'frax.json')
