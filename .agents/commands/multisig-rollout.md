@@ -14,7 +14,7 @@ Drives the production rollout lifecycle in three modes:
 
 All modes converge on the same tail: capture proposals → (deploy mode only, or propose-only when whitelist files dirty) draft PR → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
-**PolymerCCTP add-on**: a `PolymerCCTPFacet` rollout that adds a chain or CCTP corridor also has to propagate its chainId→CCTP-domain mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
+**Per-diamond chainId-mapping add-on**: a `PolymerCCTPFacet` or `FraxFacet` rollout that adds a chain also has to propagate its chainId mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
@@ -165,9 +165,9 @@ proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design
   without `--yes`; use it only for a deliberate cold-network sweep. See
   [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
 
-## Phase 3b — Propagate CCTP chainId→domain mappings (PolymerCCTP only)
+## Phase 3b — Propagate per-diamond chainId mappings (PolymerCCTP, Frax)
 
-Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `PolymerCCTPFacet` is the only facet with cross-chain chainId→domain storage today; a future one would follow the same shape.
+Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `FraxFacet` has the same shape (chainId→LayerZero-EID, `config/frax.json`, `script/tasks/proposeFraxChainIdMappings.ts`) and is propagated the same way.
 
 Two triggers:
 
@@ -178,6 +178,12 @@ Propagate (diff-driven — proposes only where the on-chain mapping is unset or 
 
 ```bash
 bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
+```
+
+The `FraxFacet` equivalent (`config/frax.json` `mappings`, chainId→LayerZero EID) is:
+
+```bash
+bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
 ```
 
 Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array). Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping `setChainIdToDomainId`, created carrying one signature — same lifecycle as every other proposal here.
