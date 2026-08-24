@@ -37,8 +37,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x5656E307E4dEd573695Dd3eAC64EC4778F910DcA": {
-        "Name": "SymbiosisFacet",
+      "0xf18E7d025BdB3e0DD952Cc9b20A977f6E296DF45": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
@@ -80,10 +80,6 @@
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
-      },
-      "0xf18E7d025BdB3e0DD952Cc9b20A977f6E296DF45": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -100,7 +96,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xa2712aEecbff8a1542c78Cf49C4fE4CE4B09E1dB",
       "ReceiverStargateV2": "0x0dC56076590CdF0efc37114273f02f45A96B5500",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }
