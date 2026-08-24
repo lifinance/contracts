@@ -9,6 +9,11 @@
  * partial-unique-index semantics: duplicate PENDING rejected (E11000 -> null,
  * no throw), re-create after EXECUTED/REVERTED allowed, and non-duplicate
  * errors propagated.
+ *
+ * Also covers the nonce-execution gate (EXSC-690): `canExecuteWithNonceStatus`
+ * decides whether a pending proposal may be broadcast given where its nonce sits
+ * relative to the Safe's expected nonce, and `isFutureNonceExecutionAllowed`
+ * reads the operator escape hatch that the gate consults for the future case.
  */
 
 import {
@@ -24,9 +29,11 @@ import { type Address, type Hex } from 'viem'
 
 import {
   buildProposalProvenance,
+  canExecuteWithNonceStatus,
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
   normalizeProposalReason,
   safeTxStatusConsumedNonce,
@@ -37,6 +44,8 @@ import {
   type IProposalProvenance,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type NonceExecutionDecision,
+  type SafeNonceStatus,
 } from './safe-utils'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
@@ -746,6 +755,47 @@ describe('safeTxStatusConsumedNonce', () => {
   it('returns false for submitted (unknown outcome) and pending', () => {
     expect(safeTxStatusConsumedNonce('submitted')).toBe(false)
     expect(safeTxStatusConsumedNonce('pending')).toBe(false)
+  })
+})
+
+describe('canExecuteWithNonceStatus', () => {
+  it.each([
+    ['stale', false, { canExecute: false, reason: 'stale-nonce' }],
+    ['stale', true, { canExecute: false, reason: 'stale-nonce' }],
+    ['future', false, { canExecute: false, reason: 'future-nonce' }],
+    ['future', true, { canExecute: true, reason: 'future-nonce-override' }],
+    ['current', false, { canExecute: true, reason: 'nonce-current' }],
+    ['current', true, { canExecute: true, reason: 'nonce-current' }],
+  ] as [SafeNonceStatus, boolean, NonceExecutionDecision][])(
+    '%s nonce with allowFutureNonce=%j => %j',
+    (status, allowFutureNonce, expected) => {
+      expect(canExecuteWithNonceStatus(status, { allowFutureNonce })).toEqual(
+        expected
+      )
+    }
+  )
+})
+
+describe('isFutureNonceExecutionAllowed', () => {
+  const original = process.env.ALLOW_FUTURE_NONCE_EXECUTION
+  afterEach(() => {
+    if (original === undefined) delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    else process.env.ALLOW_FUTURE_NONCE_EXECUTION = original
+  })
+
+  it('is true only when ALLOW_FUTURE_NONCE_EXECUTION === "true"', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = 'true'
+    expect(isFutureNonceExecutionAllowed()).toBe(true)
+  })
+
+  it('is false when unset', () => {
+    delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
+  })
+
+  it('is false for any other value', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = '1'
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
   })
 })
 
