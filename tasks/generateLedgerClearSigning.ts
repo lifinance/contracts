@@ -71,6 +71,13 @@ interface IClearSigningProposal {
   $count?: number
   $note?: string
   formats: Record<string, Json>
+  enums?: Record<string, Record<string, string>>
+}
+
+interface ILedgerMetadata {
+  enums?: Record<string, Json>
+  // ERC-7730 also allows `owner`, `info`, `constants`, … — preserve via [k: string]
+  [k: string]: unknown
 }
 
 interface ILedgerDisplay {
@@ -88,7 +95,7 @@ interface ILedgerRegistryFile {
       abi?: AbiItem[]
     }
   }
-  metadata?: Json
+  metadata?: ILedgerMetadata
   display?: ILedgerDisplay
   // allow extra keys
   [k: string]: unknown
@@ -200,6 +207,56 @@ function mergeDisplayFormats(
     `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned)`
   )
   next.formats = nextFormats
+  return next
+}
+
+// Merges the proposal's `enums` into the registry's `metadata.enums`, with the
+// same ownership contract as mergeDisplayFormats: enum names the proposal
+// declares are replaced, any other enum in the registry is preserved, and every
+// other `metadata.*` key is preserved verbatim.
+//
+// This has to be a merge rather than a preserve-everything: `lifiChains` maps
+// every destination chain id the diamond can bridge to onto the name shown on
+// the signing screen, so it goes stale the moment LI.FI adds a network. The
+// contracts repo owns it (generated + gated by verifyClearSigning.yml), so the
+// sync has to carry it upstream like it carries display.formats.
+function mergeMetadataEnums(
+  existing: ILedgerMetadata | undefined,
+  proposalFilePath: string | null
+): ILedgerMetadata | undefined {
+  if (!proposalFilePath) return existing
+
+  const absPath = resolveWithinCwd(proposalFilePath)
+  if (!fs.existsSync(absPath)) return existing
+
+  const proposal = readJsonFile<IClearSigningProposal>(absPath)
+  if (!proposal.enums || typeof proposal.enums !== 'object') {
+    console.warn(
+      `Proposal at ${absPath} has no .enums object; preserving metadata.* unchanged.`
+    )
+    return existing
+  }
+
+  const proposalEnums = proposal.enums
+  const next: ILedgerMetadata = { ...(existing ?? {}) }
+  const existingEnums = (next.enums ?? {}) as Record<string, Json>
+  const nextEnums: Record<string, Json> = { ...existingEnums }
+
+  const owned: string[] = []
+  for (const [name, values] of Object.entries(proposalEnums)) {
+    owned.push(name)
+    nextEnums[name] = values as unknown as Json
+  }
+  const preserved = Object.keys(existingEnums).filter(
+    (k) => !(k in proposalEnums)
+  ).length
+
+  console.log(
+    `metadata.enums merge: ${owned.length} owned (${owned.join(
+      ', '
+    )}), =${preserved} preserved (unowned)`
+  )
+  next.enums = nextEnums
   return next
 }
 
@@ -461,7 +518,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.{abi,deployments} from this repo, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.{abi,deployments} from this repo, and merges display.formats plus metadata.enums from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). Other display and metadata keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
@@ -652,13 +709,18 @@ const main = defineCommand({
       args.skipDisplayMerge ? null : (args.proposalFilePath as string)
     )
 
+    const nextMetadata = mergeMetadataEnums(
+      ledger.metadata,
+      args.skipDisplayMerge ? null : (args.proposalFilePath as string)
+    )
+
     const nextLedger: ILedgerRegistryFile = {
       $schema: ledger.$schema,
       context: {
         ...context,
         contract: nextContract,
       },
-      metadata: ledger.metadata,
+      metadata: nextMetadata,
       display: nextDisplay,
     }
 

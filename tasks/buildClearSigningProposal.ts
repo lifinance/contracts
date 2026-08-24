@@ -8,7 +8,8 @@
  * (intent + interpolatedIntent + fields) keyed by canonical signature.
  *
  * Output: config/clearSigningProposal.json — the canonical source of truth
- * for the `display.formats` entries LI.FI ships in the descriptor at
+ * for the `display.formats` entries and the `metadata.enums.lifiChains`
+ * destination-chain map LI.FI ships in the descriptor at
  * `ethereum/clear-signing-erc7730-registry/registry/lifi/calldata-LIFIDiamond.json`.
  *
  * Consumed by `tasks/generateLedgerClearSigning.ts` during the sync workflow:
@@ -281,13 +282,139 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
+const CHAIN_ENUM_NAME = 'lifiChains'
+const CHAIN_ENUM_REF = `$.metadata.enums.${CHAIN_ENUM_NAME}`
+
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
-  // back to rendering numerically.
-  format: 'chainId',
+  // Not `chainId`: that format is defined only over EIP-155 values, and this
+  // field also carries LI.FI's synthetic non-EVM ids (LiFiData.sol), for which
+  // the spec defines no rendering — wallets diverge. An enum LI.FI authors
+  // renders identically everywhere, and an id missing from it degrades to the
+  // decimal number rather than to a wallet-specific guess.
+  format: 'enum',
+  params: { $ref: CHAIN_ENUM_REF },
   visible: 'always',
+}
+
+// Destination-chain display names, rendered verbatim on the signing screen.
+// Keys are decimal chain ids as strings, so LI.FI's synthetic ids above 2^53
+// survive as exact values instead of being coerced through a JS number.
+//
+// Capped at 32 entries: `erc7730 lint`, which the registry runs in its
+// `validate descriptors` job, rejects an enum with more (EnumDefinition
+// max_length=32) even though specs/erc7730-v2.schema.json itself sets no limit.
+// LI.FI bridges to ~80 destinations, so the list is the 32 highest-value ones:
+// every non-EVM destination (an opaque synthetic id a user cannot recognise)
+// plus the EVM chains with the broadest bridge-route support. An id that is not
+// listed renders as its decimal number — identical on every wallet, and no
+// worse than the `raw` format this replaces.
+const CHAIN_ENUM_MAX_ENTRIES = 32
+
+const CHAIN_DISPLAY_NAMES: Record<string, string> = {
+  '1': 'Ethereum',
+  '10': 'Optimism',
+  '56': 'BNB Chain',
+  '100': 'Gnosis',
+  '130': 'Unichain',
+  '137': 'Polygon',
+  '143': 'Monad',
+  '146': 'Sonic',
+  '999': 'HyperEVM',
+  '1337': 'HyperCore',
+  '1868': 'Soneium',
+  '4663': 'Robinhood',
+  '5000': 'Mantle',
+  '8453': 'Base',
+  '42161': 'Arbitrum One',
+  '42220': 'Celo',
+  '43114': 'Avalanche',
+  '57073': 'Ink',
+  '59144': 'Linea',
+  '80094': 'Berachain',
+  '81457': 'Blast',
+  '534352': 'Scroll',
+  '728126428': 'Tron',
+  '20000000000001': 'Bitcoin',
+  '20000000000002': 'Bitcoin Cash',
+  '20000000000003': 'Litecoin',
+  '20000000000004': 'Dogecoin',
+  '1151111081099710': 'Solana',
+  '1201081091099710': 'Stellar',
+  '1885080386571452': 'Tron',
+  '9270000000000000': 'Sui',
+  '9271000000000010': 'Aptos',
+}
+
+// Every chain id LI.FI can bridge to, mapped to where it is declared.
+// `config/networks.json` covers the EVM chains; `src/Helpers/LiFiData.sol` holds
+// the synthetic ids the team mints for non-EVM destinations.
+function knownChainIds(): Map<string, string> {
+  const known = new Map<string, string>()
+
+  const networks = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'config', 'networks.json'), 'utf8')
+  ) as Record<string, { chainId: number; status?: string }>
+  for (const [name, cfg] of Object.entries(networks))
+    if (cfg.status === 'active') known.set(String(cfg.chainId), name)
+
+  const lifiData = fs.readFileSync(
+    path.join(ROOT, 'src', 'Helpers', 'LiFiData.sol'),
+    'utf8'
+  )
+  const constants = [
+    ...lifiData.matchAll(/LIFI_CHAIN_ID_(\w+)\s*=\s*(\d+)\s*;/gu),
+  ]
+  if (constants.length === 0)
+    throw new Error(
+      'knownChainIds: no LIFI_CHAIN_ID_* constants found in src/Helpers/LiFiData.sol — the parser is out of date, refusing to validate the chain enum against an empty set.'
+    )
+  for (const m of constants)
+    known.set(m[2] as string, `LIFI_CHAIN_ID_${m[1] as string}`)
+
+  return known
+}
+
+// Builds `metadata.enums.lifiChains`, and refuses to emit a map the registry
+// would reject or that names an id LI.FI cannot actually bridge to. Unnamed
+// chains are reported but not fatal — they degrade to their decimal id.
+function buildChainEnum(): Record<string, string> {
+  const known = knownChainIds()
+  const named = Object.keys(CHAIN_DISPLAY_NAMES)
+
+  if (named.length > CHAIN_ENUM_MAX_ENTRIES)
+    throw new Error(
+      `buildChainEnum: CHAIN_DISPLAY_NAMES has ${named.length} entries, but an ERC-7730 enum may hold at most ${CHAIN_ENUM_MAX_ENTRIES}.\n   fix:    drop the lowest-value entries, or raise the cap once erc7730's EnumDefinition max_length is lifted (the registry's own JSON schema sets no limit).`
+    )
+
+  const unknown = named.filter((chainId) => !known.has(chainId))
+  if (unknown.length > 0)
+    throw new Error(
+      `buildChainEnum: ${unknown.length} named chain id(s) are not declared anywhere LI.FI can bridge to.\n` +
+        unknown.map((chainId) => `   - ${chainId}`).join('\n') +
+        '\n   fix:    remove the entry from CHAIN_DISPLAY_NAMES, or add the chain to config/networks.json / src/Helpers/LiFiData.sol first. A name here is shown to signers, so it must correspond to a real destination.'
+    )
+
+  const unnamed = [...known.entries()].filter(
+    ([chainId]) => !(chainId in CHAIN_DISPLAY_NAMES)
+  )
+  if (unnamed.length > 0)
+    console.log(
+      `chain enum: ${named.length}/${CHAIN_ENUM_MAX_ENTRIES} named; ${
+        unnamed.length
+      } chain(s) render as their decimal id (${unnamed
+        .map(([, source]) => source)
+        .join(', ')})`
+    )
+
+  // Ascending numeric order: stable across runs, so the committed proposal
+  // never churns, and readable next to a chain list.
+  return Object.fromEntries(
+    Object.entries(CHAIN_DISPLAY_NAMES).sort(
+      ([a], [b]) => Number(a) - Number(b)
+    )
+  )
 }
 
 function bridgeFacetName(fnName: string): string {
@@ -501,7 +628,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
     // prefer `interpolatedIntent` over `intent`, so if we only put the bridge
     // name in `intent` it never reaches the user. Hardcode it into the
     // template (constant per selector; no extra wallet-side work).
-    interpolatedIntent: `Bridge {_bridgeData.minAmount} via ${facet} to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
+    interpolatedIntent: `Bridge {_bridgeData.minAmount} via ${facet} to {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
     fields: [
       {
         path: '_bridgeData.minAmount',
@@ -524,7 +651,7 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
     intent: `Swap & Bridge via ${facet}`,
     // Same rationale as buildStartFormat: surface the bridge identity in the
     // template, not just in the fallback `intent`.
-    interpolatedIntent: `Swap then bridge {_bridgeData.minAmount} via ${facet} to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
+    interpolatedIntent: `Swap then bridge {_bridgeData.minAmount} via ${facet} to {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
     fields: [
       {
         path: '_swapData.[0].fromAmount',
@@ -971,9 +1098,10 @@ function main() {
 
   const payload = {
     $note:
-      'ERC-7730 display.formats entries for the LIFI Diamond, generated by tasks/buildClearSigningProposal.ts from Foundry artifacts. Source of truth for clear-signing UX strings. Consumed by tasks/generateLedgerClearSigning.ts during the sync workflow: entries here are merged into the registry payload pushed to ethereum/clear-signing-erc7730-registry.',
+      'ERC-7730 display.formats entries and the destination-chain enum for the LIFI Diamond, generated by tasks/buildClearSigningProposal.ts from Foundry artifacts, config/networks.json and src/Helpers/LiFiData.sol. Source of truth for clear-signing UX strings. Consumed by tasks/generateLedgerClearSigning.ts during the sync workflow: entries here are merged into the registry payload pushed to ethereum/clear-signing-erc7730-registry.',
     $count: Object.keys(out).length,
     formats: out,
+    enums: { [CHAIN_ENUM_NAME]: buildChainEnum() },
   }
   // Deliberately no `$generatedAt`: git already records when the file changed,
   // and an embedded timestamp would churn the file on every re-run with no

@@ -157,7 +157,7 @@ jobs:
           git checkout -B "${SYNC_BRANCH}" "upstream/${UPSTREAM_DEFAULT_BRANCH}"
           cd ..
 
-          echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (abi + deployments + display.formats merge; metadata preserved)...\033[0m"
+          echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (abi + deployments + display.formats + metadata.enums merge)...\033[0m"
           bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --printDiff
 
           # Normalize to the registry's canonical format before diffing/committing.
