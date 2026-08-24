@@ -8,6 +8,8 @@
  * guard would silently turn the whole command into a no-op.
  */
 
+import { existsSync } from 'fs'
+
 import { consola } from 'consola'
 
 import {
@@ -15,7 +17,10 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../../common/types'
-import { getDeployments } from '../../utils/deploymentHelpers'
+import {
+  getDeployments,
+  getDeploymentsFilePath,
+} from '../../utils/deploymentHelpers'
 
 import { getTimelockQueueCollection } from './timelock-queue'
 
@@ -95,13 +100,19 @@ export async function countQueuedOpsByNetwork(
 export async function resolveTimelockSkipReason(
   network: INetworksObject[string]
 ): Promise<TTimelockSkipReason | undefined> {
+  const chain = network.name as SupportedChain
   let deploymentData: { LiFiTimelockController?: string }
   try {
     deploymentData = (await getDeployments(
-      network.name as SupportedChain,
+      chain,
       EnvironmentEnum.production
     )) as { LiFiTimelockController?: string }
-  } catch {
+  } catch (err) {
+    // getDeployments reports a corrupt or unreadable file as not-found too, and
+    // skipping one of those would hide a network that does have a timelock —
+    // the very failure this prefetch exists to stop. Only an absent file skips.
+    if (existsSync(getDeploymentsFilePath(chain, EnvironmentEnum.production)))
+      throw err
     return 'no-deployment-log'
   }
   return deploymentData.LiFiTimelockController
@@ -115,20 +126,23 @@ export async function resolveTimelockSkipReason(
  * @param networks - Networks in the order results should be returned.
  * @param skipReasons - Network name → skip reason for networks with no timelock.
  * @param countsByNetwork - Lowercased network name → queued op count.
- * @param fetchError - When set, every non-skipped network is marked as failed.
+ * @param errorsByNetwork - Network name → the error that stopped it being checked.
  * @returns One result per input network, in input order.
  */
 export function assemblePrefetchResults(
   networks: INetworksObject[string][],
   skipReasons: Map<string, TTimelockSkipReason>,
   countsByNetwork: Map<string, number>,
-  fetchError?: unknown
+  errorsByNetwork: Map<string, unknown> = new Map()
 ): IPendingFetchResult[] {
   return networks.map((network) => {
     const skipReason = skipReasons.get(network.name)
     if (skipReason) return { network, pendingInMongoCount: 0, skipReason }
+
+    const fetchError = errorsByNetwork.get(network.name)
     if (fetchError !== undefined)
       return { network, pendingInMongoCount: 0, fetchError }
+
     return {
       network,
       pendingInMongoCount: countsByNetwork.get(network.name.toLowerCase()) ?? 0,
@@ -154,26 +168,52 @@ export async function fetchPendingForNetworks(
   networks: INetworksObject[string][]
 ): Promise<IPendingFetchResult[]> {
   const skipReasons = new Map<string, TTimelockSkipReason>()
-  for (const network of networks) {
-    const skipReason = await resolveTimelockSkipReason(network)
-    if (skipReason) skipReasons.set(network.name, skipReason)
-  }
+  const errorsByNetwork = new Map<string, unknown>()
+  for (const network of networks)
+    try {
+      const skipReason = await resolveTimelockSkipReason(network)
+      if (skipReason) skipReasons.set(network.name, skipReason)
+    } catch (err) {
+      consola.error(
+        `[${network.name}] Could not read the production deployments file:`,
+        err
+      )
+      errorsByNetwork.set(network.name, err)
+    }
 
-  const withTimelock = networks.filter((n) => !skipReasons.has(n.name))
-  if (withTimelock.length === 0)
-    return assemblePrefetchResults(networks, skipReasons, new Map())
+  const toCheck = networks.filter(
+    (n) => !skipReasons.has(n.name) && !errorsByNetwork.has(n.name)
+  )
+  if (toCheck.length === 0)
+    return assemblePrefetchResults(
+      networks,
+      skipReasons,
+      new Map(),
+      errorsByNetwork
+    )
 
   try {
     const countsByNetwork = await countQueuedOpsByNetwork(
-      withTimelock.map((n) => n.name)
+      toCheck.map((n) => n.name)
     )
-    return assemblePrefetchResults(networks, skipReasons, countsByNetwork)
+    return assemblePrefetchResults(
+      networks,
+      skipReasons,
+      countsByNetwork,
+      errorsByNetwork
+    )
   } catch (err) {
     consola.error(
-      `Prefetch failed for all ${withTimelock.length} network(s) with a timelock — could not read the timelock queue:`,
+      `Prefetch failed for all ${toCheck.length} network(s) with a timelock — could not read the timelock queue:`,
       err
     )
-    return assemblePrefetchResults(networks, skipReasons, new Map(), err)
+    for (const network of toCheck) errorsByNetwork.set(network.name, err)
+    return assemblePrefetchResults(
+      networks,
+      skipReasons,
+      new Map(),
+      errorsByNetwork
+    )
   }
 }
 

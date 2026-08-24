@@ -471,7 +471,7 @@ async function prefetchNetworksWithPendingOps(
     classifyPrefetchResults(await fetchPendingForNetworks(networksToProcess))
 
   consola.info(
-    `Checked ${networksToProcess.length - skipped.length} of ${
+    `Checked ${networksToProcess.length - skipped.length - failed.length} of ${
       networksToProcess.length
     } network(s) (MongoDB only); ${
       withPending.length

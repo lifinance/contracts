@@ -3,6 +3,8 @@
  * skip/failure classification that decides whether "0 pending" may be trusted,
  * and the real-deployments skip resolution.
  */
+import { rmSync, writeFileSync } from 'fs'
+
 import {
   describe,
   expect,
@@ -11,7 +13,8 @@ import {
 } from 'bun:test'
 
 import networks from '../../../config/networks.json'
-import type { INetworksObject } from '../../common/types'
+import { EnvironmentEnum, type INetworksObject } from '../../common/types'
+import { getDeploymentsFilePath } from '../../utils/deploymentHelpers'
 
 import {
   assemblePrefetchResults,
@@ -83,7 +86,11 @@ describe('assemblePrefetchResults', () => {
 
   it('marks every non-skipped network as failed when the queue read failed', () => {
     const err = new Error('querySrv ETIMEOUT')
-    const results = assemblePrefetchResults(inputs, skips, new Map(), err)
+    const errors = new Map<string, unknown>([
+      ['mainnet', err],
+      ['base', err],
+    ])
+    const results = assemblePrefetchResults(inputs, skips, new Map(), errors)
 
     expect(
       results.filter((r) => r.fetchError === err).map((r) => r.network.name)
@@ -92,6 +99,26 @@ describe('assemblePrefetchResults', () => {
     expect(
       results.find((r) => r.network.name === 'tronshasta')?.fetchError
     ).toBeUndefined()
+  })
+
+  it('fails only the networks that actually errored', () => {
+    const err = new Error('unreadable deployments file')
+    const results = assemblePrefetchResults(
+      inputs,
+      new Map(),
+      new Map([['base', 3]]),
+      new Map<string, unknown>([['mainnet', err]])
+    )
+
+    expect(results.find((r) => r.network.name === 'mainnet')?.fetchError).toBe(
+      err
+    )
+    expect(
+      results.find((r) => r.network.name === 'base')?.fetchError
+    ).toBeUndefined()
+    expect(
+      results.find((r) => r.network.name === 'base')?.pendingInMongoCount
+    ).toBe(3)
   })
 
   it('reports zero pending for a network absent from the tally', () => {
@@ -162,5 +189,27 @@ describe('resolveTimelockSkipReason (real deployments/)', () => {
 
   it('does not skip a network whose deployments file has a timelock', async () => {
     expect(await resolveTimelockSkipReason(network('mainnet'))).toBeUndefined()
+  })
+
+  it('refuses to skip a network whose deployments file exists but will not load', async () => {
+    // getDeployments reports an unreadable file as not-found, so classifying
+    // every throw as a skip would hide a network that does have a timelock.
+    // tronshasta has no deployments file, so we can create one and remove it
+    // again without disturbing a tracked file.
+    const filePath = getDeploymentsFilePath(
+      'tronshasta',
+      EnvironmentEnum.production
+    )
+    writeFileSync(filePath, '{ this is not valid json')
+    let thrown: unknown
+    try {
+      await resolveTimelockSkipReason(network('tronshasta'))
+    } catch (err) {
+      thrown = err
+    } finally {
+      rmSync(filePath, { force: true })
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
   })
 })
