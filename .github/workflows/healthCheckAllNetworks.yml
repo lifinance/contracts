@@ -104,6 +104,10 @@ jobs:
         continue-on-error: true
         env:
           MAX_CONCURRENT_JOBS: '8'
+          # no-stale-registered-facets reads the deferred-cleanup queue to tell a
+          # queued backlog apart from an uncovered stale facet; without this the
+          # check degrades to a coverage warning on every stale network.
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
           # TronGrid throttles anonymous traffic hard enough that tron's read-heavy invariants
           # 429 out before finishing, which reads as drift rather than reduced coverage.
           TRONGRID_API_KEY: ${{ secrets.TRONGRID_API_KEY }}

@@ -37,13 +37,13 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0x1bdAcD14BD00861EA4042d4bF151731F1b239f4a": {
-        "Name": "CBridgeFacet",
+      "0xfac73BA460aa736bf7173359dD1E077e629B85eB": {
+        "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0x21972996244aa8E469F5b4c8658e9546af259683": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
+      "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
+        "Name": "GasZipFacet",
+        "Version": "2.0.4"
       },
       "0x640feD8831d2d9035dccbB4502022B0a74C16f45": {
         "Name": "AcrossFacetV4",
@@ -61,17 +61,17 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0xf4E632a8be2164F93427603F6c9A73e182923b02": {
-        "Name": "HopFacet",
+      "0x184D1d43E73A002B45f9056770fD8d463c6b9388": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x27abe9B161B37c79dF9d2DB96Da4Ca8640318E19": {
+        "Name": "MayanFacet",
         "Version": "2.0.0"
       },
-      "0x71327AF4f53E8831BD7E1adDbeD9D2b6dacE64a2": {
-        "Name": "HopFacetPacked",
-        "Version": "1.0.6"
-      },
-      "0xf812bA858d9Fa57788dF0F792eF35752d54863F1": {
-        "Name": "HopFacetOptimized",
-        "Version": "2.0.0"
+      "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
       "0xF84aa4F9431CDaF1fE7591823514B131846486FB": {
         "Name": "AllBridgeFacet",
@@ -104,36 +104,16 @@
       "0x113E97921874646413572F2C43562463c378b6f5": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
-      },
-      "0x0Bb301cc98299d57Ab7d07381fF0C9E48177Fd50": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
-      },
-      "0x27abe9B161B37c79dF9d2DB96Da4Ca8640318E19": {
-        "Name": "MayanFacet",
-        "Version": "2.0.0"
-      },
-      "0x184D1d43E73A002B45f9056770fD8d463c6b9388": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
-      },
-      "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9": {
-        "Name": "GasZipFacet",
-        "Version": "2.0.4"
-      },
-      "0xfac73BA460aa736bf7173359dD1E077e629B85eB": {
-        "Name": "DeBridgeDlnFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "FeeForwarder": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
+      "FeeForwarder": "0x72015d314542457cBB6BF14318d82464E4D413ec",
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
+      "LidoWrapper": "",
       "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
