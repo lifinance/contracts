@@ -3,9 +3,8 @@
 /**
  * Postinstall script to fix TronWeb protobuf compatibility issues
  *
- * Purpose: This script patches TronWeb's compiled JavaScript files to resolve
- * conflicts between the 'proto' variable used by TronWeb and global proto
- * definitions that may exist in the execution environment.
+ * Purpose: This script patches TronWeb's compiled JavaScript files so that
+ * the 'proto' variable they rely on is always defined when they load.
  *
  * The issue: TronWeb's bundled protobuf files reference a shared 'proto'
  * variable without declaring it, relying on another module having already
@@ -86,7 +85,6 @@ files.forEach((file) => {
       return
     }
 
-    // Add proto initialization right before its first usage
     const lines = content.split('\n')
     const insertIndex = lines.findIndex((line) =>
       line.includes('goog.object.extend(proto')
@@ -99,7 +97,15 @@ files.forEach((file) => {
         '',
         'var proto = global.proto = global.proto || {};'
       )
-      fs.writeFileSync(file, lines.join('\n'))
+      // Write to a temp file and rename so a failed write cannot truncate the original
+      const tmpFile = `${file}.tmp`
+      try {
+        fs.writeFileSync(tmpFile, lines.join('\n'))
+        fs.renameSync(tmpFile, file)
+      } catch (writeError) {
+        fs.rmSync(tmpFile, { force: true })
+        throw writeError
+      }
       patchedCount++
     } else {
       skippedFiles.push(file)
