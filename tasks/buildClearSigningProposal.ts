@@ -284,9 +284,13 @@ const RECEIVER_FIELD: IField = {
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
-  // back to rendering numerically.
-  format: 'chainId',
+  // Not `chainId`, however much it looks like the right format: this field also
+  // carries LI.FI's synthetic non-EVM ids (LiFiData.sol), and `chainId` resolves
+  // through public EIP-155 chain lists that mislabel our chains — 999 is
+  // HyperEVM to us and "Wanchain Testnet" upstream, 1337 is HyperCore and
+  // "Geth Testnet". A wrong network name on a signing screen is worse than a
+  // number, so this stays raw until ERC-7730 pins a name source and a fallback.
+  format: 'raw',
   visible: 'always',
 }
 
