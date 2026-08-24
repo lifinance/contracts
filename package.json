@@ -141,7 +141,6 @@
     "chalk": "5.6.2",
     "citty": "^0.1.6",
     "consola": "^3.2.3",
-    "defender-relay-client": "^1.26.0",
     "enquirer": "^2.4.1",
     "light-spinner": "^1.0.4",
     "merkletreejs": "^0.3.11",
