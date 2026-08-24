@@ -65,9 +65,7 @@
     "validator": "13.15.26",
     "fast-uri": "3.1.5",
     "lodash": "4.17.23",
-    "zod": "4.4.0",
-    "katex": "0.18.2",
-    "viem": "2.55.19"
+    "katex": "0.18.2"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
