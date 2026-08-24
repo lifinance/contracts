@@ -68,6 +68,22 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 
 If it matches, Phase 3b runs an allowlist sync afterwards (a second production proposal). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
 
+**Facets with a required companion periphery.** A bridge facet usually covers only the source side; destination calls are completed by a partner contract on the same chain (`LiFiIntentEscrowFacetV2` → `ReceiverOIF`, `StargateFacetV2` → `ReceiverStargateV2`). Deploying the facet alone silently disables inbound transfers there. Detect deterministically:
+
+```bash
+jq -r --arg N "<Contract>" '.facetPeripheryCouplings[$N].requires // empty' config/global.json
+```
+
+If it names a companion, check every target network and **add the ones missing it to this deploy's target list**. An empty string or `MISSING` means it is not registered in that diamond:
+
+```bash
+jq -r --arg C "<Companion>" '.LiFiDiamond.Periphery[$C] // "MISSING"' deployments/<net>.diamond.json
+```
+
+`notRequiredOn` in the same coupling entry names networks where the companion is deliberately absent — respect it rather than deploying over it.
+
+Resolve this here, at target resolution, rather than relying on the existing tooling: the pipeline's `facetCompanionReminder.ts` is a non-fatal nudge that only checks the flat deploy log, so it falls silent once the companion is deployed even if it was never registered, and it is easily lost in an interleaved multi-network log; the enforcing `facet-required-periphery` health-check invariant only catches the gap after the fact. The reminder was already in place when a ten-chain facet rollout shipped without its receiver and disabled inbound traffic on all ten (EXSC-823).
+
 ## Phase 2 — Confirm plan
 
 Present: contract + version (old → new per network), the full network list, environment, and what will be created (per network: one registration; **two** for a diamond-called periphery — registration + allowlist; in production each is a timelock-wrapped Safe proposal). Wait for explicit go-ahead — deployments cost gas and, in production, mint Safe proposals on many chains.
