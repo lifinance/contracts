@@ -88,6 +88,102 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
   }
 }
 
+/** Failed networks that share one normalized root cause. */
+export interface IFailureGroup {
+  cause: string
+  /** Sorted network ids failing for this cause. */
+  networks: string[]
+}
+
+// A cause repeats across chains with a different contract address each time, so addresses are
+// masked to let the shapes collapse. 4-byte selectors are deliberately NOT masked: a different
+// selector is a different cause (0x2646478b is processRoute, 0xe0cbc5f2 is not).
+const EVM_ADDRESS_PATTERN = /0x[a-fA-F0-9]{40}/g
+const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
+
+/** Cause used when a network failed without the runner capturing any error text. */
+const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
+
+/** Collapse runs of whitespace so a multi-line detail renders as one Slack bullet. */
+function collapseWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Reduce a per-network failure detail to the shape shared by every network failing for the same
+ * reason. Standalone integers are masked so "1 stale pair" and "2 stale pairs" group together;
+ * the `\b` anchors keep digits inside an identifier (LiFiIntentEscrowFacetV2) intact. Pure.
+ */
+export function normalizeFailureCause(detail: string): string {
+  return collapseWhitespace(
+    detail
+      .replace(EVM_ADDRESS_PATTERN, '<address>')
+      .replace(TRON_ADDRESS_PATTERN, '<address>')
+      .replace(/\b\d+\b/g, '<n>')
+  )
+}
+
+/**
+ * Group failed networks by normalized cause, widest blast radius first. Turns "17 networks
+ * failed" into the two or three root causes actually behind it. Pure.
+ */
+export function groupFailuresByCause(
+  results: IHealthCheckResult[]
+): IFailureGroup[] {
+  const byCause = new Map<string, string[]>()
+  for (const result of results) {
+    if (result.status !== 'failed') continue
+    const cause = normalizeFailureCause(result.detail) || UNKNOWN_CAUSE
+    const networks = byCause.get(cause) ?? []
+    networks.push(result.network)
+    byCause.set(cause, networks)
+  }
+  return [...byCause.entries()]
+    .map(([cause, networks]) => ({ cause, networks: networks.sort() }))
+    .sort(
+      (a, b) =>
+        b.networks.length - a.networks.length || a.cause.localeCompare(b.cause)
+    )
+}
+
+/**
+ * Render grouped failures as Slack bullet lines. Capped on every axis so one pathological run
+ * cannot turn the alert into a wall of text nobody reads — and so the message stays well inside
+ * the 40k-character ceiling on an incoming webhook's `text` field, which Slack rejects outright
+ * rather than truncating.
+ */
+export function renderFailureDigest(
+  groups: IFailureGroup[],
+  options: {
+    maxGroups?: number
+    maxNetworksPerGroup?: number
+    maxCauseChars?: number
+  } = {}
+): string {
+  const maxGroups = options.maxGroups ?? 6
+  const maxNetworksPerGroup = options.maxNetworksPerGroup ?? 12
+  const maxCauseChars = options.maxCauseChars ?? 160
+  if (groups.length === 0) return ''
+
+  const lines = groups.slice(0, maxGroups).map((group) => {
+    const shown = group.networks.slice(0, maxNetworksPerGroup)
+    const omitted = group.networks.length - shown.length
+    const list =
+      omitted > 0 ? `${shown.join(', ')}, +${omitted} more` : shown.join(', ')
+    const collapsed = collapseWhitespace(group.cause)
+    const cause =
+      collapsed.length > maxCauseChars
+        ? `${collapsed.slice(0, maxCauseChars - 1)}…`
+        : collapsed
+    return `• ${cause} (${group.networks.length}): ${list}`
+  })
+
+  const hidden = Math.max(0, groups.length - maxGroups)
+  if (hidden > 0)
+    lines.push(`… ${hidden} further cause(s) not shown — see the workflow run`)
+  return lines.join('\n')
+}
+
 /** Run one network's health check in-process, bounded by a deadline; never throws. */
 async function runOneNetwork(
   network: string,
@@ -151,28 +247,49 @@ async function runOneNetwork(
   }
 }
 
-/** Append the consolidated per-run summary to $GITHUB_OUTPUT for the Slack composer (no-op locally). */
-function writeConsolidatedOutput(summary: {
+/** Heredoc terminator for the multi-line digest output. */
+const DIGEST_DELIMITER = 'HEALTHCHECK_DIGEST_EOF'
+
+export interface IConsolidatedSummary {
   total: number
   passed: string[]
   failed: string[]
   skipped: string[]
   warned: string[]
-}): void {
+  /** Pre-rendered cause digest; empty when there is nothing to report. */
+  failureDigest: string
+}
+
+/** Render the consolidated summary in $GITHUB_OUTPUT syntax. Pure. */
+export function formatConsolidatedOutput(
+  summary: IConsolidatedSummary
+): string {
+  const lines = [
+    `total=${summary.total}`,
+    `passed_count=${summary.passed.length}`,
+    `failed_count=${summary.failed.length}`,
+    `skipped_count=${summary.skipped.length}`,
+    `warned_count=${summary.warned.length}`,
+    `failed_networks=${summary.failed.join(', ')}`,
+    `warned_networks=${summary.warned.join(', ')}`,
+  ]
+  if (summary.failureDigest) {
+    // The digest is assembled from revert strings and RPC errors, so a line that happens to
+    // equal the terminator would close the heredoc early and let the remaining text be parsed
+    // as further outputs. Dropping such lines keeps the block well-formed.
+    const body = summary.failureDigest
+      .split('\n')
+      .filter((line) => line.trim() !== DIGEST_DELIMITER)
+      .join('\n')
+    lines.push(`failure_digest<<${DIGEST_DELIMITER}`, body, DIGEST_DELIMITER)
+  } else lines.push('failure_digest=')
+  return [...lines, ''].join('\n')
+}
+
+/** Append the consolidated per-run summary to $GITHUB_OUTPUT for the Slack composer (no-op locally). */
+function writeConsolidatedOutput(summary: IConsolidatedSummary): void {
   if (!process.env.GITHUB_OUTPUT) return
-  appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    [
-      `total=${summary.total}`,
-      `passed_count=${summary.passed.length}`,
-      `failed_count=${summary.failed.length}`,
-      `skipped_count=${summary.skipped.length}`,
-      `warned_count=${summary.warned.length}`,
-      `failed_networks=${summary.failed.join(', ')}`,
-      `warned_networks=${summary.warned.join(', ')}`,
-      '',
-    ].join('\n')
-  )
+  appendFileSync(process.env.GITHUB_OUTPUT, formatConsolidatedOutput(summary))
 }
 
 const main = defineCommand({
@@ -240,6 +357,7 @@ const main = defineCommand({
           failed: [],
           skipped: [],
           warned: [],
+          failureDigest: '',
         })
         process.exit(0)
       }
@@ -280,8 +398,16 @@ const main = defineCommand({
         `Networks with warnings (reduced coverage): ${warned.join(', ')}`
       )
 
-    // Publish a consolidated result for the workflow's Slack step.
-    writeConsolidatedOutput({ total, passed, failed, skipped, warned })
+    // Publish a consolidated result for the workflow's Slack step, including the grouped
+    // cause digest so the alert names the root causes instead of only counting networks.
+    writeConsolidatedOutput({
+      total,
+      passed,
+      failed,
+      skipped,
+      warned,
+      failureDigest: renderFailureDigest(groupFailuresByCause(results)),
+    })
 
     if (failed.length > 0) {
       consola.error(`Health check failed on: ${failed.join(', ')}`)

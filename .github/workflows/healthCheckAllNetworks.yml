@@ -18,8 +18,11 @@
 #   deploymentAddressConsistency.yml for the static PR tier).
 # - Slack: SIGNAL-ONLY. A message is posted only when a run surfaces something actionable — a failed
 #   network or runner error (:rotating_light: ACTION NEEDED) or a network that passed with warnings
-#   (:warning:). Fully-green runs, and the staging-only no-op push that resolves zero production
-#   networks, stay SILENT so the channel carries only issues, not routine confirmations.
+#   (:warning:). Failures are reported grouped by root cause (one bullet per cause, with the
+#   networks it hit) rather than as a flat network list, so the alert is triageable without opening
+#   the run; the grouping is computed in healthCheckAllNetworks.ts. Fully-green runs, and the
+#   staging-only no-op push that resolves zero production networks, stay SILENT so the channel
+#   carries only issues, not routine confirmations.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
 #   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by viem
@@ -156,6 +159,7 @@ jobs:
           WARNED_COUNT: ${{ steps.healthcheck.outputs.warned_count }}
           FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
           WARNED_NETWORKS: ${{ steps.healthcheck.outputs.warned_networks }}
+          FAILURE_DIGEST: ${{ steps.healthcheck.outputs.failure_digest }}
         run: |
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
           # the run overview if the jobs API can't be read.
@@ -180,8 +184,17 @@ jobs:
             BODY="<${RUN_URL}|View workflow run>${WARN_LINE}"
           else
             HEADER=":rotating_light: *Diamond health check — ACTION NEEDED*"
-            BODY=$(printf '%s of %s network(s) failed: %s\n<%s|View workflow run>%s' \
-              "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}" "$RUN_URL" "$WARN_LINE")
+            # Prefer the grouped cause digest: the flat network list says how many chains are red
+            # but not why, which is the part that decides whether anyone has to act. It is absent
+            # when the runner itself died before producing results, so keep the list as fallback.
+            if [[ -n "${FAILURE_DIGEST:-}" ]]; then
+              FAILURE_LINES=$(printf '%s of %s network(s) failed:\n%s' \
+                "${FAILED_COUNT:-?}" "${TOTAL:-?}" "$FAILURE_DIGEST")
+            else
+              FAILURE_LINES=$(printf '%s of %s network(s) failed: %s' \
+                "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}")
+            fi
+            BODY=$(printf '%s\n<%s|View workflow run>%s' "$FAILURE_LINES" "$RUN_URL" "$WARN_LINE")
           fi
           TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
           {
