@@ -1693,7 +1693,9 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "UnitFacet": "1.0.0"
+        "UnitFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -2234,7 +2236,9 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "ReceiverStargateV2": "1.1.0",
-        "TokenWrapper": "1.2.1"
+        "TokenWrapper": "1.2.1",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   }
