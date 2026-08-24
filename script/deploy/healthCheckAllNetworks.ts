@@ -28,8 +28,12 @@ const PER_NETWORK_TIMEOUT_MS = 5 * 60_000 // 5 minutes
 export interface IHealthCheckResult {
   network: string
   status: 'passed' | 'failed' | 'skipped'
-  /** Count of non-fatal warnings (e.g. reduced coverage); surfaced in the consolidated report. */
-  warnings: number
+  /**
+   * Non-fatal warning texts (e.g. reduced coverage). Kept as text, not a count: a warning
+   * nobody can read is a warning nobody acts on, and the consolidated report groups them by
+   * cause the same way it groups failures.
+   */
+  warnings: string[]
   /** Trimmed detail when failed/skipped (empty on pass). */
   detail: string
 }
@@ -69,7 +73,7 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
   passed: string[]
   failed: string[]
   skipped: string[]
-  /** Networks that passed/skipped but emitted a non-fatal warning (e.g. reduced coverage). */
+  /** Networks that emitted a non-fatal warning (e.g. reduced coverage), whatever their status. */
   warned: string[]
 } {
   const byStatus = (status: IHealthCheckResult['status']) =>
@@ -83,16 +87,16 @@ export function summarizeHealthChecks(results: IHealthCheckResult[]): {
     failed: byStatus('failed'),
     skipped: byStatus('skipped'),
     warned: results
-      .filter((r) => r.warnings > 0)
+      .filter((r) => r.warnings.length > 0)
       .map((r) => r.network)
       .sort(),
   }
 }
 
-/** Failed networks that share one normalized root cause. */
-export interface IFailureGroup {
+/** Networks that share one normalized cause, whether it failed them or only warned them. */
+export interface ICauseGroup {
   cause: string
-  /** Sorted network ids failing for this cause. */
+  /** Sorted, deduplicated network ids reporting this cause. */
   networks: string[]
 }
 
@@ -106,6 +110,7 @@ const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
 // mangled in the very message they exist to clarify.
 const ADDRESS_MASK = '[address]'
 const COUNT_MASK = '[n]'
+const NETWORK_MASK = '[network]'
 
 /** Cause used when a network failed without the runner capturing any error text. */
 const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
@@ -113,6 +118,11 @@ const UNKNOWN_CAUSE = 'no detail captured (see workflow run)'
 /** Collapse runs of whitespace so a multi-line detail renders as one Slack bullet. */
 function collapseWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
+}
+
+/** Network ids come from config, but a regex built from unescaped input is a bug waiting to land. */
+function escapeForRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -127,10 +137,25 @@ function collapseWhitespace(text: string): string {
  * error carrying a credentialed URL, and this text is published to Slack, which is outside the
  * workflow log's masking. Redacting also happens to improve grouping — two networks failing on
  * the same RPC fault differ only in their endpoint.
+ *
+ * @param detail - Raw failure or warning text.
+ * @param network - The network the text came from. Several warnings name their own network
+ * (`…recording it in deployments/<network>.json…`), which would otherwise put each network in a
+ * group of one — the exact fragmentation this function exists to prevent. Matched on word
+ * boundaries so a short id (`ink`, `sei`) cannot rewrite an unrelated word.
  */
-export function normalizeFailureCause(detail: string): string {
+export function normalizeFailureCause(
+  detail: string,
+  network?: string
+): string {
+  const withoutNetwork = network
+    ? detail.replace(
+        new RegExp(`\\b${escapeForRegExp(network)}\\b`, 'gi'),
+        NETWORK_MASK
+      )
+    : detail
   return collapseWhitespace(
-    redactUrls(detail)
+    redactUrls(withoutNetwork)
       .replace(EVM_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(TRON_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(/\b\d+\b/g, COUNT_MASK)
@@ -147,17 +172,55 @@ export function normalizeFailureCause(detail: string): string {
  */
 export function groupFailuresByCause(
   results: IHealthCheckResult[]
-): IFailureGroup[] {
-  const byCause = new Map<string, string[]>()
-  for (const result of results) {
-    if (result.status !== 'failed') continue
-    const cause = normalizeFailureCause(result.detail) || UNKNOWN_CAUSE
-    const networks = byCause.get(cause) ?? []
-    networks.push(result.network)
+): ICauseGroup[] {
+  return groupByCause(
+    results
+      .filter((result) => result.status === 'failed')
+      .map((result) => ({
+        network: result.network,
+        // trim(), not a bare falsy check: a whitespace-only detail normalizes to an empty cause,
+        // which groupByCause drops — and a failed network missing from the digest contradicts the
+        // failure count right above it.
+        text: result.detail.trim() || UNKNOWN_CAUSE,
+      }))
+  )
+}
+
+/**
+ * Group warning texts by normalized cause, widest blast radius first. Pure.
+ *
+ * Warnings are collected from EVERY network regardless of status: a network can fail one
+ * invariant and warn on another, and dropping that warning because the network was already red
+ * is how a warning goes unseen for months. A network emitting several distinct warnings appears
+ * in several groups — that is the point, since each cause is a separate decision.
+ */
+export function groupWarningsByCause(
+  results: IHealthCheckResult[]
+): ICauseGroup[] {
+  return groupByCause(
+    results.flatMap((result) =>
+      result.warnings.map((text) => ({ network: result.network, text }))
+    )
+  )
+}
+
+/**
+ * Collapse (network, text) pairs into one group per normalized cause, ordered by how many
+ * networks each cause hit. Pure.
+ */
+function groupByCause(
+  entries: { network: string; text: string }[]
+): ICauseGroup[] {
+  const byCause = new Map<string, Set<string>>()
+  for (const entry of entries) {
+    const cause = normalizeFailureCause(entry.text, entry.network)
+    if (!cause) continue
+    const networks = byCause.get(cause) ?? new Set<string>()
+    networks.add(entry.network)
     byCause.set(cause, networks)
   }
   return [...byCause.entries()]
-    .map(([cause, networks]) => ({ cause, networks: networks.sort() }))
+    .map(([cause, networks]) => ({ cause, networks: [...networks].sort() }))
     .sort(
       (a, b) =>
         b.networks.length - a.networks.length || a.cause.localeCompare(b.cause)
@@ -165,13 +228,24 @@ export function groupFailuresByCause(
 }
 
 /**
- * Render grouped failures as Slack bullet lines. Capped on every axis so one pathological run
+ * Shorten to at most `limit` characters, breaking after a whole word so the line does not end
+ * mid-token. Falls back to a hard cut when there is no space to break on.
+ */
+function truncateAtWord(text: string, limit: number): string {
+  if (text.length <= limit) return text
+  const head = text.slice(0, limit - 1)
+  const lastSpace = head.lastIndexOf(' ')
+  return `${(lastSpace > 0 ? head.slice(0, lastSpace) : head).trimEnd()}…`
+}
+
+/**
+ * Render grouped causes as Slack bullet lines. Capped on every axis so one pathological run
  * cannot turn the alert into a wall of text nobody reads — and so the message stays well inside
  * the 40k-character ceiling on an incoming webhook's `text` field, which Slack rejects outright
  * rather than truncating.
  */
-export function renderFailureDigest(
-  groups: IFailureGroup[],
+export function renderCauseDigest(
+  groups: ICauseGroup[],
   options: {
     maxGroups?: number
     maxNetworksPerGroup?: number
@@ -188,11 +262,7 @@ export function renderFailureDigest(
     const omitted = group.networks.length - shown.length
     const list =
       omitted > 0 ? `${shown.join(', ')}, +${omitted} more` : shown.join(', ')
-    const collapsed = collapseWhitespace(group.cause)
-    const cause =
-      collapsed.length > maxCauseChars
-        ? `${collapsed.slice(0, maxCauseChars - 1)}…`
-        : collapsed
+    const cause = truncateAtWord(collapseWhitespace(group.cause), maxCauseChars)
     return `• ${cause} (${group.networks.length}): ${list}`
   })
 
@@ -220,7 +290,7 @@ async function runOneNetwork(
       resolve({
         network,
         status: 'failed',
-        warnings: 0,
+        warnings: [],
         detail: `TIMEOUT after ${Math.round(timeoutMs / 1000)}s`,
       })
     }, timeoutMs)
@@ -242,7 +312,7 @@ async function runOneNetwork(
       return {
         network,
         status: result.status,
-        warnings: result.warnings.length,
+        warnings: result.warnings,
         detail,
       }
     } catch (error: unknown) {
@@ -252,7 +322,7 @@ async function runOneNetwork(
       return {
         network,
         status: 'failed',
-        warnings: 0,
+        warnings: [],
         detail: `unexpected error: ${message}`,
       }
     }
@@ -274,8 +344,27 @@ export interface IConsolidatedSummary {
   failed: string[]
   skipped: string[]
   warned: string[]
-  /** Pre-rendered cause digest; empty when there is nothing to report. */
+  /** Pre-rendered failure-cause digest; empty when there is nothing to report. */
   failureDigest: string
+  /** Pre-rendered warning-cause digest; empty when no network warned. */
+  warningDigest: string
+}
+
+/**
+ * One `$GITHUB_OUTPUT` entry for a digest: a heredoc block when there is text, a plain empty
+ * scalar when there is not.
+ *
+ * A digest is assembled from revert strings and RPC errors, so a line that happens to equal the
+ * terminator would close the heredoc early and let the remaining text be parsed as further step
+ * outputs. Dropping such lines keeps the block well-formed.
+ */
+function digestOutput(key: string, digest: string): string[] {
+  if (!digest) return [`${key}=`]
+  const body = digest
+    .split('\n')
+    .filter((line) => line.trim() !== DIGEST_DELIMITER)
+    .join('\n')
+  return [`${key}<<${DIGEST_DELIMITER}`, body, DIGEST_DELIMITER]
 }
 
 /** Render the consolidated summary in $GITHUB_OUTPUT syntax. Pure. */
@@ -291,16 +380,8 @@ export function formatConsolidatedOutput(
     `failed_networks=${summary.failed.join(', ')}`,
     `warned_networks=${summary.warned.join(', ')}`,
   ]
-  if (summary.failureDigest) {
-    // The digest is assembled from revert strings and RPC errors, so a line that happens to
-    // equal the terminator would close the heredoc early and let the remaining text be parsed
-    // as further outputs. Dropping such lines keeps the block well-formed.
-    const body = summary.failureDigest
-      .split('\n')
-      .filter((line) => line.trim() !== DIGEST_DELIMITER)
-      .join('\n')
-    lines.push(`failure_digest<<${DIGEST_DELIMITER}`, body, DIGEST_DELIMITER)
-  } else lines.push('failure_digest=')
+  lines.push(...digestOutput('failure_digest', summary.failureDigest))
+  lines.push(...digestOutput('warning_digest', summary.warningDigest))
   return [...lines, ''].join('\n')
 }
 
@@ -376,6 +457,7 @@ const main = defineCommand({
           skipped: [],
           warned: [],
           failureDigest: '',
+          warningDigest: '',
         })
         process.exit(0)
       }
@@ -405,9 +487,9 @@ const main = defineCommand({
         consola.error(`${result.network}\n${result.detail}`)
       else if (result.status === 'skipped')
         consola.info(`${result.network} (skipped: ${result.detail})`)
-      else if (result.warnings > 0)
+      else if (result.warnings.length > 0)
         consola.warn(
-          `${result.network} (passed with ${result.warnings} warning(s))`
+          `${result.network} (passed with ${result.warnings.length} warning(s))`
         )
       else consola.success(result.network)
 
@@ -424,7 +506,8 @@ const main = defineCommand({
       failed,
       skipped,
       warned,
-      failureDigest: renderFailureDigest(groupFailuresByCause(results)),
+      failureDigest: renderCauseDigest(groupFailuresByCause(results)),
+      warningDigest: renderCauseDigest(groupWarningsByCause(results)),
     })
 
     if (failed.length > 0) {

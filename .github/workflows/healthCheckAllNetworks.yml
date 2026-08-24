@@ -18,9 +18,9 @@
 #   deploymentAddressConsistency.yml for the static PR tier).
 # - Slack: SIGNAL-ONLY. A message is posted only when a run surfaces something actionable — a failed
 #   network or runner error (:rotating_light: ACTION NEEDED) or a network that passed with warnings
-#   (:warning:). Failures are reported grouped by root cause (one bullet per cause, with the
-#   networks it hit) rather than as a flat network list, so the alert is triageable without opening
-#   the run; the grouping is computed in healthCheckAllNetworks.ts. Fully-green runs, and the
+#   (:warning:). Failures AND warnings are both reported grouped by root cause (one bullet per
+#   cause, with the networks it hit) rather than as flat network lists, so the alert is triageable
+#   without opening the run; the grouping is computed in healthCheckAllNetworks.ts. Fully-green runs, and the
 #   staging-only no-op push that resolves zero production networks, stay SILENT so the channel
 #   carries only issues, not routine confirmations.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
@@ -160,6 +160,7 @@ jobs:
           FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
           WARNED_NETWORKS: ${{ steps.healthcheck.outputs.warned_networks }}
           FAILURE_DIGEST: ${{ steps.healthcheck.outputs.failure_digest }}
+          WARNING_DIGEST: ${{ steps.healthcheck.outputs.warning_digest }}
         run: |
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
           # the run overview if the jobs API can't be read.
@@ -176,8 +177,16 @@ jobs:
           # in the consolidated report rather than buried in a single network's logs.
           WARN_LINE=""
           if [[ "${WARNED_COUNT:-0}" != "0" ]]; then
-            WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings: %s' \
-              "${WARNED_COUNT}" "${WARNED_NETWORKS:-?}")
+            # Same reasoning as the failure digest: 40 network names say nothing about what to do,
+            # and a warning nobody can act on is a warning everyone learns to skip. Fall back to
+            # the network list only when no warning text was captured.
+            if [[ -n "${WARNING_DIGEST:-}" ]]; then
+              WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings:\n%s' \
+                "${WARNED_COUNT}" "$WARNING_DIGEST")
+            else
+              WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings: %s' \
+                "${WARNED_COUNT}" "${WARNED_NETWORKS:-?}")
+            fi
           fi
           if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then
             HEADER=":white_check_mark: *Diamond health check — ${PASSED_COUNT:-?}/${TOTAL:-?} networks passed (${SKIPPED_COUNT:-0} skipped)*"
