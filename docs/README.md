@@ -84,5 +84,6 @@
 
 - [Adding a New Bridge Integration](./AddingANewBridge.md)
 - [Contract Deployment Checklist](./Deploy.md)
+- [Deployment Logs — what `deployments/*.json` means and when to prune](./DeploymentLogs.md)
 - [ERC-7730 Clear-Signing Display Proposal](./ClearSigningProposal.md)
 - [HyperEVM Big Blocks — enabling big blocks for new deployer/dev wallets](./HyperEVMBigBlocks.md)

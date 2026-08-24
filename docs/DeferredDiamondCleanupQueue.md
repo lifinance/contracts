@@ -766,8 +766,13 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
   addresses to names through the log in order to detect them at all (its queue
   coverage check is address-keyed, like the drain). The weekly reconcile job (§7) reports which
-  entries are **safe to prune** (every covering task terminal); pruning then is a
-  small reviewed PR.
+  entries are **safe to prune** (the covering removal `executed`, or the task was `superseded`
+  because the loupe already confirmed the facet gone via another route — both loupe-verified,
+  never trusted from stored status alone; a `cancelled` task keeps both entries, since
+  cancellation is an operator decision, not a claim about the chain); pruning then is a
+  small reviewed PR — and it is a *floor*, not a licence to keep the entry forever: once a
+  network's removal has executed, the entry goes from both `deployments/<network>.json` and
+  `deployments/<network>.diamond.json` ([docs/DeploymentLogs.md](./DeploymentLogs.md)).
 
 **Network-retirement hazard.** `/deprecate-network` removes the network from
 `config/networks.json` and its `deployments/*.json`, which takes away everything a
@@ -938,8 +943,8 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    name, so a pruned or ambiguous log entry cannot mis-resolve one; the queue-aware
    health-check invariant `no-stale-registered-facets` flags any
    deprecated-but-registered facet with no open parked task, and the reconcile job
-   reports deploy-log entries that are safe to prune once every covering task is
-   terminal.
+   reports deploy-log entries that are safe to prune once the covering removal is
+   loupe-verified off-chain (`executed`/`superseded`, never `cancelled`).
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
    **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
    default, and whether that's per-network or global.
