@@ -68,6 +68,8 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 
 If it matches, Phase 3b runs an allowlist sync afterwards (a second production proposal). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
 
+A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
+
 ## Phase 2 — Confirm plan
 
 Present: contract + version (old → new per network), the full network list, environment, and what will be created (per network: one registration; **two** for a diamond-called periphery — registration + allowlist; in production each is a timelock-wrapped Safe proposal). Wait for explicit go-ahead — deployments cost gas and, in production, mint Safe proposals on many chains.
