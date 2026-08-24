@@ -128,8 +128,9 @@ current on-chain registration, not history
 ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)). Keep the entry when the facet is still
 routed by the loupe and no open parked task covers it (removal not executed, or the parked task
 retired as cancelled — cancellation proves nothing about routing). An entry already pruned at
-park time stays pruned: the queue-aware invariants track the still-routed facet as
-expected-pending, so don't restore it. `superseded` is loupe-verified gone, so
+park time stays pruned while its task is still `queued`/`proposed` — the queue-aware
+invariants track the still-routed facet as expected-pending. Restore it if the task retired as
+cancelled and the loupe still routes the facet. `superseded` is loupe-verified gone, so
 delete that entry with the rest of the cut.
 
 ## Phase 5 — PR finish (deploy mode only)

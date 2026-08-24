@@ -51,13 +51,11 @@ plus this repo's git history for the log files themselves.
 | Flat log for an environment whose diamond was never deployed | delete the file **only after confirming the bring-up is abandoned** — no diamond on-chain, no open rollout task. A bring-up in progress keeps its flat log even before the diamond exists (lines above: deployed-ahead-of-cut entries live here) |
 
 For facet entries the loupe decides, not the target state, and not whether the Solidity source
-still exists — with one carve-out: an entry whose address is covered by an open parked-removal
-task (`queued`/`proposed`) may be pruned ahead of execution, because the queue-aware invariants
-track the still-routed facet as expected-pending. Periphery is asymmetric: the registry decides
-only for contracts still in `src/` — a deprecated periphery entry goes regardless of registry
-residue (below). A contract whose source was deleted but which is still cut **stays** in the
-logs unless an open parked task covers its address; a contract whose source is still in `src/`
-but whose logged address is no longer routed **goes**. Confirm before pruning:
+still exists. Periphery is asymmetric: the registry decides only for contracts still in `src/` —
+a deprecated periphery entry goes regardless of registry residue (below). A contract whose source
+was deleted but which is still cut **stays** in the logs unless an open parked task covers its
+address (table above); a contract whose source is still in `src/` but whose logged address is no
+longer routed **goes**. Confirm before pruning:
 
 ```bash
 cast call <diamond> "facetAddresses()(address[])" --rpc-url "$(jq -r '.<network>.rpcUrl' config/networks.json)"
