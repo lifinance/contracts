@@ -47,7 +47,6 @@ import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import {
   classifyPrefetchResults,
   fetchPendingForNetworks,
-  type IPendingFetchResult,
 } from './timelock-prefetch'
 import {
   byOperationId,
@@ -235,9 +234,8 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
-      const networksWithPending = await prefetchNetworksWithPendingOps(
-        networksToProcess
-      )
+      const { networks: networksWithPending, failedCount: prefetchFailures } =
+        await prefetchNetworksWithPendingOps(networksToProcess)
       if (networksWithPending.length === 0) return
 
       consola.info(
@@ -245,9 +243,9 @@ const cmd = defineCommand({
       )
 
       const results = await Promise.all(
-        networksWithPending.map((fetched) =>
+        networksWithPending.map((network) =>
           processNetwork(
-            fetched.network,
+            network,
             isDryRun,
             specificOperationId,
             executeAll,
@@ -302,17 +300,26 @@ const cmd = defineCommand({
           consola.warn('Failed to send batch summary notification:', error)
         }
 
-      // Exit with error code if there were failures
-      if (failedNetworks > 0 || totalOperationsFailed > 0) {
+      // Exit with error code if there were failures. A network the prefetch
+      // could not check counts: it was never looked at, and having found work
+      // elsewhere does not make that safe to pass over silently.
+      if (
+        failedNetworks > 0 ||
+        totalOperationsFailed > 0 ||
+        prefetchFailures > 0
+      ) {
+        if (prefetchFailures > 0)
+          consola.error(
+            `   ❌ Networks never checked (prefetch failed): ${prefetchFailures}`
+          )
         consola.error('\n❌ Script completed with errors')
         process.exit(1)
       }
     } else {
       consola.info('🔄 Checking all networks for pending operations...')
 
-      const networksWithPending = await prefetchNetworksWithPendingOps(
-        networksToProcess
-      )
+      const { networks: networksWithPending, failedCount: prefetchFailures } =
+        await prefetchNetworksWithPendingOps(networksToProcess)
       if (networksWithPending.length === 0) return
 
       consola.info(
@@ -322,10 +329,10 @@ const cmd = defineCommand({
       let totalFailed = 0
       let totalSucceeded = 0
 
-      for (const fetched of networksWithPending)
+      for (const network of networksWithPending)
         try {
           const result = await processNetwork(
-            fetched.network,
+            network,
             isDryRun,
             specificOperationId,
             executeAll,
@@ -342,16 +349,19 @@ const cmd = defineCommand({
               `[${result.network}] ❌ ${result.operationsFailed} operation(s) failed`
             )
         } catch (error) {
-          consola.error(
-            `Error processing network ${fetched.network.name}:`,
-            error
-          )
+          consola.error(`Error processing network ${network.name}:`, error)
           totalFailed++
         }
 
-      if (totalFailed > 0) {
+      // A network the prefetch could not check was never looked at; finding work
+      // elsewhere does not make passing over it safe, so it fails the run too.
+      if (totalFailed > 0 || prefetchFailures > 0) {
         consola.error(
-          `\n❌ Script completed with ${totalFailed} network(s) having failures`
+          `\n❌ Script completed with ${totalFailed} network(s) having failures${
+            prefetchFailures > 0
+              ? ` and ${prefetchFailures} network(s) never checked (prefetch failed)`
+              : ''
+          }`
         )
         process.exit(1)
       } else
@@ -454,19 +464,32 @@ async function fetchQueuedTimelockOps(
   }
 }
 
+/** Outcome of the fleet pre-check, as the run needs it. */
+interface IPrefetchedWork {
+  /** Networks with at least one queued op. */
+  networks: INetworksObject[string][]
+  /**
+   * Networks the prefetch could not check. Non-zero must fail the run even when
+   * other networks had work: those networks were not looked at either way.
+   */
+  failedCount: number
+}
+
 /**
  * Pre-checks the fleet, reports the outcome, and returns only the networks that
  * have queued ops.
  *
- * Exits non-zero when nothing is pending but some networks could not be checked:
- * "0 pending" is only trustworthy if every network was actually reached.
+ * Exits non-zero immediately when nothing is pending but some networks could not
+ * be checked: "0 pending" is only trustworthy if every network was actually
+ * reached. When there *is* work, the run proceeds so the reachable networks are
+ * executed, and the caller fails the run afterwards via `failedCount`.
  *
  * @param networksToProcess - Networks to pre-check.
- * @returns Networks with at least one queued op; empty when there is no work.
+ * @returns The networks to process and how many could not be checked.
  */
 async function prefetchNetworksWithPendingOps(
   networksToProcess: INetworksObject[string][]
-): Promise<IPendingFetchResult[]> {
+): Promise<IPrefetchedWork> {
   const { withPending, skipped, failed, mustExitWithError } =
     classifyPrefetchResults(await fetchPendingForNetworks(networksToProcess))
 
@@ -505,7 +528,10 @@ async function prefetchNetworksWithPendingOps(
   if (withPending.length === 0)
     consola.success('No networks with pending timelock transactions.')
 
-  return withPending
+  return {
+    networks: withPending.map((r) => r.network),
+    failedCount: failed.length,
+  }
 }
 
 async function processNetwork(

@@ -60,16 +60,21 @@ export function tallyQueuedOpsByNetwork(
   return counts
 }
 
+/** Opens the queue collection; injectable so the teardown path can be tested. */
+export type TQueueConnector = typeof getTimelockQueueCollection
+
 /**
  * Counts queued timelock ops for many networks in one query over one connection.
  *
  * @param networkNames - Network names to count for (matched case-insensitively).
+ * @param connect - Opens the queue collection; defaults to the real connection.
  * @returns Lowercased network name → queued op count.
  */
 export async function countQueuedOpsByNetwork(
-  networkNames: string[]
+  networkNames: string[],
+  connect: TQueueConnector = getTimelockQueueCollection
 ): Promise<Map<string, number>> {
-  const { client, timelockQueue } = await getTimelockQueueCollection()
+  const { client, timelockQueue } = await connect()
   try {
     const rows = await timelockQueue
       .find(
@@ -82,7 +87,14 @@ export async function countQueuedOpsByNetwork(
       .toArray()
     return tallyQueuedOpsByNetwork(rows)
   } finally {
-    await client.close()
+    // A rejecting close would otherwise replace an already-computed tally with a
+    // throw, and since this is now the fleet's only connection that turns a
+    // teardown hiccup into "every network failed to prefetch".
+    await client
+      .close()
+      .catch((err: unknown) =>
+        consola.warn('Failed to close the MongoDB connection:', err)
+      )
   }
 }
 
@@ -169,17 +181,23 @@ export async function fetchPendingForNetworks(
 ): Promise<IPendingFetchResult[]> {
   const skipReasons = new Map<string, TTimelockSkipReason>()
   const errorsByNetwork = new Map<string, unknown>()
-  for (const network of networks)
-    try {
-      const skipReason = await resolveTimelockSkipReason(network)
-      if (skipReason) skipReasons.set(network.name, skipReason)
-    } catch (err) {
-      consola.error(
-        `[${network.name}] Could not read the production deployments file:`,
-        err
-      )
-      errorsByNetwork.set(network.name, err)
-    }
+  const resolved = await Promise.all(
+    networks.map(async (network) => {
+      try {
+        return { network, skipReason: await resolveTimelockSkipReason(network) }
+      } catch (err) {
+        consola.error(
+          `[${network.name}] Could not read the production deployments file:`,
+          err
+        )
+        return { network, err }
+      }
+    })
+  )
+  for (const entry of resolved)
+    if ('err' in entry) errorsByNetwork.set(entry.network.name, entry.err)
+    else if (entry.skipReason)
+      skipReasons.set(entry.network.name, entry.skipReason)
 
   const toCheck = networks.filter(
     (n) => !skipReasons.has(n.name) && !errorsByNetwork.has(n.name)

@@ -19,9 +19,11 @@ import { getDeploymentsFilePath } from '../../utils/deploymentHelpers'
 import {
   assemblePrefetchResults,
   classifyPrefetchResults,
+  countQueuedOpsByNetwork,
   resolveTimelockSkipReason,
   tallyQueuedOpsByNetwork,
   type IPendingFetchResult,
+  type TQueueConnector,
   type TTimelockSkipReason,
 } from './timelock-prefetch'
 
@@ -51,6 +53,40 @@ describe('tallyQueuedOpsByNetwork', () => {
 
     expect(counts.has('worldchain')).toBe(false)
     expect(counts.get('worldchain') ?? 0).toBe(0)
+  })
+})
+
+describe('countQueuedOpsByNetwork', () => {
+  const connectorReturning = (
+    rows: { network: string }[],
+    close: () => Promise<void>
+  ): TQueueConnector =>
+    (async () => ({
+      client: { close },
+      timelockQueue: { find: () => ({ toArray: async () => rows }) },
+    })) as unknown as TQueueConnector
+
+  it('keeps the tally when closing the connection rejects', async () => {
+    const counts = await countQueuedOpsByNetwork(
+      ['tron'],
+      connectorReturning([{ network: 'tron' }], () =>
+        Promise.reject(new Error('connection reset during close'))
+      )
+    )
+
+    expect(counts.get('tron')).toBe(1)
+  })
+
+  it('closes the connection once the tally is done', async () => {
+    let closed = 0
+    await countQueuedOpsByNetwork(
+      ['tron'],
+      connectorReturning([], async () => {
+        closed++
+      })
+    )
+
+    expect(closed).toBe(1)
   })
 })
 

@@ -26,19 +26,26 @@ const deploymentsCache = new Map<string, Promise<DeploymentsFileModule>>()
  * there but unreadable" need this: `getDeployments` reports both as not-found.
  *
  * @param chain - Chain the deployments file belongs to.
- * @param environment - Production or staging.
+ * @param environment - Production or staging. Required rather than defaulted:
+ * an omitted argument would silently answer for the wrong environment.
  * @returns Absolute path to the deployments file (which may not exist).
+ * @throws When `chain` resolves outside `deployments/`.
  */
 export const getDeploymentsFilePath = (
   chain: SupportedChain,
-  environment: EnvironmentEnum = EnvironmentEnum.staging
+  environment: EnvironmentEnum
 ): string => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
+  const base = path.resolve(__dirname, '../../deployments')
   const fileName =
     environment === EnvironmentEnum.production
       ? `${chain}.json`
       : `${chain}.staging.json`
-  return path.resolve(__dirname, `../../deployments/${fileName}`)
+  const filePath = path.resolve(base, fileName)
+  const relativePath = path.relative(base, filePath)
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    throw new Error(`Invalid network name: ${chain}`)
+  return filePath
 }
 
 /**
@@ -56,11 +63,14 @@ export const getDeployments = async (
   const filePath = getDeploymentsFilePath(chain, environment)
 
   const loadPromise: Promise<DeploymentsFileModule> = import(filePath).catch(
-    () => {
+    (err: unknown) => {
       // Drop failed loads so a later call can retry instead of caching the rejection
       deploymentsCache.delete(cacheKey)
+      // A missing file and an unparseable one both land here; keep the cause so
+      // callers that must tell them apart are not left re-deriving it.
       throw new Error(
-        `Deployments file not found for ${chain} (${environment}): ${filePath}`
+        `Deployments file not found for ${chain} (${environment}): ${filePath}`,
+        { cause: err }
       )
     }
   )

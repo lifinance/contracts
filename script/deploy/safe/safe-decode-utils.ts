@@ -462,11 +462,15 @@ export function formatDecodedArg(arg: unknown, network?: string): string {
   if (typeof arg === 'bigint') return arg.toString()
   // Tuple and array args (e.g. initFrax's (chainId, eid) pairs) carry nested
   // bigints, which plain JSON.stringify throws on — losing the whole decode and
-  // leaving the operator approving a payload they were never shown.
+  // leaving the operator approving a payload they were never shown. Nested
+  // strings recurse so an address inside a tuple gets the same per-network
+  // rendering as a top-level one instead of staying raw hex.
   if (typeof arg === 'object')
-    return JSON.stringify(arg, (_key, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-    )
+    return JSON.stringify(arg, (_key, value: unknown) => {
+      if (typeof value === 'bigint') return value.toString()
+      if (typeof value === 'string') return formatDecodedArg(value, network)
+      return value
+    })
   const s = String(arg)
   if (
     network !== undefined &&

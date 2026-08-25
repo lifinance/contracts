@@ -290,4 +290,18 @@ describe('formatDecodedArg', () => {
   it('still renders a top-level bigint bare, without JSON quoting', () => {
     expect(formatDecodedArg(10800n)).toBe('10800')
   })
+
+  it('renders a nested address in the network format, like a top-level one', () => {
+    const address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+    const nested = formatDecodedArg({ target: address }, 'tron')
+
+    expect(nested).toContain(formatDecodedArg(address, 'tron'))
+    expect(nested).not.toContain(`"${address}"`)
+  })
+
+  it('leaves a nested non-address string untouched', () => {
+    expect(formatDecodedArg({ name: 'FraxFacet' }, 'tron')).toBe(
+      '{"name":"FraxFacet"}'
+    )
+  })
 })
