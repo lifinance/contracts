@@ -192,6 +192,13 @@ contract GenericSwapFacetV3 is ILiFi {
         LibAsset.transferERC20(receivingAssetId, _receiver, amountReceived);
 
         // emit events (both required for tracking)
+        // KNOWN LIMITATION (EXSC-850): on this native-sending path `fromAmount`
+        // is caller-declared and never bound to `msg.value` (the native actually
+        // forwarded to the swap call above), so a caller can emit an arbitrary
+        // native `fromAmount` while sending 0 — mis-indexed downstream as native
+        // volume. On the next version bump of this facet, emit `msg.value` here
+        // instead of `_swapData.fromAmount`. Deferred to avoid a fleet-wide
+        // redeploy of already-live bytecode for a non-fund-loss issue.
         uint256 fromAmount = _swapData.fromAmount;
         emit LibSwap.AssetSwapped(
             _transactionId,
