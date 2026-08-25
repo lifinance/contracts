@@ -976,6 +976,16 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(ctx.warnings[0]).toContain('the on-chain registry has')
   })
 
+  it('leaves the timelock alone - it is the diamond owner, not periphery', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      registry: { LiFiTimelockController: WRONG },
+      deployedContracts: { LiFiTimelockController: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('LiFiTimelockController')
+    expect(ctx.warnings).toEqual([])
+  })
+
   it('stays silent when the registry and the deploy log agree', async () => {
     const { ctx } = makeReceiverCtx({
       registry: { ReceiverOIF: OIF_ON_CHAIN },

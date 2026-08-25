@@ -1686,7 +1686,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // that can only ever return the zero address. Matching on `includes` mirrors
       // deriveNonCoreFacets and catches the packed/versioned variants; no periphery name contains
       // "Facet".
+      // The timelock is the diamond's owner, not a contract the diamond calls: every consumer
+      // reads its address from the deploy log, and diamond-owner validates that against
+      // owner(). A registry entry for it is therefore not an address anything resolves.
+      // periphery-registered skips it for the same reason.
       const notPeriphery = (name: string): boolean =>
+        name === 'LiFiTimelockController' ||
         name.includes('Facet') ||
         name.startsWith('LiFiDiamond') ||
         ctx.coreFacetsToCheck.includes(name) ||
