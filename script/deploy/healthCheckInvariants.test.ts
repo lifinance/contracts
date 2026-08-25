@@ -29,6 +29,7 @@ import {
   type ICoreFacetExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { type IPendingRegistration } from './safe/pending-registrations'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
@@ -1479,5 +1480,217 @@ describe('receiver read failures separate broken contracts from flaky RPCs', () 
     await invariant('receiver-executor-binding').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+  })
+})
+
+describe('facets-registered scheduled-registration coverage', () => {
+  const EXPECTED_FACET = 'FraxFacet'
+  const FACET_ADDRESS = '0xAAAA000000000000000000000000000000000011'
+  const DIAMOND = '0xD1A0000000000000000000000000000000000001'
+  const ROUTED = '0xBBBB000000000000000000000000000000000012'
+  const OPERATION_ID = `0x${'cd'.repeat(32)}` as Hex
+
+  /** A network whose diamond routes one facet while the target state expects two. */
+  function makeMissingCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      coreFacetsToCheck: ['DiamondCutFacet'],
+      nonCoreFacets: [EXPECTED_FACET],
+      deployedContracts: {
+        DiamondCutFacet: ROUTED,
+        [EXPECTED_FACET]: FACET_ADDRESS,
+      },
+      publicClient: {
+        // Only the already-routed facet comes back from the loupe.
+        readContract: async () => [
+          { facetAddress: ROUTED, functionSelectors: ['0x11111111'] },
+        ],
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (
+    target = DIAMOND
+  ): Map<string, Map<string, IPendingRegistration>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            FACET_ADDRESS.toLowerCase(),
+            { operationId: OPERATION_ID, target: target.toLowerCase() },
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors on the unregistered facet when nothing is scheduled', async () => {
+    const ctx = makeMissingCtx(new Map())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makeMissingCtx(covering())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makeMissingCtx(covering(ROUTED))
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('still errors when the queued operation registers a different address', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              '0xffff000000000000000000000000000000000099',
+              { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('keys coverage by network, not fleet-wide', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'othernet',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makeMissingCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  it('does not consult the queue on staging', async () => {
+    const ctx = makeMissingCtx(covering(), { environment: 'staging' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not consult the queue on testnets', async () => {
+    const ctx = makeMissingCtx(covering(), { isTestnet: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  // Tron rolls out through contracts-tron, not the EVM timelock queue, so a row that
+  // happens to carry a matching address must never downgrade a Tron network.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makeMissingCtx(covering(), { isTron: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not touch the queue when every expected facet is routed', async () => {
+    let consulted = false
+    const ctx = makeMissingCtx(new Map(), { nonCoreFacets: [] })
+    // Defined after the context is built: Object.assign would read the getter while
+    // copying, tripping the flag before the invariant ever runs.
+    Object.defineProperty(ctx, 'pendingRegistrations', {
+      get() {
+        consulted = true
+        return new Map()
+      },
+    })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(consulted).toBe(false)
+  })
+})
+
+describe('periphery-registered scheduled-registration coverage', () => {
+  const DIAMOND = '0xD1A0000000000000000000000000000000000002'
+  const EXECUTOR = '0xEEEE000000000000000000000000000000000021'
+  const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+
+  function makePeripheryCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      deployedContracts: { Executor: EXECUTOR },
+      targetState: {
+        testnet1: { production: { LiFiDiamond: { Executor: '1.0.0' } } },
+      },
+      globalConfig: { ...globalConfig, whitelistPeripheryFunctions: {} },
+      publicClient: {
+        // The registry resolves nothing — Executor is not registered yet.
+        readContract: async () => '0x0000000000000000000000000000000000000000',
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (): Map<string, Map<string, IPendingRegistration>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            EXECUTOR.toLowerCase(),
+            { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors when nothing is scheduled', async () => {
+    const ctx = makePeripheryCtx(new Map())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makePeripheryCtx(covering())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makePeripheryCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
   })
 })

@@ -42,6 +42,7 @@ import {
   cachedSourceContractNames,
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
+import { type IPendingRegistration } from './safe/pending-registrations'
 import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -142,6 +143,15 @@ export interface IHealthCheckContext {
    */
   openParkedRemovals?:
     | Map<string, Map<string, string>>
+    | { unreachable: string }
+  /**
+   * Scheduled-but-unexecuted registration coverage (network → lowercased registered
+   * address → the timelock operation registering it). Undefined = fetch from the
+   * timelock queue (the default); injectable so the registration invariants are
+   * testable without a MongoDB connection.
+   */
+  pendingRegistrations?:
+    | Map<string, Map<string, IPendingRegistration>>
     | { unreachable: string }
   errors: string[]
   warnings: string[]
@@ -1227,6 +1237,75 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
 }
 
 /**
+ * Scheduled-but-unexecuted registrations fleet-wide, fetched once per process and
+ * grouped by network. Same shape, sharing and failure handling as
+ * {@link fetchOpenParkedAddressesByNetwork}: one read serves every network in the
+ * sweep, a failure clears the cache so the next network retries, and in-flight
+ * callers share the failing promise so an outage costs at most one attempt per
+ * network.
+ */
+let pendingRegistrationsPromise:
+  | Promise<
+      Map<string, Map<string, IPendingRegistration>> | { unreachable: string }
+    >
+  | undefined
+function fetchPendingRegistrationsByNetwork(): Promise<
+  Map<string, Map<string, IPendingRegistration>> | { unreachable: string }
+> {
+  return (pendingRegistrationsPromise ??= (async () => {
+    try {
+      const { listPendingRegistrationsByNetwork } = await import(
+        './safe/pending-registrations'
+      )
+      return await listPendingRegistrationsByNetwork()
+    } catch (error: unknown) {
+      pendingRegistrationsPromise = undefined
+      return {
+        unreachable: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })())
+}
+
+/**
+ * Resolves the scheduled registrations that apply to one network's diamond.
+ *
+ * The queue is an EVM production-mainnet construct, so three cases never consult it and
+ * report no coverage: staging and testnet diamonds are EOA-owned and cut directly, and
+ * Tron rolls out through the separate contracts-tron path. Skipping those by branch
+ * rather than letting the address match fail keeps a Tron-only or testnet-only sweep
+ * from needing MongoDB at all.
+ *
+ * Registrations are filtered to inner calls aimed at *this* diamond: an operation
+ * targeting another contract on the same network proves nothing about this diamond's
+ * missing facet.
+ *
+ * @param ctx - The network being evaluated.
+ * @returns Lowercased covered addresses, or `unreachable` with the reason when the
+ *   queue could not be read (never an empty set — the caller must be able to tell
+ *   "nothing scheduled" apart from "could not look").
+ */
+async function resolvePendingRegistrations(
+  ctx: IHealthCheckContext
+): Promise<Set<string> | { unreachable: string }> {
+  if (ctx.environment !== 'production' || ctx.isTestnet || ctx.isTron)
+    return new Set<string>()
+
+  const pending =
+    ctx.pendingRegistrations ?? (await fetchPendingRegistrationsByNetwork())
+  if ('unreachable' in pending) return pending
+
+  const diamond = ctx.diamondAddress?.toLowerCase()
+  const forNetwork = pending.get(ctx.networkLower)
+  if (!forNetwork || !diamond) return new Set<string>()
+  return new Set(
+    [...forNetwork.entries()]
+      .filter(([, registration]) => registration.target === diamond)
+      .map(([address]) => address)
+  )
+}
+
+/**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
  * that later ones reuse.
@@ -1351,12 +1430,55 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!facetCheckSkipped) {
-        for (const facet of [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets])
-          if (!registeredFacets.includes(facet))
-            ctx.logError(
-              `Facet ${facet} not registered in Diamond or possibly unverified`
+        const expected = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
+        // The expected set comes from _targetState.json, which a rollout PR merges
+        // before the cut executes — so a facet can be legitimately expected and not
+        // yet routed. A queued timelock operation adding exactly this deploy-log
+        // address is that window, and its remediation is "wait", not "fix". Resolved
+        // once, and only when something is actually missing, so a healthy network
+        // never touches the queue.
+        const anyMissing = expected.some(
+          (facet) => !registeredFacets.includes(facet)
+        )
+        const scheduled = anyMissing
+          ? await resolvePendingRegistrations(ctx)
+          : null
+        let downgraded = 0
+
+        for (const facet of expected) {
+          if (registeredFacets.includes(facet)) {
+            consola.success(`Facet ${facet} registered in Diamond`)
+            continue
+          }
+          const address = ctx.deployedContracts[facet]
+          if (
+            address &&
+            scheduled instanceof Set &&
+            scheduled.has(String(address).toLowerCase())
+          ) {
+            downgraded++
+            consola.info(
+              `Facet ${facet} (${address}) is expected but not yet routed — expected-pending: a queued timelock operation registers it`
             )
-          else consola.success(`Facet ${facet} registered in Diamond`)
+            continue
+          }
+          ctx.logError(
+            `Facet ${facet} not registered in Diamond or possibly unverified`
+          )
+        }
+        // Unlike the warning-severity queue-aware checks, an unreachable queue must
+        // not suppress anything here: this is the fleet's primary registration gate,
+        // and a Mongo blip turning genuinely missing facets green is far worse than
+        // a false alert during a rollout. Report the reduced coverage as a warning so
+        // the network lands in the sweep's `warned` list instead of looking clean.
+        if (scheduled && !(scheduled instanceof Set))
+          ctx.logWarn(
+            `Timelock queue unreachable — expected-pending downgrade skipped, unregistered facets reported as errors: ${scheduled.unreachable}`
+          )
+        else if (downgraded > 0)
+          consola.info(
+            `${downgraded} expected facet(s) awaiting their queued timelock registration (expected-pending)`
+          )
       }
     },
   },
@@ -1579,6 +1701,31 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       if (contractsToCheck.length === 0) return
 
+      // Same rollout window as facets-registered: the target-state entry merges
+      // before the registration executes. Resolved lazily and memoised, so only a
+      // network that actually has an unregistered contract touches the queue, and
+      // one missing several costs a single lookup.
+      let coverage: Set<string> | { unreachable: string } | undefined
+      let unreachableReason: string | undefined
+      let downgraded = 0
+      const reportUnregistered = async (
+        periphery: string,
+        address: string,
+        message: string
+      ): Promise<void> => {
+        coverage ??= await resolvePendingRegistrations(ctx)
+        if (coverage instanceof Set) {
+          if (coverage.has(address.toLowerCase())) {
+            downgraded++
+            consola.info(
+              `Periphery contract ${periphery} (${address}) is expected but not yet registered — expected-pending: a queued timelock operation registers it`
+            )
+            return
+          }
+        } else unreachableReason = coverage.unreachable
+        ctx.logError(message)
+      }
+
       if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         for (const periphery of contractsToCheck) {
           const peripheryAddress = ctx.deployedContracts[periphery]
@@ -1612,7 +1759,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               !registeredAddress ||
               registeredAddress.toLowerCase() !== expectedAddress
             )
-              ctx.logError(
+              await reportUnregistered(
+                periphery,
+                String(peripheryAddress),
                 `Periphery contract ${periphery} not registered in Diamond (expected: ${peripheryAddress}, got: ${
                   registeredAddress || 'null'
                 })`
@@ -1650,7 +1799,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.logError(`Periphery contract ${periphery} not deployed `)
           else if (!addresses.includes(getAddress(peripheryAddress))) {
             if (periphery === 'LiFiTimelockController') continue
-            ctx.logError(
+            await reportUnregistered(
+              periphery,
+              String(peripheryAddress),
               `Periphery contract ${periphery} not registered in Diamond`
             )
           } else
@@ -1659,6 +1810,18 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             )
         }
       }
+
+      // Same reasoning as facets-registered: this is an error gate, so an unreachable
+      // queue keeps every error and announces the reduced coverage instead of
+      // silently downgrading nothing.
+      if (unreachableReason)
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, unregistered periphery reported as errors: ${unreachableReason}`
+        )
+      else if (downgraded > 0)
+        consola.info(
+          `${downgraded} expected periphery contract(s) awaiting their queued timelock registration (expected-pending)`
+        )
     },
   },
   {

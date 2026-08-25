@@ -42,3 +42,33 @@ invariant must be added, adjusted, or removed. Use this checklist:
 If none of the above applies, no registry change is needed — but the review itself is not
 optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
 JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
+
+## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
+
+Several invariants compare on-chain reality against a _desired_ state that a merged PR
+already records — `_targetState.json` for `facets-registered` and `periphery-registered`, a
+deleted source file for `no-stale-registered-facets`. Between that merge and the multisig
+operation acting on it the two legitimately disagree, and the remediation is "wait", not
+"fix".
+
+Invariants may consult operator intent to resolve that window and report the finding as
+**expected-pending** instead of a failure:
+
+- Additions read the timelock execution queue (`script/deploy/safe/pending-registrations.ts`)
+  and downgrade only when a `queued` operation registers **exactly** the deploy-log address,
+  on **that** network's diamond. Keying by address rather than by name is deliberate — the
+  same lesson as the parked queue (EXSC-750/EXSC-775).
+- Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`).
+
+Two boundaries are not negotiable:
+
+- **Never let intent drive a generator.** A bad queue read, or an operation cancelled later,
+  costs a false alert that self-corrects on the next sweep; the same bad read inside
+  `saveDiamondFacets` leaves a wrong deploy log committed to git with nobody owning the
+  compensating write. Deploy logs stay a pure function of the loupe
+  ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
+- **An unreachable queue must never suppress a finding.** A warning-severity check existing
+  _only_ to police queue coverage may skip and report reduced coverage. Error-severity gates
+  (`facets-registered`, `periphery-registered`) keep every error and add a warning naming the
+  degraded coverage — a MongoDB blip turning genuinely missing registrations green is far
+  worse than a false alert during a rollout.
