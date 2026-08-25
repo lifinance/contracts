@@ -49,8 +49,8 @@
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
-      "0xa9Db3a974Fd7589835866685D02686CC52A86d53": {
-        "Name": "SymbiosisFacet",
+      "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0xb6424d61c2c3930c91D93E33D0654f9412bFDD81": {

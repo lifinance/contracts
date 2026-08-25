@@ -48,7 +48,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -79,7 +80,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -127,7 +129,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "SupersetFacet": "1.0.0"
+        "SupersetFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -167,7 +170,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -240,7 +244,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "SupersetFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -409,7 +414,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "ThorSwapFacet": "1.2.1",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -522,7 +528,8 @@
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -680,7 +687,8 @@
         "MayanFacet": "1.2.2",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -743,7 +751,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -807,7 +816,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1031,7 +1041,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1104,7 +1115,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1200,7 +1212,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1269,7 +1282,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1309,7 +1323,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "SupersetFacet": "1.0.0",
-        "AllBridgeFacet": "2.2.0"
+        "AllBridgeFacet": "2.2.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1342,7 +1357,8 @@
         "EcoFacet": "1.1.0",
         "LayerSwapFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1370,7 +1386,8 @@
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
-        "NEARIntentsFacet": "1.0.0"
+        "NEARIntentsFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1430,7 +1447,8 @@
         "ReceiverAcrossV4": "1.0.0",
         "LayerSwapFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1573,7 +1591,8 @@
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1603,7 +1622,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1786,7 +1806,8 @@
         "LayerSwapFacet": "1.0.0",
         "NEARIntentsFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1848,7 +1869,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1962,7 +1984,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -2177,7 +2200,8 @@
         "TokenWrapper": "1.2.1",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
