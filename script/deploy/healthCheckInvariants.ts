@@ -1704,7 +1704,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // Same rollout window as facets-registered: the target-state entry merges
       // before the registration executes. Resolved lazily and memoised, so only a
       // network that actually has an unregistered contract touches the queue, and
-      // one missing several costs a single lookup.
+      // one missing several costs a single lookup. On Tron this always falls through
+      // to the error — resolvePendingRegistrations gates Tron out before any lookup —
+      // so routing the Tron branch through here buys uniformity, not coverage.
       let coverage: Set<string> | { unreachable: string } | undefined
       let unreachableReason: string | undefined
       let downgraded = 0

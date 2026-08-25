@@ -60,6 +60,21 @@ Invariants may consult operator intent to resolve that window and report the fin
   same lesson as the parked queue (EXSC-750/EXSC-775).
 - Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`).
 
+Know what the addition side does **not** cover, so nobody reads a red network as a bug in the
+invariant:
+
+- A queue row exists only once the Safe transaction executing `scheduleBatch` has been mined,
+  so the multisig **signing** window before it stays red. Only the timelock delay itself
+  (plus execution lag) is covered.
+- A rollout proposed **without** `--timelock` writes no row at all — `deployUpgradesToSAFE.sh`
+  is the live example — and so is never downgraded.
+- **Tron** rolls out through `contracts-tron` and has no EVM queue row; it is skipped by branch.
+- A row is honoured only while it is plausibly still waiting. A never-scheduled or
+  directly-cancelled operation is reported and skipped by the execution runner *without* a
+  status change, so it stays `queued` forever; honouring it indefinitely would mask the very
+  never-landed cut these gates exist to catch. Rows past their delay plus a grace window are
+  therefore dropped and report as hard errors.
+
 Two boundaries are not negotiable:
 
 - **Never let intent drive a generator.** A bad queue read, or an operation cancelled later,

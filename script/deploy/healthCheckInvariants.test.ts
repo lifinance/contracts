@@ -1693,4 +1693,11 @@ describe('periphery-registered scheduled-registration coverage', () => {
     expect(ctx.warnings).toHaveLength(1)
     expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
   })
+
+  // Tron rolls out through contracts-tron, which writes no EVM timelock queue row.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makePeripheryCtx(covering(), { isTron: true })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
 })

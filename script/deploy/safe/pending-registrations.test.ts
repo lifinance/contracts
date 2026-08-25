@@ -8,6 +8,7 @@ import { encodeFunctionData, parseAbi, type Hex } from 'viem'
 
 import {
   extractRegisteredAddresses,
+  groupRegistrationsByNetwork,
   registrationsFromQueueDoc,
 } from './pending-registrations'
 
@@ -143,5 +144,149 @@ describe('registrationsFromQueueDoc', () => {
       ],
     })
     expect(registrations.size).toBe(0)
+  })
+})
+
+describe('groupRegistrationsByNetwork', () => {
+  const NOW = Date.UTC(2026, 7, 25, 12, 0, 0)
+  const DELAY_SECONDS = '10800' // 3 h, the delay every real queue row carries
+
+  const row = (
+    network: string,
+    cuts: Array<[string, number]>,
+    opId: string,
+    createdAt: Date = new Date(NOW - 60_000)
+  ) => ({
+    network,
+    operationId: opId as Hex,
+    targets: cuts.map(() => DIAMOND as `0x${string}`),
+    payloads: cuts.map((c) => diamondCut([c])),
+    createdAt,
+    delay: DELAY_SECONDS,
+  })
+
+  it('groups by lowercased network name', () => {
+    const grouped = groupRegistrationsByNetwork(
+      [row('Mainnet', [[FACET, 0]], OPERATION_ID)],
+      NOW
+    )
+    expect([...grouped.keys()]).toEqual(['mainnet'])
+    expect(grouped.get('mainnet')?.get(FACET.toLowerCase())?.target).toBe(
+      DIAMOND.toLowerCase()
+    )
+  })
+
+  it('keeps networks separate', () => {
+    const grouped = groupRegistrationsByNetwork(
+      [
+        row('mainnet', [[FACET, 0]], OPERATION_ID),
+        row('base', [[OTHER_FACET, 0]], `0x${'11'.repeat(32)}`),
+      ],
+      NOW
+    )
+    expect(grouped.get('mainnet')?.has(OTHER_FACET.toLowerCase())).toBe(false)
+    expect(grouped.get('base')?.has(FACET.toLowerCase())).toBe(false)
+  })
+
+  it('merges multiple rows for the same network', () => {
+    const grouped = groupRegistrationsByNetwork(
+      [
+        row('mainnet', [[FACET, 0]], OPERATION_ID),
+        row('mainnet', [[OTHER_FACET, 0]], `0x${'22'.repeat(32)}`),
+      ],
+      NOW
+    )
+    expect(grouped.get('mainnet')?.size).toBe(2)
+  })
+
+  it('omits a network whose rows register nothing', () => {
+    const grouped = groupRegistrationsByNetwork(
+      [row('mainnet', [[FACET, 2]], OPERATION_ID)],
+      NOW
+    )
+    expect(grouped.size).toBe(0)
+  })
+
+  it('returns an empty map for no rows', () => {
+    expect(groupRegistrationsByNetwork([], NOW).size).toBe(0)
+  })
+
+  // A never-scheduled or directly-cancelled operation is reported and skipped by the
+  // execution runner without a status change, so it stays `queued` forever. Honouring
+  // it indefinitely would mask exactly the never-landed cut this gate exists to catch.
+  it('drops a row stuck past its delay plus the grace window', () => {
+    const stuck = new Date(NOW - (72 + 3 + 1) * 60 * 60 * 1000)
+    const grouped = groupRegistrationsByNetwork(
+      [row('mainnet', [[FACET, 0]], OPERATION_ID, stuck)],
+      NOW
+    )
+    expect(grouped.size).toBe(0)
+  })
+
+  it('still honours the slowest rollout observed in the live queue (~70.7 h)', () => {
+    const slow = new Date(NOW - 70.7 * 60 * 60 * 1000)
+    const grouped = groupRegistrationsByNetwork(
+      [row('mainnet', [[FACET, 0]], OPERATION_ID, slow)],
+      NOW
+    )
+    expect(grouped.get('mainnet')?.size).toBe(1)
+  })
+
+  it('drops a row whose createdAt is unusable rather than trusting it', () => {
+    const grouped = groupRegistrationsByNetwork(
+      [row('mainnet', [[FACET, 0]], OPERATION_ID, new Date('not-a-date'))],
+      NOW
+    )
+    expect(grouped.size).toBe(0)
+  })
+})
+
+describe('real-payload shapes the live queue actually carries', () => {
+  // 101 of 614 real diamondCut payloads pass a non-zero _init address, which is
+  // delegatecalled during the cut but never becomes a routed facet. Counting it as
+  // registered would downgrade an unrelated missing facet.
+  it('never treats a non-zero _init address as registered', () => {
+    const INIT = '0x9999999999999999999999999999999999999999'
+    const data = encodeFunctionData({
+      abi: ABI_DIAMOND_CUT,
+      args: [
+        [[FACET as `0x${string}`, 0, ['0x12345678' as Hex]]] as never,
+        INIT,
+        '0xdeadbeef',
+      ],
+    })
+    const addresses = extractRegisteredAddresses(data)
+    expect(addresses).toEqual([FACET.toLowerCase()])
+    expect(addresses).not.toContain(INIT.toLowerCase())
+  })
+
+  it('treats registering the zero address as a removal, not a registration', () => {
+    const data = encodeFunctionData({
+      abi: ABI_REGISTER_PERIPHERY,
+      args: ['Executor', '0x0000000000000000000000000000000000000000'],
+    })
+    expect(extractRegisteredAddresses(data)).toEqual([])
+  })
+
+  it('handles a multi-call row mixing an Add, a Remove and a periphery registration', () => {
+    const registrations = registrationsFromQueueDoc({
+      operationId: OPERATION_ID,
+      targets: [
+        DIAMOND as `0x${string}`,
+        DIAMOND as `0x${string}`,
+        DIAMOND as `0x${string}`,
+      ],
+      payloads: [
+        diamondCut([[FACET, 0]]),
+        diamondCut([[OTHER_FACET, 2]]),
+        encodeFunctionData({
+          abi: ABI_REGISTER_PERIPHERY,
+          args: ['OutputValidator', PERIPHERY],
+        }),
+      ],
+    })
+    expect([...registrations.keys()].sort()).toEqual(
+      [FACET.toLowerCase(), PERIPHERY.toLowerCase()].sort()
+    )
   })
 })

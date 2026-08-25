@@ -2,28 +2,26 @@
  * Scheduled-but-not-yet-executed diamond registrations, read from the timelock
  * execution queue.
  *
- * A production rollout merges its `_targetState.json` entry before the diamond cut
- * runs, so between merge and execution the registration invariants see a facet the
- * target state expects and the loupe does not route yet. This module supplies the
- * missing intent: the set of addresses a *queued* timelock operation would register.
+ * Import it from the health-check registration invariants to tell a rollout still
+ * waiting on its timelock delay apart from a genuinely missing registration; intent
+ * is for alerting only and must never reach a generator ([CONV:HEALTHCHECK-INTENT]
+ * in `.agents/rules/601-healthcheck-invariants.md`).
  *
- * Intent is read for **alerting only**. It downgrades an alert whose remediation is
- * "wait"; it never feeds a generator. A bad queue read costs a false alert or reduced
- * coverage and self-corrects on the next run, whereas letting intent decide what a
- * deploy log records leaves a wrong file in git with no owner for the compensating
- * write (`.agents/rules/601-healthcheck-invariants.md`, docs/DeploymentLogs.md).
+ * The covered window is narrower than "merge to execution": a row appears only once the
+ * Safe transaction executing `scheduleBatch` is mined, so the multisig signing window
+ * before it stays uncovered, as does any rollout proposed without `--timelock` (e.g.
+ * `deployUpgradesToSAFE.sh`) and every Tron rollout. Widening it to the signing window
+ * would mean reading the Safe proposal collection, which needs a secret the health-check
+ * workflows do not carry.
  *
- * The queue — not the Safe proposal collection — is the source on purpose:
+ * The queue rather than the Safe proposal collection, on two counts: it lives on the
+ * un-gated `MONGODB_URI` cluster the health-check workflows already pass, whereas the
+ * Safe collection sits behind a tunnel those workflows cannot open; and a `queued` row
+ * means `scheduleBatch` already executed, while an unsigned proposal may never be.
  *
- * - It lives on the un-gated `MONGODB_URI` cluster the parked-task queue already
- *   uses, so the health-check workflows reach it with no new secret. The Safe
- *   collection needs `SC_MONGODB_URI` behind the `lifi-connect` tunnel, which the
- *   health-check workflows do not have — sourcing intent there would make the
- *   downgrade permanently inert in CI, the one place it matters.
- * - A `queued` row means the Safe transaction already executed `scheduleBatch`, so
- *   the operation is live on the timelock and will execute once the delay elapses.
- *   An unsigned Safe proposal may never be signed; treating it as intent would
- *   over-claim. `queued` is the point at which the addition is actually committed.
+ * Every helper below the Mongo wrapper is pure and takes its documents injected, so
+ * the decode and grouping logic is unit-testable without a live cluster — the same
+ * split `parked-tasks.ts` uses.
  */
 
 import { decodeFunctionData, isAddress, parseAbi, type Hex } from 'viem'
@@ -76,9 +74,7 @@ export function extractRegisteredAddresses(payload: Hex | string): string[] {
     const addresses: string[] = []
     for (const cut of cuts) {
       const [facetAddress, action] = cut as [unknown, unknown, unknown]
-      const actionNum =
-        typeof action === 'bigint' ? Number(action) : Number(action)
-      if (!ROUTING_CUT_ACTIONS.has(actionNum)) continue
+      if (!ROUTING_CUT_ACTIONS.has(Number(action))) continue
       if (typeof facetAddress === 'string' && isAddress(facetAddress))
         addresses.push(facetAddress.toLowerCase())
     }
@@ -93,7 +89,13 @@ export function extractRegisteredAddresses(payload: Hex | string): string[] {
       data,
     })
     const peripheryAddress = args?.[1]
-    if (typeof peripheryAddress === 'string' && isAddress(peripheryAddress))
+    // Registering the zero address unregisters the name — the periphery counterpart of
+    // a Remove cut, and like a Remove it leaves nothing registered.
+    if (
+      typeof peripheryAddress === 'string' &&
+      isAddress(peripheryAddress) &&
+      BigInt(peripheryAddress) !== 0n
+    )
       return [peripheryAddress.toLowerCase()]
   } catch {
     // Neither shape — the operation registers nothing this check tracks.
@@ -129,11 +131,93 @@ export function registrationsFromQueueDoc(
 }
 
 /**
+ * How long past its own timelock delay a `queued` row still counts as intent.
+ *
+ * A row is not always retired when its operation dies: when the Safe transaction never
+ * actually scheduled the batch, or the operation was cancelled directly on the timelock,
+ * `execute-pending-timelock-tx` reports it and moves on **without changing the status**,
+ * so the row stays `queued` forever. That state — contract deployed, recorded in the
+ * deploy log, cut never landed — is precisely what the registration invariants exist to
+ * catch, so honouring such a row indefinitely would invert the gate. Bounding by age
+ * turns "masked forever" into "masked briefly", and the direction of the error is safe:
+ * past the bound the registration reports as a hard error, never as silently fine.
+ *
+ * 72 hours is generous on purpose. Across the 874 executed rows in the live queue the
+ * observed create→execute spread was p50 ~3.3 h and max ~70.7 h against a uniform 3 h
+ * delay, so this clears even the slowest real rollout on record while still being finite.
+ */
+const STALE_QUEUE_GRACE_MS = 72 * 60 * 60 * 1000 // 72 hours
+
+/**
+ * True while a queued row is still plausibly waiting rather than stuck.
+ *
+ * @param doc - Queue row carrying its creation time and configured delay (seconds).
+ * @param now - Current epoch milliseconds.
+ * @returns Whether the row is within its delay plus {@link STALE_QUEUE_GRACE_MS}.
+ */
+function isWithinExecutionWindow(
+  doc: Pick<ITimelockQueueDoc, 'createdAt' | 'delay'>,
+  now: number
+): boolean {
+  const createdAt = new Date(doc.createdAt).getTime()
+  if (Number.isNaN(createdAt)) return false
+  const delayMs = Number(doc.delay) * 1000
+  // A row whose delay is unparseable says nothing trustworthy about its own window;
+  // fall back to the grace alone rather than to an unbounded one.
+  return (
+    now <
+    createdAt + (Number.isFinite(delayMs) ? delayMs : 0) + STALE_QUEUE_GRACE_MS
+  )
+}
+
+/**
+ * Groups queue rows into the registrations each network's diamonds would receive.
+ *
+ * Pure and injectable so the grouping is testable without a cluster; the Mongo read
+ * lives in {@link listPendingRegistrationsByNetwork}. Rows past their execution window
+ * are dropped here — see {@link STALE_QUEUE_GRACE_MS}.
+ *
+ * @param docs - Queue rows to group. Callers pass only rows they consider live.
+ * @param now - Current epoch milliseconds; injectable so staleness is testable.
+ * @returns Network → (lowercased registered address → the operation registering it).
+ */
+export function groupRegistrationsByNetwork(
+  docs: Array<
+    Pick<
+      ITimelockQueueDoc,
+      'operationId' | 'targets' | 'payloads' | 'network' | 'createdAt' | 'delay'
+    >
+  >,
+  now: number = Date.now()
+): Map<string, Map<string, IPendingRegistration>> {
+  const byNetwork = new Map<string, Map<string, IPendingRegistration>>()
+  for (const doc of docs) {
+    if (!isWithinExecutionWindow(doc, now)) continue
+    const registrations = registrationsFromQueueDoc(doc)
+    if (registrations.size === 0) continue
+    const network = doc.network.toLowerCase()
+    const forNetwork =
+      byNetwork.get(network) ?? new Map<string, IPendingRegistration>()
+    for (const [address, registration] of registrations)
+      forNetwork.set(address, registration)
+    byNetwork.set(network, forNetwork)
+  }
+  return byNetwork
+}
+
+/**
  * Every scheduled-but-unexecuted registration fleet-wide, grouped by network.
  *
  * Only `queued` rows count: `executed` has already landed on-chain (the loupe shows
  * it), and `cancelled`/`failed` are terminal — a `failed` row in particular is not a
  * promise of anything, so treating it as intent would suppress a real alert forever.
+ *
+ * Known sharp edge, deliberately left erring toward over-alerting: a row marked
+ * `failed` can still be a live, executable on-chain operation when what failed was a
+ * pre-execute guard rather than execution itself. Such a row will not cover anything
+ * here, so its registration reports as a hard error rather than expected-pending. If
+ * you are debugging why a downgrade did not apply during a live rollout, check the
+ * row's status first.
  *
  * @returns Network → (lowercased registered address → the operation registering it).
  * @throws Whatever the MongoDB driver throws; callers degrade rather than guess.
@@ -143,21 +227,11 @@ export async function listPendingRegistrationsByNetwork(): Promise<
 > {
   const { client, timelockQueue } = await getTimelockQueueCollection()
   try {
-    const queued = await timelockQueue
-      .find<ITimelockQueueDoc>({ status: 'queued' })
-      .toArray()
-    const byNetwork = new Map<string, Map<string, IPendingRegistration>>()
-    for (const doc of queued) {
-      const registrations = registrationsFromQueueDoc(doc)
-      if (registrations.size === 0) continue
-      const network = doc.network.toLowerCase()
-      const forNetwork =
-        byNetwork.get(network) ?? new Map<string, IPendingRegistration>()
-      for (const [address, registration] of registrations)
-        forNetwork.set(address, registration)
-      byNetwork.set(network, forNetwork)
-    }
-    return byNetwork
+    return groupRegistrationsByNetwork(
+      await timelockQueue
+        .find<ITimelockQueueDoc>({ status: 'queued' })
+        .toArray()
+    )
   } finally {
     await client.close()
   }
