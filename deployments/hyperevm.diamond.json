@@ -92,6 +92,10 @@
       "0x4Bbe85750F2625F058285bf6ff857cd90746E1ac": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x5b5b8a9A24a7FdCbd2a0C5f238fA21DBc30673d6": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

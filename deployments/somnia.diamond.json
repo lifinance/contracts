@@ -52,6 +52,10 @@
       "0xE89881FdF22D86e2146Cd7b40633011016081Fcf": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x62268B2fEddfE106D1aA98295561d57F949e1175": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -104,6 +104,10 @@
       "0xf62aA4583bD1F0c0fBbd99D333C5F96030a1ab3F": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "0xB66f5141CCd376e1D0B2D13165B7860DcC8c675D": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

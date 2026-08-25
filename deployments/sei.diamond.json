@@ -45,8 +45,8 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x7670FC09C1d4aDA26E2199f98A221b7389B844b2": {
-        "Name": "SymbiosisFacet",
+      "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
