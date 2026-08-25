@@ -383,7 +383,7 @@ runnable there since they need the fork's USDT-safe contracts).
 
 - Official Tron JavaScript SDK (equivalent to ethers.js/web3.js for
   Ethereum)
-- Version: 6.0.0 (see `package.json`)
+- Version: `^6.1.1` (see `package.json`)
 - Handles wallet management, transaction signing, and contract interaction
 - Requires a post-install patch for compatibility
   (`script/troncast/postinstall-tronweb-fix.mjs`)
