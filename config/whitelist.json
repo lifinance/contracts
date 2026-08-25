@@ -9077,7 +9077,7 @@
     "tron": [
       {
         "name": "FeeForwarder",
-        "address": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
+        "address": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
