@@ -53,8 +53,10 @@ export function parseFraxMappings(parsed: {
       throw new Error(
         `Invalid mapping at index ${idx}: chainId=${String(m.chainId)}`
       )
-    // lzEid 0 is the facet's "unset" sentinel, so the facet rejects it on-chain
-    if (!Number.isInteger(lzEid) || lzEid <= 0)
+    // lzEid 0 is the facet's "unset" sentinel, so the facet rejects it on-chain;
+    // the upper bound is the on-chain uint32, which viem would otherwise only
+    // catch deep in the encoder, far from the config that caused it
+    if (!Number.isInteger(lzEid) || lzEid <= 0 || lzEid > 0xffffffff)
       throw new Error(
         `Invalid mapping at index ${idx}: lzEid=${String(m.lzEid)}`
       )

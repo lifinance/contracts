@@ -80,6 +80,17 @@ describe('parseFraxMappings', () => {
     ).toThrow(/lzEid=0/)
   })
 
+  it('rejects an lzEid past the on-chain uint32', () => {
+    expect(() =>
+      parseFraxMappings({ mappings: [{ chainId: 988, lzEid: 0x100000000 }] })
+    ).toThrow(/lzEid=4294967296/)
+    // the boundary value itself stays valid
+    expect(
+      parseFraxMappings({ mappings: [{ chainId: 988, lzEid: 0xffffffff }] })[0]
+        ?.lzEid
+    ).toBe(0xffffffff)
+  })
+
   it('rejects a zero chainId', () => {
     expect(() =>
       parseFraxMappings({ mappings: [{ chainId: 0, lzEid: 30101 }] })
