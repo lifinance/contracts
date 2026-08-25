@@ -49,7 +49,7 @@
     "Periphery": {
       "ERC20Proxy": "0xEd0DB7Be03Fd3de0481f6774d9173787571Bc9Ac",
       "Executor": "0x7b01E6A2badAB05e2afaAeFf963f60B5FCF3a533",
-      "FeeCollector": "0xa8e5b4e7C2D13d2ddb9a9a09BaEf376F43060064",
+      "FeeCollector": "",
       "FeeForwarder": "0xB0c62E0952A6388dA4f591B9b832B4234672A0Af",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
