@@ -1,6 +1,7 @@
 # Verify Clear-Signing Proposal is Current
 # - Purpose: block PRs that change facets / the generator / the proposal JSON without keeping `config/clearSigningProposal.json` in sync with the generator's output. Also blocks PRs that introduce a user-facing function the generator can't template.
-# - Triggers: pull_request on src/Facets/**, tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, and the workflow itself
+# - Triggers: pull_request on src/Facets/**, tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, the workflow itself,
+#   and the shared foundry setup action + .foundry-version its toolchain comes from
 # - Key behaviors: builds forge artifacts, runs `tasks/buildClearSigningProposal.ts` (strict-by-default; exits non-zero on unrecognized or shape-mismatched functions), then `git diff --exit-code` on the committed JSON
 # - Failure modes (and remedy):
 #     - Generator exited non-zero: a user-facing function doesn't match a template. Either align the facet's struct shape with LiFi.BridgeData / LibSwap.SwapData, or extend the generator (`tasks/buildClearSigningProposal.ts`) to handle the new shape.
@@ -17,6 +18,8 @@ on:
       - 'tasks/buildClearSigningProposal.ts'
       - 'config/clearSigningProposal.json'
       - '.github/workflows/verifyClearSigning.yml'
+      - '.github/actions/setup-foundry/**'
+      - '.foundry-version'
 
 permissions:
   contents: read # required to fetch repository contents
