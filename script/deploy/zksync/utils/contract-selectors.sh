@@ -7,5 +7,15 @@ for x in "${EXCLUDE[@]}"; do
   filter=$(jq -n --arg x "$x" --argjson exclude "$filter" '$exclude + [$x]')
 done
 
-SELECTORS=$(jq --argjson exclude "$filter" -r '.methodIdentifiers | . | del(.. | select(. == $exclude[])) | join(",")'  ./out/zksync/$1.sol/$1.json)
+ARTIFACTS_DIR="${3:-./out/zksync}"
+ARTIFACT="$ARTIFACTS_DIR/$1.sol/$1.json"
+
+# Fail here rather than letting jq emit an empty selector list, which would encode as a
+# no-op diamond cut instead of an error.
+if [[ ! -f "$ARTIFACT" ]]; then
+  echo "contract-selectors.sh: no build artifact at $ARTIFACT" >&2
+  exit 1
+fi
+
+SELECTORS=$(jq --argjson exclude "$filter" -r '.methodIdentifiers | . | del(.. | select(. == $exclude[])) | join(",")'  "$ARTIFACT")
 cast abi-encode "f(bytes4[])" "[$SELECTORS]"
