@@ -315,6 +315,12 @@ contract GenericSwapFacetV3 is ILiFi {
         // go through all swaps and deposit tokens, where required
         for (uint256 i = 0; i < numOfSwaps; ) {
             currentSwap = _swapData[i];
+            // TODO(EXSC-850): `requiresDeposit` is caller-supplied, so the
+            // pull below can be skipped entirely while `_executeSwaps` and
+            // the `_transfer*AndEmitEvent` helpers still emit `fromAmount`
+            // unconditionally — the same unbacked-amount spoof as the
+            // single-native path, ERC20-denominated. Emit the amount actually
+            // deposited instead, on the next version bump of this facet.
             if (currentSwap.requiresDeposit) {
                 // we will not check msg.value as tx will fail anyway if not enough value available
                 // thus we only deposit ERC20 tokens here
