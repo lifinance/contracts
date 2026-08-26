@@ -2,8 +2,10 @@
 
 `UpdateScriptBase` can rebuild the `diamondCut` calldata for a facet without broadcasting, so a
 signer can compare a pending Safe proposal against the calldata this repository's own scripts
-produce from the config on `main`. Nothing here changes how a normal deploy or proposal run
-behaves: with every variable below unset, the script runs exactly as before.
+produce from the config on `main`. With every variable below unset the cut calldata is exactly
+what it was before, with one deliberate exception: every run, recompute or not, now asserts that
+`block.chainid` matches `config/networks.json` and reverts `NetworkChainIdMismatch` when it does
+not. That can only fire when the script is pointed at the wrong chain.
 
 ## Why the inputs are overridable
 
