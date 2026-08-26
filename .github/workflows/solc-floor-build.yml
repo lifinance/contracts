@@ -61,6 +61,7 @@ jobs:
               - '.gitmodules'
               - '.github/workflows/solc-floor-build.yml'
               - '.github/actions/setup-foundry/**'
+              - '.foundry-version'
 
   solc-floor-build:
     # Runs on PRs (once out of draft) and on push/workflow_dispatch.

@@ -17,6 +17,8 @@ on:
       - 'tasks/buildClearSigningProposal.ts'
       - 'config/clearSigningProposal.json'
       - '.github/workflows/verifyClearSigning.yml'
+      - '.github/actions/setup-foundry/**'
+      - '.foundry-version'
 
 permissions:
   contents: read # required to fetch repository contents
