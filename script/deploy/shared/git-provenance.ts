@@ -471,7 +471,7 @@ function cloneGitProvenance(provenance: IGitProvenance): IGitProvenance {
  * the CI and bot branches are exercisable without a runner.
  * @param env - Environment to inspect.
  * @param hasGitIdentity - Whether a local git identity resolved.
- * @returns The detected actor; `'unknown'` when nothing identifies the caller.
+ * @returns The detected actor; {@link PROVENANCE_UNKNOWN} when nothing identifies the caller.
  */
 export function detectActor(
   env: NodeJS.ProcessEnv,

@@ -12,7 +12,10 @@ import {
   sanitizeProvenanceText,
 } from '../shared/git-provenance'
 
-import type { IProposalProvenance } from './safe-utils'
+import {
+  MAX_PROPOSAL_REASON_LENGTH,
+  type IProposalProvenance,
+} from './safe-utils'
 
 /** Dirty paths named inline before the list is elided. */
 const DIRTY_PATHS_SHOWN = 3
@@ -49,10 +52,12 @@ const known = (value: string, code: string): string =>
 const detailLine = (label: string, value: string): string =>
   `    ${`${label}:`.padEnd(LABEL_WIDTH)}${value}`
 
+type WorkingTreeUnverified = 'capture-incomplete' | 'unreadable' | undefined
+
 function formatWorkingTree(
   dirtyPaths: string[],
   truncated: boolean,
-  captureIncomplete: boolean
+  unverified: WorkingTreeUnverified
 ): string {
   if (dirtyPaths.length > 0) {
     const shown = dirtyPaths.slice(0, DIRTY_PATHS_SHOWN).join(', ')
@@ -61,11 +66,13 @@ function formatWorkingTree(
     return color(RED, `⚠ ${count} dirty: ${shown}${more}`)
   }
 
-  // An empty list is what a failed probe and a clean tree both produce, so a
-  // capture that did not complete must not be presented as a clean bill of
-  // health. Blamed on the capture as a whole, not on the dirty-tree probe:
-  // any recorded error means at least one answer here is unverified.
-  if (captureIncomplete)
+  // An empty list is what a failed probe, a missing/malformed field, and a
+  // clean tree all produce. Only a measured empty array with no capture
+  // errors may be painted green — anything else is the "clean and authored
+  // by nobody" impression this block must never give.
+  if (unverified === 'unreadable')
+    return color(YELLOW, `${PROVENANCE_UNKNOWN} (unreadable)`)
+  if (unverified === 'capture-incomplete')
     return color(YELLOW, `${PROVENANCE_UNKNOWN} (capture incomplete)`)
 
   return color(GREEN, 'clean')
@@ -120,8 +127,16 @@ export function formatProvenanceLines(
     const actor = sanitizeField(provenance.actor)
     const commit = sanitizeField(provenance.gitCommit)
     const branch = sanitizeField(provenance.gitBranch)
-    const dirtyPaths = toSanitizedList(provenance.dirtyTreeScoped)
+    const dirtyTreeIsList = Array.isArray(provenance.dirtyTreeScoped)
+    const dirtyPaths = dirtyTreeIsList
+      ? toSanitizedList(provenance.dirtyTreeScoped)
+      : []
     const captureErrors = toSanitizedList(provenance.captureErrors)
+    const workingTreeUnverified: WorkingTreeUnverified = !dirtyTreeIsList
+      ? 'unreadable'
+      : captureErrors.length > 0
+      ? 'capture-incomplete'
+      : undefined
     const shortCommit =
       commit === PROVENANCE_UNKNOWN ? commit : commit.slice(0, 12)
 
@@ -138,7 +153,7 @@ export function formatProvenanceLines(
         formatWorkingTree(
           dirtyPaths,
           provenance.dirtyTreeTruncated === true,
-          captureErrors.length > 0
+          workingTreeUnverified
         )
       ),
     ]
@@ -148,7 +163,10 @@ export function formatProvenanceLines(
 
     // A rationale of nothing but control characters sanitizes to empty, which
     // must read as "none given" rather than as a blank but present reason.
-    const reason = sanitize(provenance.reason)
+    // Recapped here so a hand-edited Mongo row cannot scroll the prompt away.
+    const reason = [...sanitize(provenance.reason)]
+      .slice(0, MAX_PROPOSAL_REASON_LENGTH)
+      .join('')
     lines.push(
       detailLine(
         'Reason',

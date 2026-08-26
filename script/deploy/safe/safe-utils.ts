@@ -152,15 +152,16 @@ export interface IProposalProvenanceOptions {
    */
   reason?: string
   /**
-   * Test seam: use this block verbatim instead of probing git, so suites that
-   * exercise the storage funnel stay deterministic and spawn no subprocesses.
+   * Test seam: use this block instead of probing git, so suites that exercise
+   * the storage funnel stay deterministic and spawn no subprocesses.
+   * Copied and sanitized before storage — never aliased, never stored raw.
    * Production code never sets it.
    */
   override?: IProposalProvenance
 }
 
 /** Longest rationale kept; the field is a one-liner for a signer, not a log. */
-const MAX_PROPOSAL_REASON_LENGTH = 200
+export const MAX_PROPOSAL_REASON_LENGTH = 200
 
 export interface ISafeTxDocument {
   safeAddress: string
@@ -1464,6 +1465,51 @@ export function normalizeProposalReason(
   return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
 }
 
+function sanitizeOverride(
+  override: IProposalProvenance,
+  fallbackReason: string | undefined
+): IProposalProvenance {
+  const actorRaw = sanitizeProvenanceText(override.actor)
+  const actor: IProposalProvenance['actor'] =
+    actorRaw === 'human' || actorRaw === 'bot' || actorRaw === 'ci'
+      ? actorRaw
+      : PROVENANCE_UNKNOWN
+
+  const overrideReason = normalizeProposalReason(override.reason)
+
+  return {
+    capturedAt:
+      sanitizeProvenanceText(override.capturedAt) || new Date().toISOString(),
+    actor,
+    proposerHandle:
+      sanitizeProvenanceText(override.proposerHandle) || PROVENANCE_UNKNOWN,
+    gitCommit: sanitizeProvenanceText(override.gitCommit) || PROVENANCE_UNKNOWN,
+    gitBranch: sanitizeProvenanceText(override.gitBranch) || PROVENANCE_UNKNOWN,
+    dirtyTreeScoped: Array.isArray(override.dirtyTreeScoped)
+      ? override.dirtyTreeScoped.map(sanitizeProvenanceText).filter(Boolean)
+      : [],
+    ...(override.dirtyTreeTruncated === true
+      ? { dirtyTreeTruncated: true }
+      : {}),
+    ...(typeof override.commitOnRemote === 'boolean'
+      ? { commitOnRemote: override.commitOnRemote }
+      : {}),
+    ...(override.prUrl !== undefined
+      ? { prUrl: sanitizeProvenanceText(override.prUrl) }
+      : {}),
+    ...(Array.isArray(override.captureErrors)
+      ? {
+          captureErrors: override.captureErrors.map(sanitizeProvenanceText),
+        }
+      : {}),
+    ...(overrideReason
+      ? { reason: overrideReason }
+      : fallbackReason
+      ? { reason: fallbackReason }
+      : {}),
+  }
+}
+
 /**
  * Assembles the provenance block stored with a proposal.
  *
@@ -1483,13 +1529,10 @@ export function buildProposalProvenance(
     options?.reason ?? process.env.SAFE_PROPOSAL_REASON
   )
 
-  // Copied, never returned by reference: the caller keeps ownership of the
-  // object it passed in and must not see it mutated by whatever stores this.
-  if (options?.override)
-    return {
-      ...options.override,
-      ...(reason && !options.override.reason ? { reason } : {}),
-    }
+  // Copied and sanitized, never returned by reference: the caller keeps
+  // ownership of the object it passed in, and a future production caller of
+  // the seam cannot store raw control characters either.
+  if (options?.override) return sanitizeOverride(options.override, reason)
 
   try {
     return {

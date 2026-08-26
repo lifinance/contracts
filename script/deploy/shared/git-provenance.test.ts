@@ -87,9 +87,10 @@ function stubRunner(
     const line = [command, ...args].join(' ')
     log.push(line)
     envLog.push(options.env)
-    const key = Object.keys(handlers).find((candidate) =>
-      line.startsWith(candidate)
-    )
+    const matches = Object.keys(handlers)
+      .filter((candidate) => line.startsWith(candidate))
+      .sort((left, right) => right.length - left.length)
+    const key = matches[0]
     return key ? (handlers[key] as ICommandResult) : fail(`unstubbed: ${line}`)
   }
 }
@@ -591,6 +592,25 @@ describe('captureGitProvenance — untrusted text is sanitized at capture', () =
 
     expect(provenance.captureErrors?.[0]).toContain('fatal:[2J spoofed')
     expect(provenance.captureErrors?.[0]).not.toContain(ESC)
+  })
+})
+
+describe('stubRunner matching', () => {
+  it('honours longest-prefix when a broad key is registered first', () => {
+    const log: string[] = []
+    const provenance = captureGitProvenance(
+      contextWith(
+        {
+          'git ': fail('broad key would steal every git command'),
+          ...happyHandlers(),
+        },
+        { log }
+      )
+    )
+
+    expect(provenance.gitCommit).toBe(SHA)
+    expect(provenance.gitBranch).toBe(BRANCH)
+    expect(log.some((line) => line.startsWith('git rev-parse HEAD'))).toBe(true)
   })
 })
 

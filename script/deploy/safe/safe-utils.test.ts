@@ -461,6 +461,33 @@ describe('buildProposalProvenance', () => {
 
     expect('reason' in provenance).toBe(false)
   })
+
+  it('returns a copy so the caller cannot mutate the stored arrays', () => {
+    const override: IProposalProvenance = {
+      ...FIXED_PROVENANCE,
+      dirtyTreeScoped: ['src/Facets/Foo.sol'],
+    }
+
+    const stored = buildProposalProvenance({ override })
+    stored.dirtyTreeScoped.push('injected')
+
+    expect(override.dirtyTreeScoped).toEqual(['src/Facets/Foo.sol'])
+  })
+
+  it('sanitizes override fields so the seam cannot store raw controls', () => {
+    const esc = String.fromCharCode(27)
+    const stored = buildProposalProvenance({
+      override: {
+        ...FIXED_PROVENANCE,
+        proposerHandle: `Mallory${esc}[2J`,
+        gitBranch: `feat/x${esc}`,
+      },
+    })
+
+    expect(stored.proposerHandle).toBe('Mallory[2J')
+    expect(stored.gitBranch).toBe('feat/x')
+    expect(stored.proposerHandle).not.toContain(esc)
+  })
 })
 
 describe('normalizeProposalReason', () => {

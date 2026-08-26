@@ -17,7 +17,10 @@ import {
 import { PROVENANCE_UNKNOWN } from '../shared/git-provenance'
 
 import { formatProvenanceLines } from './provenance-display'
-import type { IProposalProvenance } from './safe-utils'
+import {
+  MAX_PROPOSAL_REASON_LENGTH,
+  type IProposalProvenance,
+} from './safe-utils'
 
 const SHA = '1234567890abcdef1234567890abcdef12345678'
 
@@ -202,12 +205,13 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
 })
 
 describe('formatProvenanceLines — malformed rows', () => {
-  it('does not throw when dirtyTreeScoped is missing', () => {
+  it('does not throw when dirtyTreeScoped is missing, and does not call it clean', () => {
     const malformed = buildProvenance()
     delete (malformed as unknown as Record<string, unknown>).dirtyTreeScoped
 
     expect(() => formatProvenanceLines(malformed)).not.toThrow()
-    expect(render(malformed)).toContain('Working tree:    clean')
+    expect(render(malformed)).toContain('Working tree:    UNKNOWN (unreadable)')
+    expect(render(malformed)).not.toContain('Working tree:    clean')
   })
 
   it('falls back to the sentinel for every missing string field', () => {
@@ -217,6 +221,8 @@ describe('formatProvenanceLines — malformed rows', () => {
 
     expect(text).toContain('Proposed by:     UNKNOWN (UNKNOWN)')
     expect(text).toContain('Source:          UNKNOWN @ UNKNOWN')
+    expect(text).toContain('Working tree:    UNKNOWN (unreadable)')
+    expect(text).not.toContain('Working tree:    clean')
   })
 
   // A throw here would propagate out of `processTxs`, which has no handler, so
@@ -244,16 +250,25 @@ describe('formatProvenanceLines — malformed rows', () => {
     }
   )
 
-  it('treats a non-array dirty tree as unmeasured rather than as clean', () => {
+  it('treats a non-array dirty tree as unreadable rather than as clean', () => {
     const malformed = {
       ...buildProvenance(),
       dirtyTreeScoped: 'config/whitelist.json',
-      captureErrors: ['git status --porcelain failed'],
     } as unknown as IProposalProvenance
 
-    expect(render(malformed)).toContain(
-      'Working tree:    UNKNOWN (capture incomplete)'
+    expect(render(malformed)).toContain('Working tree:    UNKNOWN (unreadable)')
+    expect(render(malformed)).not.toContain('Working tree:    clean')
+  })
+
+  it('caps a hand-edited over-long reason at the same limit as capture', () => {
+    const text = render(
+      buildProvenance({ reason: 'x'.repeat(MAX_PROPOSAL_REASON_LENGTH + 50) })
     )
+
+    expect(text).toContain(
+      `Reason:          ${'x'.repeat(MAX_PROPOSAL_REASON_LENGTH)}`
+    )
+    expect(text).not.toContain('x'.repeat(MAX_PROPOSAL_REASON_LENGTH + 1))
   })
 })
 

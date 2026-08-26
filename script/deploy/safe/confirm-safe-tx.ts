@@ -19,6 +19,7 @@ import { type Address, type Hex } from 'viem'
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
+import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -398,7 +399,9 @@ const processTxs = async (
       detailLines.push(...formatProvenanceLines(tx.provenance))
     } catch (error) {
       detailLines.push(
-        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${error}\u001b[0m`
+        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${sanitizeProvenanceText(
+          error instanceof Error ? error.message : error
+        )}\u001b[0m`
       )
     }
 
