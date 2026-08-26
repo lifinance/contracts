@@ -7,7 +7,10 @@
  * clean tree, without leaving the CLI.
  */
 
-import { PROVENANCE_UNKNOWN } from '../shared/git-provenance'
+import {
+  PROVENANCE_UNKNOWN,
+  sanitizeProvenanceText,
+} from '../shared/git-provenance'
 
 import type { IProposalProvenance } from './safe-utils'
 
@@ -25,32 +28,66 @@ const RESET = '\u001b[0m'
 const color = (code: string, text: string): string => `${code}${text}${RESET}`
 
 /**
- * Drops C0/C1 control characters from proposer-supplied text.
+ * Reduces one proposer-supplied field to a single printable line.
  *
  * Everything this module renders is read by a human immediately before they
- * approve a transaction, so text carrying escape sequences could erase or
- * restyle the lines around it and misrepresent what is being signed. Only the
- * Cc category is removed, leaving legitimate non-ASCII text untouched.
+ * approve a transaction, so text carrying escape sequences, bidi overrides or
+ * line separators could repaint, reverse or fabricate the lines around it.
+ * `sanitizeProvenanceText` documents the exact classes removed; it also coerces
+ * non-strings, which is what keeps a half-migrated row from throwing here.
  */
-const sanitize = (text: string): string => text.replace(/\p{Cc}/gu, '')
+const sanitize = (value: unknown): string => sanitizeProvenanceText(value)
+
+/** Sanitizes a field whose empty result must read as a sentinel, not as blank. */
+const sanitizeField = (value: unknown): string =>
+  sanitize(value) || PROVENANCE_UNKNOWN
+
+/** Sentinel values are never painted green — only a real answer is. */
+const known = (value: string, code: string): string =>
+  color(value === PROVENANCE_UNKNOWN ? YELLOW : code, value)
 
 const detailLine = (label: string, value: string): string =>
   `    ${`${label}:`.padEnd(LABEL_WIDTH)}${value}`
 
-function formatWorkingTree(dirtyPaths: string[], truncated: boolean): string {
-  if (dirtyPaths.length === 0) return color(GREEN, 'clean')
+function formatWorkingTree(
+  dirtyPaths: string[],
+  truncated: boolean,
+  captureIncomplete: boolean
+): string {
+  if (dirtyPaths.length > 0) {
+    const shown = dirtyPaths.slice(0, DIRTY_PATHS_SHOWN).join(', ')
+    const more = dirtyPaths.length > DIRTY_PATHS_SHOWN || truncated ? ', …' : ''
+    const count = truncated ? `${dirtyPaths.length}+` : `${dirtyPaths.length}`
+    return color(RED, `⚠ ${count} dirty: ${shown}${more}`)
+  }
 
-  const shown = dirtyPaths.slice(0, DIRTY_PATHS_SHOWN).join(', ')
-  const more = dirtyPaths.length > DIRTY_PATHS_SHOWN || truncated ? ', …' : ''
-  const count = truncated ? `${dirtyPaths.length}+` : `${dirtyPaths.length}`
-  return color(RED, `⚠ ${count} dirty: ${shown}${more}`)
+  // An empty list after a failed capture means the probe never answered, and
+  // that must not be presented to a signer as a clean bill of health.
+  if (captureIncomplete)
+    return color(YELLOW, `${PROVENANCE_UNKNOWN} (dirty-tree probe incomplete)`)
+
+  return color(GREEN, 'clean')
 }
 
-function formatPushState(commitOnRemote: boolean | undefined): string {
+function formatPushState(commitOnRemote: unknown): string {
   if (commitOnRemote === true) return ''
   if (commitOnRemote === false)
     return color(RED, ' ✗ NOT PUSHED (per local refs)')
   return color(YELLOW, ' (push state unknown)')
+}
+
+function unrenderableLines(error: unknown): string[] {
+  return [
+    detailLine(
+      'Provenance',
+      color(
+        YELLOW,
+        `${PROVENANCE_UNKNOWN} — block could not be rendered: ${sanitizeField(
+          error instanceof Error ? error.message : error
+        )}`
+      )
+    ),
+  ]
 }
 
 /**
@@ -58,7 +95,10 @@ function formatPushState(commitOnRemote: boolean | undefined): string {
  *
  * Renders an explicit "not recorded" line for proposals stored before capture
  * existed: a silent gap reads as "clean and authored by nobody", which is the
- * one impression the block must never give.
+ * one impression the block must never give. Total by construction — a
+ * hand-edited or half-migrated document degrades to an unknown line instead of
+ * throwing, because a throw here aborts the signing session and takes every
+ * remaining network in the run with it.
  * @param provenance - The stored block, or `undefined` on a legacy row.
  * @returns Detail lines to append to the signing prompt; never empty.
  */
@@ -73,59 +113,67 @@ export function formatProvenanceLines(
       ),
     ]
 
-  // Tolerate partially written rows: a hand-edited or half-migrated document
-  // must degrade to "unknown", never abort the signing session.
-  const handle = sanitize(provenance.proposerHandle || PROVENANCE_UNKNOWN)
-  const actor = sanitize(provenance.actor || PROVENANCE_UNKNOWN)
-  const commit = sanitize(provenance.gitCommit || PROVENANCE_UNKNOWN)
-  const branch = sanitize(provenance.gitBranch || PROVENANCE_UNKNOWN)
-  const dirtyPaths = (provenance.dirtyTreeScoped ?? []).map((path) =>
-    sanitize(String(path))
-  )
-  const shortCommit =
-    commit === PROVENANCE_UNKNOWN ? commit : commit.slice(0, 12)
+  try {
+    const handle = sanitizeField(provenance.proposerHandle)
+    const actor = sanitizeField(provenance.actor)
+    const commit = sanitizeField(provenance.gitCommit)
+    const branch = sanitizeField(provenance.gitBranch)
+    const dirtyPaths = toSanitizedList(provenance.dirtyTreeScoped)
+    const captureErrors = toSanitizedList(provenance.captureErrors)
+    const shortCommit =
+      commit === PROVENANCE_UNKNOWN ? commit : commit.slice(0, 12)
 
-  const lines = [
-    detailLine('Proposed by', `${color(GREEN, handle)} (${actor})`),
-    detailLine(
-      'Source',
-      `${color(CYAN, shortCommit)} @ ${color(CYAN, branch)}${formatPushState(
-        provenance.commitOnRemote
-      )}`
-    ),
-    detailLine(
-      'Working tree',
-      formatWorkingTree(dirtyPaths, provenance.dirtyTreeTruncated === true)
-    ),
-  ]
+    const lines = [
+      detailLine('Proposed by', `${known(handle, GREEN)} (${actor})`),
+      detailLine(
+        'Source',
+        `${known(shortCommit, CYAN)} @ ${known(branch, CYAN)}${formatPushState(
+          provenance.commitOnRemote
+        )}`
+      ),
+      detailLine(
+        'Working tree',
+        formatWorkingTree(
+          dirtyPaths,
+          provenance.dirtyTreeTruncated === true,
+          captureErrors.length > 0
+        )
+      ),
+    ]
 
-  const prUrl = sanitize(provenance.prUrl ?? '')
-  if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
+    const prUrl = sanitize(provenance.prUrl)
+    if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
 
-  // A rationale of nothing but control characters sanitizes to empty, which
-  // must read as "none given" rather than as a blank but present reason.
-  const reason = sanitize(provenance.reason ?? '')
-  lines.push(
-    detailLine(
-      'Reason',
-      reason ? color(GREEN, reason) : color(YELLOW, '— none given —')
-    )
-  )
-
-  // Surfaced so a row full of sentinels is explainable rather than mysterious.
-  const captureErrors = provenance.captureErrors ?? []
-  if (captureErrors.length > 0)
+    // A rationale of nothing but control characters sanitizes to empty, which
+    // must read as "none given" rather than as a blank but present reason.
+    const reason = sanitize(provenance.reason)
     lines.push(
       detailLine(
-        'Capture',
-        color(
-          YELLOW,
-          `⚠ incomplete (${captureErrors.length}): ${sanitize(
-            String(captureErrors[0])
-          )}`
-        )
+        'Reason',
+        reason ? color(GREEN, reason) : color(YELLOW, '— none given —')
       )
     )
 
-  return lines
+    // Surfaced so a row full of sentinels is explainable rather than mysterious.
+    if (captureErrors.length > 0)
+      lines.push(
+        detailLine(
+          'Capture',
+          color(
+            YELLOW,
+            `⚠ incomplete (${captureErrors.length}): ${captureErrors[0]}`
+          )
+        )
+      )
+
+    return lines
+  } catch (error) {
+    return unrenderableLines(error)
+  }
+}
+
+/** Coerces a field typed as an array but not guaranteed to be one on disk. */
+function toSanitizedList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((entry) => sanitize(entry)).filter(Boolean)
 }

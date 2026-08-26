@@ -494,6 +494,22 @@ describe('normalizeProposalReason', () => {
     expect(normalized).not.toContain(esc)
   })
 
+  // The reason is also the field most likely to be read straight off a Mongo
+  // dump, so the same three capabilities denied in the display path — repaint,
+  // reverse, forge a line — have to be denied here at write time too.
+  it('strips bidi overrides and line separators, not only Cc controls', () => {
+    const RLO = '\u202e'
+    const LSEP = '\u2028'
+
+    const normalized = normalizeProposalReason(
+      `whitelist${RLO} update${LSEP}    Working tree:    clean`
+    )
+
+    expect(normalized).not.toContain(RLO)
+    expect(normalized).not.toContain(LSEP)
+    expect(normalized).toBe('whitelist update Working tree: clean')
+  })
+
   it('keeps legitimate non-ASCII text intact', () => {
     expect(normalizeProposalReason('déployer 日本語 — naïve 👨‍👩‍👧')).toBe(
       'déployer 日本語 — naïve 👨‍👩‍👧'

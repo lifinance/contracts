@@ -52,6 +52,7 @@ import {
 import {
   captureGitProvenance,
   PROVENANCE_UNKNOWN,
+  sanitizeProvenanceText,
   type IGitProvenance,
 } from '../shared/git-provenance'
 
@@ -139,8 +140,6 @@ export interface IParkedTaskRef {
  * proposer who is deliberately lying.
  */
 export interface IProposalProvenance extends IGitProvenance {
-  /** ISO-8601 capture time, distinct from the row's insert `timestamp`. */
-  capturedAt: string
   /** One-line rationale, when the proposer supplied one. */
   reason?: string
 }
@@ -1459,16 +1458,10 @@ export function computeProposalIntentHash(
 export function normalizeProposalReason(
   raw: string | undefined
 ): string | undefined {
-  // Whitespace collapses first so newlines and tabs become word breaks; the
-  // remaining control characters are dropped outright because this text is
-  // rendered into the prompt a signer reads, where an escape sequence could
-  // repaint or erase the surrounding lines.
-  const collapsed = (raw ?? '')
-    .replace(/\s+/gu, ' ')
-    .replace(/\p{Cc}/gu, '')
-    .trim()
+  const collapsed = sanitizeProvenanceText(raw)
   if (collapsed.length === 0) return undefined
-  return collapsed.slice(0, MAX_PROPOSAL_REASON_LENGTH)
+  // Capped by code point, so the cut cannot leave a lone surrogate half behind.
+  return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
 }
 
 /**
@@ -1490,28 +1483,29 @@ export function buildProposalProvenance(
     options?.reason ?? process.env.SAFE_PROPOSAL_REASON
   )
 
+  // Copied, never returned by reference: the caller keeps ownership of the
+  // object it passed in and must not see it mutated by whatever stores this.
   if (options?.override)
-    return reason && !options.override.reason
-      ? { ...options.override, reason }
-      : options.override
+    return {
+      ...options.override,
+      ...(reason && !options.override.reason ? { reason } : {}),
+    }
 
-  const capturedAt = new Date().toISOString()
   try {
     return {
       ...captureGitProvenance(),
-      capturedAt,
       ...(reason ? { reason } : {}),
     }
   } catch (error) {
     // Backstop only — capture is fail-soft internally and should not reach here.
     return {
+      capturedAt: new Date().toISOString(),
       actor: PROVENANCE_UNKNOWN,
       proposerHandle: PROVENANCE_UNKNOWN,
       gitCommit: PROVENANCE_UNKNOWN,
       gitBranch: PROVENANCE_UNKNOWN,
       dirtyTreeScoped: [],
       captureErrors: [`provenance capture failed: ${error}`],
-      capturedAt,
       ...(reason ? { reason } : {}),
     }
   }

@@ -19,9 +19,58 @@ import { spawnSync } from 'node:child_process'
 /**
  * Sentinel for a value that could not be determined. Deliberately distinct from
  * `undefined`, which on a stored record means "written before provenance
- * capture existed" rather than "capture ran and failed".
+ * capture existed" rather than "capture ran and failed". Uppercase to match the
+ * sentinel `getCurrentGitCommitHash` writes into the deployment log, so a
+ * failed capture reads the same in both records.
  */
-export const PROVENANCE_UNKNOWN = 'unknown'
+export const PROVENANCE_UNKNOWN = 'UNKNOWN'
+
+/**
+ * Characters dropped from every captured or rendered string.
+ *
+ * `Cc` covers ESC and the other C0/C1 controls, which can repaint or erase a
+ * terminal line. `Cf` covers the bidi overrides and isolates that reverse
+ * displayed text (Trojan Source) plus the zero-width spaces that hide it, and
+ * `Zl`/`Zp` cover U+2028/U+2029, which several terminals break a line on — that
+ * is enough to forge an extra, plausible-looking line in the signing prompt.
+ * U+200D is the single exception: it is the joiner that holds an emoji grapheme
+ * cluster together and cannot reorder or repaint anything.
+ */
+const PROVENANCE_STRIPPED_CHARS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
+const ZERO_WIDTH_JOINER = '\u200d'
+
+/**
+ * Reduces untrusted text to a single line of printable characters.
+ *
+ * Everything provenance records is proposer-supplied (git identity, branch and
+ * file names, `gh`/`git` stderr, the free-text reason) and is later rendered
+ * into the prompt a signer reads immediately before approving a transaction.
+ * Applied at capture time so every downstream consumer — the signing prompt, a
+ * Mongo dump, a dashboard — inherits the same guarantee.
+ * @param value - Any value; non-strings are coerced, `null`/`undefined` to `''`.
+ * @returns The value with whitespace collapsed to single spaces, control,
+ * formatting and line-separator characters removed, and the ends trimmed.
+ */
+export function sanitizeProvenanceText(value: unknown): string {
+  return (
+    String(value ?? '')
+      // Whitespace collapses first so a newline or tab survives as a word break
+      // rather than silently welding two words together when it is stripped.
+      .replace(/\s+/gu, ' ')
+      .replace(PROVENANCE_STRIPPED_CHARS, (char) =>
+        char === ZERO_WIDTH_JOINER ? char : ''
+      )
+      // Removing a run of controls can leave the spaces that surrounded it
+      // adjacent, so collapse once more.
+      .replace(/ {2,}/gu, ' ')
+      .trim()
+  )
+}
+
+/** Sanitizes a field whose empty result must read as a failed capture. */
+function sanitizeField(value: unknown): string {
+  return sanitizeProvenanceText(value) || PROVENANCE_UNKNOWN
+}
 
 /** Most dirty paths recorded; overflow is reported via a truncation flag. */
 export const MAX_DIRTY_PATHS = 20
@@ -59,7 +108,7 @@ const BRANCHES_WITHOUT_PR: ReadonlySet<string> = new Set([
 ])
 
 /** Execution context a captured artefact was produced in. */
-export type ProvenanceActor = 'human' | 'bot' | 'ci' | 'unknown'
+export type ProvenanceActor = 'human' | 'bot' | 'ci' | typeof PROVENANCE_UNKNOWN
 
 /** Outcome of one subprocess run. Never represents a thrown error. */
 export interface ICommandResult {
@@ -112,6 +161,13 @@ export interface IDirtyTree {
 
 /** Ambient git state describing the code a run was produced from. */
 export interface IGitProvenance {
+  /**
+   * ISO-8601 time the git state below was read. Stamped inside the capture and
+   * carried by the memo, so every proposal in a multi-network run reports the
+   * moment its git fields were actually measured rather than the moment it was
+   * stored.
+   */
+  capturedAt: string
   /** Execution context: a human at a workstation, a bot, or CI. */
   actor: ProvenanceActor
   /** `"Name <email>"`, the CI actor login, or {@link PROVENANCE_UNKNOWN}. */
@@ -138,7 +194,7 @@ export interface IGitProvenance {
 }
 
 /** Result of a capture in which nothing at all could be determined. */
-const UNKNOWN_GIT_PROVENANCE: IGitProvenance = {
+const UNKNOWN_GIT_PROVENANCE: Omit<IGitProvenance, 'capturedAt'> = {
   actor: PROVENANCE_UNKNOWN,
   proposerHandle: PROVENANCE_UNKNOWN,
   gitCommit: PROVENANCE_UNKNOWN,
@@ -147,9 +203,16 @@ const UNKNOWN_GIT_PROVENANCE: IGitProvenance = {
 }
 
 /**
- * Process-lifetime memo. The multi-network task scripts store one proposal per
- * network in a loop; without this, a 50-network run would spawn several hundred
- * git processes to re-derive state that cannot change mid-run.
+ * Process-lifetime memo of a *successful* capture. The multi-network task
+ * scripts store one proposal per network in a loop; without this, a 50-network
+ * run would spawn several hundred git processes to re-derive state that cannot
+ * change mid-run.
+ *
+ * Only complete captures are cached: memoizing a failure would let one
+ * transient spawn error on the first network stamp every later proposal in the
+ * run as unknown. The memo is not keyed on the caller's options, so `cwd`,
+ * `env`, `run` and `resolvePrUrl` take effect on the first call of a process
+ * only — tests must call {@link resetGitProvenanceCache} between contexts.
  */
 let cachedProvenance: IGitProvenance | undefined
 
@@ -389,7 +452,8 @@ function openPrUrl(branch: string, ctx: IResolvedContext): string | undefined {
       },
     }
   )
-  return url && url.startsWith('https://') ? url : undefined
+  const clean = sanitizeProvenanceText(url)
+  return clean.startsWith('https://') ? clean : undefined
 }
 
 function cloneGitProvenance(provenance: IGitProvenance): IGitProvenance {
@@ -495,10 +559,11 @@ export function resetGitProvenanceCache(): void {
 /**
  * Captures the full ambient git state in one pass.
  *
- * Memoized for the process lifetime, so the multi-network loops pay for the
- * subprocesses once rather than once per network. Never throws: an outer
- * backstop converts any unexpected failure into all-sentinel values with the
- * cause recorded in `captureErrors`.
+ * Memoized for the process lifetime once it succeeds, so the multi-network
+ * loops pay for the subprocesses once rather than once per network; see
+ * {@link cachedProvenance} for what the memo deliberately does not cover. Never
+ * throws: an outer backstop converts any unexpected failure into all-sentinel
+ * values with the cause recorded in `captureErrors`.
  * @param options - Optional overrides plus `resolvePrUrl` (default `true`).
  * @returns A populated block; every field degrades to a sentinel on failure.
  */
@@ -508,6 +573,7 @@ export function captureGitProvenance(
   if (cachedProvenance) return cloneGitProvenance(cachedProvenance)
 
   const errors = options?.errors ?? []
+  const capturedAt = new Date().toISOString()
   let captured: IGitProvenance
   try {
     const ctx = resolveContext({ ...options, errors })
@@ -520,28 +586,34 @@ export function captureGitProvenance(
       options?.resolvePrUrl === false ? undefined : openPrUrl(branch, ctx)
 
     captured = {
+      capturedAt,
       actor: detectActor(ctx.env, identity !== undefined),
-      proposerHandle: proposerHandle(ctx, identity),
-      gitCommit: commit,
-      gitBranch: branch,
-      dirtyTreeScoped: dirty.paths,
+      proposerHandle: sanitizeField(proposerHandle(ctx, identity)),
+      gitCommit: sanitizeField(commit),
+      gitBranch: sanitizeField(branch),
+      dirtyTreeScoped: dirty.paths.map(sanitizeProvenanceText).filter(Boolean),
       ...(dirty.truncated ? { dirtyTreeTruncated: true } : {}),
       ...(onRemote === undefined ? {} : { commitOnRemote: onRemote }),
       ...(prUrl ? { prUrl } : {}),
-      ...(errors.length > 0 ? { captureErrors: [...errors] } : {}),
+      ...(errors.length > 0
+        ? { captureErrors: errors.map(sanitizeProvenanceText) }
+        : {}),
     }
   } catch (error) {
     captured = {
       ...UNKNOWN_GIT_PROVENANCE,
+      capturedAt,
       captureErrors: [
         ...errors,
         `provenance capture failed: ${
           error instanceof Error ? error.message : String(error)
         }`,
-      ],
+      ].map(sanitizeProvenanceText),
     }
   }
 
-  cachedProvenance = captured
+  // A failed capture is never memoized: one transient spawn error would
+  // otherwise mark every remaining network in the run as unknown.
+  if (!captured.captureErrors?.length) cachedProvenance = captured
   return cloneGitProvenance(captured)
 }

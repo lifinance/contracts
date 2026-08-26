@@ -146,6 +146,7 @@ describe('captureGitProvenance — happy path', () => {
     const provenance = captureGitProvenance(contextWith(happyHandlers()))
 
     expect(provenance).toEqual({
+      capturedAt: expect.any(String),
       actor: 'human',
       proposerHandle: 'Alice Example <alice@example.com>',
       gitCommit: SHA,
@@ -155,6 +156,7 @@ describe('captureGitProvenance — happy path', () => {
       prUrl: PR_URL,
     })
     expect(provenance.captureErrors).toBeUndefined()
+    expect(Number.isNaN(Date.parse(provenance.capturedAt))).toBe(false)
   })
 
   it('joins name and email, and falls back to whichever one resolves', () => {
@@ -525,17 +527,70 @@ describe('captureGitProvenance — memoization', () => {
     expect(log.length).toBe(callsAfterFirst * 2)
   })
 
-  it('preserves capture errors across cached reads', () => {
-    const handlers = happyHandlers()
-    handlers['git status --porcelain'] = fail()
-    const context = contextWith(handlers)
+  // A memoized failure is worse than no memo: one transient spawn error on the
+  // first network of a 50-network run would stamp every later proposal in that
+  // run as unknown, long after the condition cleared.
+  it('does not memoize a failed capture, and recovers once the probe works', () => {
+    const broken = happyHandlers()
+    broken['git status --porcelain'] = fail()
+    const log: string[] = []
+
+    const first = captureGitProvenance(contextWith(broken, { log }))
+    const callsAfterFirst = log.length
+    const second = captureGitProvenance(contextWith(happyHandlers(), { log }))
+
+    expect(first.captureErrors).toBeDefined()
+    // Re-probed rather than served from the memo.
+    expect(log.length).toBeGreaterThan(callsAfterFirst)
+    expect(second.captureErrors).toBeUndefined()
+  })
+
+  it('keeps one capturedAt for every proposal served from the memo', () => {
+    const context = contextWith(happyHandlers())
 
     const first = captureGitProvenance(context)
     const second = captureGitProvenance(context)
 
-    expect(first.captureErrors).toBeDefined()
-    expect(second.captureErrors).toEqual(first.captureErrors ?? [])
-    expect(second.captureErrors).not.toBe(first.captureErrors)
+    // Otherwise proposal 50 would carry a fresh timestamp over proposal 1's
+    // git state, which reads as freshly measured when it is not.
+    expect(second.capturedAt).toBe(first.capturedAt)
+  })
+})
+
+describe('captureGitProvenance — untrusted text is sanitized at capture', () => {
+  const ESC = String.fromCharCode(27)
+  /** RIGHT-TO-LEFT OVERRIDE (Cf) and LINE SEPARATOR (Zl). */
+  const RLO = '\u202e'
+  const LSEP = '\u2028'
+
+  it('strips control, bidi and line-separator characters from every field', () => {
+    const handlers = happyHandlers()
+    handlers['git config user.name'] = ok(`Mallory${ESC}[2J${RLO}`)
+    handlers['git config user.email'] = ok('mallory@example.com')
+    handlers['git rev-parse --abbrev-ref HEAD'] = ok(`feat/x${LSEP}fake`)
+    handlers['git status --porcelain'] = ok(` M src/${RLO}gnp.stessa`)
+
+    const provenance = captureGitProvenance(contextWith(handlers))
+
+    for (const field of [
+      provenance.proposerHandle,
+      provenance.gitBranch,
+      ...provenance.dirtyTreeScoped,
+    ])
+      expect(new RegExp(`[${ESC}${RLO}${LSEP}]`, 'u').test(field)).toBe(false)
+
+    expect(provenance.gitBranch).toBe('feat/x fake')
+    expect(provenance.dirtyTreeScoped).toEqual(['src/gnp.stessa'])
+  })
+
+  it('sanitizes the stderr it records as a capture error', () => {
+    const handlers = happyHandlers()
+    handlers['git status --porcelain'] = fail(`fatal:${ESC}[2J spoofed`)
+
+    const provenance = captureGitProvenance(contextWith(handlers))
+
+    expect(provenance.captureErrors?.[0]).toContain('fatal:[2J spoofed')
+    expect(provenance.captureErrors?.[0]).not.toContain(ESC)
   })
 })
 

@@ -392,7 +392,15 @@ const processTxs = async (
         detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
     }
 
-    detailLines.push(...formatProvenanceLines(tx.provenance))
+    // Belt-and-braces around a total function: no shape of stored row may cost
+    // the operator the rest of the networks in this run.
+    try {
+      detailLines.push(...formatProvenanceLines(tx.provenance))
+    } catch (error) {
+      detailLines.push(
+        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${error}\u001b[0m`
+      )
+    }
 
     consola.info(detailLines.join('\n'))
 
