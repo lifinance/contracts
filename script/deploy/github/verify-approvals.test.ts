@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { Octokit } from '@octokit/rest'
 import {
   afterEach,
   beforeEach,
@@ -12,82 +11,28 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { EnvironmentEnum } from '../../common/types'
+
 import {
-  collectApprovalFailures,
-  getFilesInPR,
+  collectDeployGateFailures,
   parseFacetList,
   reportApprovalResult,
+  resolveAuditCommitHash,
   resolveGithubToken,
-  verifyApprovals,
+  verifyDeployGate,
+  type IDeployGateDeps,
   type IReportTarget,
 } from './verify-approvals'
 
-const APPROVED_INPUT = {
-  facets: ['AcrossFacet'],
-  changedFiles: ['src/Facets/AcrossFacet.sol'],
-  scTeam: ['dev-one'],
-  auditors: ['auditor-one'],
-  approvers: ['dev-one', 'auditor-one'],
+const PROD_BRANCH = {
+  environment: EnvironmentEnum.production,
+  branch: 'deploy/across',
+  hasOpenPr: true,
 }
 
-interface IStubResponses {
-  pulls?: unknown[]
-  files?: unknown[]
-  reviews?: unknown[]
-  teams?: Record<string, unknown[]>
-  failingRoutes?: string[]
-}
-
-/**
- * Builds a client that mimics the `octokit.paginate(route, params)` surface the script
- * uses, resolving each route from canned responses instead of hitting GitHub.
- */
-function stubOctokit(responses: IStubResponses): Octokit {
-  const rest = {
-    pulls: {
-      list: 'pulls.list',
-      listFiles: 'pulls.listFiles',
-      listReviews: 'pulls.listReviews',
-    },
-    teams: { listMembersInOrg: 'teams.listMembersInOrg' },
-  }
-
-  const paginate = async (
-    route: unknown,
-    params: { team_slug?: string } = {}
-  ): Promise<unknown[]> => {
-    if (responses.failingRoutes?.includes(String(route)))
-      throw new Error('Bad credentials')
-
-    if (route === rest.pulls.list) return responses.pulls ?? []
-    if (route === rest.pulls.listFiles) return responses.files ?? []
-    if (route === rest.pulls.listReviews) return responses.reviews ?? []
-    if (route === rest.teams.listMembersInOrg)
-      return responses.teams?.[params.team_slug ?? ''] ?? []
-
-    throw new Error(`unexpected route: ${String(route)}`)
-  }
-
-  return { paginate, rest } as unknown as Octokit
-}
-
-/**
- * Asserts `promise` rejects with an error whose message matches `match`. Kept as a
- * helper (rather than `expect().rejects`) so the awaited value is a real Promise —
- * `@typescript-eslint/await-thenable` rejects awaiting bun's matcher.
- */
-async function expectRejects(
-  promise: Promise<unknown>,
-  match: RegExp
-): Promise<void> {
-  let error: Error | undefined
-  try {
-    await promise
-  } catch (caught) {
-    error = caught as Error
-  }
-  expect(error).toBeInstanceOf(Error)
-  expect(error?.message).toMatch(match)
+const MATCHING_FACET = {
+  name: 'AcrossFacet',
+  matchesMain: true,
 }
 
 /** Captures what the CLI would print and the code it would exit with. */
@@ -108,6 +53,17 @@ function captureReport(): IReportTarget & {
   }
 
   return captured
+}
+
+function stubDeps(overrides: Partial<IDeployGateDeps> = {}): IDeployGateDeps {
+  return {
+    mainRef: 'origin/main',
+    fileMatchesRef: () => true,
+    getContractVersion: async () => '1.0.0',
+    resolveAuditCommitHash: () => 'aa'.repeat(20),
+    getOpenPrCount: async () => 1,
+    ...overrides,
+  }
 }
 
 describe('parseFacetList', () => {
@@ -150,45 +106,144 @@ describe('resolveGithubToken', () => {
   })
 })
 
-describe('collectApprovalFailures', () => {
-  it('reports no failures when every requirement is met', () => {
-    expect(collectApprovalFailures(APPROVED_INPUT)).toEqual([])
-  })
-
-  it('reports facets that the PR does not touch', () => {
+describe('collectDeployGateFailures', () => {
+  it('allows staging deploys regardless of branch, PR, or audit state', () => {
     expect(
-      collectApprovalFailures({
-        ...APPROVED_INPUT,
-        facets: ['AcrossFacet', 'AmarokFacet'],
+      collectDeployGateFailures({
+        environment: EnvironmentEnum.staging,
+        branch: 'feature/wip',
+        hasOpenPr: false,
+        facets: [{ name: 'AcrossFacet', matchesMain: false }],
       })
-    ).toEqual(['AmarokFacet is not included in this PR'])
+    ).toEqual([])
   })
 
-  it('reports an empty facet list', () => {
+  it('allows production deploys from main even when the working tree diverges', () => {
     expect(
-      collectApprovalFailures({ ...APPROVED_INPUT, facets: [] })
-    ).toContain('No facets were passed to the check')
+      collectDeployGateFailures({
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        hasOpenPr: false,
+        facets: [{ name: 'AcrossFacet', matchesMain: false }],
+      })
+    ).toEqual([])
   })
 
-  it('reports unusable team lists', () => {
+  it('allows a production feature-branch deploy when every selected facet matches main', () => {
     expect(
-      collectApprovalFailures({ ...APPROVED_INPUT, auditors: [] })
-    ).toContain('Team members not configured correctly')
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        hasOpenPr: false,
+        facets: [MATCHING_FACET, { name: 'AmarokFacet', matchesMain: true }],
+      })
+    ).toEqual([])
   })
 
-  it('reports a PR without any approval', () => {
-    expect(
-      collectApprovalFailures({ ...APPROVED_INPUT, approvers: [] })
-    ).toEqual(['No approvals', 'Missing required approvals'])
+  it('reports an empty facet list on production feature branches', () => {
+    expect(collectDeployGateFailures({ ...PROD_BRANCH, facets: [] })).toEqual([
+      'No facets were passed to the check',
+    ])
   })
 
-  it('requires an approval from both the smart contract team and the auditors', () => {
+  it('requires an open PR when a selected facet does not match main', () => {
     expect(
-      collectApprovalFailures({ ...APPROVED_INPUT, approvers: ['dev-one'] })
-    ).toEqual(['Missing required approvals'])
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        hasOpenPr: false,
+        facets: [
+          {
+            name: 'AcrossFacet',
+            matchesMain: false,
+            version: '1.0.0',
+            auditCommitHash: 'aa'.repeat(20),
+            matchesAuditedCommit: true,
+          },
+        ],
+      })
+    ).toEqual(['No open PR found for branch "deploy/across"'])
+  })
+
+  it('requires an audit-log commit hash when a selected facet does not match main', () => {
     expect(
-      collectApprovalFailures({ ...APPROVED_INPUT, approvers: ['auditor-one'] })
-    ).toEqual(['Missing required approvals'])
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        facets: [
+          {
+            name: 'AcrossFacet',
+            matchesMain: false,
+            version: '1.2.0',
+          },
+        ],
+      })
+    ).toEqual([
+      'AcrossFacet (v1.2.0) has no audit log entry with a commit hash',
+    ])
+  })
+
+  it('rejects a diverged facet that has changed since its audited commit', () => {
+    expect(
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        facets: [
+          {
+            name: 'AcrossFacet',
+            matchesMain: false,
+            version: '1.0.0',
+            auditCommitHash: 'bb'.repeat(20),
+            matchesAuditedCommit: false,
+          },
+        ],
+      })
+    ).toEqual([
+      `AcrossFacet has changed since audited commit ${'bb'.repeat(20)}`,
+    ])
+  })
+
+  it('allows a diverged facet that has an open PR, an audit, and a frozen audited commit', () => {
+    expect(
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        facets: [
+          MATCHING_FACET,
+          {
+            name: 'AmarokFacet',
+            matchesMain: false,
+            version: '1.0.0',
+            auditCommitHash: 'cc'.repeat(20),
+            matchesAuditedCommit: true,
+          },
+        ],
+      })
+    ).toEqual([])
+  })
+})
+
+describe('resolveAuditCommitHash', () => {
+  const log = {
+    audits: {
+      auditOld: { auditCommitHash: '11'.repeat(20) },
+      auditNada: {
+        auditCommitHash: 'n/a (forked contract)',
+      },
+      auditNew: { auditCommitHash: '22'.repeat(20) },
+    },
+    auditedContracts: {
+      AcrossFacet: {
+        '1.0.0': ['auditOld', 'auditNada', 'auditNew'],
+        '2.0.0': ['auditNada'],
+      },
+    },
+  }
+
+  it('returns the latest usable 40-char hash for the contract version', () => {
+    expect(resolveAuditCommitHash(log, 'AcrossFacet', '1.0.0')).toBe(
+      '22'.repeat(20)
+    )
+  })
+
+  it('returns undefined when the version has no usable commit hash', () => {
+    expect(resolveAuditCommitHash(log, 'AcrossFacet', '2.0.0')).toBeUndefined()
+    expect(resolveAuditCommitHash(log, 'MissingFacet', '1.0.0')).toBeUndefined()
   })
 })
 
@@ -205,166 +260,96 @@ describe('reportApprovalResult', () => {
   it('exits non-zero and writes nothing to stdout on failure', () => {
     const target = captureReport()
 
-    reportApprovalResult(['Missing required approvals'], target)
+    reportApprovalResult(
+      ['No open PR found for branch "deploy/across"'],
+      target
+    )
 
     expect(target.exitCode).toBe(1)
     expect(target.written).toEqual([])
   })
 })
 
-describe('getFilesInPR', () => {
-  it('returns every file across pages, well beyond the unpaginated 30-file page', async () => {
-    const files = Array.from({ length: 45 }, (_, index) => ({
-      filename: `src/Facets/Facet${index}.sol`,
-      status: 'modified',
-    }))
+describe('verifyDeployGate', () => {
+  it('does not look up GitHub or audits when every facet matches main', async () => {
+    let openPrLookups = 0
+    let auditLookups = 0
 
-    const result = await getFilesInPR(stubOctokit({ files }), 1)
-
-    expect(result).toHaveLength(45)
-    expect(result).toContain('src/Facets/Facet44.sol')
-  })
-
-  it('ignores files that are neither added nor modified', async () => {
-    const result = await getFilesInPR(
-      stubOctokit({
-        files: [
-          { filename: 'src/Facets/AcrossFacet.sol', status: 'added' },
-          { filename: 'src/Facets/OldFacet.sol', status: 'removed' },
-        ],
-      }),
-      1
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'deploy/across',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => true,
+        resolveAuditCommitHash: () => {
+          auditLookups += 1
+          return 'aa'.repeat(20)
+        },
+        getOpenPrCount: async () => {
+          openPrLookups += 1
+          return 0
+        },
+      })
     )
 
-    expect(result).toEqual(['src/Facets/AcrossFacet.sol'])
-  })
-})
-
-describe('verifyApprovals', () => {
-  const approvedRepo: IStubResponses = {
-    pulls: [{ number: 7, head: { ref: 'feature/across' } }],
-    files: [{ filename: 'src/Facets/AcrossFacet.sol', status: 'modified' }],
-    reviews: [
-      { state: 'APPROVED', user: { login: 'dev-one' } },
-      { state: 'APPROVED', user: { login: 'auditor-one' } },
-      { state: 'COMMENTED', user: { login: 'someone-else' } },
-    ],
-    teams: {
-      smartcontract: [{ login: 'dev-one' }],
-      auditors: [{ login: 'auditor-one' }],
-    },
-  }
-
-  it('returns no failures for an approved PR', async () => {
-    expect(
-      await verifyApprovals(stubOctokit(approvedRepo), 'feature/across', [
-        'AcrossFacet',
-      ])
-    ).toEqual([])
+    expect(failures).toEqual([])
+    expect(openPrLookups).toBe(0)
+    expect(auditLookups).toBe(0)
   })
 
-  it('fails when only a comment, not an approval, is present', async () => {
-    expect(
-      await verifyApprovals(
-        stubOctokit({ ...approvedRepo, reviews: [] }),
-        'feature/across',
-        ['AcrossFacet']
-      )
-    ).toEqual(['No approvals', 'Missing required approvals'])
-  })
-
-  it('discounts an approval that the same user later superseded with CHANGES_REQUESTED', async () => {
-    expect(
-      await verifyApprovals(
-        stubOctokit({
-          ...approvedRepo,
-          reviews: [
-            ...(approvedRepo.reviews ?? []),
-            { state: 'CHANGES_REQUESTED', user: { login: 'auditor-one' } },
-          ],
-        }),
-        'feature/across',
-        ['AcrossFacet']
-      )
-    ).toEqual(['Missing required approvals'])
-  })
-
-  it('discounts a dismissed approval', async () => {
-    expect(
-      await verifyApprovals(
-        stubOctokit({
-          ...approvedRepo,
-          reviews: [
-            { state: 'DISMISSED', user: { login: 'dev-one' } },
-            { state: 'APPROVED', user: { login: 'auditor-one' } },
-          ],
-        }),
-        'feature/across',
-        ['AcrossFacet']
-      )
-    ).toEqual(['Missing required approvals'])
-  })
-
-  it('keeps an approval standing when the same user later merely comments', async () => {
-    expect(
-      await verifyApprovals(
-        stubOctokit({
-          ...approvedRepo,
-          reviews: [
-            ...(approvedRepo.reviews ?? []),
-            { state: 'COMMENTED', user: { login: 'auditor-one' } },
-          ],
-        }),
-        'feature/across',
-        ['AcrossFacet']
-      )
-    ).toEqual([])
-  })
-
-  it('fails when no open PR exists for the branch', async () => {
-    expect(
-      await verifyApprovals(stubOctokit({ pulls: [] }), 'feature/orphan', [
-        'AcrossFacet',
-      ])
-    ).toEqual(['No open PR found for branch "feature/orphan"'])
-  })
-
-  it('propagates lookup errors instead of returning an empty (approved) result', async () => {
-    await expectRejects(
-      verifyApprovals(
-        stubOctokit({ ...approvedRepo, failingRoutes: ['pulls.listFiles'] }),
-        'feature/across',
-        ['AcrossFacet']
-      ),
-      /Bad credentials/
+  it('looks up the open PR and audit freeze only for facets that differ from main', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'feature/across-v2',
+        facets: ['AcrossFacet', 'AmarokFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: (ref, path) =>
+          path.includes('AcrossFacet') ? ref !== 'origin/main' : true,
+        getContractVersion: async (name) =>
+          name === 'AcrossFacet' ? '2.0.0' : '1.0.0',
+        resolveAuditCommitHash: (name) =>
+          name === 'AcrossFacet' ? 'dd'.repeat(20) : undefined,
+        getOpenPrCount: async () => 1,
+      })
     )
+
+    expect(failures).toEqual([])
   })
 
-  it('turns an unreadable team into an error rather than an empty team list', async () => {
-    await expectRejects(
-      verifyApprovals(
-        stubOctokit({
-          ...approvedRepo,
-          failingRoutes: ['teams.listMembersInOrg'],
-        }),
-        'feature/across',
-        ['AcrossFacet']
-      ),
-      /read:org/
+  it('fails closed when a diverged facet has no open PR', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'feature/orphan',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: (ref) => ref !== 'origin/main',
+        getOpenPrCount: async () => 0,
+      })
     )
+
+    expect(failures).toContain('No open PR found for branch "feature/orphan"')
   })
 })
 
 describe('verify-approvals CLI', () => {
-  it('exits non-zero without printing the success marker when no token is available', () => {
+  const script = join(import.meta.dir, 'verify-approvals.ts')
+
+  it('allows staging deploys without a GitHub token', () => {
     const env = { ...process.env }
     delete env.GH_TOKEN
 
-    // run outside the repo so a local .env cannot supply a token
     const result = spawnSync(
       process.execPath,
       [
-        join(import.meta.dir, 'verify-approvals.ts'),
+        script,
+        '--environment',
+        'staging',
         '--branch',
         'feature/some-branch',
         '--facets',
@@ -375,8 +360,31 @@ describe('verify-approvals CLI', () => {
       { cwd: tmpdir(), env, encoding: 'utf8' }
     )
 
-    expect(result.status).not.toBe(0)
-    expect(result.stdout).not.toContain('OK')
-    expect(result.stderr).toContain('GH_TOKEN')
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('OK')
+  })
+
+  it('allows production deploys from main without a GitHub token', () => {
+    const env = { ...process.env }
+    delete env.GH_TOKEN
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        script,
+        '--environment',
+        'production',
+        '--branch',
+        'main',
+        '--facets',
+        'AcrossFacet',
+        '--token',
+        '',
+      ],
+      { cwd: tmpdir(), env, encoding: 'utf8' }
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('OK')
   })
 })

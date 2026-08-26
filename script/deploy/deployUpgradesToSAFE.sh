@@ -33,15 +33,16 @@ deployUpgradesToSAFE() {
   fi
 
   GIT_BRANCH=$(git branch --show-current)
-  # We can assume code in the main branch has been pre-approved and audited
-  if [[ "$GIT_BRANCH" != "main" ]]; then
-    # verify-approvals.ts reports its verdict through the exit code: 0 = approved,
-    # anything else (missing approvals, missing facets, failed GitHub lookup) = stop
-    if ! bun --silent script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS"; then
-      error "PR approval check failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
+  # Production from main is always allowed. Production from any other branch is
+  # allowed only when the selected facet sources match main, or when the branch
+  # has an open PR and those sources are frozen at the audited commit.
+  # Staging is not gated.
+  if [[ "$ENVIRONMENT" == "production" && "$GIT_BRANCH" != "main" ]]; then
+    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --token "${GH_TOKEN:-}" --facets "$SCRIPTS"; then
+      error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
       return 1
     fi
-    echo "PR has been approved. Continuing..."
+    echo "Production deploy gate passed. Continuing..."
   fi
 
   # Loop through each script and call "forge script" to get the cut calldata
@@ -50,7 +51,7 @@ deployUpgradesToSAFE() {
   while IFS= read -r -u3 SCRIPT; do
     [[ -z "$SCRIPT" ]] && continue
     UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
-    PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
     echo "Calculating facet cuts for $SCRIPT..."
 
     # Execute, parse, and check return code
@@ -63,9 +64,9 @@ deployUpgradesToSAFE() {
     fi
 
     CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
-    FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
+    FACET_CUT=$(jq -r '.returns.cutData.value' <<< "${CLEAN_RETURN_DATA:-}")
     if [ "$FACET_CUT" != "0x" ]; then
-      echo "Proposing facet cut for $script..."
+      echo "Proposing facet cut for $SCRIPT..."
       DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
       RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
       bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
