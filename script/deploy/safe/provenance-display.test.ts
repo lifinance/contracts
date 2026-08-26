@@ -174,9 +174,7 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
       })
     )
 
-    expect(text).toContain(
-      'Working tree:    UNKNOWN (dirty-tree probe incomplete)'
-    )
+    expect(text).toContain('Working tree:    UNKNOWN (capture incomplete)')
     expect(text).not.toContain('Working tree:    clean')
   })
 
@@ -254,7 +252,7 @@ describe('formatProvenanceLines — malformed rows', () => {
     } as unknown as IProposalProvenance
 
     expect(render(malformed)).toContain(
-      'Working tree:    UNKNOWN (dirty-tree probe incomplete)'
+      'Working tree:    UNKNOWN (capture incomplete)'
     )
   })
 })

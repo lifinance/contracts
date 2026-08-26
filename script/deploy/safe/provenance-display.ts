@@ -61,10 +61,12 @@ function formatWorkingTree(
     return color(RED, `⚠ ${count} dirty: ${shown}${more}`)
   }
 
-  // An empty list after a failed capture means the probe never answered, and
-  // that must not be presented to a signer as a clean bill of health.
+  // An empty list is what a failed probe and a clean tree both produce, so a
+  // capture that did not complete must not be presented as a clean bill of
+  // health. Blamed on the capture as a whole, not on the dirty-tree probe:
+  // any recorded error means at least one answer here is unverified.
   if (captureIncomplete)
-    return color(YELLOW, `${PROVENANCE_UNKNOWN} (dirty-tree probe incomplete)`)
+    return color(YELLOW, `${PROVENANCE_UNKNOWN} (capture incomplete)`)
 
   return color(GREEN, 'clean')
 }
