@@ -10,12 +10,20 @@ done
 ARTIFACTS_DIR="${3:-./out}"
 ARTIFACT="$ARTIFACTS_DIR/$1.sol/$1.json"
 
-# Fail here rather than letting jq emit an empty selector list, which would encode as a
-# no-op diamond cut instead of an error.
+# Every failure below otherwise yields an empty selector list, which encodes as a valid
+# no-op diamond cut rather than an error - the caller cannot tell the two apart.
 if [[ ! -f "$ARTIFACT" ]]; then
   echo "contract-selectors.sh: no build artifact at $ARTIFACT" >&2
   exit 1
 fi
 
-SELECTORS=$(jq --argjson exclude "$filter" -r '.methodIdentifiers | . | del(.. | select(. == $exclude[])) | join(",")'  "$ARTIFACT")
+if ! SELECTORS=$(jq --argjson exclude "$filter" -er '.methodIdentifiers | . | del(.. | select(. == $exclude[])) | join(",")'  "$ARTIFACT"); then
+  echo "contract-selectors.sh: could not read methodIdentifiers from $ARTIFACT" >&2
+  exit 1
+fi
+
+if [[ -z "$SELECTORS" ]]; then
+  echo "contract-selectors.sh: no selectors left for $1 in $ARTIFACT" >&2
+  exit 1
+fi
 cast abi-encode "f(bytes4[])" "[$SELECTORS]"

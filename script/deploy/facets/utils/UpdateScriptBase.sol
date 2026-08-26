@@ -21,6 +21,7 @@ contract UpdateScriptBase is ScriptBase {
     error DiamondHasNoCode(address diamond);
     error DiamondStateNotPinned();
     error DiamondStateBlockMismatch(uint256 expected, uint256 actual);
+    error VerificationModeNotSupported();
 
     string internal constant DEFAULT_SELECTOR_ARTIFACTS_DIR = "./out";
 
@@ -62,8 +63,9 @@ contract UpdateScriptBase is ScriptBase {
         CutOptions memory options = _readCutOptions();
         cutOptions = options;
 
-        // A verification run recomputes calldata for comparison and must never send a transaction,
-        // regardless of what the caller passed for NO_BROADCAST.
+        // A verification run recomputes calldata for comparison, so it must not send a transaction
+        // even if the caller passed NO_BROADCAST=false. Scripts that broadcast outside update()
+        // are not covered by this and must call _rejectVerificationMode() instead.
         noBroadcast = options.noBroadcast || options.verificationMode;
 
         path = string.concat(
@@ -95,20 +97,25 @@ contract UpdateScriptBase is ScriptBase {
         returns (CutOptions memory options)
     {
         options.noBroadcast = vm.envOr("NO_BROADCAST", false);
-        options.facetAddress = vm.envOr("FACET_ADDRESS_OVERRIDE", address(0));
-        options.expectedDiamond = vm.envOr(
-            "EXPECTED_DIAMOND_ADDRESS",
-            address(0)
-        );
-        options.selectorArtifactsDir = vm.envOr(
-            "SELECTOR_ARTIFACTS_DIR",
-            DEFAULT_SELECTOR_ARTIFACTS_DIR
-        );
-        options.verificationMode = vm.envOr("CUT_VERIFICATION_MODE", false);
-        options.diamondStateBlock = vm.envOr(
-            "DIAMOND_STATE_BLOCK",
-            uint256(0)
-        );
+
+        // Read strictly rather than via envOr: envOr swallows a set-but-unparseable value and
+        // returns the default, so a typo in any of these would silently switch the check it
+        // controls back off and hand the caller a confident, unverified result.
+        options.facetAddress = vm.envExists("FACET_ADDRESS_OVERRIDE")
+            ? vm.envAddress("FACET_ADDRESS_OVERRIDE")
+            : address(0);
+        options.expectedDiamond = vm.envExists("EXPECTED_DIAMOND_ADDRESS")
+            ? vm.envAddress("EXPECTED_DIAMOND_ADDRESS")
+            : address(0);
+        options.selectorArtifactsDir = vm.envExists("SELECTOR_ARTIFACTS_DIR")
+            ? vm.envString("SELECTOR_ARTIFACTS_DIR")
+            : DEFAULT_SELECTOR_ARTIFACTS_DIR;
+        options.verificationMode =
+            vm.envExists("CUT_VERIFICATION_MODE") &&
+            vm.envBool("CUT_VERIFICATION_MODE");
+        options.diamondStateBlock = vm.envExists("DIAMOND_STATE_BLOCK")
+            ? vm.envUint("DIAMOND_STATE_BLOCK")
+            : 0;
     }
 
     /// @dev Seam so tests can supply deployment data without writing into the repo's deployments/ tree.
@@ -120,6 +127,8 @@ contract UpdateScriptBase is ScriptBase {
     ///      neither is trustworthy on its own. Bind them to sources the proposer does not control:
     ///      the chain the RPC actually points at (via config/networks.json) and, when the caller
     ///      knows which diamond it is verifying, an explicitly pinned address.
+    ///      The config path is fixed rather than honouring NETWORKS_JSON_FILE_PATH: a trust anchor
+    ///      that an env var can redirect is not one.
     function _checkDiamondAddress() internal view {
         string memory networksJson = vm.readFile(
             string.concat(root, "/config/networks.json")
@@ -160,16 +169,23 @@ contract UpdateScriptBase is ScriptBase {
             );
     }
 
+    /// @dev For scripts that resolve facet addresses themselves instead of through update(), so the
+    ///      overrides never reach them. Refusing is the honest answer: such a run would otherwise
+    ///      report a confident match computed entirely from the local, proposer-written state.
+    function _rejectVerificationMode() internal view {
+        if (cutOptions.verificationMode) revert VerificationModeNotSupported();
+    }
+
     /// @dev The address a proposal claims for the new facet is proven legitimate by bytecode
     ///      attestation elsewhere; here it only has to be injectable so the cut can be rebuilt
     ///      without trusting the local deployments file.
     function _resolveFacetAddress(
-        string memory name
+        string memory _name
     ) internal view returns (address) {
         if (cutOptions.facetAddress != address(0))
             return cutOptions.facetAddress;
 
-        return json.readAddress(string.concat(".", name));
+        return json.readAddress(string.concat(".", _name));
     }
 
     function update(

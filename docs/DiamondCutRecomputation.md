@@ -46,6 +46,18 @@ changes the expected calldata. `CUT_VERIFICATION_MODE=true` therefore refuses to
 A mismatch is a distinct condition from "the calldata differs": it means the comparison could not
 be made reproducibly, not that the proposal is wrong.
 
+## What the mode does not do
+
+Verification mode does **not** require the three overrides above — it only requires the block pin.
+A run with `CUT_VERIFICATION_MODE=true` and no overrides succeeds and recomputes entirely from the
+local `deployments/<network>.json` and the local `./out`, which is exactly the input the mode
+declares untrustworthy. The caller is responsible for passing all three; a signing tool built on
+this must not treat "verification mode was on" as evidence on its own.
+
+Two update scripts resolve facet addresses themselves rather than through `update()`, so the
+overrides never reach them: `UpdateCoreFacets.s.sol` and `UpdateDiamondLoupeFacet.s.sol`. Both
+revert with `VerificationModeNotSupported` instead of returning a result that only looks verified.
+
 ## Example
 
 ```bash
