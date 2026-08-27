@@ -109,19 +109,6 @@ export interface INetwork {
    */
   gasPrice?: number
   /**
-   * When true, script/deploy/healthCheck.ts runs no invariant on this network and reports it as
-   * skipped with a warning, so the lost coverage still reaches the consolidated report and Slack.
-   *
-   * Reach for a narrower carve-out first — CORE_FACET_EXEMPTIONS and CORE_PERIPHERY_EXEMPTIONS
-   * drop one contract from the expected set, HEALTH_CHECK_EXCLUSIONS drops one invariant, and
-   * everything else stays enforced. A contract that is intentionally not deployed on a network
-   * (TokenWrapper where there is no native asset to wrap) belongs in the exemption table, not here.
-   *
-   * No upstream network sets this. It exists for the contracts-tron fork, where sync PRs would
-   * otherwise fail on upstream on-chain state (see docs/TronFork.md).
-   */
-  skipHealthcheck?: boolean
-  /**
    * Chains with no native currency (`nativeCurrency: "N/A"`, e.g. tempo): the ERC20 token gas is
    * paid in by default (tempo: the pathUSD TIP-20 predeploy). Funding audits read this token's
    * balance instead of eth_getBalance, which returns a meaningless sentinel on such chains.

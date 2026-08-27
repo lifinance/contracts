@@ -110,31 +110,6 @@ export async function runHealthCheckForNetwork(
       '../../config/networks.json'
     )
 
-    // Optional bypass: config/networks.json skipHealthcheck (see INetwork.skipHealthcheck in script/common/types.ts).
-    const networkEntry = (
-      networksConfig as Record<
-        string,
-        { skipHealthcheck?: boolean } | undefined
-      >
-    )[networkLower]
-    if (networkEntry?.skipHealthcheck === true) {
-      // A skip is reduced coverage, not a clean bill of health, so it is reported as a warning:
-      // that puts it in the consolidated report and the Slack digest instead of leaving a chain
-      // silently unchecked. Prefer a narrower carve-out over this flag — CORE_FACET_EXEMPTIONS /
-      // CORE_PERIPHERY_EXEMPTIONS drop one contract, HEALTH_CHECK_EXCLUSIONS drops one invariant;
-      // this drops all of them. It exists for the contracts-tron fork, where sync PRs otherwise
-      // fail on upstream on-chain state (see docs/TronFork.md).
-      const skipWarning = `Network '${networkLower}' is fully unchecked: skipHealthcheck is set in config/networks.json`
-      consola.warn(skipWarning)
-      return {
-        network: networkStr,
-        status: 'skipped',
-        errors: [],
-        warnings: [skipWarning],
-        skipReason: 'skipHealthcheck: true in config/networks.json',
-      }
-    }
-
     // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (
       networksConfig as Record<string, { gasZipChainId?: number } | undefined>

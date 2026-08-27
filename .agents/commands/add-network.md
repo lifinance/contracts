@@ -89,7 +89,7 @@ No per-network work in the normal case. Both health-check workflows share one in
 
 Two fields set in earlier steps change what runs: `gasZipChainId: 0` skips the GasZip invariants, and `safeAddress` drives `safe-config`. On a chain with no native asset (`nativeCurrency: "N/A"`) also set `feeTokenAddress`, or `pauser-funded` cannot read a gas balance and only warns.
 
-If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. **Never** use `skipHealthcheck` — it disables every check on that network for good, which is how three chains went unverified for months (EXSC-786).
+If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. There is deliberately no way to disable the check for a whole network — the blanket flag that used to exist left three chains unverified for months (EXSC-786).
 
 ---
 
@@ -114,7 +114,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 - [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
 - [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
 - [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.
-- [ ] Health check: nothing to add unless a core contract cannot exist here — then use the exemption tables, never `skipHealthcheck`.
+- [ ] Health check: nothing to add unless a core contract cannot exist here — then add a reasoned exemption-table entry.
 
 ---
 

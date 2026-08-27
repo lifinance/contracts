@@ -88,21 +88,6 @@ describe('summarizeHealthChecks', () => {
     expect(summary.warned).toEqual(['arbitrum'])
   })
 
-  // A skipHealthcheck network is unchecked, not healthy: runHealthCheckForNetwork attaches a
-  // warning so the skip reaches the Slack digest instead of being a silent hole.
-  it('counts a skipped network as warned when it reports a skip warning', () => {
-    const summary = summarizeHealthChecks([
-      {
-        network: 'somechain',
-        status: 'skipped',
-        warnings: ['fully unchecked: skipHealthcheck is set'],
-        detail: 'skipHealthcheck: true in config/networks.json',
-      },
-    ])
-    expect(summary.skipped).toEqual(['somechain'])
-    expect(summary.warned).toEqual(['somechain'])
-  })
-
   it('handles the all-passed case', () => {
     const summary = summarizeHealthChecks([
       { network: 'polygon', status: 'passed', warnings: [], detail: '' },
@@ -243,7 +228,7 @@ describe('groupFailuresByCause', () => {
           network: 'somechain',
           status: 'skipped',
           warnings: [],
-          detail: 'skipHealthcheck: true in config/networks.json',
+          detail: 'Health checks are not implemented for Tron Shasta testnet',
         },
       ])
     ).toEqual([])
