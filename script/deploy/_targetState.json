@@ -2231,7 +2231,6 @@
         "GasZipPeriphery": "1.0.2",
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
         "PolymerCCTPFacet": "3.0.0",
         "ReceiverOIF": "1.0.0"
       }

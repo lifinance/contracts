@@ -19,6 +19,7 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
   formatEther,
+  formatUnits,
   getAddress,
   getContract,
   parseAbi,
@@ -107,7 +108,16 @@ export interface IHealthCheckContext {
   deployedContracts: Record<string, Address | string>
   globalConfig: IHealthCheckGlobalConfig
   targetState: TargetState
-  networkConfig: { rpcUrl?: string; safeAddress?: string }
+  networkConfig: {
+    rpcUrl?: string
+    safeAddress?: string
+    /** `"N/A"` marks a chain with no native asset, where `eth_getBalance` is not the gas balance. */
+    nativeCurrency?: string
+    /** Chain-default ERC20 gas token on such a chain (tempo's pathUSD). */
+    feeTokenAddress?: string
+    /** Predeploy resolving a per-account fee-token preference that overrides the default. */
+    feeManagerAddress?: string
+  }
   publicClient?: PublicClient
   tronWeb?: TronWeb
   tronRpcUrl?: string
@@ -338,6 +348,56 @@ export function getExemptCoreFacets(
 }
 
 /**
+ * A core periphery contract that cannot exist on some chains, together with those chains.
+ * The periphery counterpart of {@link ICoreFacetExemption}, and preferred over an
+ * {@link IInvariantExclusion} for the same reason: excluding `core-periphery-deployed` on a
+ * network would stop asserting ERC20Proxy, Executor, FeeForwarder and the rest there, whereas
+ * this drops one contract from the expected set and leaves everything else enforced.
+ *
+ * Unlike the facet table this is not always a shrinking to-do — an entry can be permanent when
+ * the chain makes the contract meaningless (nothing to wrap on a chain with no native asset).
+ */
+export interface ICorePeripheryExemption {
+  /** Periphery name as listed in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) the contract is not expected on. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-periphery exemptions. See {@link ICorePeripheryExemption}.
+ *
+ * Validated in `healthCheckInvariants.test.ts` the same way as the facet table: the contract
+ * must really be in `corePeriphery`, every network must exist in `config/networks.json`, and
+ * the reason must be non-empty.
+ */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] = [
+  {
+    contract: 'TokenWrapper',
+    reason:
+      'TokenWrapper wraps a chain native asset into its ERC20 form. Arc has no activated native path (gas is USDC via the ERC20 predeploy) and tempo has no native asset at all (gas is paid in TIP-20 fee tokens), so on both chains there is nothing to wrap and the contract is intentionally never deployed (EXSC-786).',
+    networks: ['arc', 'tempo'],
+  },
+]
+
+/**
+ * Core periphery contracts the given network is exempt from, with the reason for each. Pure;
+ * network match is case-insensitive. A network absent from every entry gets an empty list, so
+ * new chains are enforced by default.
+ */
+export function getExemptCorePeriphery(
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): Array<{ contract: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ contract: e.contract, reason: e.reason }))
+}
+
+/**
  * Decide whether an invariant applies to the given context. Pure: depends only on the
  * invariant scope and the environment/chain/testnet/gaszip flags in the context.
  */
@@ -401,6 +461,53 @@ const OWNABLE_ABI = parseAbi([
 
 const getOwnableContract = (address: Address, client: PublicClient) =>
   getContract({ address, abi: OWNABLE_ABI, client })
+
+const ERC20_BALANCE_ABI = parseAbi([
+  'function balanceOf(address account) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+])
+
+const FEE_MANAGER_ABI = parseAbi([
+  'function userTokens(address account) external view returns (address)',
+])
+
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
+/**
+ * The ERC20 token the pauser would actually pay gas with; `undefined` when the chain uses standard
+ * native accounting, `NO_GAS_BALANCE_SOURCE` when no gas balance can be read at all.
+ *
+ * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
+ * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
+ * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
+ * the two. On such a chain the account may override the chain-default `feeTokenAddress` through a
+ * FeeManager predeploy, so that preference wins where it is set. Mirrors the resolution order in
+ * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
+ *
+ * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
+ * falling through: its native balance is a sentinel, so reading it would report any pauser as
+ * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
+ */
+async function resolvePauserFeeToken(
+  ctx: IHealthCheckContext
+): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
+  const { nativeCurrency, feeTokenAddress, feeManagerAddress } =
+    ctx.networkConfig
+  if (nativeCurrency !== 'N/A' || !ctx.publicClient) return undefined
+  if (!feeTokenAddress) return NO_GAS_BALANCE_SOURCE
+
+  let feeToken = getAddress(feeTokenAddress)
+  if (feeManagerAddress) {
+    const userToken = await getContract({
+      address: getAddress(feeManagerAddress),
+      abi: FEE_MANAGER_ABI,
+      client: ctx.publicClient,
+    }).read.userTokens([ctx.pauserWallet as Address])
+    if (userToken && userToken !== zeroAddress) feeToken = getAddress(userToken)
+  }
+  return feeToken
+}
 
 /**
  * Assert an EVM contract's `owner()` equals `expectedOwner`. No-op when the contract is
@@ -1377,6 +1484,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      peripheryToCheck = peripheryToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1576,6 +1687,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      contractsToCheck = contractsToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       if (contractsToCheck.length === 0) return
 
@@ -2136,14 +2251,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     // run. This lightweight floor closes both: it runs on Tron and at deploy time (the sweep's
     // push trigger), while the readiness workflow remains the authoritative affordability gate.
     name: 'pauser-funded',
-    description: 'Pauser wallet has a non-zero native balance',
+    description: 'Pauser wallet has a non-zero gas balance',
     severity: 'error',
     // skipTestnet: the two coverage gaps this closes are both mainnet (Tron mainnet pauser +
     // freshly deployed EVM mainnet pausers); testnet pausers (incl. the localanvil smoke-test
     // sandbox, whose pauser is unfunded) are not a production readiness invariant.
     scope: { environments: ['production'], skipTestnet: true },
     remediation:
-      'Fund the pauser wallet with native gas so it can broadcast pauseDiamond() in an incident.',
+      'Fund the pauser wallet with the gas asset of that chain (its fee token where the chain has no native asset) so it can broadcast pauseDiamond() in an incident.',
     run: async (ctx) => {
       if (ctx.isTron && ctx.tronWeb) {
         const pauserTronAddress = ensureTronAddress(
@@ -2163,6 +2278,43 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!ctx.publicClient) return
+
+      // A chain with no native asset decouples eth_getBalance from the gas balance: tempo
+      // answers it with a sentinel (4242…4242), which reads as "funded" no matter how much
+      // gas the pauser can actually pay for. Read the ERC20 fee token instead, matching the
+      // discriminator and the preference hierarchy in script/utils/checkPauserFunds.sh.
+      const feeToken = await resolvePauserFeeToken(ctx)
+      if (feeToken === NO_GAS_BALANCE_SOURCE) {
+        ctx.logWarn(
+          `${ctx.networkLower} has no native asset and no feeTokenAddress in config/networks.json, so the pauser's gas balance cannot be read; coverage is reduced`
+        )
+        return
+      }
+      if (feeToken) {
+        const token = getContract({
+          address: feeToken,
+          abi: ERC20_BALANCE_ABI,
+          client: ctx.publicClient,
+        })
+        const [rawBalance, decimals, symbol] = await Promise.all([
+          token.read.balanceOf([ctx.pauserWallet as Address]),
+          token.read.decimals(),
+          token.read.symbol(),
+        ])
+        if (!rawBalance)
+          ctx.logError(
+            `Pauser wallet ${ctx.pauserWallet} has no ${symbol} (${feeToken}) balance, and ${ctx.networkLower} pays gas in that fee token`
+          )
+        else
+          consola.success(
+            `Pauser wallet ${ctx.pauserWallet} is funded: ${formatUnits(
+              rawBalance,
+              decimals
+            )} ${symbol} (fee token ${feeToken})`
+          )
+        return
+      }
+
       const balance = await ctx.publicClient.getBalance({
         address: ctx.pauserWallet as Address,
       })
