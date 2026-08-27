@@ -96,7 +96,7 @@ describe('summarizeHealthChecks', () => {
         network: 'somechain',
         status: 'skipped',
         warnings: ['fully unchecked: skipHealthcheck is set'],
-        detail: 'skipHealthcheck',
+        detail: 'skipHealthcheck: true in config/networks.json',
       },
     ])
     expect(summary.skipped).toEqual(['somechain'])
@@ -243,7 +243,7 @@ describe('groupFailuresByCause', () => {
           network: 'somechain',
           status: 'skipped',
           warnings: [],
-          detail: 'skipHealthcheck',
+          detail: 'skipHealthcheck: true in config/networks.json',
         },
       ])
     ).toEqual([])

@@ -479,17 +479,23 @@ const FEE_MANAGER_ABI = parseAbi([
  * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
  * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
  * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
- * the two. Where the chain also configures a FeeManager predeploy, an account may override the
- * chain-default token, so the override is resolved first. Mirrors the resolution order in
+ * the two. The chain-default `feeTokenAddress` is then replaced by the account's own preference
+ * where the chain configures a FeeManager predeploy. Mirrors the resolution order in
  * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
+ *
+ * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
+ * falling through: its native balance is a sentinel, so reading it would report any pauser as
+ * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
  */
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
 async function resolvePauserFeeToken(
   ctx: IHealthCheckContext
-): Promise<Address | undefined> {
+): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
   const { nativeCurrency, feeTokenAddress, feeManagerAddress } =
     ctx.networkConfig
-  if (nativeCurrency !== 'N/A' || !feeTokenAddress || !ctx.publicClient)
-    return undefined
+  if (nativeCurrency !== 'N/A' || !ctx.publicClient) return undefined
+  if (!feeTokenAddress) return NO_GAS_BALANCE_SOURCE
 
   let feeToken = getAddress(feeTokenAddress)
   if (feeManagerAddress) {
@@ -2278,6 +2284,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // gas the pauser can actually pay for. Read the ERC20 fee token instead, matching the
       // discriminator and the preference hierarchy in script/utils/checkPauserFunds.sh.
       const feeToken = await resolvePauserFeeToken(ctx)
+      if (feeToken === NO_GAS_BALANCE_SOURCE) {
+        ctx.logWarn(
+          `${ctx.networkLower} has no native asset and no feeTokenAddress in config/networks.json, so the pauser's gas balance cannot be read; coverage is reduced`
+        )
+        return
+      }
       if (feeToken) {
         const token = getContract({
           address: feeToken,

@@ -619,11 +619,115 @@ describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
   it('no exempt network still lists the contract in its production target state', () => {
     for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
       for (const network of exemption.networks) {
-        const contracts =
-          (targetState as TargetState)[network.toLowerCase()]?.production
-            ?.LiFiDiamond ?? {}
-        expect(Object.keys(contracts)).not.toContain(exemption.contract)
+        // Assert the target state resolves before reading it: defaulting a missing entry to {}
+        // would pass this test for a network that has no production target state at all, which
+        // is the reduced-coverage case healthCheck.ts warns about, not agreement between sources.
+        const contracts = (targetState as TargetState)[network.toLowerCase()]
+          ?.production?.LiFiDiamond
+        expect(contracts).toBeDefined()
+        expect(Object.keys(contracts ?? {})).not.toContain(exemption.contract)
       }
+  })
+})
+
+describe('pauser-funded gas-balance source', () => {
+  const PAUSER = '0x00000000000000000000000000000000000000P1'.replace('P', 'a')
+  const FEE_TOKEN = '0x20C0000000000000000000000000000000000000'
+  const FEE_MANAGER = '0xfeec000000000000000000000000000000000000'
+  const OVERRIDE_TOKEN = '0x00000000000000000000000000000000000000ff'
+  // tempo answers eth_getBalance with this sentinel: any test that reaches getBalance on a
+  // no-native-asset chain would report the pauser as funded, which is the bug being fixed.
+  const SENTINEL = 4242424242424242424242424242424242424242424242424242n
+
+  function makePauserCtx(
+    networkConfig: Record<string, string>,
+    balances: Record<string, bigint>,
+    override: string = ZERO
+  ) {
+    const calls: string[] = []
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      networkLower: 'somechain',
+      pauserWallet: PAUSER,
+      networkConfig,
+      publicClient: {
+        getBalance: async () => {
+          calls.push('getBalance')
+          return SENTINEL
+        },
+        readContract: async ({
+          address,
+          functionName,
+        }: {
+          address: string
+          functionName: string
+        }) => {
+          calls.push(`${functionName}@${address.toLowerCase()}`)
+          if (functionName === 'userTokens') return override
+          if (functionName === 'decimals') return 6
+          if (functionName === 'symbol') return 'pathUSD'
+          return balances[address.toLowerCase()] ?? 0n
+        },
+      },
+    })
+    return { ctx, calls }
+  }
+
+  const feeTokenConfig = {
+    nativeCurrency: 'N/A',
+    feeTokenAddress: FEE_TOKEN,
+    feeManagerAddress: FEE_MANAGER,
+  }
+
+  it('reads the fee token, never the sentinel native balance, on a no-native-asset chain', async () => {
+    const { ctx, calls } = makePauserCtx(feeTokenConfig, {
+      [FEE_TOKEN.toLowerCase()]: 5_000_000n,
+    })
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).not.toContain('getBalance')
+  })
+
+  it('errors when the fee-token balance is zero', async () => {
+    const { ctx, calls } = makePauserCtx(feeTokenConfig, {})
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('pathUSD')
+    expect(calls).not.toContain('getBalance')
+  })
+
+  it('follows the FeeManager per-account override to a different token', async () => {
+    const { ctx, calls } = makePauserCtx(
+      feeTokenConfig,
+      { [OVERRIDE_TOKEN.toLowerCase()]: 1n },
+      OVERRIDE_TOKEN
+    )
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).toContain(`balanceOf@${OVERRIDE_TOKEN.toLowerCase()}`)
+    expect(calls).not.toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}`)
+  })
+
+  // Without a fee token there is no readable gas balance; falling through to getBalance would
+  // read the sentinel and report any pauser as funded.
+  it('warns instead of passing when a no-native-asset chain has no fee token configured', async () => {
+    const { ctx, calls } = makePauserCtx({ nativeCurrency: 'N/A' }, {})
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('coverage is reduced')
+    expect(calls).not.toContain('getBalance')
+  })
+
+  it('keeps chains with an ERC20 gas asset but standard accounting on the native path', async () => {
+    // arc pays gas in USDC via a predeploy, yet eth_getBalance IS the gas balance there.
+    const { ctx, calls } = makePauserCtx(
+      { nativeCurrency: 'USDC', feeTokenAddress: FEE_TOKEN },
+      {}
+    )
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).toEqual(['getBalance'])
   })
 })
 
