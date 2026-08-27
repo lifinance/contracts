@@ -8,10 +8,12 @@ import { type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
-import { EnvironmentEnum } from '../common/types'
+import { EnvironmentEnum, type TargetState } from '../common/types'
 
+import targetState from './_targetState.json'
 import {
   CORE_FACET_EXEMPTIONS,
+  CORE_PERIPHERY_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   isDeterministicReadFailure,
@@ -20,6 +22,7 @@ import {
   splitByParkedCoverage,
   findDuplicateSelectors,
   getExemptCoreFacets,
+  getExemptCorePeriphery,
   getExpectedPairs,
   getInvariantExclusion,
   isInvariantApplicable,
@@ -27,6 +30,7 @@ import {
   type IHealthCheckContext,
   type IHealthCheckInvariant,
   type ICoreFacetExemption,
+  type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
@@ -560,6 +564,66 @@ describe('CORE_FACET_EXEMPTIONS table integrity', () => {
       const lower = exemption.networks.map((n) => n.toLowerCase())
       expect(new Set(lower).size).toBe(lower.length)
     }
+  })
+})
+
+describe('getExemptCorePeriphery', () => {
+  const sample: ICorePeripheryExemption[] = [
+    { contract: 'SomePeriphery', reason: 'because', networks: ['somechain'] },
+  ]
+
+  it('returns the contract and reason for an exempt network', () => {
+    expect(getExemptCorePeriphery('somechain', sample)).toEqual([
+      { contract: 'SomePeriphery', reason: 'because' },
+    ])
+  })
+
+  it('matches the network case-insensitively', () => {
+    expect(getExemptCorePeriphery('SomeChain', sample)).toHaveLength(1)
+  })
+
+  it('returns nothing for a network that is not listed, so new chains stay enforced', () => {
+    expect(getExemptCorePeriphery('brandnewchain', sample)).toEqual([])
+  })
+})
+
+describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
+  const corePeriphery = new Set<string>(globalConfig.corePeriphery)
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a contract that is actually core periphery', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(corePeriphery).toContain(exemption.contract)
+  })
+
+  it('every exempt network is a known network', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      for (const network of exemption.networks)
+        expect(knownNetworks).toContain(network.toLowerCase())
+  })
+
+  it('every exemption carries a non-empty reason', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+  })
+
+  it('lists no network twice per contract', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS) {
+      const lower = exemption.networks.map((n) => n.toLowerCase())
+      expect(new Set(lower).size).toBe(lower.length)
+    }
+  })
+
+  // An exemption that the target state still demands would be silently re-imposed by
+  // periphery-registered, so the two sources must agree.
+  it('no exempt network still lists the contract in its production target state', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      for (const network of exemption.networks) {
+        const contracts =
+          (targetState as TargetState)[network.toLowerCase()]?.production
+            ?.LiFiDiamond ?? {}
+        expect(Object.keys(contracts)).not.toContain(exemption.contract)
+      }
   })
 })
 

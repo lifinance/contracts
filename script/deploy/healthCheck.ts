@@ -26,6 +26,7 @@ import {
 import targetStateImport from './_targetState.json'
 import {
   getExemptCoreFacets,
+  getExemptCorePeriphery,
   runHealthCheckInvariants,
   type IHealthCheckContext,
 } from './healthCheckInvariants'
@@ -116,14 +117,23 @@ export async function runHealthCheckForNetwork(
         { skipHealthcheck?: boolean } | undefined
       >
     )[networkLower]
-    if (networkEntry?.skipHealthcheck === true)
+    if (networkEntry?.skipHealthcheck === true) {
+      // A skip is reduced coverage, not a clean bill of health, so it is reported as a warning:
+      // that puts it in the consolidated report and the Slack digest instead of leaving a chain
+      // silently unchecked. Prefer a narrower carve-out over this flag — CORE_FACET_EXEMPTIONS /
+      // CORE_PERIPHERY_EXEMPTIONS drop one contract, HEALTH_CHECK_EXCLUSIONS drops one invariant;
+      // this drops all of them. It exists for the contracts-tron fork, where sync PRs otherwise
+      // fail on upstream on-chain state (see docs/TronFork.md).
+      const skipWarning = `Network '${networkLower}' is fully unchecked: skipHealthcheck is set in config/networks.json`
+      consola.warn(skipWarning)
       return {
         network: networkStr,
         status: 'skipped',
         errors: [],
-        warnings: [],
+        warnings: [skipWarning],
         skipReason: 'skipHealthcheck: true in config/networks.json',
       }
+    }
 
     // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (
@@ -137,6 +147,11 @@ export async function runHealthCheckForNetwork(
     for (const { facet, reason } of exemptCoreFacets)
       consola.info(
         `⏭  Not requiring core facet [${facet}] on ${networkLower} — exempt: ${reason}`
+      )
+
+    for (const { contract, reason } of getExemptCorePeriphery(networkLower))
+      consola.info(
+        `⏭  Not requiring core periphery [${contract}] on ${networkLower} — exempt: ${reason}`
       )
 
     const coreFacetExclusions = [
