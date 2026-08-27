@@ -631,14 +631,18 @@ describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
 })
 
 describe('pauser-funded gas-balance source', () => {
-  const PAUSER = '0x00000000000000000000000000000000000000P1'.replace('P', 'a')
+  const PAUSER = '0x00000000000000000000000000000000000000a1'
+  const OTHER_WALLET = '0x00000000000000000000000000000000000000b2'
   const FEE_TOKEN = '0x20C0000000000000000000000000000000000000'
   const FEE_MANAGER = '0xfeec000000000000000000000000000000000000'
   const OVERRIDE_TOKEN = '0x00000000000000000000000000000000000000ff'
-  // tempo answers eth_getBalance with this sentinel: any test that reaches getBalance on a
-  // no-native-asset chain would report the pauser as funded, which is the bug being fixed.
+  // tempo answers eth_getBalance with this sentinel on every account.
   const SENTINEL = 4242424242424242424242424242424242424242424242424242n
 
+  /**
+   * Every recorded call carries the account it was made for, so a read against the wrong wallet
+   * fails the assertions rather than passing on the right contract with the wrong subject.
+   */
   function makePauserCtx(
     networkConfig: Record<string, string>,
     balances: Record<string, bigint>,
@@ -649,20 +653,25 @@ describe('pauser-funded gas-balance source', () => {
     Object.assign(ctx, {
       networkLower: 'somechain',
       pauserWallet: PAUSER,
+      refundWallet: OTHER_WALLET,
+      deployerWallet: OTHER_WALLET,
       networkConfig,
       publicClient: {
-        getBalance: async () => {
-          calls.push('getBalance')
+        getBalance: async ({ address }: { address: string }) => {
+          calls.push(`getBalance:${address.toLowerCase()}`)
           return SENTINEL
         },
         readContract: async ({
           address,
           functionName,
+          args,
         }: {
           address: string
           functionName: string
+          args?: unknown[]
         }) => {
-          calls.push(`${functionName}@${address.toLowerCase()}`)
+          const account = String(args?.[0] ?? '').toLowerCase()
+          calls.push(`${functionName}@${address.toLowerCase()}:${account}`)
           if (functionName === 'userTokens') return override
           if (functionName === 'decimals') return 6
           if (functionName === 'symbol') return 'pathUSD'
@@ -685,15 +694,20 @@ describe('pauser-funded gas-balance source', () => {
     })
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toEqual([])
-    expect(calls).not.toContain('getBalance')
+    expect(calls).toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}:${PAUSER}`)
+    expect(calls.some((c) => c.startsWith('getBalance'))).toBe(false)
   })
 
-  it('errors when the fee-token balance is zero', async () => {
-    const { ctx, calls } = makePauserCtx(feeTokenConfig, {})
+  it('errors when the pauser fee-token balance is zero', async () => {
+    const { ctx, calls } = makePauserCtx(feeTokenConfig, {
+      // A funded OTHER wallet must not make the check pass for the pauser.
+      [OVERRIDE_TOKEN.toLowerCase()]: 5_000_000n,
+    })
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('pathUSD')
-    expect(calls).not.toContain('getBalance')
+    expect(calls).toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}:${PAUSER}`)
+    expect(calls.some((c) => c.startsWith('getBalance'))).toBe(false)
   })
 
   it('follows the FeeManager per-account override to a different token', async () => {
@@ -704,8 +718,13 @@ describe('pauser-funded gas-balance source', () => {
     )
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toEqual([])
-    expect(calls).toContain(`balanceOf@${OVERRIDE_TOKEN.toLowerCase()}`)
-    expect(calls).not.toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}`)
+    expect(calls).toContain(`userTokens@${FEE_MANAGER.toLowerCase()}:${PAUSER}`)
+    expect(calls).toContain(
+      `balanceOf@${OVERRIDE_TOKEN.toLowerCase()}:${PAUSER}`
+    )
+    expect(
+      calls.some((c) => c.startsWith(`balanceOf@${FEE_TOKEN.toLowerCase()}`))
+    ).toBe(false)
   })
 
   // Without a fee token there is no readable gas balance; falling through to getBalance would
@@ -716,7 +735,7 @@ describe('pauser-funded gas-balance source', () => {
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toHaveLength(1)
     expect(ctx.warnings[0]).toContain('coverage is reduced')
-    expect(calls).not.toContain('getBalance')
+    expect(calls).toEqual([])
   })
 
   it('keeps chains with an ERC20 gas asset but standard accounting on the native path', async () => {
@@ -727,7 +746,7 @@ describe('pauser-funded gas-balance source', () => {
     )
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toEqual([])
-    expect(calls).toEqual(['getBalance'])
+    expect(calls).toEqual([`getBalance:${PAUSER}`])
   })
 })
 

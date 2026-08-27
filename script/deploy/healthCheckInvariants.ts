@@ -472,23 +472,23 @@ const FEE_MANAGER_ABI = parseAbi([
   'function userTokens(address account) external view returns (address)',
 ])
 
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
 /**
- * The ERC20 token the pauser would actually pay gas with, or undefined when the chain uses
- * standard native accounting.
+ * The ERC20 token the pauser would actually pay gas with; `undefined` when the chain uses standard
+ * native accounting, `NO_GAS_BALANCE_SOURCE` when no gas balance can be read at all.
  *
  * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
  * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
  * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
- * the two. The chain-default `feeTokenAddress` is then replaced by the account's own preference
- * where the chain configures a FeeManager predeploy. Mirrors the resolution order in
+ * the two. On such a chain the account may override the chain-default `feeTokenAddress` through a
+ * FeeManager predeploy, so that preference wins where it is set. Mirrors the resolution order in
  * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
  *
  * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
  * falling through: its native balance is a sentinel, so reading it would report any pauser as
  * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
  */
-const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
-
 async function resolvePauserFeeToken(
   ctx: IHealthCheckContext
 ): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
