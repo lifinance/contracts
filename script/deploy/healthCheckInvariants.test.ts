@@ -639,9 +639,13 @@ describe('pauser-funded gas-balance source', () => {
   // tempo answers eth_getBalance with this sentinel on every account.
   const SENTINEL = 4242424242424242424242424242424242424242424242424242n
 
+  /** Balances are keyed `token:account`, so funding a wallet other than the pauser is expressible. */
+  const bal = (token: string, account: string) =>
+    `${token.toLowerCase()}:${account.toLowerCase()}`
+
   /**
-   * Every recorded call carries the account it was made for, so a read against the wrong wallet
-   * fails the assertions rather than passing on the right contract with the wrong subject.
+   * Both the recorded calls and the returned balances carry the account they were made for, so a
+   * read against the wrong wallet fails rather than passing on the right contract, wrong subject.
    */
   function makePauserCtx(
     networkConfig: Record<string, string>,
@@ -675,7 +679,7 @@ describe('pauser-funded gas-balance source', () => {
           if (functionName === 'userTokens') return override
           if (functionName === 'decimals') return 6
           if (functionName === 'symbol') return 'pathUSD'
-          return balances[address.toLowerCase()] ?? 0n
+          return balances[bal(address, account)] ?? 0n
         },
       },
     })
@@ -690,7 +694,7 @@ describe('pauser-funded gas-balance source', () => {
 
   it('reads the fee token, never the sentinel native balance, on a no-native-asset chain', async () => {
     const { ctx, calls } = makePauserCtx(feeTokenConfig, {
-      [FEE_TOKEN.toLowerCase()]: 5_000_000n,
+      [bal(FEE_TOKEN, PAUSER)]: 5_000_000n,
     })
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toEqual([])
@@ -698,10 +702,9 @@ describe('pauser-funded gas-balance source', () => {
     expect(calls.some((c) => c.startsWith('getBalance'))).toBe(false)
   })
 
-  it('errors when the pauser fee-token balance is zero', async () => {
+  it('errors when the pauser fee-token balance is zero, however funded other wallets are', async () => {
     const { ctx, calls } = makePauserCtx(feeTokenConfig, {
-      // A funded OTHER wallet must not make the check pass for the pauser.
-      [OVERRIDE_TOKEN.toLowerCase()]: 5_000_000n,
+      [bal(FEE_TOKEN, OTHER_WALLET)]: 5_000_000n,
     })
     await invariant('pauser-funded').run(ctx)
     expect(ctx.errors).toHaveLength(1)
@@ -713,7 +716,7 @@ describe('pauser-funded gas-balance source', () => {
   it('follows the FeeManager per-account override to a different token', async () => {
     const { ctx, calls } = makePauserCtx(
       feeTokenConfig,
-      { [OVERRIDE_TOKEN.toLowerCase()]: 1n },
+      { [bal(OVERRIDE_TOKEN, PAUSER)]: 1n },
       OVERRIDE_TOKEN
     )
     await invariant('pauser-funded').run(ctx)

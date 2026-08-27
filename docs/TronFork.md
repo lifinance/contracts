@@ -66,7 +66,7 @@ of the fork rather than an unanswerable question in `main`.
 ### What actually differs in the fork (the delta)
 
 The fork stays close to upstream, but the delta is more than one line:
-**~20 files across 7 categories** (verified by a clean upstream→fork merge
+**~19 files across 6 categories** (verified by a clean upstream→fork merge
 of 69 commits with **zero conflicts**, then diffing the fully-synced tree
 against `main`). Everything here is Tron-enablement, CI, test, config or
 audit — **no product features**.

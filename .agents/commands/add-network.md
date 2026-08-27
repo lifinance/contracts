@@ -89,7 +89,7 @@ No per-network work in the normal case. Both health-check workflows share one in
 
 Two fields set in earlier steps change what runs: `gasZipChainId: 0` skips the GasZip invariants, and `safeAddress` drives `safe-config`. On a chain with no native asset (`nativeCurrency: "N/A"`) also set `feeTokenAddress`, or `pauser-funded` cannot read a gas balance and only warns.
 
-If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. There is deliberately no way to disable the check for a whole network — the blanket flag that used to exist left three chains unverified for months (EXSC-786).
+If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. No single flag disables the check for a whole network any more: every carve-out is per-invariant or per-contract and prints its reason. The blanket flag that used to exist left three chains unverified for months (EXSC-786).
 
 ---
 
