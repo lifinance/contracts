@@ -114,7 +114,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 - [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
 - [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
 - [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.
-- [ ] Health check: nothing to add unless a core contract cannot exist here — then add a reasoned exemption-table entry.
+- [ ] Health check: set `feeTokenAddress` if `nativeCurrency` is `"N/A"`; otherwise nothing to add unless a core contract cannot exist here — then add a reasoned exemption-table entry.
 
 ---
 
