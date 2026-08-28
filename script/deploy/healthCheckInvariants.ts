@@ -2539,9 +2539,19 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
       for (const facet of unlogged) {
         const parked = parkedRemovals.get(facet.address.toLowerCase())
-        if (parked) {
+        if (parked && !isStalledParkedClaim(parked)) {
           consola.info(
             `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${parked.prUrl})`
+          )
+          continue
+        }
+        // A pruned entry is licensed by an OPEN task, and once that task stalls this is the
+        // only invariant left watching the facet: `no-stale-registered-facets` resolves
+        // names through the deploy log, so it cannot see an address the log no longer
+        // carries. Downgrading on a dead claim here would hide the facet in both.
+        if (parked) {
+          ctx.logWarn(
+            `Facet ${facet.address} is routed on-chain and pruned from the deploy log, but its parked removal (PR ${parked.prUrl}) has been claimed with no Safe proposal for >=${STALE_PARKED_CLAIM_DAYS}d — the prune was licensed by a task that is no longer progressing`
           )
           continue
         }

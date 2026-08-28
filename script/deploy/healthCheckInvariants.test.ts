@@ -1787,6 +1787,34 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     expect(ctx.warnings).toHaveLength(1)
   })
 
+  it('does NOT downgrade when the covering task is a stalled claim', async () => {
+    // The prune was licensed by an open task; once that claim dies this invariant is the
+    // only one left watching the address, since the other resolves names via the log.
+    const ctx = makePrunedCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              PRUNED.toLowerCase(),
+              {
+                prUrl: PR_URL,
+                status: 'proposed' as const,
+                createdAt: new Date(Date.now() - 40 * 86_400_000),
+                proposedAt: new Date(
+                  Date.now() - (STALE_PARKED_CLAIM_DAYS + 2) * 86_400_000
+                ),
+              },
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no longer progressing')
+  })
+
   it('warns on the uncovered facet while downgrading the covered one', async () => {
     const UNCOVERED = '0xEEEE000000000000000000000000000000000005'
     const ctx = makePrunedCtx(covering(), {
