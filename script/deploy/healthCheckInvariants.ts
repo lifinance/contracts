@@ -43,6 +43,7 @@ import {
   cachedSourceContractNames,
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
+import type { ParkedTaskStatus } from './safe/parked-tasks'
 import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -81,7 +82,7 @@ export const STALE_PARKED_CLAIM_DAYS = 7
 /** The fields of an open parked task that coverage decisions read. */
 export interface IOpenParkedCoverage {
   prUrl: string
-  status: string
+  status: ParkedTaskStatus
   createdAt: Date
   proposedAt?: Date
   safeTxHash?: string

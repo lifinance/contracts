@@ -628,7 +628,8 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   it through no automated path: the drain claims only `queued`, `reconcileDecision`
   returns `keep` without a proposal status, and `repair-orphaned-parked-tasks.ts` skips
   it for manual review. `no-stale-registered-facets` fails the health check once such a
-  claim is a week old (EXSC-867); clearing it needs the operator CLI (EXSC-715).
+  claim passes `STALE_PARKED_CLAIM_DAYS` (EXSC-867); clearing it needs the operator CLI
+  (EXSC-715).
 - **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
   — the facet is already absent on-chain (removed via another route); self-healing
   reconcile.
@@ -948,8 +949,9 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    name, so a pruned or ambiguous log entry cannot mis-resolve one; the queue-aware
    health-check invariant `no-stale-registered-facets` flags any
    deprecated-but-registered facet with no *live* open parked task — a claim that has
-   sat `proposed` with no `safeTxHash` for a week is a dead drain, not coverage, and
-   fails the check rather than silencing it (EXSC-867) — and the reconcile job
+   sat `proposed` with no `safeTxHash` past `STALE_PARKED_CLAIM_DAYS` is a dead drain,
+   not coverage, and fails the check rather than silencing it (EXSC-867) — and the
+   reconcile job
    reports deploy-log entries that are safe to prune once the covering removal is
    loupe-verified off-chain (`executed`/`superseded`, never `cancelled`).
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,

@@ -20,6 +20,7 @@ import {
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
   splitByParkedCoverage,
+  isStalledParkedClaim,
   STALE_PARKED_CLAIM_DAYS,
   type IOpenParkedCoverage,
   type OpenParkedByNetwork,
@@ -163,6 +164,59 @@ describe('findDuplicateSelectors', () => {
       { address: '0xAAA', selectors: ['0x11111111', '0x11111111'] },
     ])
     expect(result).toEqual([])
+  })
+})
+
+describe('isStalledParkedClaim', () => {
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * 86_400_000)
+  const task = (over: Partial<IOpenParkedCoverage>): IOpenParkedCoverage => ({
+    prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    status: 'proposed',
+    createdAt: ago(30),
+    ...over,
+  })
+
+  it('flags a claim with no linked proposal once it passes the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS) }),
+        NOW
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag a claim one day inside the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS - 1) }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a task that carries a linked Safe proposal', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(90), safeTxHash: '0xabc' }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a queued task, whatever its age', () => {
+    expect(
+      isStalledParkedClaim(task({ status: 'queued', createdAt: ago(400) }), NOW)
+    ).toBe(false)
+  })
+
+  it('measures from createdAt when proposedAt is missing', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ createdAt: ago(STALE_PARKED_CLAIM_DAYS + 1) }),
+        NOW
+      )
+    ).toBe(true)
   })
 })
 
