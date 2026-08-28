@@ -86,7 +86,11 @@ export const resolveGithubToken = (cliToken: string | undefined): string => {
 export const collectDeployGateFailures = (
   input: IDeployGateInput
 ): string[] => {
-  if (input.environment !== EnvironmentEnum.production) return []
+  if (input.environment === EnvironmentEnum.staging) return []
+  if (input.environment !== EnvironmentEnum.production)
+    return [
+      `Unknown environment "${input.environment}" (expected ${EnvironmentEnum.production} or ${EnvironmentEnum.staging})`,
+    ]
   if (input.branch === 'main') return []
   if (input.facets.length === 0) return ['No facets were passed to the check']
 
@@ -276,11 +280,10 @@ export const verifyDeployGate = async (
   },
   deps: IDeployGateDeps
 ): Promise<string[]> => {
-  if (
-    input.environment !== EnvironmentEnum.production ||
-    input.branch === 'main'
-  )
-    return []
+  if (input.environment === EnvironmentEnum.staging) return []
+  if (input.environment !== EnvironmentEnum.production)
+    return collectDeployGateFailures({ ...input, facets: [], hasOpenPr: false })
+  if (input.branch === 'main') return []
 
   const checks: IFacetDeployCheck[] = []
   for (const name of input.facets) {
@@ -338,7 +341,7 @@ export const reportApprovalResult = (
   target: IReportTarget = process
 ): void => {
   if (failures.length === 0) {
-    target.stdout.write('OK')
+    target.stdout.write('OK\n')
     return
   }
 

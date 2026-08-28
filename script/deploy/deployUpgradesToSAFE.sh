@@ -34,7 +34,8 @@ deployUpgradesToSAFE() {
 
   GIT_BRANCH=$(git branch --show-current)
   if [[ "$ENVIRONMENT" == "production" && "$GIT_BRANCH" != "main" ]]; then
-    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --token "${GH_TOKEN:-}" --facets "$SCRIPTS"; then
+    # passed through the environment so the token never lands in the process table
+    if ! GH_TOKEN="${GH_TOKEN:-}" bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$SCRIPTS"; then
       error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
       return 1
     fi

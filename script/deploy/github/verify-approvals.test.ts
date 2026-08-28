@@ -222,6 +222,19 @@ describe('collectDeployGateFailures', () => {
   })
 })
 
+describe('collectDeployGateFailures - unknown environment', () => {
+  it('fails closed instead of treating it as staging', () => {
+    expect(
+      collectDeployGateFailures({
+        environment: 'prod',
+        branch: 'feature/x',
+        facets: [],
+        hasOpenPr: false,
+      })
+    ).toEqual(['Unknown environment "prod" (expected production or staging)'])
+  })
+})
+
 describe('resolveAuditCommitHash', () => {
   const log = {
     audits: {
@@ -257,7 +270,7 @@ describe('reportApprovalResult', () => {
 
     reportApprovalResult([], target)
 
-    expect(target.written).toEqual(['OK'])
+    expect(target.written).toEqual(['OK\n'])
     expect(target.exitCode).toBeUndefined()
   })
 
@@ -394,10 +407,8 @@ describe('verify-approvals CLI', () => {
 })
 
 describe('getContractVersion under the tsx runtime', () => {
-  // deployUpgradesToSAFE.sh runs this CLI with `bunx tsx`, i.e. under Node. A
-  // Bun-only file API in getContractVersion resolves to undefined there and is
-  // swallowed by its per-path catch, so every version lookup fails and the
-  // audit-freeze exception can never be evaluated.
+  // getContractVersion's per-path catch swallows a missing-global error, so a
+  // runtime regression here degrades to "no version found" rather than throwing.
   it('resolves a facet version when run through bunx tsx', () => {
     const repoRoot = join(import.meta.dir, '..', '..', '..')
     const probe = join(mkdtempSync(join(tmpdir(), 'gate-')), 'probe.ts')
@@ -415,6 +426,6 @@ describe('getContractVersion under the tsx runtime', () => {
     })
 
     expect(result.status).toBe(0)
-    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
   })
 })
