@@ -55,11 +55,14 @@ Two MongoDB clusters with different trust profiles:
 Governance shape, per network: the Safe (address in `config/networks.json`)
 owns a `LiFiTimelockController` with **minDelay 10800 s (3 h)**
 (`config/timelockController.json`). The Safe is the timelock's only PROPOSER
-and its external admin. CANCELLER_ROLE is held by the Safe **and** the
-deployer wallet — OZ's constructor grants it to every proposer, and
-`LiFiTimelockController` additionally grants it to `_cancellerWallet`
-(`config/global.json` `deployerWallet`) — so a queued operation can be
-cancelled without a quorum. **EXECUTOR_ROLE is granted to `address(0)`, so
+and its external admin. **The Safe is not the only CANCELLER**, so a queued
+operation can be cancelled without a quorum: OZ's constructor grants
+CANCELLER_ROLE to every proposer, and `LiFiTimelockController` additionally
+grants it to the `_cancellerWallet` constructor arg (the deployer wallet at
+deploy time). The holder set is mutable afterwards — `manageTimelockCanceller`
+in `script/playgroundHelpers.sh` adds, removes, or replaces a canceller by
+Safe proposal — so read the live holders on-chain rather than inferring them
+from `config/global.json`. **EXECUTOR_ROLE is granted to `address(0)`, so
 anyone may execute a ready operation** — in practice the 10-minute cron
 (`script/deploy/facets/DeployLiFiTimelockController.s.sol`,
 `src/Security/LiFiTimelockController.sol`).
