@@ -66,7 +66,7 @@ of the fork rather than an unanswerable question in `main`.
 ### What actually differs in the fork (the delta)
 
 The fork stays close to upstream, but the delta is more than one line:
-**~20 files across 7 categories** (verified by a clean upstream→fork merge
+**~19 files across 6 categories** (verified by a clean upstream→fork merge
 of 69 commits with **zero conflicts**, then diffing the fully-synced tree
 against `main`). Everything here is Tron-enablement, CI, test, config or
 audit — **no product features**.
@@ -95,8 +95,6 @@ audit — **no product features**.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
-- **Config (1)** — `config/networks.json`: `somnia.skipHealthcheck = true`
-  (see the sync-pain section below).
 - **Audit (2)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
   `WithdrawablePeriphery 1.0.0-tron`, plus the
   `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report.
@@ -203,9 +201,14 @@ Concrete example that blocked sync PR #13: an unrelated upstream commit
 changed the _expected_ `ERC20Proxy` owner across networks from the Safe to
 the `refundWallet`. On `somnia` (newly added via that sync) the on-chain
 owner was still the Safe, so the healthcheck failed — on a PR that
-introduced **zero** fork-authored code. Short-term fix: set the existing
-`skipHealthcheck` flag for `somnia` in `config/networks.json` on the fork
-(temporary).
+introduced **zero** fork-authored code. The stopgap then was a
+`skipHealthcheck` flag for `somnia` on the fork; that flag no longer exists
+(EXSC-786 removed it upstream, since it disabled every invariant on a network
+rather than the one that misfired). `somnia` now passes the upstream sweep with
+a deploy log identical to the fork's, so the stopgap is obsolete — drop the dead
+key from the fork's `config/networks.json`. Should a sync PR red on upstream
+on-chain state again, add a reasoned `HEALTH_CHECK_EXCLUSIONS` entry for that
+one invariant instead.
 
 **General class:** any required check keyed to on-chain / production state
 will fire on sync PRs. A new dev should expect this and **verify the real
@@ -383,7 +386,7 @@ runnable there since they need the fork's USDT-safe contracts).
 
 - Official Tron JavaScript SDK (equivalent to ethers.js/web3.js for
   Ethereum)
-- Version: 6.0.0 (see `package.json`)
+- Version: `^6.1.1` (see `package.json`)
 - Handles wallet management, transaction signing, and contract interaction
 - Requires a post-install patch for compatibility
   (`script/troncast/postinstall-tronweb-fix.mjs`)
@@ -505,6 +508,21 @@ bun script/deploy/tron/register-facets-to-diamond.ts
 bun script/deploy/tron/deploy-and-register-periphery.ts
 bun script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
+
+
+### Per-network contract references in `config/`
+
+Most integration configs hold one address that is valid on every EVM chain. Tron cannot
+reproduce EVM vanity/CREATE3 addresses, so any such reference needs a Tron-specific entry —
+`config/eco.json`, `config/allbridge.json` and `config/symbiosis.json` all keep a `tron`
+block for this reason, and `config/lifiintentescrow.json` carries one for the OIF settlers
+(`lifiEscrowInputSettler`, `OIFOutputSettlerSimple`).
+
+The Tron deploy scripts read the block for the resolved network (`tron` in production,
+`tronshasta` otherwise) and throw when it is missing, so the mistake surfaces before any
+energy is spent — left unguarded the address resolves to zero and the constructor reverts
+on-chain. A Shasta deploy of the intent contracts therefore needs a `tronshasta` block
+added first.
 
 ### TronCast — a Cast-like CLI for Tron
 

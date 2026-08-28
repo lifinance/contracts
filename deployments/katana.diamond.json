@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x44105f5168597BF1F08530aA05fBC920727964BE": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xeB9668A98c4EE3E37A30f413663Fe9525BE03B54": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xF3FA0BEaC43108B1C164d4D7aCb039F61B79cCC3": {
         "Name": "GenericSwapFacetV3",
@@ -49,16 +49,16 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0xc6299f6b43a7A20a18Ef0A595e62C09fdd7AD5e3": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
+      "0x828Cc8Dc04e22B63DFB7764cFb58Ddbc4C2A07c7": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
       "0x50c141227b262ADBA180aC2f0Fc584f0F62a64d1": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x8e25A04d1FcbFb9c2cf9f0c29a2DcD001623bC32": {
-        "Name": "SymbiosisFacet",
+      "0x649E769250A69C1B6af003a104a5F3E5a9bC5Ee7": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0x46b4cB1B52cd59F44bD56bDa5Fb7d40cf10d954b": {
@@ -68,24 +68,16 @@
       "0x8A0Ca1F897F4a48ee54B5842f6861A21FA162AD1": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
-      },
-      "0x828Cc8Dc04e22B63DFB7764cFb58Ddbc4C2A07c7": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
-      },
-      "0xeB9668A98c4EE3E37A30f413663Fe9525BE03B54": {
-        "Name": "SymbiosisFacet",
-        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xd45f6CaE2838A06D99C0Aceec201E7bd2003d567",
       "Executor": "0x7Cceda1C526d2048AFD1C941326fb23d17b3a591",
       "FeeCollector": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
-      "FeeForwarder": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
+      "FeeForwarder": "0xaaa55A0157670Ff2b4CF82F5cd2C754FE54BA574",
       "GasZipPeriphery": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
+      "LidoWrapper": "",
       "OutputValidator": "0x70DF6cF7943416c76A7a10d47bf0901cFA28B418",
       "Patcher": "",
       "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",

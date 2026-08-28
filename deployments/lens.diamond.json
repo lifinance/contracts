@@ -3,7 +3,7 @@
     "Facets": {
       "0x3bcF271A7b0AB47D83dCc257674E88F01592DC41": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xB81b36D7909C4bfC332219454b3f0331a5633533": {
         "Name": "DiamondLoupeFacet",
@@ -29,8 +29,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xD69298878d2615DF57B4FADDd402f63a96A9bFd1": {
-        "Name": "GenericSwapFacet",
+      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
       "0xA16895a5be2375152c02Db599a6bB1Dd881E3342": {
@@ -45,28 +45,16 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x2c636F69B7Ffee07f5551d90a1a89ef2EF63080D": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0x3A70F7b641a947412a5e2d9C30E31739a04c23ee": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
       "0x9e35dF8fEEB14A36F66f0225a090Fb592B30DDfD": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x8c1CEC0B4f813BAF31ac3d9A9A29CF5c71B309d3": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
-      },
       "0x318110911546B5A6f3424C0fbdfD392D8e549D21": {
         "Name": "AcrossFacetV4",
-        "Version": "1.0.0"
-      },
-      "0x3A70F7b641a947412a5e2d9C30E31739a04c23ee": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
-      },
-      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
-        "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       }
     },
@@ -74,7 +62,7 @@
       "ERC20Proxy": "0x6C251afA2ca69b53BF4588B63f2820a91672A6D3",
       "Executor": "0xAb30c390671F509D89527F2FfEa6F9a072E3B636",
       "FeeCollector": "0x6B6A13e1a04D0a899e0c9b49AaB966a0C5A7f9f3",
-      "FeeForwarder": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
+      "FeeForwarder": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
       "GasZipPeriphery": "0xf64532100038D383802F6f60C8928606B1B09Be1",
       "LiFiDEXAggregator": "0x642eeb39B287bB7809043aaE89bcfac2F409737D",
       "LidoWrapper": "",

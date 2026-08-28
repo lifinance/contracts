@@ -37,9 +37,6 @@
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
         "GnosisBridgeFacet": "2.0.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "MayanFacet": "1.2.2",
         "NEARIntentsFacet": "1.0.0",
@@ -51,7 +48,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -82,7 +80,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -121,9 +120,6 @@
         "EcoFacet": "1.1.0",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "MayanFacet": "1.2.2",
         "NEARIntentsFacet": "1.0.0",
@@ -133,7 +129,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "SupersetFacet": "1.0.0"
+        "SupersetFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -173,7 +170,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -238,9 +236,6 @@
         "EcoFacet": "1.1.0",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "NEARIntentsFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
@@ -249,7 +244,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "SupersetFacet": "1.0.0",
-        "ThorSwapFacet": "1.2.1"
+        "ThorSwapFacet": "1.2.1",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -418,7 +414,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "ThorSwapFacet": "1.2.1",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -531,7 +528,8 @@
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
         "SquidFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -589,9 +587,6 @@
         "TokenWrapper": "1.2.1",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "NEARIntentsFacet": "1.0.0",
         "OmniBridgeFacet": "1.0.0",
@@ -692,7 +687,8 @@
         "MayanFacet": "1.2.2",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -755,7 +751,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -814,15 +811,13 @@
         "AllBridgeFacet": "2.2.0",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -980,33 +975,6 @@
       }
     }
   },
-  "moonbeam": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "1.0.0",
-        "CalldataVerificationFacet": "1.3.1",
-        "DiamondCutFacet": "1.0.0",
-        "DiamondLoupeFacet": "1.0.0",
-        "EmergencyPauseFacet": "1.0.1",
-        "GasZipFacet": "2.0.5",
-        "GenericSwapFacetV3": "2.0.0",
-        "LiFiTimelockController": "1.0.1",
-        "OwnershipFacet": "1.0.0",
-        "PeripheryRegistryFacet": "1.0.0",
-        "WhitelistManagerFacet": "1.1.0",
-        "WithdrawFacet": "1.0.0",
-        "LiFiDiamond": "1.0.0",
-        "ERC20Proxy": "1.2.0",
-        "Executor": "2.1.0",
-        "FeeForwarder": "1.0.0",
-        "GasZipPeriphery": "1.0.2",
-        "OutputValidator": "1.0.0",
-        "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
-        "SquidFacet": "1.0.0"
-      }
-    }
-  },
   "optimismsepolia": {
     "production": {
       "LiFiDiamond": {
@@ -1067,16 +1035,14 @@
         "EcoFacet": "1.1.0",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1140,9 +1106,6 @@
         "EcoFacet": "1.1.0",
         "DeBridgeDlnFacet": "1.0.1",
         "GlacisFacet": "1.2.0",
-        "HopFacet": "2.0.1",
-        "HopFacetPacked": "1.0.6",
-        "HopFacetOptimized": "2.0.0",
         "LayerSwapFacet": "1.0.0",
         "MayanFacet": "1.2.2",
         "NEARIntentsFacet": "1.0.0",
@@ -1152,7 +1115,8 @@
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1248,7 +1212,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1317,7 +1282,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1357,7 +1323,8 @@
         "ReceiverStargateV2": "1.1.0",
         "SymbiosisFacet": "2.0.0",
         "SupersetFacet": "1.0.0",
-        "AllBridgeFacet": "2.2.0"
+        "AllBridgeFacet": "2.2.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1390,7 +1357,8 @@
         "EcoFacet": "1.1.0",
         "LayerSwapFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1418,7 +1386,8 @@
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
-        "NEARIntentsFacet": "1.0.0"
+        "NEARIntentsFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1478,7 +1447,8 @@
         "ReceiverAcrossV4": "1.0.0",
         "LayerSwapFacet": "1.0.0",
         "RelayDepositoryFacet": "1.0.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1621,7 +1591,8 @@
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
         "LayerSwapFacet": "1.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1651,7 +1622,8 @@
         "PolymerCCTPFacet": "3.0.0",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1741,7 +1713,9 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "UnitFacet": "1.0.0"
+        "UnitFacet": "1.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   },
@@ -1834,7 +1808,8 @@
         "LayerSwapFacet": "1.0.0",
         "NEARIntentsFacet": "1.0.0",
         "PolymerCCTPFacet": "3.0.0",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1896,7 +1871,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -2010,7 +1986,8 @@
         "RelayDepositoryFacet": "1.0.0",
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -2200,6 +2177,7 @@
       }
     }
   },
+  "sepolia": {},
   "somnia": {
     "production": {
       "LiFiDiamond": {
@@ -2225,7 +2203,8 @@
         "TokenWrapper": "1.2.1",
         "RelayDepositoryFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
-        "ReceiverStargateV2": "1.1.0"
+        "ReceiverStargateV2": "1.1.0",
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -2252,7 +2231,6 @@
         "GasZipPeriphery": "1.0.2",
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
-        "TokenWrapper": "1.2.1",
         "PolymerCCTPFacet": "3.0.0",
         "ReceiverOIF": "1.0.0"
       }
@@ -2282,7 +2260,9 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "ReceiverStargateV2": "1.1.0",
-        "TokenWrapper": "1.2.1"
+        "TokenWrapper": "1.2.1",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "ReceiverOIF": "1.0.0"
       }
     }
   }
