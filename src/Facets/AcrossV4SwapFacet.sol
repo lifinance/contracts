@@ -788,6 +788,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 999) return 30367; // HyperEVM (Hyperliquid)
         if (_chainId == 1088) return 30151; // Metis
         if (_chainId == 1101) return 30158; // Polygon zkEVM
+        // Moonbeam is no longer supported by LI.FI (deprecated in EXSC-796); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 1284) return 30126; // Moonbeam
         if (_chainId == 1329) return 30280; // Sei
         if (_chainId == 1337) return 30367; // HyperCore (same eid as HyperEVM)

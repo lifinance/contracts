@@ -23,6 +23,7 @@ permissions:
 jobs:
   check-security-alerts:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       # Ensure that the Olympix Static Analysis workflow has run successfully at least once before proceeding.
