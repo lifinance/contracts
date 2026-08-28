@@ -68,6 +68,8 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 
 If it matches, Phase 3b runs an allowlist sync afterwards (a second production proposal). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
 
+A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
+
 **Facets with a required companion periphery.** A bridge facet usually covers only the source side; destination calls are completed by a partner contract on the same chain (`LiFiIntentEscrowFacetV2` → `ReceiverOIF`, `StargateFacetV2` → `ReceiverStargateV2`). Deploying the facet alone silently disables inbound transfers there. Detect deterministically:
 
 ```bash

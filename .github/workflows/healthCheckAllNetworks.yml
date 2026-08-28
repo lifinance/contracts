@@ -18,8 +18,11 @@
 #   deploymentAddressConsistency.yml for the static PR tier).
 # - Slack: SIGNAL-ONLY. A message is posted only when a run surfaces something actionable — a failed
 #   network or runner error (:rotating_light: ACTION NEEDED) or a network that passed with warnings
-#   (:warning:). Fully-green runs, and the staging-only no-op push that resolves zero production
-#   networks, stay SILENT so the channel carries only issues, not routine confirmations.
+#   (:warning:). Failures AND warnings are both reported grouped by root cause (one bullet per
+#   cause, with the networks it hit) rather than as flat network lists, so the alert is triageable
+#   without opening the run; the grouping is computed in healthCheckAllNetworks.ts. Fully-green runs, and the
+#   staging-only no-op push that resolves zero production networks, stay SILENT so the channel
+#   carries only issues, not routine confirmations.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
 #   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by viem
@@ -156,6 +159,8 @@ jobs:
           WARNED_COUNT: ${{ steps.healthcheck.outputs.warned_count }}
           FAILED_NETWORKS: ${{ steps.healthcheck.outputs.failed_networks }}
           WARNED_NETWORKS: ${{ steps.healthcheck.outputs.warned_networks }}
+          FAILURE_DIGEST: ${{ steps.healthcheck.outputs.failure_digest }}
+          WARNING_DIGEST: ${{ steps.healthcheck.outputs.warning_digest }}
         run: |
           # Deep-link straight to THIS job so the Slack link lands on the failing step; fall back to
           # the run overview if the jobs API can't be read.
@@ -172,16 +177,33 @@ jobs:
           # in the consolidated report rather than buried in a single network's logs.
           WARN_LINE=""
           if [[ "${WARNED_COUNT:-0}" != "0" ]]; then
-            WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings: %s' \
-              "${WARNED_COUNT}" "${WARNED_NETWORKS:-?}")
+            # Same reasoning as the failure digest: 40 network names say nothing about what to do,
+            # and a warning nobody can act on is a warning everyone learns to skip. Fall back to
+            # the network list only when no warning text was captured.
+            if [[ -n "${WARNING_DIGEST:-}" ]]; then
+              WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings:\n%s' \
+                "${WARNED_COUNT}" "$WARNING_DIGEST")
+            else
+              WARN_LINE=$(printf '\n:warning: %s network(s) passed with warnings: %s' \
+                "${WARNED_COUNT}" "${WARNED_NETWORKS:-?}")
+            fi
           fi
           if [[ "$OUTCOME" == "success" && "${FAILED_COUNT:-0}" == "0" ]]; then
             HEADER=":white_check_mark: *Diamond health check — ${PASSED_COUNT:-?}/${TOTAL:-?} networks passed (${SKIPPED_COUNT:-0} skipped)*"
             BODY="<${RUN_URL}|View workflow run>${WARN_LINE}"
           else
             HEADER=":rotating_light: *Diamond health check — ACTION NEEDED*"
-            BODY=$(printf '%s of %s network(s) failed: %s\n<%s|View workflow run>%s' \
-              "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}" "$RUN_URL" "$WARN_LINE")
+            # Prefer the grouped cause digest: the flat network list says how many chains are red
+            # but not why, which is the part that decides whether anyone has to act. It is absent
+            # when the runner itself died before producing results, so keep the list as fallback.
+            if [[ -n "${FAILURE_DIGEST:-}" ]]; then
+              FAILURE_LINES=$(printf '%s of %s network(s) failed:\n%s' \
+                "${FAILED_COUNT:-?}" "${TOTAL:-?}" "$FAILURE_DIGEST")
+            else
+              FAILURE_LINES=$(printf '%s of %s network(s) failed: %s' \
+                "${FAILED_COUNT:-?}" "${TOTAL:-?}" "${FAILED_NETWORKS:-unknown (runner error)}")
+            fi
+            BODY=$(printf '%s\n<%s|View workflow run>%s' "$FAILURE_LINES" "$RUN_URL" "$WARN_LINE")
           fi
           TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
           {
@@ -194,7 +216,7 @@ jobs:
         if: ${{ !cancelled() && (steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           webhook-type: incoming-webhook
           payload: |
             {

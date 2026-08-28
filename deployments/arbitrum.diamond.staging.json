@@ -45,10 +45,6 @@
         "Name": "StandardizedCallFacet",
         "Version": "1.1.0"
       },
-      "0x90B5b319cA20D9E466cB5b843952363C34d1b54E": {
-        "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
-      },
       "0x50C5F0e350779bf74C0d5fEd7C5D44A7Ef82eeA9": {
         "Name": "AcrossFacet",
         "Version": "2.0.0"
@@ -142,7 +138,7 @@
         "Version": "1.0.0"
       },
       "0xaA1E88f4D0cb0a798f1FeBAfc8fAb4778629D4e7": {
-        "Name": "",
+        "Name": "ChainflipFacet",
         "Version": ""
       },
       "0x371E61d9DC497C506837DFA47B8dccEF1da30459": {
@@ -152,10 +148,6 @@
       "0x80Fa81Ba88C74f6E4fee1A5c6d2aaA4AEF442781": {
         "Name": "",
         "Version": ""
-      },
-      "0xB289F36bAb7d94341E051C0c998f44A23D48D72C": {
-        "Name": "AllBridgeFacet",
-        "Version": "2.1.0"
       },
       "0xb1b7786dfbb59dB5d1a65d4Be6c92C3B112fFb9b": {
         "Name": "AcrossFacetV4",
@@ -185,14 +177,6 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.1"
       },
-      "0x532CEdcf24B769EA6dB2D6970220C38b15C9fAF2": {
-        "Name": "EcoFacet",
-        "Version": "1.1.0"
-      },
-      "0x53cfc2B72Af09ea122cd479f81B9878D76271bE9": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
       "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
@@ -213,10 +197,6 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x54AEC552Acc3218b0B3991FD61cA12b3A4fD222D": {
-        "Name": "SupersetFacet",
-        "Version": "1.0.0"
-      },
       "0xc8D1bb44ED16b05518D7E32BD7fb2746594C9045": {
         "Name": "MayanFacet",
         "Version": "2.0.0"
@@ -224,14 +204,6 @@
       "0x2F9254d98ad8d5D8E4Aa41D22A04233959Ff1022": {
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
-      },
-      "0x1FA21E68aE236739fC7b0A1FA98093746828e2B6": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
-      "0x2B370Af1bf1762f4994C3E9931826346945840aE": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
       },
       "0x021c4C90A41cbcEb43bBcd9c042EABE678728dE9": {
         "Name": "SymbiosisFacet",
@@ -241,17 +213,9 @@
         "Name": "PolymerCCTPFacet",
         "Version": "3.0.0"
       },
-      "0x9923249c1f14E4BB68F71C689C3fCC323E5410aC": {
-        "Name": "MayanFacet",
-        "Version": "2.0.0"
-      },
       "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
-      },
-      "0xCDFE2fc28F6f824F9E619728A52363bd558aB4d0": {
-        "Name": "FraxFacet",
-        "Version": "1.0.0"
       },
       "0xD04A7f8EdB8F4C1dB851bCc919e71dB5E5093fc8": {
         "Name": "SupersetFacet",
@@ -275,7 +239,7 @@
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
       "OutputValidator": "0x266f7a44969d0003AFD94cdf96bdfdEDd8754133",
-      "Patcher": "0x3971A968c03cd9640239C937F8d30D024840E691",
+      "Patcher": "0x18069208cA7c2D55aa0073E047dD45587B26F6D4",
       "Permit2Proxy": "0x6DfAFe261B5d489aeF52e9AfA6303c291F520902",
       "ReceiverAcrossV3": "0xe4F3DEF14D61e47c696374453CD64d438FD277F8",
       "ReceiverAcrossV4": "0x8fd9e1893fdE2e52b49F2875E63277Ba5675D014",

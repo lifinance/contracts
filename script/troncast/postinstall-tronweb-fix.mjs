@@ -3,16 +3,17 @@
 /**
  * Postinstall script to fix TronWeb protobuf compatibility issues
  *
- * Purpose: This script patches TronWeb's compiled JavaScript files to resolve
- * conflicts between the 'proto' variable used by TronWeb and global proto
- * definitions that may exist in the execution environment.
+ * Purpose: This script patches TronWeb's compiled JavaScript files so that
+ * the 'proto' variable they rely on is always defined when they load.
  *
- * The issue: TronWeb's bundled code uses a variable named 'proto' which can
- * conflict with other libraries or global variables of the same name, causing
- * runtime errors.
+ * The issue: TronWeb's bundled protobuf files reference a shared 'proto'
+ * variable without declaring it, relying on another module having already
+ * created `global.proto`. Depending on module load order that global may not
+ * exist yet, causing runtime errors.
  *
- * Solution: This script renames all instances of the 'proto' variable in
- * TronWeb's compiled files to 'tronProto' to avoid naming conflicts.
+ * Solution: This script inserts `var proto = global.proto = global.proto || {};`
+ * before the first `goog.object.extend(proto, ...)` usage in each affected
+ * file, so `proto` is defined regardless of module load order.
  *
  * When it runs: Automatically executed after npm/yarn install via postinstall hook
  */
@@ -72,6 +73,7 @@ consola.log(`Found ${files.length} files to patch`)
 
 let patchedCount = 0
 let alreadyPatchedCount = 0
+const skippedFiles = []
 
 files.forEach((file) => {
   try {
@@ -83,22 +85,10 @@ files.forEach((file) => {
       return
     }
 
-    // Add proto initialization after the require statements but before goog.object.extend
     const lines = content.split('\n')
-    let insertIndex = -1
-
-    for (let i = 0; i < lines.length; i++) {
-      // Find the last require statement before goog.object.extend
-      if (lines[i].includes('require') && lines[i].includes('_pb.cjs')) {
-        // Check if next few lines have goog.object.extend
-        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-          if (lines[j].includes('goog.object.extend(proto')) {
-            insertIndex = i + 1
-            break
-          }
-        }
-      }
-    }
+    const insertIndex = lines.findIndex((line) =>
+      line.includes('goog.object.extend(proto')
+    )
 
     if (insertIndex > -1) {
       lines.splice(
@@ -107,14 +97,30 @@ files.forEach((file) => {
         '',
         'var proto = global.proto = global.proto || {};'
       )
-      fs.writeFileSync(file, lines.join('\n'))
+      // Write to a temp file and rename so a failed write cannot truncate the original
+      const tmpFile = `${file}.tmp`
+      try {
+        fs.writeFileSync(tmpFile, lines.join('\n'))
+        fs.renameSync(tmpFile, file)
+      } catch (writeError) {
+        fs.rmSync(tmpFile, { force: true })
+        throw writeError
+      }
       patchedCount++
+    } else {
+      skippedFiles.push(file)
     }
   } catch (e) {
     consola.error(`Error processing ${file}:`, e.message)
+    skippedFiles.push(file)
   }
 })
 
 consola.log(`✓ Patched ${patchedCount} files`)
 consola.log(`✓ ${alreadyPatchedCount} files were already patched`)
-consola.log('TronWeb proto fix applied successfully!')
+if (skippedFiles.length > 0) {
+  consola.warn(`✗ Skipped ${skippedFiles.length} files (not patched):`)
+  skippedFiles.forEach((file) => consola.warn(`  - ${file}`))
+} else {
+  consola.log('TronWeb proto fix applied successfully!')
+}

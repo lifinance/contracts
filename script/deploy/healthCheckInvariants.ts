@@ -19,6 +19,7 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
   formatEther,
+  formatUnits,
   getAddress,
   getContract,
   parseAbi,
@@ -107,7 +108,16 @@ export interface IHealthCheckContext {
   deployedContracts: Record<string, Address | string>
   globalConfig: IHealthCheckGlobalConfig
   targetState: TargetState
-  networkConfig: { rpcUrl?: string; safeAddress?: string }
+  networkConfig: {
+    rpcUrl?: string
+    safeAddress?: string
+    /** `"N/A"` marks a chain with no native asset, where `eth_getBalance` is not the gas balance. */
+    nativeCurrency?: string
+    /** Chain-default ERC20 gas token on such a chain (tempo's pathUSD). */
+    feeTokenAddress?: string
+    /** Predeploy resolving a per-account fee-token preference that overrides the default. */
+    feeManagerAddress?: string
+  }
   publicClient?: PublicClient
   tronWeb?: TronWeb
   tronRpcUrl?: string
@@ -135,6 +145,14 @@ export interface IHealthCheckContext {
    * address. Optional because tests build partial contexts; absent simply means uncached reads.
    */
   peripheryRegistryCache?: Map<string, Promise<string | null>>
+  /**
+   * Open parked-removal coverage (network → lowercased facet address → PR URL). Undefined =
+   * fetch from the parked-task queue (the default); injectable so the queue-aware invariants
+   * are testable without a MongoDB connection.
+   */
+  openParkedRemovals?:
+    | Map<string, Map<string, string>>
+    | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -330,6 +348,56 @@ export function getExemptCoreFacets(
 }
 
 /**
+ * A core periphery contract that cannot exist on some chains, together with those chains.
+ * The periphery counterpart of {@link ICoreFacetExemption}, and preferred over an
+ * {@link IInvariantExclusion} for the same reason: excluding `core-periphery-deployed` on a
+ * network would stop asserting ERC20Proxy, Executor, FeeForwarder and the rest there, whereas
+ * this drops one contract from the expected set and leaves everything else enforced.
+ *
+ * Unlike the facet table this is not always a shrinking to-do — an entry can be permanent when
+ * the chain makes the contract meaningless (nothing to wrap on a chain with no native asset).
+ */
+export interface ICorePeripheryExemption {
+  /** Periphery name as listed in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) the contract is not expected on. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-periphery exemptions. See {@link ICorePeripheryExemption}.
+ *
+ * Validated in `healthCheckInvariants.test.ts` the same way as the facet table: the contract
+ * must really be in `corePeriphery`, every network must exist in `config/networks.json`, and
+ * the reason must be non-empty.
+ */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] = [
+  {
+    contract: 'TokenWrapper',
+    reason:
+      'TokenWrapper wraps a chain native asset into its ERC20 form. Arc has no activated native path (gas is USDC via the ERC20 predeploy) and tempo has no native asset at all (gas is paid in TIP-20 fee tokens), so on both chains there is nothing to wrap and the contract is intentionally never deployed (EXSC-786).',
+    networks: ['arc', 'tempo'],
+  },
+]
+
+/**
+ * Core periphery contracts the given network is exempt from, with the reason for each. Pure;
+ * network match is case-insensitive. A network absent from every entry gets an empty list, so
+ * new chains are enforced by default.
+ */
+export function getExemptCorePeriphery(
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): Array<{ contract: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ contract: e.contract, reason: e.reason }))
+}
+
+/**
  * Decide whether an invariant applies to the given context. Pure: depends only on the
  * invariant scope and the environment/chain/testnet/gaszip flags in the context.
  */
@@ -393,6 +461,53 @@ const OWNABLE_ABI = parseAbi([
 
 const getOwnableContract = (address: Address, client: PublicClient) =>
   getContract({ address, abi: OWNABLE_ABI, client })
+
+const ERC20_BALANCE_ABI = parseAbi([
+  'function balanceOf(address account) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+])
+
+const FEE_MANAGER_ABI = parseAbi([
+  'function userTokens(address account) external view returns (address)',
+])
+
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
+/**
+ * The ERC20 token the pauser would actually pay gas with; `undefined` when the chain uses standard
+ * native accounting, `NO_GAS_BALANCE_SOURCE` when no gas balance can be read at all.
+ *
+ * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
+ * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
+ * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
+ * the two. On such a chain the account may override the chain-default `feeTokenAddress` through a
+ * FeeManager predeploy, so that preference wins where it is set. Mirrors the resolution order in
+ * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
+ *
+ * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
+ * falling through: its native balance is a sentinel, so reading it would report any pauser as
+ * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
+ */
+async function resolvePauserFeeToken(
+  ctx: IHealthCheckContext
+): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
+  const { nativeCurrency, feeTokenAddress, feeManagerAddress } =
+    ctx.networkConfig
+  if (nativeCurrency !== 'N/A' || !ctx.publicClient) return undefined
+  if (!feeTokenAddress) return NO_GAS_BALANCE_SOURCE
+
+  let feeToken = getAddress(feeTokenAddress)
+  if (feeManagerAddress) {
+    const userToken = await getContract({
+      address: getAddress(feeManagerAddress),
+      abi: FEE_MANAGER_ABI,
+      client: ctx.publicClient,
+    }).read.userTokens([ctx.pauserWallet as Address])
+    if (userToken && userToken !== zeroAddress) feeToken = getAddress(userToken)
+  }
+  return feeToken
+}
 
 /**
  * Assert an EVM contract's `owner()` equals `expectedOwner`. No-op when the contract is
@@ -1175,7 +1290,7 @@ export function splitByParkedCoverage(
 
 /**
  * Open parked tasks fleet-wide, fetched once per process and grouped by network
- * (lowercased `facetAddress` sets). The health check evaluates dozens of networks
+ * (lowercased `facetAddress` → PR URL maps). The health check evaluates dozens of networks
  * concurrently in one process, and a Mongo connect/index-check/teardown per stale
  * network would hammer the shared cluster; one shared read serves them all.
  * A failed fetch degrades that network to a coverage warning instead of a false
@@ -1184,10 +1299,10 @@ export function splitByParkedCoverage(
  * failing promise, so a hard outage costs at most one attempt per network.
  */
 let openParkedByNetworkPromise:
-  | Promise<Map<string, Set<string>> | { unreachable: string }>
+  | Promise<Map<string, Map<string, string>> | { unreachable: string }>
   | undefined
 function fetchOpenParkedAddressesByNetwork(): Promise<
-  Map<string, Set<string>> | { unreachable: string }
+  Map<string, Map<string, string>> | { unreachable: string }
 > {
   return (openParkedByNetworkPromise ??= (async () => {
     try {
@@ -1199,11 +1314,11 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
           environment: EnvironmentEnum.production,
           status: OPEN_STATUSES,
         })
-        const byNetwork = new Map<string, Set<string>>()
+        const byNetwork = new Map<string, Map<string, string>>()
         for (const task of open) {
-          const set = byNetwork.get(task.network) ?? new Set<string>()
-          set.add(task.facetAddress.toLowerCase())
-          byNetwork.set(task.network, set)
+          const map = byNetwork.get(task.network) ?? new Map<string, string>()
+          map.set(task.facetAddress.toLowerCase(), task.prUrl)
+          byNetwork.set(task.network, map)
         }
         return byNetwork
       } finally {
@@ -1369,6 +1484,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      peripheryToCheck = peripheryToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1568,6 +1687,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      contractsToCheck = contractsToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       if (contractsToCheck.length === 0) return
 
@@ -1678,7 +1801,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // that can only ever return the zero address. Matching on `includes` mirrors
       // deriveNonCoreFacets and catches the packed/versioned variants; no periphery name contains
       // "Facet".
+      // The timelock is the diamond's owner, not a contract the diamond calls: every consumer
+      // reads its address from the deploy log, and diamond-owner validates that against
+      // owner(). A registry entry for it is therefore not an address anything resolves.
+      // periphery-registered skips it for the same reason.
       const notPeriphery = (name: string): boolean =>
+        name === 'LiFiTimelockController' ||
         name.includes('Facet') ||
         name.startsWith('LiFiDiamond') ||
         ctx.coreFacetsToCheck.includes(name) ||
@@ -2123,14 +2251,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     // run. This lightweight floor closes both: it runs on Tron and at deploy time (the sweep's
     // push trigger), while the readiness workflow remains the authoritative affordability gate.
     name: 'pauser-funded',
-    description: 'Pauser wallet has a non-zero native balance',
+    description: 'Pauser wallet has a non-zero gas balance',
     severity: 'error',
     // skipTestnet: the two coverage gaps this closes are both mainnet (Tron mainnet pauser +
     // freshly deployed EVM mainnet pausers); testnet pausers (incl. the localanvil smoke-test
     // sandbox, whose pauser is unfunded) are not a production readiness invariant.
     scope: { environments: ['production'], skipTestnet: true },
     remediation:
-      'Fund the pauser wallet with native gas so it can broadcast pauseDiamond() in an incident.',
+      'Fund the pauser wallet with the gas asset of that chain (its fee token where the chain has no native asset) so it can broadcast pauseDiamond() in an incident.',
     run: async (ctx) => {
       if (ctx.isTron && ctx.tronWeb) {
         const pauserTronAddress = ensureTronAddress(
@@ -2150,6 +2278,43 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!ctx.publicClient) return
+
+      // A chain with no native asset decouples eth_getBalance from the gas balance: tempo
+      // answers it with a sentinel (4242…4242), which reads as "funded" no matter how much
+      // gas the pauser can actually pay for. Read the ERC20 fee token instead, matching the
+      // discriminator and the preference hierarchy in script/utils/checkPauserFunds.sh.
+      const feeToken = await resolvePauserFeeToken(ctx)
+      if (feeToken === NO_GAS_BALANCE_SOURCE) {
+        ctx.logWarn(
+          `${ctx.networkLower} has no native asset and no feeTokenAddress in config/networks.json, so the pauser's gas balance cannot be read; coverage is reduced`
+        )
+        return
+      }
+      if (feeToken) {
+        const token = getContract({
+          address: feeToken,
+          abi: ERC20_BALANCE_ABI,
+          client: ctx.publicClient,
+        })
+        const [rawBalance, decimals, symbol] = await Promise.all([
+          token.read.balanceOf([ctx.pauserWallet as Address]),
+          token.read.decimals(),
+          token.read.symbol(),
+        ])
+        if (!rawBalance)
+          ctx.logError(
+            `Pauser wallet ${ctx.pauserWallet} has no ${symbol} (${feeToken}) balance, and ${ctx.networkLower} pays gas in that fee token`
+          )
+        else
+          consola.success(
+            `Pauser wallet ${ctx.pauserWallet} is funded: ${formatUnits(
+              rawBalance,
+              decimals
+            )} ${symbol} (fee token ${feeToken})`
+          )
+        return
+      }
+
       const balance = await ctx.publicClient.getBalance({
         address: ctx.pauserWallet as Address,
       })
@@ -2275,33 +2440,57 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
+      const unlogged = ctx.onChainFacets.filter(
+        (facet) => !knownAddresses.has(facet.address.toLowerCase())
+      )
+      if (unlogged.length === 0) {
+        consola.success('All on-chain facets are known deployed contracts')
+        return
+      }
+      // A facet pruned from the deploy log at park time is still routed until its
+      // removal executes; an open parked task covering the address makes it
+      // expected-pending, not rogue. The queue is a production-mainnet construct
+      // (see no-stale-registered-facets), and an unreachable queue must not
+      // suppress the warning — degrade to reporting as if nothing were covered.
+      let parkedRemovals = new Map<string, string>()
+      if (ctx.environment === 'production' && !ctx.isTestnet) {
+        const openParked =
+          ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
+        if ('unreachable' in openParked)
+          consola.info(
+            `Parked-task queue unreachable — expected-pending downgrade skipped, unlogged facets warn as-is: ${openParked.unreachable}`
+          )
+        else parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
+      }
       const compiledSelectors =
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
-      let unexpected = 0
-      for (const facet of ctx.onChainFacets)
-        if (!knownAddresses.has(facet.address.toLowerCase())) {
-          unexpected++
-          const identified = identifyFacetBySelectorSet(
-            facet.selectors,
-            compiledSelectors
+      for (const facet of unlogged) {
+        const prUrl = parkedRemovals.get(facet.address.toLowerCase())
+        if (prUrl) {
+          consola.info(
+            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${prUrl})`
           )
-          if (identified)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
-            )
-          // Without build output there is nothing to match against, so say that rather than
-          // reporting an identity check that never ran.
-          else if (Object.keys(compiledSelectors).length === 0)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
-            )
-          else
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
-            )
+          continue
         }
-      if (unexpected === 0)
-        consola.success('All on-chain facets are known deployed contracts')
+        const identified = identifyFacetBySelectorSet(
+          facet.selectors,
+          compiledSelectors
+        )
+        if (identified)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
+          )
+        // Without build output there is nothing to match against, so say that rather than
+        // reporting an identity check that never ran.
+        else if (Object.keys(compiledSelectors).length === 0)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
+          )
+        else
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
+          )
+      }
     },
   },
   {
@@ -2357,7 +2546,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // nothing the drain would actually remove — counting it as coverage would
       // silence this backstop for the very facet it exists to surface
       // (co-registered versions, EXSC-750/EXSC-775).
-      const openParked = await fetchOpenParkedAddressesByNetwork()
+      const openParked =
+        ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
       if ('unreachable' in openParked) {
         // An unreachable queue must not turn every parked removal into a false
         // alarm — surface the reduced coverage instead of guessing.
@@ -2366,8 +2556,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const openParkedAddresses =
-        openParked.get(ctx.networkLower) ?? new Set<string>()
+      const openParkedAddresses = new Set(
+        (openParked.get(ctx.networkLower) ?? new Map<string, string>()).keys()
+      )
 
       const { parked, unparked } = splitByParkedCoverage(
         deprecated,

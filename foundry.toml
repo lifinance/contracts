@@ -148,6 +148,7 @@ basesepolia = "${ETH_NODE_URI_BASESEPOLIA}"
 arbitrumsepolia = "${ETH_NODE_URI_ARBITRUMSEPOLIA}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 optimismsepolia = "${ETH_NODE_URI_OPTIMISMSEPOLIA}"
+sepolia = "${ETH_NODE_URI_SEPOLIA}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
@@ -221,3 +222,4 @@ zksync = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://zksync2-main
 basesepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = "84532" }
 arbitrumsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=421614", chain = "421614" }
 optimismsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155420", chain = "11155420" }
+sepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155111", chain = "11155111" }

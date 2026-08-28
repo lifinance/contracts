@@ -8,10 +8,12 @@ import { type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
-import { EnvironmentEnum } from '../common/types'
+import { EnvironmentEnum, type TargetState } from '../common/types'
 
+import targetState from './_targetState.json'
 import {
   CORE_FACET_EXEMPTIONS,
+  CORE_PERIPHERY_EXEMPTIONS,
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   isDeterministicReadFailure,
@@ -20,6 +22,7 @@ import {
   splitByParkedCoverage,
   findDuplicateSelectors,
   getExemptCoreFacets,
+  getExemptCorePeriphery,
   getExpectedPairs,
   getInvariantExclusion,
   isInvariantApplicable,
@@ -27,6 +30,7 @@ import {
   type IHealthCheckContext,
   type IHealthCheckInvariant,
   type ICoreFacetExemption,
+  type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
@@ -42,6 +46,8 @@ function makeCtx(): IHealthCheckContext {
     isTestnet: false,
     supportsGasZip: true,
     onChainFacets: [],
+    // Empty coverage, so no test ever reaches the real parked-task queue.
+    openParkedRemovals: new Map(),
     errors,
     warnings,
     logError: (msg: string) => {
@@ -561,6 +567,192 @@ describe('CORE_FACET_EXEMPTIONS table integrity', () => {
   })
 })
 
+describe('getExemptCorePeriphery', () => {
+  const sample: ICorePeripheryExemption[] = [
+    { contract: 'SomePeriphery', reason: 'because', networks: ['somechain'] },
+  ]
+
+  it('returns the contract and reason for an exempt network', () => {
+    expect(getExemptCorePeriphery('somechain', sample)).toEqual([
+      { contract: 'SomePeriphery', reason: 'because' },
+    ])
+  })
+
+  it('matches the network case-insensitively', () => {
+    expect(getExemptCorePeriphery('SomeChain', sample)).toHaveLength(1)
+  })
+
+  it('returns nothing for a network that is not listed, so new chains stay enforced', () => {
+    expect(getExemptCorePeriphery('brandnewchain', sample)).toEqual([])
+  })
+})
+
+describe('CORE_PERIPHERY_EXEMPTIONS table integrity', () => {
+  const corePeriphery = new Set<string>(globalConfig.corePeriphery)
+  const knownNetworks = new Set(Object.keys(networksConfig))
+
+  it('every exemption targets a contract that is actually core periphery', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(corePeriphery).toContain(exemption.contract)
+  })
+
+  it('every exempt network is a known network', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      for (const network of exemption.networks)
+        expect(knownNetworks).toContain(network.toLowerCase())
+  })
+
+  it('every exemption carries a non-empty reason', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      expect(exemption.reason.trim().length).toBeGreaterThan(0)
+  })
+
+  it('lists no network twice per contract', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS) {
+      const lower = exemption.networks.map((n) => n.toLowerCase())
+      expect(new Set(lower).size).toBe(lower.length)
+    }
+  })
+
+  // An exemption that the target state still demands would be silently re-imposed by
+  // periphery-registered, so the two sources must agree.
+  it('no exempt network still lists the contract in its production target state', () => {
+    for (const exemption of CORE_PERIPHERY_EXEMPTIONS)
+      for (const network of exemption.networks) {
+        // Assert the target state resolves before reading it: defaulting a missing entry to {}
+        // would pass this test for a network that has no production target state at all, which
+        // is the reduced-coverage case healthCheck.ts warns about, not agreement between sources.
+        const contracts = (targetState as TargetState)[network.toLowerCase()]
+          ?.production?.LiFiDiamond
+        expect(contracts).toBeDefined()
+        expect(Object.keys(contracts ?? {})).not.toContain(exemption.contract)
+      }
+  })
+})
+
+describe('pauser-funded gas-balance source', () => {
+  const PAUSER = '0x00000000000000000000000000000000000000a1'
+  const OTHER_WALLET = '0x00000000000000000000000000000000000000b2'
+  const FEE_TOKEN = '0x20C0000000000000000000000000000000000000'
+  const FEE_MANAGER = '0xfeec000000000000000000000000000000000000'
+  const OVERRIDE_TOKEN = '0x00000000000000000000000000000000000000ff'
+  // tempo answers eth_getBalance with this sentinel on every account.
+  const SENTINEL = 4242424242424242424242424242424242424242424242424242n
+
+  /** Balances are keyed `token:account`, so funding a wallet other than the pauser is expressible. */
+  const bal = (token: string, account: string) =>
+    `${token.toLowerCase()}:${account.toLowerCase()}`
+
+  /**
+   * Both the recorded calls and the returned balances carry the account they were made for, so a
+   * read against the wrong wallet fails rather than passing on the right contract, wrong subject.
+   */
+  function makePauserCtx(
+    networkConfig: Record<string, string>,
+    balances: Record<string, bigint>,
+    override: string = ZERO
+  ) {
+    const calls: string[] = []
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      networkLower: 'somechain',
+      pauserWallet: PAUSER,
+      refundWallet: OTHER_WALLET,
+      deployerWallet: OTHER_WALLET,
+      networkConfig,
+      publicClient: {
+        getBalance: async ({ address }: { address: string }) => {
+          calls.push(`getBalance:${address.toLowerCase()}`)
+          return SENTINEL
+        },
+        readContract: async ({
+          address,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: unknown[]
+        }) => {
+          const account = String(args?.[0] ?? '').toLowerCase()
+          calls.push(`${functionName}@${address.toLowerCase()}:${account}`)
+          if (functionName === 'userTokens') return override
+          if (functionName === 'decimals') return 6
+          if (functionName === 'symbol') return 'pathUSD'
+          return balances[bal(address, account)] ?? 0n
+        },
+      },
+    })
+    return { ctx, calls }
+  }
+
+  const feeTokenConfig = {
+    nativeCurrency: 'N/A',
+    feeTokenAddress: FEE_TOKEN,
+    feeManagerAddress: FEE_MANAGER,
+  }
+
+  it('reads the fee token, never the sentinel native balance, on a no-native-asset chain', async () => {
+    const { ctx, calls } = makePauserCtx(feeTokenConfig, {
+      [bal(FEE_TOKEN, PAUSER)]: 5_000_000n,
+    })
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}:${PAUSER}`)
+    expect(calls.some((c) => c.startsWith('getBalance'))).toBe(false)
+  })
+
+  it('errors when the pauser fee-token balance is zero, however funded other wallets are', async () => {
+    const { ctx, calls } = makePauserCtx(feeTokenConfig, {
+      [bal(FEE_TOKEN, OTHER_WALLET)]: 5_000_000n,
+    })
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('pathUSD')
+    expect(calls).toContain(`balanceOf@${FEE_TOKEN.toLowerCase()}:${PAUSER}`)
+    expect(calls.some((c) => c.startsWith('getBalance'))).toBe(false)
+  })
+
+  it('follows the FeeManager per-account override to a different token', async () => {
+    const { ctx, calls } = makePauserCtx(
+      feeTokenConfig,
+      { [bal(OVERRIDE_TOKEN, PAUSER)]: 1n },
+      OVERRIDE_TOKEN
+    )
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).toContain(`userTokens@${FEE_MANAGER.toLowerCase()}:${PAUSER}`)
+    expect(calls).toContain(
+      `balanceOf@${OVERRIDE_TOKEN.toLowerCase()}:${PAUSER}`
+    )
+    expect(
+      calls.some((c) => c.startsWith(`balanceOf@${FEE_TOKEN.toLowerCase()}`))
+    ).toBe(false)
+  })
+
+  // Without a fee token there is no readable gas balance; falling through to getBalance would
+  // read the sentinel and report any pauser as funded.
+  it('warns instead of passing when a no-native-asset chain has no fee token configured', async () => {
+    const { ctx, calls } = makePauserCtx({ nativeCurrency: 'N/A' }, {})
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('coverage is reduced')
+    expect(calls).toEqual([])
+  })
+
+  it('keeps chains with an ERC20 gas asset but standard accounting on the native path', async () => {
+    // arc pays gas in USDC via a predeploy, yet eth_getBalance IS the gas balance there.
+    const { ctx, calls } = makePauserCtx(
+      { nativeCurrency: 'USDC', feeTokenAddress: FEE_TOKEN },
+      {}
+    )
+    await invariant('pauser-funded').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(calls).toEqual([`getBalance:${PAUSER}`])
+  })
+})
+
 describe('runHealthCheckInvariants (runner)', () => {
   it('merges concurrent invariants without clobbering each other errors', async () => {
     const ctx = makeCtx()
@@ -974,6 +1166,16 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(ctx.warnings[0]).toContain('the on-chain registry has')
   })
 
+  it('leaves the timelock alone - it is the diamond owner, not periphery', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      registry: { LiFiTimelockController: WRONG },
+      deployedContracts: { LiFiTimelockController: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('LiFiTimelockController')
+    expect(ctx.warnings).toEqual([])
+  })
+
   it('stays silent when the registry and the deploy log agree', async () => {
     const { ctx } = makeReceiverCtx({
       registry: { ReceiverOIF: OIF_ON_CHAIN },
@@ -1257,6 +1459,88 @@ describe('selector identity in the facet invariants', () => {
     await invariant('facet-required-periphery').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain(coupled)
+  })
+})
+
+describe('no-unexpected-facets parked-removal coverage', () => {
+  const PRUNED = '0xCCCC000000000000000000000000000000000003'
+  const PR_URL = 'https://github.com/lifinance/contracts/pull/9999'
+
+  function makePrunedCtx(
+    openParkedRemovals: IHealthCheckContext['openParkedRemovals'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      onChainFacets: [{ address: PRUNED, selectors: ['0x11111111'] }],
+      deployedContracts: {},
+      compiledFacetSelectors: { AcrossFacetV4: ['0x11111111'] },
+      openParkedRemovals,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (): Map<string, Map<string, string>> =>
+    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+
+  it('downgrades a routed-but-pruned facet to expected-pending when a parked removal covers it', async () => {
+    const ctx = makePrunedCtx(covering())
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still warns when the open task covers a different address', async () => {
+    const ctx = makePrunedCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([['0xdddd000000000000000000000000000000000004', PR_URL]]),
+        ],
+      ])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('keys coverage by network, not fleet-wide', async () => {
+    const ctx = makePrunedCtx(
+      new Map([['othernet', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('degrades to the plain warning when the queue is unreachable', async () => {
+    const ctx = makePrunedCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('absent from the deploy log')
+  })
+
+  it('does not consult the queue on staging', async () => {
+    const ctx = makePrunedCtx(covering(), { environment: 'staging' })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('does not consult the queue on testnets', async () => {
+    const ctx = makePrunedCtx(covering(), { isTestnet: true })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('warns on the uncovered facet while downgrading the covered one', async () => {
+    const UNCOVERED = '0xEEEE000000000000000000000000000000000005'
+    const ctx = makePrunedCtx(covering(), {
+      onChainFacets: [
+        { address: PRUNED, selectors: ['0x11111111'] },
+        { address: UNCOVERED, selectors: ['0x22222222'] },
+      ],
+    })
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain(UNCOVERED)
   })
 })
 

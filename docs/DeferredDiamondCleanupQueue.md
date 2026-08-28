@@ -760,14 +760,19 @@ executed" window (Fact 10). Two mitigations, both in this spec:
   makes a *superseded* facet targetable: the log holds exactly one address per
   name, so while SymbiosisFacet v1.0.0 and v2.0.0 are both cut into 35 production
   diamonds (EXSC-750), only an address can say which one is doomed.
-- `/deprecate-contract`'s existing "don't delete `deployments/*.json` entries until
-  executed" warning (Fact 10) is **strengthened** to "until the parked task retires" —
-  not for the drain (address-resolving, above) but because the health check's
-  queue-aware stale-facet invariant (`no-stale-registered-facets`) maps on-chain
-  addresses to names through the log in order to detect them at all (its queue
-  coverage check is address-keyed, like the drain). The weekly reconcile job (§7) reports which
-  entries are **safe to prune** (every covering task terminal); pruning then is a
-  small reviewed PR.
+- `/deprecate-contract`'s deploy-log rule (Fact 10) is **queue-aware**: entries may be
+  pruned in the deprecation PR itself once the covering parked task is open
+  (`queued`/`proposed`) — safe not just for the drain (address-resolving, above) but for
+  detection too, because the health check keeps the still-routed facet visible either way:
+  `no-stale-registered-facets` while the log still names it, `no-unexpected-facets`
+  (expected-pending, keyed by the same open-task addresses) once it is pruned. A
+  `cancelled` task keeps — or restores — both entries, since cancellation is an operator
+  decision, not a claim about the chain. The weekly reconcile job (§7)
+  still reports loupe-verified prune candidates (`executed`/`superseded`) for entries kept
+  past parking — and executed removal remains a *floor*, not a licence to keep the entry
+  forever: once a network's removal has executed, the entry goes from both
+  `deployments/<network>.json` and `deployments/<network>.diamond.json`
+  ([docs/DeploymentLogs.md](./DeploymentLogs.md)).
 
 **Network-retirement hazard.** `/deprecate-network` removes the network from
 `config/networks.json` and its `deployments/*.json`, which takes away everything a
@@ -938,8 +943,8 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    name, so a pruned or ambiguous log entry cannot mis-resolve one; the queue-aware
    health-check invariant `no-stale-registered-facets` flags any
    deprecated-but-registered facet with no open parked task, and the reconcile job
-   reports deploy-log entries that are safe to prune once every covering task is
-   terminal.
+   reports deploy-log entries that are safe to prune once the covering removal is
+   loupe-verified off-chain (`executed`/`superseded`, never `cancelled`).
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
    **ON for rollouts, OFF for emergencies**. Still open: **when** we flip it on by
    default, and whether that's per-network or global.
