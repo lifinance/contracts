@@ -68,6 +68,28 @@ import {
 /** Severity of a failed invariant: `error` fails the run (exit 1); `warning` is reported but non-fatal. */
 export type HealthCheckSeverity = 'error' | 'warning'
 
+/**
+ * How long a claimed-but-unproposed parked task may sit before it stops counting as
+ * coverage. Signing and executing a removal proposal takes at most ~48h in practice, so a
+ * claim with no linked proposal past a week is not slow — it is a drain that died between
+ * `claimForProposal` and `linkToProposal`, and no unattended job recovers it: the drain
+ * only claims `queued`, `reconcileDecision` returns `keep` without a linked proposal, and
+ * `repair-orphaned-parked-tasks.ts` skips it for manual review.
+ */
+export const STALE_PARKED_CLAIM_DAYS = 7
+
+/** The fields of an open parked task that coverage decisions read. */
+export interface IOpenParkedCoverage {
+  prUrl: string
+  status: string
+  createdAt: Date
+  proposedAt?: Date
+  safeTxHash?: string
+}
+
+/** Network (lowercased) → lowercased facet address → the open task covering it. */
+export type OpenParkedByNetwork = Map<string, Map<string, IOpenParkedCoverage>>
+
 /** Coarse applicability gate for an invariant; finer branching lives inside `run()`. */
 export interface IHealthCheckScope {
   /** Environments the invariant applies to. Omitted = both production and staging. */
@@ -146,13 +168,11 @@ export interface IHealthCheckContext {
    */
   peripheryRegistryCache?: Map<string, Promise<string | null>>
   /**
-   * Open parked-removal coverage (network → lowercased facet address → PR URL). Undefined =
+   * Open parked-removal coverage (network → lowercased facet address → task). Undefined =
    * fetch from the parked-task queue (the default); injectable so the queue-aware invariants
    * are testable without a MongoDB connection.
    */
-  openParkedRemovals?:
-    | Map<string, Map<string, string>>
-    | { unreachable: string }
+  openParkedRemovals?: OpenParkedByNetwork | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -1263,8 +1283,37 @@ export function findDeprecatedLiveFacets(params: {
 }
 
 /**
- * Splits deprecated-but-routed facets into the ones an open parked task actually
- * covers and the ones nothing is tracking.
+ * Whether a parked task has stopped being live coverage.
+ *
+ * A `queued` task is always live — the next drain claims it. A `proposed` task with a
+ * linked `safeTxHash` is live too: a real Safe proposal exists, and `reconcile` resolves it
+ * once that proposal executes or reverts. A `proposed` task with NO `safeTxHash` is the dead
+ * end (see {@link STALE_PARKED_CLAIM_DAYS}) — tolerated briefly, because a drain legitimately
+ * holds that state for the seconds between claiming and linking.
+ *
+ * @param task - The open task covering the facet address.
+ * @param now - Evaluation instant (injected so the bound is testable).
+ */
+export function isStalledParkedClaim(
+  task: IOpenParkedCoverage,
+  now: Date = new Date()
+): boolean {
+  if (task.status !== 'proposed') return false
+  if (task.safeTxHash) return false
+  const claimedAt = new Date(task.proposedAt ?? task.createdAt).getTime()
+  const days = (now.getTime() - claimedAt) / 86_400_000
+  return days >= STALE_PARKED_CLAIM_DAYS
+}
+
+/** Whole-day age of a queue timestamp, for operator-facing lines (`unknown` if absent). */
+function formatDaysAgo(at: Date | undefined, now: Date = new Date()): string {
+  if (!at) return 'unknown'
+  const days = Math.floor((now.getTime() - new Date(at).getTime()) / 86_400_000)
+  return `${days}d ago`
+}
+
+/**
+ * Splits deprecated-but-routed facets by whether a *live* open parked task covers them.
  *
  * Coverage is matched by ADDRESS, like the drain and the reconcile. A name maps to
  * exactly one deploy-log address, so a task whose address is not the stale facet
@@ -1272,20 +1321,35 @@ export function findDeprecatedLiveFacets(params: {
  * silence this backstop for the very facet it exists to surface (two co-registered
  * versions under one name, EXSC-750/EXSC-775).
  *
+ * Existence of a task is not coverage: a stalled claim is unreachable by every unattended
+ * job, so counting it would keep this check green forever while the facet stays routed
+ * (mantle GenericSwapFacet sat `proposed` with no proposal for 29 days, EXSC-867).
+ *
  * @param deprecated - Deprecated facets the loupe still routes.
- * @param openParkedAddresses - Lowercased `facetAddress` of every open parked task.
- * @returns The covered (`parked`) and uncovered (`unparked`) partitions.
+ * @param openParked - Lowercased `facetAddress` → open task, for this network.
+ * @param now - Evaluation instant, forwarded to {@link isStalledParkedClaim}.
+ * @returns `live` (covered, progressing), `stalled` (covered by a dead-end claim) and
+ *   `unparked` (nothing tracking them) partitions.
  */
 export function splitByParkedCoverage(
   deprecated: IFacetRemoval[],
-  openParkedAddresses: Set<string>
-): { parked: IFacetRemoval[]; unparked: IFacetRemoval[] } {
-  const isParked = (facet: IFacetRemoval): boolean =>
-    openParkedAddresses.has(facet.address.toLowerCase())
-  return {
-    parked: deprecated.filter(isParked),
-    unparked: deprecated.filter((f) => !isParked(f)),
+  openParked: Map<string, IOpenParkedCoverage>,
+  now: Date = new Date()
+): {
+  live: IFacetRemoval[]
+  stalled: IFacetRemoval[]
+  unparked: IFacetRemoval[]
+} {
+  const live: IFacetRemoval[] = []
+  const stalled: IFacetRemoval[] = []
+  const unparked: IFacetRemoval[] = []
+  for (const facet of deprecated) {
+    const task = openParked.get(facet.address.toLowerCase())
+    if (!task) unparked.push(facet)
+    else if (isStalledParkedClaim(task, now)) stalled.push(facet)
+    else live.push(facet)
   }
+  return { live, stalled, unparked }
 }
 
 /**
@@ -1299,10 +1363,10 @@ export function splitByParkedCoverage(
  * failing promise, so a hard outage costs at most one attempt per network.
  */
 let openParkedByNetworkPromise:
-  | Promise<Map<string, Map<string, string>> | { unreachable: string }>
+  | Promise<OpenParkedByNetwork | { unreachable: string }>
   | undefined
 function fetchOpenParkedAddressesByNetwork(): Promise<
-  Map<string, Map<string, string>> | { unreachable: string }
+  OpenParkedByNetwork | { unreachable: string }
 > {
   return (openParkedByNetworkPromise ??= (async () => {
     try {
@@ -1314,10 +1378,18 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
           environment: EnvironmentEnum.production,
           status: OPEN_STATUSES,
         })
-        const byNetwork = new Map<string, Map<string, string>>()
+        const byNetwork: OpenParkedByNetwork = new Map()
         for (const task of open) {
-          const map = byNetwork.get(task.network) ?? new Map<string, string>()
-          map.set(task.facetAddress.toLowerCase(), task.prUrl)
+          const map =
+            byNetwork.get(task.network) ??
+            new Map<string, IOpenParkedCoverage>()
+          map.set(task.facetAddress.toLowerCase(), {
+            prUrl: task.prUrl,
+            status: task.status,
+            createdAt: task.createdAt,
+            proposedAt: task.proposedAt,
+            safeTxHash: task.safeTxHash,
+          })
           byNetwork.set(task.network, map)
         }
         return byNetwork
@@ -2452,7 +2524,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // expected-pending, not rogue. The queue is a production-mainnet construct
       // (see no-stale-registered-facets), and an unreachable queue must not
       // suppress the warning — degrade to reporting as if nothing were covered.
-      let parkedRemovals = new Map<string, string>()
+      let parkedRemovals = new Map<string, IOpenParkedCoverage>()
       if (ctx.environment === 'production' && !ctx.isTestnet) {
         const openParked =
           ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
@@ -2465,10 +2537,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const compiledSelectors =
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
       for (const facet of unlogged) {
-        const prUrl = parkedRemovals.get(facet.address.toLowerCase())
-        if (prUrl) {
+        const parked = parkedRemovals.get(facet.address.toLowerCase())
+        if (parked) {
           consola.info(
-            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${prUrl})`
+            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${parked.prUrl})`
           )
           continue
         }
@@ -2496,15 +2568,19 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'no-stale-registered-facets',
     description:
-      'Deprecated facets still routed on-chain are covered by an open parked-removal task',
-    severity: 'warning',
+      'Deprecated facets still routed on-chain are covered by a LIVE open parked-removal task',
+    severity: 'error',
     // skipTestnet: the parked queue is a production-mainnet construct — testnet
     // diamonds are EOA-owned and clean up directly, so queue coverage is
-    // meaningless there and the warning would never resolve.
+    // meaningless there and the warning would never resolve. Dropping the flag
+    // would not extend the check to testnets anyway: no testnet has a
+    // `production` target-state entry, so `getExpectedFacetNames` returns
+    // undefined and the run below early-returns. Covering testnets means giving
+    // them target state first (EXSC-868), not relaxing this scope.
     scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
-      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>` (docs/DeferredDiamondCleanupQueue.md).',
+      'No task: enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>`. Stalled claim: the task is `proposed` with no Safe proposal and no unattended job can move it — it needs `revertToQueued` before a drain will re-claim it (EXSC-715). Do NOT re-enqueue (the open task blocks the dedup gate) and do NOT cancel (that abandons a live deprecation). See docs/DeferredDiamondCleanupQueue.md.',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -2556,35 +2632,48 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const openParkedAddresses = new Set(
-        (openParked.get(ctx.networkLower) ?? new Map<string, string>()).keys()
-      )
+      const openForNetwork =
+        openParked.get(ctx.networkLower) ??
+        new Map<string, IOpenParkedCoverage>()
 
-      const { parked, unparked } = splitByParkedCoverage(
+      const { live, stalled, unparked } = splitByParkedCoverage(
         deprecated,
-        openParkedAddresses
+        openForNetwork
       )
-      if (parked.length > 0)
+      if (live.length > 0)
         consola.info(
           `${
-            parked.length
-          } deprecated facet(s) awaiting their parked removal (expected-pending): ${parked
+            live.length
+          } deprecated facet(s) awaiting their parked removal (expected-pending): ${live
             .map((f) => f.name)
             .join(', ')}`
         )
-      // One aggregated warning per network, not one per facet: the fleet-wide
+      // One aggregated line per network per class, not one per facet: the fleet-wide
       // backlog is large enough that per-facet lines would drown the report.
+      if (stalled.length > 0)
+        ctx.logError(
+          `${
+            stalled.length
+          } deprecated facet(s) still routed behind a STALLED parked claim (\`proposed\` with no Safe proposal for >=${STALE_PARKED_CLAIM_DAYS}d — no drain or reconcile will move it): ${stalled
+            .map((f) => {
+              const task = openForNetwork.get(f.address.toLowerCase())
+              return `${f.name} (${f.address}, claimed ${formatDaysAgo(
+                task?.proposedAt ?? task?.createdAt
+              )}, PR ${task?.prUrl ?? 'unknown'})`
+            })
+            .join(', ')}`
+        )
       if (unparked.length > 0)
-        ctx.logWarn(
+        ctx.logError(
           `${
             unparked.length
           } deprecated facet(s) still routed with NO open parked-removal task: ${unparked
             .map((f) => `${f.name} (${f.address})`)
             .join(', ')}`
         )
-      else
+      if (stalled.length === 0 && unparked.length === 0)
         consola.success(
-          'All stale registered facets are covered by parked removals'
+          'All stale registered facets are covered by live parked removals'
         )
     },
   },
