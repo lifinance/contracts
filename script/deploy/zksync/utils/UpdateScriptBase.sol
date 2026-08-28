@@ -21,6 +21,8 @@ contract UpdateScriptBase is ScriptBase {
     error DiamondHasNoCode(address diamond);
     error DiamondStateNotPinned();
     error DiamondStateBlockMismatch(uint256 expected, uint256 actual);
+    error FacetAddressOverrideRequired();
+    error ExpectedDiamondAddressRequired();
     error VerificationModeNotSupported();
 
     string internal constant DEFAULT_SELECTOR_ARTIFACTS_DIR = "./out/zksync";
@@ -156,7 +158,9 @@ contract UpdateScriptBase is ScriptBase {
 
     /// @dev buildDiamondCut reads the live diamond, so the resulting calldata is only reproducible
     ///      against a fixed block. A verification run therefore has to state which block it expects
-    ///      and fail when the fork is not actually pinned there.
+    ///      and fail when the fork is not actually pinned there. It also has to take the facet and
+    ///      diamond addresses from the caller: without those overrides the cut is rebuilt from the
+    ///      local deployments file, which is the proposer-written input this mode exists to displace.
     function _checkDiamondStateIsPinned() internal view {
         if (!cutOptions.verificationMode) return;
 
@@ -167,6 +171,12 @@ contract UpdateScriptBase is ScriptBase {
                 cutOptions.diamondStateBlock,
                 block.number
             );
+
+        if (cutOptions.facetAddress == address(0))
+            revert FacetAddressOverrideRequired();
+
+        if (cutOptions.expectedDiamond == address(0))
+            revert ExpectedDiamondAddressRequired();
     }
 
     /// @dev For scripts that resolve facet addresses themselves instead of through update(), so the

@@ -151,6 +151,8 @@ contract PinnedVerificationHarness is DefaultCutOptionsHarness {
         options.verificationMode = true;
         options.diamondStateBlock = block.number;
         options.noBroadcast = false;
+        options.facetAddress = vm.envAddress("TEST_ATTESTED_FACET");
+        options.expectedDiamond = vm.envAddress("TEST_DIAMOND");
     }
 }
 
@@ -163,6 +165,49 @@ contract CodelessDiamondHarness is PinnedVerificationHarness {
         returns (string memory)
     {
         return vm.envString("TEST_CODELESS_DEPLOYMENTS_JSON");
+    }
+
+    function _readCutOptions()
+        internal
+        view
+        virtual
+        override
+        returns (CutOptions memory options)
+    {
+        options = super._readCutOptions();
+        options.expectedDiamond = vm.envAddress("TEST_CODELESS_DIAMOND");
+    }
+}
+
+contract VerificationMissingFacetOverrideHarness is DefaultCutOptionsHarness {
+    function _readCutOptions()
+        internal
+        view
+        virtual
+        override
+        returns (CutOptions memory options)
+    {
+        options = super._readCutOptions();
+        options.verificationMode = true;
+        options.diamondStateBlock = block.number;
+        options.expectedDiamond = vm.envAddress("TEST_DIAMOND");
+    }
+}
+
+contract VerificationMissingExpectedDiamondHarness is
+    DefaultCutOptionsHarness
+{
+    function _readCutOptions()
+        internal
+        view
+        virtual
+        override
+        returns (CutOptions memory options)
+    {
+        options = super._readCutOptions();
+        options.verificationMode = true;
+        options.diamondStateBlock = block.number;
+        options.facetAddress = vm.envAddress("TEST_ATTESTED_FACET");
     }
 }
 
@@ -218,6 +263,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
             _deploymentsJson(codelessDiamond)
         );
         vm.setEnv("TEST_DIAMOND", vm.toString(address(diamond)));
+        vm.setEnv("TEST_CODELESS_DIAMOND", vm.toString(codelessDiamond));
         vm.setEnv("TEST_ATTESTED_FACET", vm.toString(attestedOwnershipFacet));
         vm.setEnv("TEST_WRONG_DIAMOND", vm.toString(wrongDiamond));
 
@@ -381,7 +427,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         assertEq(
             cutData,
             _expectedCutData(
-                newOwnershipFacet,
+                attestedOwnershipFacet,
                 LibDiamond.FacetCutAction.Replace,
                 _ownershipSelectors()
             )
@@ -404,6 +450,22 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         );
 
         new DriftedVerificationHarness();
+    }
+
+    function testRevert_VerificationModeWithoutFacetOverride() public {
+        vm.expectRevert(
+            UpdateScriptBase.FacetAddressOverrideRequired.selector
+        );
+
+        new VerificationMissingFacetOverrideHarness();
+    }
+
+    function testRevert_VerificationModeWithoutExpectedDiamond() public {
+        vm.expectRevert(
+            UpdateScriptBase.ExpectedDiamondAddressRequired.selector
+        );
+
+        new VerificationMissingExpectedDiamondHarness();
     }
 
     function testRevert_ExpectedDiamondAddressMismatch() public {
