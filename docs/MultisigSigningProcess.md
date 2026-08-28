@@ -24,8 +24,11 @@ Status: **current state**, verified against the repo. Author: Daniel B. (SC).
   EOA call revert. "Diamond is owned by the timelock (mainnet)" is a
   health-check invariant (`script/deploy/healthCheckInvariants.ts`), so a
   network left in the bring-up state is reported as unhealthy.
-- Scale: 71 active mainnet production networks (`config/networks.json`), each
-  with its own Safe (`safeAddress`) and `LiFiTimelockController`.
+- Scale: every active mainnet network in `config/networks.json` has its own
+  Safe (`safeAddress`) and `LiFiTimelockController`. The set changes as
+  networks are added and deprecated, so treat that file as the live list
+  rather than any count quoted elsewhere:
+  `jq -r 'to_entries[] | select(.value.status=="active" and .value.type=="mainnet") | .key' config/networks.json`
 - There is **no Safe Transaction Service and no Safe{Wallet} UI** anywhere in
   the flow: proposals live in our own MongoDB store, and all Safe interaction
   goes through the hand-rolled viem-based `SafeClient` class in
@@ -51,9 +54,13 @@ Two MongoDB clusters with different trust profiles:
 
 Governance shape, per network: the Safe (address in `config/networks.json`)
 owns a `LiFiTimelockController` with **minDelay 10800 s (3 h)**
-(`config/timelockController.json`). The Safe is the timelock's only
-PROPOSER/CANCELLER and its admin; **EXECUTOR_ROLE is granted to `address(0)`,
-so anyone may execute a ready operation** — in practice the 10-minute cron
+(`config/timelockController.json`). The Safe is the timelock's only PROPOSER
+and its external admin. CANCELLER_ROLE is held by the Safe **and** the
+deployer wallet — OZ's constructor grants it to every proposer, and
+`LiFiTimelockController` additionally grants it to `_cancellerWallet`
+(`config/global.json` `deployerWallet`) — so a queued operation can be
+cancelled without a quorum. **EXECUTOR_ROLE is granted to `address(0)`, so
+anyone may execute a ready operation** — in practice the 10-minute cron
 (`script/deploy/facets/DeployLiFiTimelockController.s.sol`,
 `src/Security/LiFiTimelockController.sol`).
 
@@ -152,9 +159,9 @@ signer sees:
 
 Signing is EIP-712 over the `SafeTx` struct, reconstructed from the row's raw
 fields — what is displayed and on the Ledger is what is signed. Each owner
-runs the tool independently until the on-chain threshold (currently 3, per
-the rollout runbook) is met; a new proposal already carries the proposer's
-signature.
+runs the tool independently until the Safe's threshold is met — read
+on-chain per Safe at confirm time, never assumed; a new proposal already
+carries the proposer's signature.
 
 ### 4.4 Execute
 
