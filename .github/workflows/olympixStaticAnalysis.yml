@@ -28,10 +28,13 @@ jobs:
   static-analysis:
     name: Static Analysis Security Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Get added, renamed, modified Solidity Files
         id: changed-files

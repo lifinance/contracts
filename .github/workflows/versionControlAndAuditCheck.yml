@@ -46,8 +46,9 @@ jobs:
   version-control:
     if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     concurrency:
-      group: sc-core-dev-approval-${{ github.event.pull_request.number }}
+      group: version-control-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
       CONTINUE: false # makes sure that variable is correctly initialized in all cases
@@ -56,6 +57,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Get list of modified files by this PR
         id: modified_files
@@ -329,6 +331,7 @@ jobs:
     if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
     needs: version-control
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GITHUB_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
       AUDIT_LOG_PATH: 'audit/auditLog.json'
@@ -339,6 +342,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Download list of audit-relevant contracts from previous version control step
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8

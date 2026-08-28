@@ -33,8 +33,8 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x59Eb62be779329954e0bac80D5F1B1c35D1f41A5": {
-        "Name": "GenericSwapFacet",
+      "0x5FaBBa7348C2f2129754D9E4C0Ed04DA2877F414": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x17A1a3a8f4D77F330a53D852497d65ddcf065898": {
@@ -52,21 +52,13 @@
       "0xC6C962950De5828B81De268224086912CC3dfAFD": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
-      },
-      "0xdFE4De6Af0E906CAd6f52B84D820d74FA5b57E4d": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.2"
-      },
-      "0xa321de0216de08fe85039B4D021c788f9cad9582": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x6779c514999667B371d70844BAe96Cf782A3c54f",
       "Executor": "0x5603aF276bDCf73A859928ca3fbDaE7d4909Dd77",
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x9E4146C44f00e6b74A1e8eeF7a3Df3036A32De6D",
       "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
       "LidoWrapper": "",
@@ -76,7 +68,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xABcB396352253EA1b4E0b193Db4b0795Da5c5295",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x5f177F60802f798Aef5E3723fDCF27C172Ae6756"
     }

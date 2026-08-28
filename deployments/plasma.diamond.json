@@ -25,9 +25,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xf62aA4583bD1F0c0fBbd99D333C5F96030a1ab3F": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0x0263A66912E06cCcbd5dC1Aa870f7271E24a7F72": {
         "Name": "GenericSwapFacetV3",
@@ -69,12 +69,12 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x76b0e123923075f362Dc1ED7a48D7aD3ed7C5663": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
-      "0x6D2b543c86de1794a363eBf16C3Cd7Ae33CB7e4d": {
-        "Name": "SymbiosisFacet",
+      "0x249dbDc4b0B5D1c4e387427B8d8437f579d8b20d": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x9B43Db66881128762B646576941C29059b13cbd6": {
@@ -84,27 +84,23 @@
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
-      },
-      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
       "Executor": "0x765FAa0FFb5557c6CcE2Ea1097d50ACfD5f5C58c",
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
+      "LidoWrapper": "",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "0x2cE98D2879Ec036183Aae242CACC0Dc37554d969",
       "ReceiverAcrossV4": "0x4D8fAEdf6BeDEc8Fa68a3256015Ef273Ebf4b787",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xE0Eb8b68489C0A08dFD9c7D3E371C14d1e37a904",
       "ReceiverStargateV2": "0xA5D46f5FAA47D69947acA00Fd9Ac023392719546",
       "TokenWrapper": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee"
     }

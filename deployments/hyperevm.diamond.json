@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xf4B09365c10cCD3def7C215c5533904EA7526Ab5": {
+      "0xb672927122660a0B89faA3af30d13609174D9Df4": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0xbA1201E531C11DEfB602B35398e753f148A762f1": {
         "Name": "AccessManagerFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0xF3B43c21A8423E45C2dd3321ce067F5603bC9369": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x2B47C16Cd8B53a4f502580A030de1E83dDCB677d": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xa12D48dBf4248d702D5b41e271742914D7d8A321": {
         "Name": "GenericSwapFacetV3",
@@ -53,17 +53,17 @@
         "Name": "EcoFacet",
         "Version": "1.1.0"
       },
-      "0xd1059C492eC2472220fca8Dc358a7A587500b1Ab": {
-        "Name": "SymbiosisFacet",
+      "0xc5b0546842F572bC3328D38151b1EEeaE3428dAc": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
       "0x75325E9f1E8a6f26a590e2c2F4e5976a5e74F6Aa": {
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xfA7182a7274156bc5DD3f489689Fc4d44aF51Da9": {
+      "0x20A7ea2d139fCBCB01C021e58FEC16583137D9b5": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x8475a5f359bD33D33A6381b9381af5d86BC547A5": {
         "Name": "RelayDepositoryFacet",
@@ -92,23 +92,27 @@
       "0x4Bbe85750F2625F058285bf6ff857cd90746E1ac": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x5b5b8a9A24a7FdCbd2a0C5f238fA21DBc30673d6": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x3E8EDF9CC2591a7dB1A36DBB73A10d8746368D61",
       "Executor": "0x1F050386e23d81fC81C154a8F8616DEa3826b777",
       "FeeCollector": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
-      "FeeForwarder": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
+      "FeeForwarder": "0xba072Bf218314E51d5c3d254800d799840ae6a25",
       "GasZipPeriphery": "0x36dff5e623257bA84f8e221eDd4f9081dc183D4e",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
+      "LidoWrapper": "",
       "OutputValidator": "0x905F229f14Ec9e7Dd7428417CfBe7DBf1e1FD386",
       "Patcher": "",
       "Permit2Proxy": "0x3e851976DCA1bc02A2F35Ce926dCAFD1dEB3359b",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "0xee2edD809EEddD4a944e6E4bb4A3AC0927CA02e1",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xa0A1b870EDD012FFc7D50eeCa4f65DAdBDc7D671",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0xdD73C6B0387018314FFBd4CB0b9F382771BB541A"
     }

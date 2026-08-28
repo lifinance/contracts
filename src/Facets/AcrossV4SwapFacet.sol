@@ -788,6 +788,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 999) return 30367; // HyperEVM (Hyperliquid)
         if (_chainId == 1088) return 30151; // Metis
         if (_chainId == 1101) return 30158; // Polygon zkEVM
+        // Moonbeam is no longer supported by LI.FI (deprecated in EXSC-796); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 1284) return 30126; // Moonbeam
         if (_chainId == 1329) return 30280; // Sei
         if (_chainId == 1337) return 30367; // HyperCore (same eid as HyperEVM)
@@ -801,6 +803,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 8453) return 30184; // Base
         if (_chainId == 81224) return 30323; // Codex
         if (_chainId == 98866) return 30370; // Plume
+        // Taiko is no longer supported by LI.FI (deprecated in EXP-577); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 167000) return 30290; // Taiko
         if (_chainId == LIFI_CHAIN_ID_SOLANA) return 30168; // Solana
         revert InvalidCallData();

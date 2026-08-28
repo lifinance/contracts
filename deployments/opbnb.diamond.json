@@ -33,9 +33,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x3E085Dd54bdD7DEd0FcDCfb4a24CEb0e0635bDE2": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xa0353221443CA4E2e6A040F30A57B47F5A6d479D": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0x96f213947D724766d9016f86799042744070Fbd0": {
         "Name": "CalldataVerificationFacet",
@@ -62,7 +62,7 @@
       "ERC20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
       "Executor": "0xC9E66aa9b08EB667e450e072E96F7086AD9f2c91",
       "FeeCollector": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LidoWrapper": "",

@@ -17,16 +17,16 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0x5093a8Ae485F2D3E701d970Cd372763845c0b606": {
+      "0xf581A8BFEAd9dD999298Cc0ea0f7D11c3cB92A56": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       },
       "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8": {
@@ -57,9 +57,9 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x10dcB9fC2A7523f189Cb584B6723BFfa2a67C2Aa": {
+      "0x7AFB92A206d1774AE015D620fcb3328b253a3E5d": {
         "Name": "MayanFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x960B7a177dAaD7D1beA69354d023984Af6b75847": {
         "Name": "AcrossFacetV4",
@@ -85,8 +85,12 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
-        "Name": "LayerSwapFacet",
+      "0xF4a0f420Ce1c2FFf450f0EF713b419B7DF7E7b2E": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
+      },
+      "0xB66f5141CCd376e1D0B2D13165B7860DcC8c675D": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       }
     },
@@ -94,17 +98,17 @@
       "ERC20Proxy": "0xEF3D879e24741973d7f7E78858BFA4FBB9CFa74D",
       "Executor": "0x765FAa0FFb5557c6CcE2Ea1097d50ACfD5f5C58c",
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
+      "LidoWrapper": "",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "0xeebc9F9D77b8982CDC48C995995eBB7dd74A3Dcf",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xE0Eb8b68489C0A08dFD9c7D3E371C14d1e37a904",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x3abbaBb233a4939Bf9FFEE465446bd6F4C95f4ee"
     }

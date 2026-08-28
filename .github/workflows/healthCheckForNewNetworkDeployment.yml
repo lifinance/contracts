@@ -16,11 +16,13 @@ permissions:
 jobs:
   check-new-network-health:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check if config/networks.json was changed in this branch
         id: check-file-change
@@ -138,3 +140,7 @@ jobs:
               exit 1
             fi
           done
+        env:
+          # no-stale-registered-facets reads the deferred-cleanup queue; without it the
+          # check can only report reduced coverage.
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}

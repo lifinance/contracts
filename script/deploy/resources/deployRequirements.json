@@ -144,24 +144,6 @@
       }
     }
   },
-  "CBridgeFacet": {
-    "configData": {
-      "_cBridge": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cBridge",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "CBridgeFacetPacked": {
-    "configData": {
-      "_cBridge": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cBridge",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "CelerCircleBridgeFacet": {
     "configData": {
       "_circleBridgeProxy": {
@@ -173,25 +155,6 @@
         "configFileName": "celerCircle.json",
         "keyInConfigFile": ".<NETWORK>.usdc",
         "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "CelerIMFacet": {
-    "configData": {
-      "_messageBus": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_relayerOwner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_cfUSDC": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.cfUSDC",
-        "allowToDeployWithZeroAddress": "true"
       }
     }
   },
@@ -215,6 +178,25 @@
         "configFileName": "debridge.json",
         "keyInConfigFile": ".config.<NETWORK>.deBridgeGate",
         "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "FraxFacet": {
+    "configData": {
+      "_hop": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".hop.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_tipFeeManager": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".tipFeeManager.<NETWORK>",
+        "allowToDeployWithZeroAddress": "true"
+      },
+      "_pathUsd": {
+        "configFileName": "frax.json",
+        "keyInConfigFile": ".pathUsd.<NETWORK>",
+        "allowToDeployWithZeroAddress": "true"
       }
     }
   },
@@ -250,15 +232,6 @@
       "_xDaiBridge": {
         "configFileName": "gnosis.json",
         "keyInConfigFile": ".<NETWORK>.xDaiBridge",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "HopFacet": {
-    "configData": {
-      "_router": {
-        "configFileName": "hop.json",
-        "keyInConfigFile": ".<NETWORK>.tokens",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -613,34 +586,11 @@
       }
     }
   },
-  "RelayerCelerIM": {
-    "configData": {
-      "_cBridgeMessageBusAddress": {
-        "configFileName": "cbridge.json",
-        "keyInConfigFile": ".<NETWORK>.messageBus",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_owner": {
-        "configFileName": "global.json",
-        "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "OutputValidator": {
     "configData": {
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
-  "PioneerFacet": {
-    "configData": {
-      "_pioneerAddress": {
-        "configFileName": "pioneer.json",
-        "keyInConfigFile": ".pioneerEOAProduction",
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -696,11 +646,6 @@
       "_owner": {
         "configFileName": "global.json",
         "keyInConfigFile": ".refundWallet",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    },
-    "contractAddresses": {
-      "LiFiDEXAggregator": {
         "allowToDeployWithZeroAddress": "false"
       }
     }
@@ -798,6 +743,25 @@
       "_inputSettler": {
         "configFileName": "lifiintentescrow.json",
         "keyInConfigFile": ".lifiEscrowInputSettler",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "ReceiverOIF": {
+    "configData": {
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_outputSettler": {
+        "configFileName": "lifiintentescrow.json",
+        "keyInConfigFile": ".OIFOutputSettlerSimple",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    },
+    "contractAddresses": {
+      "Executor": {
         "allowToDeployWithZeroAddress": "false"
       }
     }

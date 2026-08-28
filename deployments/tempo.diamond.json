@@ -21,9 +21,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xc99057F8A05C387CcD76D8aB6BC5747798c38771": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x6E3D79b7C48A86f6be1EFffe9665916Cd33e73e9": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xc2029A96C95AC48dA05778B41B965CfC4640317D": {
         "Name": "GenericSwapFacetV3",
@@ -61,8 +61,8 @@
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0xac959B1bcf96B7bFcfB0ac5D23E5d44AFc4Fff4c": {
-        "Name": "SymbiosisFacet",
+      "0xF3f161B9407260194074361D3498b1E77855E409": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0x7E2dF86452b63f263f55ada32befBe8f58e69BD7": {
@@ -72,21 +72,25 @@
       "0xBdD660fa7e8D31f0199E333B85a46aa43Bb3D69C": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x58EBB75C51da4e2d19329B571dC75d815cd59915": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xB73D8c580b7fa3B583B2ADa5e106aD42220183C0",
       "Executor": "0x4556099dde35755d00fEc81100481C582A5EE63c",
       "FeeCollector": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
-      "FeeForwarder": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
+      "FeeForwarder": "0xEDff4051B8286d2333149429F019dC10E23570da",
       "GasZipPeriphery": "",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
+      "LidoWrapper": "",
       "OutputValidator": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
       "Patcher": "",
       "Permit2Proxy": "0xa69d78858B27235575D7EfE240be91744a68E005",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0xac6ab3D8026Bfd31eDeA055deFedF61956439d0f",
       "ReceiverChainflip": "",
       "ReceiverOIF": "",
       "ReceiverStargateV2": "0x81c9d514A6D1470E83DD8c8AC952C6c0D89c3d0C",

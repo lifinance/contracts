@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x49ce061dDb5DC3e6191E2CE6d3AD4105DDb6cA68": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x7f8ba758F626d711C249e20383D5f1E5632e964d": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xC46E6a3d62fC140C3475e081B7110aDB656450df": {
         "Name": "EmergencyPauseFacet",
@@ -70,7 +70,7 @@
       "ERC20Proxy": "0x88BFF60dFB4382dfb8da7dD5caC23397350D2078",
       "Executor": "0x6696F031C099dE6089427ceBFb38258feA6fdaFE",
       "FeeCollector": "0x27f0e36dE6B1BA8232f6c2e87E00A50731048C6B",
-      "FeeForwarder": "0x531207ED256C75d26401aEd744333265E4b9029c",
+      "FeeForwarder": "0xF46B6684DF5D121D5FDD6cA76Ef4919c65887083",
       "GasZipPeriphery": "0x3515c6544f95Ef17a2c5d2666a43ce3d6b1C9553",
       "LiFiDEXAggregator": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
       "LidoWrapper": "",

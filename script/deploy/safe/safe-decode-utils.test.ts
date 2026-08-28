@@ -1,19 +1,30 @@
 /**
  * Tests for role-name resolution and role-change display in safe-decode-utils.
- * Covers getRoleName (hash -> OZ AccessControl role name) and formatRoleChange
- * (the grantRole / revokeRole / renounceRole display path).
+ * Covers getRoleName (hash -> OZ AccessControl role name), formatRoleChange
+ * (the grantRole / revokeRole / renounceRole display path) and the selector
+ * resolution behind formatBatchSetContractSelectorWhitelist.
  */
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+
 import {
   describe,
   expect,
   it,
   afterEach,
+  beforeEach,
   spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { consola } from 'consola'
+import { toFunctionSelector } from 'viem'
 
-import { getRoleName, formatRoleChange } from './safe-decode-utils'
+import {
+  getRoleName,
+  formatRoleChange,
+  formatBatchSetContractSelectorWhitelist,
+} from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
 // OpenZeppelin AccessControl role hashes (public, keccak256 of role names) —
@@ -110,5 +121,144 @@ describe('formatRoleChange', () => {
     )
     await formatRoleChange('revokeRole', [CANCELLER_ROLE], 'mainnet')
     expect(infoSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('decodeTransactionData', () => {
+  it('resolves Timelock scheduleBatch from the local registry without any network call', async () => {
+    const { decodeTransactionData } = await import('./safe-decode-utils')
+    const originalFetch = globalThis.fetch
+    // Any network access must not happen for locally-known selectors
+    globalThis.fetch = (() => {
+      throw new Error('network disabled in test')
+    }) as unknown as typeof fetch
+    try {
+      const result = await decodeTransactionData('0x8f2a0bb0')
+      expect(result.functionName).toBe(
+        'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
+      )
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+describe('formatBatchSetContractSelectorWhitelist', () => {
+  // Addresses absent from config/whitelist.json, so every selector below takes
+  // the fallback path the whitelist lookup alone cannot answer.
+  const CONTRACT = '0xEe80aaE1e39b1d25b9FC99c8edF02bCd81f9eA30'
+  // Deliberately absent from every local source, so only the 4byte lookup
+  // can name it.
+  const FALLBACK_ONLY_SIGNATURE = 'fallbackOnlyProbe(uint256,address)'
+  const FALLBACK_ONLY = toFunctionSelector(FALLBACK_ONLY_SIGNATURE)
+  const TRANSFER = toFunctionSelector('transfer(address,uint256)')
+  const UNKNOWN_SELECTOR = '0xdeadbeef'
+
+  let cacheDir: string
+  let originalCachePath: string | undefined
+  let originalFetch: typeof globalThis.fetch
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selector-cache-'))
+    originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = path.join(
+      cacheDir,
+      'selector-signatures.json'
+    )
+    originalFetch = globalThis.fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    if (originalCachePath === undefined)
+      delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+    fs.rmSync(cacheDir, { recursive: true, force: true })
+    spyOn(consola, 'info').mockRestore()
+  })
+
+  const stubFourByte = (signatures: Record<string, string>): (() => number) => {
+    let calls = 0
+    globalThis.fetch = (() => {
+      calls++
+      const fnResults: Record<string, { name: string }[]> = {}
+      for (const [selector, name] of Object.entries(signatures))
+        fnResults[selector.toLowerCase()] = [{ name }]
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ ok: true, result: { function: fnResults } }),
+      })
+    }) as unknown as typeof fetch
+    return () => calls
+  }
+
+  const capture = async (selectors: string[]): Promise<string> => {
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [selectors.map(() => CONTRACT), selectors, false],
+      'mainnet'
+    )
+    return infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+  }
+
+  it('keeps case-variant base58 contracts in separate groups', async () => {
+    // Base58 is case-sensitive, so these are two different Tron contracts.
+    const tronA = 'TQ2Fh2FLdWkhCPMTGKBHGNhCzWNwLoxdYY'
+    const tronB = 'TQ2fh2fLdWkhCPMTGKBHGNhCzWNwLoxdYY'
+    stubFourByte({ [FALLBACK_ONLY]: FALLBACK_ONLY_SIGNATURE })
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [[tronA, tronB], [FALLBACK_ONLY, TRANSFER], false],
+      'tron'
+    )
+    const output = infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(output).toContain(tronA)
+    expect(output).toContain(tronB)
+    // One "Contract:" line per address — a merged group would print only one.
+    expect(output.match(/Contract:/g)?.length).toBe(2)
+  })
+
+  it('resolves a selector missing from whitelist.json via the 4byte lookup', async () => {
+    stubFourByte({
+      [FALLBACK_ONLY]: FALLBACK_ONLY_SIGNATURE,
+    })
+    const output = await capture([FALLBACK_ONLY])
+    expect(output).toContain(FALLBACK_ONLY_SIGNATURE)
+    expect(output).toContain('via 4byte.sourcify.dev')
+    expect(output).not.toContain('signature unknown')
+  })
+
+  it('prefers the local registry and never calls 4byte for a locally-known selector', async () => {
+    const callCount = stubFourByte({})
+    const output = await capture([TRANSFER])
+    expect(output).toContain('transfer(address,uint256)')
+    expect(output).toContain('via well-known')
+    expect(callCount()).toBe(0)
+  })
+
+  it('batches every unresolved selector of the call into one request', async () => {
+    const callCount = stubFourByte({
+      [FALLBACK_ONLY]: FALLBACK_ONLY_SIGNATURE,
+    })
+    await capture([FALLBACK_ONLY, TRANSFER, UNKNOWN_SELECTOR])
+    expect(callCount()).toBe(1)
+  })
+
+  it('reports a selector no source can resolve as unknown', async () => {
+    stubFourByte({})
+    const output = await capture([UNKNOWN_SELECTOR])
+    expect(output).toContain(UNKNOWN_SELECTOR)
+    expect(output).toContain('signature unknown')
+  })
+
+  it('drops a 4byte signature that does not hash back to its selector', async () => {
+    stubFourByte({ [FALLBACK_ONLY]: 'transfer(address,uint256)' })
+    const output = await capture([FALLBACK_ONLY])
+    expect(output).toContain('signature unknown')
+    expect(output).not.toContain('transfer(address,uint256)')
   })
 })

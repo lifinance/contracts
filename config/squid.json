@@ -36,9 +36,6 @@
   "mantle": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
-  "moonbeam": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
-  },
   "optimism": {
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
@@ -49,6 +46,6 @@
     "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
   },
   "tempo": {
-    "router": "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+    "router": "0x2B4d4Cf15dAD79D3426D19674Bd237C1dc9144aa"
   }
 }

@@ -25,9 +25,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x51F82dB191b8A486b89336950D6bAF2d323b9585": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0xd04034AE565062D105D55C2de41C48A8838316FA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0x69cb467EfD8044ac9eDB88F363309ab1cbFA0A15": {
         "Name": "PeripheryRegistryFacet",
@@ -57,19 +57,19 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xFA7CFf5b5CB1509f3840c25Fe0d4EaBa1840e3B1": {
+      "0x5E79e8C67CC7FEd03b283E84A5e16500f094B6b5": {
         "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
+        "Version": "3.1.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x9B112948F3c71eBFb59961657b37c21328cFb01e",
       "Executor": "0xd00DaEC49Cd4F33Fe8542050294759cD971c7116",
       "FeeCollector": "0x11d40Dc8Ff0CE92F54A315aD8e674a55a866cBEe",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

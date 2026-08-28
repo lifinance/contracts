@@ -106,6 +106,27 @@ deploySingleContract() {
     warning "$REFUND_REMINDER"
   fi
 
+  # Non-fatal reminder: warn if this facet declares a companion periphery contract
+  # (config/global.json -> facetPeripheryCouplings) that is absent from this network's deploy log.
+  # Deploying the facet before its Receiver is the normal order, so this is a nudge, not a gate -
+  # the facet-required-periphery health-check invariant is the enforcing check.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local COMPANION_REMINDER
+  COMPANION_REMINDER=$(bunx tsx script/deploy/resources/facetCompanionReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$COMPANION_REMINDER" ]]; then
+    warning "$COMPANION_REMINDER"
+  fi
+
+  # Non-fatal reminder: warn which already-deployed contracts bind this one immutably at
+  # construction and therefore need a redeploy afterwards (Executor -> all Receiver... contracts,
+  # ERC20Proxy -> Executor -> all Receiver... contracts). Derived from deployRequirements.json.
+  # Best-effort only - any failure here must never interrupt the deployment.
+  local DEPENDENCY_REMINDER
+  DEPENDENCY_REMINDER=$(bunx tsx script/deploy/resources/contractDependencyReminder.ts "$CONTRACT" "$NETWORK" "$ENVIRONMENT" 2>/dev/null || true)
+  if [[ -n "$DEPENDENCY_REMINDER" ]]; then
+    warning "$DEPENDENCY_REMINDER"
+  fi
+
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
@@ -308,6 +329,19 @@ deploySingleContract() {
       SKIP_SIMULATION_FLAG=""
     fi
 
+    # The zkEVM command pins --skip-simulation and --gas-limit; appending customDeployFlags
+    # verbatim would pass either flag twice, so drop the redundant --skip-simulation and let a
+    # custom --gas-limit replace the pinned default.
+    local ZK_ADDITIONAL_FLAGS=""
+    local ZK_GAS_LIMIT_FLAG="--gas-limit 50000000"
+    if isZkEvmNetwork "$NETWORK"; then
+      ZK_ADDITIONAL_FLAGS="${ADDITIONAL_FLAGS//--skip-simulation/}"
+      if [[ "$ZK_ADDITIONAL_FLAGS" == *"--gas-limit"* ]]; then
+        ZK_GAS_LIMIT_FLAG=""
+        echoDebug "customDeployFlags specify --gas-limit; not applying the zkEVM default of 50000000"
+      fi
+    fi
+
     # Use a local effective multiplier so per-network overrides don't leak into subsequent calls.
     local NETWORK_GAS_MULTIPLIER
     NETWORK_GAS_MULTIPLIER=$(jq -r --arg NETWORK "$NETWORK" '.[$NETWORK].gasEstimateMultiplier // empty' "$NETWORKS_JSON" 2>/dev/null || true)
@@ -334,7 +368,7 @@ deploySingleContract() {
     if isZkEvmNetwork "$NETWORK"; then
       # Deploy zksync scripts using the zksync specific fork of forge
       executeAndParse \
-        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\" --gas-limit 50000000" \
+        "FOUNDRY_PROFILE=zksync DEPLOYSALT=$DEPLOYSALT NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX PRIVATE_KEY=\"$(getPrivateKey \"$NETWORK\" \"$ENVIRONMENT\")\" ./foundry-zksync/forge script \"$FULL_SCRIPT_PATH\" --fork-url \"$NETWORK\" --sender \"$DEPLOYER_ADDRESS\" --json --broadcast --skip-simulation --slow --zksync --gas-estimate-multiplier \"$EFFECTIVE_GAS_ESTIMATE_MULTIPLIER\" $ZK_GAS_LIMIT_FLAG $ZK_ADDITIONAL_FLAGS" \
         "true"
     else
       # try to execute call

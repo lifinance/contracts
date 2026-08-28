@@ -29,8 +29,8 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x07Dc30d818f32F8C934f2D4E4F45eeC449954b8E": {
-        "Name": "GenericSwapFacet",
+      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xfBf7cc8792C5b6AE4fE2ff68F064c7A4F476F9a2": {
@@ -45,13 +45,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0xD789194424501da890adb342bB5163ac30aAAaD1": {
-        "Name": "AcrossFacetPackedV3",
-        "Version": "1.2.0"
+      "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
+        "Name": "AcrossFacetPackedV4",
+        "Version": "1.0.0"
       },
-      "0x8D50dDc24b1e530FB2874BD03b28fB8a77D59E72": {
-        "Name": "AcrossFacetV3",
-        "Version": "1.1.0"
+      "0x64d6B0993C4002E671f828BA35F0c53aF9eaA37a": {
+        "Name": "GlacisFacet",
+        "Version": "1.2.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
@@ -69,9 +69,9 @@
         "Name": "SymbiosisFacet",
         "Version": "1.0.0"
       },
-      "0xa8deab5134FBA01820E802c0F16337756E0f2a5E": {
-        "Name": "PioneerFacet",
-        "Version": "1.0.0"
+      "0xf62aA4583bD1F0c0fBbd99D333C5F96030a1ab3F": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xbd9e11d7E8a29f2568d98BE25B8f3237b140F647": {
         "Name": "RelayDepositoryFacet",
@@ -80,25 +80,13 @@
       "0x390b9A9d7Ad4c62E4F3AD04256f87c977774Fce6": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
-      },
-      "0x6284c8F9592d43963C054D53a56086D4d8460C22": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
-      },
-      "0x64d6B0993C4002E671f828BA35F0c53aF9eaA37a": {
-        "Name": "GlacisFacet",
-        "Version": "1.2.0"
-      },
-      "0x2BfD9Ce2fe03cFf9c25d524bdAAd8E16161087Cd": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x1f4613847c9F7Bd053c5229c65834c9231A83bF9",
       "Executor": "0x458FBDbc8b2DcC67Ba934969dcdFb1b9671B642f",
       "FeeCollector": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
-      "FeeForwarder": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+      "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
       "LiFiDEXAggregator": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
       "LidoWrapper": "0xe022f0e02a008C42cBb674e5f292FDea10f7dcfF",

@@ -25,9 +25,9 @@
  * `intentHash` non-deterministic, so it cannot dedup a re-proposed removal
  * (spec Fact 9); the queue-layer flip is the guarantee instead.
  *
- * The drain (out of scope here) sets `safeTxHash` on a claimed record to link it
- * to the minted `pendingTransactions` proposal (spec §6.3 step 4); that setter
- * lands with the drain PR, so no `safeTxHash` writer is exposed yet by design.
+ * The drain (out of scope here) sets `safeTxHash` on a claimed record via
+ * {@link setSafeTxHash} to link it to the primary `pendingTransactions` proposal
+ * its removal was folded into (spec §6).
  */
 
 import { consola } from 'consola'
@@ -40,7 +40,7 @@ import {
   type UpdateFilter,
   type WithId,
 } from 'mongodb'
-import { type Address } from 'viem'
+import { getAddress, type Address } from 'viem'
 
 import { type EnvironmentEnum } from '../../common/types'
 import { getEnvVar } from '../../utils/utils'
@@ -66,31 +66,31 @@ export type ParkedTaskStatus =
   | 'superseded'
 
 /** Statuses under which a `taskKey` is still active and must stay unique. */
-const OPEN_STATUSES: ParkedTaskStatus[] = ['queued', 'proposed']
+export const OPEN_STATUSES: ParkedTaskStatus[] = ['queued', 'proposed']
 
 /** Name of the partial unique index the dedup guarantees depend on. */
 const OPEN_TASK_KEY_INDEX_NAME = 'unique_open_task_key'
 
 /**
  * A deferred diamond-maintenance task, parked until the network is next touched.
- * One record per (kind, network, environment, facetName) — the finest grain
+ * One record per (kind, network, environment, facetAddress) — the finest grain
  * (spec §4). Selectors are intentionally NOT stored: they are resolved from the
  * live loupe at drain time, so a stored list can never go stale.
  */
 export interface IParkedTask {
   _id?: ObjectId
-  /** Dedup key `${kind}|${network}|${environment}|${facetName}` (see {@link computeTaskKey}). */
+  /** Dedup key `${kind}|${network}|${environment}|${facetAddress}` (see {@link computeTaskKey}). */
   taskKey: string
   kind: ParkedTaskKind
   /** Lowercased network name, matching the `pendingTransactions` convention. */
   network: string
   /** `production` in v1 — the queue is a production-mainnet construct (spec §12). */
   environment: EnvironmentEnum
-  /** The facet identity; selectors are re-resolved from the loupe at drain. */
+  /** Human-readable label for the parked facet. NOT the identity — see `facetAddress`. */
   facetName: string
   /** Diamond address snapshot from the deploy log at enqueue (sanity/fallback). */
   diamondAddress: Address
-  /** Facet address snapshot; re-verified against the loupe at drain. */
+  /** The task identity: the exact facet to remove. Selectors are re-resolved from the loupe at drain. */
   facetAddress: Address
   /** Originating deprecation PR — REQUIRED and first-class (spec §6). */
   prUrl: string
@@ -125,27 +125,77 @@ export type IParkedTaskInput = Omit<
 /** Filters accepted by {@link listParkedTasks}. */
 export interface IListParkedTasksFilter {
   network?: string
+  environment?: EnvironmentEnum
   prUrl?: string
-  status?: ParkedTaskStatus
+  /** One status, or several (matched with `$in` — e.g. {@link OPEN_STATUSES}). */
+  status?: ParkedTaskStatus | ParkedTaskStatus[]
 }
 
 /**
- * Computes the dedup key for a parked task: `${kind}|${network}|${environment}|${facetName}`.
- * Only the network segment is lowercased, matching the stored `network` value.
+ * Normalises a facet address for use as a {@link computeTaskKey} segment.
+ *
+ * EVM addresses are case-insensitive, so lowercasing lets a checksummed and an
+ * all-lower spelling of the same facet dedup against each other. A non-`0x`
+ * string is kept verbatim so the key stays a pure string function of a row's
+ * stored fields, whatever a legacy row holds — {@link enqueueParkedTask} refuses
+ * to create such rows.
+ */
+function normaliseAddressForKey(facetAddress: string): string {
+  const trimmed = facetAddress.trim()
+  return trimmed.startsWith('0x') ? trimmed.toLowerCase() : trimmed
+}
+
+/**
+ * Canonical stored spelling of a facet address: a checksummed EVM address.
+ *
+ * The stored value and {@link computeTaskKey} must never disagree about identity —
+ * otherwise an address parked in one capitalisation and re-parked in another
+ * would carry two spellings for one key.
+ *
+ * EVM-only by design: every consumer of the queue (the drain via the EVM Safe
+ * propose path, the reconcile via viem loupe reads) can only process EVM
+ * addresses, so accepting anything else would mint rows nothing can ever drain
+ * or verify. Tron parking becomes representable when a Tron-capable consumer
+ * exists.
+ *
+ * @param facetAddress - Address as supplied by the caller.
+ * @returns The canonical checksummed form to store.
+ * @throws If the value is not a valid `0x` EVM address.
+ */
+function canonicaliseFacetAddress(facetAddress: string): string {
+  const trimmed = facetAddress.trim()
+  if (!trimmed.startsWith('0x'))
+    throw new Error(
+      `facetAddress must be a 0x EVM address (got "${trimmed}") — the queue is EVM-only: no consumer can drain or reconcile a non-EVM address`
+    )
+  return getAddress(trimmed)
+}
+
+/**
+ * Computes the dedup key for a parked task: `${kind}|${network}|${environment}|${facetAddress}`.
+ * The network segment is lowercased to match the stored `network` value, the
+ * address per {@link normaliseAddressForKey}.
+ *
+ * Keyed by ADDRESS rather than name: two versions of one facet are routinely
+ * co-registered on the same diamond (SymbiosisFacet v1.0.0 alongside v2.0.0 on 35
+ * production chains, EXSC-750), and a name-keyed queue can neither represent them
+ * separately nor target one without the other.
  *
  * @param kind - Task kind (`facet-removal` in v1).
  * @param network - Network slug (matches `networks.json` keys).
  * @param environment - Deployment environment.
- * @param facetName - The facet identity being parked for removal.
+ * @param facetAddress - Address being parked for removal — the task identity.
  * @returns The pipe-joined task key.
  */
 export function computeTaskKey(
   kind: ParkedTaskKind,
   network: string,
   environment: EnvironmentEnum,
-  facetName: string
+  facetAddress: string
 ): string {
-  return `${kind}|${network.toLowerCase()}|${environment}|${facetName}`
+  return `${kind}|${network.toLowerCase()}|${environment}|${normaliseAddressForKey(
+    facetAddress
+  )}`
 }
 
 /**
@@ -286,16 +336,19 @@ export async function getParkedTasksCollection(): Promise<{
  * same facet is a harmless no-op), mirroring `storeTransactionInMongoDB`.
  *
  * Identity fields are normalised here (the single enqueue chokepoint) so every
- * caller — CLI, `/deprecate-contract`, the future drain — dedups consistently:
- * `network`/`facetName`/`prUrl` are trimmed and a blank `facetName` is rejected,
- * because `taskKey` is built from `network`+`facetName` and a stray space would
- * silently mint a distinct, undeduplicated task for the same facet.
+ * caller — CLI, `/deprecate-contract`, the drain — dedups consistently:
+ * `network`/`facetName`/`facetAddress`/`prUrl` are trimmed, because `taskKey` is
+ * built from `network`+`facetAddress` and a stray space would silently mint a
+ * distinct, undeduplicated task for the same facet.
  *
  * @param parkedTasks - The queue collection.
  * @param input - Task identity + snapshots + required `prUrl` + enqueuer.
  * @returns The insert result, or `null` if a duplicate open task already exists.
- * @throws Error if `prUrl` or `facetName` is missing or blank (prUrl is the
- *   PR-link requirement, spec §6; facetName is the task identity).
+ * @throws Error if `prUrl`, `facetAddress` or `facetName` is missing or blank
+ *   (prUrl is the PR-link requirement, spec §6; facetAddress is the task
+ *   identity; facetName is its label, required so queue reports stay readable),
+ *   or if `facetAddress` is not a valid `0x` EVM address (the queue is
+ *   EVM-only — see {@link canonicaliseFacetAddress}).
  */
 export async function enqueueParkedTask(
   parkedTasks: Collection<IParkedTask>,
@@ -307,15 +360,26 @@ export async function enqueueParkedTask(
     )
   if (!input.facetName || input.facetName.trim() === '')
     throw new Error('facetName is required to park a facet-removal task')
+  if (!input.facetAddress || input.facetAddress.trim() === '')
+    throw new Error(
+      'facetAddress is required to park a facet-removal task (it is the task identity)'
+    )
 
   const network = input.network.trim().toLowerCase()
   const facetName = input.facetName.trim()
+  const facetAddress = canonicaliseFacetAddress(input.facetAddress) as Address
   const doc: IParkedTask = {
     ...input,
     network,
     facetName,
+    facetAddress,
     prUrl: input.prUrl.trim(),
-    taskKey: computeTaskKey(input.kind, network, input.environment, facetName),
+    taskKey: computeTaskKey(
+      input.kind,
+      network,
+      input.environment,
+      facetAddress
+    ),
     status: 'queued',
     createdAt: new Date(),
   }
@@ -338,11 +402,17 @@ export async function enqueueParkedTask(
 }
 
 /**
- * Reads parked tasks, optionally filtered by network / prUrl / status.
+ * Reads parked tasks, optionally filtered by network / environment / prUrl / status.
+ *
+ * Sorted by `taskKey` so the drain claims (and therefore appends Remove cuts) in
+ * the same order {@link listParkedTasksBySafeTxHash} later replays them in. That
+ * read tie-breaks on `taskKey` when `proposedAt` collides, which it can for claims
+ * landing in the same millisecond — without a deterministic read order here the
+ * two disagree and the execute-time zip mislabels a cut.
  *
  * @param parkedTasks - The queue collection.
- * @param filter - Optional network (lowercased), prUrl, and status filters.
- * @returns The matching tasks.
+ * @param filter - Optional network (lowercased), environment, prUrl, and status filters.
+ * @returns The matching tasks, ordered by `taskKey`.
  */
 export async function listParkedTasks(
   parkedTasks: Collection<IParkedTask>,
@@ -350,9 +420,32 @@ export async function listParkedTasks(
 ): Promise<WithId<IParkedTask>[]> {
   const query: Filter<IParkedTask> = {}
   if (filter.network) query.network = { $eq: filter.network.toLowerCase() }
+  if (filter.environment) query.environment = { $eq: filter.environment }
   if (filter.prUrl) query.prUrl = { $eq: filter.prUrl }
-  if (filter.status) query.status = { $eq: filter.status }
-  return parkedTasks.find(query).toArray()
+  if (filter.status)
+    query.status = Array.isArray(filter.status)
+      ? { $in: filter.status }
+      : { $eq: filter.status }
+  return parkedTasks.find(query).sort({ taskKey: 1 }).toArray()
+}
+
+/**
+ * Lists parked tasks linked to a Safe proposal via {@link setSafeTxHash}.
+ * Sorted by `proposedAt` ascending so order matches the drain's claim/append
+ * order (folded Remove cuts are the trailing N payloads of the timelock batch).
+ *
+ * @param parkedTasks - The queue collection.
+ * @param safeTxHash - The primary proposal's Safe transaction hash.
+ * @returns Matching tasks (may be empty when the proposal had no folded removals).
+ */
+export async function listParkedTasksBySafeTxHash(
+  parkedTasks: Collection<IParkedTask>,
+  safeTxHash: string
+): Promise<WithId<IParkedTask>[]> {
+  return parkedTasks
+    .find({ safeTxHash: { $eq: safeTxHash } })
+    .sort({ proposedAt: 1, taskKey: 1 })
+    .toArray()
 }
 
 /**
@@ -366,15 +459,21 @@ async function transition(
   taskKey: string,
   allowedFrom: ParkedTaskStatus[],
   set: Partial<IParkedTask>,
-  unset?: Partial<Record<keyof IParkedTask, ''>>
+  unset?: Partial<Record<keyof IParkedTask, ''>>,
+  expectedSafeTxHash?: string
 ): Promise<WithId<IParkedTask> | null> {
   const update: UpdateFilter<IParkedTask> = { $set: set }
   if (unset) update.$unset = unset
-  return parkedTasks.findOneAndUpdate(
-    { taskKey: { $eq: taskKey }, status: { $in: allowedFrom } },
-    update,
-    { returnDocument: 'after' }
-  )
+  // Every value is operator-wrapped and the filter is built field by field, so
+  // no caller can widen the match or override the taskKey/status gate.
+  const filter: Filter<IParkedTask> = {
+    taskKey: { $eq: taskKey },
+    status: { $in: allowedFrom },
+  }
+  if (expectedSafeTxHash) filter.safeTxHash = { $eq: expectedSafeTxHash }
+  return parkedTasks.findOneAndUpdate(filter, update, {
+    returnDocument: 'after',
+  })
 }
 
 /**
@@ -457,15 +556,15 @@ export async function markCancelled(
 }
 
 /**
- * Links a claimed (`proposed`) task to the `pendingTransactions` proposal the
- * drain just minted, by stamping its `safeTxHash` (spec §6.3 step 4). Restricted
+ * Links a claimed (`proposed`) task to the primary `pendingTransactions` proposal
+ * its removal was folded into, by stamping its `safeTxHash` (spec §6). Restricted
  * to `proposed`: the task must have been claimed via {@link claimForProposal}
  * before a proposal exists to link. A later reconcile reads this hash to resolve
  * the task once the proposal executes.
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The claimed task to link.
- * @param safeTxHash - The minted proposal's Safe transaction hash.
+ * @param safeTxHash - The linked primary proposal's Safe transaction hash.
  * @returns The updated task, or `null` if it was not `proposed`.
  */
 export async function setSafeTxHash(
@@ -477,23 +576,120 @@ export async function setSafeTxHash(
 }
 
 /**
- * Reverts a claimed (`proposed`) task back to `queued` when its minted proposal
- * failed or was reverted, clearing the stale `proposedAt`/`safeTxHash` so the next
- * drain re-proposes cleanly.
+ * Reopens a task that was resolved as done (`executed`/`superseded`) but whose
+ * facet is demonstrably still routed — the removal never actually landed. Sends it
+ * back to `queued` and clears the stale proposal linkage and resolution stamp so
+ * the next drain re-proposes it from scratch.
+ *
+ * `cancelled` is deliberately NOT reopenable: that state records an operator
+ * explicitly abandoning the intent, and re-queueing it would fight that decision.
+ *
+ * Reopening re-enters the *open* statuses the partial unique index covers, so it
+ * collides (E11000) when a fresh open task already exists for the same `taskKey`.
+ * That is a benign race — the facet is already tracked — so it returns `null`
+ * rather than throwing, mirroring {@link enqueueParkedTask}.
+ *
+ * Addressed by `_id`, not `taskKey`: the partial unique index covers only the open
+ * statuses, so one `taskKey` can own several *terminal* rows (parked → executed →
+ * re-parked → executed). Matching by key would let Mongo pick any of them, and the
+ * caller would then report a document it did not modify.
+ *
+ * @param parkedTasks - The queue collection.
+ * @param id - `_id` of the terminal task to reopen.
+ * @returns The reopened task, `null` if it was not `executed`/`superseded`, or
+ *   `null` if an open task for the same `taskKey` already exists.
+ */
+export async function reopenResolvedTask(
+  parkedTasks: Collection<IParkedTask>,
+  id: ObjectId
+): Promise<WithId<IParkedTask> | null> {
+  // Recompute the key from the row's own fields before re-entering the open
+  // index: a legacy row still carrying a name-based key would otherwise reopen
+  // under a key no fresh enqueue can collide with, silently disabling the
+  // E11000 duplicate-open protection this function documents.
+  const current = await parkedTasks.findOne({ _id: { $eq: id } })
+  if (!current) return null
+  const taskKey = computeTaskKey(
+    current.kind,
+    current.network,
+    current.environment,
+    current.facetAddress
+  )
+  // The unique index only catches same-KEY duplicates; an open legacy-keyed row
+  // for the same address would not collide, so check by address first. Not
+  // atomic, but the drain's own duplicate-address guard backstops the race.
+  const openRows = await parkedTasks
+    .find({
+      kind: { $eq: current.kind },
+      network: { $eq: current.network },
+      environment: { $eq: current.environment },
+      status: { $in: OPEN_STATUSES },
+    })
+    .toArray()
+  // Case-insensitive only for 0x addresses: a legacy non-EVM value is
+  // case-sensitive, so folding it could merge two distinct accounts.
+  const sameAddress = (a: string, b: string): boolean =>
+    a.startsWith('0x') && b.startsWith('0x')
+      ? a.toLowerCase() === b.toLowerCase()
+      : a === b
+  const duplicate = openRows.find(
+    (row) =>
+      !row._id.equals(id) && sameAddress(row.facetAddress, current.facetAddress)
+  )
+  if (duplicate) {
+    consola.warn(
+      `Cannot reopen resolved task - an open task already tracks it.\n  Task id: ${id.toString()}`
+    )
+    return null
+  }
+  try {
+    return await parkedTasks.findOneAndUpdate(
+      { _id: { $eq: id }, status: { $in: ['executed', 'superseded'] } },
+      {
+        $set: { status: 'queued', taskKey },
+        $unset: { proposedAt: '', safeTxHash: '', resolvedAt: '' },
+      },
+      { returnDocument: 'after' }
+    )
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as { code: number }).code === 11000
+    ) {
+      consola.warn(
+        `Cannot reopen resolved task - an open task already tracks it.\n  Task id: ${id.toString()}`
+      )
+      return null
+    }
+    throw error
+  }
+}
+
+/**
+ * Reverts a claimed (`proposed`) task back to `queued` when no stored proposal
+ * carries its removal (preparation failure, primary-proposal failure, or duplicate
+ * primary), clearing the stale `proposedAt`/`safeTxHash` so the next drain
+ * re-folds cleanly.
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The task to re-open.
- * @returns The reverted task, or `null` if it was not `proposed`.
+ * @param expectedSafeTxHash - When given, the revert only applies while the task
+ * still carries this hash, so a claim re-proposed by a concurrent drain between
+ * the caller's read and this write keeps its newer `safeTxHash`.
+ * @returns The reverted task, or `null` if it was not `proposed` (or moved on).
  */
 export async function revertToQueued(
   parkedTasks: Collection<IParkedTask>,
-  taskKey: string
+  taskKey: string,
+  expectedSafeTxHash?: string
 ): Promise<WithId<IParkedTask> | null> {
   return transition(
     parkedTasks,
     taskKey,
     ['proposed'],
     { status: 'queued' },
-    { proposedAt: '', safeTxHash: '' }
+    { proposedAt: '', safeTxHash: '' },
+    expectedSafeTxHash
   )
 }

@@ -1,4 +1,8 @@
 {
-  "lifiEscrowInputSettler": "0x000025c3226C00B2Cdc200005a1600509f4e00C0",
-  "OIFOutputSettlerSimple": "0x0000000000eC36B683C2E6AC89e9A75989C22a2e"
+  "lifiEscrowInputSettler": "0x00fC00edbe7C003b006f870068c548940000223e",
+  "OIFOutputSettlerSimple": "0x75220B7600c300005038432a0000f308e0000068",
+  "tron": {
+    "lifiEscrowInputSettler": "TXmVLCXzrhzmeCfchDPTmFF6Qe7rg3H7Kk",
+    "OIFOutputSettlerSimple": "THWDD3umarircbqo8jXxVazbpJnE25VjhN"
+  }
 }

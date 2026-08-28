@@ -21,9 +21,12 @@ jobs:
       pull-requests: write # required to assign the requires-types label
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
 
       - name: Detect ABI-relevant changes
         id: filter

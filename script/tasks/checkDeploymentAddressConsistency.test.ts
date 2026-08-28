@@ -15,6 +15,7 @@ import {
   changedWhitelistNetworks,
   findCoverageGaps,
   findMismatches,
+  findScopeViolations,
   getChangedPathsSince,
   getChangedWhitelistNetworks,
   getChangedWhitelistNetworksSince,
@@ -39,7 +40,7 @@ describe('findMismatches', () => {
         whitelistPeriphery: { OutputValidator: '0xAAA' },
         deploymentFlat: { OutputValidator: '0xaaa', DiamondCutFacet: '0xF00' },
         diamondPeriphery: { OutputValidator: '0xAaA' },
-        diamondFacets: { DiamondCutFacet: '0xf00' },
+        diamondFacets: { DiamondCutFacet: ['0xf00'] },
       },
     ]
     expect(findMismatches(sources)).toEqual([])
@@ -70,7 +71,7 @@ describe('findMismatches', () => {
       {
         ...base,
         deploymentFlat: { DexManagerFacet: '0xnew' },
-        diamondFacets: { DexManagerFacet: '0xold' },
+        diamondFacets: { DexManagerFacet: ['0xold'] },
       },
     ]
     const result = findMismatches(sources)
@@ -81,6 +82,46 @@ describe('findMismatches', () => {
     })
   })
 
+  it('agrees when a facet is registered at several addresses and one matches', () => {
+    const sources: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xnew' },
+        diamondFacets: { SymbiosisFacet: ['0xnew', '0xold'] },
+      },
+    ]
+    expect(findMismatches(sources)).toEqual([])
+  })
+
+  it('agrees regardless of the order the addresses are registered in', () => {
+    const flipped: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xnew' },
+        diamondFacets: { SymbiosisFacet: ['0xold', '0xnew'] },
+      },
+    ]
+    expect(findMismatches(flipped)).toEqual([])
+  })
+
+  it('flags a multi-address facet when none of the addresses match', () => {
+    const sources: INetworkSources[] = [
+      {
+        ...base,
+        deploymentFlat: { SymbiosisFacet: '0xdeployed' },
+        diamondFacets: { SymbiosisFacet: ['0xold', '0xolder'] },
+      },
+    ]
+    const result = findMismatches(sources)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      kind: 'facet',
+      contract: 'SymbiosisFacet',
+    })
+    // the deployment log plus every registered address
+    expect(result[0]?.addresses).toHaveLength(3)
+  })
+
   it('ignores empty placeholders and contracts present in only one source', () => {
     const sources: INetworkSources[] = [
       {
@@ -88,7 +129,7 @@ describe('findMismatches', () => {
         whitelistPeriphery: { Patcher: '0xabc' },
         deploymentFlat: { Patcher: '0xabc' },
         diamondPeriphery: { Patcher: '' }, // not deployed -> ignored
-        diamondFacets: { LonelyFacet: '0x999' }, // only one source -> ignored
+        diamondFacets: { LonelyFacet: ['0x999'] }, // only one source -> ignored
       },
     ]
     expect(findMismatches(sources)).toEqual([])
@@ -443,5 +484,148 @@ describe('findCoverageGaps', () => {
       eligible
     )
     expect(gaps).toEqual([])
+  })
+
+  it('does not flag a network-scoped periphery on a network outside its scope', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['bob', 'lens'] }
+    )
+    expect(gaps).toEqual([])
+  })
+
+  it('still flags a network-scoped periphery on a network inside its scope', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'bob',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['bob', 'lens'] }
+    )
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({
+      network: 'bob',
+      contract: 'OutputValidator',
+    })
+  })
+
+  it('matches scoped network names case-insensitively', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'OpBNB',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['opbnb'] }
+    )
+    expect(gaps).toHaveLength(1)
+  })
+
+  it('leaves contracts absent from the scope map unrestricted', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({ contract: 'OutputValidator' })
+  })
+})
+
+describe('findScopeViolations', () => {
+  it('flags a whitelist entry on a network outside the contract scope', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toMatchObject({
+      network: 'mainnet',
+      contract: 'LiFiDEXAggregator',
+      address: '0xABC',
+    })
+  })
+
+  it('accepts a whitelist entry on an in-scope network', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'bob',
+          whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('ignores contracts that are not network-scoped', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('ignores empty addresses', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { LiFiDEXAggregator: '' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('reports nothing when no contract is scoped', () => {
+    const violations = findScopeViolations([
+      {
+        ...base,
+        network: 'mainnet',
+        whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+      },
+    ])
+    expect(violations).toEqual([])
   })
 })

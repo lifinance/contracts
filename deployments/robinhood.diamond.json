@@ -21,9 +21,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0339c0585F233Ba96f44B689729C62b4E6186531": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x42caefaD13aD83ADCdd83c99Ae27058055CbF521": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xB129ce9C3fCD55726Ff314a2764d3937FA496071": {
         "Name": "GenericSwapFacetV3",
@@ -49,15 +49,15 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xdF12A02DD62305AB8295b347FDD6057e581A44c8": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
+      "0x88545564793A470B511CC3E7e225a459bA29D291": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
       "0xB2b9903cfCe365e1521D7B961bfCe0d6635D49a9": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x6E57b4d8e02D5aFD3EdD68C563691C9AA0436CE1": {
+      "0xF824feC6aCdD168C9Db95B1Eaed18bf3E8Aae0FF": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
@@ -86,17 +86,17 @@
       "ERC20Proxy": "0xfb3973800ADf5B997E910F2DD90158924370612A",
       "Executor": "0x464fC28B9CbC1781286c8626B6E925275c8C14F1",
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
-      "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
+      "FeeForwarder": "0xF4BFFE4dfC693f37715A47c15BdA8af9ed8f7Cf1",
       "GasZipPeriphery": "0x9F80FDADcA03a6e062B13BAe1B5e5c0B2A166049",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
-      "OutputValidator": "",
+      "LidoWrapper": "",
+      "OutputValidator": "0x321E5015072eB568B24F46e5A92FFcc4316056AB",
       "Patcher": "",
       "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "0x90dd81bD07763f39dF31D0089B61520461557D71",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xc1DcE9F7F5a7477CaE473D262e47b05bF2E712a3",
       "ReceiverStargateV2": "",
       "TokenWrapper": "0x0d0E59aCdc126fA8791C00507b2Ce8DdB4036cbE"
     }

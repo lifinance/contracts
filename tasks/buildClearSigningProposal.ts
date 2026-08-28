@@ -145,6 +145,15 @@ function collectFns(): IAbiFn[] {
       fnNames.add(item.name)
     }
   }
+  // An empty `out/` yields zero functions, zero template failures, and an empty
+  // proposal written over the committed one — a silent wipe that reads as success.
+  if (Object.keys(out).length === 0) {
+    console.error(
+      `\n❌ buildClearSigningProposal: no facet artifacts found under ${OUT_DIR}.\n   fix:    run \`forge build\` first, then re-run this generator.\n`
+    )
+    process.exit(1)
+  }
+
   return Object.values(out).sort((a, b) =>
     collectionSignature(a).localeCompare(collectionSignature(b))
   )
@@ -275,9 +284,9 @@ const RECEIVER_FIELD: IField = {
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // No first-class "chainId" formatter in ERC-7730 v2; raw uint is rendered as-is.
-  // Wallets that know the chain registry can pretty-print it themselves.
-  format: 'raw',
+  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
+  // back to rendering numerically.
+  format: 'chainId',
   visible: 'always',
 }
 
@@ -317,7 +326,7 @@ function bridgeFacetName(fnName: string): string {
 //   always populated. AcrossV4/DeBridgeDln can even differ from
 //   `_bridgeData.receiver` on EVM (destination call → our Receiver contract;
 //   DeBridgeDln never cross-checks), so the field adds signal on EVM too. Glacis/
-//   AllBridge/LiFiIntentEscrow/GasZip enforce equality on plain EVM transfers, so
+//   AllBridge/LiFiIntentEscrowV2/GasZip enforce equality on plain EVM transfers, so
 //   there the field just re-shows the recipient and carries the real value on
 //   non-EVM.
 //
@@ -363,12 +372,6 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     component: 'recipient',
     type: 'bytes32',
     label: 'AllBridge Recipient',
-  },
-  LiFiIntentEscrow: {
-    paramName: '_lifiIntentData',
-    component: 'recipient',
-    type: 'bytes32',
-    label: 'Intent Recipient',
   },
   LiFiIntentEscrowV2: {
     paramName: '_lifiIntentData',
@@ -417,6 +420,15 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
   },
   PolymerCCTP: {
     paramName: '_polymerData',
+    component: 'nonEVMReceiver',
+    type: 'bytes32',
+    label: 'Non-EVM Recipient',
+  },
+  Frax: {
+    // FraxFacet additionally *enforces* bytes32(0) on EVM destinations (reverting
+    // InvalidCallData otherwise), so the "0x0 reads as N/A" property is guaranteed,
+    // not just conventional.
+    paramName: '_fraxData',
     component: 'nonEVMReceiver',
     type: 'bytes32',
     label: 'Non-EVM Recipient',
@@ -472,13 +484,7 @@ function variantTag(fnName: string): string | null {
   const erc20 = /ERC20(Packed|Min)$/u.test(fnName)
   const packed = /Packed$/u.test(fnName)
   const min = /Min$/u.test(fnName)
-  const layer = /HopL1/u.test(fnName)
-    ? 'L1'
-    : /HopL2/u.test(fnName)
-    ? 'L2'
-    : null
   const bits: string[] = []
-  if (layer) bits.push(layer)
   if (native) bits.push('native')
   else if (erc20) bits.push('ERC-20')
   if (packed) bits.push('packed')
@@ -823,8 +829,8 @@ SWAP_TEMPLATES.swapTokensGeneric = {
 // Anything that matches neither hits the unrecognized-prefix failure in main()
 // and blocks the PR via verifyClearSigning.yml.
 const NON_USER_FACING_PREFIXES = [
-  'init', // initCelerCircleBridge, initHop, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
-  'register', // registerBridge, registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
+  'init', // initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
+  'register', // registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
   'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
   'unset', // unsetChainIdToDomainId — owner/admin config (inverse of set*)
   'get', // getDeBridgeChainId, getDestinationChainsValue, getPeripheryContract, getStorage, getWhitelistedSelectorsForContract, getAllContractSelectorPairs — view-only
@@ -854,7 +860,6 @@ const NON_USER_FACING_NAMES = new Set([
   // Admin/relayer-only; users do not sign these directly. If a wallet integration
   // ever wants clear-signing for owner-side recovery flows, classify and remove.
   'withdraw', // WithdrawFacet — owner-only recovery
-  'triggerRefund', // CBridge refund — admin-side
   'executeCallAndWithdraw', // operator-only utility
 ])
 

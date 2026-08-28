@@ -39,12 +39,11 @@ const BOT_RE =
 const REVIEW_CI_RE =
   /coderabbit|audit|security|slither|olympix|review|approval/i
 // Human gates are RED by default until a person acts, then go green:
-//   - `core-dev-approval` / `SC Core Dev Approval` — red until a core dev approves (PR then auto-merges)
 //   - `protect-critical-code` — red until a reviewer signs off on touched critical paths
 // They are governance gates, not CI failures, so on their own they must NOT push a PR into CI-RED;
 // the PR routes through the normal review-wait flow instead. (A red security/audit gate while these
 // are green is still reported — that case genuinely needs a bump.)
-const HUMAN_GATE_RE = /core-dev-approval|sc core dev approval|protect-critical/i
+const HUMAN_GATE_RE = /protect-critical/i
 const INCOMING_LOOKBACK_DAYS = 42 // mirrors the skill's 6-week channel-history window
 const STALE_CREATED_DAYS = 42 // 6 weeks
 const STALE_UPDATED_DAYS = 14 // 2 weeks
@@ -369,7 +368,7 @@ for (const s of seeds) {
     const stale =
       days(s.createdAt) >= STALE_CREATED_DAYS &&
       days(s.updatedAt) >= STALE_UPDATED_DAYS
-    // Human gates (core-dev-approval, protect-critical-code) are red by default until a person
+    // Human gates (protect-critical-code) are red by default until a person
     // acts — on their own they are not CI failures. Only genuine failures (tests, security/audit
     // gates, restartable jobs) make a PR red.
     const realFailures = ciFailures.filter((f) => f.kind !== 'human-gate')

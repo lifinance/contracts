@@ -50,7 +50,7 @@ const main = defineCommand({
     networks: {
       type: 'string',
       description:
-        'Optional comma-separated list of network names to process (default: all active networks). Example: --networks gnosis,moonbeam,rootstock',
+        'Optional comma-separated list of network names to process (default: all active networks). Example: --networks gnosis,polygon,rootstock',
     },
     environment: {
       type: 'string',

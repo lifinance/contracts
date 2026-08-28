@@ -25,11 +25,13 @@ jobs:
   notify-deployments:
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout Repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 2 # Need previous commit to compare changes
+          persist-credentials: false
 
       - name: Get Changed Deployment Files
         id: get-changes
