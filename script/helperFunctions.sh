@@ -2143,9 +2143,35 @@ function extractFromVerificationOutput() {
 }
 
 # API-key values must never reach a log: verification runs in CI and in shared
-# transcripts, and a leaked explorer key cannot be un-leaked.
+# transcripts, and a leaked explorer key cannot be un-leaked. Redaction runs per
+# argument (never over a joined string) so a key containing whitespace or a
+# newline cannot spill its tail past the substitution, and remaining arguments
+# are quoted with %q so their boundaries stay visible in the log.
 function redactVerifyCmd() {
-  echo "$@" | sed -E 's/(--(etherscan|verifier)-api-key)[[:space:]]+[^[:space:]]+/\1 ***REDACTED***/g'
+  local PLACEHOLDER='***REDACTED***'
+  local OUTPUT=''
+  local ARG
+  local RENDERED
+  local REDACT_NEXT=false
+
+  for ARG in "$@"; do
+    if [[ "$REDACT_NEXT" == true ]]; then
+      # redacted unconditionally, even when it looks like a flag: an unredacted
+      # key is unrecoverable, a redacted flag name only costs log detail
+      RENDERED="$PLACEHOLDER"
+      REDACT_NEXT=false
+    elif [[ "$ARG" == "--etherscan-api-key" || "$ARG" == "--verifier-api-key" ]]; then
+      RENDERED="$ARG"
+      REDACT_NEXT=true
+    elif [[ "$ARG" == "--etherscan-api-key="* || "$ARG" == "--verifier-api-key="* ]]; then
+      RENDERED="${ARG%%=*}=$PLACEHOLDER"
+    else
+      RENDERED=$(printf '%q' "$ARG")
+    fi
+    OUTPUT+="${OUTPUT:+ }$RENDERED"
+  done
+
+  printf '%s\n' "$OUTPUT"
 }
 
 function verifyContract() {
