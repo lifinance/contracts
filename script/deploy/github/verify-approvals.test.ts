@@ -2,7 +2,7 @@
  * Unit and CLI tests for the production deploy gate in `verify-approvals.ts`.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -427,5 +427,41 @@ describe('getContractVersion under the tsx runtime', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
+  })
+})
+
+describe('deployUpgradesToSAFE gate condition', () => {
+  // getPrivateKey only treats *staging* as staging, so any other value - including a
+  // typo like "prod" - reaches the production key. The gate must run for those too.
+  const condition = readFileSync(
+    join(import.meta.dir, '..', 'deployUpgradesToSAFE.sh'),
+    'utf8'
+  )
+    .split('\n')
+    .find((line) => line.includes('$ENVIRONMENT') && line.includes('if [['))
+
+  it('extracts the gate condition from the shell script', () => {
+    expect(condition).toBeDefined()
+  })
+
+  it.each([
+    ['production', 'RUNS'],
+    ['prod', 'RUNS'],
+    ['', 'RUNS'],
+    ['staging', 'SKIPPED'],
+  ])('runs the gate for environment %p', (environment, expected) => {
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        `ENVIRONMENT=$1; ${condition} echo RUNS; else echo SKIPPED; fi`,
+        'bash',
+        environment,
+      ],
+      { encoding: 'utf8' }
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe(expected)
   })
 })
