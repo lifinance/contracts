@@ -984,6 +984,7 @@
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
         "GenericSwapFacetV3": "2.0.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
         "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",

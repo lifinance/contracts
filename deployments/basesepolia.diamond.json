@@ -41,10 +41,6 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x0629DBbF0Cdd9042a0Ce85Ac3d6744A536f405C4": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
-      },
       "0xDde1B580a5cFb48A3263910f7666d5349561c5ff": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
@@ -56,6 +52,10 @@
       "0xF218bf600e9C9C03DDD176902b94a5FAfb59D99A": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x93ef02A8dE6b729868ceB9605f868A34B0402857": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
