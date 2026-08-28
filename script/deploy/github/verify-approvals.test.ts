@@ -7,8 +7,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
-  afterEach,
-  beforeEach,
   describe,
   expect,
   it,
@@ -22,7 +20,6 @@ import {
   parseFacetList,
   reportApprovalResult,
   resolveAuditCommitHash,
-  resolveGithubToken,
   verifyDeployGate,
   type IDeployGateDeps,
   type IReportTarget,
@@ -81,32 +78,6 @@ describe('parseFacetList', () => {
   it('returns an empty list for missing or empty input', () => {
     expect(parseFacetList(undefined)).toEqual([])
     expect(parseFacetList('   ')).toEqual([])
-  })
-})
-
-describe('resolveGithubToken', () => {
-  const originalToken = process.env.GH_TOKEN
-
-  beforeEach(() => {
-    delete process.env.GH_TOKEN
-  })
-
-  afterEach(() => {
-    if (originalToken === undefined) delete process.env.GH_TOKEN
-    else process.env.GH_TOKEN = originalToken
-  })
-
-  it('throws an actionable error when neither the flag nor the environment has a token', () => {
-    expect(() => resolveGithubToken(undefined)).toThrow(/GH_TOKEN/)
-    expect(() => resolveGithubToken('')).toThrow(/GH_TOKEN/)
-    expect(() => resolveGithubToken('   ')).toThrow(/GH_TOKEN/)
-  })
-
-  it('prefers the CLI flag and falls back to the environment', () => {
-    expect(resolveGithubToken('  flag-token  ')).toBe('flag-token')
-
-    process.env.GH_TOKEN = 'env-token'
-    expect(resolveGithubToken('')).toBe('env-token')
   })
 })
 
@@ -357,48 +328,24 @@ describe('verifyDeployGate', () => {
 describe('verify-approvals CLI', () => {
   const script = join(import.meta.dir, 'verify-approvals.ts')
 
-  it('allows staging deploys without a GitHub token', () => {
-    const env = { ...process.env }
-    delete env.GH_TOKEN
-
+  // cwd is a temp dir, so any git or gh lookup would fail: reaching exit 0 proves
+  // these two paths short-circuit before touching the repo or GitHub.
+  it.each([
+    ['staging', 'feature/some-branch'],
+    ['production', 'main'],
+  ])('allows %s on %s without contacting GitHub', (environment, branch) => {
     const result = spawnSync(
       process.execPath,
       [
         script,
         '--environment',
-        'staging',
+        environment,
         '--branch',
-        'feature/some-branch',
+        branch,
         '--facets',
         'AcrossFacet',
-        '--token',
-        '',
       ],
-      { cwd: tmpdir(), env, encoding: 'utf8' }
-    )
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('OK')
-  })
-
-  it('allows production deploys from main without a GitHub token', () => {
-    const env = { ...process.env }
-    delete env.GH_TOKEN
-
-    const result = spawnSync(
-      process.execPath,
-      [
-        script,
-        '--environment',
-        'production',
-        '--branch',
-        'main',
-        '--facets',
-        'AcrossFacet',
-        '--token',
-        '',
-      ],
-      { cwd: tmpdir(), env, encoding: 'utf8' }
+      { cwd: tmpdir(), encoding: 'utf8' }
     )
 
     expect(result.status).toBe(0)
@@ -463,5 +410,18 @@ describe('deployUpgradesToSAFE gate condition', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe(expected)
+  })
+})
+
+describe('open-PR lookup', () => {
+  const source = readFileSync(
+    join(import.meta.dir, 'verify-approvals.ts'),
+    'utf8'
+  )
+
+  it('uses the GitHub CLI instead of a personal access token', () => {
+    expect(source).toContain("'gh'")
+    expect(source).not.toContain('Octokit')
+    expect(source).not.toMatch(/GH_TOKEN|--token/)
   })
 })

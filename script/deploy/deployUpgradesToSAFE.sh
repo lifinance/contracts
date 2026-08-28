@@ -36,8 +36,7 @@ deployUpgradesToSAFE() {
   # anything that is not exactly "staging" reaches the production private key via
   # getPrivateKey's else branch, so the gate has to run for those values too
   if [[ "$ENVIRONMENT" != "staging" ]]; then
-    # passed through the environment so the token never lands in the process table
-    if ! GH_TOKEN="${GH_TOKEN:-}" bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$SCRIPTS"; then
+    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$SCRIPTS"; then
       error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
       return 1
     fi

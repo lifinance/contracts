@@ -6,11 +6,10 @@
  * or — if it does not — when that branch has an open PR and the facet is frozen
  * at the commit recorded in `audit/auditLog.json`.
  */
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { Octokit } from '@octokit/rest'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
@@ -19,7 +18,7 @@ import { getContractVersion } from '../shared/getContractVersion'
 
 const OWNER = 'lifinance'
 const REPO = 'contracts'
-const PER_PAGE = 100 // GitHub's maximum page size, so paginated calls need the fewest requests
+const PR_LIST_LIMIT = 100 // well above the number of open PRs a single branch can have
 const AUDIT_COMMIT_RE = /^[0-9a-f]{40}$/i
 const AUDIT_LOG_PATH = 'audit/auditLog.json'
 
@@ -56,26 +55,6 @@ export const parseFacetList = (raw: string | undefined): string[] =>
     .split('\n')
     .map((facet) => facet.trim())
     .filter((facet) => facet.length > 0)
-
-/**
- * Resolves the GitHub token used to look up an open PR on the exception path.
- * @param cliToken - value passed via `--token`; empty when the caller has none configured
- * @returns the resolved, non-empty token
- * @throws If neither the CLI argument nor the environment provides a token
- */
-export const resolveGithubToken = (cliToken: string | undefined): string => {
-  const token = cliToken?.trim() || process.env.GH_TOKEN?.trim()
-
-  if (!token)
-    throw new Error(
-      'No GitHub token available: pass --token or set GH_TOKEN in your .env (see .env.example). ' +
-        'lifinance/contracts is public, so a classic PAT needs no scopes beyond public_repo to ' +
-        'read the open pull request for the branch. A token is only required for production ' +
-        'deploys from a feature branch whose selected facet sources differ from main.'
-    )
-
-  return token
-}
 
 /**
  * Collects every reason a production deploy from a feature branch is not allowed.
@@ -205,22 +184,47 @@ const loadAuditLog = (repoRoot: string): IAuditLogData =>
   ) as IAuditLogData
 
 /**
- * Lists the open pull requests whose head is this repository's given branch.
- * @param octokit - authenticated GitHub client
+ * Counts the open pull requests whose head is the given branch.
+ * Uses the GitHub CLI so the deploy needs no personal access token of its own.
  * @param branch - branch name to match
- * @returns the matching open pull requests
- * @throws If the GitHub API call fails.
+ * @returns the number of matching open pull requests
+ * @throws If the GitHub CLI is missing, unauthenticated, or returns unusable output
  */
-const getOpenPRsForBranch = async (octokit: Octokit, branch: string) => {
-  const pullRequests = await octokit.paginate(octokit.rest.pulls.list, {
-    owner: OWNER,
-    repo: REPO,
-    state: 'open',
-    head: `${OWNER}:${branch}`,
-    per_page: PER_PAGE,
-  })
+const countOpenPRsForBranch = (branch: string): number => {
+  let stdout: string
+  try {
+    stdout = execFileSync(
+      'gh',
+      [
+        'pr',
+        'list',
+        '--repo',
+        `${OWNER}/${REPO}`,
+        '--head',
+        branch,
+        '--state',
+        'open',
+        '--limit',
+        String(PR_LIST_LIMIT),
+        '--json',
+        'headRefName',
+      ],
+      { encoding: 'utf8', timeout: 60_000 }
+    )
+  } catch (error) {
+    throw new Error(
+      `Could not list open pull requests for branch "${branch}" through the GitHub CLI. ` +
+        'Check that gh is installed and authenticated ("gh auth status"). ' +
+        `Underlying error: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+    )
+  }
 
-  return pullRequests.filter((pullRequest) => pullRequest.head.ref === branch)
+  const pullRequests = JSON.parse(stdout) as { headRefName: string }[]
+  return pullRequests.filter(
+    (pullRequest) => pullRequest.headRefName === branch
+  ).length
 }
 
 /** Git / audit-log / GitHub lookups the orchestrator needs. Injectable in tests. */
@@ -235,15 +239,11 @@ export interface IDeployGateDeps {
 /**
  * Builds the real git / audit-log / GitHub lookups used by the CLI.
  * `mainRef` and GitHub are resolved lazily so staging/`main` short-circuits
- * never touch the network or require a token.
+ * never shell out.
  * @param repoRoot - repository root (working tree that will be compiled)
- * @param cliToken - `--token` value; empty when unset
  * @returns the git / audit-log / GitHub lookups used by the CLI
  */
-export const createDefaultDeps = (
-  repoRoot: string,
-  cliToken: string | undefined
-): IDeployGateDeps => {
+export const createDefaultDeps = (repoRoot: string): IDeployGateDeps => {
   let mainRef: string | undefined
   let auditLog: IAuditLogData | undefined
 
@@ -257,11 +257,7 @@ export const createDefaultDeps = (
       auditLog ??= loadAuditLog(repoRoot)
       return resolveAuditCommitHash(auditLog, name, version)
     },
-    getOpenPrCount: async (branch) => {
-      const octokit = new Octokit({ auth: resolveGithubToken(cliToken) })
-      const pullRequests = await getOpenPRsForBranch(octokit, branch)
-      return pullRequests.length
-    },
+    getOpenPrCount: async (branch) => countOpenPRsForBranch(branch),
   }
 }
 
@@ -370,10 +366,6 @@ const main = defineCommand({
       description: 'The current branch',
       required: true,
     },
-    token: {
-      type: 'string',
-      description: 'Github access token (only required on the exception path)',
-    },
     facets: {
       type: 'string',
       description: 'List of facets about to be proposed',
@@ -387,7 +379,7 @@ const main = defineCommand({
         branch: args.branch,
         facets: parseFacetList(args.facets),
       },
-      createDefaultDeps(process.cwd(), args.token)
+      createDefaultDeps(process.cwd())
     )
 
     reportApprovalResult(failures)
