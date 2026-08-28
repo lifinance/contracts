@@ -1021,8 +1021,9 @@
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacetV3": "1.0.2",
+        "GenericSwapFacetV3": "2.0.0",
         "LiFiIntentEscrowFacetV2": "1.0.0",
+        "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WhitelistManagerFacet": "1.1.0",
@@ -1031,10 +1032,12 @@
         "ERC20Proxy": "1.2.0",
         "Executor": "2.1.0",
         "FeeForwarder": "1.0.0",
+        "LidoWrapper": "1.0.0",
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "TokenWrapper": "1.2.1",
-        "PolymerCCTPFacet": "2.0.1"
+        "PolymerCCTPFacet": "3.0.0",
+        "SymbiosisFacet": "2.0.0"
       }
     }
   },
@@ -1977,7 +1980,9 @@
         "DiamondCutFacet": "1.0.0",
         "DiamondLoupeFacet": "1.0.0",
         "EmergencyPauseFacet": "1.0.1",
-        "GenericSwapFacetV3": "1.0.2",
+        "GasZipFacet": "2.0.5",
+        "GenericSwapFacetV3": "2.0.0",
+        "LiFiTimelockController": "1.0.1",
         "OwnershipFacet": "1.0.0",
         "PeripheryRegistryFacet": "1.0.0",
         "WhitelistManagerFacet": "1.1.0",
@@ -1986,8 +1991,10 @@
         "ERC20Proxy": "1.2.0",
         "Executor": "2.1.0",
         "FeeForwarder": "1.0.0",
+        "GasZipPeriphery": "1.0.2",
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
+        "TokenWrapper": "1.2.1",
         "LiFiIntentEscrowFacetV2": "1.0.0",
         "PolymerCCTPFacet": "2.0.1"
       }
