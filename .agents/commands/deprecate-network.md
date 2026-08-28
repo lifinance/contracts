@@ -18,7 +18,13 @@ This command completely removes a network (or multiple networks) from the codeba
 4. Removing the etherscan entry from `foundry.toml` under `[etherscan]`
 5. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
 6. Removing all deployment log files in `deployments/` directory that match the network name pattern
-7. Automatically updating the whitelist by running `bun update-whitelist-periphery`
+7. Removing the network from every bridge/integration config under `config/` that carries a per-network entry
+8. Removing the network from `CORE_FACET_EXEMPTIONS` in `script/deploy/healthCheckInvariants.ts`
+9. Hand-removing the network's blocks from `config/whitelist.json` (not via the generator)
+10. Marking — not removing — the network in any hardcoded chainId mapping under `src/Facets/`
+
+The master deployment log (`deployments/_deployments_log_file.json`) and `archive/config/*`
+are **preserved**: they are historical records, not a list of active networks.
 
 ## How to Use
 
@@ -31,8 +37,11 @@ This command completely removes a network (or multiple networks) from the codeba
    - Remove etherscan entries from `foundry.toml`
    - Remove network entries from `script/deploy/_targetState.json`
    - Delete all deployment log files matching the network pattern
-   - Automatically run `bun update-whitelist-periphery` to update the whitelist
-   - Display a summary of all changes made
+   - Remove the network's entry from every bridge/integration config that carries one
+   - Remove the network from `CORE_FACET_EXEMPTIONS`
+   - Hand-remove the network's `PERIPHERY` and `DEXS[].contracts` blocks from `config/whitelist.json`
+   - Flag any hardcoded chainId mapping in `src/Facets/` for a comment instead of a deletion
+   - Display a summary of all changes made, including the records deliberately preserved
 
 ## Examples
 
@@ -133,34 +142,138 @@ When `/deprecate-network` is invoked with network names:
      - `{network}.diamond.json`
      - `{network}.diamond.staging.json`
    - Use case-insensitive matching for network names
-   - If a file doesn't exist, skip silently (not an error)
+   - If a file doesn't exist, warn and continue — a missing log is not an error, and the
+     remaining files must still be processed
+   - **Do NOT touch `deployments/_deployments_log_file.json`** — see step 12
 
-8. **Update whitelist**:
+8. **Scrub the bridge/integration configs**:
 
-   - Automatically execute `bun update-whitelist-periphery` command
-   - This ensures the whitelist configuration is updated to reflect the deprecated networks
-   - If the command fails, report the error but don't abort (the network deprecation is already complete)
-   - Display the command output for verification
+   - Beyond `config/networks.json`, most `config/*.json` files carry per-network entries
+     for a specific bridge or integration, and every real deprecation has had to clean
+     them. Observed across #2004, #2141 and #2222: `config/gaszip.json`,
+     `config/permit2Proxy.json`, `config/squid.json`, `config/stargateV2.json`,
+     `config/relay.json`, `config/glacis.json`, `config/garden.json`,
+     `config/layerswap.json`, `config/symbiosis.json`.
+   - **Do not work from that list** — it grows every time an integration is added.
+     Drive this step from a repo-wide search instead:
 
-9. **Remind user to update Product Target Sheet**:
+     ```bash
+     git grep -inw "<network>"
+     ```
+
+     `git grep` covers every tracked file — including `.agents/`, `.github/`, `docs/` and
+     root files like `foundry.toml` — and respects `.gitignore`, so generated directories
+     need no exclude list. `-w` matches whole words only: without it, deprecating `tron`
+     also matches `tronshasta`, and deprecating `taiko` matches `eth-taiko`.
+   - **Treat every hit as a candidate, never as a deletion target.** Before editing an
+     integration config, parse its keys and require an *exact* match with the canonical
+     network name. A substring match on a sibling network must not be removed.
+   - Remove the network's entry from every integration config that has one. Keys are
+     usually a plain `"<network>": <value>` pair, but some files nest the network under
+     a per-integration object — check the surrounding structure before deleting.
+   - Report anything the search surfaces outside `config/` (scripts, docs, comments) in
+     the step 14 review rather than deleting it silently.
+
+9. **Remove from `CORE_FACET_EXEMPTIONS`** in `script/deploy/healthCheckInvariants.ts`:
+
+   - Delete the network from the `networks` array of every exemption that lists it.
+   - This is CI-enforced: `script/deploy/healthCheckInvariants.test.ts` has a test
+     `every exempt network is a known network` asserting each exemption network exists
+     in `config/networks.json`, so a leftover entry fails the TS test suite.
+   - If removing the network empties an exemption's `networks` array, remove the whole
+     exemption object.
+   - Verify with `bun test:ts` (the TS suite; a bare `bun test` runs the Solidity tests
+     instead and reports spurious failures).
+
+10. **Remove from the whitelist** — by hand, surgically:
+
+    - **Do NOT run `bun update-whitelist-periphery`.** The committed
+      `config/whitelist.json` is out of sync with the generator, so the generator
+      rewrites the entire `PERIPHERY` section for all networks (~2100 lines of churn)
+      and swamps the deprecation diff, making it unreviewable.
+    - Instead, hand-remove exactly two kinds of block from `config/whitelist.json`:
+      - the `PERIPHERY.<network>` key (4-space indent), and
+      - every `DEXS[].contracts.<network>` key (8-space indent) — a network typically
+        appears under several DEXs, so remove all of them.
+    - Hand-editing JSON can leave the file malformed in ways a diff will not show, so
+      verify both that it still parses and that the change is deletions-only:
+
+      ```bash
+      jq empty config/whitelist.json          # must exit 0 — file is still valid JSON
+      git diff --numstat config/whitelist.json # additions column must be 0
+      ```
+
+    - **Do not touch `config/whitelist.staging.json`** — it is gitignored, so `git status`
+      will never show it as modified and cannot be used to prove it was left alone.
+      Checksum it before and after instead:
+
+      ```bash
+      shasum config/whitelist.staging.json > /tmp/staging-whitelist.before
+      # ... run the deprecation ...
+      shasum -c /tmp/staging-whitelist.before   # must report OK
+      ```
+
+11. **Handle chainId mappings inside facets** (`src/Facets/`):
+
+    - Some facets carry hardcoded `chainId -> LayerZero eid` or `chainId -> CCTP domain`
+      mappings (e.g. `AcrossV4SwapFacet.sol`). If the deprecated network appears in one,
+      **do not remove the entry** — the underlying bridge may still support that chain,
+      and the mapping describes the bridge's coverage, not LI.FI's.
+    - Add a comment above the entry marking it for removal on the next modification of
+      the facet. A comment-only change leaves the compiled bytecode identical, so it
+      triggers neither a contract version bump nor a re-audit.
+    - Wording template — substitute the actual network name and deprecation ticket before
+      writing it; the placeholders below are not literal text (see the Taiko entry added
+      in #2141 and the Moonbeam entry added in #2222, both in
+      `src/Facets/AcrossV4SwapFacet.sol`):
+
+      ```solidity
+      // <Network> is no longer supported by LI.FI (deprecated in <TICKET>); Across still supports it.
+      // Remove this entry the next time this facet is modified.
+      if (_chainId == <chainId>) return <value>; // <Network>
+      ```
+
+    - Confirm bytecode really is unchanged before claiming it: `forge build` and compare
+      the artifact's `bytecode.object` against the pre-change build.
+
+12. **Preserve the historical records** (do not delete):
+
+    - `deployments/_deployments_log_file.json` (the master log) keeps the deprecated
+      network's records. It is the deployment history across all networks and is not
+      scoped to the currently-active set; removing entries destroys the audit trail of
+      what was deployed where. Both #2004 (corn) and #2141 (taiko et al.) deliberately
+      left the deprecated networks' records in place.
+    - `archive/config/*` is historical by definition — leave every deprecated-network
+      value there untouched.
+    - This is easy to get wrong in the opposite direction: the step 8 search will hit
+      both of these, and they must be reported as intentional keeps, not offered as
+      cleanup candidates.
+
+13. **Remind user to update Product Target Sheet**:
 
    - Display a prominent reminder to manually update the Product Target State spreadsheet
    - The spreadsheet tracks contract deployments across networks: https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0
    - For deprecated networks: Move the network row(s) to the deprecated section
    - This is a manual step that must be done separately as the spreadsheet is not part of the codebase
 
-10. **Display summary**:
+14. **Display summary**:
 
     - List all networks successfully deprecated
     - List all files removed
+    - List the records deliberately preserved (master deployment log, `archive/**`, facet chainId mappings)
     - List any warnings (e.g., network not found in networks.json, but found in foundry.toml)
     - Display any errors encountered
 
-11. **Search for remaining occurrences**:
+15. **Search for remaining occurrences**:
 
-- For each deprecated network, search the entire codebase for occurrences of the network name
-- Use case-insensitive search to find all matches (e.g., `grep -ri "fantom" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=out --exclude-dir=cache --exclude-dir=broadcast --exclude-dir=typechain --exclude-dir=lib`)
-- Exclude generated directories: `node_modules`, `.git`, `out`, `cache`, `broadcast`, `typechain`, `lib`
+- For each deprecated network, re-run the step 8 search over every tracked file:
+  `git grep -inw "<network>"`
+- `-w` is required, not optional: a bare substring search reports `tronshasta` when
+  deprecating `tron`, and those false positives are exactly what drives a wrong deletion
+  in this review step
+- `git grep` needs no exclude list — it searches tracked files only, so generated
+  directories are already out of scope, and it covers `.agents/`, `.github/`, `docs/`
+  and root files that a path-scoped `grep` would miss
 - Group results by file path, sorted alphabetically
 - For each file, show:
   - File path (relative to workspace root)
@@ -270,7 +383,13 @@ After the command completes, you **must** manually update the Product Target Sta
 - `script/deploy/_targetState.json` - Target state configuration (removes network entries for both production and staging)
 - `deployments/{network}*.json` - Deployment log files (deletes matching files)
 - `deferred-cleanup.parkedTasks` (MongoDB) - Parked diamond-cleanup tasks (cancels the network's `queued` ones only)
-- Whitelist configuration files - Updated via `bun update-whitelist-periphery` command
+- `config/*.json` (bridge/integration configs) - Per-network entries, found by search rather than from a fixed list
+- `script/deploy/healthCheckInvariants.ts` - `CORE_FACET_EXEMPTIONS` (CI-enforced; a stale entry fails `bun test:ts`)
+- `config/whitelist.json` - Hand-edited, deletions only; **never** regenerated
+- `src/Facets/*.sol` - Hardcoded chainId mappings get a marker comment, not a deletion
+
+**Not modified** (historical records): `deployments/_deployments_log_file.json`, `archive/config/*`,
+`config/whitelist.staging.json`.
 
 ## Implementation Notes
 
@@ -280,9 +399,10 @@ After the command completes, you **must** manually update the Product Target Sta
 - Support deprecating multiple networks in a single command
 - Display clear, actionable error messages if something goes wrong
 - After completion, verify changes by checking that entries are actually removed
-- Automatically run `bun update-whitelist-periphery` after all network removals are complete
-- If whitelist update fails, report the error but don't abort (network deprecation is already done)
-- After all deprecation steps, search the entire codebase for remaining occurrences of the network name
+- Edit `config/whitelist.json` by hand and verify the result with `jq empty` plus a
+  deletions-only `git diff --numstat`; never regenerate it during a deprecation
+- After all deprecation steps, search every tracked file for remaining occurrences of the
+  network name with `git grep -inw` — whole-word, so sibling networks are not reported
 - Present a concise, organized list of matches grouped by file with line numbers and context
 - Ask the user to review and indicate which files/occurrences should be removed
 - Some config files (e.g., `config/*.json`) may intentionally keep network values for historical reference - let user decide
@@ -308,8 +428,15 @@ Deprecating networks: fantom, harmony
 ⚠ Warning: deployments/fantom.staging.json not found (skipped)
 ⚠ Warning: deployments/harmony.staging.json not found (skipped)
 
-✓ Running bun update-whitelist-periphery...
-✓ Whitelist updated successfully
+✓ Removed 'fantom' from config/gaszip.json, config/relay.json
+✓ Removed 'harmony' from config/gaszip.json
+✓ Removed 'fantom', 'harmony' from CORE_FACET_EXEMPTIONS
+✓ Hand-removed whitelist blocks (PERIPHERY + 3 DEXS entries) — jq empty OK, 0 additions
+✓ config/whitelist.staging.json checksum unchanged
+
+Preserved (historical, not cleanup candidates):
+  · deployments/_deployments_log_file.json — 41 records for fantom, 12 for harmony
+  · archive/config/* — left untouched
 
 Successfully deprecated 2 networks.
 
