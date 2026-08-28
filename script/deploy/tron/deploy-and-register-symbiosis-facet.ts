@@ -3,6 +3,7 @@
 import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
+  ZERO_ADDRESS,
   createTronWeb,
   evmHexToTronBase58,
   tronAddressToHex,
@@ -123,6 +124,55 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         'Symbiosis metaRouter or gateway not found for tron in config/symbiosis.json'
       )
 
+    // The OnchainSwapV3 (syBTC -> Bitcoin) path has no Tron deployment, and the
+    // constructor accepts address(0) for it. backendSigner is not optional
+    // though - the constructor reverts on a zero signer even when that path is
+    // unreachable.
+    const onchainSwapV3 = tronSymbiosisConfig.onchainSwapV3 ?? ZERO_ADDRESS
+    const onchainSwapV3Gateway =
+      tronSymbiosisConfig.onchainSwapV3Gateway ?? ZERO_ADDRESS
+
+    const globalConfig = await Bun.file('config/global.json').json()
+    const backendSigner =
+      environment === EnvironmentEnum.production
+        ? globalConfig.backendSigner?.production
+        : globalConfig.backendSigner?.staging
+
+    if (!backendSigner)
+      throw new Error(
+        `backendSigner.${environment} not found in config/global.json`
+      )
+
+    // The deployer's energy estimation ABI-encodes these via ethers, which
+    // rejects Tron base58, so every address is normalized to EVM hex. The
+    // checks below rely on that too: Tron's zero address also has a base58
+    // encoding (T9yD14...), which a raw string compare would read as a
+    // configured router.
+    const constructorArgs = [
+      tronAddressToHex(tronWeb, metaRouter),
+      tronAddressToHex(tronWeb, gateway),
+      tronAddressToHex(tronWeb, onchainSwapV3),
+      tronAddressToHex(tronWeb, onchainSwapV3Gateway),
+      tronAddressToHex(tronWeb, backendSigner),
+    ]
+    const [, , onchainSwapV3Hex, onchainSwapV3GatewayHex, backendSignerHex] =
+      constructorArgs
+
+    // Mirror the constructor's own checks so a misconfiguration fails here
+    // rather than after paying for the deployment.
+    if (
+      (onchainSwapV3Hex === ZERO_ADDRESS) !==
+      (onchainSwapV3GatewayHex === ZERO_ADDRESS)
+    )
+      throw new Error(
+        'onchainSwapV3 and onchainSwapV3Gateway must both be set or both be zero in config/symbiosis.json'
+      )
+
+    if (backendSignerHex === ZERO_ADDRESS)
+      throw new Error(
+        `backendSigner.${environment} in config/global.json is the zero address`
+      )
+
     // Convert addresses to Tron format for display
     const metaRouterTron = evmHexToTronBase58(tronWeb, metaRouter)
     const gatewayTron = evmHexToTronBase58(tronWeb, gateway)
@@ -130,6 +180,17 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     consola.info('\nSymbiosis Configuration:')
     consola.info(`MetaRouter: ${metaRouterTron} (hex: ${metaRouter})`)
     consola.info(`Gateway: ${gatewayTron} (hex: ${gateway})`)
+    const unusedSuffix = (address: string) =>
+      address === ZERO_ADDRESS ? ' (not configured)' : ''
+    consola.info(
+      `OnchainSwapV3: ${onchainSwapV3}${unusedSuffix(onchainSwapV3)}`
+    )
+    consola.info(
+      `OnchainSwapV3Gateway: ${onchainSwapV3Gateway}${unusedSuffix(
+        onchainSwapV3Gateway
+      )}`
+    )
+    consola.info(`BackendSigner: ${backendSigner}`)
 
     // Prepare deployment plan
     const contracts = ['SymbiosisFacet']
@@ -143,11 +204,14 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     // Deploy SymbiosisFacet
     consola.info('\nDeploying SymbiosisFacet...')
 
-    const { exists, address, shouldRedeploy } = await checkExistingDeployment(
-      network,
-      'SymbiosisFacet',
-      dryRun
-    )
+    // checkExistingDeployment prompts "Redeploy?" whenever an address is already
+    // recorded, and with no TTY that prompt never resolves - the run just hangs.
+    // A non-interactive redeploy therefore has to skip the check entirely.
+    const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
+
+    const { exists, address, shouldRedeploy } = forceRedeploy
+      ? { exists: false, address: null, shouldRedeploy: true }
+      : await checkExistingDeployment(network, 'SymbiosisFacet', dryRun)
 
     let facetAddress: string
     if (exists && !shouldRedeploy && address) {
@@ -162,9 +226,6 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        // Constructor arguments for SymbiosisFacet
-        const constructorArgs = [metaRouter, gateway]
-
         // Deploy using new utility
         const result = await deployContractWithLogging(
           deployer,
@@ -206,7 +267,15 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    if (!dryRun)
+    const deferCut = process.env.DEFER_CUT === 'true'
+
+    if (dryRun)
+      consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
+    else if (deferCut)
+      consola.info(
+        'DEFER_CUT=true - facet deployed, skipping diamondCut proposal'
+      )
+    else
       await proposeDiamondCut({
         facetName: 'SymbiosisFacet',
         facetAddressHex: tronAddressToHex(
@@ -216,14 +285,14 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
         diamondAddress,
         network: network,
       })
-    else
-      consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
 
     printDeploymentSummary(deploymentResults, dryRun)
 
     consola.success(
       dryRun
         ? '\nDry run completed successfully! (no Safe tx created)'
+        : deferCut
+        ? '\nDeployment completed successfully! (diamondCut proposal deferred)'
         : '\nDeployment and proposal completed successfully!'
     )
   } catch (error: any) {

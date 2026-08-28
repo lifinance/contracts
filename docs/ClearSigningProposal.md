@@ -48,7 +48,7 @@ The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a So
 Two shapes, keyed by `bridgeFacetName()`:
 
 - **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrowV2`, `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
-- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
+- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`, `Frax`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
 
 > **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
 
@@ -72,7 +72,7 @@ The user sees both the swap input amount and the minimum bridge output. Intentio
 
 ### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin`
 
-Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, Hop L1/L2 packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via Across (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
+Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via AcrossV4 (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
 
 Full interpolation for packed variants is deferred to a follow-up once we know which packed entry-points wallets actually want to surface to users.
 
@@ -91,7 +91,7 @@ The seven existing `display.formats` entries from the current registry descripto
 ## Conventions & deliberate choices
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
-2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. Hop have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
+2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. StargateV2 have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
 3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
@@ -126,19 +126,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `startBridgeTokensViaGasZip` | Bridge via GasZip | Bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaGlacis` | Bridge via Glacis | Bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaGnosisBridge` | Bridge via GnosisBridge | Bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHop` | Bridge via Hop | Bridge {_bridgeData.minAmount} via Hop to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHopL1ERC20` | Bridge via HopL1 | Bridge {_bridgeData.minAmount} via HopL1 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHopL1ERC20Min` | Bridge via HopL1 (L1, ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL1ERC20Packed` | Bridge via HopL1 (L1, ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL1Native` | Bridge via HopL1 | Bridge {_bridgeData.minAmount} via HopL1 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHopL1NativeMin` | Bridge via HopL1 (L1, native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL1NativePacked` | Bridge via HopL1 (L1, native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL2ERC20` | Bridge via HopL2 | Bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHopL2ERC20Min` | Bridge via HopL2 (L2, ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL2ERC20Packed` | Bridge via HopL2 (L2, ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL2Native` | Bridge via HopL2 | Bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaHopL2NativeMin` | Bridge via HopL2 (L2, native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaHopL2NativePacked` | Bridge via HopL2 (L2, native, packed) | _(packed / no interpolation, see notes)_ |
 | `startBridgeTokensViaLiFiIntentEscrowV2` | Bridge via LiFiIntentEscrowV2 | Bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaMayan` | Bridge via Mayan | Bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `startBridgeTokensViaMegaETHBridge` | Bridge via MegaETHBridge | Bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
@@ -168,11 +155,6 @@ The seven existing `display.formats` entries from the current registry descripto
 | `swapAndStartBridgeTokensViaGasZip` | Swap & Bridge via GasZip | Swap then bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaGlacis` | Swap & Bridge via Glacis | Swap then bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaGnosisBridge` | Swap & Bridge via GnosisBridge | Swap then bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaHop` | Swap & Bridge via Hop | Swap then bridge {_bridgeData.minAmount} via Hop to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaHopL1ERC20` | Swap & Bridge via HopL1 | Swap then bridge {_bridgeData.minAmount} via HopL1 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaHopL1Native` | Swap & Bridge via HopL1 | Swap then bridge {_bridgeData.minAmount} via HopL1 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaHopL2ERC20` | Swap & Bridge via HopL2 | Swap then bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaHopL2Native` | Swap & Bridge via HopL2 | Swap then bridge {_bridgeData.minAmount} via HopL2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` | Swap & Bridge via LiFiIntentEscrowV2 | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaMayan` | Swap & Bridge via Mayan | Swap then bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
 | `swapAndStartBridgeTokensViaMegaETHBridge` | Swap & Bridge via MegaETHBridge | Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |

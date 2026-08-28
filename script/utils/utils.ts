@@ -382,7 +382,7 @@ export async function saveContractAddress(
 
   deployments[contract] = address
 
-  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2))
+  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
 }
 
 /**
@@ -903,7 +903,8 @@ export function printDeploymentSummary(
     summaryContent += 'Successful deployments:\n'
     successful.forEach((r) => {
       summaryContent += `  ${r.contract}: ${r.address}\n`
-      if (r.cost > 0) summaryContent += `    Cost: ${r.cost.toFixed(4)}\n`
+      if (r.cost > 0)
+        summaryContent += `    Cost: ${Number(r.cost).toFixed(4)}\n`
     })
   }
 

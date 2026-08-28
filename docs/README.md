@@ -26,8 +26,6 @@
 - [Generic Swap FacetV3](./GenericSwapFacetV3.md)
 - [Glacis Facet](./GlacisFacet.md)
 - [Gnosis Bridge Facet](./GnosisBridgeFacet.md)
-- [Hop Facet](./HopFacet.md)
-- [Hop Facet Packed](./HopFacetPacked.md)
 - [LiFi Intent Escrow Facet V2](./LiFiIntentEscrowFacetV2.md)
 - [Mayan Facet](./MayanFacet.md)
 - [MegaETH Bridge Facet](./MegaETHBridgeFacet.md)
@@ -86,5 +84,6 @@
 
 - [Adding a New Bridge Integration](./AddingANewBridge.md)
 - [Contract Deployment Checklist](./Deploy.md)
+- [Deployment Logs — what `deployments/*.json` means and when to prune](./DeploymentLogs.md)
 - [ERC-7730 Clear-Signing Display Proposal](./ClearSigningProposal.md)
 - [HyperEVM Big Blocks — enabling big blocks for new deployer/dev wallets](./HyperEVMBigBlocks.md)

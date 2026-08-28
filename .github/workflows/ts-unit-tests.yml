@@ -52,6 +52,9 @@ jobs:
           filters: |
             ts:
               - 'script/**'
+              # several suites assert against the committed config files, so a
+              # config-only change can break them without touching script/**
+              - 'config/**'
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig*.json'

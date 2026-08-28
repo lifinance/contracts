@@ -98,6 +98,12 @@
         "signature": "withdraw()"
       }
     ],
+    "LiFiDEXAggregator": [
+      {
+        "selector": "0x2646478b",
+        "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+      }
+    ],
     "Patcher": [
       {
         "selector": "0xefae576b",
@@ -135,6 +141,17 @@
         "selector": "0x5d865df2",
         "signature": "validateNativeOutput(uint256,address)"
       }
+    ]
+  },
+  "whitelistPeripheryNetworks": {
+    "LiFiDEXAggregator": [
+      "bob",
+      "lens",
+      "lisk",
+      "opbnb",
+      "vana",
+      "viction",
+      "worldchain"
     ]
   },
   "facetPeripheryCouplings": {

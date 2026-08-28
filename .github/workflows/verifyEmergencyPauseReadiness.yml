@@ -29,7 +29,8 @@
 #   manual run always reports back. PR runs post nothing.
 # - Does NOT cover the pause WRITE/propose path (EXSC-368) - this is read-only.
 # - Triggers: weekly cron (Thu 07:00 UTC ≈ 09:00 CEST / 08:00 CET) + workflow_dispatch (manual) + pull_request limited to the
-#   paths below (config/global.json, config/networks.json, the involved scripts, this workflow).
+#   paths below (config/global.json, config/networks.json, the involved scripts, this workflow,
+#   and the shared foundry setup action + .foundry-version its toolchain comes from).
 # - Known limitations: needs RPCs (MongoDB) + deploy logs. Transient RPC errors are retried before
 #   failing — the readiness checks via rpcCallWithRetry, the funds path via estimatePauseCost +
 #   balance retries — and the funds check FAILS (rather than false-greening) if EVERY network errors.
@@ -50,6 +51,8 @@ on:
       - script/universalCast.sh
       - script/helperFunctions.sh
       - .github/workflows/verifyEmergencyPauseReadiness.yml
+      - .github/actions/setup-foundry/**
+      - .foundry-version
 
 permissions:
   contents: read # required to checkout the repository and read config/deploy logs
