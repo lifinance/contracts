@@ -68,6 +68,8 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 
 If it matches, Phase 3b runs an allowlist sync afterwards (a second production proposal). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
 
+A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
+
 ## Phase 2 — Confirm plan
 
 Present: contract + version (old → new per network), the full network list, environment, and what will be created (per network: one registration; **two** for a diamond-called periphery — registration + allowlist; in production each is a timelock-wrapped Safe proposal). Wait for explicit go-ahead — deployments cost gas and, in production, mint Safe proposals on many chains.
@@ -161,3 +163,5 @@ In production, note the files changed on disk (`deployments/<net>.json`, and `co
 - Deploy succeeded but production proposal missing → the propose step failed; check the network's deploy log and re-run that single network.
 - A network has no diamond → drop it from the list (this skill adds to existing diamonds only).
 - Explorer verification flaky → re-run `/verify-contracts <network>`; the MongoDB `verified` flag and on-chain verification must both hold.
+- zkEVM-only target list (zksync/lens/abstract) exits non-zero right after `building zksync artifacts`, with no error in a redirected log → `out/` is missing. The deploy salt comes from the standard artifact (`out/<C>.sol/<C>.json`), which the zk build never writes and `updateFoundryTomlForGroup zkevm` (a no-op) never triggers. Run `forge build --skip test` first; only the salt/address depends on it, never the deployed bytecode. A mixed group list hides this because london/cancun builds `out/` first.
+- `Failed to deploy script` plus a "sufficient funds" warning on a funded deployer → re-run with `DEBUG=true` before chasing balances or RPCs. If the real stderr is ``header validation error: `prevrandao` not set``, the chain's RPC omits `mixHash` and no post-Merge `evm_version` can build the fork environment; set `targetEvmVersion: "london"` so the chain joins the london group (keeps build, deploy and verification consistent). `--legacy`, `--skip-simulation` and `block_prevrandao` do not help. Probe with `cast rpc eth_getBlockByNumber latest false --rpc-url "$R" | tr ',' '\n' | grep -i mixhash`.

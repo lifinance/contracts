@@ -57,10 +57,10 @@ it can be posted for peer review.
   until stage 9 is done**. A failing audit check during stages 3–7 is expected
   and does not block peer review or BE integration — do not "fix" it early by
   adding audit entries before the audit happened.
-- **`SC Core Dev Approval Check`** (`ensureSCCoreDevApproval.yml`) requires at
-  least one approval from the smart-contract core team and re-evaluates on
-  every review event — including the approval dismissal caused by the stage-9
-  audit commit, which is why stage 10 needs a fresh approval.
+- **Core-dev approval is enforced by the repository ruleset**, not a workflow:
+  the `main protection` ruleset requires at least one approval from the
+  `smart-contract-core` team. Approvals are dismissed on push, so the stage-9
+  audit commit invalidates them — which is why stage 10 needs a fresh approval.
 - **`securityAlertsReview.yml`** is the only workflow that reverts a ready PR
   back to draft. It fires on `ready_for_review` and force-drafts when Olympix
   code-scanning alerts are unresolved, dismissed without a comment, or

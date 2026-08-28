@@ -76,13 +76,17 @@
       "TMY1N6rC61Fu1C8qvZEhwb3WLR7iY1ERuW": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9",
       "Executor": "TUJnqSDodwaDo2HFX2Ct2JsVEzWFpkAbht",
       "FeeCollector": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
-      "FeeForwarder": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
+      "FeeForwarder": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",
@@ -92,7 +96,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "TSZnVJnhPCH8PECjEY4zNbv7kK1XiBUwwb",
       "ReceiverStargateV2": "",
       "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
     }
