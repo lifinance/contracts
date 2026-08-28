@@ -5,10 +5,6 @@
  * from any other branch may proceed only when each selected facet matches `main`,
  * or — if it does not — when that branch has an open PR and the facet is frozen
  * at the commit recorded in `audit/auditLog.json`.
- *
- * The shell caller gates on the exit code: 0 means continue, any non-zero exit
- * means stop. Lookup failures therefore have to surface as a non-zero exit
- * rather than as an empty result that would read as "nothing to complain about".
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -73,9 +69,9 @@ export const resolveGithubToken = (cliToken: string | undefined): string => {
   if (!token)
     throw new Error(
       'No GitHub token available: pass --token or set GH_TOKEN in your .env (see .env.example). ' +
-        'It must be a personal access token with the "repo" scope so this check can read the ' +
-        'open pull request for the branch. A token is only required for production deploys from ' +
-        'a feature branch whose selected facet sources differ from main.'
+        'lifinance/contracts is public, so a classic PAT needs no scopes beyond public_repo to ' +
+        'read the open pull request for the branch. A token is only required for production ' +
+        'deploys from a feature branch whose selected facet sources differ from main.'
     )
 
   return token
@@ -238,6 +234,7 @@ export interface IDeployGateDeps {
  * never touch the network or require a token.
  * @param repoRoot - repository root (working tree that will be compiled)
  * @param cliToken - `--token` value; empty when unset
+ * @returns the git / audit-log / GitHub lookups used by the CLI
  */
 export const createDefaultDeps = (
   repoRoot: string,

@@ -1,4 +1,8 @@
+/**
+ * Unit and CLI tests for the production deploy gate in `verify-approvals.ts`.
+ */
 import { spawnSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -386,5 +390,31 @@ describe('verify-approvals CLI', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('OK')
+  })
+})
+
+describe('getContractVersion under the tsx runtime', () => {
+  // deployUpgradesToSAFE.sh runs this CLI with `bunx tsx`, i.e. under Node. A
+  // Bun-only file API in getContractVersion resolves to undefined there and is
+  // swallowed by its per-path catch, so every version lookup fails and the
+  // audit-freeze exception can never be evaluated.
+  it('resolves a facet version when run through bunx tsx', () => {
+    const repoRoot = join(import.meta.dir, '..', '..', '..')
+    const probe = join(mkdtempSync(join(tmpdir(), 'gate-')), 'probe.ts')
+    writeFileSync(
+      probe,
+      `import { getContractVersion } from ${JSON.stringify(
+        join(repoRoot, 'script/deploy/shared/getContractVersion')
+      )}\n` +
+        `getContractVersion('OwnershipFacet').then((v) => console.log(v))\n`
+    )
+
+    const result = spawnSync('bunx', ['tsx', probe], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
   })
 })

@@ -33,10 +33,6 @@ deployUpgradesToSAFE() {
   fi
 
   GIT_BRANCH=$(git branch --show-current)
-  # Production from main is always allowed. Production from any other branch is
-  # allowed only when the selected facet sources match main, or when the branch
-  # has an open PR and those sources are frozen at the audited commit.
-  # Staging is not gated.
   if [[ "$ENVIRONMENT" == "production" && "$GIT_BRANCH" != "main" ]]; then
     if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --token "${GH_TOKEN:-}" --facets "$SCRIPTS"; then
       error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
@@ -45,8 +41,6 @@ deployUpgradesToSAFE() {
     echo "Production deploy gate passed. Continuing..."
   fi
 
-  # Loop through each script and call "forge script" to get the cut calldata
-  declare -a CUTS
   # read from fd 3 so commands inside the loop (forge, bun) keep their own stdin
   while IFS= read -r -u3 SCRIPT; do
     [[ -z "$SCRIPT" ]] && continue
@@ -54,7 +48,6 @@ deployUpgradesToSAFE() {
     PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
     echo "Calculating facet cuts for $SCRIPT..."
 
-    # Execute, parse, and check return code
     if ! executeAndParse \
       "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
       "true" \
