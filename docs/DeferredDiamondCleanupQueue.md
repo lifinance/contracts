@@ -628,8 +628,11 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   it through no automated path: the drain claims only `queued`, `reconcileDecision`
   returns `keep` without a proposal status, and `repair-orphaned-parked-tasks.ts` skips
   it for manual review. `no-stale-registered-facets` fails the health check once such a
-  claim passes `STALE_PARKED_CLAIM_DAYS` (EXSC-867); clearing it needs the operator CLI
-  (EXSC-715).
+  claim passes `STALE_PARKED_CLAIM_DAYS` (EXSC-867). Clearing it has **no shipped operator
+  path**: `revertToQueued` still has no CLI (EXSC-715), and re-enqueueing is not a
+  workaround — an address-keyed task is refused by the dedup gate, while a legacy
+  name-keyed one is not and would silently open a second task for the same address.
+  Until EXSC-715 lands this is a manual queue write; escalate to the SC on-call.
 - **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
   — the facet is already absent on-chain (removed via another route); self-healing
   reconcile.

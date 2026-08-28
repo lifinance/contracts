@@ -1354,6 +1354,50 @@ export function splitByParkedCoverage(
 }
 
 /**
+ * Groups open parked tasks by network and facet address for coverage lookups.
+ *
+ * Two open tasks CAN share one address: the open-status unique index is on `taskKey`, and
+ * a legacy name-keyed row does not collide with the address-keyed key `computeTaskKey`
+ * mints today (mantle still carries such a row). Collapsing them therefore has to fail
+ * **closed** — a stalled claim, once seen, is never replaced by a livelier sibling, which
+ * would otherwise mask it and re-open exactly the gap this coverage check exists to close.
+ * The result must not depend on the order the queue returned the tasks in.
+ *
+ * @param tasks - Open (`queued`/`proposed`) tasks, in any order.
+ * @returns Network (lowercased) → lowercased facet address → the task that governs coverage.
+ */
+export function collapseOpenParkedTasks(
+  tasks: readonly {
+    network: string
+    facetAddress: string
+    prUrl: string
+    status: ParkedTaskStatus
+    createdAt: Date
+    proposedAt?: Date
+    safeTxHash?: string
+  }[],
+  now: Date = new Date()
+): OpenParkedByNetwork {
+  const byNetwork: OpenParkedByNetwork = new Map()
+  for (const task of tasks) {
+    const map =
+      byNetwork.get(task.network) ?? new Map<string, IOpenParkedCoverage>()
+    const address = task.facetAddress.toLowerCase()
+    const existing = map.get(address)
+    if (!existing || !isStalledParkedClaim(existing, now))
+      map.set(address, {
+        prUrl: task.prUrl,
+        status: task.status,
+        createdAt: task.createdAt,
+        proposedAt: task.proposedAt,
+        safeTxHash: task.safeTxHash,
+      })
+    byNetwork.set(task.network, map)
+  }
+  return byNetwork
+}
+
+/**
  * Open parked tasks fleet-wide, fetched once per process and grouped by network
  * (lowercased `facetAddress` → PR URL maps). The health check evaluates dozens of networks
  * concurrently in one process, and a Mongo connect/index-check/teardown per stale
@@ -1379,21 +1423,7 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
           environment: EnvironmentEnum.production,
           status: OPEN_STATUSES,
         })
-        const byNetwork: OpenParkedByNetwork = new Map()
-        for (const task of open) {
-          const map =
-            byNetwork.get(task.network) ??
-            new Map<string, IOpenParkedCoverage>()
-          map.set(task.facetAddress.toLowerCase(), {
-            prUrl: task.prUrl,
-            status: task.status,
-            createdAt: task.createdAt,
-            proposedAt: task.proposedAt,
-            safeTxHash: task.safeTxHash,
-          })
-          byNetwork.set(task.network, map)
-        }
-        return byNetwork
+        return collapseOpenParkedTasks(open)
       } finally {
         await client.close()
       }
@@ -2591,7 +2621,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
-      'No task: enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>`. Stalled claim: the task is `proposed` with no Safe proposal and no unattended job can move it — it needs `revertToQueued` before a drain will re-claim it (EXSC-715). Do NOT re-enqueue (the open task blocks the dedup gate) and do NOT cancel (that abandons a live deprecation). See docs/DeferredDiamondCleanupQueue.md.',
+      'No task: enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>`. Stalled claim: the task is `proposed` with no Safe proposal and no unattended job can move it — it needs `revertToQueued` before a drain will re-claim it, and no operator CLI ships that yet (EXSC-715), so escalate to the SC on-call rather than hand-editing the queue. Do NOT re-enqueue: an address-keyed task is refused by the dedup gate, and a legacy name-keyed one is NOT — it would silently open a second task for the same address. Do NOT cancel (that abandons a live deprecation). See docs/DeferredDiamondCleanupQueue.md.',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(

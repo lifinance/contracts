@@ -21,6 +21,7 @@ import {
   findDeprecatedLiveFacets,
   splitByParkedCoverage,
   isStalledParkedClaim,
+  collapseOpenParkedTasks,
   STALE_PARKED_CLAIM_DAYS,
   type IOpenParkedCoverage,
   type OpenParkedByNetwork,
@@ -217,6 +218,55 @@ describe('isStalledParkedClaim', () => {
         NOW
       )
     ).toBe(true)
+  })
+})
+
+describe('collapseOpenParkedTasks', () => {
+  const ADDR = '0x00000000000000000000000000000000000000A1'
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * 86_400_000)
+
+  // A legacy name-keyed row and an address-keyed row do NOT collide on the open-status
+  // unique index, so both can be open for one address at once.
+  const stalledClaim = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+    status: 'proposed' as const,
+    createdAt: ago(29),
+    proposedAt: ago(STALE_PARKED_CLAIM_DAYS + 3),
+  }
+  const freshQueued = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/9999',
+    status: 'queued' as const,
+    createdAt: ago(1),
+  }
+
+  it('keeps the stalled claim when a livelier task for the same address follows it', () => {
+    const got = collapseOpenParkedTasks([stalledClaim, freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps the stalled claim when it arrives second', () => {
+    // Order-independence is the whole point: the queue's sort must not decide coverage.
+    const got = collapseOpenParkedTasks([freshQueued, stalledClaim], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps a single live task when nothing is stalled', () => {
+    const got = collapseOpenParkedTasks([freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('queued')
+  })
+
+  it('keys tasks under their own network', () => {
+    const got = collapseOpenParkedTasks(
+      [freshQueued, { ...freshQueued, network: 'base' }],
+      NOW
+    )
+    expect(got.get('mantle')?.size).toBe(1)
+    expect(got.get('base')?.size).toBe(1)
   })
 })
 
