@@ -17,6 +17,9 @@ import { fileURLToPath } from 'url'
 
 import { consola } from 'consola'
 
+import type { WhitelistNetworkScope } from '../common/whitelistScope'
+import { isNetworkInScope } from '../common/whitelistScope'
+
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 export interface INetworkSources {
@@ -141,24 +144,55 @@ export function findMismatches(sources: INetworkSources[]): IMismatch[] {
  * @param sources - Per-network source data from `loadSources`.
  * @param whitelistEligible - Periphery names that are expected to be whitelisted
  *   (the keys of `config/global.json` → `whitelistPeripheryFunctions`).
+ * @param networkScope - Per-contract network allowlist from `config/global.json` →
+ *   `whitelistPeripheryNetworks`. A contract listed there is only expected to be
+ *   whitelisted on the networks it names.
  * @returns One gap per eligible, deployed-but-unwhitelisted periphery; empty if none.
  * @remarks Only periphery names in `whitelistEligible` are considered, so contracts
  *   that are intentionally never whitelisted (Receivers, proxies, Executor) are ignored.
  */
 export function findCoverageGaps(
   sources: INetworkSources[],
-  whitelistEligible: Set<string>
+  whitelistEligible: Set<string>,
+  networkScope: WhitelistNetworkScope = {}
 ): ICoverageGap[] {
   const gaps: ICoverageGap[] = []
   for (const s of sources) {
     for (const [name, address] of Object.entries(s.diamondPeriphery)) {
       if (!whitelistEligible.has(name)) continue
+      if (!isNetworkInScope(name, s.network, networkScope)) continue
       if (!address || address.trim() === '') continue
       if (isEmpty(s.whitelistPeriphery[name]))
         gaps.push({ network: s.network, contract: name, address })
     }
   }
   return gaps
+}
+
+/**
+ * Finds periphery entries in `config/whitelist.json` on a network the contract is
+ * scoped away from by `config/global.json` → `whitelistPeripheryNetworks`.
+ *
+ * @param sources - Per-network source data from `loadSources`.
+ * @param networkScope - Per-contract network allowlist.
+ * @returns One violation per out-of-scope whitelist entry; empty if none.
+ * @remarks `findCoverageGaps` only suppresses reports for out-of-scope networks, and
+ *   `findMismatches` compares addresses rather than presence — so without this check a
+ *   regenerated `whitelist.json` that re-adds a scoped contract fleet-wide passes silently.
+ */
+export function findScopeViolations(
+  sources: INetworkSources[],
+  networkScope: WhitelistNetworkScope = {}
+): ICoverageGap[] {
+  const violations: ICoverageGap[] = []
+  for (const s of sources) {
+    for (const [name, address] of Object.entries(s.whitelistPeriphery)) {
+      if (isEmpty(address)) continue
+      if (isNetworkInScope(name, s.network, networkScope)) continue
+      violations.push({ network: s.network, contract: name, address })
+    }
+  }
+  return violations
 }
 
 /**
@@ -302,6 +336,23 @@ export function loadWhitelistEligible(
   return new Set(Object.keys(fns ?? {}))
 }
 
+/**
+ * Reads the per-contract network allowlist from `config/global.json` →
+ * `whitelistPeripheryNetworks`.
+ * @param repoRoot - Repository root. Defaults to this repo.
+ * @returns Map of periphery name to the networks it may be whitelisted on (empty
+ *   when the key is absent, i.e. no contract is network-scoped).
+ */
+export function loadWhitelistNetworkScope(
+  repoRoot: string = REPO_ROOT
+): WhitelistNetworkScope {
+  return (
+    readJson<{
+      whitelistPeripheryNetworks?: WhitelistNetworkScope
+    }>(`${repoRoot}/config/global.json`).whitelistPeripheryNetworks ?? {}
+  )
+}
+
 function report(mismatches: IMismatch[]): void {
   for (const m of mismatches) {
     consola.error(`[${m.network}] ${m.kind} "${m.contract}" address mismatch:`)
@@ -317,6 +368,13 @@ function reportCoverageGaps(gaps: ICoverageGap[]): void {
   for (const g of gaps)
     consola.error(
       `[${g.network}] periphery "${g.contract}" (${g.address}) is in deployments/${g.network}.diamond.json but missing from config/whitelist.json`
+    )
+}
+
+function reportScopeViolations(violations: ICoverageGap[]): void {
+  for (const v of violations)
+    consola.error(
+      `[${v.network}] periphery "${v.contract}" (${v.address}) is in config/whitelist.json but ${v.network} is not in its whitelistPeripheryNetworks scope`
     )
 }
 
@@ -509,13 +567,20 @@ if (import.meta.main) {
     } else {
       sources = loadSources()
     }
+    const networkScope = loadWhitelistNetworkScope()
     const mismatches = findMismatches(sources)
-    const gaps = findCoverageGaps(sources, eligible)
+    const gaps = findCoverageGaps(sources, eligible, networkScope)
+    const scopeViolations = findScopeViolations(sources, networkScope)
     report(mismatches)
     reportCoverageGaps(gaps)
-    if (mismatches.length > 0 || gaps.length > 0) {
+    reportScopeViolations(scopeViolations)
+    if (
+      mismatches.length > 0 ||
+      gaps.length > 0 ||
+      scopeViolations.length > 0
+    ) {
       consola.error(
-        `Found ${mismatches.length} address mismatch(es) and ${gaps.length} whitelist coverage gap(s).`
+        `Found ${mismatches.length} address mismatch(es), ${gaps.length} whitelist coverage gap(s) and ${scopeViolations.length} out-of-scope whitelist entr(ies).`
       )
       process.exit(1)
     }

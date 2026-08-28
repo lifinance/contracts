@@ -19,6 +19,7 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
   formatEther,
+  formatUnits,
   getAddress,
   getContract,
   parseAbi,
@@ -28,14 +29,27 @@ import {
   type PublicClient,
 } from 'viem'
 
-import type { IWhitelistConfig, TargetState } from '../common/types'
+import {
+  EnvironmentEnum,
+  type IWhitelistConfig,
+  type TargetState,
+} from '../common/types'
 import { normalizeSelector } from '../utils/utils'
 
+import {
+  diffFacets,
+  getExpectedFacetNames,
+  getProtectedNames,
+  cachedSourceContractNames,
+  type IFacetRemoval,
+} from './safe/diamondRemovalDiff'
 import { SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
-  resolveLiveFacetsFromLog,
+  identifyFacetBySelectorSet,
+  loadCompiledFacetSelectors,
+  resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
 import { isRateLimitError } from './shared/rateLimit'
@@ -94,7 +108,16 @@ export interface IHealthCheckContext {
   deployedContracts: Record<string, Address | string>
   globalConfig: IHealthCheckGlobalConfig
   targetState: TargetState
-  networkConfig: { rpcUrl?: string; safeAddress?: string }
+  networkConfig: {
+    rpcUrl?: string
+    safeAddress?: string
+    /** `"N/A"` marks a chain with no native asset, where `eth_getBalance` is not the gas balance. */
+    nativeCurrency?: string
+    /** Chain-default ERC20 gas token on such a chain (tempo's pathUSD). */
+    feeTokenAddress?: string
+    /** Predeploy resolving a per-account fee-token preference that overrides the default. */
+    feeManagerAddress?: string
+  }
   publicClient?: PublicClient
   tronWeb?: TronWeb
   tronRpcUrl?: string
@@ -106,6 +129,30 @@ export interface IHealthCheckContext {
   pauserWallet: string
   /** Populated by the `facets-registered` invariant; reused by selector/facet-set invariants. */
   onChainFacets: IOnChainFacet[]
+  /**
+   * Periphery names recorded in `deployments/<network>.diamond.json`. Undefined = read from disk
+   * (the default); injectable so the registry/log sync check is testable without fixture files.
+   */
+  diamondLogPeripheryNames?: string[]
+  /**
+   * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
+   * name. Undefined = read from the build output (the default); injectable so both invariants
+   * that consume it are testable without a Foundry build.
+   */
+  compiledFacetSelectors?: Record<string, string[]>
+  /**
+   * Run-wide memo of PeripheryRegistry reads, shared by every invariant that resolves a periphery
+   * address. Optional because tests build partial contexts; absent simply means uncached reads.
+   */
+  peripheryRegistryCache?: Map<string, Promise<string | null>>
+  /**
+   * Open parked-removal coverage (network → lowercased facet address → PR URL). Undefined =
+   * fetch from the parked-task queue (the default); injectable so the queue-aware invariants
+   * are testable without a MongoDB connection.
+   */
+  openParkedRemovals?:
+    | Map<string, Map<string, string>>
+    | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -250,7 +297,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'metis',
       'mode',
       'monad',
-      'moonbeam',
       'morph',
       'nibiru',
       'opbnb',
@@ -299,6 +345,56 @@ export function getExemptCoreFacets(
   return exemptions
     .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
     .map((e) => ({ facet: e.facet, reason: e.reason }))
+}
+
+/**
+ * A core periphery contract that cannot exist on some chains, together with those chains.
+ * The periphery counterpart of {@link ICoreFacetExemption}, and preferred over an
+ * {@link IInvariantExclusion} for the same reason: excluding `core-periphery-deployed` on a
+ * network would stop asserting ERC20Proxy, Executor, FeeForwarder and the rest there, whereas
+ * this drops one contract from the expected set and leaves everything else enforced.
+ *
+ * Unlike the facet table this is not always a shrinking to-do — an entry can be permanent when
+ * the chain makes the contract meaningless (nothing to wrap on a chain with no native asset).
+ */
+export interface ICorePeripheryExemption {
+  /** Periphery name as listed in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) the contract is not expected on. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-periphery exemptions. See {@link ICorePeripheryExemption}.
+ *
+ * Validated in `healthCheckInvariants.test.ts` the same way as the facet table: the contract
+ * must really be in `corePeriphery`, every network must exist in `config/networks.json`, and
+ * the reason must be non-empty.
+ */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] = [
+  {
+    contract: 'TokenWrapper',
+    reason:
+      'TokenWrapper wraps a chain native asset into its ERC20 form. Arc has no activated native path (gas is USDC via the ERC20 predeploy) and tempo has no native asset at all (gas is paid in TIP-20 fee tokens), so on both chains there is nothing to wrap and the contract is intentionally never deployed (EXSC-786).',
+    networks: ['arc', 'tempo'],
+  },
+]
+
+/**
+ * Core periphery contracts the given network is exempt from, with the reason for each. Pure;
+ * network match is case-insensitive. A network absent from every entry gets an empty list, so
+ * new chains are enforced by default.
+ */
+export function getExemptCorePeriphery(
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): Array<{ contract: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ contract: e.contract, reason: e.reason }))
 }
 
 /**
@@ -365,6 +461,53 @@ const OWNABLE_ABI = parseAbi([
 
 const getOwnableContract = (address: Address, client: PublicClient) =>
   getContract({ address, abi: OWNABLE_ABI, client })
+
+const ERC20_BALANCE_ABI = parseAbi([
+  'function balanceOf(address account) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+])
+
+const FEE_MANAGER_ABI = parseAbi([
+  'function userTokens(address account) external view returns (address)',
+])
+
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
+/**
+ * The ERC20 token the pauser would actually pay gas with; `undefined` when the chain uses standard
+ * native accounting, `NO_GAS_BALANCE_SOURCE` when no gas balance can be read at all.
+ *
+ * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
+ * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
+ * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
+ * the two. On such a chain the account may override the chain-default `feeTokenAddress` through a
+ * FeeManager predeploy, so that preference wins where it is set. Mirrors the resolution order in
+ * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
+ *
+ * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
+ * falling through: its native balance is a sentinel, so reading it would report any pauser as
+ * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
+ */
+async function resolvePauserFeeToken(
+  ctx: IHealthCheckContext
+): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
+  const { nativeCurrency, feeTokenAddress, feeManagerAddress } =
+    ctx.networkConfig
+  if (nativeCurrency !== 'N/A' || !ctx.publicClient) return undefined
+  if (!feeTokenAddress) return NO_GAS_BALANCE_SOURCE
+
+  let feeToken = getAddress(feeTokenAddress)
+  if (feeManagerAddress) {
+    const userToken = await getContract({
+      address: getAddress(feeManagerAddress),
+      abi: FEE_MANAGER_ABI,
+      client: ctx.publicClient,
+    }).read.userTokens([ctx.pauserWallet as Address])
+    if (userToken && userToken !== zeroAddress) feeToken = getAddress(userToken)
+  }
+  return feeToken
+}
 
 /**
  * Assert an EVM contract's `owner()` equals `expectedOwner`. No-op when the contract is
@@ -826,10 +969,20 @@ async function checkWhitelistIntegrity(
   }
 }
 
-/** Every Receiver periphery contract and the getter that exposes its bound Executor. */
-const RECEIVER_EXECUTOR_GETTERS: Array<{ name: string; getter: string }> = [
-  // ReceiverAcrossV3 is deprecated (superseded by ReceiverAcrossV4) and its Executor
-  // binding is no longer kept current, so it is intentionally not checked here.
+/**
+ * Every Receiver periphery contract in service, and the getter exposing its bound Executor.
+ *
+ * The one list of receivers this file checks, for both the Executor binding and ownership.
+ *
+ * A receiver with no `src/Periphery` source and no target-state entry belongs nowhere in here,
+ * even while instances stay registered on chain: an invariant that asserts a retired contract's
+ * owner can only ever report state nobody intends to change. Same call the file already makes for
+ * FeeCollector below.
+ */
+export const RECEIVER_EXECUTOR_GETTERS: Array<{
+  name: string
+  getter: string
+}> = [
   { name: 'ReceiverAcrossV4', getter: 'EXECUTOR' },
   { name: 'ReceiverChainflip', getter: 'executor' },
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
@@ -849,7 +1002,7 @@ const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
  * @throws when the read fails, returns malformed output, or no client is configured, so callers
  *   can tell "not registered" (null) apart from "could not determine" (throw)
  */
-async function readPeripheryRegistry(
+async function readPeripheryRegistryUncached(
   name: string,
   ctx: IHealthCheckContext
 ): Promise<string | null> {
@@ -879,6 +1032,305 @@ async function readPeripheryRegistry(
   })
   const address = await registry.read.getPeripheryContract([name])
   return address === zeroAddress ? null : getAddress(address)
+}
+
+/** Network keys compose into a path, so anything outside this shape is refused outright. */
+function isValidNetworkName(name: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(name)
+}
+
+/**
+ * Read the periphery names recorded in `deployments/<network>.diamond.json`.
+ *
+ * Only the names are taken: this is a source of candidates to probe, not a comparison target — the
+ * diamond log is a snapshot with different semantics from the flat log, and reconciling the two is
+ * a separate concern. An unreadable or absent log costs coverage, never the run.
+ *
+ * @param networkLower - canonical lowercase network key
+ * @returns the recorded periphery names, or an empty list when the log cannot be read
+ */
+function loadDiamondLogPeripheryNames(networkLower: string): string[] {
+  if (!isValidNetworkName(networkLower)) return []
+  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
+  const logPath = path.resolve(deploymentsDir, `${networkLower}.diamond.json`)
+  const relativeToDir = path.relative(deploymentsDir, logPath)
+  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
+    return []
+  if (!existsSync(logPath)) return []
+
+  try {
+    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
+      LiFiDiamond?: { Periphery?: Record<string, string> }
+    }
+    return Object.keys(parsed.LiFiDiamond?.Periphery ?? {})
+  } catch {
+    return []
+  }
+}
+
+/**
+ * `getAddress` that yields null instead of throwing: deploy-log entries are hand-editable, and one
+ * malformed entry must never abort a whole per-contract loop.
+ */
+function tryGetAddress(value: string): Address | null {
+  try {
+    return getAddress(value as Address)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Does this read failure come from the chain rather than the transport?
+ *
+ * A revert - or a call to an address holding no code - is deterministic: it reproduces on every
+ * retry, so it is evidence the contract itself is wrong (a registry entry pointing at something
+ * that is not the expected contract) and belongs in the error channel. Transport failures are not
+ * evidence of anything, so anything not clearly chain-level is treated as transient; a misjudged
+ * network blip must never redden the fleet.
+ *
+ * One case this cannot decide alone: when the batched multicall's own `eth_call` fails with a
+ * message containing "execution reverted" - including a provider envelope that merely embeds the
+ * phrase - viem reports that to every read in the batch, so all of them look deterministic. The
+ * re-verify pass is what clears it, since the retry re-batches and a transport blip does not
+ * reproduce.
+ */
+export function isDeterministicReadFailure(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  for (let current = error; current && !seen.has(current); ) {
+    seen.add(current)
+    const candidate = current as {
+      name?: unknown
+      message?: unknown
+      cause?: unknown
+    }
+    const name = typeof candidate.name === 'string' ? candidate.name : ''
+    if (
+      name === 'ContractFunctionRevertedError' ||
+      name === 'ContractFunctionZeroDataError'
+    )
+      return true
+    const message =
+      typeof candidate.message === 'string'
+        ? candidate.message.toLowerCase()
+        : ''
+    if (
+      message.includes('execution reverted') ||
+      message.includes('returned no data')
+    )
+      return true
+    current = candidate.cause
+  }
+  return false
+}
+
+/**
+ * Report a failed contract read at the level its cause warrants, never throwing.
+ *
+ * Classification runs inside a `catch`, so it must not raise: an exotic error whose property
+ * access throws would otherwise abort the surrounding loop and leave the remaining contracts
+ * unchecked - the exact silent gap the per-read guard exists to prevent.
+ */
+function report(
+  ctx: IHealthCheckContext,
+  error: unknown,
+  message: string
+): void {
+  let deterministic = false
+  try {
+    deterministic = isDeterministicReadFailure(error)
+  } catch {
+    deterministic = false
+  }
+  if (deterministic) ctx.logError(message)
+  else ctx.logWarn(message)
+}
+
+/**
+ * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
+ *
+ * Registry state does not change during a run, but four invariants now probe overlapping name
+ * sets; uncached that multiplies the RPC reads per network and feeds the rate limits that degrade
+ * other checks. The promise is cached before it settles so concurrent invariants share one
+ * in-flight read, and a failed read is evicted so a retry reaches the RPC again.
+ */
+async function readPeripheryRegistry(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | null> {
+  const cache = ctx.peripheryRegistryCache
+  if (!cache) return readPeripheryRegistryUncached(name, ctx)
+
+  // Keyed by diamond as well as name: the context owns one cache per network today, but a caller
+  // that ever reused one across networks would otherwise be served another chain's address.
+  const key = `${ctx.diamondAddress.toLowerCase()}:${name}`
+  const cached = cache.get(key)
+  if (cached) return cached
+
+  const pending = readPeripheryRegistryUncached(name, ctx).catch(
+    (error: unknown) => {
+      // Evict only our own entry: the key may already hold a fresh healthy promise, and a stale
+      // rejection must not tear that one down.
+      if (cache.get(key) === pending) cache.delete(key)
+      throw error
+    }
+  )
+  cache.set(key, pending)
+  return pending
+}
+
+/**
+ * Resolve a periphery contract's address from the on-chain registry first, deploy log second.
+ *
+ * The deploy log can be incomplete, so resolving through it alone silently exempts a log-absent
+ * contract from every check that depends on this lookup. A failed registry read falls back to the
+ * log rather than aborting: a read failure is not evidence of absence.
+ *
+ * @returns the address, or undefined when the contract is absent from both sources
+ */
+async function resolvePeripheryAddress(
+  name: string,
+  ctx: IHealthCheckContext
+): Promise<string | undefined> {
+  try {
+    const registered = await readPeripheryRegistry(name, ctx)
+    if (registered) return registered
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    ctx.logWarn(
+      `Could not read the PeripheryRegistry for ${name} (falling back to the deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[name]
+  return logged ? String(logged) : undefined
+}
+
+/**
+ * Facets that are routed by the diamond but should no longer exist: absent from
+ * target state, not on the never-remove allowlist, and with no `.sol` source left
+ * under `src/` — i.e. deprecated by `/deprecate-contract` whose removal never
+ * actually landed on this chain.
+ *
+ * Returns `[]` when the network/environment has no target-state `LiFiDiamond`
+ * block: an absent entry is not "expects zero facets", and diffing it would
+ * classify every routed facet as deprecated.
+ *
+ * A facet routed at an address the deploy log cannot name is NOT reported here —
+ * that is `no-unexpected-facets`' job. This check answers the complementary
+ * question that invariant cannot: *should* a known facet still be here?
+ *
+ * @param params.deployedContracts - Deploy-log `{name: address}` map, inverted here
+ *   to resolve loupe addresses to names (works for both hex and Tron base58).
+ * @param params.expectedNames - Target-state `LiFiDiamond` contract names, or
+ *   `undefined` when the network/environment has no entry at all.
+ * @returns The deprecated-but-routed facets, each with the selectors the loupe
+ *   currently routes to it.
+ */
+export function findDeprecatedLiveFacets(params: {
+  networkLower: string
+  environment: EnvironmentEnum
+  onChainFacets: IOnChainFacet[]
+  deployedContracts: Record<string, Address | string>
+  expectedNames: Set<string> | undefined
+  protectedNames: Set<string>
+  sourceNames: Set<string>
+}): IFacetRemoval[] {
+  const { expectedNames } = params
+  if (!expectedNames) return []
+
+  const addressToName: Record<string, string> = {}
+  for (const [name, address] of Object.entries(params.deployedContracts))
+    addressToName[String(address).toLowerCase()] = name
+
+  return diffFacets({
+    network: params.networkLower,
+    environment: params.environment,
+    onChainFacets: params.onChainFacets.map((f) => ({
+      address: f.address as Address,
+      selectors: f.selectors as Hex[],
+    })),
+    addressToName,
+    expectedNames,
+    protectedNames: params.protectedNames,
+    // Detection only, so nothing is held back: with an empty active-selector set
+    // `removals` is exactly the deprecated-but-routed facet set. Populating it
+    // would require compiled artifacts and throws when they are stale — never
+    // acceptable in a health check, and the actual removal path
+    // (`cleanUpProdDiamond`) computes the real held-back set anyway.
+    activeSelectors: new Set<string>(),
+    sourceNames: params.sourceNames,
+  }).removals
+}
+
+/**
+ * Splits deprecated-but-routed facets into the ones an open parked task actually
+ * covers and the ones nothing is tracking.
+ *
+ * Coverage is matched by ADDRESS, like the drain and the reconcile. A name maps to
+ * exactly one deploy-log address, so a task whose address is not the stale facet
+ * on-chain covers nothing the drain would remove — counting it as coverage would
+ * silence this backstop for the very facet it exists to surface (two co-registered
+ * versions under one name, EXSC-750/EXSC-775).
+ *
+ * @param deprecated - Deprecated facets the loupe still routes.
+ * @param openParkedAddresses - Lowercased `facetAddress` of every open parked task.
+ * @returns The covered (`parked`) and uncovered (`unparked`) partitions.
+ */
+export function splitByParkedCoverage(
+  deprecated: IFacetRemoval[],
+  openParkedAddresses: Set<string>
+): { parked: IFacetRemoval[]; unparked: IFacetRemoval[] } {
+  const isParked = (facet: IFacetRemoval): boolean =>
+    openParkedAddresses.has(facet.address.toLowerCase())
+  return {
+    parked: deprecated.filter(isParked),
+    unparked: deprecated.filter((f) => !isParked(f)),
+  }
+}
+
+/**
+ * Open parked tasks fleet-wide, fetched once per process and grouped by network
+ * (lowercased `facetAddress` → PR URL maps). The health check evaluates dozens of networks
+ * concurrently in one process, and a Mongo connect/index-check/teardown per stale
+ * network would hammer the shared cluster; one shared read serves them all.
+ * A failed fetch degrades that network to a coverage warning instead of a false
+ * alarm, and clears the cache so the next network retries — one transient blip
+ * at process start must not blind the whole run. In-flight callers share the
+ * failing promise, so a hard outage costs at most one attempt per network.
+ */
+let openParkedByNetworkPromise:
+  | Promise<Map<string, Map<string, string>> | { unreachable: string }>
+  | undefined
+function fetchOpenParkedAddressesByNetwork(): Promise<
+  Map<string, Map<string, string>> | { unreachable: string }
+> {
+  return (openParkedByNetworkPromise ??= (async () => {
+    try {
+      const { getParkedTasksCollection, listParkedTasks, OPEN_STATUSES } =
+        await import('./safe/parked-tasks')
+      const { client, parkedTasks } = await getParkedTasksCollection()
+      try {
+        const open = await listParkedTasks(parkedTasks, {
+          environment: EnvironmentEnum.production,
+          status: OPEN_STATUSES,
+        })
+        const byNetwork = new Map<string, Map<string, string>>()
+        for (const task of open) {
+          const map = byNetwork.get(task.network) ?? new Map<string, string>()
+          map.set(task.facetAddress.toLowerCase(), task.prUrl)
+          byNetwork.set(task.network, map)
+        }
+        return byNetwork
+      } finally {
+        await client.close()
+      }
+    } catch (error: unknown) {
+      openParkedByNetworkPromise = undefined
+      return {
+        unreachable: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })())
 }
 
 /**
@@ -1032,6 +1484,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      peripheryToCheck = peripheryToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1149,17 +1605,29 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'], chains: 'evm-only' },
     run: async (ctx) => {
       if (!ctx.publicClient) return
-      const executorAddress = ctx.deployedContracts['Executor']
+      // Resolved the same way as the receivers below: comparing a registry-resolved receiver
+      // against a log-only Executor would flag drift between the two sources as a binding error.
+      const executorAddress = await resolvePeripheryAddress('Executor', ctx)
       if (!executorAddress) {
         ctx.logError(
-          'Executor missing from deploy log; cannot verify Receivers'
+          'Executor could not be resolved from the PeripheryRegistry or the deploy log; cannot verify Receivers'
         )
         return
       }
       const expectedExecutor = getAddress(executorAddress as Address)
 
-      for (const { name, getter } of RECEIVER_EXECUTOR_GETTERS) {
-        const receiverAddress = ctx.deployedContracts[name]
+      // Registry-first: a receiver live on chain but absent from the deploy log must not escape
+      // the only check that verifies its Executor binding. Resolved in one pass so the batched
+      // multicall client can coalesce the reads instead of seeing them one await at a time.
+      const resolvedReceivers = await Promise.all(
+        RECEIVER_EXECUTOR_GETTERS.map(async ({ name, getter }) => ({
+          name,
+          getter,
+          receiverAddress: await resolvePeripheryAddress(name, ctx),
+        }))
+      )
+
+      for (const { name, getter, receiverAddress } of resolvedReceivers) {
         if (!receiverAddress) continue
 
         const receiver = getContract({
@@ -1173,7 +1641,22 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           receiver.read as Record<string, (() => Promise<Address>) | undefined>
         )[getter]
         if (!readExecutor) continue
-        const boundExecutor = getAddress(await readExecutor())
+        let boundExecutor: Address
+        try {
+          boundExecutor = getAddress(await readExecutor())
+        } catch (error: unknown) {
+          // Report and move on either way: one failing receiver must not abandon the ones not yet
+          // checked. A chain-level failure is still an error, though - a receiver whose binding
+          // getter reverts is broken, not flaky.
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          report(
+            ctx,
+            error,
+            `Could not read ${name}.${getter}(): ${errorMessage}`
+          )
+          continue
+        }
 
         if (boundExecutor !== expectedExecutor)
           ctx.logError(
@@ -1204,6 +1687,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      contractsToCheck = contractsToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       if (contractsToCheck.length === 0) return
 
@@ -1290,6 +1777,138 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'periphery-registry-log-sync',
+    description:
+      'Every known periphery contract registered in the diamond is recorded in the deploy log',
+    // Warning, not error: a log that lags the chain is a bookkeeping failure, not a broken
+    // diamond, and an error gate here would turn the whole fleet sweep red over drift nobody can
+    // fix in the same change. periphery-registered remains the error gate for the log -> chain
+    // direction.
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    remediation:
+      'Add the missing entry to deployments/<network>.json (or correct the stale address) so the deploy log matches the on-chain PeripheryRegistry.',
+    run: async (ctx) => {
+      // The registry is a mapping(string => address) with no enumerator, so the on-chain side can
+      // only be discovered by probing names - which bounds this check to names some source already
+      // knows. Both deploy logs contribute, because a contract can be recorded in one and not the
+      // other. Receivers reach this list twice over - as coupling companions and via
+      // RECEIVER_EXECUTOR_GETTERS - so no receiver in service depends on a log naming it first.
+      // Facets are excluded because probing every facet name would multiply the RPC reads for
+      // lookups that can only ever return the zero address.
+      // Target state only names facets that are still current, so a retired facet lingering in the
+      // flat log would otherwise be probed - a fifth of all probes on a real network, for lookups
+      // that can only ever return the zero address. Matching on `includes` mirrors
+      // deriveNonCoreFacets and catches the packed/versioned variants; no periphery name contains
+      // "Facet".
+      // The timelock is the diamond's owner, not a contract the diamond calls: every consumer
+      // reads its address from the deploy log, and diamond-owner validates that against
+      // owner(). A registry entry for it is therefore not an address anything resolves.
+      // periphery-registered skips it for the same reason.
+      const notPeriphery = (name: string): boolean =>
+        name === 'LiFiTimelockController' ||
+        name.includes('Facet') ||
+        name.startsWith('LiFiDiamond') ||
+        ctx.coreFacetsToCheck.includes(name) ||
+        ctx.nonCoreFacets.includes(name)
+      const candidates = [
+        ...new Set([
+          ...(ctx.isTron ? getTronCorePeriphery() : getCorePeriphery()),
+          ...Object.keys(ctx.globalConfig.whitelistPeripheryFunctions),
+          ...Object.values(getFacetPeripheryCouplings()).map(
+            (coupling) => coupling.requires
+          ),
+          ...RECEIVER_EXECUTOR_GETTERS.map((receiver) => receiver.name),
+          ...Object.keys(ctx.deployedContracts),
+          ...(ctx.diamondLogPeripheryNames ??
+            loadDiamondLogPeripheryNames(ctx.networkLower)),
+        ]),
+      ]
+        .filter((name) => !notPeriphery(name))
+        .sort()
+
+      // EVM reads fold into the batched multicall client; Tron reads stay sequential because each
+      // one spawns a troncast subprocess with its own retry backoff, and firing the whole candidate
+      // list at once would burst dozens of them at a rate-limited RPC.
+      const registered: Array<PromiseSettledResult<string | null>> = []
+      if (ctx.isTron)
+        for (const name of candidates)
+          registered.push(
+            await readPeripheryRegistry(name, ctx).then(
+              (value): PromiseSettledResult<string | null> => ({
+                status: 'fulfilled',
+                value,
+              }),
+              (reason: unknown): PromiseSettledResult<string | null> => ({
+                status: 'rejected',
+                reason,
+              })
+            )
+          )
+      else
+        registered.push(
+          ...(await Promise.allSettled(
+            candidates.map((name) => readPeripheryRegistry(name, ctx))
+          ))
+        )
+
+      // A rate-limited RPC would otherwise emit a warning per candidate - dozens per network - so
+      // those collapse into one line, the way the facets() read handles the same failure. Only
+      // rate-limit rejections collapse: any other failure is a distinct problem and keeps its own
+      // named warning.
+      const rateLimitedCount = registered.filter(
+        (result) =>
+          result.status === 'rejected' && isRateLimitError(result.reason)
+      ).length
+      if (rateLimitedCount > 0)
+        ctx.logWarn(
+          `RPC rate limit reached while reading the PeripheryRegistry; ${rateLimitedCount} of ${candidates.length} periphery name(s) went unchecked on this network`
+        )
+
+      let inSync = 0
+      candidates.forEach((name, index) => {
+        const result = registered[index]
+        if (result?.status !== 'fulfilled') {
+          if (result?.status === 'rejected' && isRateLimitError(result.reason))
+            return
+          const reason =
+            result?.status === 'rejected' ? String(result.reason) : 'no result'
+          ctx.logWarn(
+            `Could not read the registry entry for ${name}: ${reason}`
+          )
+          return
+        }
+        // Not registered here: whether it SHOULD be is periphery-registered's question, not this
+        // invariant's - this one only reconciles what the chain already says.
+        if (result.value === null) return
+
+        const onChain = result.value
+        const logged = ctx.deployedContracts[name]
+        if (!logged) {
+          ctx.logWarn(
+            `${name} is registered on chain (${onChain}) but missing from the deploy log - add it to deployments/${ctx.networkLower}.json`
+          )
+          return
+        }
+        // Tron addresses are base58 and case-sensitive; only EVM hex gets checksum-normalized.
+        const normalize = (address: string): string =>
+          ctx.isTron ? address : tryGetAddress(address) ?? address
+        if (normalize(String(logged)) !== normalize(onChain))
+          ctx.logWarn(
+            `${name}: the deploy log has ${String(
+              logged
+            )} but the on-chain registry has ${onChain}`
+          )
+        else inSync++
+      })
+
+      if (inSync > 0)
+        consola.success(
+          `${inSync} registered periphery contract(s) match the deploy log`
+        )
+    },
+  },
+  {
     name: 'facet-required-periphery',
     description:
       'Every live facet with a declared companion periphery contract has one registered in the diamond',
@@ -1309,15 +1928,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
-      // A facet is live iff its deploy-log address is one the diamond returns from facets(). The
-      // periphery side below reads on-chain truth (getPeripheryContract); the facet side trusts the
-      // deploy log for the name->address mapping and confirms that address on chain. A facet live on
-      // chain but absent from the log is the no-unexpected-facets warning's job, not this gate.
+      // A facet is live iff the diamond registers it under its deploy-log address or - when the log
+      // cannot name it - under a selector set only one compiled facet accounts for. The log alone
+      // is not enough: a facet live on chain but missing or stale there would have its coupling
+      // silently unevaluated.
       const couplings = getFacetPeripheryCouplings()
-      const liveFacets = resolveLiveFacetsFromLog(
-        ctx.onChainFacets.map((facet) => facet.address),
+      const liveFacets = resolveLiveFacets(
+        ctx.onChainFacets,
         ctx.deployedContracts as Record<string, string>,
-        Object.keys(couplings)
+        Object.keys(couplings),
+        ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
       )
 
       const { required, skipped } = evaluateFacetPeripheryCouplings(
@@ -1575,26 +2195,51 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   // config.feeCollectorOwner is still read by the FeeCollector deploy scripts.
   {
     name: 'receiver-owner',
-    description: 'Receiver owner is the refund wallet',
+    description: 'Every Receiver owner is the refund wallet',
     severity: 'error',
-    scope: {},
+    // KNOWN GAP: ReceiverOIF is live on Tron (#2220) and this leaves it unchecked. The Tron path
+    // needs its own sequential implementation - checkOwnershipTron spawns one troncast subprocess
+    // per read, so the batched resolution below cannot be reused there. Tracked separately rather
+    // than half-built here; receiver-executor-binding has carried the same gap since before it.
+    scope: { chains: 'evm-only' },
     run: async (ctx) => {
-      if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl)
-        await checkOwnershipTron(
-          'Receiver',
-          ctx.refundWallet,
-          ctx.deployedContracts,
-          ctx.tronRpcUrl,
-          ctx.tronWeb,
-          ctx.logError
-        )
-      else if (ctx.publicClient)
-        await checkOwnership(
-          'Receiver',
-          ctx.refundWallet,
-          ctx,
-          ctx.publicClient
-        )
+      if (!ctx.publicClient) return
+      const publicClient = ctx.publicClient
+
+      // Resolved registry-first so a receiver missing from - or stale in - the deploy log is still
+      // covered; absent from both sources means the receiver genuinely is not on this chain.
+      // Resolved in one pass so the batched multicall client can coalesce the reads instead of
+      // seeing them one await at a time.
+      const resolved = await Promise.all(
+        RECEIVER_EXECUTOR_GETTERS.map(async ({ name }) => ({
+          name,
+          address: await resolvePeripheryAddress(name, ctx),
+        }))
+      )
+
+      for (const { name, address } of resolved) {
+        if (!address) continue
+
+        let owner: Address
+        try {
+          owner = await getOwnableContract(
+            address as Address,
+            publicClient
+          ).read.owner()
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error)
+          report(ctx, error, `Could not read ${name} owner: ${errorMessage}`)
+          continue
+        }
+        if (getAddress(owner) !== getAddress(ctx.refundWallet as Address))
+          ctx.logError(
+            `${name} owner is ${getAddress(owner)}, expected ${getAddress(
+              ctx.refundWallet as Address
+            )}`
+          )
+        else consola.success(`${name} owner is correct`)
+      }
     },
   },
   {
@@ -1606,14 +2251,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     // run. This lightweight floor closes both: it runs on Tron and at deploy time (the sweep's
     // push trigger), while the readiness workflow remains the authoritative affordability gate.
     name: 'pauser-funded',
-    description: 'Pauser wallet has a non-zero native balance',
+    description: 'Pauser wallet has a non-zero gas balance',
     severity: 'error',
     // skipTestnet: the two coverage gaps this closes are both mainnet (Tron mainnet pauser +
     // freshly deployed EVM mainnet pausers); testnet pausers (incl. the localanvil smoke-test
     // sandbox, whose pauser is unfunded) are not a production readiness invariant.
     scope: { environments: ['production'], skipTestnet: true },
     remediation:
-      'Fund the pauser wallet with native gas so it can broadcast pauseDiamond() in an incident.',
+      'Fund the pauser wallet with the gas asset of that chain (its fee token where the chain has no native asset) so it can broadcast pauseDiamond() in an incident.',
     run: async (ctx) => {
       if (ctx.isTron && ctx.tronWeb) {
         const pauserTronAddress = ensureTronAddress(
@@ -1633,6 +2278,43 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!ctx.publicClient) return
+
+      // A chain with no native asset decouples eth_getBalance from the gas balance: tempo
+      // answers it with a sentinel (4242…4242), which reads as "funded" no matter how much
+      // gas the pauser can actually pay for. Read the ERC20 fee token instead, matching the
+      // discriminator and the preference hierarchy in script/utils/checkPauserFunds.sh.
+      const feeToken = await resolvePauserFeeToken(ctx)
+      if (feeToken === NO_GAS_BALANCE_SOURCE) {
+        ctx.logWarn(
+          `${ctx.networkLower} has no native asset and no feeTokenAddress in config/networks.json, so the pauser's gas balance cannot be read; coverage is reduced`
+        )
+        return
+      }
+      if (feeToken) {
+        const token = getContract({
+          address: feeToken,
+          abi: ERC20_BALANCE_ABI,
+          client: ctx.publicClient,
+        })
+        const [rawBalance, decimals, symbol] = await Promise.all([
+          token.read.balanceOf([ctx.pauserWallet as Address]),
+          token.read.decimals(),
+          token.read.symbol(),
+        ])
+        if (!rawBalance)
+          ctx.logError(
+            `Pauser wallet ${ctx.pauserWallet} has no ${symbol} (${feeToken}) balance, and ${ctx.networkLower} pays gas in that fee token`
+          )
+        else
+          consola.success(
+            `Pauser wallet ${ctx.pauserWallet} is funded: ${formatUnits(
+              rawBalance,
+              decimals
+            )} ${symbol} (fee token ${feeToken})`
+          )
+        return
+      }
+
       const balance = await ctx.publicClient.getBalance({
         address: ctx.pauserWallet as Address,
       })
@@ -1758,16 +2440,152 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
-      let unexpected = 0
-      for (const facet of ctx.onChainFacets)
-        if (!knownAddresses.has(facet.address.toLowerCase())) {
-          unexpected++
-          ctx.logWarn(
-            `Facet ${facet.address} is registered on-chain but absent from the deploy log (possible unexpected/rogue facet or stale deploy log)`
-          )
-        }
-      if (unexpected === 0)
+      const unlogged = ctx.onChainFacets.filter(
+        (facet) => !knownAddresses.has(facet.address.toLowerCase())
+      )
+      if (unlogged.length === 0) {
         consola.success('All on-chain facets are known deployed contracts')
+        return
+      }
+      // A facet pruned from the deploy log at park time is still routed until its
+      // removal executes; an open parked task covering the address makes it
+      // expected-pending, not rogue. The queue is a production-mainnet construct
+      // (see no-stale-registered-facets), and an unreachable queue must not
+      // suppress the warning — degrade to reporting as if nothing were covered.
+      let parkedRemovals = new Map<string, string>()
+      if (ctx.environment === 'production' && !ctx.isTestnet) {
+        const openParked =
+          ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
+        if ('unreachable' in openParked)
+          consola.info(
+            `Parked-task queue unreachable — expected-pending downgrade skipped, unlogged facets warn as-is: ${openParked.unreachable}`
+          )
+        else parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
+      }
+      const compiledSelectors =
+        ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
+      for (const facet of unlogged) {
+        const prUrl = parkedRemovals.get(facet.address.toLowerCase())
+        if (prUrl) {
+          consola.info(
+            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${prUrl})`
+          )
+          continue
+        }
+        const identified = identifyFacetBySelectorSet(
+          facet.selectors,
+          compiledSelectors
+        )
+        if (identified)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
+          )
+        // Without build output there is nothing to match against, so say that rather than
+        // reporting an identity check that never ran.
+        else if (Object.keys(compiledSelectors).length === 0)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
+          )
+        else
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
+          )
+      }
+    },
+  },
+  {
+    name: 'no-stale-registered-facets',
+    description:
+      'Deprecated facets still routed on-chain are covered by an open parked-removal task',
+    severity: 'warning',
+    // skipTestnet: the parked queue is a production-mainnet construct — testnet
+    // diamonds are EOA-owned and clean up directly, so queue coverage is
+    // meaningless there and the warning would never resolve.
+    scope: { environments: ['production'], skipTestnet: true },
+    readsOnChainFacets: true,
+    remediation:
+      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>` (docs/DeferredDiamondCleanupQueue.md).',
+    run: async (ctx) => {
+      if (ctx.onChainFacets.length === 0) {
+        consola.info(
+          'On-chain facet list unavailable; skipping stale-facet check'
+        )
+        return
+      }
+      const expectedNames = getExpectedFacetNames(
+        ctx.networkLower,
+        EnvironmentEnum.production
+      )
+      if (!expectedNames) {
+        consola.info(
+          `No LiFiDiamond target-state entry for ${ctx.networkLower}/production; skipping stale-facet check`
+        )
+        return
+      }
+
+      // Stale = deprecated (source deleted), never target-state drift — the same
+      // source-gone gate the removal engine applies (see findDeprecatedLiveFacets).
+      const deprecated = findDeprecatedLiveFacets({
+        networkLower: ctx.networkLower,
+        environment: EnvironmentEnum.production,
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: ctx.deployedContracts,
+        expectedNames,
+        protectedNames: getProtectedNames(),
+        sourceNames: cachedSourceContractNames(),
+      })
+      if (deprecated.length === 0) {
+        consola.success('No stale registered facets')
+        return
+      }
+
+      // Only stale networks consult the queue (fetched once per process — see
+      // fetchOpenParkedAddressesByNetwork). Coverage is keyed by ADDRESS, like
+      // the drain and the reconcile: a name maps to one deploy-log address, so a
+      // task whose address does not match the stale facet on-chain covers
+      // nothing the drain would actually remove — counting it as coverage would
+      // silence this backstop for the very facet it exists to surface
+      // (co-registered versions, EXSC-750/EXSC-775).
+      const openParked =
+        ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
+      if ('unreachable' in openParked) {
+        // An unreachable queue must not turn every parked removal into a false
+        // alarm — surface the reduced coverage instead of guessing.
+        ctx.logWarn(
+          `Parked-task queue unreachable — stale-facet coverage check skipped (${deprecated.length} stale facet(s) unverified): ${openParked.unreachable}`
+        )
+        return
+      }
+      const openParkedAddresses = new Set(
+        (openParked.get(ctx.networkLower) ?? new Map<string, string>()).keys()
+      )
+
+      const { parked, unparked } = splitByParkedCoverage(
+        deprecated,
+        openParkedAddresses
+      )
+      if (parked.length > 0)
+        consola.info(
+          `${
+            parked.length
+          } deprecated facet(s) awaiting their parked removal (expected-pending): ${parked
+            .map((f) => f.name)
+            .join(', ')}`
+        )
+      // One aggregated warning per network, not one per facet: the fleet-wide
+      // backlog is large enough that per-facet lines would drown the report.
+      if (unparked.length > 0)
+        ctx.logWarn(
+          `${
+            unparked.length
+          } deprecated facet(s) still routed with NO open parked-removal task: ${unparked
+            .map((f) => `${f.name} (${f.address})`)
+            .join(', ')}`
+        )
+      else
+        consola.success(
+          'All stale registered facets are covered by parked removals'
+        )
     },
   },
   {
@@ -1879,6 +2697,10 @@ async function executeInvariant(
   if (invariant.severity === 'error' && errors.length > 0) {
     errors.length = 0
     warnings.length = 0
+    // A lagging RPC node can return stale registry state as a SUCCESS, which the shared cache
+    // would replay here and defeat the point of re-verifying. Only this pass gets a private cache;
+    // invariants still running concurrently keep their shared entries.
+    localCtx.peripheryRegistryCache = new Map()
     await runOnce()
     if (errors.length === 0)
       consola.info(`↻ [${invariant.name}] recovered on re-verify (transient)`)

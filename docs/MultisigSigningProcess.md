@@ -36,8 +36,8 @@ Status: **current state**, verified against the repo. Author: Daniel B. (SC).
 | Role | Who | What they run |
 |---|---|---|
 | Proposer | The dev (or agent-driven rollout) doing a deploy/upgrade/config change | The deploy/update scripts, which call `script/deploy/safe/propose-to-safe.ts` (manual variant: `bun propose-safe-tx`); see §4.2 for every entry point |
-| Signer-reviewer | Safe owners (SC signers), recruited via the `#dev-sc-multisig-proposals` Slack thread | `bun confirm-safe-tx` — decode, review, sign on Ledger (default signer); the last signer typically picks "Sign & Execute" |
-| Executor (Safe leg) | Any owner with a threshold-satisfying proposal | The Execute option inside `bun confirm-safe-tx` |
+| Signer-reviewer | Safe owners (SC signers), recruited via the `#dev-sc-multisig-proposals` Slack thread | `bun confirm-safe-tx` — decode, review, sign on Ledger (default signer); the last signer picks one of the execute variants |
+| Executor (Safe leg) | Any owner may execute once the threshold is met, but in practice the **deployer wallet** broadcasts: it is the only owner funded on every chain, whereas the signer hardware wallets are not | The "…With Deployer" execute variants inside `bun confirm-safe-tx`, which broadcast with `PRIVATE_KEY_PRODUCTION` |
 | Executor (timelock leg) | The **"Timelock Auto Execution" GitHub cron** (`.github/workflows/runPendingTimelockTXs.yml`), every 10 minutes, gated on repo var `ENABLE_TIMELOCK_AUTO_EXECUTION` | `script/deploy/safe/execute-pending-timelock-tx.ts --executeAll`, signing with `TIMELOCK_EXECUTOR_PRIVATE_KEY` — a pure gas-payer EOA with no protocol authority (`EXECUTOR_ROLE` is open). Manual fallback: `bun execute-timelock` |
 
 ## 3. Architecture
@@ -145,7 +145,10 @@ signer sees:
 3. A **Ledger Flex "filmstrip"** (`renderLedgerFlexFlow`,
    `ledger-flex-preview.ts`) — ASCII replica of the device screens for the
    exact to-be-signed values.
-4. The action prompt: Do Nothing / Sign / Sign & Execute / deployer variants.
+4. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+   `Sign and Execute With Deployer` / `Execute with Deployer`. The two
+   deployer variants are the usual choice — see §2 on why the deployer
+   wallet broadcasts.
 
 Signing is EIP-712 over the `SafeTx` struct, reconstructed from the row's raw
 fields — what is displayed and on the Ledger is what is signed. Each owner
@@ -205,7 +208,8 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |
 | Housekeeping | Receipt-based status reconcile with grace period; nonce-gap log scan | Auto-heal | `reconcile.ts` |
 | CI (PR gate) | Version bump required for audit-relevant `src/` changes; audit-log entry + report + auditor verified | Block PR | `.github/workflows/versionControlAndAuditCheck.yml` (labels protected by `protectAuditLabels.yml`) |
-| CI (PR gate) | ≥ 1 approval from the SC core team; security-relevant paths need ISM/CTO approval | Block PR | `ensureSCCoreDevApproval.yml`, `protectSecurityRelevantCode.yml` |
+| CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
+| CI (PR gate) | Security-relevant paths need ISM/CTO approval | Block PR | `protectSecurityRelevantCode.yml` |
 | CI (PR gate) | Static analysis; LibAsset routing; config/deploy-log consistency and JSON validity; clear-signing sync; deploy smoke test; signed commits; solc floor; SPDX | Block PR | `olympixStaticAnalysis.yml` + `securityAlertsReview.yml`, `enforceLibAssetRouting.yml`, `deploymentAddressConsistency.yml`, `jsonChecker.yml`, `verifyClearSigning.yml`, `deploy-smoke-test.yml`, `verifyCommitsSigned.yml`, `solc-floor-build.yml`, `spdxLicenseChecker.yml` |
 | CI (ops) | Daily on-chain health check of every production diamond; weekly emergency-pause readiness | Alert | `healthCheckAllNetworks.yml`, `verifyEmergencyPauseReadiness.yml` |
 

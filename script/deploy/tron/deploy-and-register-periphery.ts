@@ -41,7 +41,7 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { getTronWallet } from './tronUtils.js'
+import { encodeConstructorArgs, getTronWallet } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
   {
@@ -268,11 +268,12 @@ async function deployAndRegisterPeripheryImpl(options: {
       consola.info('4. Deploy FeeForwarder')
       consola.info('5. Deploy TokenWrapper')
       consola.info('6. Deploy OutputValidator')
+      consola.info('7. Deploy ReceiverOIF (depends on Executor)')
       consola.info(
-        '7. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
+        '8. Deploy LiFiTimelockController (if tron.safeAddress set; not registered with Diamond)'
       )
       consola.info(
-        '8. Register periphery contracts with PeripheryRegistryFacet\n'
+        '9. Register periphery contracts with PeripheryRegistryFacet\n'
       )
 
       if (!dryRun) await promptEnergyRentalReminder()
@@ -1009,7 +1010,136 @@ async function deployAndRegisterPeripheryImpl(options: {
         }
       }
 
-      // 7. Deploy LiFiTimelockController (same phase as EVM Stage 7; not registered with Diamond)
+      // 7. Deploy ReceiverOIF
+      if (!onlyContracts || onlyContracts.includes('ReceiverOIF')) {
+        consola.info('\n Deploying ReceiverOIF...')
+
+        try {
+          const receiverOIFDeployment = await checkExistingDeployment(
+            network,
+            'ReceiverOIF',
+            dryRun
+          )
+
+          if (
+            receiverOIFDeployment.exists &&
+            receiverOIFDeployment.address &&
+            !receiverOIFDeployment.shouldRedeploy
+          ) {
+            consola.info(
+              `Using existing ReceiverOIF at: ${receiverOIFDeployment.address}`
+            )
+            deployedContracts['ReceiverOIF'] = receiverOIFDeployment.address
+
+            const version = await getContractVersion('ReceiverOIF')
+            deploymentResults.push({
+              contract: 'ReceiverOIF',
+              address: receiverOIFDeployment.address,
+              txId: 'existing',
+              cost: 0,
+              version,
+            })
+          } else {
+            // Constructor: owner (refundWallet), Executor, OIF output settler
+            const artifact = await loadForgeArtifact('ReceiverOIF')
+            const version = await getContractVersion('ReceiverOIF')
+
+            const executorAddress =
+              deployedContracts['Executor'] ||
+              (await getContractAddress(network, 'Executor'))
+            if (!executorAddress) throw new Error('Executor address not found')
+
+            const escrowConfig = await readJsonFile<
+              Record<string, { OIFOutputSettlerSimple?: string }>
+            >(resolve(process.cwd(), 'config/lifiintentescrow.json'))
+            if (!escrowConfig)
+              throw new Error('Failed to load config/lifiintentescrow.json')
+
+            const outputSettlerTron =
+              escrowConfig[networkName]?.OIFOutputSettlerSimple
+            // Tron's OIF settlers are not at the deterministic EVM vanity addresses the flat
+            // top-level keys hold, so the network-scoped block is the only valid source here.
+            if (!outputSettlerTron)
+              throw new Error(
+                `OIFOutputSettlerSimple not found for ${networkName} in config/lifiintentescrow.json`
+              )
+
+            const refundWalletHex = tronRegistrationAddressToEvmHex(
+              tronWeb,
+              getTronWallet(globalConfigRecord, 'refundWallet')
+            )
+            const executorHex = executorAddress.startsWith('0x')
+              ? executorAddress
+              : tronAddressToHex(tronWeb, executorAddress)
+            const outputSettlerHex = tronAddressToHex(
+              tronWeb,
+              outputSettlerTron
+            )
+
+            const constructorArgs = [
+              refundWalletHex,
+              executorHex,
+              outputSettlerHex,
+            ]
+
+            consola.info(`Using refundWallet as owner: ${refundWalletHex}`)
+            consola.info(`Using Executor: ${executorAddress}`)
+            consola.info(
+              `Using OIF output settler: ${outputSettlerTron} (hex: ${outputSettlerHex})`
+            )
+            consola.info(`Version: ${version}`)
+
+            const result = await deployer.deployContract(
+              artifact,
+              constructorArgs
+            )
+
+            deployedContracts['ReceiverOIF'] = result.contractAddress
+            deploymentResults.push({
+              contract: 'ReceiverOIF',
+              address: result.contractAddress,
+              txId: result.transactionId,
+              cost: result.actualCost.trxCost,
+              version,
+            })
+
+            consola.success(
+              ` ReceiverOIF deployed to: ${result.contractAddress}`
+            )
+            consola.info(`Transaction: ${result.transactionId}`)
+            consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
+
+            if (!dryRun) {
+              await logDeployment(
+                'ReceiverOIF',
+                network,
+                result.contractAddress,
+                version,
+                await encodeConstructorArgs(constructorArgs),
+                false
+              )
+              await saveContractAddress(
+                network,
+                'ReceiverOIF',
+                result.contractAddress
+              )
+            }
+          }
+
+          if (!dryRun) await sleep(8000)
+        } catch (error: any) {
+          consola.error(` Failed to deploy ReceiverOIF:`, error.message)
+          deploymentResults.push({
+            contract: 'ReceiverOIF',
+            address: 'FAILED',
+            txId: 'FAILED',
+            cost: 0,
+            version: '0.0.0',
+          })
+        }
+      }
+
+      // 8. Deploy LiFiTimelockController (same phase as EVM Stage 7; not registered with Diamond)
       if (!onlyContracts || onlyContracts.includes('LiFiTimelockController')) {
         consola.info(
           '\n Deploying LiFiTimelockController (if Safe configured)...'
