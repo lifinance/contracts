@@ -58,7 +58,9 @@ Invariants may consult operator intent to resolve that window and report the fin
   and downgrade only when a `queued` operation registers **exactly** the deploy-log address,
   on **that** network's diamond. Keying by address rather than by name is deliberate — the
   same lesson as the parked queue (EXSC-750/EXSC-775).
-- Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`).
+- Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`), and only while
+  the task is **live** — a claim held with no Safe proposal past `STALE_PARKED_CLAIM_DAYS` is
+  breakage, not progress, and covers nothing.
 
 Know what the addition side does **not** cover, so nobody reads a red network as a bug in the
 invariant:

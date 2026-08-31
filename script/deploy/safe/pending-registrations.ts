@@ -18,9 +18,8 @@
  * Safe collection sits behind a tunnel those workflows cannot open; and a `queued` row
  * means `scheduleBatch` already executed, while an unsigned proposal may never be.
  *
- * Every helper below the Mongo wrapper is pure and takes its documents injected, so
- * the decode and grouping logic is unit-testable without a live cluster — the same
- * split `parked-tasks.ts` uses.
+ * Every helper below the Mongo wrapper is pure and takes its documents injected, so the
+ * decode and grouping logic is unit-testable without a live cluster.
  */
 
 import { decodeFunctionData, isAddress, parseAbi, type Hex } from 'viem'
