@@ -2,7 +2,7 @@
  * Unit and CLI tests for the production deploy gate in `verify-approvals.ts`.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -17,9 +17,12 @@ import { EnvironmentEnum } from '../../common/types'
 
 import {
   collectDeployGateFailures,
+  collectSourceClosure,
+  createDefaultDeps,
   parseFacetList,
   reportApprovalResult,
   resolveAuditCommitHash,
+  resolveSolidityImport,
   verifyDeployGate,
   type IDeployGateDeps,
   type IReportTarget,
@@ -60,6 +63,8 @@ function stubDeps(overrides: Partial<IDeployGateDeps> = {}): IDeployGateDeps {
   return {
     mainRef: 'origin/main',
     fileMatchesRef: () => true,
+    refExists: () => true,
+    sourceClosure: (path) => [path],
     getContractVersion: async () => '1.0.0',
     resolveAuditCommitHash: () => 'aa'.repeat(20),
     getOpenPrCount: async () => 1,
@@ -147,11 +152,12 @@ describe('collectDeployGateFailures', () => {
             name: 'AcrossFacet',
             matchesMain: false,
             version: '1.2.0',
+            divergedFromMain: ['src/Facets/AcrossFacet.sol'],
           },
         ],
       })
     ).toEqual([
-      'AcrossFacet (v1.2.0) has no audit log entry with a commit hash',
+      'AcrossFacet (v1.2.0) diverges from main (src/Facets/AcrossFacet.sol) and has no audit log entry with a commit hash in audit/auditLog.json on main',
     ])
   })
 
@@ -165,12 +171,16 @@ describe('collectDeployGateFailures', () => {
             matchesMain: false,
             version: '1.0.0',
             auditCommitHash: 'bb'.repeat(20),
+            auditCommitAvailable: true,
             matchesAuditedCommit: false,
+            changedSinceAudit: ['src/Libraries/LibSwap.sol'],
           },
         ],
       })
     ).toEqual([
-      `AcrossFacet has changed since audited commit ${'bb'.repeat(20)}`,
+      `AcrossFacet has changed since audited commit ${'bb'.repeat(
+        20
+      )} (src/Libraries/LibSwap.sol)`,
     ])
   })
 
@@ -232,6 +242,77 @@ describe('resolveAuditCommitHash', () => {
   it('returns undefined when the version has no usable commit hash', () => {
     expect(resolveAuditCommitHash(log, 'AcrossFacet', '2.0.0')).toBeUndefined()
     expect(resolveAuditCommitHash(log, 'MissingFacet', '1.0.0')).toBeUndefined()
+  })
+})
+
+describe('resolveSolidityImport', () => {
+  it.each([
+    ['../Libraries/LibSwap.sol', 'src/Libraries/LibSwap.sol'],
+    ['./Helpers/SwapperV2.sol', 'src/Facets/Helpers/SwapperV2.sol'],
+    ['lifi/Libraries/LibAsset.sol', 'src/Libraries/LibAsset.sol'],
+  ])('resolves %p inside src', (spec, expected) => {
+    expect(resolveSolidityImport('src/Facets/AcrossFacet.sol', spec)).toBe(
+      expected
+    )
+  })
+
+  it.each([
+    ['@openzeppelin/token/ERC20/IERC20.sol'],
+    ['solady/utils/SafeTransferLib.sol'],
+    ['../../lib/forge-std/src/Test.sol'],
+  ])('ignores %p because it resolves outside src', (spec) => {
+    expect(
+      resolveSolidityImport('src/Facets/AcrossFacet.sol', spec)
+    ).toBeUndefined()
+  })
+})
+
+describe('collectSourceClosure', () => {
+  const sources: Record<string, string> = {
+    'src/Facets/AcrossFacet.sol':
+      'import { LibSwap } from "../Libraries/LibSwap.sol";\n' +
+      'import { IERC20 } from "@openzeppelin/token/ERC20/IERC20.sol";\n' +
+      '// import { Gone } from "../Libraries/Deleted.sol";\n',
+    'src/Libraries/LibSwap.sol':
+      'import { LibAsset } from "lifi/Libraries/LibAsset.sol";\n' +
+      'import { LibSwap } from "./LibSwap.sol";\n',
+    'src/Libraries/LibAsset.sol': '',
+  }
+  const closure = collectSourceClosure(
+    'src/Facets/AcrossFacet.sol',
+    (path) => sources[path]
+  )
+
+  it('walks transitively through remapped and relative imports', () => {
+    expect(closure).toEqual([
+      'src/Facets/AcrossFacet.sol',
+      'src/Libraries/LibAsset.sol',
+      'src/Libraries/LibSwap.sol',
+    ])
+  })
+
+  it('keeps the entry path when the facet file does not exist, so the gate fails closed', () => {
+    expect(
+      collectSourceClosure('src/Facets/Ghost.sol', () => undefined)
+    ).toEqual(['src/Facets/Ghost.sol'])
+  })
+
+  it('pulls real libraries into the closure of a real facet', () => {
+    const repoRoot = join(import.meta.dir, '..', '..', '..')
+    const real = collectSourceClosure(
+      'src/Facets/AccessManagerFacet.sol',
+      (p) => {
+        try {
+          return readFileSync(join(repoRoot, p), 'utf8')
+        } catch {
+          return undefined
+        }
+      }
+    )
+
+    expect(real).toContain('src/Libraries/LibDiamond.sol')
+    expect(real).toContain('src/Libraries/LibAccess.sol')
+    expect(real.length).toBeGreaterThan(1)
   })
 })
 
@@ -306,6 +387,74 @@ describe('verifyDeployGate', () => {
     )
 
     expect(failures).toEqual([])
+  })
+
+  it('fails closed when only a library in the facet closure diverges from main', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'feature/lib-edit',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        sourceClosure: () => [
+          'src/Facets/AcrossFacet.sol',
+          'src/Libraries/LibSwap.sol',
+        ],
+        fileMatchesRef: (_ref, path) => !path.endsWith('LibSwap.sol'),
+        resolveAuditCommitHash: () => undefined,
+        getOpenPrCount: async () => 1,
+      })
+    )
+
+    expect(failures).toEqual([
+      'AcrossFacet (v1.0.0) diverges from main (src/Libraries/LibSwap.sol) and has no audit log entry with a commit hash in audit/auditLog.json on main',
+    ])
+  })
+
+  it('fails closed when a closure file changed since the audited commit', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'feature/lib-edit',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        sourceClosure: () => [
+          'src/Facets/AcrossFacet.sol',
+          'src/Libraries/LibSwap.sol',
+        ],
+        fileMatchesRef: (_ref, path) => !path.endsWith('LibSwap.sol'),
+        resolveAuditCommitHash: () => 'cc'.repeat(20),
+      })
+    )
+
+    expect(failures).toEqual([
+      `AcrossFacet has changed since audited commit ${'cc'.repeat(
+        20
+      )} (src/Libraries/LibSwap.sol)`,
+    ])
+  })
+
+  it('reports a missing audited commit instead of blaming the source files', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'feature/across-v2',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: (ref) => ref !== 'origin/main',
+        refExists: () => false,
+        resolveAuditCommitHash: () => 'ee'.repeat(20),
+      })
+    )
+
+    expect(failures).toEqual([
+      `AcrossFacet audited commit ${'ee'.repeat(
+        20
+      )} is not present in this checkout - fetch it before deploying`,
+    ])
   })
 
   it('fails closed when a diverged facet has no open PR', async () => {
@@ -410,6 +559,41 @@ describe('deployUpgradesToSAFE gate condition', () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe(expected)
+  })
+})
+
+describe('audit log source', () => {
+  const MERGED_HASH = '11'.repeat(20)
+  const FABRICATED_HASH = '99'.repeat(20)
+
+  const auditLog = (hash: string): string =>
+    JSON.stringify({
+      audits: { audit1: { auditCommitHash: hash } },
+      auditedContracts: { AcrossFacet: { '1.0.0': ['audit1'] } },
+    })
+
+  it('reads the merged entry, not the one fabricated in the working tree', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-audit-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    mkdirSync(join(repoRoot, 'audit'))
+    writeFileSync(join(repoRoot, 'audit/auditLog.json'), auditLog(MERGED_HASH))
+    run('add', '.')
+    run('commit', '-m', 'audit log', '--no-gpg-sign')
+
+    // the self-certification attempt: an unmerged, uncommitted audit entry
+    writeFileSync(
+      join(repoRoot, 'audit/auditLog.json'),
+      auditLog(FABRICATED_HASH)
+    )
+
+    expect(
+      createDefaultDeps(repoRoot).resolveAuditCommitHash('AcrossFacet', '1.0.0')
+    ).toBe(MERGED_HASH)
   })
 })
 

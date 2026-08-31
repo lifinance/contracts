@@ -5,10 +5,15 @@
  * from any other branch may proceed only when each selected facet matches `main`,
  * or — if it does not — when that branch has an open PR and the facet is frozen
  * at the commit recorded in `audit/auditLog.json`.
+ *
+ * A facet is compared through its transitive `src/` import closure, not just its own
+ * file, because an edited library or helper changes the deployed bytecode while the
+ * facet file still matches. The audit log is read from the `main` ref for the same
+ * reason the facets are: a working-tree copy would let the deploy certify itself.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -21,6 +26,10 @@ const REPO = 'contracts'
 const PR_LIST_LIMIT = 100 // well above the number of open PRs a single branch can have
 const AUDIT_COMMIT_RE = /^[0-9a-f]{40}$/i
 const AUDIT_LOG_PATH = 'audit/auditLog.json'
+const SOURCE_ROOT = 'src/'
+const SOURCE_REMAPPING = 'lifi/' // remappings.txt maps this onto SOURCE_ROOT
+const IMPORT_RE = /import\s+(?:[^'"]*?\bfrom\s+)?['"]([^'"]+)['"]/g
+const PATHS_IN_MESSAGE = 5 // keep a wide closure readable in the deploy log
 
 /** One selected facet after comparing it to `main` and, if needed, to its audit. */
 export interface IFacetDeployCheck {
@@ -28,7 +37,10 @@ export interface IFacetDeployCheck {
   matchesMain: boolean
   version?: string
   auditCommitHash?: string
+  auditCommitAvailable?: boolean
   matchesAuditedCommit?: boolean
+  divergedFromMain?: string[]
+  changedSinceAudit?: string[]
 }
 
 /** Inputs the production deploy policy is evaluated against. */
@@ -55,6 +67,76 @@ export const parseFacetList = (raw: string | undefined): string[] =>
     .split('\n')
     .map((facet) => facet.trim())
     .filter((facet) => facet.length > 0)
+
+const describePaths = (paths: string[] | undefined): string => {
+  if (!paths?.length) return 'no file recorded'
+  if (paths.length <= PATHS_IN_MESSAGE) return paths.join(', ')
+
+  return `${paths.slice(0, PATHS_IN_MESSAGE).join(', ')} and ${
+    paths.length - PATHS_IN_MESSAGE
+  } more`
+}
+
+/**
+ * Resolves a Solidity import to a repo-relative path inside `src/`.
+ * @param fromPath - repo-relative path of the file holding the import
+ * @param spec - the quoted import specifier
+ * @returns the imported repo-relative path, or `undefined` when it lands outside
+ * `src/` (submodules under `lib/` are pinned by their submodule commit)
+ */
+export const resolveSolidityImport = (
+  fromPath: string,
+  spec: string
+): string | undefined => {
+  let resolved: string | undefined
+
+  if (spec.startsWith('.'))
+    resolved = posix.normalize(posix.join(posix.dirname(fromPath), spec))
+  else if (spec.startsWith(SOURCE_REMAPPING))
+    resolved = posix.normalize(
+      SOURCE_ROOT + spec.slice(SOURCE_REMAPPING.length)
+    )
+
+  return resolved?.startsWith(SOURCE_ROOT) ? resolved : undefined
+}
+
+/**
+ * Walks the transitive `src/` import closure of a Solidity file. Everything in the
+ * closure is compiled into the facet, so all of it has to be compared, not just the
+ * facet's own file.
+ * @param entryPath - repo-relative path of the facet source
+ * @param readSource - reads a repo-relative path, `undefined` when it does not exist
+ * @returns sorted repo-relative paths, always including `entryPath`
+ */
+export const collectSourceClosure = (
+  entryPath: string,
+  readSource: (path: string) => string | undefined
+): string[] => {
+  const closure = new Set<string>([entryPath])
+  const visited = new Set<string>()
+  const queue = [entryPath]
+
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (current === undefined || visited.has(current)) continue
+    visited.add(current)
+
+    const source = readSource(current)
+    if (source === undefined) continue
+
+    for (const match of source.matchAll(IMPORT_RE)) {
+      const imported = resolveSolidityImport(current, match[1] ?? '')
+      // a specifier with no file behind it is never compiled in, so treating it as
+      // part of the closure would block the deploy on a commented-out import
+      if (imported === undefined || readSource(imported) === undefined) continue
+
+      closure.add(imported)
+      queue.push(imported)
+    }
+  }
+
+  return [...closure].sort()
+}
 
 /**
  * Collects every reason a production deploy from a feature branch is not allowed.
@@ -85,14 +167,25 @@ export const collectDeployGateFailures = (
       failures.push(
         `${facet.name} (v${
           facet.version ?? 'unknown'
-        }) has no audit log entry with a commit hash`
+        }) diverges from main (${describePaths(
+          facet.divergedFromMain
+        )}) and has no audit log entry with a commit hash in ${AUDIT_LOG_PATH} on main`
+      )
+      continue
+    }
+
+    if (facet.auditCommitAvailable === false) {
+      failures.push(
+        `${facet.name} audited commit ${facet.auditCommitHash} is not present in this checkout - fetch it before deploying`
       )
       continue
     }
 
     if (!facet.matchesAuditedCommit)
       failures.push(
-        `${facet.name} has changed since audited commit ${facet.auditCommitHash}`
+        `${facet.name} has changed since audited commit ${
+          facet.auditCommitHash
+        } (${describePaths(facet.changedSinceAudit)})`
       )
   }
 
@@ -178,10 +271,24 @@ const fileMatchesRef = (
   return working === atRef
 }
 
-const loadAuditLog = (repoRoot: string): IAuditLogData =>
-  JSON.parse(
-    readFileSync(join(repoRoot, AUDIT_LOG_PATH), 'utf8')
-  ) as IAuditLogData
+/**
+ * Reads the audit log from a git ref. Sourcing it from the working tree would let a
+ * deploy certify itself: a fabricated entry pointing at any local commit would
+ * satisfy the divergence exception without the audit ever having been merged.
+ * @param repoRoot - repository root
+ * @param ref - git ref to read the audit log from
+ * @returns the parsed audit log
+ * @throws If the ref does not carry an audit log
+ */
+const loadAuditLog = (repoRoot: string, ref: string): IAuditLogData => {
+  const contents = readAtRef(repoRoot, ref, AUDIT_LOG_PATH)
+  if (contents === undefined)
+    throw new Error(
+      `Cannot read ${AUDIT_LOG_PATH} at ${ref}. Fetch ${ref} before deploying.`
+    )
+
+  return JSON.parse(contents) as IAuditLogData
+}
 
 /**
  * Counts the open pull requests whose head is the given branch.
@@ -231,6 +338,8 @@ const countOpenPRsForBranch = (branch: string): number => {
 export interface IDeployGateDeps {
   mainRef: string
   fileMatchesRef: (ref: string, path: string) => boolean
+  refExists: (ref: string) => boolean
+  sourceClosure: (path: string) => string[]
   getContractVersion: (name: string) => Promise<string>
   resolveAuditCommitHash: (name: string, version: string) => string | undefined
   getOpenPrCount: (branch: string) => Promise<number>
@@ -238,23 +347,30 @@ export interface IDeployGateDeps {
 
 /**
  * Builds the real git / audit-log / GitHub lookups used by the CLI.
- * `mainRef` and GitHub are resolved lazily so staging/`main` short-circuits
- * never shell out.
+ * `mainRef`, the audit log, and GitHub are resolved lazily so staging/`main`
+ * short-circuits never shell out.
  * @param repoRoot - repository root (working tree that will be compiled)
  * @returns the git / audit-log / GitHub lookups used by the CLI
  */
 export const createDefaultDeps = (repoRoot: string): IDeployGateDeps => {
   let mainRef: string | undefined
   let auditLog: IAuditLogData | undefined
+  const getMainRef = (): string => (mainRef ??= resolveMainRef(repoRoot))
 
   return {
     get mainRef() {
-      return (mainRef ??= resolveMainRef(repoRoot))
+      return getMainRef()
     },
     fileMatchesRef: (ref, path) => fileMatchesRef(repoRoot, ref, path),
+    refExists: (ref) =>
+      git(['cat-file', '-e', `${ref}^{commit}`], repoRoot).status === 0,
+    sourceClosure: (path) =>
+      collectSourceClosure(path, (candidate) =>
+        readWorkingCopy(repoRoot, candidate)
+      ),
     getContractVersion,
     resolveAuditCommitHash: (name, version) => {
-      auditLog ??= loadAuditLog(repoRoot)
+      auditLog ??= loadAuditLog(repoRoot, getMainRef())
       return resolveAuditCommitHash(auditLog, name, version)
     },
     getOpenPrCount: async (branch) => countOpenPRsForBranch(branch),
@@ -262,8 +378,8 @@ export const createDefaultDeps = (repoRoot: string): IDeployGateDeps => {
 }
 
 /**
- * Compares the selected facets to `main` (and, if they differ, to their audit)
- * and evaluates the production deploy policy.
+ * Compares each selected facet's import closure to `main` (and, if it differs, to
+ * its audited commit) and evaluates the production deploy policy.
  * @param input - environment, branch, and facet names about to be proposed
  * @param deps - git / audit-log / GitHub lookups
  * @returns one message per violation; empty when the deploy may proceed
@@ -283,25 +399,37 @@ export const verifyDeployGate = async (
 
   const checks: IFacetDeployCheck[] = []
   for (const name of input.facets) {
-    const path = facetSourcePath(name)
-    const matchesMain = deps.fileMatchesRef(deps.mainRef, path)
-    if (matchesMain) {
+    const closure = deps.sourceClosure(facetSourcePath(name))
+    const divergedFromMain = closure.filter(
+      (path) => !deps.fileMatchesRef(deps.mainRef, path)
+    )
+    if (divergedFromMain.length === 0) {
       checks.push({ name, matchesMain: true })
       continue
     }
 
     const version = await deps.getContractVersion(name)
     const auditCommitHash = deps.resolveAuditCommitHash(name, version)
-    const matchesAuditedCommit = auditCommitHash
-      ? deps.fileMatchesRef(auditCommitHash, path)
-      : false
+    if (auditCommitHash === undefined) {
+      checks.push({ name, matchesMain: false, version, divergedFromMain })
+      continue
+    }
+
+    const auditCommitAvailable = deps.refExists(auditCommitHash)
+    const changedSinceAudit = auditCommitAvailable
+      ? closure.filter((path) => !deps.fileMatchesRef(auditCommitHash, path))
+      : closure
 
     checks.push({
       name,
       matchesMain: false,
       version,
       auditCommitHash,
-      matchesAuditedCommit,
+      auditCommitAvailable,
+      matchesAuditedCommit:
+        auditCommitAvailable && changedSinceAudit.length === 0,
+      divergedFromMain,
+      changedSinceAudit,
     })
   }
 
