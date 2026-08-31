@@ -52,6 +52,10 @@
       "0x2bE73b7851482428F28c8D0206667dFC74312400": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x8c0D29040A236C8f4b3d3d4f37EaFC2708BE2690": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -68,7 +72,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xb12f19241600F50d6429d3bB69A45201eE9e168A",
       "ReceiverStargateV2": "0x360cAEBad9699A334DFE5465eaDB8D0730a9a3c6",
       "TokenWrapper": "0x1c9633Cf7E22C36e6b9EAE03CdA5F4042d746683"
     }

@@ -71,6 +71,9 @@ export const INITIAL_CALL_DELAY = 2000 // 2s
  */
 export const RETRY_DELAY = 2000 // 2s
 
+/** Milliseconds in a day. */
+export const DAY_MS = 24 * 60 * 60 * 1000
+
 // File paths
 export const DEPLOYMENT_FILE_SUFFIX = (
   environment: DeploymentFileSuffixInput

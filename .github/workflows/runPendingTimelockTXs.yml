@@ -99,6 +99,9 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           GH_TOKEN: ${{ github.token }} # required by `gh api` to resolve the job's html_url
+          # The devkit default of 50 TRX caps a Tron tx at 500k energy, which a multi-call
+          # timelock batch exceeds — it aborts mid-SSTORE as OUT_OF_ENERGY and is retried forever.
+          TRON_SAFE_EXEC_FEE_LIMIT_SUN: '150000000'
           # Fallback link (run overview); upgraded to a deep job link below when the jobs API is reachable.
           RUN_OVERVIEW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

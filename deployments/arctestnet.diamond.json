@@ -17,10 +17,6 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xCC66A5dBcD2528E93FFA515a849132e9C3F2F5A2": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
-      },
       "0xbc140b5ecE539c2A73878badC5014F33F5fe0d83": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
@@ -41,10 +37,6 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x4e82F48756b82e37628061132c871a15660c0c7f": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
-      },
       "0x9a01A05F3Ce4B36c88bfE40F546D4F856B177875": {
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
@@ -52,6 +44,10 @@
       "0x36c4f825Fd3ca9af5821A0F707f4B00D644f5c15": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x5eadeab2038e16573D3F9E9d702128429Bf27500": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -68,7 +64,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0x660dE7142AF63C4E40a57728e59A45F8400957BC",
       "ReceiverStargateV2": "",
       "TokenWrapper": ""
     }

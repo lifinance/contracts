@@ -58,6 +58,8 @@ jobs:
               - 'lib/**'
               - '.gitmodules'
               - '.github/workflows/forge-unit-tests.yml'
+              - '.github/actions/setup-foundry/**'
+              - '.foundry-version'
 
   run-unit-tests:
     # Runs on PRs (once out of draft) and on push/workflow_dispatch.

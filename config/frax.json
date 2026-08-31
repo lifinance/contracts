@@ -78,6 +78,10 @@
       "lzEid": 30319
     },
     {
+      "chainId": 988,
+      "lzEid": 30396
+    },
+    {
       "chainId": 999,
       "lzEid": 30367
     },
@@ -88,6 +92,14 @@
     {
       "chainId": 2741,
       "lzEid": 30324
+    },
+    {
+      "chainId": 4217,
+      "lzEid": 30410
+    },
+    {
+      "chainId": 5031,
+      "lzEid": 30380
     },
     {
       "chainId": 8453,
@@ -112,6 +124,10 @@
     {
       "chainId": 98866,
       "lzEid": 30370
+    },
+    {
+      "chainId": 747474,
+      "lzEid": 30375
     },
     {
       "chainId": 1151111081099710,

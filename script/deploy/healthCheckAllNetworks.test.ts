@@ -78,12 +78,17 @@ describe('summarizeHealthChecks', () => {
         warnings: ['reduced coverage', 'stale pair'],
         detail: '',
       },
-      { network: 'tron', status: 'skipped', warnings: [], detail: 'skipHc' },
+      {
+        network: 'tronshasta',
+        status: 'skipped',
+        warnings: [],
+        detail: 'Health checks are not implemented for Tron Shasta testnet',
+      },
     ])
     expect(summary.total).toBe(4)
     expect(summary.passed).toEqual(['arbitrum', 'polygon'])
     expect(summary.failed).toEqual(['optimism'])
-    expect(summary.skipped).toEqual(['tron'])
+    expect(summary.skipped).toEqual(['tronshasta'])
     // A passed-but-warned network is surfaced so reduced coverage isn't invisible.
     expect(summary.warned).toEqual(['arbitrum'])
   })
@@ -225,10 +230,10 @@ describe('groupFailuresByCause', () => {
           detail: '',
         },
         {
-          network: 'arc',
+          network: 'somechain',
           status: 'skipped',
           warnings: [],
-          detail: 'skipHealthcheck',
+          detail: 'Health checks are not implemented for Tron Shasta testnet',
         },
       ])
     ).toEqual([])
