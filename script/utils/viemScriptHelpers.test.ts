@@ -12,7 +12,11 @@ import { describe, expect, it } from 'bun:test'
 import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum } from '../common/types'
 
-import { getDeployLogFile, isTestnetNetwork } from './viemScriptHelpers'
+import {
+  buildExplorerContractPageUrl,
+  getDeployLogFile,
+  isTestnetNetwork,
+} from './viemScriptHelpers'
 
 describe('isTestnetNetwork', () => {
   it('returns true for a network with type "testnet"', () => {
@@ -45,6 +49,37 @@ describe('isTestnetNetwork', () => {
 
   it('returns false for an empty string', () => {
     expect(isTestnetNetwork('')).toBe(false)
+  })
+})
+
+describe('buildExplorerContractPageUrl', () => {
+  const ADDR = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+
+  it('uses OKLink /contract when the explorer host is oklink.com', () => {
+    expect(buildExplorerContractPageUrl('xlayer', ADDR)).toBe(
+      `https://www.oklink.com/xlayer/address/${ADDR}/contract`
+    )
+    expect(buildExplorerContractPageUrl('gravity', ADDR)).toBe(
+      `https://www.oklink.com/gravity-alpha/address/${ADDR}/contract`
+    )
+  })
+
+  it('uses ?tab=contract on Blockscout v2 explorers', () => {
+    expect(buildExplorerContractPageUrl('scroll', ADDR)).toBe(
+      `https://scrollscan.com/address/${ADDR}?tab=contract`
+    )
+    expect(buildExplorerContractPageUrl('ronin', ADDR)).toBe(
+      `https://explorer.roninchain.com/address/${ADDR}?tab=contract`
+    )
+    expect(buildExplorerContractPageUrl('vana', ADDR)).toBe(
+      `https://vanascan.io/address/${ADDR}?tab=contract`
+    )
+  })
+
+  it('keeps #code on older Blockscout explorers', () => {
+    expect(buildExplorerContractPageUrl('lisk', ADDR)).toBe(
+      `https://blockscout.lisk.com/address/${ADDR}#code`
+    )
   })
 })
 
