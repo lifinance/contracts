@@ -54,8 +54,10 @@ jobs:
               - 'script/resources/**'
               - '.env.example'
               - 'package.json'
-              - 'bun.lockb'
+              - 'bun.lock'
               - '.github/workflows/deploy-smoke-test.yml'
+              - '.github/actions/setup-foundry/**'
+              - '.foundry-version'
 
   deploy-smoke-test:
     # Always run on manual dispatch; for PRs, skip drafts, require main as the base,

@@ -26,6 +26,7 @@ import {
 import targetStateImport from './_targetState.json'
 import {
   getExemptCoreFacets,
+  getExemptCorePeriphery,
   runHealthCheckInvariants,
   type IHealthCheckContext,
 } from './healthCheckInvariants'
@@ -109,22 +110,6 @@ export async function runHealthCheckForNetwork(
       '../../config/networks.json'
     )
 
-    // Optional bypass: config/networks.json skipHealthcheck (see INetwork.skipHealthcheck in script/common/types.ts).
-    const networkEntry = (
-      networksConfig as Record<
-        string,
-        { skipHealthcheck?: boolean } | undefined
-      >
-    )[networkLower]
-    if (networkEntry?.skipHealthcheck === true)
-      return {
-        network: networkStr,
-        status: 'skipped',
-        errors: [],
-        warnings: [],
-        skipReason: 'skipHealthcheck: true in config/networks.json',
-      }
-
     // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (
       networksConfig as Record<string, { gasZipChainId?: number } | undefined>
@@ -137,6 +122,11 @@ export async function runHealthCheckForNetwork(
     for (const { facet, reason } of exemptCoreFacets)
       consola.info(
         `⏭  Not requiring core facet [${facet}] on ${networkLower} — exempt: ${reason}`
+      )
+
+    for (const { contract, reason } of getExemptCorePeriphery(networkLower))
+      consola.info(
+        `⏭  Not requiring core periphery [${contract}] on ${networkLower} — exempt: ${reason}`
       )
 
     const coreFacetExclusions = [
