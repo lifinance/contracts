@@ -148,6 +148,7 @@ basesepolia = "${ETH_NODE_URI_BASESEPOLIA}"
 arbitrumsepolia = "${ETH_NODE_URI_ARBITRUMSEPOLIA}"
 localanvil = "${ETH_NODE_URI_LOCALANVIL}"
 optimismsepolia = "${ETH_NODE_URI_OPTIMISMSEPOLIA}"
+sepolia = "${ETH_NODE_URI_SEPOLIA}"
 
 [etherscan]
 mainnet = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1", chain = "1" }
@@ -214,10 +215,11 @@ vana = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://vanascan.io/ap
 viction = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.vicscan.xyz/api/contract/foundry/verify", chain = "88" }
 worldchain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=480", chain = "480" }
 xdc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=50", chain = "50" }
-xlayer = { key = "${OKLINK_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer", chain = "196", verifier = "oklink" }
+xlayer = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/xlayer", chain = "196", verifier = "oklink" }
 zksync = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://zksync2-mainnet-explorer.zksync.io/contract_verification", chain = "324", verifier = "zksync" }
 
 # testnets
 basesepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = "84532" }
 arbitrumsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=421614", chain = "421614" }
 optimismsepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155420", chain = "11155420" }
+sepolia = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155111", chain = "11155111" }

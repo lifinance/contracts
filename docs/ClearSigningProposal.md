@@ -24,14 +24,14 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
   "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
   "fields": [
     { "path": "_bridgeData.minAmount",          "label": "Amount to Bridge",   "format": "tokenAmount", "params": { "tokenPath": "_bridgeData.sendingAssetId" }, "visible": "always" },
-    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "chainId",     "visible": "always" },
+    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "raw",         "visible": "always" },
     { "path": "_bridgeData.receiver",           "label": "Recipient",         "format": "addressName", "params": { "types": ["eoa","contract"], "sources": ["local","ens"] }, "visible": "always" },
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
-Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name — any non-EVM synthetic id — falls back to the integer.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain 137 for vitalik.eth"*.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -48,7 +48,7 @@ The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a So
 Two shapes, keyed by `bridgeFacetName()`:
 
 - **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrowV2`, `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
-- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
+- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`, `Frax`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
 
 > **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
 
@@ -92,7 +92,9 @@ The seven existing `display.formats` entries from the current registry descripto
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
 2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. StargateV2 have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
-3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
+3. **`destinationChainId` as `raw`, deliberately not `chainId`** — `chainId` is the format that renders an EIP-155 id as a network name, and it is the obvious choice here, but it cannot be used: it resolves through public EIP-155 chain lists that mislabel LI.FI chains. Chain `999` is HyperEVM to us and resolves to "Wanchain Testnet"; `1337` is HyperCore and resolves to "Geth Testnet" — both mainnet destinations shown to a signer as testnets. Only 7 of 30 ids tested render identically across the two ERC-7730 reference implementations. The spec defines `chainId` over EIP-155 reference values only, with no fallback (unlike `tokenAmount` and `nft`) and no pinned name source, so the rendering of this field is not something the descriptor can bound. A wrong network name is worse than a number here, so it stays raw until that is settled upstream (EXSC-838).
+
+   A LI.FI-authored `format: enum` map was the natural alternative and does not work either: the on-device ENUM_VALUE struct encodes an entry value in a single byte taken from the enum key, so no chain id above 255 is representable and `erc7730 calldata` silently drops the entire descriptor.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
@@ -215,7 +217,8 @@ verifyClearSigning.yml (BLOCKING):
 syncLedgerClearSigning.yml (push to main / monthly cron / manual dispatch):
   - runs generateLedgerClearSigning.ts
     - regenerates context.contract.abi from facet artifacts
-    - regenerates context.contract.deployments from deployments/*
+    - regenerates context.contract.deployments from deployments/* (all active
+      networks, testnets included)
     - merges display.formats from config/clearSigningProposal.json
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs

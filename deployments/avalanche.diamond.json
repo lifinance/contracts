@@ -29,8 +29,8 @@
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0x3b70Eb33948Fbfdc3f2F2491b96DFB1Aa18054E0": {
-        "Name": "CBridgeFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xd04034AE565062D105D55C2de41C48A8838316FA": {
@@ -69,9 +69,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "1.0.0"
       },
-      "0xE7Bf43C55551B1036e796E7Fd3b125d1F9903e2E": {
-        "Name": "CBridgeFacetPacked",
-        "Version": "1.0.3"
+      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
+        "Name": "MayanFacet",
+        "Version": "2.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -93,20 +93,16 @@
         "Name": "ThorSwapFacet",
         "Version": "1.2.0"
       },
-      "0xe12b2488c71432F9a116E9ac244D3Ef4c2386d3a": {
-        "Name": "SymbiosisFacet",
+      "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8": {
-        "Name": "MayanFacet",
-        "Version": "2.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
+      "0xf18E7d025BdB3e0DD952Cc9b20A977f6E296DF45": {
+        "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       }
     },
@@ -114,17 +110,17 @@
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xa2712aEecbff8a1542c78Cf49C4fE4CE4B09E1dB",
       "ReceiverStargateV2": "0x1493e7B8d4DfADe0a178dAD9335470337A3a219A",
       "TokenWrapper": "0x5215E9fd223BC909083fbdB2860213873046e45d"
     }

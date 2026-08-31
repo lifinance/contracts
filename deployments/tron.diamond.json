@@ -17,20 +17,12 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "TPDdY4Qqy9gU8eD3bJ63pUFhHr4WWnabks": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
-      },
       "TLqbL8MKosbLxrJ9iTDTpZTzcXRWq8bFJ3": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
       "TA9z2Lmg6g4tAwn31CK57ekjpmVXCr8kum": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
-      },
-      "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS": {
-        "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
       "TZD2bfN2dKawq3TeJkbRopeTD4kAbXceWN": {
@@ -45,17 +37,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f": {
-        "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
-      },
       "TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
-      },
-      "TMLwFQAjLQqCJDUNVCVd9c9Q8LLqbmhaW8": {
-        "Name": "EcoFacet",
-        "Version": "1.0.0"
       },
       "TG6586TTEv664XWSD875tMk6yDuwedphpW": {
         "Name": "EcoFacet",
@@ -76,13 +60,17 @@
       "TMY1N6rC61Fu1C8qvZEhwb3WLR7iY1ERuW": {
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
+      },
+      "TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9",
       "Executor": "TUJnqSDodwaDo2HFX2Ct2JsVEzWFpkAbht",
       "FeeCollector": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
-      "FeeForwarder": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
+      "FeeForwarder": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
       "GasZipPeriphery": "",
       "LiFiDEXAggregator": "",
       "LidoWrapper": "",
@@ -92,7 +80,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "TSZnVJnhPCH8PECjEY4zNbv7kK1XiBUwwb",
       "ReceiverStargateV2": "",
       "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
     }

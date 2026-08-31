@@ -33,8 +33,8 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xa27992F9ef326527F85898E645AFF1d99E9609E3": {
-        "Name": "GenericSwapFacet",
+      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0x51504500fBFB459684E020154Dc9B2DE912d0B92": {
@@ -52,20 +52,16 @@
       "0xB6faa3155683d6856ae196c4f3847D68D478E5eA": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
-      },
-      "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xB59Cb9E4087c841577ACE23B0168CCDdf9450290",
       "Executor": "0xdC55d8b59441f75e32FDD2356139DC8402e52048",
       "FeeCollector": "0x1a4E99aB56BBac95810C0A957F173054f6FA8fDc",
-      "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF",
+      "LidoWrapper": "",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
