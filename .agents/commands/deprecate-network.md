@@ -214,7 +214,10 @@ When `/deprecate-network` is invoked with network names:
         config/whitelist.json | diff /tmp/wl-keys.before -
       ```
 
-      The key diff must show exactly one `<` line per deprecated network and nothing else.
+      The key diff must show one `<` line per deprecated network and nothing else — or
+      nothing at all, for a network that had no whitelist entry to begin with
+      (`localanvil` and `tronshasta` are both in `networks.json` but not the whitelist).
+      Any `<` line naming a network you are not deprecating means you cut too much.
       Do **not** substitute a line-count check for it: `git diff --numstat` proves only
       that nothing was *added*, so dropping another network's block alongside the target's
       passes it — and it is not even deletions-only in practice, because removing the last
@@ -286,10 +289,8 @@ When `/deprecate-network` is invoked with network names:
 
 - For each deprecated network, re-run the step 8 search over every tracked file:
   `git grep -inw "<network>"`
-- `-w` is required, not optional: a bare substring search reports `tronshasta` when
-  deprecating `tron`, and those false positives are exactly what drives a wrong deletion
-  in this review step. It is a filter, not a guarantee — a hyphen-separated sibling such
-  as `eth-taiko` still matches, so the exact-key check from step 8 still applies here
+- `-w` is required, not optional, and carries the same caveat as in step 8: it drops
+  `tronshasta` when deprecating `tron` but not `eth-taiko` when deprecating `taiko`
 - `git grep` needs no exclude list — it searches tracked files only, so generated
   directories are already out of scope, and it covers `.agents/`, `.github/`, `docs/`
   and root files that a path-scoped `grep` would miss
@@ -421,7 +422,8 @@ After the command completes, you **must** manually update the Product Target Sta
 - Edit `config/whitelist.json` by hand and verify the result with `jq empty` plus a
   pre/post comparison of its network keys; never regenerate it during a deprecation
 - After all deprecation steps, search every tracked file for remaining occurrences of the
-  network name with `git grep -inw` — whole-word, so sibling networks are not reported
+  network name with `git grep -inw`; `-w` narrows the candidates but does not guarantee an
+  exact match (a hyphenated sibling still matches), so confirm the key before editing
 - Present a concise, organized list of matches grouped by file with line numbers and context
 - Ask the user to review and indicate which files/occurrences should be removed
 - Some config files (e.g., `config/*.json`) may intentionally keep network values for historical reference - let user decide
