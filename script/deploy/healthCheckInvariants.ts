@@ -1660,8 +1660,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             `Facet ${facet} not registered in Diamond or possibly unverified`
           )
         }
-        // Unlike the warning-severity queue-aware checks, an unreachable queue must
-        // not suppress anything here: this is the fleet's primary registration gate,
+        // Unlike a check whose only subject is queue coverage, an unreachable queue
+        // must not suppress anything here: this is the fleet's primary registration gate,
         // and a Mongo blip turning genuinely missing facets green is far worse than
         // a false alert during a rollout. Report the reduced coverage as a warning so
         // the network lands in the sweep's `warned` list instead of looking clean.

@@ -66,8 +66,7 @@ invariant:
 - A queue row exists only once the Safe transaction executing `scheduleBatch` has been mined,
   so the multisig **signing** window before it stays red. Only the timelock delay itself
   (plus execution lag) is covered.
-- A rollout proposed **without** `--timelock` writes no row at all — `deployUpgradesToSAFE.sh`
-  is the live example — and so is never downgraded.
+- A rollout proposed **without** `--timelock` writes no row at all, and so is never downgraded.
 - **Tron** rolls out through `contracts-tron` and has no EVM queue row; it is skipped by branch.
 - A row is honoured only while it is plausibly still waiting. A never-scheduled or
   directly-cancelled operation is reported and skipped by the execution runner *without* a
@@ -82,8 +81,11 @@ Two boundaries are not negotiable:
   `saveDiamondFacets` leaves a wrong deploy log committed to git with nobody owning the
   compensating write. Deploy logs stay a pure function of the loupe
   ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
-- **An unreachable queue must never suppress a finding.** A warning-severity check existing
-  _only_ to police queue coverage may skip and report reduced coverage. Error-severity gates
-  (`facets-registered`, `periphery-registered`) keep every error and add a warning naming the
-  degraded coverage — a MongoDB blip turning genuinely missing registrations green is far
-  worse than a false alert during a rollout.
+- **An unreachable queue must never suppress a finding.** What decides the degradation is
+  what the check is *for*, not its severity — all three are error-severity.
+  `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
+  every finding it could make is noise: it skips and reports the reduced coverage.
+  `facets-registered` and `periphery-registered` stand on an independent on-chain signal, so
+  they keep every error and add a warning naming the degraded coverage — a MongoDB blip
+  turning genuinely missing registrations green is far worse than a false alert during a
+  rollout.

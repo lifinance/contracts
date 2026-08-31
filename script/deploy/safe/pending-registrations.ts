@@ -9,10 +9,9 @@
  *
  * The covered window is narrower than "merge to execution": a row appears only once the
  * Safe transaction executing `scheduleBatch` is mined, so the multisig signing window
- * before it stays uncovered, as does any rollout proposed without `--timelock` (e.g.
- * `deployUpgradesToSAFE.sh`) and every Tron rollout. Widening it to the signing window
- * would mean reading the Safe proposal collection, which needs a secret the health-check
- * workflows do not carry.
+ * before it stays uncovered, as does any rollout proposed without `--timelock` and every
+ * Tron rollout. Widening it to the signing window would mean reading the Safe proposal
+ * collection, which needs a secret the health-check workflows do not carry.
  *
  * The queue rather than the Safe proposal collection, on two counts: it lives on the
  * un-gated `MONGODB_URI` cluster the health-check workflows already pass, whereas the
@@ -25,6 +24,8 @@
  */
 
 import { decodeFunctionData, isAddress, parseAbi, type Hex } from 'viem'
+
+import { DAY_MS } from '../shared/constants'
 
 import {
   getTimelockQueueCollection,
@@ -142,11 +143,11 @@ export function registrationsFromQueueDoc(
  * turns "masked forever" into "masked briefly", and the direction of the error is safe:
  * past the bound the registration reports as a hard error, never as silently fine.
  *
- * 72 hours is generous on purpose. Across the 874 executed rows in the live queue the
+ * Three days is generous on purpose. Across the 900 executed rows in the live queue the
  * observed create→execute spread was p50 ~3.3 h and max ~70.7 h against a uniform 3 h
  * delay, so this clears even the slowest real rollout on record while still being finite.
  */
-const STALE_QUEUE_GRACE_MS = 72 * 60 * 60 * 1000 // 72 hours
+export const STALE_QUEUE_GRACE_MS = 3 * DAY_MS
 
 /**
  * True while a queued row is still plausibly waiting rather than stuck.

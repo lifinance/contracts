@@ -10,6 +10,7 @@ import {
   extractRegisteredAddresses,
   groupRegistrationsByNetwork,
   registrationsFromQueueDoc,
+  STALE_QUEUE_GRACE_MS,
 } from './pending-registrations'
 
 const DIAMOND = '0x1111111111111111111111111111111111111111'
@@ -150,6 +151,8 @@ describe('registrationsFromQueueDoc', () => {
 describe('groupRegistrationsByNetwork', () => {
   const NOW = Date.UTC(2026, 7, 25, 12, 0, 0)
   const DELAY_SECONDS = '10800' // 3 h, the delay every real queue row carries
+  const DELAY_MS = Number(DELAY_SECONDS) * 1000
+  const HOUR_MS = 60 * 60 * 1000
 
   const row = (
     network: string,
@@ -215,7 +218,7 @@ describe('groupRegistrationsByNetwork', () => {
   // execution runner without a status change, so it stays `queued` forever. Honouring
   // it indefinitely would mask exactly the never-landed cut this gate exists to catch.
   it('drops a row stuck past its delay plus the grace window', () => {
-    const stuck = new Date(NOW - (72 + 3 + 1) * 60 * 60 * 1000)
+    const stuck = new Date(NOW - (STALE_QUEUE_GRACE_MS + DELAY_MS + HOUR_MS))
     const grouped = groupRegistrationsByNetwork(
       [row('mainnet', [[FACET, 0]], OPERATION_ID, stuck)],
       NOW
@@ -224,7 +227,7 @@ describe('groupRegistrationsByNetwork', () => {
   })
 
   it('still honours the slowest rollout observed in the live queue (~70.7 h)', () => {
-    const slow = new Date(NOW - 70.7 * 60 * 60 * 1000)
+    const slow = new Date(NOW - 70.7 * HOUR_MS)
     const grouped = groupRegistrationsByNetwork(
       [row('mainnet', [[FACET, 0]], OPERATION_ID, slow)],
       NOW
@@ -242,7 +245,7 @@ describe('groupRegistrationsByNetwork', () => {
 })
 
 describe('real-payload shapes the live queue actually carries', () => {
-  // 101 of 614 real diamondCut payloads pass a non-zero _init address, which is
+  // 101 of 615 real diamondCut payloads pass a non-zero _init address, which is
   // delegatecalled during the cut but never becomes a routed facet. Counting it as
   // registered would downgrade an unrelated missing facet.
   it('never treats a non-zero _init address as registered', () => {
