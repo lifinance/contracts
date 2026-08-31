@@ -85,11 +85,18 @@ interface IScheduledWorkflowFile {
   ignore: ReturnType<typeof findIgnoreMarker>
 }
 
-/** Every workflow file at this ref that declares an `on.schedule` block. */
+/**
+ * Every workflow file at this ref that declares an `on.schedule` block.
+ *
+ * Deliberately NOT recursive. GitHub reads `.github/workflows/*.yml` one level deep,
+ * so this repo's `.github/workflows/disabled/` holds workflows that can never fire —
+ * recursing would alert on every parked workflow forever. `withFileTypes` skips that
+ * directory explicitly rather than relying on it not ending in `.yml`.
+ */
 function discoverScheduledWorkflows(): IScheduledWorkflowFile[] {
-  const entries = readdirSync(WORKFLOW_DIR).filter((file) =>
-    /\.ya?ml$/.test(file)
-  )
+  const entries = readdirSync(WORKFLOW_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
+    .map((entry) => entry.name)
 
   return entries
     .map((file) => {
