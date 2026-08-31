@@ -43,8 +43,8 @@ import {
   cachedSourceContractNames,
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
-import type { ParkedTaskStatus } from './safe/parked-tasks'
-import { SAFE_THRESHOLD } from './shared/constants'
+import type { IParkedTask } from './safe/parked-tasks'
+import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
@@ -80,13 +80,10 @@ export type HealthCheckSeverity = 'error' | 'warning'
 export const STALE_PARKED_CLAIM_DAYS = 7
 
 /** The fields of an open parked task that coverage decisions read. */
-export interface IOpenParkedCoverage {
-  prUrl: string
-  status: ParkedTaskStatus
-  createdAt: Date
-  proposedAt?: Date
-  safeTxHash?: string
-}
+export type IOpenParkedCoverage = Pick<
+  IParkedTask,
+  'prUrl' | 'status' | 'createdAt' | 'proposedAt' | 'safeTxHash'
+>
 
 /** Network (lowercased) → lowercased facet address → the open task covering it. */
 export type OpenParkedByNetwork = Map<string, Map<string, IOpenParkedCoverage>>
@@ -1302,14 +1299,14 @@ export function isStalledParkedClaim(
   if (task.status !== 'proposed') return false
   if (task.safeTxHash) return false
   const claimedAt = new Date(task.proposedAt ?? task.createdAt).getTime()
-  const days = (now.getTime() - claimedAt) / 86_400_000
+  const days = (now.getTime() - claimedAt) / DAY_MS
   return days >= STALE_PARKED_CLAIM_DAYS
 }
 
 /** Whole-day age of a queue timestamp, for operator-facing lines (`unknown` if absent). */
 function formatDaysAgo(at: Date | undefined, now: Date = new Date()): string {
   if (!at) return 'unknown'
-  const days = Math.floor((now.getTime() - new Date(at).getTime()) / 86_400_000)
+  const days = Math.floor((now.getTime() - new Date(at).getTime()) / DAY_MS)
   return `${days}d ago`
 }
 
@@ -1367,15 +1364,8 @@ export function splitByParkedCoverage(
  * @returns Network (lowercased) → lowercased facet address → the task that governs coverage.
  */
 export function collapseOpenParkedTasks(
-  tasks: readonly {
-    network: string
-    facetAddress: string
-    prUrl: string
-    status: ParkedTaskStatus
-    createdAt: Date
-    proposedAt?: Date
-    safeTxHash?: string
-  }[],
+  tasks: readonly (IOpenParkedCoverage &
+    Pick<IParkedTask, 'network' | 'facetAddress'>)[],
   now: Date = new Date()
 ): OpenParkedByNetwork {
   const byNetwork: OpenParkedByNetwork = new Map()
@@ -1385,13 +1375,7 @@ export function collapseOpenParkedTasks(
     const address = task.facetAddress.toLowerCase()
     const existing = map.get(address)
     if (!existing || !isStalledParkedClaim(existing, now))
-      map.set(address, {
-        prUrl: task.prUrl,
-        status: task.status,
-        createdAt: task.createdAt,
-        proposedAt: task.proposedAt,
-        safeTxHash: task.safeTxHash,
-      })
+      map.set(address, task)
     byNetwork.set(task.network, map)
   }
   return byNetwork

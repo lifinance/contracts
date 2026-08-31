@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -38,6 +38,7 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
@@ -170,7 +171,7 @@ describe('findDuplicateSelectors', () => {
 
 describe('isStalledParkedClaim', () => {
   const NOW = new Date('2026-08-28T00:00:00.000Z')
-  const ago = (days: number) => new Date(NOW.getTime() - days * 86_400_000)
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
   const task = (over: Partial<IOpenParkedCoverage>): IOpenParkedCoverage => ({
     prUrl: 'https://github.com/lifinance/contracts/pull/1',
     status: 'proposed',
@@ -222,9 +223,9 @@ describe('isStalledParkedClaim', () => {
 })
 
 describe('collapseOpenParkedTasks', () => {
-  const ADDR = '0x00000000000000000000000000000000000000A1'
+  const ADDR: Address = '0x00000000000000000000000000000000000000A1'
   const NOW = new Date('2026-08-28T00:00:00.000Z')
-  const ago = (days: number) => new Date(NOW.getTime() - days * 86_400_000)
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
 
   // A legacy name-keyed row and an address-keyed row do NOT collide on the open-status
   // unique index, so both can be open for one address at once.
@@ -279,8 +280,7 @@ describe('splitByParkedCoverage', () => {
     address: address as Hex,
     selectors: ['0xdeadbeef'] as Hex[],
   })
-  const daysBefore = (days: number) =>
-    new Date(NOW.getTime() - days * 86_400_000)
+  const daysBefore = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
   /** A live queued task (the common case): no claim, next drain picks it up. */
   const queued = (createdAt = daysBefore(1)): IOpenParkedCoverage => ({
     prUrl: 'https://github.com/lifinance/contracts/pull/1',
@@ -625,7 +625,7 @@ describe('no-stale-registered-facets claim liveness', () => {
     return ctx
   }
 
-  const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000)
+  const at = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY_MS)
 
   const withTask = (task: IOpenParkedCoverage): OpenParkedByNetwork =>
     new Map([['mantle', new Map([[DEPRECATED.toLowerCase(), task]])]])
@@ -1850,9 +1850,9 @@ describe('no-unexpected-facets parked-removal coverage', () => {
               {
                 prUrl: PR_URL,
                 status: 'proposed' as const,
-                createdAt: new Date(Date.now() - 40 * 86_400_000),
+                createdAt: new Date(Date.now() - 40 * DAY_MS),
                 proposedAt: new Date(
-                  Date.now() - (STALE_PARKED_CLAIM_DAYS + 2) * 86_400_000
+                  Date.now() - (STALE_PARKED_CLAIM_DAYS + 2) * DAY_MS
                 ),
               },
             ],
