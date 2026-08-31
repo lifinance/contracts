@@ -304,8 +304,7 @@ function buildDeploymentsFromRepo(
     const cfg = networks[networkName]
     if (!cfg) continue
 
-    // Deprecated networks stay out: their diamonds are frozen at a facet set we no
-    // longer track, so the ABI regenerated here would not describe them
+    // Catches networks marked inactive whose deployment files are still present
     if (cfg.status && cfg.status !== 'active') continue
 
     const deploymentPath = path.resolve(deploymentsDir, file)
