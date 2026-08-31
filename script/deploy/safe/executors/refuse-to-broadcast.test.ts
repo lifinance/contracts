@@ -38,6 +38,7 @@ const EXEC_PARAMS: IChainExecutionParams = {
 interface ISpy {
   writeContractCalls: number
   sendTransactionCalls: number
+  lastGas?: bigint
 }
 
 const buildClients = (
@@ -53,12 +54,14 @@ const buildClients = (
     waitForTransactionReceipt: async () => ({ status: 'success' }),
   } as unknown as PublicClient,
   walletClient: {
-    writeContract: async () => {
+    writeContract: async (args: { gas?: bigint }) => {
       spy.writeContractCalls += 1
+      spy.lastGas = args.gas
       return '0xdead' as const
     },
-    sendTransaction: async () => {
+    sendTransaction: async (args: { gas?: bigint }) => {
       spy.sendTransactionCalls += 1
+      spy.lastGas = args.gas
       return '0xdead' as const
     },
   } as unknown as WalletClient,
@@ -157,5 +160,9 @@ describe('refuse to broadcast when gas estimation fails', () => {
     await executor.executeTransaction(EXEC_PARAMS)
 
     expect(spy.writeContractCalls).toBe(1)
+    // Asserting the value too: broadcasting with gas=undefined would make viem
+    // re-estimate internally and throw, which is a different failure wearing
+    // the same green test.
+    expect(spy.lastGas).toBe(500_000n)
   })
 })

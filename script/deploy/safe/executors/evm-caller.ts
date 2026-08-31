@@ -20,7 +20,7 @@ import type {
 } from '../../../common/types'
 import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 
-import { getGasWithFallback } from './gas-with-fallback'
+import { getGasWithFallback, resolveGas } from './gas-with-fallback'
 
 export class EvmChainCaller implements IChainCaller {
   public readonly senderAddress: Address
@@ -42,7 +42,7 @@ export class EvmChainCaller implements IChainCaller {
     // broadcasts, so a failed estimate falls back instead of refusing — a
     // simulation that throws tells the operator less than one that says "unknown,
     // assuming the fixed limit".
-    const estimatedGas = await getGasWithFallback(
+    const { gas, estimateFailed } = await resolveGas(
       () =>
         this.publicClient.estimateGas({
           account: this.senderAddress,
@@ -57,7 +57,7 @@ export class EvmChainCaller implements IChainCaller {
       }
     )
 
-    return { estimatedResource: estimatedGas, resourceLabel: 'gas' }
+    return { estimatedResource: gas, resourceLabel: 'gas', estimateFailed }
   }
 
   public async call(params: IChainCallParams): Promise<IChainCallResult> {

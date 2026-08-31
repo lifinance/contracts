@@ -1441,17 +1441,27 @@ async function executeOperation(
         ],
       })
 
-      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
-        to: timelockAddress,
-        data: callData,
-      })
+      const { estimatedResource, resourceLabel, estimateFailed } =
+        await chainCaller.simulate({
+          to: timelockAddress,
+          data: callData,
+        })
 
       consola.info(
-        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}`
+        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}${
+          estimateFailed ? ' (fallback — estimation failed)' : ''
+        }`
       )
-      consola.success(
-        `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
-      )
+      // A fallback figure must not read as a green simulation: the same failure
+      // makes the executing path refuse to broadcast.
+      if (estimateFailed)
+        consola.warn(
+          `${networkPrefix} ⚠️  [DRY RUN] Simulation INCONCLUSIVE — ${resourceLabel} estimation failed, so the real run would refuse to broadcast`
+        )
+      else
+        consola.success(
+          `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
+        )
     } else {
       // Send the actual transaction
       consola.info(`${networkPrefix} 📤 Submitting transaction...`)
@@ -1618,13 +1628,22 @@ async function rejectOperation(
         args: [operation.id],
       })
 
-      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
-        to: timelockAddress,
-        data: cancelCalldata,
-      })
+      const { estimatedResource, resourceLabel, estimateFailed } =
+        await chainCaller.simulate({
+          to: timelockAddress,
+          data: cancelCalldata,
+        })
 
-      consola.info(`   Estimated ${resourceLabel}: ${estimatedResource}`)
-      consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
+      consola.info(
+        `   Estimated ${resourceLabel}: ${estimatedResource}${
+          estimateFailed ? ' (fallback — estimation failed)' : ''
+        }`
+      )
+      if (estimateFailed)
+        consola.warn(
+          `⚠️  [DRY RUN] Cancellation simulation INCONCLUSIVE — ${resourceLabel} estimation failed, so the real run would refuse to broadcast`
+        )
+      else consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
       return 'rejected'
     } else {
       // Send the actual cancellation transaction

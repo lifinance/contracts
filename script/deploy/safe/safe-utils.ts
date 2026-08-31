@@ -864,6 +864,12 @@ export class SafeClient {
       return executionResult
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
+      // Matched before the revert case: a pre-broadcast refusal quotes the
+      // underlying estimation error, which itself contains "execution reverted".
+      // Relabelling it would tell the operator a nonce was consumed when nothing
+      // was ever sent.
+      if (errorMsg.includes('refusing to broadcast')) throw error
+
       if (errorMsg.includes('execution reverted'))
         throw new Error(`Safe execution reverted: ${errorMsg}`)
 
