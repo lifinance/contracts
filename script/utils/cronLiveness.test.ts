@@ -326,6 +326,18 @@ describe('evaluateLiveness', () => {
     expect(verdict.status).toBe('stale')
   })
 
+  it('says so when it cannot date the file, rather than implying a confirmed never-ran', () => {
+    // A shallow checkout cannot date the workflow file. Staleness is still the
+    // safe call (under-alerting is invisible, over-alerting is not), but the
+    // message must not present an unknown as a confirmed fact.
+    const verdict = evaluateLiveness(
+      dailyWorkflow({ lastScheduledRunAt: null, fileFirstSeenAt: null }),
+      NOW
+    )
+    expect(verdict.status).toBe('stale')
+    expect(verdict.detail).toContain('unknown')
+  })
+
   it('reports a workflow with no cron at all instead of silently passing it', () => {
     // Math.min() over an empty list is Infinity, which would make an unwatched
     // workflow look permanently alive — the exact silent under-coverage the

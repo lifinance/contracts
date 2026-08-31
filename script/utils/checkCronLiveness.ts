@@ -3,8 +3,12 @@
  *
  * Every scheduled workflow in this repo alerts on its own failures, but none of
  * them can alert on never having run: a dropped schedule, a workflow GitHub
- * disabled for inactivity, or a job that dies before reaching its Slack step all
- * look exactly like a quiet, healthy day. This job watches for that absence.
+ * disabled for inactivity, and YAML that Actions refused to register all look
+ * exactly like a quiet, healthy day. This job watches for that absence.
+ *
+ * Liveness only, by design. A workflow that RAN and failed is alive here — its own
+ * alerting owns that, and duplicating it would ping twice for one problem. So a
+ * run that dies before its Slack step is NOT this job's to catch.
  *
  * Scope is discovered, never configured: the workflow directory at the checked-out
  * ref IS the authoritative list of schedules (GitHub only runs `schedule` triggers
@@ -103,8 +107,12 @@ function discoverScheduledWorkflows(): IScheduledWorkflowFile[] {
 /**
  * When the workflow file first landed, bounding how long it has had to fire.
  *
- * Returns null in a shallow checkout, where the answer is unknowable rather than
- * "never" — the caller must not read that as evidence of staleness.
+ * Returns null when git cannot answer (a shallow checkout). A never-run workflow
+ * with an unknown file date is still reported stale: over-alerting is visible and
+ * gets fixed, under-alerting is invisible and is the whole failure this job
+ * exists to remove. The verdict says the date was unknown so nobody reads it as a
+ * confirmed "never ran". The workflow checks out with fetch-depth: 0 so CI always
+ * has the real date.
  */
 function firstCommitDate(path: string): Date | null {
   try {
@@ -178,7 +186,7 @@ const main = defineCommand({
       const state = registration?.state ?? 'not_registered_with_actions'
 
       let lastScheduledRunAt: Date | null = null
-      if (registration)
+      if (registration) {
         // event=schedule is load-bearing: a manual workflow_dispatch run is not
         // evidence that the SCHEDULE still fires, and counting it would hide
         // exactly the failure this job looks for.
@@ -198,6 +206,7 @@ const main = defineCommand({
             }`
           )
         }
+      }
 
       const facts: IWorkflowFacts = {
         name: registration?.name ?? workflow.path,

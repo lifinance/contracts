@@ -308,7 +308,7 @@ export function evaluateLiveness(
       status: 'stale',
       detail:
         mergedAgo === null
-          ? 'has never run on its schedule'
+          ? 'has never run on its schedule (file date unknown — shallow checkout?)'
           : `has never run on its schedule, ${formatAge(
               mergedAgo
             )} after being merged`,

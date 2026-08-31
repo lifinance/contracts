@@ -1,8 +1,12 @@
 # Cron Liveness Watchdog
 # - Answers the one question no scheduled workflow can answer about itself: did it RUN? Every cron in
 #   this repo alerts on its own failures, but a schedule GitHub silently dropped, a workflow disabled
-#   for inactivity, or a job that died before reaching its Slack step all look exactly like a quiet,
-#   healthy day. This job watches for that absence.
+#   for inactivity, and YAML that Actions refused to register all look exactly like a quiet, healthy
+#   day. This job watches for that absence.
+# - LIVENESS ONLY, deliberately. A workflow that ran and FAILED counts as alive here: its own alerting
+#   owns that outcome, and reporting it again would ping twice for one problem. So a run that dies
+#   before reaching its own Slack step is not this job's to catch — that is what each workflow's
+#   `!cancelled()` guard is for.
 # - Why a separate job: healthCheckAllNetworks.yml (and every sibling cron) deliberately stays silent
 #   when green, so "no message" carries no information. Restoring a daily green heartbeat to each of
 #   them would just train everyone to skip the channel; one watchdog that alerts on staleness is the
