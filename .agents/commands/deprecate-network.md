@@ -340,28 +340,6 @@ fantom = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io
 
 The entire `"fantom"` entry (including both production and staging) will be removed.
 
-### Whitelist Blocks to Remove
-
-In `config/whitelist.json`, for a network named `fantom`, hand-remove:
-
-- `PERIPHERY.fantom` — the `"fantom"` key at 4-space indent, with its array value
-- `DEXS[].contracts.fantom` — the `"fantom"` key at 8-space indent, in **every** DEX
-  entry that has one
-
-Nothing else in the file changes: `git diff --numstat config/whitelist.json` must show
-`0` in the additions column.
-
-### Files to Preserve
-
-Never removed, even though the step 8 search reports them:
-
-- `deployments/_deployments_log_file.json` — the master deployment log (history, not the
-  active-network set)
-- `archive/config/*` — archived configuration snapshots
-- `config/whitelist.staging.json` — gitignored, so a modification would be invisible in
-  `git status`; verify by checksum instead
-- `src/Facets/*.sol` chainId mappings — marked with a comment, never deleted
-
 ## Validation Checklist
 
 Before executing, validate:
@@ -373,15 +351,6 @@ Before executing, validate:
 - [ ] **File existence**: Check if deployment files exist before attempting deletion (not an error if missing)
 - [ ] **JSON formatting**: Preserve proper JSON formatting when removing from `config/networks.json`
 - [ ] **TOML formatting**: Preserve proper TOML formatting and comments when removing from `foundry.toml`
-
-After executing, verify:
-
-- [ ] **Whitelist still parses**: `jq empty config/whitelist.json` exits 0
-- [ ] **Whitelist is deletions-only**: `git diff --numstat config/whitelist.json` shows `0` additions
-- [ ] **Staging whitelist untouched**: `shasum -c` against the checksum taken before execution reports `OK`
-- [ ] **Exemptions are consistent**: `bun test:ts` passes (`every exempt network is a known network`)
-- [ ] **Facet bytecode unchanged**: if a facet got a marker comment, its `bytecode.object` matches the pre-change build
-- [ ] **Preserved records intact**: `deployments/_deployments_log_file.json` and `archive/config/*` show no diff
 
 ## Error Handling
 
