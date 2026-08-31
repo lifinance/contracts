@@ -278,14 +278,20 @@ describe('fallbackExplicitlyAllowed — scoping', () => {
     expect(withValue('   ', 'jovay')).toBe(false)
   })
 
-  it.each([['true'], ['TRUE'], ['True'], [' true '], ['1'], ['yes'], ['on']])(
-    'opens for every network on the affirmative value %p',
-    (value) => {
-      expect(withValue(value, 'jovay')).toBe(true)
-      expect(withValue(value, 'mainnet')).toBe(true)
-      expect(withValue(value, undefined)).toBe(true)
-    }
-  )
+  it.each([
+    ['true'],
+    ['TRUE'],
+    ['True'],
+    [' true '],
+    ['1'],
+    ['yes'],
+    ['y'],
+    ['on'],
+  ])('opens for every network on the affirmative value %p', (value) => {
+    expect(withValue(value, 'jovay')).toBe(true)
+    expect(withValue(value, 'mainnet')).toBe(true)
+    expect(withValue(value, undefined)).toBe(true)
+  })
 
   it.each([
     ['false'],

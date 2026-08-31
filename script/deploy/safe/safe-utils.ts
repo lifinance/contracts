@@ -44,6 +44,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactErrorReason } from '../../utils/redactUrls'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
@@ -870,10 +871,13 @@ export class SafeClient {
       // was ever sent.
       if (errorMsg.includes('refusing to broadcast')) throw error
 
+      // Redacted: viem embeds the endpoint, credentials and all, in error.message,
+      // and SlackNotifier publishes it outside the workflow log's masking.
+      const safeMsg = redactErrorReason(errorMsg)
       if (errorMsg.includes('execution reverted'))
-        throw new Error(`Safe execution reverted: ${errorMsg}`)
+        throw new Error(`Safe execution reverted: ${safeMsg}`)
 
-      throw new Error(`Error executing transaction: ${errorMsg}`)
+      throw new Error(`Error executing transaction: ${safeMsg}`)
     }
   }
 
