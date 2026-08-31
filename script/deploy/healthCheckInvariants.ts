@@ -179,7 +179,7 @@ export interface IHealthCheckContext {
    * testable without a MongoDB connection.
    */
   pendingRegistrations?:
-    | Map<string, Map<string, IPendingRegistration>>
+    | Map<string, Map<string, IPendingRegistration[]>>
     | { unreachable: string }
   errors: string[]
   warnings: string[]
@@ -1440,11 +1440,11 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
  */
 let pendingRegistrationsPromise:
   | Promise<
-      Map<string, Map<string, IPendingRegistration>> | { unreachable: string }
+      Map<string, Map<string, IPendingRegistration[]>> | { unreachable: string }
     >
   | undefined
 function fetchPendingRegistrationsByNetwork(): Promise<
-  Map<string, Map<string, IPendingRegistration>> | { unreachable: string }
+  Map<string, Map<string, IPendingRegistration[]>> | { unreachable: string }
 > {
   return (pendingRegistrationsPromise ??= (async () => {
     try {
@@ -1474,16 +1474,22 @@ function fetchPendingRegistrationsByNetwork(): Promise<
  * targeting another contract on the same network proves nothing about this diamond's
  * missing facet.
  *
+ * The records are returned whole rather than flattened to a set of addresses, because an
+ * address alone does not say what it was registered *as*: a periphery address bound to
+ * one registry name leaves every other name unset, so the periphery caller has to match
+ * the name too.
+ *
  * @param ctx - The network being evaluated.
- * @returns Lowercased covered addresses, or `unreachable` with the reason when the
- *   queue could not be read (never an empty set — the caller must be able to tell
- *   "nothing scheduled" apart from "could not look").
+ * @returns Lowercased address → the registrations aimed at this diamond, or
+ *   `unreachable` with the reason when the queue could not be read (never an empty map —
+ *   the caller must be able to tell "nothing scheduled" apart from "could not look").
  */
 async function resolvePendingRegistrations(
   ctx: IHealthCheckContext
-): Promise<Set<string> | { unreachable: string }> {
+): Promise<Map<string, IPendingRegistration[]> | { unreachable: string }> {
+  const empty = new Map<string, IPendingRegistration[]>()
   if (ctx.environment !== 'production' || ctx.isTestnet || ctx.isTron)
-    return new Set<string>()
+    return empty
 
   const pending =
     ctx.pendingRegistrations ?? (await fetchPendingRegistrationsByNetwork())
@@ -1491,12 +1497,13 @@ async function resolvePendingRegistrations(
 
   const diamond = ctx.diamondAddress?.toLowerCase()
   const forNetwork = pending.get(ctx.networkLower)
-  if (!forNetwork || !diamond) return new Set<string>()
-  return new Set(
-    [...forNetwork.entries()]
-      .filter(([, registration]) => registration.target === diamond)
-      .map(([address]) => address)
-  )
+  if (!forNetwork || !diamond) return empty
+  const forDiamond = new Map<string, IPendingRegistration[]>()
+  for (const [address, records] of forNetwork) {
+    const matching = records.filter((record) => record.target === diamond)
+    if (matching.length > 0) forDiamond.set(address, matching)
+  }
+  return forDiamond
 }
 
 /**
@@ -1645,10 +1652,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             continue
           }
           const address = ctx.deployedContracts[facet]
+          // A facet routes by selector, so only a `diamondCut` record covers it. A
+          // `registerPeripheryContract` naming the same address binds a registry entry
+          // and routes nothing, so it must not stand in for the missing cut.
           if (
             address &&
-            scheduled instanceof Set &&
-            scheduled.has(String(address).toLowerCase())
+            scheduled instanceof Map &&
+            scheduled
+              .get(String(address).toLowerCase())
+              ?.some((record) => record.peripheryName === undefined)
           ) {
             downgraded++
             consola.info(
@@ -1665,7 +1677,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // and a Mongo blip turning genuinely missing facets green is far worse than
         // a false alert during a rollout. Report the reduced coverage as a warning so
         // the network lands in the sweep's `warned` list instead of looking clean.
-        if (scheduled && !(scheduled instanceof Set))
+        if (scheduled && !(scheduled instanceof Map))
           ctx.logWarn(
             `Timelock queue unreachable — expected-pending downgrade skipped, unregistered facets reported as errors: ${scheduled.unreachable}`
           )
@@ -1909,7 +1921,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // one missing several costs a single lookup. On Tron this always falls through
       // to the error — resolvePendingRegistrations gates Tron out before any lookup —
       // so routing the Tron branch through here buys uniformity, not coverage.
-      let coverage: Set<string> | { unreachable: string } | undefined
+      let coverage:
+        | Map<string, IPendingRegistration[]>
+        | { unreachable: string }
+        | undefined
       let unreachableReason: string | undefined
       let downgraded = 0
       const reportUnregistered = async (
@@ -1918,8 +1933,16 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         message: string
       ): Promise<void> => {
         coverage ??= await resolvePendingRegistrations(ctx)
-        if (coverage instanceof Set) {
-          if (coverage.has(address.toLowerCase())) {
+        if (coverage instanceof Map) {
+          // The registry is keyed by name, so the address is not enough: a queued
+          // `registerPeripheryContract('Other', addr)` leaves `getPeripheryContract` for
+          // *this* name unset, and downgrading on the address alone would report a
+          // registration that is never coming.
+          if (
+            coverage
+              .get(address.toLowerCase())
+              ?.some((record) => record.peripheryName === periphery)
+          ) {
             downgraded++
             consola.info(
               `Periphery contract ${periphery} (${address}) is expected but not yet registered — expected-pending: a queued timelock operation registers it`

@@ -42,8 +42,20 @@ const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
 
+/** One address an inner call would leave registered, and what it registers it as. */
+export interface IDecodedRegistration {
+  /** Lowercased address the call registers. */
+  address: string
+  /**
+   * Registry name the address is bound to. Absent for facet cuts, which route by
+   * selector and have no name. A periphery address registered under one name says
+   * nothing about any other name, so the caller must match this, not just the address.
+   */
+  peripheryName?: string
+}
+
 /** One scheduled registration, traceable back to the timelock operation carrying it. */
-export interface IPendingRegistration {
+export interface IPendingRegistration extends IDecodedRegistration {
   /** Timelock operation id the registration was decoded from. */
   operationId: Hex
   /** Lowercased inner-call target — the diamond the registration applies to. */
@@ -61,9 +73,11 @@ export interface IPendingRegistration {
  * opinion about.
  *
  * @param payload - Raw calldata of one inner call from a `scheduleBatch` operation.
- * @returns Lowercased addresses the call would register, empty when it registers none.
+ * @returns What the call would register, empty when it registers nothing.
  */
-export function extractRegisteredAddresses(payload: Hex | string): string[] {
+export function extractRegistrations(
+  payload: Hex | string
+): IDecodedRegistration[] {
   if (typeof payload !== 'string' || payload.length < 10) return []
   const data = payload as Hex
 
@@ -71,14 +85,14 @@ export function extractRegisteredAddresses(payload: Hex | string): string[] {
     const { args } = decodeFunctionData({ abi: ABI_DIAMOND_CUT, data })
     const cuts = args?.[0]
     if (!Array.isArray(cuts)) return []
-    const addresses: string[] = []
+    const registrations: IDecodedRegistration[] = []
     for (const cut of cuts) {
       const [facetAddress, action] = cut as [unknown, unknown, unknown]
       if (!ROUTING_CUT_ACTIONS.has(Number(action))) continue
       if (typeof facetAddress === 'string' && isAddress(facetAddress))
-        addresses.push(facetAddress.toLowerCase())
+        registrations.push({ address: facetAddress.toLowerCase() })
     }
-    return addresses
+    return registrations
   } catch {
     // Not a diamondCut; fall through to the periphery shape.
   }
@@ -88,15 +102,17 @@ export function extractRegisteredAddresses(payload: Hex | string): string[] {
       abi: ABI_REGISTER_PERIPHERY_CONTRACT,
       data,
     })
+    const peripheryName = args?.[0]
     const peripheryAddress = args?.[1]
     // Registering the zero address unregisters the name — the periphery counterpart of
     // a Remove cut, and like a Remove it leaves nothing registered.
     if (
+      typeof peripheryName === 'string' &&
       typeof peripheryAddress === 'string' &&
       isAddress(peripheryAddress) &&
       BigInt(peripheryAddress) !== 0n
     )
-      return [peripheryAddress.toLowerCase()]
+      return [{ address: peripheryAddress.toLowerCase(), peripheryName }]
   } catch {
     // Neither shape — the operation registers nothing this check tracks.
   }
@@ -111,21 +127,29 @@ export function extractRegisteredAddresses(payload: Hex | string): string[] {
  * the caller matches it against the network's diamond, and a `diamondCut` aimed at
  * anything else must not be read as covering that diamond's missing facet.
  *
+ * Every record for an address is kept rather than the last one winning: two inner calls
+ * may register the same address against different targets, or under different registry
+ * names, and each says something the others do not.
+ *
  * @param doc - A queued timelock operation.
- * @returns Lowercased address → registration, for every address the row would register.
+ * @returns Lowercased address → every registration the row would perform for it.
  */
 export function registrationsFromQueueDoc(
   doc: Pick<ITimelockQueueDoc, 'operationId' | 'targets' | 'payloads'>
-): Map<string, IPendingRegistration> {
-  const registrations = new Map<string, IPendingRegistration>()
+): Map<string, IPendingRegistration[]> {
+  const registrations = new Map<string, IPendingRegistration[]>()
   doc.payloads.forEach((payload, index) => {
     const target = doc.targets[index]
     if (!target) return
-    for (const address of extractRegisteredAddresses(payload))
-      registrations.set(address, {
+    for (const decoded of extractRegistrations(payload)) {
+      const records = registrations.get(decoded.address) ?? []
+      records.push({
+        ...decoded,
         operationId: doc.operationId,
         target: String(target).toLowerCase(),
       })
+      registrations.set(decoded.address, records)
+    }
   })
   return registrations
 }
@@ -179,7 +203,7 @@ function isWithinExecutionWindow(
  *
  * @param docs - Queue rows to group. Callers pass only rows they consider live.
  * @param now - Current epoch milliseconds; injectable so staleness is testable.
- * @returns Network → (lowercased registered address → the operation registering it).
+ * @returns Network → (lowercased registered address → every operation registering it).
  */
 export function groupRegistrationsByNetwork(
   docs: Array<
@@ -189,17 +213,17 @@ export function groupRegistrationsByNetwork(
     >
   >,
   now: number = Date.now()
-): Map<string, Map<string, IPendingRegistration>> {
-  const byNetwork = new Map<string, Map<string, IPendingRegistration>>()
+): Map<string, Map<string, IPendingRegistration[]>> {
+  const byNetwork = new Map<string, Map<string, IPendingRegistration[]>>()
   for (const doc of docs) {
     if (!isWithinExecutionWindow(doc, now)) continue
     const registrations = registrationsFromQueueDoc(doc)
     if (registrations.size === 0) continue
     const network = doc.network.toLowerCase()
     const forNetwork =
-      byNetwork.get(network) ?? new Map<string, IPendingRegistration>()
-    for (const [address, registration] of registrations)
-      forNetwork.set(address, registration)
+      byNetwork.get(network) ?? new Map<string, IPendingRegistration[]>()
+    for (const [address, records] of registrations)
+      forNetwork.set(address, [...(forNetwork.get(address) ?? []), ...records])
     byNetwork.set(network, forNetwork)
   }
   return byNetwork
@@ -219,11 +243,11 @@ export function groupRegistrationsByNetwork(
  * you are debugging why a downgrade did not apply during a live rollout, check the
  * row's status first.
  *
- * @returns Network → (lowercased registered address → the operation registering it).
+ * @returns Network → (lowercased registered address → every operation registering it).
  * @throws Whatever the MongoDB driver throws; callers degrade rather than guess.
  */
 export async function listPendingRegistrationsByNetwork(): Promise<
-  Map<string, Map<string, IPendingRegistration>>
+  Map<string, Map<string, IPendingRegistration[]>>
 > {
   const { client, timelockQueue } = await getTimelockQueueCollection()
   try {

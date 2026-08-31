@@ -56,8 +56,13 @@ Invariants may consult operator intent to resolve that window and report the fin
 
 - Additions read the timelock execution queue (`script/deploy/safe/pending-registrations.ts`)
   and downgrade only when a `queued` operation registers **exactly** the deploy-log address,
-  on **that** network's diamond. Keying by address rather than by name is deliberate — the
-  same lesson as the parked queue (EXSC-750/EXSC-775).
+  on **that** network's diamond. The address is matched rather than the contract name — the
+  same lesson as the parked queue (EXSC-750/EXSC-775) — but the address alone is not
+  sufficient: a facet needs a `diamondCut` record, because a registry entry routes no
+  selectors, and a periphery contract needs a `registerPeripheryContract` record carrying
+  **its own** registry name, because binding an address under one name leaves every other
+  name unset. Every record decoded for an address is kept, so a second call for the same
+  address cannot erase the first.
 - Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`), and only while
   the task is **live** — a claim held with no Safe proposal past `STALE_PARKED_CLAIM_DAYS` is
   breakage, not progress, and covers nothing.

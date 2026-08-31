@@ -2059,14 +2059,20 @@ describe('facets-registered scheduled-registration coverage', () => {
 
   const covering = (
     target = DIAMOND
-  ): Map<string, Map<string, IPendingRegistration>> =>
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
     new Map([
       [
         'testnet1',
         new Map([
           [
             FACET_ADDRESS.toLowerCase(),
-            { operationId: OPERATION_ID, target: target.toLowerCase() },
+            [
+              {
+                address: FACET_ADDRESS.toLowerCase(),
+                operationId: OPERATION_ID,
+                target: target.toLowerCase(),
+              },
+            ],
           ],
         ]),
       ],
@@ -2100,7 +2106,13 @@ describe('facets-registered scheduled-registration coverage', () => {
           new Map([
             [
               '0xffff000000000000000000000000000000000099',
-              { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+              [
+                {
+                  address: '0xffff000000000000000000000000000000000099',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
             ],
           ]),
         ],
@@ -2108,6 +2120,33 @@ describe('facets-registered scheduled-registration coverage', () => {
     )
     await invariant('facets-registered').run(ctx)
     expect(ctx.errors).toHaveLength(1)
+  })
+
+  // A registry entry routes no selectors, so it cannot stand in for the missing cut.
+  it('still errors when the only queued record is a periphery registration', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  peripheryName: 'SomeName',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
   })
 
   it('keys coverage by network, not fleet-wide', async () => {
@@ -2118,7 +2157,13 @@ describe('facets-registered scheduled-registration coverage', () => {
           new Map([
             [
               FACET_ADDRESS.toLowerCase(),
-              { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
             ],
           ]),
         ],
@@ -2200,14 +2245,23 @@ describe('periphery-registered scheduled-registration coverage', () => {
     return ctx
   }
 
-  const covering = (): Map<string, Map<string, IPendingRegistration>> =>
+  const covering = (
+    peripheryName = 'Executor'
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
     new Map([
       [
         'testnet1',
         new Map([
           [
             EXECUTOR.toLowerCase(),
-            { operationId: OPERATION_ID, target: DIAMOND.toLowerCase() },
+            [
+              {
+                address: EXECUTOR.toLowerCase(),
+                peripheryName,
+                operationId: OPERATION_ID,
+                target: DIAMOND.toLowerCase(),
+              },
+            ],
           ],
         ]),
       ],
@@ -2225,6 +2279,15 @@ describe('periphery-registered scheduled-registration coverage', () => {
     await invariant('periphery-registered').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toEqual([])
+  })
+
+  // The registry is keyed by name: registering this address under a different name
+  // leaves getPeripheryContract('Executor') unset, so it must not downgrade.
+  it('still errors when the queued operation registers the address under another name', async () => {
+    const ctx = makePeripheryCtx(covering('Other'))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
   })
 
   it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
