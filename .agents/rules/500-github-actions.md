@@ -81,6 +81,27 @@ paths:
       version: stable                            # floats — not reproducible across runs
   ```
 
+### Scheduled workflows ([CONV:CRON-SCHEDULE])
+
+- **A monthly cron uses a day-of-month between 1 and 28.** Days 29-31 do not exist in every month, so `0 3 31 * *` fires 7 times a year with gaps of up to 61 days. The intent is "once a month"; only 1-28 delivers it on every month.
+- **The expression must be classifiable by the liveness watchdog.** `script/utils/cronLiveness.ts` derives an expected cadence for every `on.schedule` entry and reports any expression it cannot bucket, every day, until the schedule is fixed or a classifier rule is added. Modelled shapes are a minute step (`*/10 * * * *`), a fixed hour (daily), a fixed weekday (weekly), and a fixed day-of-month 1-28 (monthly); steps outside the minute field, fixed months, ranges and lists are refused.
+- **Example (correct)**:
+
+  ```yaml
+  on:
+    schedule:
+      - cron: '0 3 1 * *' # 03:00 UTC on the 1st of each month
+  ```
+
+- **Anti-pattern (forbidden)**:
+
+  ```yaml
+  on:
+    schedule:
+      - cron: '0 3 31 * *' # skips Feb, Apr, Jun, Sep and Nov - not monthly
+      - cron: '0 */6 * * *' # step outside the minute field - unclassifiable
+  ```
+
 ## GitHub Actions Workflow Structure
 
 ### File Organization
