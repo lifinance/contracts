@@ -3,14 +3,13 @@
  *
  * Import this from `confirm-safe-tx.ts`. It replaces the calldata-keyed action
  * cache: an operator's *action* is never remembered, while their *acknowledgement*
- * of a logical change rolls up across networks, so a 71-network rollout is
- * reviewed once and answered 71 times.
+ * of a reviewed change rolls up across the networks it is genuinely the same on.
  */
 
-import { keccak256, type Hex } from 'viem'
+import { encodeAbiParameters, keccak256, type Hex } from 'viem'
 
 /**
- * Identifies a change by the exact bytes the Safe will execute.
+ * Identifies a payload by the exact bytes the Safe will pass on.
  *
  * A semantic label (facet + version + selectors) collapses per-network init
  * payloads into one change, which is what let one answer replay across a fleet.
@@ -42,6 +41,46 @@ export const buildProposalKey = (identity: IProposalIdentity): string =>
     identity.chainId
   }:${identity.nonce.toString()}`
 
+export interface IProposalEffect {
+  to: string
+  value: number | string | bigint
+  operation: number
+  fingerprint: Hex
+}
+
+/**
+ * The unit an acknowledgement rolls up over.
+ *
+ * Covers every field of the signed Safe struct that determines what the
+ * transaction does — target, value, call-vs-delegatecall, payload — not the
+ * payload alone. `operation` matters most: a DelegateCall carrying bytes the
+ * operator already approved as a Call is a different transaction, and the
+ * production diamond does not share one address across the fleet (there are
+ * ~30 distinct `LiFiDiamond` addresses across the active networks), so the
+ * target genuinely varies. Networks that do share a target still collapse to a
+ * single acknowledgement, which is the fleet-rollout case this exists for.
+ *
+ * @param effect - Target, value, operation and payload fingerprint.
+ * @returns A stable key for the acknowledgement ledger.
+ */
+export const buildAcknowledgementKey = (effect: IProposalEffect): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { type: 'address' },
+        { type: 'uint256' },
+        { type: 'uint8' },
+        { type: 'bytes32' },
+      ],
+      [
+        effect.to.toLowerCase() as Hex,
+        BigInt(effect.value),
+        effect.operation,
+        effect.fingerprint,
+      ]
+    )
+  )
+
 export type ProposalIntegrityFailure = 'stale-nonce'
 
 export interface IProposalIntegrityInput {
@@ -54,10 +93,15 @@ export interface IProposalIntegrity {
 }
 
 /**
- * Per-network integrity verdict for one proposal.
+ * Nonce verdict for one proposal — the only machine-checkable signal this
+ * script has today, deliberately narrow rather than named as if it were more.
  *
- * A future nonce is legitimate — a lower-nonce proposal executing earlier in the
- * same run makes it current — so only a consumed nonce is a failure.
+ * A future nonce is legitimate: a lower-nonce proposal executing earlier in the
+ * same run makes it current. Only a consumed nonce is a failure.
+ *
+ * Reachability worth knowing: a failing verdict only reaches the acknowledgement
+ * gate via a bare `Sign`, because every execute-shaped action on a stale nonce is
+ * already terminated earlier in `processTxs`.
  *
  * @param input - The nonce status resolved against the Safe's on-chain nonce.
  * @returns Whether the proposal may be acknowledged, and why not if it may not.
@@ -84,13 +128,14 @@ export const createAcknowledgementLedger = (): IAcknowledgementLedger => ({
 
 /**
  * @param ledger - The run's ledger.
- * @param fingerprint - The change fingerprint to look up.
- * @returns Whether this change was acknowledged earlier in the run.
+ * @param acknowledgementKey - The effect key to look up.
+ * @returns Whether this effect was acknowledged earlier in the run.
  */
 export const isChangeAcknowledged = (
   ledger: IAcknowledgementLedger,
-  fingerprint: Hex
-): boolean => (ledger.acknowledgedProposalKeys.get(fingerprint)?.size ?? 0) > 0
+  acknowledgementKey: Hex
+): boolean =>
+  (ledger.acknowledgedProposalKeys.get(acknowledgementKey)?.size ?? 0) > 0
 
 export interface IAcknowledgementPromptInput {
   alreadyAcknowledged: boolean
@@ -100,11 +145,11 @@ export interface IAcknowledgementPromptInput {
 /**
  * Whether the operator must acknowledge this proposal before it proceeds.
  *
- * An integrity failure always re-prompts: a rolled-up acknowledgement was
- * earned on a proposal that passed its checks and says nothing about one that
- * did not.
+ * A failing nonce verdict always re-prompts: a rolled-up acknowledgement was
+ * earned on a proposal whose nonce was usable and says nothing about one whose
+ * nonce is not.
  *
- * @param input - Whether the change is already acknowledged and whether checks passed.
+ * @param input - Whether the effect is already acknowledged and whether the nonce verdict passed.
  * @returns Whether to prompt.
  */
 export const shouldPromptForAcknowledgement = (
@@ -112,18 +157,18 @@ export const shouldPromptForAcknowledgement = (
 ): boolean => !input.alreadyAcknowledged || !input.integrityOk
 
 export interface IAcknowledgementRecord {
-  fingerprint: Hex
+  acknowledgementKey: Hex
   proposalKey: string
   integrityOk: boolean
 }
 
 /**
- * Records an acknowledgement so later networks carrying the same bytes skip the
+ * Records an acknowledgement so later networks carrying the same effect skip the
  * review prompt.
  *
  * @param ledger - The run's ledger, mutated in place.
- * @param record - The change, the proposal it was acknowledged on, and its integrity verdict.
- * @returns Whether the acknowledgement was stored; a failed proposal is never stored.
+ * @param record - The effect, the proposal it was acknowledged on, and its nonce verdict.
+ * @returns Whether the acknowledgement was stored; a failing verdict is never stored.
  */
 export const recordAcknowledgement = (
   ledger: IAcknowledgementLedger,
@@ -131,11 +176,13 @@ export const recordAcknowledgement = (
 ): boolean => {
   if (!record.integrityOk) return false
 
-  const existing = ledger.acknowledgedProposalKeys.get(record.fingerprint)
+  const existing = ledger.acknowledgedProposalKeys.get(
+    record.acknowledgementKey
+  )
   if (existing) existing.add(record.proposalKey)
   else
     ledger.acknowledgedProposalKeys.set(
-      record.fingerprint,
+      record.acknowledgementKey,
       new Set([record.proposalKey])
     )
 
@@ -145,79 +192,91 @@ export const recordAcknowledgement = (
 export interface INetworkOutcome {
   network: string
   proposalKey: string
+  acknowledgementKey: Hex
   fingerprint: Hex
-  checksPassed: boolean
+  nonceCurrent: boolean
   acknowledged: boolean
 }
 
 export interface IChangeRollup {
+  acknowledgementKey: Hex
   fingerprint: Hex
   networks: number
-  checksPassed: number
+  noncesUsable: number
   acknowledged: number
-  failedNetworks: string[]
-  green: boolean
+  staleNetworks: string[]
+  /** Every proposal for this effect had a usable nonce AND was acknowledged. */
+  complete: boolean
 }
 
 /**
- * Groups per-network outcomes by change so the run can report N/N.
+ * Groups per-network outcomes by effect so the run can report N/N.
  *
- * Checks are counted per network and are never rolled up into a single verdict;
- * only the acknowledgement count rolls up.
+ * Nonce verdicts are counted per network and never rolled up into a single
+ * verdict; only the acknowledgement count rolls up.
  *
  * Callers may push a provisional entry for a proposal and a final one later:
  * for a given proposal key the last entry wins, so a run can record every
  * proposal it displayed and still report the outcome it ended on.
  *
  * @param outcomes - One or more entries per proposal seen, in the order they were seen.
- * @returns One rollup per distinct change, in first-seen order.
+ * @returns One rollup per distinct effect, in first-seen order.
  */
 export const rollUpByChange = (
   outcomes: INetworkOutcome[]
 ): IChangeRollup[] => {
-  const byFingerprint = new Map<Hex, Map<string, INetworkOutcome>>()
+  const byEffect = new Map<Hex, Map<string, INetworkOutcome>>()
 
   for (const outcome of outcomes) {
     const perProposal =
-      byFingerprint.get(outcome.fingerprint) ??
+      byEffect.get(outcome.acknowledgementKey) ??
       new Map<string, INetworkOutcome>()
     perProposal.set(outcome.proposalKey, outcome)
-    byFingerprint.set(outcome.fingerprint, perProposal)
+    byEffect.set(outcome.acknowledgementKey, perProposal)
   }
 
-  return [...byFingerprint.entries()].map(([fingerprint, perProposal]) => {
+  return [...byEffect.entries()].map(([acknowledgementKey, perProposal]) => {
     const entries = [...perProposal.values()]
-    const checksPassed = entries.filter((e) => e.checksPassed).length
+    const noncesUsable = entries.filter((e) => e.nonceCurrent).length
+    const acknowledged = entries.filter((e) => e.acknowledged).length
 
     return {
-      fingerprint,
+      acknowledgementKey,
+      fingerprint: entries[0]?.fingerprint ?? ('0x' as Hex),
       networks: entries.length,
-      checksPassed,
-      acknowledged: entries.filter((e) => e.acknowledged).length,
-      failedNetworks: entries
-        .filter((e) => !e.checksPassed)
+      noncesUsable,
+      acknowledged,
+      staleNetworks: entries
+        .filter((e) => !e.nonceCurrent)
         .map((e) => e.network),
-      green: entries.length > 0 && checksPassed === entries.length,
+      complete:
+        entries.length > 0 &&
+        noncesUsable === entries.length &&
+        acknowledged === entries.length,
     }
   })
 }
 
 /**
- * Renders the acknowledgement roll-up as printable lines.
+ * Renders the roll-up as printable lines.
+ *
+ * The counts are named for exactly what they measure — a usable nonce and a
+ * recorded review — so the marker is never read as "the run succeeded".
+ * Execution outcomes are reported separately by the caller.
  *
  * @param rollups - Rollups from `rollUpByChange`.
- * @returns One line per change; a partial pass can never render as green.
+ * @returns One line per effect; the tick appears only when both counts are N/N.
  */
 export const renderChangeRollup = (rollups: IChangeRollup[]): string[] =>
   rollups.map((rollup) => {
-    const failures = rollup.failedNetworks.length
-      ? ` · failed on ${rollup.failedNetworks.join(', ')}`
+    const stale = rollup.staleNetworks.length
+      ? ` · stale nonce on ${rollup.staleNetworks.join(', ')}`
       : ''
 
-    return `${rollup.green ? '✓' : '✗'} ${rollup.fingerprint.slice(
+    return `${rollup.complete ? '✓' : '✗'} payload ${rollup.fingerprint.slice(
       0,
       10
-    )} checks ${rollup.checksPassed}/${rollup.networks} · acknowledged on ${
+    )} · nonce usable ${rollup.noncesUsable}/${rollup.networks} · reviewed ${
       rollup.acknowledged
-    }/${rollup.networks}${failures}`
+    }/${rollup.networks}${stale}`
   })

@@ -1,3 +1,8 @@
+/**
+ * Unit tests for the acknowledgement ledger, plus a source-shape guard on
+ * `confirm-safe-tx.ts` that keeps the deleted action cache from returning.
+ */
+
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
@@ -6,6 +11,7 @@ import { describe, expect, it } from 'bun:test'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import {
+  buildAcknowledgementKey,
   buildProposalKey,
   computeChangeFingerprint,
   createAcknowledgementLedger,
@@ -93,7 +99,10 @@ const buildInitOptimismCalldata = (network: string): Hex => {
     { standardBridge: Address; tokens: { assetId: Address; bridge: Address }[] }
   >
   const entry = config[network]
-  if (!entry) throw new Error(`config/optimism.json has no ${network} entry`)
+  if (!entry)
+    throw new Error(
+      `config/optimism.json has no ${network} entry — this test anchors the per-network payload divergence on it; re-anchor on another config if the stanza was removed`
+    )
 
   return encodeFunctionData({
     abi: ABI_INIT_OPTIMISM,
@@ -117,8 +126,23 @@ const deployedAddress = (network: string, contract: string): Address => {
   return address
 }
 
-const DIAMOND: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+// Two real, currently distinct production diamond addresses. Read as constants
+// rather than compared across deployment files, because `deployments/**` is not
+// in the unit-test workflow's path filter: an assertion over those files would
+// fail in whichever unrelated PR next touches `script/**`.
+const DIAMOND_A: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+const DIAMOND_B: Address = '0x026F252016A7C47CDEf1F05a3Fc9E20C92a49C37'
 const ZERO: Address = '0x0000000000000000000000000000000000000000'
+
+const CALL = 0
+const DELEGATECALL = 1
+
+const effectKey = (
+  to: Address,
+  fingerprint: Hex,
+  operation = CALL,
+  value = 0n
+): Hex => buildAcknowledgementKey({ to, value, operation, fingerprint })
 
 describe('computeChangeFingerprint', () => {
   it('is keccak of the full calldata, not a semantic label', () => {
@@ -146,25 +170,15 @@ describe('computeChangeFingerprint', () => {
     )
   })
 
-  it('collapses a byte-identical cut across networks to one fingerprint', () => {
-    // CelerCircleBridgeFacet is CREATE3-deterministic and has no init payload,
-    // so the proposed bytes are identical on every network it is cut into.
-    const onArbitrum = deployedAddress('arbitrum', 'CelerCircleBridgeFacet')
-    const onBase = deployedAddress('base', 'CelerCircleBridgeFacet')
-    expect(onArbitrum).toBe(onBase)
-
+  it('gives byte-identical calldata one fingerprint', () => {
+    const facet = deployedAddress('arbitrum', 'CelerCircleBridgeFacet')
     const selectors: Hex[] = ['0x2e2fb18b']
-    const arbitrumCut = buildDiamondCutCalldata(
-      onArbitrum,
-      selectors,
-      ZERO,
-      '0x'
-    )
-    const baseCut = buildDiamondCutCalldata(onBase, selectors, ZERO, '0x')
+    const first = buildDiamondCutCalldata(facet, selectors, ZERO, '0x')
+    const second = buildDiamondCutCalldata(facet, selectors, ZERO, '0x')
 
-    expect(arbitrumCut).toBe(baseCut)
-    expect(computeChangeFingerprint(arbitrumCut)).toBe(
-      computeChangeFingerprint(baseCut)
+    expect(first).toBe(second)
+    expect(computeChangeFingerprint(first)).toBe(
+      computeChangeFingerprint(second)
     )
   })
 
@@ -177,30 +191,89 @@ describe('computeChangeFingerprint', () => {
 
 describe('buildProposalKey', () => {
   it('includes to, chainId and nonce', () => {
-    const key = buildProposalKey({ to: DIAMOND, chainId: 42161, nonce: 7 })
-    expect(key).toContain(DIAMOND.toLowerCase())
+    const key = buildProposalKey({ to: DIAMOND_A, chainId: 42161, nonce: 7 })
+    expect(key).toContain(DIAMOND_A.toLowerCase())
     expect(key).toContain('42161')
     expect(key).toContain('7')
   })
 
   it('never collapses two networks carrying byte-identical calldata', () => {
-    const a = buildProposalKey({ to: DIAMOND, chainId: 42161, nonce: 7 })
-    const b = buildProposalKey({ to: DIAMOND, chainId: 8453, nonce: 7 })
-    expect(a).not.toBe(b)
+    expect(
+      buildProposalKey({ to: DIAMOND_A, chainId: 42161, nonce: 7 })
+    ).not.toBe(buildProposalKey({ to: DIAMOND_A, chainId: 8453, nonce: 7 }))
   })
 
   it('never collapses two nonces on the same Safe', () => {
-    expect(buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 7 })).not.toBe(
-      buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 8 })
+    expect(buildProposalKey({ to: DIAMOND_A, chainId: 1, nonce: 7 })).not.toBe(
+      buildProposalKey({ to: DIAMOND_A, chainId: 1, nonce: 8 })
     )
   })
 
   it('is case-insensitive on the target address', () => {
     expect(
-      buildProposalKey({ to: DIAMOND.toUpperCase(), chainId: 1, nonce: 1 })
+      buildProposalKey({ to: DIAMOND_A.toUpperCase(), chainId: 1, nonce: 1 })
     ).toBe(
-      buildProposalKey({ to: DIAMOND.toLowerCase(), chainId: 1, nonce: 1 })
+      buildProposalKey({ to: DIAMOND_A.toLowerCase(), chainId: 1, nonce: 1 })
     )
+  })
+})
+
+describe('buildAcknowledgementKey', () => {
+  const fingerprint = computeChangeFingerprint('0xdeadbeef')
+
+  it('collapses the same effect on two networks to one key', () => {
+    expect(effectKey(DIAMOND_A, fingerprint)).toBe(
+      effectKey(DIAMOND_A, fingerprint)
+    )
+  })
+
+  it('separates identical bytes aimed at a different target', () => {
+    // Real, currently distinct production diamond addresses.
+    expect(effectKey(DIAMOND_A, fingerprint)).not.toBe(
+      effectKey(DIAMOND_B, fingerprint)
+    )
+  })
+
+  it('separates a DelegateCall from a Call carrying the same bytes', () => {
+    expect(effectKey(DIAMOND_A, fingerprint, CALL)).not.toBe(
+      effectKey(DIAMOND_A, fingerprint, DELEGATECALL)
+    )
+  })
+
+  it('separates a value-bearing transaction from a zero-value one', () => {
+    expect(effectKey(DIAMOND_A, fingerprint, CALL, 0n)).not.toBe(
+      effectKey(DIAMOND_A, fingerprint, CALL, 10n ** 19n)
+    )
+  })
+
+  it('is case-insensitive on the target address', () => {
+    expect(effectKey(DIAMOND_A.toUpperCase() as Address, fingerprint)).toBe(
+      effectKey(DIAMOND_A.toLowerCase() as Address, fingerprint)
+    )
+  })
+
+  it('accepts value as a number, string or bigint interchangeably', () => {
+    const asNumber = buildAcknowledgementKey({
+      to: DIAMOND_A,
+      value: 5,
+      operation: CALL,
+      fingerprint,
+    })
+    const asString = buildAcknowledgementKey({
+      to: DIAMOND_A,
+      value: '5',
+      operation: CALL,
+      fingerprint,
+    })
+    const asBigint = buildAcknowledgementKey({
+      to: DIAMOND_A,
+      value: 5n,
+      operation: CALL,
+      fingerprint,
+    })
+
+    expect(asNumber).toBe(asString)
+    expect(asString).toBe(asBigint)
   })
 })
 
@@ -225,7 +298,7 @@ describe('evaluateProposalIntegrity', () => {
 })
 
 describe('shouldPromptForAcknowledgement', () => {
-  it('prompts the first time a change is seen', () => {
+  it('prompts the first time an effect is seen', () => {
     expect(
       shouldPromptForAcknowledgement({
         alreadyAcknowledged: false,
@@ -234,7 +307,7 @@ describe('shouldPromptForAcknowledgement', () => {
     ).toBe(true)
   })
 
-  it('does not re-prompt for a change already acknowledged this run', () => {
+  it('does not re-prompt for an effect already acknowledged this run', () => {
     expect(
       shouldPromptForAcknowledgement({
         alreadyAcknowledged: true,
@@ -243,7 +316,7 @@ describe('shouldPromptForAcknowledgement', () => {
     ).toBe(false)
   })
 
-  it('always re-prompts when integrity failed, even if acknowledged', () => {
+  it('always re-prompts when the nonce verdict failed, even if acknowledged', () => {
     expect(
       shouldPromptForAcknowledgement({
         alreadyAcknowledged: true,
@@ -254,142 +327,156 @@ describe('shouldPromptForAcknowledgement', () => {
 })
 
 describe('acknowledgement ledger', () => {
-  const FINGERPRINT = computeChangeFingerprint('0xdeadbeef')
+  const fingerprint = computeChangeFingerprint('0xdeadbeef')
+  const KEY = effectKey(DIAMOND_A, fingerprint)
+  const PROPOSAL = buildProposalKey({ to: DIAMOND_A, chainId: 1, nonce: 1 })
 
   it('records and reports an acknowledgement', () => {
     const ledger = createAcknowledgementLedger()
-    expect(isChangeAcknowledged(ledger, FINGERPRINT)).toBe(false)
+    expect(isChangeAcknowledged(ledger, KEY)).toBe(false)
 
-    const recorded = recordAcknowledgement(ledger, {
-      fingerprint: FINGERPRINT,
-      proposalKey: buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 1 }),
-      integrityOk: true,
-    })
-
-    expect(recorded).toBe(true)
-    expect(isChangeAcknowledged(ledger, FINGERPRINT)).toBe(true)
+    expect(
+      recordAcknowledgement(ledger, {
+        acknowledgementKey: KEY,
+        proposalKey: PROPOSAL,
+        integrityOk: true,
+      })
+    ).toBe(true)
+    expect(isChangeAcknowledged(ledger, KEY)).toBe(true)
   })
 
-  it('never acknowledges a proposal that failed integrity', () => {
+  it('never acknowledges a proposal whose nonce verdict failed', () => {
     const ledger = createAcknowledgementLedger()
-    const recorded = recordAcknowledgement(ledger, {
-      fingerprint: FINGERPRINT,
-      proposalKey: buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 1 }),
-      integrityOk: false,
-    })
 
-    expect(recorded).toBe(false)
-    expect(isChangeAcknowledged(ledger, FINGERPRINT)).toBe(false)
+    expect(
+      recordAcknowledgement(ledger, {
+        acknowledgementKey: KEY,
+        proposalKey: PROPOSAL,
+        integrityOk: false,
+      })
+    ).toBe(false)
+    expect(isChangeAcknowledged(ledger, KEY)).toBe(false)
   })
 
-  it('does not leak an acknowledgement to a different change', () => {
+  it('does not leak an acknowledgement to a different effect', () => {
     const ledger = createAcknowledgementLedger()
     recordAcknowledgement(ledger, {
-      fingerprint: FINGERPRINT,
-      proposalKey: buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 1 }),
+      acknowledgementKey: KEY,
+      proposalKey: PROPOSAL,
       integrityOk: true,
     })
 
     expect(
-      isChangeAcknowledged(ledger, computeChangeFingerprint('0xc0ffee'))
+      isChangeAcknowledged(ledger, effectKey(DIAMOND_B, fingerprint))
+    ).toBe(false)
+    expect(
+      isChangeAcknowledged(
+        ledger,
+        effectKey(DIAMOND_A, fingerprint, DELEGATECALL)
+      )
     ).toBe(false)
   })
 
-  it('stores no action — the ledger exposes no action field', () => {
+  it('stores no action verb', () => {
     const ledger = createAcknowledgementLedger()
     recordAcknowledgement(ledger, {
-      fingerprint: FINGERPRINT,
-      proposalKey: buildProposalKey({ to: DIAMOND, chainId: 1, nonce: 1 }),
+      acknowledgementKey: KEY,
+      proposalKey: PROPOSAL,
       integrityOk: true,
     })
 
-    expect(JSON.stringify(ledger)).not.toContain('Execute')
-    expect(JSON.stringify(ledger)).not.toContain('Sign')
+    const dumped = JSON.stringify(
+      [...ledger.acknowledgedProposalKeys.entries()].map(([key, proposals]) => [
+        key,
+        [...proposals],
+      ])
+    )
+
+    expect(dumped).not.toContain('Execute')
+    expect(dumped).not.toContain('Sign')
   })
 })
 
 describe('rollUpByChange', () => {
-  const FINGERPRINT = computeChangeFingerprint('0xdeadbeef')
+  const fingerprint = computeChangeFingerprint('0xdeadbeef')
+  const KEY = effectKey(DIAMOND_A, fingerprint)
 
   const outcome = (
     chainId: number,
-    checksPassed: boolean
+    nonceCurrent: boolean
   ): INetworkOutcome => ({
     network: `net-${chainId}`,
-    proposalKey: buildProposalKey({ to: DIAMOND, chainId, nonce: 1 }),
-    fingerprint: FINGERPRINT,
-    checksPassed,
+    proposalKey: buildProposalKey({ to: DIAMOND_A, chainId, nonce: 1 }),
+    acknowledgementKey: KEY,
+    fingerprint,
+    nonceCurrent,
     acknowledged: true,
   })
 
-  it('renders N/N and reads green when every network passed', () => {
-    const outcomes = Array.from({ length: 57 }, (_, i) => outcome(i + 1, true))
-    const rollups = rollUpByChange(outcomes)
+  it('renders N/N and reads complete when every network passed and was reviewed', () => {
+    const rollups = rollUpByChange(
+      Array.from({ length: 57 }, (_, i) => outcome(i + 1, true))
+    )
 
     expect(rollups[0]?.networks).toBe(57)
-    expect(rollups[0]?.checksPassed).toBe(57)
-    expect(rollups[0]?.green).toBe(true)
-    expect(renderChangeRollup(rollups).join('\n')).toContain('57/57')
+    expect(rollups[0]?.noncesUsable).toBe(57)
+    expect(rollups[0]?.complete).toBe(true)
+    expect(renderChangeRollup(rollups)[0]).toContain('57/57')
+    expect(renderChangeRollup(rollups)[0]?.startsWith('✓')).toBe(true)
   })
 
-  it('cannot render 56/57 as green', () => {
-    const outcomes = Array.from({ length: 57 }, (_, i) =>
-      outcome(i + 1, i !== 56)
+  it('cannot render 56/57 as complete', () => {
+    const rollups = rollUpByChange(
+      Array.from({ length: 57 }, (_, i) => outcome(i + 1, i !== 56))
     )
-    const rollups = rollUpByChange(outcomes)
-    const rendered = renderChangeRollup(rollups).join('\n')
+    const line = renderChangeRollup(rollups)[0] ?? ''
 
-    expect(rollups[0]?.checksPassed).toBe(56)
+    expect(rollups[0]?.noncesUsable).toBe(56)
     expect(rollups[0]?.networks).toBe(57)
-    expect(rollups[0]?.green).toBe(false)
-    expect(rendered).toContain('56/57')
-    expect(rendered).not.toContain('✓')
-    expect(rendered).toContain('✗')
-    expect(rollups[0]?.failedNetworks).toEqual(['net-57'])
-    expect(rendered).toContain('failed on net-57')
+    expect(rollups[0]?.complete).toBe(false)
+    expect(rollups[0]?.staleNetworks).toEqual(['net-57'])
+    expect(line).toContain('56/57')
+    expect(line).toContain('stale nonce on net-57')
+    expect(line.startsWith('✗')).toBe(true)
+  })
+
+  it('is not complete when a network was never reviewed, even with every nonce usable', () => {
+    const rollups = rollUpByChange([
+      outcome(1, true),
+      { ...outcome(2, true), acknowledged: false },
+    ])
+    const line = renderChangeRollup(rollups)[0] ?? ''
+
+    expect(rollups[0]?.noncesUsable).toBe(2)
+    expect(rollups[0]?.acknowledged).toBe(1)
+    expect(rollups[0]?.complete).toBe(false)
+    expect(line.startsWith('✗')).toBe(true)
+    expect(line).toContain('reviewed 1/2')
   })
 
   it('counts one network once even if it is revisited', () => {
-    const rollups = rollUpByChange([outcome(1, true), outcome(1, true)])
-    expect(rollups[0]?.networks).toBe(1)
+    expect(
+      rollUpByChange([outcome(1, true), outcome(1, true)])[0]?.networks
+    ).toBe(1)
   })
 
   it('lets a later entry for the same proposal supersede the provisional one', () => {
-    const provisional = { ...outcome(1, true), acknowledged: false }
-    const final = { ...outcome(1, true), acknowledged: true }
-    const rollups = rollUpByChange([provisional, final])
+    const rollups = rollUpByChange([
+      { ...outcome(1, true), acknowledged: false },
+      { ...outcome(1, true), acknowledged: true },
+    ])
 
     expect(rollups[0]?.networks).toBe(1)
     expect(rollups[0]?.acknowledged).toBe(1)
   })
 
-  it('keeps a provisional unacknowledged entry when nothing supersedes it', () => {
-    const rollups = rollUpByChange([
-      { ...outcome(1, true), acknowledged: true },
-      { ...outcome(2, true), acknowledged: false },
-    ])
-
-    expect(rollups[0]?.networks).toBe(2)
-    expect(rollups[0]?.acknowledged).toBe(1)
-  })
-
-  it('keeps distinct changes in distinct rollups', () => {
+  it('keeps distinct effects in distinct rollups', () => {
     const other: INetworkOutcome = {
       ...outcome(1, true),
-      fingerprint: computeChangeFingerprint('0xc0ffee'),
+      acknowledgementKey: effectKey(DIAMOND_B, fingerprint),
     }
+
     expect(rollUpByChange([outcome(1, true), other]).length).toBe(2)
-  })
-
-  it('reports the acknowledgement roll-up separately from the check count', () => {
-    const outcomes = [
-      { ...outcome(1, true), acknowledged: true },
-      { ...outcome(2, true), acknowledged: false },
-    ]
-    const [rollup] = rollUpByChange(outcomes)
-
-    expect(rollup?.acknowledged).toBe(1)
-    expect(rollup?.checksPassed).toBe(2)
   })
 })
 
@@ -399,24 +486,28 @@ describe('confirm-safe-tx.ts carries no action cache', () => {
     'utf8'
   )
 
-  // Matched against the source rather than behaviour: the loop is interactive,
-  // so nothing else stops a future edit from reintroducing the replay.
-  const offendingLines = (pattern: RegExp): string[] =>
-    source.split('\n').filter((line) => pattern.test(line))
+  // Positive-form on purpose. A negative grep for the deleted identifier only
+  // catches a byte-for-byte revert: `??` instead of `||`, an if/else, a ternary
+  // or a `Map.set` all reintroduce the replay while evading it. Requiring every
+  // assignment to `action` to BE the prompt leaves no such room. Its limit is
+  // that it reads text, not behaviour — the loop is interactive and has no seam.
+  const ACTION_ASSIGNMENT = /(?<![\w.])action\s*=(?!=)/g
+  const ALLOWED = "action = await consola.prompt('Select action:', {"
+
+  it('assigns action only from the prompt, on every assignment', () => {
+    const collapsed = source.replace(/\s+/g, ' ')
+    const assignments = [...collapsed.matchAll(ACTION_ASSIGNMENT)].map(
+      (match) =>
+        collapsed.slice(match.index, (match.index ?? 0) + ALLOWED.length)
+    )
+
+    expect(assignments.length).toBeGreaterThan(0)
+    expect(assignments.filter((a) => a !== ALLOWED)).toEqual([])
+  })
 
   it('has no calldata-keyed response cache', () => {
-    expect(offendingLines(/storedResponses/)).toEqual([])
-  })
-
-  it('prompts for the action rather than reading a remembered one', () => {
-    const collapsed = source.replace(/\s+/g, ' ')
-    const fallback = collapsed.match(
-      /action = [^;]{0,40}\|\| \(?await consola\.prompt/
-    )
-    expect(fallback?.[0] ?? null).toBeNull()
-  })
-
-  it('assigns no action into a cache', () => {
-    expect(offendingLines(/\w+\[[^\]]*\]\s*=\s*action\s*$/)).toEqual([])
+    expect(
+      source.split('\n').filter((line) => line.includes('storedResponses'))
+    ).toEqual([])
   })
 })

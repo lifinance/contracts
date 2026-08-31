@@ -22,6 +22,7 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
+  buildAcknowledgementKey,
   buildProposalKey,
   computeChangeFingerprint,
   createAcknowledgementLedger,
@@ -442,6 +443,12 @@ const processTxs = async (
       chainId: chain.id,
       nonce: tx.safeTx.data.nonce,
     })
+    const acknowledgementKey = buildAcknowledgementKey({
+      to: tx.safeTx.data.to,
+      value: tx.safeTx.data.value,
+      operation: tx.safeTx.data.operation ?? 0,
+      fingerprint,
+    })
 
     // Recorded before the prompts so a proposal skipped, aborted or refused
     // still counts towards the run's N/N; a later push for the same proposal
@@ -449,8 +456,9 @@ const processTxs = async (
     networkOutcomes.push({
       network,
       proposalKey,
+      acknowledgementKey,
       fingerprint,
-      checksPassed: integrity.ok,
+      nonceCurrent: integrity.ok,
       acknowledged: false,
     })
 
@@ -597,14 +605,14 @@ const processTxs = async (
       shouldPromptForAcknowledgement({
         alreadyAcknowledged: isChangeAcknowledged(
           acknowledgementLedger,
-          fingerprint
+          acknowledgementKey
         ),
         integrityOk: integrity.ok,
       })
     ) {
       if (!integrity.ok)
         consola.warn(
-          `Checks failed on this proposal (${integrity.failures.join(
+          `Nonce check failed on this proposal (${integrity.failures.join(
             ', '
           )}) — an earlier acknowledgement of the same change does not carry over.`
         )
@@ -613,7 +621,7 @@ const processTxs = async (
         `Confirm you reviewed this change (payload ${fingerprint.slice(
           0,
           10
-        )}) — asked once per distinct payload, not once per network:`,
+        )}) — asked once per target + value + operation + payload, not once per network:`,
         {
           type: 'select',
           options: ['No — stop and inspect', 'Yes — I reviewed this change'],
@@ -627,15 +635,16 @@ const processTxs = async (
     }
 
     recordAcknowledgement(acknowledgementLedger, {
-      fingerprint,
+      acknowledgementKey,
       proposalKey,
       integrityOk: integrity.ok,
     })
     networkOutcomes.push({
       network,
       proposalKey,
+      acknowledgementKey,
       fingerprint,
-      checksPassed: integrity.ok,
+      nonceCurrent: integrity.ok,
       acknowledged: true,
     })
 
@@ -1077,13 +1086,6 @@ const main = defineCommand({
       // Close MongoDB connection
       await mongoClient.close(true)
 
-      if (networkOutcomes.length > 0) {
-        consola.info('=== Change Review Summary ===')
-        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
-          consola.info(line)
-        )
-      }
-
       // Print summary of any failed or timed out executions
       if (
         globalFailedExecutions.length > 0 ||
@@ -1108,6 +1110,16 @@ const main = defineCommand({
         }
       }
     } finally {
+      // In the finally block because an aborted run is where the ledger matters
+      // most: a mid-run throw would otherwise leave no record of what was
+      // reviewed on which networks.
+      if (networkOutcomes.length > 0) {
+        consola.info('=== Change Review Summary ===')
+        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
+          consola.info(line)
+        )
+      }
+
       await releaseAllPooledSafeClients().catch(() => undefined)
       // Always close ledger connection if it was created
       if (ledgerResult) {
