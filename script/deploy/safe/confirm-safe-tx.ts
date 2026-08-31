@@ -22,6 +22,18 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
+  buildProposalKey,
+  computeChangeFingerprint,
+  createAcknowledgementLedger,
+  evaluateProposalIntegrity,
+  isChangeAcknowledged,
+  recordAcknowledgement,
+  renderChangeRollup,
+  rollUpByChange,
+  shouldPromptForAcknowledgement,
+  type INetworkOutcome,
+} from './confirm-safe-tx-ack'
+import {
   ConfirmSafeTxPrefetchQueue,
   type IConfirmSafeTxNetworkContext,
 } from './confirm-safe-tx-prefetch'
@@ -61,7 +73,10 @@ import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
-const storedResponses: Record<string, string> = {}
+// Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
+// once; the operator's chosen action is never remembered.
+const acknowledgementLedger = createAcknowledgementLedger()
+const networkOutcomes: INetworkOutcome[] = []
 
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
@@ -418,10 +433,6 @@ const processTxs = async (
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
 
-    const storedResponse = tx.safeTx.data.data
-      ? storedResponses[tx.safeTx.data.data]
-      : undefined
-
     // Determine available actions based on signature status
     // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
     let action: string
@@ -446,12 +457,10 @@ const processTxs = async (
         options.push('Execute with Deployer')
       }
 
-      action =
-        storedResponse ||
-        (await consola.prompt('Select action:', {
-          type: 'select',
-          options,
-        }))
+      action = await consola.prompt('Select action:', {
+        type: 'select',
+        options,
+      })
     } else {
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
@@ -475,12 +484,10 @@ const processTxs = async (
         options.push('Execute with Deployer')
       }
 
-      action =
-        storedResponse ||
-        (await consola.prompt('Select action:', {
-          type: 'select',
-          options,
-        }))
+      action = await consola.prompt('Select action:', {
+        type: 'select',
+        options,
+      })
     }
 
     if (action === 'Do Nothing') continue
@@ -565,8 +572,68 @@ const processTxs = async (
       }
     }
 
-    // eslint-disable-next-line require-atomic-updates
-    storedResponses[tx.safeTx.data.data] = action
+    const integrity = evaluateProposalIntegrity({ nonceStatus })
+    const fingerprint = computeChangeFingerprint(
+      tx.safeTx.data.data as Hex | undefined
+    )
+    const proposalKey = buildProposalKey({
+      to: tx.safeTx.data.to,
+      chainId: chain.id,
+      nonce: tx.safeTx.data.nonce,
+    })
+
+    if (
+      shouldPromptForAcknowledgement({
+        alreadyAcknowledged: isChangeAcknowledged(
+          acknowledgementLedger,
+          fingerprint
+        ),
+        integrityOk: integrity.ok,
+      })
+    ) {
+      if (!integrity.ok)
+        consola.warn(
+          `Checks failed on this proposal (${integrity.failures.join(
+            ', '
+          )}) — an earlier acknowledgement of the same change does not carry over.`
+        )
+
+      const acknowledgement = await consola.prompt(
+        `Confirm you reviewed this change (payload ${fingerprint.slice(
+          0,
+          10
+        )}) — asked once per distinct payload, not once per network:`,
+        {
+          type: 'select',
+          options: ['No — stop and inspect', 'Yes — I reviewed this change'],
+        }
+      )
+
+      if (acknowledgement.startsWith('No')) {
+        consola.info('Aborted — change not acknowledged')
+        networkOutcomes.push({
+          network,
+          proposalKey,
+          fingerprint,
+          checksPassed: integrity.ok,
+          acknowledged: false,
+        })
+        continue
+      }
+    }
+
+    recordAcknowledgement(acknowledgementLedger, {
+      fingerprint,
+      proposalKey,
+      integrityOk: integrity.ok,
+    })
+    networkOutcomes.push({
+      network,
+      proposalKey,
+      fingerprint,
+      checksPassed: integrity.ok,
+      acknowledged: true,
+    })
 
     if (action === 'Sign')
       try {
@@ -1005,6 +1072,14 @@ const main = defineCommand({
 
       // Close MongoDB connection
       await mongoClient.close(true)
+
+      if (networkOutcomes.length > 0) {
+        consola.info('=== Change Review Summary ===')
+        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
+          consola.info(line)
+        )
+      }
+
       // Print summary of any failed or timed out executions
       if (
         globalFailedExecutions.length > 0 ||
