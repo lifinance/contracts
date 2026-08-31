@@ -54,7 +54,7 @@ jobs:
               - 'script/resources/**'
               - '.env.example'
               - 'package.json'
-              - 'bun.lockb'
+              - 'bun.lock'
               - '.github/workflows/deploy-smoke-test.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'

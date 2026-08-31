@@ -623,7 +623,16 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
   `reconcile.ts` sweep pattern (extend it, or a small standalone job — §14 Q7).
 - **proposed → queued**: `revertToQueued` (`:402`) — if the linked proposal `reverted`
   (Fact 7) the removal didn't happen; it clears `proposedAt`/`safeTxHash` so the next
-  drain re-proposes cleanly.
+  drain re-proposes cleanly. A claim with **no** linked proposal at all (the drain died
+  between `claimForProposal` and `linkToProposal`) needs the same transition but reaches
+  it through no automated path: the drain claims only `queued`, `reconcileDecision`
+  returns `keep` without a proposal status, and `repair-orphaned-parked-tasks.ts` skips
+  it for manual review. `no-stale-registered-facets` fails the health check once such a
+  claim passes `STALE_PARKED_CLAIM_DAYS` (EXSC-867). Clearing it has **no shipped operator
+  path**: `revertToQueued` still has no CLI (EXSC-715), and re-enqueueing is not a
+  workaround — an address-keyed task is refused by the dedup gate, while a legacy
+  name-keyed one is not and would silently open a second task for the same address.
+  Until EXSC-715 lands this is a manual queue write; escalate to the SC on-call.
 - **queued/proposed → superseded**: `markSuperseded` (`:360`, accepts both open states)
   — the facet is already absent on-chain (removed via another route); self-healing
   reconcile.
@@ -942,7 +951,10 @@ PR-link surfacing + reconcile/TTL job + the loupe-by-address affordance, as a
    detection. The drain resolves removals by stored `facetAddress` and never by
    name, so a pruned or ambiguous log entry cannot mis-resolve one; the queue-aware
    health-check invariant `no-stale-registered-facets` flags any
-   deprecated-but-registered facet with no open parked task, and the reconcile job
+   deprecated-but-registered facet with no *live* open parked task — a claim that has
+   sat `proposed` with no `safeTxHash` past `STALE_PARKED_CLAIM_DAYS` is a dead drain,
+   not coverage, and fails the check rather than silencing it (EXSC-867) — and the
+   reconcile job
    reports deploy-log entries that are safe to prune once the covering removal is
    loupe-verified off-chain (`executed`/`superseded`, never `cancelled`).
 6. **Opt-in default (§6/§11).** Semantics **decided**: `DRAIN_PARKED_TASKS` default off,
