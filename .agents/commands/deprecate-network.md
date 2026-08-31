@@ -1,6 +1,6 @@
 ---
 name: deprecate-network
-description: Deprecate one or more networks by removing entries from networks.json, foundry.toml, and deployment logs
+description: Deprecate one or more networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, CORE_FACET_EXEMPTIONS, the whitelist and per-network deploy logs, while preserving the master log and facet chainId mappings
 usage: /deprecate-network <network1> [network2] [network3] ...
 ---
 
@@ -163,8 +163,10 @@ When `/deprecate-network` is invoked with network names:
 
      `git grep` covers every tracked file — including `.agents/`, `.github/`, `docs/` and
      root files like `foundry.toml` — and respects `.gitignore`, so generated directories
-     need no exclude list. `-w` matches whole words only: without it, deprecating `tron`
-     also matches `tronshasta`, and deprecating `taiko` matches `eth-taiko`.
+     need no exclude list. `-w` drops siblings that merely extend the name: deprecating
+     `tron` no longer reports `tronshasta`. It does **not** drop a sibling separated by a
+     non-word character — `-w` still matches `taiko` inside `eth-taiko` — so `-w` narrows
+     the candidate set, it does not make a hit safe to delete.
    - **Treat every hit as a candidate, never as a deletion target.** Before editing an
      integration config, parse its keys and require an *exact* match with the canonical
      network name. A substring match on a sibling network must not be removed.
@@ -172,7 +174,7 @@ When `/deprecate-network` is invoked with network names:
      usually a plain `"<network>": <value>` pair, but some files nest the network under
      a per-integration object — check the surrounding structure before deleting.
    - Report anything the search surfaces outside `config/` (scripts, docs, comments) in
-     the step 14 review rather than deleting it silently.
+     the step 15 review rather than deleting it silently.
 
 9. **Remove from `CORE_FACET_EXEMPTIONS`** in `script/deploy/healthCheckInvariants.ts`:
 
@@ -187,10 +189,14 @@ When `/deprecate-network` is invoked with network names:
 
 10. **Remove from the whitelist** — by hand, surgically:
 
-    - **Do NOT run `bun update-whitelist-periphery`.** The committed
-      `config/whitelist.json` is out of sync with the generator, so the generator
-      rewrites the entire `PERIPHERY` section for all networks (~2100 lines of churn)
-      and swamps the deprecation diff, making it unreviewable.
+    - **Do NOT reach for `bun update-whitelist-periphery` as the removal mechanism.**
+      It regenerates the `PERIPHERY` section for *every* network from the current
+      deployment logs, so whatever drift has accumulated since the last periphery
+      redeploy lands in the deprecation diff alongside the removal and makes it
+      unreviewable. That drift is zero right after a whitelist sync and grows with
+      each redeploy, so its size is not predictable at deprecation time — measure it
+      with `git diff --numstat config/whitelist.json` if you want to know, but remove
+      the network by hand either way.
     - Instead, hand-remove exactly two kinds of block from `config/whitelist.json`:
       - the `PERIPHERY.<network>` key (4-space indent), and
       - every `DEXS[].contracts.<network>` key (8-space indent) — a network typically
@@ -203,9 +209,10 @@ When `/deprecate-network` is invoked with network names:
       git diff --numstat config/whitelist.json # additions column must be 0
       ```
 
-    - **Do not touch `config/whitelist.staging.json`** — it is gitignored, so `git status`
-      will never show it as modified and cannot be used to prove it was left alone.
-      Checksum it before and after instead:
+    - **Leave `config/whitelist.staging.json` alone** — and note that the generator
+      rewrites it unconditionally, whichever environment you target. It is gitignored,
+      so `git status` will never show it as modified and cannot be used to prove it
+      was left alone. Checksum it before and after instead:
 
       ```bash
       shasum config/whitelist.staging.json > /tmp/staging-whitelist.before
@@ -270,7 +277,8 @@ When `/deprecate-network` is invoked with network names:
   `git grep -inw "<network>"`
 - `-w` is required, not optional: a bare substring search reports `tronshasta` when
   deprecating `tron`, and those false positives are exactly what drives a wrong deletion
-  in this review step
+  in this review step. It is a filter, not a guarantee — a hyphen-separated sibling such
+  as `eth-taiko` still matches, so the exact-key check from step 8 still applies here
 - `git grep` needs no exclude list — it searches tracked files only, so generated
   directories are already out of scope, and it covers `.agents/`, `.github/`, `docs/`
   and root files that a path-scoped `grep` would miss
@@ -332,6 +340,28 @@ fantom = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io
 
 The entire `"fantom"` entry (including both production and staging) will be removed.
 
+### Whitelist Blocks to Remove
+
+In `config/whitelist.json`, for a network named `fantom`, hand-remove:
+
+- `PERIPHERY.fantom` — the `"fantom"` key at 4-space indent, with its array value
+- `DEXS[].contracts.fantom` — the `"fantom"` key at 8-space indent, in **every** DEX
+  entry that has one
+
+Nothing else in the file changes: `git diff --numstat config/whitelist.json` must show
+`0` in the additions column.
+
+### Files to Preserve
+
+Never removed, even though the step 8 search reports them:
+
+- `deployments/_deployments_log_file.json` — the master deployment log (history, not the
+  active-network set)
+- `archive/config/*` — archived configuration snapshots
+- `config/whitelist.staging.json` — gitignored, so a modification would be invisible in
+  `git status`; verify by checksum instead
+- `src/Facets/*.sol` chainId mappings — marked with a comment, never deleted
+
 ## Validation Checklist
 
 Before executing, validate:
@@ -344,6 +374,15 @@ Before executing, validate:
 - [ ] **JSON formatting**: Preserve proper JSON formatting when removing from `config/networks.json`
 - [ ] **TOML formatting**: Preserve proper TOML formatting and comments when removing from `foundry.toml`
 
+After executing, verify:
+
+- [ ] **Whitelist still parses**: `jq empty config/whitelist.json` exits 0
+- [ ] **Whitelist is deletions-only**: `git diff --numstat config/whitelist.json` shows `0` additions
+- [ ] **Staging whitelist untouched**: `shasum -c` against the checksum taken before execution reports `OK`
+- [ ] **Exemptions are consistent**: `bun test:ts` passes (`every exempt network is a known network`)
+- [ ] **Facet bytecode unchanged**: if a facet got a marker comment, its `bytecode.object` matches the pre-change build
+- [ ] **Preserved records intact**: `deployments/_deployments_log_file.json` and `archive/config/*` show no diff
+
 ## Error Handling
 
 The command handles:
@@ -351,13 +390,13 @@ The command handles:
 - Networks not found in `config/networks.json` (warn but continue)
 - Networks not found in `foundry.toml` (warn but continue)
 - Networks not found in `script/deploy/_targetState.json` (skip silently, not an error)
-- Deployment files that don't exist (skip silently)
+- Deployment files that don't exist (warn and continue, then process the remaining files)
 - Invalid JSON structure (error and abort)
 - Invalid TOML structure (error and abort)
 - File system errors (error and report)
 - Partial failures (continue with remaining networks, report all errors at end)
-- Whitelist update command failures (warn but don't abort - network deprecation is already complete)
-- Remaining occurrences search: Exclude generated directories, group by file, show context
+- Malformed `config/whitelist.json` after hand-editing, or a non-zero additions column in `git diff --numstat` (error and abort - the file must be restored before continuing)
+- Remaining occurrences search: `git grep -inw` over tracked files only, group by file, show context
 - User review of remaining occurrences: Wait for user input before removing additional files
 
 ## Safety Features
