@@ -223,13 +223,16 @@ describe('classifyCron — periods longer than the buckets', () => {
     expect(result.kind).toBe('unclassifiable')
   })
 
-  it.each(['29', '30', '31'])(
-    'refuses day-of-month %s, which shorter months skip',
+  it.each(['0', '29', '30', '31', '032'])(
+    'refuses day-of-month %s, which is outside the 1-28 range',
     (dayOfMonth) => {
       // '0 0 31 * *' goes 61 days from March 31 to May 31, so the monthly grace
-      // window would alert on a schedule running exactly as declared.
+      // window (46.6d) would alert on a schedule running exactly as declared.
       const result = classifyCron(`0 0 ${dayOfMonth} * *`)
-      expect(result.kind).toBe('unclassifiable')
+      expect(result).toEqual({
+        kind: 'unclassifiable',
+        reason: expect.stringContaining(`day-of-month '${dayOfMonth}'`),
+      })
     }
   )
 
