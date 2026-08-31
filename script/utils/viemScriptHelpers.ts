@@ -123,22 +123,6 @@ export const buildExplorerAddressUrl = (
 }
 
 /**
- * Returns true when `url`'s host is `domain` itself or a subdomain of it.
- *
- * Compares parsed host labels rather than substrings, so a lookalike host such as
- * `oklink.com.example.org` does not match.
- */
-const isHostOrSubdomainOf = (url: string, domain: string): boolean => {
-  let host: string
-  try {
-    host = new URL(url).hostname.toLowerCase()
-  } catch {
-    return false
-  }
-  return host === domain || host.endsWith(`.${domain}`)
-}
-
-/**
  * Builds a block explorer URL that links directly to the contract/code page
  * for a given network and address.
  *
@@ -167,12 +151,12 @@ export const buildExplorerContractPageUrl = (
   const addressUrl = buildExplorerAddressUrl(networkId, address)
   if (!addressUrl) return undefined
 
-  // OKLink contract pages live under /address/<address>/contract. Keyed off the
-  // explorer host, not verificationType — xlayer's explorer is OKLink even when
-  // verificationType is etherscan.
-  if (isHostOrSubdomainOf(base, 'oklink.com')) return `${addressUrl}/contract`
-
   switch (network.verificationType) {
+    // OKLink contract pages live under /address/<address>/contract
+    case 'oklink': {
+      return `${addressUrl}/contract`
+    }
+
     // Blockscout v2 contract tab is ?tab=contract. Older instances still use #code.
     case 'blockscout': {
       if (
