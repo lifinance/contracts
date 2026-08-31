@@ -141,8 +141,8 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x23Fc1b73e66Cd13e988170CB94e252Cb7FF88185": {
-        "Name": "SymbiosisFacet",
+      "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
+        "Name": "FraxFacet",
         "Version": "1.0.0"
       },
       "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {

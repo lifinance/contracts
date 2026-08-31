@@ -19,6 +19,7 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import {
   formatEther,
+  formatUnits,
   getAddress,
   getContract,
   parseAbi,
@@ -42,7 +43,8 @@ import {
   cachedSourceContractNames,
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
-import { SAFE_THRESHOLD } from './shared/constants'
+import type { IParkedTask } from './safe/parked-tasks'
+import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
   getFacetPeripheryCouplings,
@@ -66,6 +68,25 @@ import {
 
 /** Severity of a failed invariant: `error` fails the run (exit 1); `warning` is reported but non-fatal. */
 export type HealthCheckSeverity = 'error' | 'warning'
+
+/**
+ * How long a claimed-but-unproposed parked task may sit before it stops counting as
+ * coverage. Signing and executing a removal proposal takes at most ~48h in practice, so a
+ * claim with no linked proposal past a week is not slow — it is a drain that died between
+ * `claimForProposal` and `linkToProposal`, and no unattended job recovers it: the drain
+ * only claims `queued`, `reconcileDecision` returns `keep` without a linked proposal, and
+ * `repair-orphaned-parked-tasks.ts` skips it for manual review.
+ */
+export const STALE_PARKED_CLAIM_DAYS = 7
+
+/** The fields of an open parked task that coverage decisions read. */
+export type IOpenParkedCoverage = Pick<
+  IParkedTask,
+  'prUrl' | 'status' | 'createdAt' | 'proposedAt' | 'safeTxHash'
+>
+
+/** Network (lowercased) → lowercased facet address → the open task covering it. */
+export type OpenParkedByNetwork = Map<string, Map<string, IOpenParkedCoverage>>
 
 /** Coarse applicability gate for an invariant; finer branching lives inside `run()`. */
 export interface IHealthCheckScope {
@@ -107,7 +128,16 @@ export interface IHealthCheckContext {
   deployedContracts: Record<string, Address | string>
   globalConfig: IHealthCheckGlobalConfig
   targetState: TargetState
-  networkConfig: { rpcUrl?: string; safeAddress?: string }
+  networkConfig: {
+    rpcUrl?: string
+    safeAddress?: string
+    /** `"N/A"` marks a chain with no native asset, where `eth_getBalance` is not the gas balance. */
+    nativeCurrency?: string
+    /** Chain-default ERC20 gas token on such a chain (tempo's pathUSD). */
+    feeTokenAddress?: string
+    /** Predeploy resolving a per-account fee-token preference that overrides the default. */
+    feeManagerAddress?: string
+  }
   publicClient?: PublicClient
   tronWeb?: TronWeb
   tronRpcUrl?: string
@@ -135,6 +165,12 @@ export interface IHealthCheckContext {
    * address. Optional because tests build partial contexts; absent simply means uncached reads.
    */
   peripheryRegistryCache?: Map<string, Promise<string | null>>
+  /**
+   * Open parked-removal coverage (network → lowercased facet address → task). Undefined =
+   * fetch from the parked-task queue (the default); injectable so the queue-aware invariants
+   * are testable without a MongoDB connection.
+   */
+  openParkedRemovals?: OpenParkedByNetwork | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -330,6 +366,56 @@ export function getExemptCoreFacets(
 }
 
 /**
+ * A core periphery contract that cannot exist on some chains, together with those chains.
+ * The periphery counterpart of {@link ICoreFacetExemption}, and preferred over an
+ * {@link IInvariantExclusion} for the same reason: excluding `core-periphery-deployed` on a
+ * network would stop asserting ERC20Proxy, Executor, FeeForwarder and the rest there, whereas
+ * this drops one contract from the expected set and leaves everything else enforced.
+ *
+ * Unlike the facet table this is not always a shrinking to-do — an entry can be permanent when
+ * the chain makes the contract meaningless (nothing to wrap on a chain with no native asset).
+ */
+export interface ICorePeripheryExemption {
+  /** Periphery name as listed in `config/global.json` → `corePeriphery`. */
+  contract: string
+  /** Why these networks are exempt, including the ticket that documents the decision. */
+  reason: string
+  /** Network keys (as in config/networks.json) the contract is not expected on. */
+  networks: string[]
+}
+
+/**
+ * Per-network core-periphery exemptions. See {@link ICorePeripheryExemption}.
+ *
+ * Validated in `healthCheckInvariants.test.ts` the same way as the facet table: the contract
+ * must really be in `corePeriphery`, every network must exist in `config/networks.json`, and
+ * the reason must be non-empty.
+ */
+export const CORE_PERIPHERY_EXEMPTIONS: ICorePeripheryExemption[] = [
+  {
+    contract: 'TokenWrapper',
+    reason:
+      'TokenWrapper wraps a chain native asset into its ERC20 form. Arc has no activated native path (gas is USDC via the ERC20 predeploy) and tempo has no native asset at all (gas is paid in TIP-20 fee tokens), so on both chains there is nothing to wrap and the contract is intentionally never deployed (EXSC-786).',
+    networks: ['arc', 'tempo'],
+  },
+]
+
+/**
+ * Core periphery contracts the given network is exempt from, with the reason for each. Pure;
+ * network match is case-insensitive. A network absent from every entry gets an empty list, so
+ * new chains are enforced by default.
+ */
+export function getExemptCorePeriphery(
+  network: string,
+  exemptions: ICorePeripheryExemption[] = CORE_PERIPHERY_EXEMPTIONS
+): Array<{ contract: string; reason: string }> {
+  const networkLower = network.toLowerCase()
+  return exemptions
+    .filter((e) => e.networks.some((n) => n.toLowerCase() === networkLower))
+    .map((e) => ({ contract: e.contract, reason: e.reason }))
+}
+
+/**
  * Decide whether an invariant applies to the given context. Pure: depends only on the
  * invariant scope and the environment/chain/testnet/gaszip flags in the context.
  */
@@ -393,6 +479,53 @@ const OWNABLE_ABI = parseAbi([
 
 const getOwnableContract = (address: Address, client: PublicClient) =>
   getContract({ address, abi: OWNABLE_ABI, client })
+
+const ERC20_BALANCE_ABI = parseAbi([
+  'function balanceOf(address account) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+])
+
+const FEE_MANAGER_ABI = parseAbi([
+  'function userTokens(address account) external view returns (address)',
+])
+
+const NO_GAS_BALANCE_SOURCE = 'noGasBalanceSource'
+
+/**
+ * The ERC20 token the pauser would actually pay gas with; `undefined` when the chain uses standard
+ * native accounting, `NO_GAS_BALANCE_SOURCE` when no gas balance can be read at all.
+ *
+ * The discriminator is `nativeCurrency: "N/A"` — deliberately NOT "gas is paid in a token".
+ * Chains like arc, celo and metis expose an ERC20 gas asset but keep standard EVM accounting,
+ * where `eth_getBalance` IS the gas balance; only a chain with no native asset at all decouples
+ * the two. On such a chain the account may override the chain-default `feeTokenAddress` through a
+ * FeeManager predeploy, so that preference wins where it is set. Mirrors the resolution order in
+ * `script/utils/checkPauserFunds.sh`, which owns the stronger affordability check.
+ *
+ * A no-native-asset chain with no fee token configured yields `NO_GAS_BALANCE_SOURCE` rather than
+ * falling through: its native balance is a sentinel, so reading it would report any pauser as
+ * funded. Nothing can be asserted there, and the caller has to say so instead of passing.
+ */
+async function resolvePauserFeeToken(
+  ctx: IHealthCheckContext
+): Promise<Address | typeof NO_GAS_BALANCE_SOURCE | undefined> {
+  const { nativeCurrency, feeTokenAddress, feeManagerAddress } =
+    ctx.networkConfig
+  if (nativeCurrency !== 'N/A' || !ctx.publicClient) return undefined
+  if (!feeTokenAddress) return NO_GAS_BALANCE_SOURCE
+
+  let feeToken = getAddress(feeTokenAddress)
+  if (feeManagerAddress) {
+    const userToken = await getContract({
+      address: getAddress(feeManagerAddress),
+      abi: FEE_MANAGER_ABI,
+      client: ctx.publicClient,
+    }).read.userTokens([ctx.pauserWallet as Address])
+    if (userToken && userToken !== zeroAddress) feeToken = getAddress(userToken)
+  }
+  return feeToken
+}
 
 /**
  * Assert an EVM contract's `owner()` equals `expectedOwner`. No-op when the contract is
@@ -1148,8 +1281,37 @@ export function findDeprecatedLiveFacets(params: {
 }
 
 /**
- * Splits deprecated-but-routed facets into the ones an open parked task actually
- * covers and the ones nothing is tracking.
+ * Whether a parked task has stopped being live coverage.
+ *
+ * A `queued` task is always live — the next drain claims it. A `proposed` task with a
+ * linked `safeTxHash` is live too: a real Safe proposal exists, and `reconcile` resolves it
+ * once that proposal executes or reverts. A `proposed` task with NO `safeTxHash` is the dead
+ * end (see {@link STALE_PARKED_CLAIM_DAYS}) — tolerated briefly, because a drain legitimately
+ * holds that state for the seconds between claiming and linking.
+ *
+ * @param task - The open task covering the facet address.
+ * @param now - Evaluation instant (injected so the bound is testable).
+ */
+export function isStalledParkedClaim(
+  task: IOpenParkedCoverage,
+  now: Date = new Date()
+): boolean {
+  if (task.status !== 'proposed') return false
+  if (task.safeTxHash) return false
+  const claimedAt = new Date(task.proposedAt ?? task.createdAt).getTime()
+  const days = (now.getTime() - claimedAt) / DAY_MS
+  return days >= STALE_PARKED_CLAIM_DAYS
+}
+
+/** Whole-day age of a queue timestamp, for operator-facing lines (`unknown` if absent). */
+function formatDaysAgo(at: Date | undefined, now: Date = new Date()): string {
+  if (!at) return 'unknown'
+  const days = Math.floor((now.getTime() - new Date(at).getTime()) / DAY_MS)
+  return `${days}d ago`
+}
+
+/**
+ * Splits deprecated-but-routed facets by whether a *live* open parked task covers them.
  *
  * Coverage is matched by ADDRESS, like the drain and the reconcile. A name maps to
  * exactly one deploy-log address, so a task whose address is not the stale facet
@@ -1157,25 +1319,71 @@ export function findDeprecatedLiveFacets(params: {
  * silence this backstop for the very facet it exists to surface (two co-registered
  * versions under one name, EXSC-750/EXSC-775).
  *
+ * Existence of a task is not coverage: a stalled claim is unreachable by every unattended
+ * job, so counting it would keep this check green forever while the facet stays routed
+ * (mantle GenericSwapFacet sat `proposed` with no proposal for 29 days, EXSC-867).
+ *
  * @param deprecated - Deprecated facets the loupe still routes.
- * @param openParkedAddresses - Lowercased `facetAddress` of every open parked task.
- * @returns The covered (`parked`) and uncovered (`unparked`) partitions.
+ * @param openParked - Lowercased `facetAddress` → open task, for this network.
+ * @param now - Evaluation instant, forwarded to {@link isStalledParkedClaim}.
+ * @returns `live` (covered, progressing), `stalled` (covered by a dead-end claim) and
+ *   `unparked` (nothing tracking them) partitions.
  */
 export function splitByParkedCoverage(
   deprecated: IFacetRemoval[],
-  openParkedAddresses: Set<string>
-): { parked: IFacetRemoval[]; unparked: IFacetRemoval[] } {
-  const isParked = (facet: IFacetRemoval): boolean =>
-    openParkedAddresses.has(facet.address.toLowerCase())
-  return {
-    parked: deprecated.filter(isParked),
-    unparked: deprecated.filter((f) => !isParked(f)),
+  openParked: Map<string, IOpenParkedCoverage>,
+  now: Date = new Date()
+): {
+  live: IFacetRemoval[]
+  stalled: IFacetRemoval[]
+  unparked: IFacetRemoval[]
+} {
+  const live: IFacetRemoval[] = []
+  const stalled: IFacetRemoval[] = []
+  const unparked: IFacetRemoval[] = []
+  for (const facet of deprecated) {
+    const task = openParked.get(facet.address.toLowerCase())
+    if (!task) unparked.push(facet)
+    else if (isStalledParkedClaim(task, now)) stalled.push(facet)
+    else live.push(facet)
   }
+  return { live, stalled, unparked }
+}
+
+/**
+ * Groups open parked tasks by network and facet address for coverage lookups.
+ *
+ * Two open tasks CAN share one address: the open-status unique index is on `taskKey`, and
+ * a legacy name-keyed row does not collide with the address-keyed key `computeTaskKey`
+ * mints today (mantle still carries such a row). Collapsing them therefore has to fail
+ * **closed** — a stalled claim, once seen, is never replaced by a livelier sibling, which
+ * would otherwise mask it and re-open exactly the gap this coverage check exists to close.
+ * The result must not depend on the order the queue returned the tasks in.
+ *
+ * @param tasks - Open (`queued`/`proposed`) tasks, in any order.
+ * @returns Network (lowercased) → lowercased facet address → the task that governs coverage.
+ */
+export function collapseOpenParkedTasks(
+  tasks: readonly (IOpenParkedCoverage &
+    Pick<IParkedTask, 'network' | 'facetAddress'>)[],
+  now: Date = new Date()
+): OpenParkedByNetwork {
+  const byNetwork: OpenParkedByNetwork = new Map()
+  for (const task of tasks) {
+    const map =
+      byNetwork.get(task.network) ?? new Map<string, IOpenParkedCoverage>()
+    const address = task.facetAddress.toLowerCase()
+    const existing = map.get(address)
+    if (!existing || !isStalledParkedClaim(existing, now))
+      map.set(address, task)
+    byNetwork.set(task.network, map)
+  }
+  return byNetwork
 }
 
 /**
  * Open parked tasks fleet-wide, fetched once per process and grouped by network
- * (lowercased `facetAddress` sets). The health check evaluates dozens of networks
+ * (lowercased `facetAddress` → PR URL maps). The health check evaluates dozens of networks
  * concurrently in one process, and a Mongo connect/index-check/teardown per stale
  * network would hammer the shared cluster; one shared read serves them all.
  * A failed fetch degrades that network to a coverage warning instead of a false
@@ -1184,10 +1392,10 @@ export function splitByParkedCoverage(
  * failing promise, so a hard outage costs at most one attempt per network.
  */
 let openParkedByNetworkPromise:
-  | Promise<Map<string, Set<string>> | { unreachable: string }>
+  | Promise<OpenParkedByNetwork | { unreachable: string }>
   | undefined
 function fetchOpenParkedAddressesByNetwork(): Promise<
-  Map<string, Set<string>> | { unreachable: string }
+  OpenParkedByNetwork | { unreachable: string }
 > {
   return (openParkedByNetworkPromise ??= (async () => {
     try {
@@ -1199,13 +1407,7 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
           environment: EnvironmentEnum.production,
           status: OPEN_STATUSES,
         })
-        const byNetwork = new Map<string, Set<string>>()
-        for (const task of open) {
-          const set = byNetwork.get(task.network) ?? new Set<string>()
-          set.add(task.facetAddress.toLowerCase())
-          byNetwork.set(task.network, set)
-        }
-        return byNetwork
+        return collapseOpenParkedTasks(open)
       } finally {
         await client.close()
       }
@@ -1369,6 +1571,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         peripheryToCheck = peripheryToCheck.filter(
           (contract) => contract !== 'LiFiTimelockController'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      peripheryToCheck = peripheryToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       for (const contract of peripheryToCheck)
         await checkAndLogDeployment(contract, ctx, 'Periphery contract')
@@ -1568,6 +1774,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         contractsToCheck = contractsToCheck.filter(
           (contract) => contract !== 'GasZipPeriphery'
         )
+      const exemptPeriphery = getExemptCorePeriphery(ctx.networkLower)
+      contractsToCheck = contractsToCheck.filter(
+        (contract) => !exemptPeriphery.some((e) => e.contract === contract)
+      )
 
       if (contractsToCheck.length === 0) return
 
@@ -1678,7 +1888,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // that can only ever return the zero address. Matching on `includes` mirrors
       // deriveNonCoreFacets and catches the packed/versioned variants; no periphery name contains
       // "Facet".
+      // The timelock is the diamond's owner, not a contract the diamond calls: every consumer
+      // reads its address from the deploy log, and diamond-owner validates that against
+      // owner(). A registry entry for it is therefore not an address anything resolves.
+      // periphery-registered skips it for the same reason.
       const notPeriphery = (name: string): boolean =>
+        name === 'LiFiTimelockController' ||
         name.includes('Facet') ||
         name.startsWith('LiFiDiamond') ||
         ctx.coreFacetsToCheck.includes(name) ||
@@ -2123,14 +2338,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     // run. This lightweight floor closes both: it runs on Tron and at deploy time (the sweep's
     // push trigger), while the readiness workflow remains the authoritative affordability gate.
     name: 'pauser-funded',
-    description: 'Pauser wallet has a non-zero native balance',
+    description: 'Pauser wallet has a non-zero gas balance',
     severity: 'error',
     // skipTestnet: the two coverage gaps this closes are both mainnet (Tron mainnet pauser +
     // freshly deployed EVM mainnet pausers); testnet pausers (incl. the localanvil smoke-test
     // sandbox, whose pauser is unfunded) are not a production readiness invariant.
     scope: { environments: ['production'], skipTestnet: true },
     remediation:
-      'Fund the pauser wallet with native gas so it can broadcast pauseDiamond() in an incident.',
+      'Fund the pauser wallet with the gas asset of that chain (its fee token where the chain has no native asset) so it can broadcast pauseDiamond() in an incident.',
     run: async (ctx) => {
       if (ctx.isTron && ctx.tronWeb) {
         const pauserTronAddress = ensureTronAddress(
@@ -2150,6 +2365,43 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!ctx.publicClient) return
+
+      // A chain with no native asset decouples eth_getBalance from the gas balance: tempo
+      // answers it with a sentinel (4242…4242), which reads as "funded" no matter how much
+      // gas the pauser can actually pay for. Read the ERC20 fee token instead, matching the
+      // discriminator and the preference hierarchy in script/utils/checkPauserFunds.sh.
+      const feeToken = await resolvePauserFeeToken(ctx)
+      if (feeToken === NO_GAS_BALANCE_SOURCE) {
+        ctx.logWarn(
+          `${ctx.networkLower} has no native asset and no feeTokenAddress in config/networks.json, so the pauser's gas balance cannot be read; coverage is reduced`
+        )
+        return
+      }
+      if (feeToken) {
+        const token = getContract({
+          address: feeToken,
+          abi: ERC20_BALANCE_ABI,
+          client: ctx.publicClient,
+        })
+        const [rawBalance, decimals, symbol] = await Promise.all([
+          token.read.balanceOf([ctx.pauserWallet as Address]),
+          token.read.decimals(),
+          token.read.symbol(),
+        ])
+        if (!rawBalance)
+          ctx.logError(
+            `Pauser wallet ${ctx.pauserWallet} has no ${symbol} (${feeToken}) balance, and ${ctx.networkLower} pays gas in that fee token`
+          )
+        else
+          consola.success(
+            `Pauser wallet ${ctx.pauserWallet} is funded: ${formatUnits(
+              rawBalance,
+              decimals
+            )} ${symbol} (fee token ${feeToken})`
+          )
+        return
+      }
+
       const balance = await ctx.publicClient.getBalance({
         address: ctx.pauserWallet as Address,
       })
@@ -2275,47 +2527,85 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const knownAddresses = new Set(
         Object.values(ctx.deployedContracts).map((a) => String(a).toLowerCase())
       )
+      const unlogged = ctx.onChainFacets.filter(
+        (facet) => !knownAddresses.has(facet.address.toLowerCase())
+      )
+      if (unlogged.length === 0) {
+        consola.success('All on-chain facets are known deployed contracts')
+        return
+      }
+      // A facet pruned from the deploy log at park time is still routed until its
+      // removal executes; an open parked task covering the address makes it
+      // expected-pending, not rogue. The queue is a production-mainnet construct
+      // (see no-stale-registered-facets), and an unreachable queue must not
+      // suppress the warning — degrade to reporting as if nothing were covered.
+      let parkedRemovals = new Map<string, IOpenParkedCoverage>()
+      if (ctx.environment === 'production' && !ctx.isTestnet) {
+        const openParked =
+          ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
+        if ('unreachable' in openParked)
+          consola.info(
+            `Parked-task queue unreachable — expected-pending downgrade skipped, unlogged facets warn as-is: ${openParked.unreachable}`
+          )
+        else parkedRemovals = openParked.get(ctx.networkLower) ?? parkedRemovals
+      }
       const compiledSelectors =
         ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
-      let unexpected = 0
-      for (const facet of ctx.onChainFacets)
-        if (!knownAddresses.has(facet.address.toLowerCase())) {
-          unexpected++
-          const identified = identifyFacetBySelectorSet(
-            facet.selectors,
-            compiledSelectors
+      for (const facet of unlogged) {
+        const parked = parkedRemovals.get(facet.address.toLowerCase())
+        if (parked && !isStalledParkedClaim(parked)) {
+          consola.info(
+            `Facet ${facet.address} is routed on-chain but pruned from the deploy log — expected-pending: parked removal (PR ${parked.prUrl})`
           )
-          if (identified)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
-            )
-          // Without build output there is nothing to match against, so say that rather than
-          // reporting an identity check that never ran.
-          else if (Object.keys(compiledSelectors).length === 0)
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
-            )
-          else
-            ctx.logWarn(
-              `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
-            )
+          continue
         }
-      if (unexpected === 0)
-        consola.success('All on-chain facets are known deployed contracts')
+        // A pruned entry is licensed by an OPEN task, and once that task stalls this is the
+        // only invariant left watching the facet: `no-stale-registered-facets` resolves
+        // names through the deploy log, so it cannot see an address the log no longer
+        // carries. Downgrading on a dead claim here would hide the facet in both.
+        if (parked) {
+          ctx.logWarn(
+            `Facet ${facet.address} is routed on-chain and pruned from the deploy log, but its parked removal (PR ${parked.prUrl}) has been claimed with no Safe proposal for >=${STALE_PARKED_CLAIM_DAYS}d — the prune was licensed by a task that is no longer progressing`
+          )
+          continue
+        }
+        const identified = identifyFacetBySelectorSet(
+          facet.selectors,
+          compiledSelectors
+        )
+        if (identified)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log; its selectors match ${identified} - confirm whether this is the current build before recording it in deployments/${ctx.networkLower}.json, since a superseded deployment can still match`
+          )
+        // Without build output there is nothing to match against, so say that rather than
+        // reporting an identity check that never ran.
+        else if (Object.keys(compiledSelectors).length === 0)
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log (no build output available to identify it - run 'forge build')`
+          )
+        else
+          ctx.logWarn(
+            `Facet ${facet.address} is registered on-chain but absent from the deploy log, and no compiled selector set identifies it (unexpected/rogue facet, or a retired contract whose source is gone)`
+          )
+      }
     },
   },
   {
     name: 'no-stale-registered-facets',
     description:
-      'Deprecated facets still routed on-chain are covered by an open parked-removal task',
-    severity: 'warning',
+      'Deprecated facets still routed on-chain are covered by a LIVE open parked-removal task',
+    severity: 'error',
     // skipTestnet: the parked queue is a production-mainnet construct — testnet
     // diamonds are EOA-owned and clean up directly, so queue coverage is
-    // meaningless there and the warning would never resolve.
+    // meaningless there and the warning would never resolve. Dropping the flag
+    // would not extend the check to testnets anyway: no testnet has a
+    // `production` target-state entry, so `getExpectedFacetNames` returns
+    // undefined and the run below early-returns. Covering testnets means giving
+    // them target state first (EXSC-868), not relaxing this scope.
     scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
-      'Enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>` (docs/DeferredDiamondCleanupQueue.md).',
+      'No task: enqueue the removal (script/deploy/safe/enqueue-parked-task.ts, with the deprecation PR URL) or run `cleanUpProdDiamond --auto --network <network>`. Stalled claim: the task is `proposed` with no Safe proposal and no unattended job can move it — it needs `revertToQueued` before a drain will re-claim it, and no operator CLI ships that yet (EXSC-715), so escalate to the SC on-call rather than hand-editing the queue. Do NOT re-enqueue: an address-keyed task is refused by the dedup gate, and a legacy name-keyed one is NOT — it would silently open a second task for the same address. Do NOT cancel (that abandons a live deprecation). See docs/DeferredDiamondCleanupQueue.md.',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -2357,7 +2647,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // nothing the drain would actually remove — counting it as coverage would
       // silence this backstop for the very facet it exists to surface
       // (co-registered versions, EXSC-750/EXSC-775).
-      const openParked = await fetchOpenParkedAddressesByNetwork()
+      const openParked =
+        ctx.openParkedRemovals ?? (await fetchOpenParkedAddressesByNetwork())
       if ('unreachable' in openParked) {
         // An unreachable queue must not turn every parked removal into a false
         // alarm — surface the reduced coverage instead of guessing.
@@ -2366,34 +2657,48 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         return
       }
-      const openParkedAddresses =
-        openParked.get(ctx.networkLower) ?? new Set<string>()
+      const openForNetwork =
+        openParked.get(ctx.networkLower) ??
+        new Map<string, IOpenParkedCoverage>()
 
-      const { parked, unparked } = splitByParkedCoverage(
+      const { live, stalled, unparked } = splitByParkedCoverage(
         deprecated,
-        openParkedAddresses
+        openForNetwork
       )
-      if (parked.length > 0)
+      if (live.length > 0)
         consola.info(
           `${
-            parked.length
-          } deprecated facet(s) awaiting their parked removal (expected-pending): ${parked
+            live.length
+          } deprecated facet(s) awaiting their parked removal (expected-pending): ${live
             .map((f) => f.name)
             .join(', ')}`
         )
-      // One aggregated warning per network, not one per facet: the fleet-wide
+      // One aggregated line per network per class, not one per facet: the fleet-wide
       // backlog is large enough that per-facet lines would drown the report.
+      if (stalled.length > 0)
+        ctx.logError(
+          `${
+            stalled.length
+          } deprecated facet(s) still routed behind a STALLED parked claim (\`proposed\` with no Safe proposal for >=${STALE_PARKED_CLAIM_DAYS}d — no drain or reconcile will move it): ${stalled
+            .map((f) => {
+              const task = openForNetwork.get(f.address.toLowerCase())
+              return `${f.name} (${f.address}, claimed ${formatDaysAgo(
+                task?.proposedAt ?? task?.createdAt
+              )}, PR ${task?.prUrl ?? 'unknown'})`
+            })
+            .join(', ')}`
+        )
       if (unparked.length > 0)
-        ctx.logWarn(
+        ctx.logError(
           `${
             unparked.length
           } deprecated facet(s) still routed with NO open parked-removal task: ${unparked
             .map((f) => `${f.name} (${f.address})`)
             .join(', ')}`
         )
-      else
+      if (stalled.length === 0 && unparked.length === 0)
         consola.success(
-          'All stale registered facets are covered by parked removals'
+          'All stale registered facets are covered by live parked removals'
         )
     },
   },

@@ -64,6 +64,10 @@
       "0xF4a0f420Ce1c2FFf450f0EF713b419B7DF7E7b2E": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0xB66f5141CCd376e1D0B2D13165B7860DcC8c675D": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -80,7 +84,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "",
+      "ReceiverOIF": "0xE0Eb8b68489C0A08dFD9c7D3E371C14d1e37a904",
       "ReceiverStargateV2": "0x400410ce3632789c0eEDd050b10F61e20dF21970",
       "TokenWrapper": "0x16a43D7db650c2B4D40484e4Ef29ab54B934A1C9"
     }

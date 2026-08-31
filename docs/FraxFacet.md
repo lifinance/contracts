@@ -188,13 +188,23 @@ hop mesh (confirmed by the Frax team on PR #2048). Do not re-add them.
 > change the Arbitrum staging diamond still has `mode` (34443) and `scroll` (534352) seeded
 > from the pre-deprecation config and needs the removal call.
 
-**Source-only chains.** Some networks have a live HopV2 spoke (so FraxFacet can be
-deployed there and bridge **out**) but no `mappings` entry, which makes them unusable as a
-**destination** — currently `katana`, `somnia`, `stable` and `tempo`. Tempo is the notable
-one: the full TIP20 source path is implemented, yet `destinationChainId == 4217` reverts
-`UnsupportedChainId` until a mapping is added. This is launch scoping, resolved together
-with the BE integration (EXP-514); add the entries with `setFraxChainIdToEid` when those
-destinations go live.
+**Propagating a new destination.** A chain added to `mappings` only becomes routable on
+diamonds that are seeded with it: `initFrax` runs once, as the init call of the facet's
+first `diamondCut` on a chain, so a mapping added afterwards never reaches an already-live
+diamond. Propagate it to every chain where `FraxFacet` is deployed with
+
+```bash
+bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
+```
+
+which diffs config against each diamond's storage and proposes a timelock-wrapped
+`setFraxChainIdToEid` only where an entry is missing or stale. `--dryRun` previews the
+diff without proposing.
+
+> Re-run only once the scheduled ops have **executed**. The diff is read from diamond
+> storage, which a merely scheduled timelock op has not yet changed, and each proposal
+> carries a fresh salt — so re-running during the delay window re-proposes the same
+> mappings and burns a Safe nonce on every chain.
 
 ## Tempo (EndpointV2Alt) special case
 

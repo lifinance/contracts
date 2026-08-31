@@ -18,6 +18,10 @@ paths:
 - **Restore after each test**: when stubbing globals (e.g. `globalThis.fetch`), save the original in `beforeEach`/`beforeAll` and restore it in `afterEach`/`afterAll` to avoid cross-test pollution.
 - Prefer true unit tests that isolate the code under test; use mocks for any outbound calls (fetch, contract calls, file system if needed) so failures reflect logic bugs, not environment or network issues.
 
+## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
+
+- **Never assert rejections via `expect(...).rejects`** — awaiting Bun's matcher trips `@typescript-eslint/await-thenable` because it isn't a real Promise. Use a local `async function expectRejects(promise, match)` that catches and matches the error message, as in `script/deploy/safe/parked-tasks.test.ts`.
+
 ## Post-Change Actions
 
 - After TS test changes, run Bun tests (or state which suites remain).
