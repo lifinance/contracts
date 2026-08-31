@@ -1,5 +1,5 @@
 /**
- * Production deploy gate for `script/deploy/deployUpgradesToSAFE.sh`.
+ * Production deploy gate for `script/tasks/diamondUpdateFacet.sh`.
  *
  * Staging is always allowed. Production from `main` is always allowed. Production
  * from any other branch may proceed only when each selected facet matches `main`,

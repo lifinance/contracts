@@ -123,6 +123,17 @@ diamondUpdateFacet() {
     SHOULD_PROPOSE_TO_SAFE=true
   fi
 
+  # anything that is not exactly "staging" reaches the production private key via
+  # getPrivateKey's else branch, so the gate has to run for those values too
+  if [[ "$ENVIRONMENT" != "staging" ]]; then
+    local GIT_BRANCH=$(git branch --show-current)
+    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$CONTRACT_NAME"; then
+      error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
+      return 1
+    fi
+    echo "[info] production deploy gate passed"
+  fi
+
   # update diamond with new facet address (remove/replace of existing selectors happens in update script)
   attempts=1
   while [ $attempts -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do

@@ -526,14 +526,21 @@ describe('getContractVersion under the tsx runtime', () => {
   })
 })
 
-describe('deployUpgradesToSAFE gate condition', () => {
+describe('diamondUpdateFacet gate condition', () => {
   // getPrivateKey only treats *staging* as staging, so any other value - including a
   // typo like "prod" - reaches the production key. The gate must run for those too.
-  const condition = readFileSync(
-    join(import.meta.dir, '..', 'deployUpgradesToSAFE.sh'),
+  // Anchored on the gate's own invocation and walked backwards, because the host
+  // script carries other `$ENVIRONMENT` conditions that a first-match scan picks up.
+  const lines = readFileSync(
+    join(import.meta.dir, '..', '..', 'tasks', 'diamondUpdateFacet.sh'),
     'utf8'
+  ).split('\n')
+  const gateIndex = lines.findIndex((line) =>
+    line.includes('verify-approvals.ts')
   )
-    .split('\n')
+  const condition = lines
+    .slice(0, gateIndex)
+    .reverse()
     .find((line) => line.includes('$ENVIRONMENT') && line.includes('if [['))
 
   it('extracts the gate condition from the shell script', () => {
