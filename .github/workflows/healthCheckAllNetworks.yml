@@ -226,5 +226,5 @@ jobs:
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+              "text": ${{ toJSON(steps.status_msg.outputs.text || format(':rotating_light: *Diamond health check — ACTION NEEDED* — unknown (runner error): the status composer produced no message. <{0}/{1}/actions/runs/{2}|View workflow run>', github.server_url, github.repository, github.run_id)) }}
             }
