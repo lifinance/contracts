@@ -103,8 +103,19 @@ export function classifyCron(expression: string): TCronClassification {
   if (isPlainInteger(dayOfWeek))
     return { kind: 'weekly', intervalMs: 7 * DAY_MS }
 
-  if (isPlainInteger(dayOfMonth))
+  if (isPlainInteger(dayOfMonth)) {
+    // Days 29-31 are skipped by the months too short to contain them, so
+    // '0 0 31 * *' can go 61 days between runs (Mar 31 to May 31) - past the
+    // monthly grace window, which would alert on a schedule running exactly as
+    // declared.
+    if (Number(dayOfMonth) > 28)
+      return {
+        kind: 'unclassifiable',
+        reason: `day-of-month '${dayOfMonth}' is skipped by shorter months, so the gap between runs is not a fixed month`,
+      }
+
     return { kind: 'monthly', intervalMs: 31 * DAY_MS }
+  }
 
   if (isPlainInteger(hour)) return { kind: 'daily', intervalMs: DAY_MS }
 
