@@ -217,7 +217,8 @@ verifyClearSigning.yml (BLOCKING):
 syncLedgerClearSigning.yml (push to main / monthly cron / manual dispatch):
   - runs generateLedgerClearSigning.ts
     - regenerates context.contract.abi from facet artifacts
-    - regenerates context.contract.deployments from deployments/*
+    - regenerates context.contract.deployments from deployments/* (all active
+      networks, testnets included)
     - merges display.formats from config/clearSigningProposal.json
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs

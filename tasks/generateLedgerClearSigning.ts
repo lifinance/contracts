@@ -64,7 +64,6 @@ interface IFoundryArtifact {
 interface INetworkConfig {
   chainId: number
   status?: string
-  type?: string
 }
 
 interface IClearSigningProposal {
@@ -305,9 +304,9 @@ function buildDeploymentsFromRepo(
     const cfg = networks[networkName]
     if (!cfg) continue
 
-    // Ledger file targets production deployments; ignore testnets/inactive networks
+    // Deprecated networks stay out: their diamonds are frozen at a facet set we no
+    // longer track, so the ABI regenerated here would not describe them
     if (cfg.status && cfg.status !== 'active') continue
-    if (cfg.type && cfg.type !== 'mainnet') continue
 
     const deploymentPath = path.resolve(deploymentsDir, file)
     const data = readJsonFile<Record<string, unknown>>(deploymentPath)
