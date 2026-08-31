@@ -2401,6 +2401,15 @@ function verifyContract() {
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
 
+    # Some explorers (Kaiascan, Sourcify, Blockscout) print a success line and
+    # then exit 1 because --watch has nothing etherscan-shaped to poll. Treat
+    # the success text as authoritative so we do not retry a completed verify.
+    if echo "$VERIFY_OUTPUT" | grep -qE \
+      "is already verified|Contract source code already verified|Contract successfully verified|Pass - Verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified"
+      return 0
+    fi
+
     # Check if command failed with non-zero exit code
     if [ $VERIFY_EXIT_CODE -ne 0 ]; then
       # Check for specific error types that should trigger retry with longer delay
