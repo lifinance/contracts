@@ -47,18 +47,21 @@ export class EvmChainExecutor implements IChainExecutor {
 
     // eth_estimateGas can under-count the Safe post-call overhead (ExecutionSuccess
     // event, refund logic), causing OOG reverts on chains with tight simulation vs.
-    // execution deltas (e.g. Jovay). On some chains eth_estimateGas also fails
-    // outright even when the call would succeed on-chain — getGasWithFallback
-    // applies GAS_ESTIMATE_MULTIPLIER and falls back to a fixed gas limit in
-    // that case.
-    const gas = await getGasWithFallback(() =>
-      this.publicClient.estimateContractGas({
-        account: this.account,
-        address: params.safeAddress,
-        abi: SAFE_SINGLETON_ABI,
-        functionName: 'execTransaction',
-        args: execArgs,
-      })
+    // execution deltas (e.g. Jovay) — hence the GAS_ESTIMATE_MULTIPLIER.
+    const gas = await getGasWithFallback(
+      () =>
+        this.publicClient.estimateContractGas({
+          account: this.account,
+          address: params.safeAddress,
+          abi: SAFE_SINGLETON_ABI,
+          functionName: 'execTransaction',
+          args: execArgs,
+        }),
+      {
+        onEstimateFailure: 'refuse',
+        networkName: this.networkName,
+        operation: 'Safe execTransaction',
+      }
     )
 
     const txHash = await this.walletClient.writeContract({

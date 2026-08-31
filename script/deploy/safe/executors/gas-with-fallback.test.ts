@@ -1,7 +1,7 @@
 /**
- * Tests for `getGasWithFallback`: multiplier resolution from env and
- * fallback-on-throw behaviour. Each test isolates `GAS_ESTIMATE_MULTIPLIER` so
- * suite ordering is irrelevant.
+ * Tests for `getGasWithFallback`: multiplier resolution from env, and what
+ * happens when estimation throws — which differs by call site. Each test
+ * isolates the env vars it reads so suite ordering is irrelevant.
  */
 
 import {
@@ -15,92 +15,196 @@ import {
 
 import { getGasWithFallback } from './gas-with-fallback'
 
+const throwingEstimate = async (): Promise<bigint> => {
+  throw new Error('execution reverted: eth_estimateGas failed')
+}
+
+/** Bun's `.rejects` is not a real Promise; see 402-typescript-tests [CONV:TEST-ASSERT-REJECTS]. */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp
+): Promise<string> {
+  try {
+    await promise
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    expect(message).toMatch(match)
+    return message
+  }
+  throw new Error('expected the promise to reject, but it resolved')
+}
+
 describe('getGasWithFallback', () => {
-  let originalEnv: string | undefined
+  let originalMultiplier: string | undefined
+  let originalAllow: string | undefined
 
   beforeEach(() => {
-    originalEnv = process.env.GAS_ESTIMATE_MULTIPLIER
+    originalMultiplier = process.env.GAS_ESTIMATE_MULTIPLIER
+    originalAllow = process.env.ALLOW_GAS_ESTIMATE_FALLBACK
+    delete process.env.ALLOW_GAS_ESTIMATE_FALLBACK
   })
 
   afterEach(() => {
-    if (originalEnv === undefined) delete process.env.GAS_ESTIMATE_MULTIPLIER
-    else process.env.GAS_ESTIMATE_MULTIPLIER = originalEnv
+    if (originalMultiplier === undefined)
+      delete process.env.GAS_ESTIMATE_MULTIPLIER
+    else process.env.GAS_ESTIMATE_MULTIPLIER = originalMultiplier
+    if (originalAllow === undefined)
+      delete process.env.ALLOW_GAS_ESTIMATE_FALLBACK
+    else process.env.ALLOW_GAS_ESTIMATE_FALLBACK = originalAllow
   })
 
-  it('applies the default 130% multiplier when env var is unset', async () => {
-    delete process.env.GAS_ESTIMATE_MULTIPLIER
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('uses GAS_ESTIMATE_MULTIPLIER from env when valid', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '200'
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(200_000n)
-  })
-
-  it('trims whitespace in env var', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '  150  '
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(150_000n)
-  })
-
-  it('falls back to 130% when env var is empty', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = ''
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('falls back to 130% when env var is whitespace-only', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '   '
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('falls back to 130% when env var is non-numeric (e.g. 1.3)', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '1.3'
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('falls back to 130% when env var contains non-digit chars', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '130%'
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('falls back to 130% when env var is zero', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '0'
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('falls back to 130% when env var is negative', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '-10'
-    const gas = await getGasWithFallback(async () => 100_000n)
-    expect(gas).toBe(130_000n)
-  })
-
-  it('returns default fallback (500_000) when estimation throws', async () => {
-    delete process.env.GAS_ESTIMATE_MULTIPLIER
-    const gas = await getGasWithFallback(async () => {
-      throw new Error('estimateGas reverted')
+  describe('multiplier resolution (estimation succeeds)', () => {
+    it('applies the default 130% multiplier when env var is unset', async () => {
+      delete process.env.GAS_ESTIMATE_MULTIPLIER
+      expect(
+        await getGasWithFallback(async () => 100_000n, {
+          onEstimateFailure: 'refuse',
+        })
+      ).toBe(130_000n)
     })
-    expect(gas).toBe(500_000n)
+
+    it('uses GAS_ESTIMATE_MULTIPLIER from env when valid', async () => {
+      process.env.GAS_ESTIMATE_MULTIPLIER = '200'
+      expect(
+        await getGasWithFallback(async () => 100_000n, {
+          onEstimateFailure: 'refuse',
+        })
+      ).toBe(200_000n)
+    })
+
+    it('trims whitespace in env var', async () => {
+      process.env.GAS_ESTIMATE_MULTIPLIER = '  150  '
+      expect(
+        await getGasWithFallback(async () => 100_000n, {
+          onEstimateFailure: 'refuse',
+        })
+      ).toBe(150_000n)
+    })
+
+    it.each([
+      ['empty', ''],
+      ['whitespace-only', '   '],
+      ['non-numeric', '1.3'],
+      ['non-digit chars', '130%'],
+      ['zero', '0'],
+      ['negative', '-10'],
+    ])('falls back to 130%% when env var is %s', async (_label, value) => {
+      process.env.GAS_ESTIMATE_MULTIPLIER = value
+      expect(
+        await getGasWithFallback(async () => 100_000n, {
+          onEstimateFailure: 'refuse',
+        })
+      ).toBe(130_000n)
+    })
+
+    it('still applies multiplier on a small estimate (integer division)', async () => {
+      process.env.GAS_ESTIMATE_MULTIPLIER = '130'
+      // (7 * 130) / 100 = 910 / 100 = 9
+      expect(
+        await getGasWithFallback(async () => 7n, {
+          onEstimateFailure: 'refuse',
+        })
+      ).toBe(9n)
+    })
   })
 
-  it('returns custom fallback when estimation throws', async () => {
-    delete process.env.GAS_ESTIMATE_MULTIPLIER
-    const gas = await getGasWithFallback(async () => {
-      throw new Error('estimateGas reverted')
-    }, 750_000n)
-    expect(gas).toBe(750_000n)
+  describe("onEstimateFailure: 'refuse' — every path that broadcasts", () => {
+    it('rejects rather than returning a guessed gas limit', async () => {
+      const message = await expectRejects(
+        getGasWithFallback(throwingEstimate, { onEstimateFailure: 'refuse' }),
+        /gas estimation failed/i
+      )
+      expect(message).toMatch(/refusing/i)
+    })
+
+    it('names the network and the operation so the refusal is actionable', async () => {
+      const message = await expectRejects(
+        getGasWithFallback(throwingEstimate, {
+          onEstimateFailure: 'refuse',
+          networkName: 'jovay',
+          operation: 'Safe execTransaction',
+        }),
+        /jovay/
+      )
+      expect(message).toMatch(/Safe execTransaction/)
+    })
+
+    it('surfaces the underlying estimation error rather than swallowing it', async () => {
+      const message = await expectRejects(
+        getGasWithFallback(throwingEstimate, { onEstimateFailure: 'refuse' }),
+        /execution reverted/
+      )
+      expect(message).toMatch(/eth_estimateGas failed/)
+    })
+
+    it('names the escape hatch so the operator knows the deliberate override', async () => {
+      await expectRejects(
+        getGasWithFallback(throwingEstimate, { onEstimateFailure: 'refuse' }),
+        /ALLOW_GAS_ESTIMATE_FALLBACK/
+      )
+    })
   })
 
-  it('still applies multiplier on a small estimate (rounds via integer div)', async () => {
-    process.env.GAS_ESTIMATE_MULTIPLIER = '130'
-    const gas = await getGasWithFallback(async () => 7n)
-    // (7 * 130) / 100 = 910 / 100 = 9 (integer division)
-    expect(gas).toBe(9n)
+  describe('ALLOW_GAS_ESTIMATE_FALLBACK escape hatch', () => {
+    it.each([['true'], ['1'], ['yes']])(
+      'downgrades refuse to fallback when set to %p',
+      async (value) => {
+        process.env.ALLOW_GAS_ESTIMATE_FALLBACK = value
+        expect(
+          await getGasWithFallback(throwingEstimate, {
+            onEstimateFailure: 'refuse',
+          })
+        ).toBe(500_000n)
+      }
+    )
+
+    it('honours a custom fallback when the hatch is open', async () => {
+      process.env.ALLOW_GAS_ESTIMATE_FALLBACK = 'true'
+      expect(
+        await getGasWithFallback(throwingEstimate, {
+          onEstimateFailure: 'refuse',
+          fallbackGas: 750_000n,
+        })
+      ).toBe(750_000n)
+    })
+
+    it.each([['false'], ['0'], ['no'], ['']])(
+      'still refuses when set to %p — only an affirmative value opens it',
+      async (value) => {
+        process.env.ALLOW_GAS_ESTIMATE_FALLBACK = value
+        await expectRejects(
+          getGasWithFallback(throwingEstimate, { onEstimateFailure: 'refuse' }),
+          /gas estimation failed/i
+        )
+      }
+    )
+  })
+
+  describe("onEstimateFailure: 'fallback' — dry-run paths only", () => {
+    it('returns the default fallback so a simulation can still report a figure', async () => {
+      expect(
+        await getGasWithFallback(throwingEstimate, {
+          onEstimateFailure: 'fallback',
+        })
+      ).toBe(500_000n)
+    })
+
+    it('returns a custom fallback', async () => {
+      expect(
+        await getGasWithFallback(throwingEstimate, {
+          onEstimateFailure: 'fallback',
+          fallbackGas: 750_000n,
+        })
+      ).toBe(750_000n)
+    })
+
+    it('does not need the escape hatch — a dry run broadcasts nothing', async () => {
+      delete process.env.ALLOW_GAS_ESTIMATE_FALLBACK
+      expect(
+        await getGasWithFallback(throwingEstimate, {
+          onEstimateFailure: 'fallback',
+        })
+      ).toBe(500_000n)
+    })
   })
 })
