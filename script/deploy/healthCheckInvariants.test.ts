@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -20,6 +20,11 @@ import {
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
   splitByParkedCoverage,
+  isStalledParkedClaim,
+  collapseOpenParkedTasks,
+  STALE_PARKED_CLAIM_DAYS,
+  type IOpenParkedCoverage,
+  type OpenParkedByNetwork,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExemptCorePeriphery,
@@ -33,6 +38,7 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
@@ -163,50 +169,269 @@ describe('findDuplicateSelectors', () => {
   })
 })
 
+describe('isStalledParkedClaim', () => {
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+
+  // Fixtures and the staleness bound both divide by DAY_MS, so a wrong DAY_MS
+  // cancels out and every age assertion below still passes. Pin it literally.
+  it('measures ages in whole days', () => {
+    expect(DAY_MS).toBe(86_400_000)
+  })
+  const task = (over: Partial<IOpenParkedCoverage>): IOpenParkedCoverage => ({
+    prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    status: 'proposed',
+    createdAt: ago(30),
+    ...over,
+  })
+
+  it('flags a claim with no linked proposal once it passes the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS) }),
+        NOW
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag a claim one day inside the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS - 1) }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a task that carries a linked Safe proposal', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(90), safeTxHash: '0xabc' }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a queued task, whatever its age', () => {
+    expect(
+      isStalledParkedClaim(task({ status: 'queued', createdAt: ago(400) }), NOW)
+    ).toBe(false)
+  })
+
+  it('measures from createdAt when proposedAt is missing', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ createdAt: ago(STALE_PARKED_CLAIM_DAYS + 1) }),
+        NOW
+      )
+    ).toBe(true)
+  })
+})
+
+describe('collapseOpenParkedTasks', () => {
+  const ADDR: Address = '0x00000000000000000000000000000000000000A1'
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+
+  // A legacy name-keyed row and an address-keyed row do NOT collide on the open-status
+  // unique index, so both can be open for one address at once.
+  const stalledClaim = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+    status: 'proposed' as const,
+    createdAt: ago(29),
+    proposedAt: ago(STALE_PARKED_CLAIM_DAYS + 3),
+  }
+  const freshQueued = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/9999',
+    status: 'queued' as const,
+    createdAt: ago(1),
+  }
+
+  it('keeps the stalled claim when a livelier task for the same address follows it', () => {
+    const got = collapseOpenParkedTasks([stalledClaim, freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps the stalled claim when it arrives second', () => {
+    // Order-independence is the whole point: the queue's sort must not decide coverage.
+    const got = collapseOpenParkedTasks([freshQueued, stalledClaim], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps a single live task when nothing is stalled', () => {
+    const got = collapseOpenParkedTasks([freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('queued')
+  })
+
+  it('keys tasks under their own network', () => {
+    const got = collapseOpenParkedTasks(
+      [freshQueued, { ...freshQueued, network: 'base' }],
+      NOW
+    )
+    expect(got.get('mantle')?.size).toBe(1)
+    expect(got.get('base')?.size).toBe(1)
+  })
+})
+
 describe('splitByParkedCoverage', () => {
   const V1 = '0x00000000000000000000000000000000000000A1'
   const V2 = '0x00000000000000000000000000000000000000a2'
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
   const facet = (name: string, address: string) => ({
     name,
     address: address as Hex,
     selectors: ['0xdeadbeef'] as Hex[],
   })
+  const daysBefore = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+  /** A live queued task (the common case): no claim, next drain picks it up. */
+  const queued = (createdAt = daysBefore(1)): IOpenParkedCoverage => ({
+    prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    status: 'queued',
+    createdAt,
+  })
+  const coverage = (
+    entries: [string, IOpenParkedCoverage][]
+  ): Map<string, IOpenParkedCoverage> =>
+    new Map(entries.map(([a, t]) => [a.toLowerCase(), t]))
 
   it('counts a facet as covered when an open task carries its exact address', () => {
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, stalled, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set([V1.toLowerCase()])
+      coverage([[V1, queued()]]),
+      NOW
     )
-    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(live.map((f) => f.address)).toEqual([V1])
+    expect(stalled).toHaveLength(0)
     expect(unparked).toHaveLength(0)
   })
 
   it('does NOT count a same-NAME task on a different address as coverage', () => {
     // Both SymbiosisFacet versions routed (EXSC-750) with a task for v1 only: keying
     // on the name would classify v2 as expected-pending and never warn about it.
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1), facet('SymbiosisFacet', V2)],
-      new Set([V1.toLowerCase()])
+      coverage([[V1, queued()]]),
+      NOW
     )
-    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(live.map((f) => f.address)).toEqual([V1])
     expect(unparked.map((f) => f.address)).toEqual([V2])
   })
 
   it('matches addresses case-insensitively', () => {
-    const { parked } = splitByParkedCoverage(
+    const { live } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set([V1.toUpperCase().replace('0X', '0x').toLowerCase()])
+      coverage([[V1.toUpperCase().replace('0X', '0x'), queued()]]),
+      NOW
     )
-    expect(parked).toHaveLength(1)
+    expect(live).toHaveLength(1)
   })
 
   it('reports everything as uncovered when the queue holds no open task', () => {
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set()
+      coverage([]),
+      NOW
     )
-    expect(parked).toHaveLength(0)
+    expect(live).toHaveLength(0)
     expect(unparked).toHaveLength(1)
+  })
+
+  it('classifies a long-claimed task with no Safe proposal as stalled, not covered', () => {
+    // The mantle GenericSwapFacet failure mode: the drain flipped queued→proposed and
+    // died before linking a proposal, so nothing unattended can ever move it again.
+    const { live, stalled, unparked } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(29),
+            proposedAt: daysBefore(STALE_PARKED_CLAIM_DAYS + 3),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(stalled.map((f) => f.address)).toEqual([V1])
+    expect(live).toHaveLength(0)
+    expect(unparked).toHaveLength(0)
+  })
+
+  it('still counts a freshly claimed task as live (a drain holds it briefly)', () => {
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(29),
+            proposedAt: daysBefore(STALE_PARKED_CLAIM_DAYS - 1),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(live.map((f) => f.address)).toEqual([V1])
+    expect(stalled).toHaveLength(0)
+  })
+
+  it('counts an old claim WITH a linked Safe proposal as live (reconcile resolves it)', () => {
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2108',
+            status: 'proposed',
+            createdAt: daysBefore(60),
+            proposedAt: daysBefore(45),
+            safeTxHash: '0xabc',
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(live).toHaveLength(1)
+    expect(stalled).toHaveLength(0)
+  })
+
+  it('falls back to createdAt when a proposed task has no proposedAt stamp', () => {
+    const { stalled } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(STALE_PARKED_CLAIM_DAYS + 1),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(stalled).toHaveLength(1)
+  })
+
+  it('never treats a queued task as stalled, however old', () => {
+    // `queued` is always reachable: the next drain claims it. Age alone is backlog,
+    // not breakage, and flagging it would red every chain with a slow rollout.
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      coverage([[V1, queued(daysBefore(120))]]),
+      NOW
+    )
+    expect(live).toHaveLength(1)
+    expect(stalled).toHaveLength(0)
   })
 })
 
@@ -373,15 +598,96 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     expect(names).toContain('receiver-executor-binding')
   })
 
-  it('includes the queue-aware stale-facet invariant as a production warning', () => {
+  it('includes the queue-aware stale-facet invariant as a production error', () => {
     const inv = HEALTH_CHECK_INVARIANTS.find(
       (i) => i.name === 'no-stale-registered-facets'
     )
     expect(inv).toBeDefined()
-    expect(inv?.severity).toBe('warning')
+    expect(inv?.severity).toBe('error')
     expect(inv?.scope.environments).toEqual(['production'])
     expect(inv?.scope.skipTestnet).toBe(true)
     expect(inv?.readsOnChainFacets).toBe(true)
+  })
+})
+
+describe('no-stale-registered-facets claim liveness', () => {
+  // mantle, because the invariant resolves expected facets from the real
+  // _targetState.json and a synthetic network has no entry (it would early-return).
+  const DEPRECATED = '0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e'
+  const PR_URL = 'https://github.com/lifinance/contracts/pull/2046'
+
+  function makeStaleCtx(
+    openParkedRemovals: IHealthCheckContext['openParkedRemovals']
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      networkLower: 'mantle',
+      // GenericSwapFacet: absent from mantle target state and no src/ source left,
+      // which is exactly the deprecated-but-routed shape this invariant detects.
+      onChainFacets: [{ address: DEPRECATED, selectors: ['0x4630a0d8'] }],
+      deployedContracts: { GenericSwapFacet: DEPRECATED },
+      openParkedRemovals,
+    })
+    return ctx
+  }
+
+  const at = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY_MS)
+
+  const withTask = (task: IOpenParkedCoverage): OpenParkedByNetwork =>
+    new Map([['mantle', new Map([[DEPRECATED.toLowerCase(), task]])]])
+
+  it('fails the run when the covering task is a stalled claim', async () => {
+    const ctx = makeStaleCtx(
+      withTask({
+        prUrl: PR_URL,
+        status: 'proposed',
+        createdAt: at(29),
+        proposedAt: at(STALE_PARKED_CLAIM_DAYS + 3),
+      })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('STALLED')
+    expect(ctx.errors[0]).toContain(DEPRECATED)
+    expect(ctx.errors[0]).toContain(PR_URL)
+  })
+
+  it('fails the run when nothing covers the deprecated facet', async () => {
+    const ctx = makeStaleCtx(new Map())
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('NO open parked-removal task')
+  })
+
+  it('stays green while a live queued task covers it', async () => {
+    const ctx = makeStaleCtx(
+      withTask({ prUrl: PR_URL, status: 'queued', createdAt: at(120) })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('stays green while a claimed task carries a real Safe proposal', async () => {
+    const ctx = makeStaleCtx(
+      withTask({
+        prUrl: PR_URL,
+        status: 'proposed',
+        createdAt: at(60),
+        proposedAt: at(45),
+        safeTxHash: '0xabc',
+      })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('warns without failing when the queue is unreachable', async () => {
+    const ctx = makeStaleCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('unreachable')
   })
 })
 
@@ -1481,8 +1787,15 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     return ctx
   }
 
-  const covering = (): Map<string, Map<string, string>> =>
-    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+  /** A live queued task — this invariant only reads `prUrl`, but the shape must match. */
+  const task = (): IOpenParkedCoverage => ({
+    prUrl: PR_URL,
+    status: 'queued',
+    createdAt: new Date('2026-08-27T00:00:00.000Z'),
+  })
+
+  const covering = (): OpenParkedByNetwork =>
+    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), task()]])]])
 
   it('downgrades a routed-but-pruned facet to expected-pending when a parked removal covers it', async () => {
     const ctx = makePrunedCtx(covering())
@@ -1495,7 +1808,7 @@ describe('no-unexpected-facets parked-removal coverage', () => {
       new Map([
         [
           'testnet1',
-          new Map([['0xdddd000000000000000000000000000000000004', PR_URL]]),
+          new Map([['0xdddd000000000000000000000000000000000004', task()]]),
         ],
       ])
     )
@@ -1505,7 +1818,7 @@ describe('no-unexpected-facets parked-removal coverage', () => {
 
   it('keys coverage by network, not fleet-wide', async () => {
     const ctx = makePrunedCtx(
-      new Map([['othernet', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+      new Map([['othernet', new Map([[PRUNED.toLowerCase(), task()]])]])
     )
     await invariant('no-unexpected-facets').run(ctx)
     expect(ctx.warnings).toHaveLength(1)
@@ -1528,6 +1841,34 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     const ctx = makePrunedCtx(covering(), { isTestnet: true })
     await invariant('no-unexpected-facets').run(ctx)
     expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('does NOT downgrade when the covering task is a stalled claim', async () => {
+    // The prune was licensed by an open task; once that claim dies this invariant is the
+    // only one left watching the address, since the other resolves names via the log.
+    const ctx = makePrunedCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              PRUNED.toLowerCase(),
+              {
+                prUrl: PR_URL,
+                status: 'proposed' as const,
+                createdAt: new Date(Date.now() - 40 * DAY_MS),
+                proposedAt: new Date(
+                  Date.now() - (STALE_PARKED_CLAIM_DAYS + 2) * DAY_MS
+                ),
+              },
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no longer progressing')
   })
 
   it('warns on the uncovered facet while downgrading the covered one', async () => {

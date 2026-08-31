@@ -2099,6 +2099,54 @@ function mergeNetworkResults() {
   echo "All network results merged into $TARGET_STATE_PATH"
 }
 
+# ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
+# from exists, building it if necessary.
+#
+# Both deploy paths derive their salt from the *standard* artifact (out/<C>.sol/<C>.json), and
+# neither is guaranteed to have one: the zk toolchain only ever writes zkout/ and out/zksync/, and
+# the non-zkEVM path is reachable through scriptMaster.sh, which only builds when
+# COMPILE_ON_STARTUP is true. On the zkEVM side, deriving from the zk artifact instead is not an
+# option - that would move the address of every zkEVM deployment made so far.
+#
+# Call this before getBytecodeFromArtifact instead of relying on that function's own existence
+# check: error() writes to stdout, so its message is swallowed by the `$(...)` around that call and
+# the deploy looks like it stopped for no reason - leaving the salt to be derived from the error
+# text rather than from bytecode.
+#
+# Usage: ensureStandardArtifactForSalt CONTRACT
+#   CONTRACT - Name of the contract whose artifact is required
+#
+# Returns: 0 if the artifact exists or was built; 1 (with an error) if it cannot be produced.
+# Example: ensureStandardArtifactForSalt "FeeForwarder"
+function ensureStandardArtifactForSalt() {
+  # read function arguments into variables
+  local CONTRACT="${1:-}"
+
+  if [[ -z "$CONTRACT" ]]; then
+    error "contract name is required (access attempted by function 'ensureStandardArtifactForSalt')"
+    return 1
+  fi
+
+  local ARTIFACT_PATH="out/$CONTRACT.sol/$CONTRACT.json"
+
+  if checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+    return 0
+  fi
+
+  echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
+  if ! forge build --skip test; then
+    error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
+    return 1
+  fi
+
+  if ! checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+    error "'forge build --skip test' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    return 1
+  fi
+
+  return 0
+}
+
 function getBytecodeFromArtifact() {
   # read function arguments into variables
   local contract="$1"
@@ -2140,6 +2188,38 @@ function extractFromVerificationOutput() {
   else
     echo ""
   fi
+}
+
+# API-key values must never reach a log: verification runs in CI and in shared
+# transcripts, and a leaked explorer key cannot be un-leaked. Redaction runs per
+# argument (never over a joined string) so a key containing whitespace or a
+# newline cannot spill its tail past the substitution, and remaining arguments
+# are quoted with %q so their boundaries stay visible in the log.
+function redactVerifyCmd() {
+  local PLACEHOLDER='***REDACTED***'
+  local OUTPUT=''
+  local ARG
+  local RENDERED
+  local REDACT_NEXT=false
+
+  for ARG in "$@"; do
+    if [[ "$REDACT_NEXT" == true ]]; then
+      # redacted unconditionally, even when it looks like a flag: an unredacted
+      # key is unrecoverable, a redacted flag name only costs log detail
+      RENDERED="$PLACEHOLDER"
+      REDACT_NEXT=false
+    elif [[ "$ARG" == "--etherscan-api-key" || "$ARG" == "--verifier-api-key" ]]; then
+      RENDERED="$ARG"
+      REDACT_NEXT=true
+    elif [[ "$ARG" == "--etherscan-api-key="* || "$ARG" == "--verifier-api-key="* ]]; then
+      RENDERED="${ARG%%=*}=$PLACEHOLDER"
+    else
+      RENDERED=$(printf '%q' "$ARG")
+    fi
+    OUTPUT+="${OUTPUT:+ }$RENDERED"
+  done
+
+  printf '%s\n' "$OUTPUT"
 }
 
 function verifyContract() {
@@ -2236,7 +2316,7 @@ function verifyContract() {
     )
   fi
 
-  echo "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echo "VERIFY_CMD: $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
   # Normalize constructor args: use only the first line to avoid passing multiline values
   # (e.g. from broadcast JSON or jq output), which forge/etherscan can interpret as
@@ -2355,19 +2435,28 @@ function verifyContract() {
   # Always add verifier URL and chain ID so Foundry/verifier use the correct chain (avoids "deployed on mainnet" and 404s)
   VERIFY_CMD+=("--verifier-url" "$VERIFIER_URL" "--chain-id" "$CHAIN_ID")
 
-  echoDebug "VERIFY_CMD: ${VERIFY_CMD[*]}"
+  echoDebug "VERIFY_CMD: $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
   # Attempt verification with retries (for cases where block explorer isn't synced)
   while [ $RETRY_COUNT -lt "$MAX_RETRIES" ]; do
     echo "[info] Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Submitting verification for [$FULL_PATH] $ADDRESS..."
     echo "[info] ...using the following command: "
-    echo "[info] ${VERIFY_CMD[*]}"
+    echo "[info] $(redactVerifyCmd "${VERIFY_CMD[@]}")"
 
     # Execute verification command with --watch flag (will wait for completion)
     local VERIFY_EXIT_CODE=0
     VERIFY_OUTPUT=$(FOUNDRY_LOG=trace "${VERIFY_CMD[@]}" 2>&1) || VERIFY_EXIT_CODE=$?
 
     echo "VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+    # Some explorers (Kaiascan, Sourcify, Blockscout) print a success line and
+    # then exit 1 because --watch has nothing etherscan-shaped to poll. Treat
+    # the success text as authoritative so we do not retry a completed verify.
+    if echo "$VERIFY_OUTPUT" | grep -qE \
+      "is already verified|Contract source code already verified|Contract successfully verified|Pass - Verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified"
+      return 0
+    fi
 
     # Check if command failed with non-zero exit code
     if [ $VERIFY_EXIT_CODE -ne 0 ]; then
@@ -2402,8 +2491,15 @@ function verifyContract() {
     fi
 
     # Check if contract is already verified
-    if echo "$VERIFY_OUTPUT" | grep -q "is already verified"; then
+    if echo "$VERIFY_OUTPUT" | grep -qE "is already verified|Contract source code already verified"; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified"
+      return 0
+    fi
+
+    # Sourcify (telos/tempo) reports success with this line and never emits the
+    # etherscan-style "Response"/"Details" pair parsed below.
+    if echo "$VERIFY_OUTPUT" | grep -q "Contract successfully verified"; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS successfully verified"
       return 0
     fi
 
