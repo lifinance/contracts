@@ -205,9 +205,20 @@ When `/deprecate-network` is invoked with network names:
       verify both that it still parses and that the change is deletions-only:
 
       ```bash
-      jq empty config/whitelist.json          # must exit 0 — file is still valid JSON
-      git diff --numstat config/whitelist.json # additions column must be 0
+      # before editing
+      jq -r '[(.PERIPHERY|keys[]), (.DEXS[]|.contracts|keys[])] | unique | .[]' \
+        config/whitelist.json > /tmp/wl-keys.before
+
+      jq empty config/whitelist.json           # must exit 0 — file is still valid JSON
+      jq -r '[(.PERIPHERY|keys[]), (.DEXS[]|.contracts|keys[])] | unique | .[]' \
+        config/whitelist.json | diff /tmp/wl-keys.before -
       ```
+
+      The key diff must show exactly one `<` line per deprecated network and nothing else.
+      Do **not** substitute a line-count check for it: `git diff --numstat` proves only
+      that nothing was *added*, so dropping another network's block alongside the target's
+      passes it — and it is not even deletions-only in practice, because removing the last
+      key of an object also rewrites the preceding line's trailing comma.
 
     - **Leave `config/whitelist.staging.json` alone** — and note that the generator
       rewrites it unconditionally, whichever environment you target. It is gitignored,
@@ -364,7 +375,7 @@ The command handles:
 - Invalid TOML structure (error and abort)
 - File system errors (error and report)
 - Partial failures (continue with remaining networks, report all errors at end)
-- Malformed `config/whitelist.json` after hand-editing, or a non-zero additions column in `git diff --numstat` (error and abort - the file must be restored before continuing)
+- Malformed `config/whitelist.json` after hand-editing, or a network key removed that was not deprecated (error and abort - the file must be restored before continuing)
 - Remaining occurrences search: `git grep -inw` over tracked files only, group by file, show context
 - User review of remaining occurrences: Wait for user input before removing additional files
 
@@ -408,7 +419,7 @@ After the command completes, you **must** manually update the Product Target Sta
 - Display clear, actionable error messages if something goes wrong
 - After completion, verify changes by checking that entries are actually removed
 - Edit `config/whitelist.json` by hand and verify the result with `jq empty` plus a
-  deletions-only `git diff --numstat`; never regenerate it during a deprecation
+  pre/post comparison of its network keys; never regenerate it during a deprecation
 - After all deprecation steps, search every tracked file for remaining occurrences of the
   network name with `git grep -inw` — whole-word, so sibling networks are not reported
 - Present a concise, organized list of matches grouped by file with line numbers and context
@@ -465,28 +476,19 @@ Actions required:
 
 Found additional occurrences of deprecated networks in the codebase:
 
+Everything listed in the summary above is already gone; these are what is left.
+
 Network: fantom
-  📄 config/whitelist.json
-     Line 211: "aurora": [...]
-     Line 1880: "fantom": [...]
-
-  📄 config/permit2Proxy.json
-     Line 6: "fantom": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
-
-  📄 config/gaszip.json
-     Line 9: "fantom": "0x2a37D63EAdFe4b4682a3c28C1c2cD4F109Cc2762"
-
-  📄 script/multiNetworkExecution.sh
-     Line 2586: # local NETWORKS=("arbitrum" "aurora" "base" "blast" "bob" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
+  📄 deployments/_deployments_log_file.json   (41 matches)  — master log, intentional keep
+  📄 archive/config/networks.2024.json        (3 matches)   — archived, intentional keep
+  📄 src/Facets/AcrossV4SwapFacet.sol         (2 matches)   — chainId mapping, marked in step 11
 
 Network: harmony
-  📄 config/whitelist.json
-     Line 704: "harmony": [...]
+  📄 deployments/_deployments_log_file.json   (12 matches)  — master log, intentional keep
+  📄 script/multiNetworkExecution.sh          (1 match)     — commented-out network list
 
-  📄 deployments/harmony.json
-     Line 1: { "DiamondCutFacet": "0x..." }
-
-⚠️  Note: Some config files (e.g., config/*.json) may intentionally keep network values for historical reference.
+⚠️  Note: the first three kinds above are deliberate keeps (see step 12) and should
+    normally be answered with "none". Only the last kind is a real cleanup candidate.
 
 Please review the above list and indicate which files/occurrences should be removed:
 - Type the file paths you want to clean up
