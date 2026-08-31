@@ -450,7 +450,7 @@ Deprecating networks: fantom, harmony
 ✓ Removed 'fantom' from config/gaszip.json, config/relay.json
 ✓ Removed 'harmony' from config/gaszip.json
 ✓ Removed 'fantom', 'harmony' from CORE_FACET_EXEMPTIONS
-✓ Hand-removed whitelist blocks (PERIPHERY + 3 DEXS entries) — jq empty OK, 0 additions
+✓ Hand-removed whitelist blocks (PERIPHERY + 3 DEXS entries) — jq empty OK, key diff: fantom, harmony only
 ✓ config/whitelist.staging.json checksum unchanged
 
 Preserved (historical, not cleanup candidates):
