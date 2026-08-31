@@ -97,11 +97,14 @@ export function classifyCron(expression: string): TCronClassification {
       reason: `a fixed month ('${month}') fires yearly, which is outside the modelled buckets`,
     }
 
-  if (isPlainInteger(dayOfMonth))
-    return { kind: 'monthly', intervalMs: 31 * DAY_MS }
-
+  // Day-of-week is checked FIRST: cron ORs dom and dow when both are restricted, so
+  // '0 9 1 * 3' fires on the 1st and every Wednesday. Taking the monthly bucket there
+  // would grant ~46.6d of grace for a schedule that runs weekly, and under-alert.
   if (isPlainInteger(dayOfWeek))
     return { kind: 'weekly', intervalMs: 7 * DAY_MS }
+
+  if (isPlainInteger(dayOfMonth))
+    return { kind: 'monthly', intervalMs: 31 * DAY_MS }
 
   if (isPlainInteger(hour)) return { kind: 'daily', intervalMs: DAY_MS }
 
@@ -181,6 +184,7 @@ export type TLivenessStatus =
   | 'ignored'
   | 'unclassifiable'
   | 'pending-first-run'
+  | 'lookup-failed'
 
 export interface IWorkflowFacts {
   name: string
@@ -197,6 +201,12 @@ export interface IWorkflowFacts {
   lastScheduledRunAt: Date | null
   /** First commit touching the workflow file; bounds how long it has had to fire. */
   fileFirstSeenAt: Date | null
+  /**
+   * The run lookup itself failed (GitHub API error), so `lastScheduledRunAt` being
+   * null carries no information. Without this flag a transient API hiccup reads as
+   * a dead cron and pages someone for GitHub's downtime.
+   */
+  runLookupFailed: boolean
 }
 
 export interface ILivenessVerdict {
@@ -209,7 +219,10 @@ export interface ILivenessVerdict {
 /** Statuses that warrant a Slack alert; the rest are summary-only. */
 export function isAlertable(status: TLivenessStatus): boolean {
   return (
-    status === 'stale' || status === 'disabled' || status === 'unclassifiable'
+    status === 'stale' ||
+    status === 'disabled' ||
+    status === 'unclassifiable' ||
+    status === 'lookup-failed'
   )
 }
 
@@ -278,6 +291,16 @@ export function evaluateLiveness(
     }
   }
 
+  // Ordered after classification so a bad cron is still reported, but before any use
+  // of lastScheduledRunAt — which is null on a failed lookup and would otherwise be
+  // indistinguishable from "never ran".
+  if (facts.runLookupFailed)
+    return {
+      ...base,
+      status: 'lookup-failed',
+      detail: 'scheduled runs could not be read from the GitHub API',
+    }
+
   // The most frequent schedule governs: a workflow that also runs weekly is still
   // dead if its hourly run stopped.
   const cadences = classifications.map(
@@ -342,6 +365,7 @@ const STATUS_HEADINGS: Record<string, string> = {
   stale: 'Stale (no scheduled run inside the grace window)',
   disabled: 'Disabled (will not fire until re-enabled)',
   unclassifiable: 'Unwatchable (needs a classifier rule)',
+  'lookup-failed': 'Undetermined (GitHub API lookup failed)',
 }
 
 /**

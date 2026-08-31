@@ -84,11 +84,14 @@ describe('classifyCron', () => {
     })
   })
 
-  it('treats a day-of-month cron as monthly even when a weekday is also set', () => {
-    // Real cron ORs dom and dow; the longer bucket is the safe (less alerty) read.
+  it('takes the tighter bucket when both day-of-month and weekday are set', () => {
+    // Cron ORs dom and dow when both are restricted, so '0 9 1 * 3' fires on the
+    // 1st AND every Wednesday — at least weekly. Bucketing it monthly would grant
+    // ~46.6d of grace instead of ~10.6d and under-alert, which is the failure mode
+    // this classifier exists to avoid.
     expect(classifyCron('0 9 1 * 3')).toEqual({
-      kind: 'monthly',
-      intervalMs: 31 * DAY,
+      kind: 'weekly',
+      intervalMs: 7 * DAY,
     })
   })
 
@@ -234,6 +237,7 @@ describe('evaluateLiveness', () => {
     ignore: { ignored: false },
     lastScheduledRunAt: new Date('2026-08-31T06:40:00Z'),
     fileFirstSeenAt: new Date('2026-01-01T00:00:00Z'),
+    runLookupFailed: false,
     ...overrides,
   })
 
@@ -336,6 +340,21 @@ describe('evaluateLiveness', () => {
     )
     expect(verdict.status).toBe('stale')
     expect(verdict.detail).toContain('unknown')
+  })
+
+  it('does not report a failed run lookup as a dead cron', () => {
+    // A GitHub API hiccup leaves lastScheduledRunAt null. Calling that "stale"
+    // turns a transient API failure into a false "this cron is dead" alert.
+    const verdict = evaluateLiveness(
+      dailyWorkflow({ lastScheduledRunAt: null, runLookupFailed: true }),
+      NOW
+    )
+    expect(verdict.status).toBe('lookup-failed')
+    expect(verdict.detail).toContain('could not be read')
+  })
+
+  it('still alerts on a failed lookup rather than passing it over in silence', () => {
+    expect(isAlertable('lookup-failed')).toBe(true)
   })
 
   it('reports a workflow with no cron at all instead of silently passing it', () => {

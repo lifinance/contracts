@@ -158,7 +158,7 @@ const main = defineCommand({
         'GitHub token; prefer the GH_TOKEN env var so it stays out of the process table',
     },
   },
-  async run({ args }) {
+  async run({ args }): Promise<void> {
     const [owner, repo] = (
       process.env.GITHUB_REPOSITORY ?? `${DEFAULT_OWNER}/${DEFAULT_REPO}`
     ).split('/') as [string, string]
@@ -193,6 +193,7 @@ const main = defineCommand({
       const state = registration?.state ?? 'not_registered_with_actions'
 
       let lastScheduledRunAt: Date | null = null
+      let runLookupFailed = false
       if (registration) {
         // event=schedule is load-bearing: a manual workflow_dispatch run is not
         // evidence that the SCHEDULE still fires, and counting it would hide
@@ -207,6 +208,9 @@ const main = defineCommand({
           const latest = runs[0]
           lastScheduledRunAt = latest ? new Date(latest.created_at) : null
         } catch (error) {
+          // Flagged rather than swallowed: leaving lastScheduledRunAt null here would
+          // make a GitHub outage indistinguishable from a cron that stopped firing.
+          runLookupFailed = true
           consola.warn(
             `Could not read runs for ${workflow.path}: ${
               error instanceof Error ? error.message : String(error)
@@ -223,6 +227,7 @@ const main = defineCommand({
         ignore: workflow.ignore,
         lastScheduledRunAt,
         fileFirstSeenAt: firstCommitDate(workflow.path),
+        runLookupFailed,
       }
 
       verdicts.push(evaluateLiveness(facts, now))
@@ -290,6 +295,15 @@ async function postToSlack(message: string): Promise<void> {
   if (!webhookUrl) {
     consola.error(
       'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the cron-liveness alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    )
+    process.exit(1)
+  }
+
+  // A webhook URL is a bearer capability: anyone who observes it can post as us, so
+  // it must never travel in cleartext even on an internal path.
+  if (!URL.parse(webhookUrl)?.protocol.startsWith('https')) {
+    consola.error(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS must be an https:// URL; refusing to send the webhook over cleartext.'
     )
     process.exit(1)
   }
