@@ -72,10 +72,9 @@ const ABI_DIAMOND_CUT = [
 ] as const
 
 /**
- * Builds the `diamondCut` calldata a facet update proposes. The facet address
- * comes from `deployments/<network>.json` and the init payload from the
- * network's own config; the selector list is held constant across networks so
- * only the payload varies.
+ * Builds the `diamondCut` calldata a facet update proposes. The init payload
+ * comes from the network's own config; the facet address and selector list are
+ * held constant across networks so only the payload varies.
  */
 const buildDiamondCutCalldata = (
   facet: Address,
@@ -114,25 +113,19 @@ const buildInitOptimismCalldata = (network: string): Hex => {
   })
 }
 
-const deployedAddress = (network: string, contract: string): Address => {
-  const record = readJson(`deployments/${network}.json`) as unknown as Record<
-    string,
-    Address
-  >
-  const address = record[contract]
-  if (!address)
-    throw new Error(`deployments/${network}.json has no ${contract}`)
-
-  return address
-}
-
-// Two real, currently distinct production diamond addresses. Read as constants
-// rather than compared across deployment files, because `deployments/**` is not
-// in the unit-test workflow's path filter: an assertion over those files would
-// fail in whichever unrelated PR next touches `script/**`.
+// Real production addresses, pinned as constants rather than read back from
+// `deployments/**`. That directory is NOT in the unit-test workflow's path
+// filter, so a deployments-only change does not run this suite — reading it here
+// would surface the failure in whichever unrelated PR next touched `script/**`.
+// The properties under test are the fingerprint and the effect key; neither
+// needs the deployment registry to be live.
 const DIAMOND_A: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const DIAMOND_B: Address = '0x026F252016A7C47CDEf1F05a3Fc9E20C92a49C37'
 const ZERO: Address = '0x0000000000000000000000000000000000000000'
+// OptimismBridgeFacet on mainnet and CelerCircleBridgeFacet on arbitrum.
+const OPTIMISM_BRIDGE_FACET: Address =
+  '0x54678c366682a29112609882DC58dEF6753BFC27'
+const CELER_CIRCLE_FACET: Address = '0xB815B47ad429436892Fc3C6ed1D401F515C7F763'
 
 const CALL = 0
 const DELEGATECALL = 1
@@ -148,7 +141,7 @@ describe('computeChangeFingerprint', () => {
   it('is keccak of the full calldata, not a semantic label', () => {
     // Same facet, same selectors, same version label — only the per-network
     // init payload differs. A `facet+version+selectors` label collapses these.
-    const facet = deployedAddress('mainnet', 'OptimismBridgeFacet')
+    const facet = OPTIMISM_BRIDGE_FACET
     const selectors: Hex[] = ['0x8a2e4b73', '0x0e2ce9a1']
 
     const mainnetCut = buildDiamondCutCalldata(
@@ -171,7 +164,7 @@ describe('computeChangeFingerprint', () => {
   })
 
   it('gives byte-identical calldata one fingerprint', () => {
-    const facet = deployedAddress('arbitrum', 'CelerCircleBridgeFacet')
+    const facet = CELER_CIRCLE_FACET
     const selectors: Hex[] = ['0x2e2fb18b']
     const first = buildDiamondCutCalldata(facet, selectors, ZERO, '0x')
     const second = buildDiamondCutCalldata(facet, selectors, ZERO, '0x')
@@ -486,23 +479,48 @@ describe('confirm-safe-tx.ts carries no action cache', () => {
     'utf8'
   )
 
-  // Positive-form on purpose. A negative grep for the deleted identifier only
-  // catches a byte-for-byte revert: `??` instead of `||`, an if/else, a ternary
-  // or a `Map.set` all reintroduce the replay while evading it. Requiring every
-  // assignment to `action` to BE the prompt leaves no such room. Its limit is
-  // that it reads text, not behaviour — the loop is interactive and has no seam.
-  const ACTION_ASSIGNMENT = /(?<![\w.])action\s*=(?!=)/g
-  const ALLOWED = "action = await consola.prompt('Select action:', {"
+  // WHAT THIS CATCHES: every in-place reintroduction of the deleted cache —
+  // reading a remembered choice into `action` via `||`, `??`, an if/else, a
+  // ternary, a `Map.get`, or an assignment to a property instead of the local.
+  // Also catches the local being renamed away, via the non-zero assertion.
+  //
+  // WHAT IT DOES NOT CATCH, verified by writing each one: reassigning
+  // `consola.prompt` to a caching shim at module scope (the call site stays
+  // byte-identical); a replay branch that acts and `continue`s before `action`
+  // is ever assigned; and a cached value smuggled through the options object.
+  // Those need a behavioural test, which needs a seam `processTxs` does not have
+  // — extracting one is tracked separately. This guard is the cheap 80%, not a
+  // proof, and it is written to say so rather than to look complete.
+  //
+  // Comments and string literals are stripped first: `confirm-safe-tx.ts`
+  // already discusses "the operator's chosen action" in prose, and prose must
+  // not be able to fail this.
+  const executableSource = source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+
+  const ASSIGNMENT = /(?<![\w.$])action\s*=(?!=)/g
+  // Matches the prompt call without pinning its user-facing label, so rewording
+  // the prompt is not a test failure.
+  const FROM_PROMPT = /^action = \(?await consola\.prompt\(/
 
   it('assigns action only from the prompt, on every assignment', () => {
-    const collapsed = source.replace(/\s+/g, ' ')
-    const assignments = [...collapsed.matchAll(ACTION_ASSIGNMENT)].map(
-      (match) =>
-        collapsed.slice(match.index, (match.index ?? 0) + ALLOWED.length)
+    const collapsed = executableSource.replace(/\s+/g, ' ')
+    const assignments = [...collapsed.matchAll(ASSIGNMENT)].map((match) =>
+      collapsed.slice(match.index, (match.index ?? 0) + 40)
     )
 
     expect(assignments.length).toBeGreaterThan(0)
-    expect(assignments.filter((a) => a !== ALLOWED)).toEqual([])
+    expect(assignments.filter((a) => !FROM_PROMPT.test(a))).toEqual([])
+  })
+
+  it('does not reassign the prompt itself', () => {
+    expect(
+      [...executableSource.matchAll(/consola\.prompt\s*=(?!=)/g)].length
+    ).toBe(0)
   })
 
   it('has no calldata-keyed response cache', () => {

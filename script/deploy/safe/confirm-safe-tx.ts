@@ -435,18 +435,22 @@ const processTxs = async (
       }
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
+    // Read from the normalised transaction, not the stored document: this is the
+    // struct that gets hashed and signed, so the key describes what the operator
+    // is about to approve.
+    const signedData = tx.safeTransaction.data
     const fingerprint = computeChangeFingerprint(
-      tx.safeTx.data.data as Hex | undefined
+      signedData.data as Hex | undefined
     )
     const proposalKey = buildProposalKey({
-      to: tx.safeTx.data.to,
+      to: signedData.to,
       chainId: chain.id,
-      nonce: tx.safeTx.data.nonce,
+      nonce: signedData.nonce,
     })
     const acknowledgementKey = buildAcknowledgementKey({
-      to: tx.safeTx.data.to,
-      value: tx.safeTx.data.value,
-      operation: tx.safeTx.data.operation ?? 0,
+      to: signedData.to,
+      value: signedData.value,
+      operation: signedData.operation ?? 0,
       fingerprint,
     })
 
@@ -1085,12 +1089,34 @@ const main = defineCommand({
 
       // Close MongoDB connection
       await mongoClient.close(true)
+    } finally {
+      await releaseAllPooledSafeClients().catch(() => undefined)
+      // Always close ledger connection if it was created
+      if (ledgerResult) {
+        const { closeLedgerConnection } = await import('./ledger')
+        await closeLedgerConnection(ledgerResult.transport)
+      }
 
-      // Print summary of any failed or timed out executions
-      if (
-        globalFailedExecutions.length > 0 ||
-        globalTimeoutExecutions.length > 0
-      ) {
+      // Both summaries print here, together and last. In `finally` because an
+      // aborted run is where they matter most, and after the transport close so
+      // a write failure here cannot leave the Ledger open. Together because a
+      // review summary shown without the execution failures beside it reads as
+      // if the run succeeded.
+      const executionsFailed =
+        globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
+
+      if (networkOutcomes.length > 0) {
+        consola.info('=== Change Review Summary ===')
+        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
+          consola.info(line)
+        )
+        if (executionsFailed)
+          consola.warn(
+            'Counts above cover review and nonce state only — executions failed this run, see below.'
+          )
+      }
+
+      if (executionsFailed) {
         consola.info('=== Execution Summary ===')
         if (globalFailedExecutions.length > 0) {
           consola.info('Failed Executions:')
@@ -1108,23 +1134,6 @@ const main = defineCommand({
             )
           })
         }
-      }
-    } finally {
-      // In the finally block because an aborted run is where the ledger matters
-      // most: a mid-run throw would otherwise leave no record of what was
-      // reviewed on which networks.
-      if (networkOutcomes.length > 0) {
-        consola.info('=== Change Review Summary ===')
-        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
-          consola.info(line)
-        )
-      }
-
-      await releaseAllPooledSafeClients().catch(() => undefined)
-      // Always close ledger connection if it was created
-      if (ledgerResult) {
-        const { closeLedgerConnection } = await import('./ledger')
-        await closeLedgerConnection(ledgerResult.transport)
       }
     }
   },

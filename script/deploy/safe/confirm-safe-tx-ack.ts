@@ -55,16 +55,29 @@ export interface IProposalEffect {
  * transaction does — target, value, call-vs-delegatecall, payload — not the
  * payload alone. `operation` matters most: a DelegateCall carrying bytes the
  * operator already approved as a Call is a different transaction, and the
- * production diamond does not share one address across the fleet (there are
- * ~30 distinct `LiFiDiamond` addresses across the active networks), so the
- * target genuinely varies. Networks that do share a target still collapse to a
- * single acknowledgement, which is the fleet-rollout case this exists for.
+ * production diamond does not share one address across the fleet (31 distinct
+ * `LiFiDiamond` addresses across the 71 active networks), so the target
+ * genuinely varies. Networks that do share a target still collapse to a single
+ * acknowledgement, which is the fleet-rollout case this exists for.
+ *
+ * Pass the fields from the *normalised* Safe transaction, not the raw stored
+ * document — the key should describe what the operator is about to sign.
  *
  * @param effect - Target, value, operation and payload fingerprint.
  * @returns A stable key for the acknowledgement ledger.
+ * @throws If `value` is not a whole non-negative number, or the target is not an address.
  */
-export const buildAcknowledgementKey = (effect: IProposalEffect): Hex =>
-  keccak256(
+export const buildAcknowledgementKey = (effect: IProposalEffect): Hex => {
+  const rawValue =
+    typeof effect.value === 'string' ? effect.value.trim() : effect.value
+  // BigInt('') and BigInt('  ') are both 0n, which would make a blank value
+  // indistinguishable from a genuine zero-value transaction.
+  if (rawValue === '')
+    throw new Error(
+      'buildAcknowledgementKey: value is empty, expected a number'
+    )
+
+  return keccak256(
     encodeAbiParameters(
       [
         { type: 'address' },
@@ -73,13 +86,16 @@ export const buildAcknowledgementKey = (effect: IProposalEffect): Hex =>
         { type: 'bytes32' },
       ],
       [
+        // Kept explicit rather than relying on viem lowercasing internally, so
+        // the case-insensitivity invariant lives in this module's own tests.
         effect.to.toLowerCase() as Hex,
-        BigInt(effect.value),
+        BigInt(rawValue),
         effect.operation,
         effect.fingerprint,
       ]
     )
   )
+}
 
 export type ProposalIntegrityFailure = 'stale-nonce'
 
@@ -236,13 +252,18 @@ export const rollUpByChange = (
   }
 
   return [...byEffect.entries()].map(([acknowledgementKey, perProposal]) => {
-    const entries = [...perProposal.values()]
+    // A group only exists because an outcome created it, so it is never empty.
+    const [first, ...rest] = [...perProposal.values()] as [
+      INetworkOutcome,
+      ...INetworkOutcome[]
+    ]
+    const entries = [first, ...rest]
     const noncesUsable = entries.filter((e) => e.nonceCurrent).length
     const acknowledged = entries.filter((e) => e.acknowledged).length
 
     return {
       acknowledgementKey,
-      fingerprint: entries[0]?.fingerprint ?? ('0x' as Hex),
+      fingerprint: first.fingerprint,
       networks: entries.length,
       noncesUsable,
       acknowledged,
@@ -250,9 +271,7 @@ export const rollUpByChange = (
         .filter((e) => !e.nonceCurrent)
         .map((e) => e.network),
       complete:
-        entries.length > 0 &&
-        noncesUsable === entries.length &&
-        acknowledged === entries.length,
+        noncesUsable === entries.length && acknowledged === entries.length,
     }
   })
 }
