@@ -126,8 +126,20 @@ diamondUpdateFacet() {
   # anything that is not exactly "staging" reaches the production private key via
   # getPrivateKey's else branch, so the gate has to run for those values too
   if [[ "$ENVIRONMENT" != "staging" ]]; then
-    local GIT_BRANCH=$(git branch --show-current)
-    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$CONTRACT_NAME"; then
+    # The gate resolves each name to src/Facets/<name>.sol, so it needs facet
+    # names, not update-script names. UpdateCoreFacets cuts the whole coreFacets
+    # list rather than one facet of its own.
+    local GATE_FACETS
+    if [[ "$CONTRACT_NAME" == "UpdateCoreFacets" ]]; then
+      GATE_FACETS=$(jq -r '.coreFacets[]' config/global.json) ||
+        checkFailure $? "read coreFacets from config/global.json"
+    else
+      GATE_FACETS="${CONTRACT_NAME#Update}"
+    fi
+
+    local GIT_BRANCH
+    GIT_BRANCH=$(git branch --show-current)
+    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$GATE_FACETS"; then
       error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
       return 1
     fi
