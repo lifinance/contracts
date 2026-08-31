@@ -87,7 +87,7 @@ paths:
 
 - **Location**: All workflow files must be in `.github/workflows/`
 - **Naming**: Use descriptive names ending in `.yml` (e.g., `versionControlAndAuditCheck.yml`, `protectAuditLabels.yml`)
-- **Deactivated workflows**: Move to `.github/workflows_deactivated/` instead of deleting
+- **Retiring a workflow**: delete it. Git history is the archive — a parked copy under a sibling directory is never re-enabled, drifts out of date, and hides live-looking policy that no longer runs
 
 ### File Header and Documentation
 
