@@ -239,7 +239,9 @@ function updateFoundryTomlForGroup() {
         "$GROUP_ZKEVM")
             # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No need to update the main solc_version or evm_version settings
-            # No standard forge build needed for zkEVM - compilation handled by deploy scripts
+            # No standard forge build needed for zkEVM - compilation handled by deploy scripts.
+            # out/ is nonetheless required to derive the CREATE2 deploy salt; deploySingleContract's
+            # zk path ensures it per contract (ensureStandardArtifactForSalt).
             ;;
         "$GROUP_CANCUN")
             # Update solc version and EVM version in profile.default section only

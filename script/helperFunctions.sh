@@ -2099,6 +2099,54 @@ function mergeNetworkResults() {
   echo "All network results merged into $TARGET_STATE_PATH"
 }
 
+# ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
+# from exists, building it if necessary.
+#
+# Both deploy paths derive their salt from the *standard* artifact (out/<C>.sol/<C>.json), and
+# neither is guaranteed to have one: the zk toolchain only ever writes zkout/ and out/zksync/, and
+# the non-zkEVM path is reachable through scriptMaster.sh, which only builds when
+# COMPILE_ON_STARTUP is true. On the zkEVM side, deriving from the zk artifact instead is not an
+# option - that would move the address of every zkEVM deployment made so far.
+#
+# Call this before getBytecodeFromArtifact instead of relying on that function's own existence
+# check: error() writes to stdout, so its message is swallowed by the `$(...)` around that call and
+# the deploy looks like it stopped for no reason - leaving the salt to be derived from the error
+# text rather than from bytecode.
+#
+# Usage: ensureStandardArtifactForSalt CONTRACT
+#   CONTRACT - Name of the contract whose artifact is required
+#
+# Returns: 0 if the artifact exists or was built; 1 (with an error) if it cannot be produced.
+# Example: ensureStandardArtifactForSalt "FeeForwarder"
+function ensureStandardArtifactForSalt() {
+  # read function arguments into variables
+  local CONTRACT="${1:-}"
+
+  if [[ -z "$CONTRACT" ]]; then
+    error "contract name is required (access attempted by function 'ensureStandardArtifactForSalt')"
+    return 1
+  fi
+
+  local ARTIFACT_PATH="out/$CONTRACT.sol/$CONTRACT.json"
+
+  if checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+    return 0
+  fi
+
+  echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
+  if ! forge build --skip test; then
+    error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
+    return 1
+  fi
+
+  if ! checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+    error "'forge build --skip test' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    return 1
+  fi
+
+  return 0
+}
+
 function getBytecodeFromArtifact() {
   # read function arguments into variables
   local contract="$1"
