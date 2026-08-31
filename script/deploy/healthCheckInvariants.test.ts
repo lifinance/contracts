@@ -172,6 +172,12 @@ describe('findDuplicateSelectors', () => {
 describe('isStalledParkedClaim', () => {
   const NOW = new Date('2026-08-28T00:00:00.000Z')
   const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+
+  // Fixtures and the staleness bound both divide by DAY_MS, so a wrong DAY_MS
+  // cancels out and every age assertion below still passes. Pin it literally.
+  it('measures ages in whole days', () => {
+    expect(DAY_MS).toBe(86_400_000)
+  })
   const task = (over: Partial<IOpenParkedCoverage>): IOpenParkedCoverage => ({
     prUrl: 'https://github.com/lifinance/contracts/pull/1',
     status: 'proposed',
