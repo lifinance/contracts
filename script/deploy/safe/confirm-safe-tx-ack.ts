@@ -232,8 +232,12 @@ export interface IChangeRollup {
  * verdict; only the acknowledgement count rolls up.
  *
  * Callers may push a provisional entry for a proposal and a final one later:
- * for a given proposal key the last entry wins, so a run can record every
- * proposal it displayed and still report the outcome it ended on.
+ * within one effect group the last entry for a proposal key wins, so a run can
+ * record every proposal it displayed and still report the outcome it ended on.
+ * Superseding is scoped to the group, so both entries for a proposal must carry
+ * the same `acknowledgementKey` — otherwise they land in two groups and the
+ * proposal is counted twice. `processTxs` satisfies this by computing the key
+ * once per proposal and reusing it for both pushes.
  *
  * @param outcomes - One or more entries per proposal seen, in the order they were seen.
  * @returns One rollup per distinct effect, in first-seen order.

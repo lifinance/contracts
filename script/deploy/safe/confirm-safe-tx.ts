@@ -79,6 +79,12 @@ dotenv.config()
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
+// Networks the run tried to process. A network can be attempted and still
+// contribute no outcome (not an owner, ownership read failed, nothing
+// actionable), and a per-change N/N must never be read as fleet coverage when
+// that happened.
+const networksAttempted = new Set<string>()
+
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
   chain: string
@@ -638,7 +644,10 @@ const processTxs = async (
       }
     }
 
-    recordAcknowledgement(acknowledgementLedger, {
+    // The ledger refuses to store an acknowledgement for a proposal whose nonce
+    // check failed, so the summary must report what the ledger accepted rather
+    // than that the operator answered.
+    const acknowledged = recordAcknowledgement(acknowledgementLedger, {
       acknowledgementKey,
       proposalKey,
       integrityOk: integrity.ok,
@@ -649,7 +658,7 @@ const processTxs = async (
       acknowledgementKey,
       fingerprint,
       nonceCurrent: integrity.ok,
-      acknowledged: true,
+      acknowledged,
     })
 
     if (action === 'Sign')
@@ -1031,6 +1040,8 @@ const main = defineCommand({
         const networkTxs = txsByNetwork[network.toLowerCase()]
         if (!networkTxs || networkTxs.length === 0) continue
 
+        networksAttempted.add(network)
+
         const nextNetwork = networks[i + 1]
         if (nextNetwork) {
           const nextTxs = txsByNetwork[nextNetwork.toLowerCase()]
@@ -1107,6 +1118,11 @@ const main = defineCommand({
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')
+        const covered = new Set(networkOutcomes.map((o) => o.network)).size
+        if (covered < networksAttempted.size)
+          consola.warn(
+            `Covers ${covered} of ${networksAttempted.size} networks attempted — the rest produced no reviewable proposal (not an owner, ownership read failed, or nothing actionable). Per-change counts below are out of the covered networks, not the fleet.`
+          )
         renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
           consola.info(line)
         )
