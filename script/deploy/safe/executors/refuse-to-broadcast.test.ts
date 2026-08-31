@@ -15,6 +15,8 @@ import {
 } from 'bun:test'
 import type { Account, Address, PublicClient, WalletClient } from 'viem'
 
+import type { IChainExecutionParams } from '../../../common/types'
+
 import { EvmChainCaller } from './evm-caller'
 import { EvmChainExecutor } from './evm-executor'
 
@@ -23,6 +25,15 @@ const TARGET: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const ACCOUNT = { address: TARGET, type: 'json-rpc' } as unknown as Account
 
 const ESTIMATE_FAILURE = 'execution reverted: GS013'
+
+const EXEC_PARAMS: IChainExecutionParams = {
+  safeAddress: SAFE,
+  to: TARGET,
+  value: 0n,
+  data: '0x',
+  operation: 0,
+  signatures: '0x',
+}
 
 interface ISpy {
   writeContractCalls: number
@@ -88,14 +99,7 @@ describe('refuse to broadcast when gas estimation fails', () => {
     )
 
     const message = await captureRejection(
-      executor.executeTransaction({
-        safeAddress: SAFE,
-        to: TARGET,
-        value: 0n,
-        data: '0x',
-        operation: 0,
-        signatures: '0x',
-      } as never)
+      executor.executeTransaction(EXEC_PARAMS)
     )
 
     expect(spy.writeContractCalls).toBe(0)
@@ -150,14 +154,7 @@ describe('refuse to broadcast when gas estimation fails', () => {
       'jovay'
     )
 
-    await executor.executeTransaction({
-      safeAddress: SAFE,
-      to: TARGET,
-      value: 0n,
-      data: '0x',
-      operation: 0,
-      signatures: '0x',
-    } as never)
+    await executor.executeTransaction(EXEC_PARAMS)
 
     expect(spy.writeContractCalls).toBe(1)
   })
