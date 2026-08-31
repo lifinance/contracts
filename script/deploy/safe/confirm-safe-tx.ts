@@ -433,6 +433,27 @@ const processTxs = async (
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
 
+    const integrity = evaluateProposalIntegrity({ nonceStatus })
+    const fingerprint = computeChangeFingerprint(
+      tx.safeTx.data.data as Hex | undefined
+    )
+    const proposalKey = buildProposalKey({
+      to: tx.safeTx.data.to,
+      chainId: chain.id,
+      nonce: tx.safeTx.data.nonce,
+    })
+
+    // Recorded before the prompts so a proposal skipped, aborted or refused
+    // still counts towards the run's N/N; a later push for the same proposal
+    // key supersedes this one.
+    networkOutcomes.push({
+      network,
+      proposalKey,
+      fingerprint,
+      checksPassed: integrity.ok,
+      acknowledged: false,
+    })
+
     // Determine available actions based on signature status
     // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
     let action: string
@@ -572,16 +593,6 @@ const processTxs = async (
       }
     }
 
-    const integrity = evaluateProposalIntegrity({ nonceStatus })
-    const fingerprint = computeChangeFingerprint(
-      tx.safeTx.data.data as Hex | undefined
-    )
-    const proposalKey = buildProposalKey({
-      to: tx.safeTx.data.to,
-      chainId: chain.id,
-      nonce: tx.safeTx.data.nonce,
-    })
-
     if (
       shouldPromptForAcknowledgement({
         alreadyAcknowledged: isChangeAcknowledged(
@@ -611,13 +622,6 @@ const processTxs = async (
 
       if (acknowledgement.startsWith('No')) {
         consola.info('Aborted — change not acknowledged')
-        networkOutcomes.push({
-          network,
-          proposalKey,
-          fingerprint,
-          checksPassed: integrity.ok,
-          acknowledged: false,
-        })
         continue
       }
     }

@@ -66,9 +66,10 @@ const ABI_DIAMOND_CUT = [
 ] as const
 
 /**
- * Builds the real `diamondCut` calldata a facet update proposes: the facet
- * address and selectors from `deployments/<network>.json`, and the init payload
- * a network's own config produces.
+ * Builds the `diamondCut` calldata a facet update proposes. The facet address
+ * comes from `deployments/<network>.json` and the init payload from the
+ * network's own config; the selector list is held constant across networks so
+ * only the payload varies.
  */
 const buildDiamondCutCalldata = (
   facet: Address,
@@ -349,8 +350,27 @@ describe('rollUpByChange', () => {
   })
 
   it('counts one network once even if it is revisited', () => {
-    const [rollup] = rollUpByChange([outcome(1, true), outcome(1, true)])
-    expect(rollup?.networks).toBe(1)
+    const rollups = rollUpByChange([outcome(1, true), outcome(1, true)])
+    expect(rollups[0]?.networks).toBe(1)
+  })
+
+  it('lets a later entry for the same proposal supersede the provisional one', () => {
+    const provisional = { ...outcome(1, true), acknowledged: false }
+    const final = { ...outcome(1, true), acknowledged: true }
+    const rollups = rollUpByChange([provisional, final])
+
+    expect(rollups[0]?.networks).toBe(1)
+    expect(rollups[0]?.acknowledged).toBe(1)
+  })
+
+  it('keeps a provisional unacknowledged entry when nothing supersedes it', () => {
+    const rollups = rollUpByChange([
+      { ...outcome(1, true), acknowledged: true },
+      { ...outcome(2, true), acknowledged: false },
+    ])
+
+    expect(rollups[0]?.networks).toBe(2)
+    expect(rollups[0]?.acknowledged).toBe(1)
   })
 
   it('keeps distinct changes in distinct rollups', () => {

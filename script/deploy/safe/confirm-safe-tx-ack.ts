@@ -165,7 +165,11 @@ export interface IChangeRollup {
  * Checks are counted per network and are never rolled up into a single verdict;
  * only the acknowledgement count rolls up.
  *
- * @param outcomes - One entry per proposal seen, in the order they were seen.
+ * Callers may push a provisional entry for a proposal and a final one later:
+ * for a given proposal key the last entry wins, so a run can record every
+ * proposal it displayed and still report the outcome it ended on.
+ *
+ * @param outcomes - One or more entries per proposal seen, in the order they were seen.
  * @returns One rollup per distinct change, in first-seen order.
  */
 export const rollUpByChange = (
