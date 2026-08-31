@@ -84,7 +84,7 @@ paths:
 ### Scheduled workflows ([CONV:CRON-SCHEDULE])
 
 - **A monthly cron uses a day-of-month between 1 and 28.** Days 29-31 do not exist in every month, so `0 3 31 * *` fires 7 times a year with gaps of up to 61 days. The intent is "once a month"; only 1-28 delivers it on every month.
-- **The expression must be classifiable by the liveness watchdog.** `script/utils/cronLiveness.ts` derives an expected cadence for every `on.schedule` entry and reports any expression it cannot bucket, every day, until the schedule is fixed or a classifier rule is added. Modelled shapes are a minute step (`*/10 * * * *`), a fixed hour (daily), a fixed weekday (weekly), and a fixed day-of-month 1-28 (monthly); steps outside the minute field, fixed months, ranges and lists are refused.
+- **The expression must be classifiable by the liveness watchdog.** `script/utils/cronLiveness.ts` derives an expected cadence for every `on.schedule` entry and reports any expression it cannot bucket, every day, until the schedule is fixed or a classifier rule is added. Modelled shapes are a minute step (`*/10 * * * *`), a fixed hour (daily), a fixed weekday (weekly), and a fixed day-of-month 1-28 (monthly); steps outside the minute field, fixed months, ranges, lists and any value outside cron's own field ranges (minute 0-59, hour 0-23, day-of-month 1-31, month 1-12, day-of-week 0-6) are refused.
 - **Example (correct)**:
 
   ```yaml

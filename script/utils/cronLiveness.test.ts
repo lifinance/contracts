@@ -111,6 +111,38 @@ describe('classifyCron', () => {
     expect(result.kind).toBe('unclassifiable')
   })
 
+  it('rejects an out-of-range day-of-month before the weekday branch claims it', () => {
+    // '0 0 0 * 1' has an invalid day-of-month (cron starts at 1) alongside a valid
+    // weekday. Reading the weekday first would bucket a schedule GitHub never fires
+    // as weekly, so the alert would arrive a grace window late and blame a late run
+    // rather than the typo.
+    const result = classifyCron('0 0 0 * 1')
+    expect(result.kind).toBe('unclassifiable')
+  })
+
+  it.each([
+    ['minute', '99 * * * *'],
+    ['hour', '0 99 * * *'],
+    ['day-of-month', '0 0 32 * *'],
+    ['day-of-week', '0 0 * * 9'],
+  ])('rejects an out-of-range %s rather than bucketing it', (_field, cron) => {
+    expect(classifyCron(cron).kind).toBe('unclassifiable')
+  })
+
+  it('rejects a minute step wider than the minute field', () => {
+    // '*/90' matches minute 0 only, so it runs hourly. Trusting the step would grant
+    // a 90-minute interval's grace to a schedule that fires every 60.
+    const result = classifyCron('*/90 * * * *')
+    expect(result.kind).toBe('unclassifiable')
+  })
+
+  it('still rejects day-of-month 29-31 as not-every-month', () => {
+    // In range for cron, but skipped by short months: '0 0 31 * *' can go 61 days
+    // between runs, past the monthly grace window.
+    const result = classifyCron('0 0 31 * *')
+    expect(result.kind).toBe('unclassifiable')
+  })
+
   it('carries a human-readable reason on every unclassifiable verdict', () => {
     const result = classifyCron('nonsense')
     if (result.kind !== 'unclassifiable')

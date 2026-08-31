@@ -76,18 +76,46 @@ export function classifyCron(expression: string): TCronClassification {
         reason: `step syntax in the ${name} field is not modelled: '${field}'`,
       }
 
-  for (const [name, field] of [
-    ['minute', minute],
-    ['hour', hour],
-    ['day-of-month', dayOfMonth],
-    ['month', month],
-    ['day-of-week', dayOfWeek],
-  ] as const)
-    if (field !== '*' && !isPlainInteger(field) && parseStep(field) === null)
+  // Ranges are cron's own, per GitHub's workflow-syntax reference. An out-of-range
+  // value is a schedule GitHub never fires, so bucketing it would hand a dead cron a
+  // real grace window and delay the alert by that window - and then report it as a
+  // late run instead of naming the typo.
+  for (const [name, field, min, max] of [
+    ['minute', minute, 0, 59],
+    ['hour', hour, 0, 23],
+    ['day-of-month', dayOfMonth, 1, 31],
+    ['month', month, 1, 12],
+    ['day-of-week', dayOfWeek, 0, 6],
+  ] as const) {
+    if (field === '*') continue
+
+    const step = parseStep(field)
+    if (step !== null) {
+      // A step wider than the field only ever matches the field's first value, so
+      // '*/90' in minutes is hourly, not 90-minutely. Bucketing it by the step
+      // overstates the interval and over-grants grace.
+      if (step > max)
+        return {
+          kind: 'unclassifiable',
+          reason: `step '${field}' exceeds the ${name} range ${min}-${max}, so it fires less often than the step suggests`,
+        }
+
+      continue
+    }
+
+    if (!isPlainInteger(field))
       return {
         kind: 'unclassifiable',
         reason: `unsupported ${name} field: '${field}'`,
       }
+
+    const value = Number(field)
+    if (value < min || value > max)
+      return {
+        kind: 'unclassifiable',
+        reason: `${name} '${field}' is outside cron's ${min}-${max} range`,
+      }
+  }
 
   // A fixed month fires once a YEAR. Bucketing it as monthly would hand it a ~47d
   // grace window and alert every year for the other eleven months.
@@ -107,9 +135,8 @@ export function classifyCron(expression: string): TCronClassification {
     // Only 1-28 occurs in every month. Days 29-31 are skipped by the months too
     // short to contain them, so '0 0 31 * *' can go 61 days between runs (Mar 31
     // to May 31) - past the monthly grace window, which would alert on a schedule
-    // running exactly as declared. 0 is outside cron's range altogether.
-    const day = Number(dayOfMonth)
-    if (day < 1 || day > 28)
+    // running exactly as declared.
+    if (Number(dayOfMonth) > 28)
       return {
         kind: 'unclassifiable',
         reason: `day-of-month '${dayOfMonth}' is outside the 1-28 range every month contains, so the gap between runs is not a fixed month`,
