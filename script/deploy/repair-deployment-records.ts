@@ -28,6 +28,13 @@ import { type IDeploymentRecord } from './shared/mongo-log-utils'
 
 const DATABASE_NAME = 'contract-deployments'
 
+/**
+ * Stamped on every attested record so a consumer can tell where the provenance came from,
+ * and so a future method can be distinguished from this one. The prose describing what the
+ * method does and what it does NOT prove lives in the payload file, once.
+ */
+const ATTESTATION_METHOD = 'wp-7.1-fleet-reproducibility-sweep'
+
 interface IAttestation {
   network: string
   address: string
@@ -66,10 +73,14 @@ function key(r: {
   )
 }
 
-function loadSnapshotKeys(file: string): Set<string> {
+function loadSnapshotKeys(file: string, collection: string): Set<string> {
   const snap = JSON.parse(readFileSync(resolve(file), 'utf8'))
-  if (snap.collection !== 'production')
-    consola.warn(`snapshot is of collection '${snap.collection}'`)
+  // A snapshot of a different collection cannot roll this repair back, and the mismatch
+  // that matters is against the collection being written — not against 'production'.
+  if (snap.collection !== collection)
+    throw new Error(
+      `snapshot is of collection '${snap.collection}' but the repair targets '${collection}'`
+    )
   return new Set(
     (snap.documents as IDeploymentRecord[]).map((d) =>
       key({
@@ -173,7 +184,7 @@ const attest = defineCommand({
   async run({ args }) {
     const payload = JSON.parse(readFileSync(resolve(args.file), 'utf8'))
     const rows: IAttestation[] = payload.attestations
-    const snapshot = loadSnapshotKeys(args.backup)
+    const snapshot = loadSnapshotKeys(args.backup, args.collection)
     consola.info(
       `${rows.length} attestations | snapshot holds ${snapshot.size} records`
     )
@@ -231,8 +242,10 @@ const attest = defineCommand({
                     optimizerRuns: a.optimizerRuns,
                   },
                   attestedAt: payload.generatedAt,
-                  method: payload.method,
-                  caveat: payload.caveat,
+                  // An identifier, not prose. The method and its caveat are the same for
+                  // every row, so they live once in the payload file rather than being
+                  // copied into several hundred documents.
+                  method: ATTESTATION_METHOD,
                 },
                 updatedAt: new Date(),
               },
@@ -276,7 +289,7 @@ const profile = defineCommand({
   async run({ args }) {
     const payload = JSON.parse(readFileSync(resolve(args.file), 'utf8'))
     const rows: IProfileFix[] = payload.corrections
-    const snapshot = loadSnapshotKeys(args.backup)
+    const snapshot = loadSnapshotKeys(args.backup, args.collection)
     consola.info(
       `${rows.length} corrections | snapshot holds ${snapshot.size} records`
     )

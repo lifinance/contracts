@@ -79,10 +79,10 @@ const backup = defineCommand({
   },
 })
 
-const restore = defineCommand({
+const inspect = defineCommand({
   meta: {
-    name: 'restore',
-    description: 'Report what a snapshot would restore (never writes)',
+    name: 'inspect',
+    description: 'Describe a snapshot and verify it reads back (never writes)',
   },
   args: {
     file: { type: 'positional', description: 'Snapshot file', required: true },
@@ -99,7 +99,7 @@ const restore = defineCommand({
     // Restoring is deliberately not automated: a blind replace would also revert whatever
     // legitimate deploys landed after the snapshot was taken. Reconcile by hand.
     consola.warn(
-      'restore is manual on purpose — replaying a whole snapshot would also undo deploys that landed after it was taken'
+      'restoring is manual on purpose — replaying a whole snapshot would also undo deploys that landed after it was taken'
     )
   },
 })
@@ -107,6 +107,6 @@ const restore = defineCommand({
 runMain(
   defineCommand({
     meta: { name: 'backup-deployment-logs' },
-    subCommands: { backup, restore },
+    subCommands: { backup, inspect },
   })
 )
