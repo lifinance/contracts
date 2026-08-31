@@ -16,9 +16,9 @@
  * a deleted one drops out on its own. Opt out with `# watchdog:ignore <reason>`
  * in the workflow's own YAML.
  *
- * Usage:
- *   bunx tsx script/utils/checkCronLiveness.ts --dry-run
- *   bunx tsx script/utils/checkCronLiveness.ts --heartbeat
+ * Usage (CI supplies github.token; locally take one from the gh CLI):
+ *   GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --dry-run
+ *   GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --heartbeat
  */
 
 import { execFileSync } from 'node:child_process'
@@ -168,7 +168,9 @@ const main = defineCommand({
     // to the runner default and work only by coincidence ([CONV:ACTIONS-NO-INJECTION]).
     const token = args.token ?? process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN
     if (!token) {
-      consola.error('No GitHub token: pass --token or set GH_TOKEN.')
+      consola.error(
+        'No GitHub token. In CI the workflow supplies github.token; locally run: GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --dry-run'
+      )
       process.exit(1)
     }
 
