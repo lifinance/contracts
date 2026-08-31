@@ -549,8 +549,9 @@ removal" problem just moves up one level (the signer now sees a mystery `diamond
 instead of a mystery deprecation). So the drain both `consola`-logs each removal it adds
 (facet + origin PR) at mint time, and threads the PR link onto the minted proposal.
 
-`ISafeTxDocument` carries no field for a cleanup origin link (Fact 6), so the
-drain-minted proposal is extended with **one optional field** and surfaced at the three places the reviewer looks
+`ISafeTxDocument` carried no field for a cleanup origin link before this spec (Fact 6 now
+lists the `parkedTaskRefs?` it adds), so the drain-minted proposal is extended with **one
+optional field** and surfaced at the three places the reviewer looks
 — none of which touch the rule-201 decode formatter (the field-vs-side-car choice itself
 is §14 Q3):
 
