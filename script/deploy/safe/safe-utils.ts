@@ -2082,12 +2082,11 @@ export interface IResolvedSafeSigning {
 /**
  * Reads a Ledger account index, refusing anything that is not one.
  *
- * `Number()` turns several things a CLI can deliver into a valid-looking index:
- * an empty string (`--accountIndex "$UNSET_VAR"`) becomes 0, and a valueless
- * flag arriving as boolean `true` becomes 1. The BIP32 parser then accepts what
- * it is handed — a `NaN` segment is dropped from the path entirely, a fraction
- * is truncated and a negative wraps — so each yields a different, valid-looking
- * address with no error at any layer.
+ * `Number('')` is 0, so a CLI that delivers an empty string
+ * (`--accountIndex "$UNSET_VAR"`) yields account 0. Anything else `Number()`
+ * produces is taken by the BIP32 parser as given — a `NaN` segment is dropped
+ * from the path entirely, a fraction is truncated and a negative wraps — so
+ * each derives a different, valid-looking address with no error at any layer.
  *
  * @param raw - The value as the caller received it, unconverted.
  * @returns The index.
@@ -2122,9 +2121,11 @@ export const parseAccountIndex = (raw: number | string | undefined): number => {
  *
  * @param options - the CLI/caller flags plus the environment key to fall back on.
  * @returns what to hand `initializeSafeClient`.
- * @throws If both path options are given, if a Ledger sub-option is given
- * without `ledger`, if `accountIndex` is not a non-negative integer, or if
- * neither a Ledger nor a key is available.
+ * @throws If both path options are given, if `derivationPath` or `ledgerLive`
+ * is given without `ledger`, if `accountIndex` is not a non-negative integer,
+ * if a non-zero `accountIndex` is given without `ledgerLive`, if
+ * `derivationPath` is given but blank, or if neither a Ledger nor a key is
+ * available.
  */
 export const resolveSafeSigningOptions = (
   options: ISafeSigningOptions

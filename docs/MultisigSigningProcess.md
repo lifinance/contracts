@@ -104,12 +104,16 @@ All EVM funnels end in `storeTransactionInMongoDB`
   `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
   (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`).
   Refused rather than silently accepted: the two path options together, a
-  non-integer `--accountIndex`, a Ledger sub-option without `--ledger`,
-  `--ledger` together with `--all-networks` (one device confirmation and one
-  unclosed connection per network), and any value other than `true`/`false` on
-  `--ledger` / `--ledgerLive`. The signer is checked against the Safe's owners
-  before the proposal is stored. The direct-send path is unchanged and remains
-  key-only; it warns and ignores `--ledger`.
+  non-integer `--accountIndex`, a non-zero `--accountIndex` without
+  `--ledgerLive` (the Ledger Live path is the only one that reads it), a blank
+  `--derivationPath`, `--ledgerLive` or `--derivationPath` without `--ledger`,
+  any value other than `true`/`false` on `--ledger` / `--ledgerLive`, any of the
+  four flags passed twice, and `--ledger` on a run that would propose more than
+  once — `--all-networks`, or a `--periphery` selection naming several
+  contracts, since each proposal opens its own unclosed Ledger connection and
+  asks for its own device confirmation. The signer is checked against the Safe's
+  owners before the proposal is stored. The direct-send path is unchanged and
+  remains key-only; it warns and ignores `--ledger`.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).

@@ -1397,16 +1397,16 @@ describe('resolveSafeSigningOptions', () => {
   // -1 wraps to 2147483647. Each derives a different, valid-looking address with
   // no error anywhere, so the refusal has to happen here.
   //
-  // Every value below is one citty actually hands back for the corresponding
-  // spelling: `--accountIndex abc` → 'abc', `--accountIndex ""` → '', and
-  // `--account-index=` → boolean true.
+  // The string cases are what citty hands back for `--accountIndex abc` and
+  // `--accountIndex ""`; the boolean guards a programmatic caller, since no CLI
+  // spelling produces it.
   it.each([
     ['non-numeric', 'abc'],
     ['fractional', '3.7'],
     ['negative', '-1'],
     ['empty', ''],
     ['whitespace-only', '  '],
-    ['valueless kebab spelling', true],
+    ['boolean', true],
   ])(
     'refuses a %s accountIndex rather than deriving a different address',
     (_label, value) => {

@@ -108,8 +108,9 @@ describe('readValueFlag', () => {
     expect(read('--accountIndex=')).toBe('')
   })
 
-  it('refuses a valueless flag rather than reporting a boolean', () => {
-    // A bare `--derivation-path` reached the Ledger SDK as boolean `true`.
+  it('refuses a valueless flag rather than reporting an empty value', () => {
+    // citty hands a bare `--derivationPath` back as `''`, which is falsy, so
+    // the resolver dropped it and derived from the default path instead.
     expect(() => read('--accountIndex')).toThrow(/needs a value/)
     expect(() => read('--accountIndex', '--network')).toThrow(/needs a value/)
   })

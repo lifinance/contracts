@@ -3,13 +3,10 @@
  * cannot be trusted.
  *
  * citty's parse is lossy in ways that matter on a signing path. For a
- * `type: 'boolean'` argument it coerces the camelCase spelling of any value
- * that is not `false` to boolean `true`, so `--ledgerLive=no` becomes `true`
- * and is then indistinguishable from a bare `--ledgerLive`; the kebab spelling
- * of the same argument passes the raw value through instead, so
- * `--ledger-live=1` becomes `'1'`. A space-separated value is discarded
- * entirely. And a repeated flag keeps one occurrence with no indication that
- * there were two.
+ * `type: 'boolean'` argument it coerces any value that is not `false` to
+ * boolean `true`, so `--ledgerLive=no` is indistinguishable from a bare
+ * `--ledgerLive`; a space-separated value is discarded entirely; and a repeated
+ * flag keeps one occurrence with no indication that there were two.
  *
  * No predicate over the parsed value can recover any of this — the information
  * is gone before the command body runs. So these readers work on `argv`, accept

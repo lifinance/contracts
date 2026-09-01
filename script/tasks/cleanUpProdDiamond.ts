@@ -177,7 +177,7 @@ const command = defineCommand({
     ledger: {
       type: 'boolean',
       description:
-        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION; not combinable with --all-networks',
+        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION; only for a run that makes a single proposal',
     },
     // No `default` on these: citty applies a default to the registered
     // camelCase key even when the caller typed the kebab spelling, so a default
@@ -190,7 +190,7 @@ const command = defineCommand({
     accountIndex: {
       type: 'string',
       description:
-        'Ledger Live account index (default 0); only read together with --ledgerLive',
+        'Ledger Live account index (default 0); requires --ledgerLive',
     },
     derivationPath: {
       type: 'string',

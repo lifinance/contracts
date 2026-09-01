@@ -138,9 +138,6 @@ export async function _runPropose(
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    // Shared with `sendOrPropose`: `Number()` turns an empty string into 0 and a
-    // valueless flag into 1, and the BIP32 parser accepts both as a different,
-    // valid-looking address.
     accountIndex: parseAccountIndex(options.accountIndex),
     derivationPath: options.derivationPath,
   }
