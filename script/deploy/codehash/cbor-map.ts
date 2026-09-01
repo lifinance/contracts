@@ -8,8 +8,8 @@
  * refuses everything else instead of implementing CBOR.
  */
 
-/** Major type 5, entry count in the low 5 bits. Solc emits two or three keys. */
-const MAP_HEADER_MIN = 0xa0
+/** Major type 5, entry count in the low 5 bits. Solc emits one to three keys. */
+const MAP_HEADER_MIN = 0xa1
 const MAP_HEADER_MAX = 0xb7
 
 const MAJOR_BYTE_STRING = 2
@@ -85,6 +85,9 @@ const readLength = (info: number, reader: Reader): number | undefined => {
 export const decodeCborMap = (
   hex: string
 ): ICborMapDecoded | ICborMapRefused => {
+  if (!/^([0-9a-f]{2})*$/i.test(hex))
+    return { ok: false, reason: 'the blob is not whole bytes of hex' }
+
   const bytes = new Uint8Array(
     (hex.match(/../g) ?? []).map((pair) => parseInt(pair, 16))
   )
@@ -100,8 +103,11 @@ export const decodeCborMap = (
         .padStart(2, '0')}, which is not a CBOR map header`,
     }
 
-  const count = header - MAP_HEADER_MIN
-  const entries: Record<string, string> = {}
+  const count = header - 0xa0
+  const entries: Record<string, string> = Object.create(null) as Record<
+    string,
+    string
+  >
 
   for (let i = 0; i < count; i++) {
     const keyHeader = reader.byte()
@@ -118,7 +124,7 @@ export const decodeCborMap = (
     const key = new TextDecoder().decode(keyBytes)
 
     // A duplicate key leaves no way to say which entry the map means.
-    if (key in entries)
+    if (Object.prototype.hasOwnProperty.call(entries, key))
       return { ok: false, reason: `the CBOR map repeats the key '${key}'` }
 
     const valueHeader = reader.byte()

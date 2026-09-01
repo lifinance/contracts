@@ -14,11 +14,15 @@ export interface IAttestedBuild {
   solcVersion: string
   /** keccak of the runtime code after trailer-stripping and immutable masking. */
   maskedHash: string
+  /** Length of the code as deployed, before anything was stripped or masked. */
+  rawByteLength: number
 }
 
 /** What was actually found at the address, normalised the same way. */
 export interface IObservedCode {
   maskedHash: string
+  /** Length of the code as deployed, before anything was stripped or masked. */
+  rawByteLength: number
   /**
    * Decoded from the deployed code's own trailer, so chosen by whoever deployed
    * it. Absent when no version can be read.
@@ -70,6 +74,17 @@ const blocked = (
  * signers learn to click through. MISMATCH is a statement about the code;
  * UNVERIFIABLE is a statement about our knowledge. Both block.
  *
+ * A match requires the normalised hash AND the deployed length: the hash alone
+ * leaves the trailer's length word free, and that word decides how much is
+ * removed before hashing, so appending a payload and a length word covering it
+ * normalises to whatever prefix the appender likes.
+ *
+ * What both together still allow, measured on a 1440-byte facet with a 53-byte
+ * trailer: 45 bytes of arbitrary content inside the trailer region, where an
+ * honest build carries a 34-byte digest. It sits past the code's terminating
+ * INVALID and is not reachable, and removing this last latitude means comparing
+ * raw bytes, which no rebuild reproduces. Stated rather than hidden.
+ *
  * Known limitation, and the reason `scope` exists: with an open set, the only
  * thing distinguishing "we never built that toolchain" from "this is not our
  * code" is the compiler version in the deployed trailer, which the proposer
@@ -87,11 +102,15 @@ export const compareToAttestedSet = (
   scope: ILineageScope
 ): ICodehashComparison => {
   const target = normalizeHash(observed.maskedHash)
-  const matchedLineages = attested
-    .filter((build) => normalizeHash(build.maskedHash) === target)
-    .map((build) => build.lineage)
+  const sameCode = attested.filter(
+    (build) => normalizeHash(build.maskedHash) === target
+  )
+  const sameCodeAndLength = sameCode.filter(
+    (build) => build.rawByteLength === observed.rawByteLength
+  )
 
-  if (matchedLineages.length > 0)
+  if (sameCodeAndLength.length > 0) {
+    const matchedLineages = sameCodeAndLength.map((build) => build.lineage)
     return {
       verdict: 'MATCH',
       matchedLineages,
@@ -100,6 +119,25 @@ export const compareToAttestedSet = (
       )}`,
       blocksSigning: false,
     }
+  }
+
+  // Normalising to an attested build is not the same as being one. The trailer's
+  // length word says how many bytes come off before hashing, and it is part of
+  // the deployed code, so appending a payload and a length word covering it
+  // normalises to whatever prefix the appender likes.
+  if (sameCode.length > 0) {
+    const attestedLength = sameCode[0]?.rawByteLength ?? 0
+    return blocked(
+      'MISMATCH',
+      `the deployed code normalises to the attested build from ${
+        sameCode[0]?.lineage
+      } but is ${
+        observed.rawByteLength
+      } bytes where that build is ${attestedLength}, so ${Math.abs(
+        observed.rawByteLength - attestedLength
+      )} bytes of it are not accounted for`
+    )
+  }
 
   if (attested.length === 0)
     return blocked(

@@ -66,7 +66,7 @@ describe('decodeCborMap', () => {
       'bf64736f6c634300081dff',
       /not a CBOR map header/,
     ],
-    ['a non-text key', 'a1164736f6c6343000000', /key is not a text string/],
+    ['a non-text key', 'a116', /key is not a text string/],
     ['a nested map as a value', 'a164736f6c63a0', /not a value solc emits/],
     ['a key running past the end', 'a16f736f6c63', /runs past the blob/],
     [
@@ -88,10 +88,34 @@ describe('decodeCborMap', () => {
     if (!result.ok) expect(result.reason).toMatch(/repeats the key 'solc'/)
   })
 
-  it('decodes an empty map, which is well-formed but carries nothing', () => {
+  it('refuses a zero-entry map, which is well-formed CBOR solc never emits', () => {
+    // Admitting it widens what counts as a trailer for nothing in return: an
+    // `a0` before a plausible length word would strip bytes off a contract that
+    // has no trailer.
     const result = decodeCborMap('a0')
 
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/not a CBOR map header/)
+  })
+
+  it.each([
+    ['non-hex characters', 'a16161' + 'zz'],
+    ['an odd number of nibbles', 'a1616144deadbee'],
+  ])('refuses a blob with %s instead of reading zero bytes', (_label, hex) => {
+    // `parseInt('zz', 16)` is NaN, and a NaN in a Uint8Array becomes 0x00, so
+    // nonsense decoded into real-looking entries.
+    const result = decodeCborMap(hex)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/whole bytes of hex/)
+  })
+
+  it('reads a key that shadows an Object prototype member', () => {
+    // `key in entries` was true for inherited names, so a first-and-only
+    // `toString` key was refused as a repeat.
+    const result = decodeCborMap('a168746f537472696e6743000811')
+
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.entries).toEqual({})
+    if (result.ok) expect(result.entries['toString']).toBe('000811')
   })
 })
