@@ -281,7 +281,8 @@ export interface IProposeToSafeOptions {
   rpcUrl?: string
   ledger?: boolean
   ledgerLive?: boolean
-  accountIndex?: number
+  /** Unconverted, so a malformed value reaches `parseAccountIndex` intact. */
+  accountIndex?: number | string
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string

@@ -39,6 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
 import { normalizeProposeCalls } from './propose-calls'
 import {
@@ -48,6 +49,7 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
+  parseAccountIndex,
   storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
   type IParkedTaskRef,
@@ -122,9 +124,9 @@ export async function _runPropose(
     consola.info('Using Ledger hardware wallet for signing')
     if (options.ledgerLive)
       consola.info(
-        `Using Ledger Live derivation path with account index ${
-          options.accountIndex || 0
-        }`
+        `Using Ledger Live derivation path with account index ${parseAccountIndex(
+          options.accountIndex
+        )}`
       )
     else if (options.derivationPath)
       consola.info(`Using custom derivation path: ${options.derivationPath}`)
@@ -136,7 +138,10 @@ export async function _runPropose(
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
+    // Shared with `sendOrPropose`: `Number()` turns an empty string into 0 and a
+    // valueless flag into 1, and the BIP32 parser accepts both as a different,
+    // valid-looking address.
+    accountIndex: parseAccountIndex(options.accountIndex),
     derivationPath: options.derivationPath,
   }
 
@@ -419,7 +424,10 @@ const main = defineCommand({
       rpcUrl: args.rpcUrl,
       ledger: args.ledger,
       ledgerLive: args.ledgerLive,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : undefined,
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
       derivationPath: args.derivationPath,
       safeAddress: args.safeAddress,
       nonce: args.nonce !== undefined ? BigInt(args.nonce) : undefined,

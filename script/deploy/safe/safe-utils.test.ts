@@ -1420,6 +1420,29 @@ describe('resolveSafeSigningOptions', () => {
     }
   )
 
+  it('refuses an accountIndex that the Ledger path would ignore', () => {
+    // getLedgerAccount reads accountIndex only on the Ledger Live path, so this
+    // combination silently signs from account 0.
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 3 })
+    ).toThrow(/only selects an account on the Ledger Live path/)
+  })
+
+  it('allows an explicit account 0 without ledgerLive, which is what it would use anyway', () => {
+    expect(
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 0 }).ledgerOptions
+        .accountIndex
+    ).toBe(0)
+  })
+
+  it('refuses a derivationPath that is present but blank', () => {
+    // `--derivationPath ""` is a value the operator typed; treating it as unset
+    // sends them down the default-path branch believing otherwise.
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, derivationPath: '   ' })
+    ).toThrow(/given but is empty/)
+  })
+
   it('reports the value the operator passed, not a coerced one', () => {
     expect(() =>
       resolveSafeSigningOptions({ ledger: true, accountIndex: 'abc' })

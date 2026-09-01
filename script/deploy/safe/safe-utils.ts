@@ -2080,6 +2080,37 @@ export interface IResolvedSafeSigning {
 }
 
 /**
+ * Reads a Ledger account index, refusing anything that is not one.
+ *
+ * `Number()` turns several things a CLI can deliver into a valid-looking index:
+ * an empty string (`--accountIndex "$UNSET_VAR"`) becomes 0, and a valueless
+ * flag arriving as boolean `true` becomes 1. The BIP32 parser then accepts what
+ * it is handed — a `NaN` segment is dropped from the path entirely, a fraction
+ * is truncated and a negative wraps — so each yields a different, valid-looking
+ * address with no error at any layer.
+ *
+ * @param raw - The value as the caller received it, unconverted.
+ * @returns The index.
+ * @throws If it is not a non-negative integer.
+ */
+export const parseAccountIndex = (raw: number | string | undefined): number => {
+  const value = raw ?? 0
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : NaN
+
+  if (!Number.isInteger(parsed) || parsed < 0)
+    throw new Error(
+      `accountIndex must be a non-negative integer, got '${String(raw)}'`
+    )
+
+  return parsed
+}
+
+/**
  * Decides how a Safe proposal gets signed.
  *
  * `derivationPath` and `ledgerLive` are refused together because they name
@@ -2120,23 +2151,25 @@ export const resolveSafeSigningOptions = (
       } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
     )
 
-  // Only a number or a numeric string counts. Everything else a CLI can deliver
-  // for this flag passes `Number()` as a valid-looking index: an empty string
-  // (`--accountIndex "$UNSET_VAR"`) becomes 0, and a valueless kebab spelling
-  // (`--account-index=`) arrives as boolean `true` and becomes 1.
-  const rawAccountIndex = options.accountIndex ?? 0
-  const accountIndex =
-    typeof rawAccountIndex === 'number'
-      ? rawAccountIndex
-      : typeof rawAccountIndex === 'string' && rawAccountIndex.trim() !== ''
-      ? Number(rawAccountIndex)
-      : NaN
-  if (!Number.isInteger(accountIndex) || accountIndex < 0)
+  // Validated before the pairing checks below: a malformed value is the more
+  // specific complaint, and reporting the pairing first would hide it.
+  const accountIndex = parseAccountIndex(options.accountIndex)
+
+  // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only on
+  // the Ledger Live path, so without it an operator who asked for account 3
+  // signs from account 0 and is told nothing.
+  if (useLedger && accountIndex !== 0 && !options.ledgerLive)
     throw new Error(
-      `accountIndex must be a non-negative integer, got '${String(
-        options.accountIndex
-      )}'`
+      "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
     )
+
+  // An empty string is a value the operator typed, not an absence: treating it
+  // as unset would send `--derivationPath ""` down the default-path branch.
+  if (
+    options.derivationPath !== undefined &&
+    options.derivationPath.trim() === ''
+  )
+    throw new Error("'derivationPath' was given but is empty.")
 
   // Only `accountIndex` can still reach here on the key path — the other
   // sub-options are refused above — and it is zeroed so the result cannot

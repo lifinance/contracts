@@ -25,6 +25,7 @@ import { consola } from 'consola'
 import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { readBooleanFlag, readValueFlag } from '../deploy/safe/cli-flags'
 import {
   computeFacetRemovalDiff,
   computeFacetRemovalsByAddress,
@@ -228,55 +229,47 @@ const command = defineCommand({
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
 
-    // A multi-word arg lands on whichever of the two spellings the caller typed,
-    // so both keys have to be read.
-    const raw = args as Record<string, unknown>
+    // Read from argv, not from the parsed args: citty's output cannot represent
+    // the difference between `--ledgerLive` and `--ledgerLive=no`, and drops a
+    // space-separated value entirely. See `cli-flags.ts`.
+    const signing: SigningFlags = {
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
+      derivationPath: readValueFlag(process.argv, {
+        camel: 'derivationPath',
+        kebab: 'derivation-path',
+      }),
+    }
 
     /**
-     * Reads a boolean flag, refusing any `--flag=value` it cannot interpret.
+     * Refuses a Ledger run that would propose more than once.
      *
-     * The parsed value alone is not enough: citty coerces `--ledgerLive=no` to
-     * boolean `true`, indistinguishable from a bare `--ledgerLive`, so an
-     * operator turning the flag OFF turns it on and derives from a different
-     * account. The kebab spelling instead passes the raw value through
-     * (`--ledger-live=1` arrives as the number `1`). argv is therefore
-     * consulted for the `=` form before the parse is trusted. A
-     * space-separated value is not covered: citty discards it and
-     * `--ledgerLive no` still reads as `true`.
+     * `initializeSafeClient` keeps the Ledger account and discards its HID
+     * transport, so `closeLedgerConnection` can never reach it: each proposal in
+     * a run opens another transport that is never closed, and asks for its own
+     * device confirmation. Failing up front beats stalling partway through, which
+     * would leave some targets proposed and some not.
+     *
+     * @param count - How many proposals the chosen mode will create.
+     * @param what - Named in the error so the operator knows which flag to split.
      */
-    const asFlag = (camel: string, kebab: string): boolean => {
-      const assigned = process.argv.find(
-        (a) => a.startsWith(`--${camel}=`) || a.startsWith(`--${kebab}=`)
-      )
-      const value =
-        assigned === undefined
-          ? raw[kebab] ?? raw[camel]
-          : assigned.slice(assigned.indexOf('=') + 1)
-
-      if (value === undefined || value === false || value === 'false')
-        return false
-      if (value === true || value === 'true') return true
-      throw new Error(
-        `--${camel} accepts no value, 'true' or 'false'; got '${String(
-          value
-        )}'. Pass --${camel} on its own to enable it.`
-      )
+    const assertLedgerProposesOnce = (count: number, what: string): void => {
+      if (signing.ledger && count > 1)
+        throw new Error(
+          `--ledger cannot be combined with ${what} (${count} proposals): each proposal opens its own Ledger connection and asks for its own confirmation. Run them one at a time.`
+        )
     }
 
-    const signing: SigningFlags = {
-      ledger: asFlag('ledger', 'ledger'),
-      ledgerLive: asFlag('ledgerLive', 'ledger-live'),
-      // Forwarded unconverted: `Number('')` is 0, so coercing here would turn
-      // `--accountIndex "$UNSET_VAR"` into account 0 before the validation in
-      // resolveSafeSigningOptions can refuse it.
-      accountIndex: (raw['account-index'] ?? raw.accountIndex) as
-        | number
-        | string
-        | undefined,
-      derivationPath: (raw['derivation-path'] ?? raw.derivationPath) as
-        | string
-        | undefined,
-    }
     let calldata: `0x${string}`
 
     // --auto (target-state diff), --facets (explicit names) and --facet-addresses
@@ -300,17 +293,8 @@ const command = defineCommand({
       process.exit(1)
     }
 
-    // A fleet sweep opens one Safe client per network and `initializeSafeClient`
-    // discards the Ledger's HID transport, so `closeLedgerConnection` can never
-    // reach it: 40+ networks means 40+ leaked transports and one device
-    // confirmation each. Refused rather than left to hang halfway through a
-    // sweep, which would leave some networks proposed and some not.
-    if (allNetworks && signing.ledger) {
-      consola.error(
-        '--ledger cannot be combined with --all-networks: each network opens its own Ledger connection and asks for its own confirmation. Run the networks individually with --network.'
-      )
-      process.exit(1)
-    }
+    if (allNetworks)
+      assertLedgerProposesOnce(getAllActiveNetworks().length, '--all-networks')
 
     // ---------------- FLEET removals across all networks ----------------
     if (allNetworks) {
@@ -405,6 +389,7 @@ const command = defineCommand({
       consola.box('Running headless periphery removal')
       // parse periphery names into string array
       const names: string[] = JSON.parse(periphery)
+      assertLedgerProposesOnce(names.length, '--periphery with several names')
 
       // for each periphery contract, build and send the calldata to remove it from the diamond
       for (const name of names) {
@@ -551,6 +536,11 @@ const command = defineCommand({
       const selected = await multiselectWithSearch(
         'Select periphery contracts',
         names
+      )
+
+      assertLedgerProposesOnce(
+        selected.length,
+        'more than one periphery contract'
       )
 
       // go through each contract, build the calldata and send/propose it
