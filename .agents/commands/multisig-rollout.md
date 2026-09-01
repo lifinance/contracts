@@ -35,6 +35,18 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
+- `SAFE_PROPOSAL_REASON` exported with a one-line rationale for this rollout, e.g.
+  `export SAFE_PROPOSAL_REASON="roll out AcrossFacetV4 v1.2.0 (EXSC-812)"`. Every
+  proposal stored during the run records it, and `confirm-safe-tx` shows it to the
+  signer beside the proposer, source commit and working-tree state. Leaving it
+  unset is not an error, but the signing prompt then reads
+  `Reason: — none given —`, which is the "what is this?" the field exists to
+  prevent. Export it **before Phase 2** — it is read as each proposal is stored,
+  not at signing time.
+- `ALLOW_FUTURE_NONCE_EXECUTION` **not** set. It is the escape hatch for an RPC
+  that under-reports the on-chain Safe nonce; with it on, `confirm-safe-tx`
+  broadcasts a future-nonce proposal after a warning instead of refusing. Never
+  leave it in `.env` — set it inline for the one run that needs it.
 - `gh auth status` OK; Slack MCP connected (needed in Phase 8 — warn early if missing, posting falls to the user).
 - Working tree clean enough to branch later (deploy mode creates a PR from deployment-log changes).
 - lifi-connect tunnel: verified implicitly later — `list-pending-proposals.ts` exits `2` with a clear message when the tunnel is down; relay that to the user when it happens.
