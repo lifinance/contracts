@@ -107,25 +107,9 @@ jobs:
         run: forge install
 
       - name: Fetch RPC endpoints from MongoDB
-        run: |
-          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
-          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
-          bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment.
-          # Mask the URL (which may carry an API key) before forwarding so it is
-          # redacted from all subsequent log output for the rest of the run.
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
-              value="${line#*=}"
-              # Strip optional surrounding quotes so the masked token matches what tools print.
-              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
-              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
-              echo "::add-mask::$value"
-              echo "$line" >> "$GITHUB_ENV"
-            fi
-          done < ".env"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        uses: ./.github/actions/fetch-rpcs
+        with:
+          mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       - name: Run forge tests (${{ matrix.shard }})
         # retry failed tests up to 10 times (RPC flakiness)

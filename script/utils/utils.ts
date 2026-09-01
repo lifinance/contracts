@@ -41,6 +41,14 @@ export function getRPCEnvVarName(networkName: string): string {
 }
 
 /**
+ * Returns the environment variable name holding a network’s lower-priority RPC URLs,
+ * space-separated. Written by `fetch-rpcs`, read by the viem fallback transport.
+ */
+export function getRPCFallbacksEnvVarName(networkName: string): string {
+  return `${getRPCEnvVarName(networkName)}_FALLBACKS`
+}
+
+/**
  * Resolves the RPC URL for a network from environment variables.
  * Priority: `ETH_NODE_URI_<NETWORK>` → `ETH_NODE_URI` (with `{{networkName}}` substitution).
  * Returns `'http://localhost:8545'` for `'localhost'`, and `''` if no URL is configured. [pre-commit-checker: not a secret]

@@ -5,6 +5,14 @@ import { MongoClient } from 'mongodb'
 
 import { mongoEq } from '../deploy/shared/mongo-log-utils'
 
+import {
+  hasApiCredentials,
+  hostOf,
+  lowestPriorityFor,
+  selectEndpoints,
+  type IRpcEndpoint,
+} from './rpcEndpoints'
+
 const main = defineCommand({
   meta: {
     name: 'add-network-rpc',
@@ -27,11 +35,26 @@ const main = defineCommand({
       required: false,
       default: 'production',
     },
+    priority: {
+      type: 'string',
+      description:
+        'Priority of the endpoint, highest wins. Omit to add below every existing endpoint',
+      required: false,
+    },
   },
   async run({ args }) {
     const { network, rpcUrl, environment } = args
     // Use the provided network as the chainName
     const chainName = network
+
+    let requestedPriority: number | undefined
+    if (args.priority !== undefined) {
+      requestedPriority = Number(args.priority)
+      if (!Number.isFinite(requestedPriority)) {
+        consola.error(`--priority must be a number, got "${args.priority}"`)
+        process.exit(1)
+      }
+    }
 
     // Connect to MongoDB using the MONGODB_URI from environment variables
     const MONGODB_URI = process.env.MONGODB_URI as string
@@ -51,78 +74,50 @@ const main = defineCommand({
       const existingDoc = await collection.findOne({
         chainName: mongoEq(chainName),
       })
+      const existingRpcs: IRpcEndpoint[] = Array.isArray(existingDoc?.rpcs)
+        ? existingDoc.rpcs
+        : []
 
-      // Check if the RPC endpoint already exists for the given chain
-      if (existingDoc?.rpcs) {
-        const existingRpcIndex = existingDoc.rpcs.findIndex(
-          (rpc: { url: string }) => rpc.url === rpcUrl
-        )
+      const existingRpcIndex = existingRpcs.findIndex(
+        (rpc) => rpc.url === rpcUrl
+      )
 
-        if (existingRpcIndex !== -1) {
-          // Calculate highest priority excluding the current endpoint
-          const otherEndpoints = existingDoc.rpcs.filter(
-            (_: any, index: number) => index !== existingRpcIndex
-          )
-          const newPriority =
-            otherEndpoints.length > 0
-              ? Math.max(
-                  ...otherEndpoints.map(
-                    (rpc: { priority: number }) => rpc.priority || 0
-                  )
-                ) + 1
-              : 1
-
-          // Update the priority of the existing RPC endpoint
-          await collection.updateOne(
-            { chainName: mongoEq(chainName) },
-            {
-              $set: {
-                lastUpdated: new Date(),
-                [`rpcs.${existingRpcIndex}.priority`]: newPriority,
-                [`rpcs.${existingRpcIndex}.environment`]: environment,
-              },
-            }
-          )
-
-          consola.success(
-            `Updated priority of existing RPC endpoint ${rpcUrl} to ${newPriority}`
-          )
-          // Successfully updated, exit cleanly after finally
-        } else {
-          // Need to add new endpoint (handled below)
-          exitCode = -1 // Flag to continue to add new endpoint
+      if (existingRpcIndex !== -1) {
+        // Re-adding a known endpoint must not reshuffle the chain's ordering on its own: without
+        // an explicit priority this is a metadata refresh, and silently promoting the URL is how a
+        // credentialed primary gets demoted by a routine re-run.
+        const update: Record<string, unknown> = {
+          lastUpdated: new Date(),
+          [`rpcs.${existingRpcIndex}.environment`]: environment,
+          [`rpcs.${existingRpcIndex}.isActive`]:
+            existingRpcs[existingRpcIndex]?.isActive ?? true,
         }
-      } else {
-        // No existing doc or rpcs, need to add new endpoint
-        exitCode = -1 // Flag to continue to add new endpoint
-      }
+        if (requestedPriority !== undefined)
+          update[`rpcs.${existingRpcIndex}.priority`] = requestedPriority
 
-      // Add new endpoint if needed
-      if (exitCode === -1) {
-        exitCode = 0 // Reset flag
-
-        // Calculate the new highest priority for new endpoints
-        let newPriority = 1
-        if (
-          existingDoc &&
-          Array.isArray(existingDoc.rpcs) &&
-          existingDoc.rpcs.length > 0
+        await collection.updateOne(
+          { chainName: mongoEq(chainName) },
+          { $set: update }
         )
-          newPriority =
-            Math.max(
-              ...existingDoc.rpcs.map(
-                (rpc: { priority: number }) => rpc.priority || 0
-              )
-            ) + 1
 
-        // Construct the new RPC endpoint object with the new highest priority
+        if (requestedPriority !== undefined)
+          consola.success(
+            `Updated priority of existing RPC endpoint to ${requestedPriority}`
+          )
+        else
+          consola.success(
+            `RPC endpoint already present; refreshed metadata and kept priority ${
+              existingRpcs[existingRpcIndex]?.priority ?? 'unset'
+            }`
+          )
+      } else {
         const newRpcEndpoint = {
           url: rpcUrl,
-          priority: newPriority,
+          priority: requestedPriority ?? lowestPriorityFor(existingRpcs),
           environment,
+          isActive: true,
         }
 
-        // Update (or create) the document by merging the new RPC endpoint
         await collection.updateOne(
           { chainName: mongoEq(chainName) },
           {
@@ -135,9 +130,11 @@ const main = defineCommand({
         )
 
         consola.success(
-          `RPC endpoint added successfully with priority ${newPriority}`
+          `RPC endpoint added successfully with priority ${newRpcEndpoint.priority}`
         )
       }
+
+      await reportResultingOrder(collection, chainName, environment)
     } catch (error) {
       consola.error('MongoDB operation failed:', error)
       exitCode = 1
@@ -147,5 +144,36 @@ const main = defineCommand({
     if (exitCode !== 0) process.exit(exitCode)
   },
 })
+
+/**
+ * Print the order the chain now resolves in, so the operator sees which endpoint became primary
+ * rather than inferring it from the priority number alone.
+ */
+async function reportResultingOrder(
+  collection: {
+    findOne: (
+      filter: Record<string, unknown>
+    ) => Promise<{ rpcs?: IRpcEndpoint[] } | null>
+  },
+  chainName: string,
+  environment: string
+) {
+  const doc = await collection.findOne({ chainName: mongoEq(chainName) })
+  const ordered = selectEndpoints(
+    Array.isArray(doc?.rpcs) ? doc.rpcs : [],
+    environment
+  )
+  if (!ordered.length) return
+
+  consola.info(`Resolved order for ${chainName} [${environment}]:`)
+  ordered.forEach((endpoint, index) => {
+    const credentials = hasApiCredentials(endpoint.url) ? 'keyed' : 'no key'
+    consola.info(
+      `  ${index === 0 ? 'primary ' : `fallback${index}`} p=${
+        endpoint.priority
+      } ${hostOf(endpoint.url)} (${credentials})`
+    )
+  })
+}
 
 runMain(main)

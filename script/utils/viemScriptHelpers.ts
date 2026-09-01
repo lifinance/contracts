@@ -14,7 +14,15 @@ import {
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import { defineChain, encodeFunctionData, parseAbi, type Chain } from 'viem'
+import {
+  defineChain,
+  encodeFunctionData,
+  fallback,
+  http,
+  parseAbi,
+  type Chain,
+  type Transport,
+} from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import {
@@ -26,7 +34,7 @@ import {
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
-import { getRPCEnvVarName } from './utils'
+import { getRPCEnvVarName, getRPCFallbacksEnvVarName } from './utils'
 
 dotenv.config()
 
@@ -78,6 +86,64 @@ export function getTransportConfigFromRpcUrl(rpcUrl: string): {
   }
 
   return applyTronGridViemTransportExtras(base)
+}
+
+/** TronGrid's full-node root serves Tron's native HTTP API; viem needs the `/jsonrpc` route. */
+function normalizeRpcUrlForNetwork(
+  networkName: string,
+  rpcUrl: string
+): string {
+  if (!isTronNetworkKey(networkName)) return rpcUrl
+  const withoutTrailingSlashes = rpcUrl.replace(/\/+$/, '')
+  return withoutTrailingSlashes.endsWith('/jsonrpc')
+    ? rpcUrl
+    : `${withoutTrailingSlashes}/jsonrpc`
+}
+
+/**
+ * Lower-priority RPC URLs for a network, in the order `fetch-rpcs` wrote them.
+ * Empty when the network has only one usable endpoint.
+ */
+export function getRPCFallbackUrls(networkName: string): string[] {
+  return (process.env[getRPCFallbacksEnvVarName(networkName)] ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+/**
+ * Builds a viem transport that tries a chain's endpoints in priority order.
+ *
+ * Without this, one throttled or method-restricted endpoint fails every read on the chain even
+ * when healthy endpoints are configured beside it. A chain with a single endpoint gets a plain
+ * `http` transport.
+ */
+export function getFallbackTransportForChain(
+  chain: Chain,
+  options?: { signal?: AbortSignal }
+): Transport {
+  const transports = chain.rpcUrls.default.http.map((rpcUrl) => {
+    const {
+      url,
+      fetchOptions: authFetchOptions,
+      retryCount,
+      retryDelay,
+    } = getTransportConfigFromRpcUrl(rpcUrl)
+    const mergedFetchOptions = {
+      ...(authFetchOptions ?? {}),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    }
+    return http(url, {
+      ...(Object.keys(mergedFetchOptions).length
+        ? { fetchOptions: mergedFetchOptions }
+        : {}),
+      ...(retryCount !== undefined ? { retryCount } : {}),
+      ...(retryDelay !== undefined ? { retryDelay } : {}),
+    })
+  })
+
+  const [only] = transports
+  if (!only) throw new Error(`No RPC URL configured for chain ${chain.name}`)
+  return transports.length === 1 ? only : fallback(transports)
 }
 
 /**
@@ -221,13 +287,10 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Could not find RPC URL for network ${networkName}, please set ${envKey} in your environment`
     )
 
-  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
-  let rpcUrl = rpcUrlRaw.trim()
-  if (
-    isTronNetworkKey(networkName) &&
-    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
-  )
-    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
+  const rpcUrls = [rpcUrlRaw, ...getRPCFallbackUrls(networkName)]
+    .map((url) => url.trim())
+    .filter(Boolean)
+    .map((url) => normalizeRpcUrlForNetwork(networkName, url))
 
   const chainConfig: Parameters<typeof defineChain>[0] = {
     id: network.chainId,
@@ -239,7 +302,9 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
     },
     rpcUrls: {
       default: {
-        http: [rpcUrl],
+        // Index 0 stays the primary every existing caller reads; the rest feed
+        // `getFallbackTransportForChain`.
+        http: rpcUrls as [string, ...string[]],
       },
     },
   }
