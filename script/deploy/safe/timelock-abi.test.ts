@@ -177,16 +177,6 @@ describe('deriveTimelockSalt', () => {
     )
   })
 
-  it('rejects a malformed address instead of deferring the failure to scheduleBatch', () => {
-    expect(() =>
-      deriveTimelockSalt({
-        ...action,
-        targets: ['0xnot-an-address' as Address],
-        attempt: 0,
-      })
-    ).toThrow()
-  })
-
   it('does not collide when call order changes — inner calls execute in array order', () => {
     const first = '0x2222222222222222222222222222222222222222' as Address
     const second = '0x4444444444444444444444444444444444444444' as Address

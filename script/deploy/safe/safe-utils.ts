@@ -2987,6 +2987,12 @@ export interface IPickTimelockSaltInput {
   timelockAddress: Address
   targetAddresses: Address[]
   originalCalldatas: Hex[]
+  /**
+   * The values the caller will schedule. Probing an assumed all-zero array would
+   * ask about a different operation than the one being created, so a taken id
+   * could read as free.
+   */
+  values: bigint[]
 }
 
 /**
@@ -3018,6 +3024,7 @@ export const pickTimelockSalt = async (
     timelockAddress,
     targetAddresses,
     originalCalldatas,
+    values,
   } = input
 
   for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
@@ -3035,7 +3042,7 @@ export const pickTimelockSalt = async (
       functionName: 'hashOperationBatch',
       args: [
         targetAddresses,
-        targetAddresses.map(() => 0n),
+        values,
         originalCalldatas,
         TIMELOCK_ZERO_PREDECESSOR,
         salt,
@@ -3053,11 +3060,6 @@ export const pickTimelockSalt = async (
 
     if (state === 'unknown') return salt
 
-    // Pending refuses instead of advancing. Advancing would mint a second
-    // operation for the same batch under a different salt — a different
-    // intentHash too, so the duplicate index cannot see it either — and both
-    // would then be executable, running the batch twice. Catching this is the
-    // reason the salt is action-derived at all.
     if (state === 'pending')
       throw new Error(
         `Timelock operation ${operationId} for this exact batch is already scheduled on ${timelockAddress} ` +
@@ -3164,6 +3166,7 @@ export async function wrapWithTimelockSchedule(
     timelockAddress,
     targetAddresses,
     originalCalldatas,
+    values: targetAddresses.map(() => 0n),
   })
 
   const scheduleBatchCalldata = encodeTimelockScheduleBatch(

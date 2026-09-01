@@ -177,6 +177,7 @@ async function buildTimelockScheduleBatchCalldata(params: {
     timelockAddress,
     targetAddresses: targets,
     originalCalldatas: payloads,
+    values,
   })
 
   return encodeFunctionData({

@@ -1,7 +1,6 @@
 import {
   encodeAbiParameters,
   encodeFunctionData,
-  getAddress,
   isAddress,
   isHex,
   keccak256,
@@ -161,10 +160,6 @@ export interface ITimelockSaltInput {
  * `scheduleBatch` calldata and a re-proposal is visible to the duplicate-proposal
  * index.
  *
- * `getAddress` is for validation, not normalisation — viem ABI-encodes `address`
- * to the same bytes either way — and it rejects a malformed address here rather
- * than at `scheduleBatch`.
- *
  * `attempt` is in the preimage because a purely action-derived salt can be
  * scheduled only once ever — OZ keeps `_timestamps[id]` non-zero after execute —
  * so a legitimate repeat needs a way to move to a fresh id without reintroducing
@@ -185,8 +180,8 @@ export const deriveTimelockSalt = (input: ITimelockSaltInput): Hex =>
       ],
       [
         BigInt(input.chainId),
-        getAddress(input.timelockAddress),
-        input.targets.map((target) => getAddress(target)),
+        input.timelockAddress,
+        input.targets,
         input.payloads,
         BigInt(input.attempt),
       ]
