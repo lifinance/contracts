@@ -12,6 +12,20 @@ contract UpdateScriptBase is ScriptBase {
     using stdJson for string;
 
     error InvalidHexDigit(uint8 d);
+    error NetworkChainIdMismatch(
+        string network,
+        uint256 configured,
+        uint256 actual
+    );
+    error DiamondAddressMismatch(address fromDeployments, address expected);
+    error DiamondHasNoCode(address diamond);
+    error DiamondStateNotPinned();
+    error DiamondStateBlockMismatch(uint256 expected, uint256 actual);
+    error FacetAddressOverrideRequired();
+    error ExpectedDiamondAddressRequired();
+    error VerificationModeNotSupported();
+
+    string internal constant DEFAULT_SELECTOR_ARTIFACTS_DIR = "./out/zksync";
 
     struct FunctionSelector {
         string name;
@@ -21,6 +35,15 @@ contract UpdateScriptBase is ScriptBase {
     struct Approval {
         address aTokenAddress;
         address bContractAddress;
+    }
+
+    struct CutOptions {
+        bool noBroadcast;
+        address facetAddress;
+        address expectedDiamond;
+        string selectorArtifactsDir;
+        bool verificationMode;
+        uint256 diamondStateBlock;
     }
 
     address internal diamond;
@@ -34,10 +57,18 @@ contract UpdateScriptBase is ScriptBase {
     string internal json;
     bool internal noBroadcast = false;
     bool internal useDefaultDiamond;
+    CutOptions internal cutOptions;
 
     constructor() {
         useDefaultDiamond = vm.envBool("USE_DEF_DIAMOND");
-        noBroadcast = vm.envOr("NO_BROADCAST", false);
+
+        CutOptions memory options = _readCutOptions();
+        cutOptions = options;
+
+        // A verification run recomputes calldata for comparison, so it must not send a transaction
+        // even if the caller passed NO_BROADCAST=false. Scripts that broadcast outside update()
+        // are not covered by this and must call _rejectVerificationMode() instead.
+        noBroadcast = options.noBroadcast || options.verificationMode;
 
         path = string.concat(
             root,
@@ -47,12 +78,124 @@ contract UpdateScriptBase is ScriptBase {
             fileSuffix,
             "json"
         );
-        json = vm.readFile(path);
+        json = _readDeploymentsJson();
         diamond = useDefaultDiamond
             ? json.readAddress(".LiFiDiamond")
             : json.readAddress(".LiFiDiamondImmutable");
         cutter = DiamondCutFacet(diamond);
         loupe = DiamondLoupeFacet(diamond);
+
+        _checkDiamondAddress();
+        _checkDiamondStateIsPinned();
+    }
+
+    /// @dev Single entry point for every knob that steers a recomputed cut, so a caller verifying a
+    ///      proposal has one place to look. Virtual because forge shares process env across tests
+    ///      running in parallel, which makes per-case env mutation unusable in the suite.
+    function _readCutOptions()
+        internal
+        view
+        virtual
+        returns (CutOptions memory options)
+    {
+        options.noBroadcast = vm.envOr("NO_BROADCAST", false);
+
+        // Read strictly rather than via envOr: envOr swallows a set-but-unparseable value and
+        // returns the default, so a typo in any of these would silently switch the check it
+        // controls back off and hand the caller a confident, unverified result.
+        options.facetAddress = vm.envExists("FACET_ADDRESS_OVERRIDE")
+            ? vm.envAddress("FACET_ADDRESS_OVERRIDE")
+            : address(0);
+        options.expectedDiamond = vm.envExists("EXPECTED_DIAMOND_ADDRESS")
+            ? vm.envAddress("EXPECTED_DIAMOND_ADDRESS")
+            : address(0);
+        options.selectorArtifactsDir = vm.envExists("SELECTOR_ARTIFACTS_DIR")
+            ? vm.envString("SELECTOR_ARTIFACTS_DIR")
+            : DEFAULT_SELECTOR_ARTIFACTS_DIR;
+        options.verificationMode =
+            vm.envExists("CUT_VERIFICATION_MODE") &&
+            vm.envBool("CUT_VERIFICATION_MODE");
+        options.diamondStateBlock = vm.envExists("DIAMOND_STATE_BLOCK")
+            ? vm.envUint("DIAMOND_STATE_BLOCK")
+            : 0;
+    }
+
+    /// @dev Seam so tests can supply deployment data without writing into the repo's deployments/ tree.
+    function _readDeploymentsJson() internal virtual returns (string memory) {
+        return vm.readFile(path);
+    }
+
+    /// @dev The deployments file and the diamond it names are written by whoever ran the deploy, so
+    ///      neither is trustworthy on its own. Bind them to sources the proposer does not control:
+    ///      the chain the RPC actually points at (via config/networks.json) and, when the caller
+    ///      knows which diamond it is verifying, an explicitly pinned address.
+    ///      The config path is fixed rather than honouring NETWORKS_JSON_FILE_PATH: a trust anchor
+    ///      that an env var can redirect is not one.
+    function _checkDiamondAddress() internal view {
+        string memory networksJson = vm.readFile(
+            string.concat(root, "/config/networks.json")
+        );
+        string memory chainIdKey = string.concat(".", network, ".chainId");
+
+        if (networksJson.keyExists(chainIdKey)) {
+            uint256 configuredChainId = networksJson.readUint(chainIdKey);
+            if (configuredChainId != block.chainid)
+                revert NetworkChainIdMismatch(
+                    network,
+                    configuredChainId,
+                    block.chainid
+                );
+        }
+
+        if (
+            cutOptions.expectedDiamond != address(0) &&
+            cutOptions.expectedDiamond != diamond
+        ) revert DiamondAddressMismatch(diamond, cutOptions.expectedDiamond);
+
+        if (cutOptions.verificationMode && diamond.code.length == 0)
+            revert DiamondHasNoCode(diamond);
+    }
+
+    /// @dev buildDiamondCut reads the live diamond, so the resulting calldata is only reproducible
+    ///      against a fixed block. A verification run therefore has to state which block it expects
+    ///      and fail when the fork is not actually pinned there. It also has to take the facet and
+    ///      diamond addresses from the caller: without those overrides the cut is rebuilt from the
+    ///      local deployments file, which is the proposer-written input this mode exists to displace.
+    function _checkDiamondStateIsPinned() internal view {
+        if (!cutOptions.verificationMode) return;
+
+        if (cutOptions.diamondStateBlock == 0) revert DiamondStateNotPinned();
+
+        if (block.number != cutOptions.diamondStateBlock)
+            revert DiamondStateBlockMismatch(
+                cutOptions.diamondStateBlock,
+                block.number
+            );
+
+        if (cutOptions.facetAddress == address(0))
+            revert FacetAddressOverrideRequired();
+
+        if (cutOptions.expectedDiamond == address(0))
+            revert ExpectedDiamondAddressRequired();
+    }
+
+    /// @dev For scripts that resolve facet addresses themselves instead of through update(), so the
+    ///      overrides never reach them. Refusing is the honest answer: such a run would otherwise
+    ///      report a confident match computed entirely from the local, proposer-written state.
+    function _rejectVerificationMode() internal view {
+        if (cutOptions.verificationMode) revert VerificationModeNotSupported();
+    }
+
+    /// @dev The address a proposal claims for the new facet is proven legitimate by bytecode
+    ///      attestation elsewhere; here it only has to be injectable so the cut can be rebuilt
+    ///      without trusting the local deployments file.
+    function _resolveFacetAddress(
+        string memory _name
+    ) internal view returns (address) {
+        if (cutOptions.facetAddress != address(0))
+            return cutOptions.facetAddress;
+
+        return json.readAddress(string.concat(".", _name));
     }
 
     function update(
@@ -62,8 +205,7 @@ contract UpdateScriptBase is ScriptBase {
         virtual
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(string.concat(".", name));
-        return update(name, facet);
+        return update(name, _resolveFacetAddress(name));
     }
 
     function update(
@@ -74,7 +216,7 @@ contract UpdateScriptBase is ScriptBase {
         virtual
         returns (address[] memory facets, bytes memory cutData)
     {
-        address facet = json.readAddress(string.concat(".", name));
+        address facet = _resolveFacetAddress(name);
         bytes4[] memory excludes = getExcludes();
         bytes memory callData = getCallData();
 
@@ -124,7 +266,7 @@ contract UpdateScriptBase is ScriptBase {
         string memory _facetName,
         bytes4[] memory _exclude
     ) internal virtual returns (bytes4[] memory selectors) {
-        string[] memory cmd = new string[](3);
+        string[] memory cmd = new string[](4);
         cmd[0] = "script/deploy/zksync/utils/contract-selectors.sh";
         cmd[1] = _facetName;
         string memory exclude;
@@ -132,6 +274,7 @@ contract UpdateScriptBase is ScriptBase {
             exclude = string.concat(exclude, fromCode(_exclude[i]), " ");
         }
         cmd[2] = exclude;
+        cmd[3] = cutOptions.selectorArtifactsDir;
         bytes memory res = vm.ffi(cmd);
         selectors = abi.decode(res, (bytes4[]));
     }
