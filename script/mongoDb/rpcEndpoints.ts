@@ -104,15 +104,28 @@ export function findUncredentialedPrimaries(
 }
 
 /**
- * Reorder so every credentialed endpoint outranks every uncredentialed one, keeping the existing
- * relative order within each group — the operator's ranking among comparable endpoints is
- * intentional and is not ours to reshuffle.
+ * Reorder so a reachable endpoint outranks an unreachable one and, among equally reachable
+ * endpoints, a credentialed one outranks an uncredentialed one. Relative order is preserved
+ * inside each bucket — the operator's ranking among comparable endpoints is not ours to reshuffle.
+ *
+ * Reachability outranks credentials because a credentialed endpoint can be expired, revoked or
+ * plain gone, and promoting it over the chain's one working public endpoint takes the chain down.
+ *
+ * @param isReachable - Whether an endpoint answered a probe. Defaults to treating every endpoint
+ * as reachable, which reduces this to ordering by credentials alone.
  */
-export function repairOrder(ordered: IRpcEndpoint[]): IRpcEndpoint[] {
-  return [
-    ...ordered.filter((endpoint) => hasApiCredentials(endpoint.url)),
-    ...ordered.filter((endpoint) => !hasApiCredentials(endpoint.url)),
-  ]
+export function repairOrder(
+  ordered: IRpcEndpoint[],
+  isReachable: (url: string) => boolean = () => true
+): IRpcEndpoint[] {
+  const rank = (endpoint: IRpcEndpoint) =>
+    (isReachable(endpoint.url) ? 0 : 2) +
+    (hasApiCredentials(endpoint.url) ? 0 : 1)
+
+  return ordered
+    .map((endpoint, index) => ({ endpoint, index }))
+    .sort((a, b) => rank(a.endpoint) - rank(b.endpoint) || a.index - b.index)
+    .map(({ endpoint }) => endpoint)
 }
 
 /** Descending priorities for a repaired order, highest first, leaving no ties. */

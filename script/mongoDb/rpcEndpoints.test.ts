@@ -319,3 +319,69 @@ describe('prioritiesFor', () => {
     ])
   })
 })
+
+describe('repairOrder with a reachability probe', () => {
+  const DEAD_KEYED = 'https://dead.example.invalid/aaaaaaaaaaaaaaaaaaaaaaaa'
+  const LIVE_KEYLESS = 'https://mainnet.example.invalid'
+  const LIVE_KEYED = 'https://live.example.invalid/bbbbbbbbbbbbbbbbbbbbbbbb'
+
+  const reachable = (url: string) => url !== DEAD_KEYED
+
+  it('does not promote a credentialed endpoint that is down over a working public one', () => {
+    const ordered: IRpcEndpoint[] = [
+      { url: DEAD_KEYED, priority: 4 },
+      { url: LIVE_KEYLESS, priority: 1 },
+    ]
+    expect(repairOrder(ordered, reachable).map((r) => r.url)).toEqual([
+      LIVE_KEYLESS,
+      DEAD_KEYED,
+    ])
+  })
+
+  it('still prefers credentials among endpoints that are equally reachable', () => {
+    const ordered: IRpcEndpoint[] = [
+      { url: LIVE_KEYLESS, priority: 4 },
+      { url: LIVE_KEYED, priority: 1 },
+    ]
+    expect(repairOrder(ordered, reachable).map((r) => r.url)).toEqual([
+      LIVE_KEYED,
+      LIVE_KEYLESS,
+    ])
+  })
+
+  it('ranks live-keyed, live-keyless, then down', () => {
+    const ordered: IRpcEndpoint[] = [
+      { url: DEAD_KEYED, priority: 9 },
+      { url: LIVE_KEYLESS, priority: 5 },
+      { url: LIVE_KEYED, priority: 1 },
+    ]
+    expect(repairOrder(ordered, reachable).map((r) => r.url)).toEqual([
+      LIVE_KEYED,
+      LIVE_KEYLESS,
+      DEAD_KEYED,
+    ])
+  })
+
+  it('leaves a chain whose endpoints are all down in its existing order', () => {
+    const other = 'https://alsodead.example.invalid/cccccccccccccccccccccccc'
+    const ordered: IRpcEndpoint[] = [
+      { url: DEAD_KEYED, priority: 2 },
+      { url: other, priority: 1 },
+    ]
+    expect(repairOrder(ordered, () => false).map((r) => r.url)).toEqual([
+      DEAD_KEYED,
+      other,
+    ])
+  })
+
+  it('defaults to credentials-only ordering when no probe was run', () => {
+    const ordered: IRpcEndpoint[] = [
+      { url: LIVE_KEYLESS, priority: 4 },
+      { url: DEAD_KEYED, priority: 1 },
+    ]
+    expect(repairOrder(ordered).map((r) => r.url)).toEqual([
+      DEAD_KEYED,
+      LIVE_KEYLESS,
+    ])
+  })
+})
