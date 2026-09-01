@@ -7,6 +7,7 @@
  */
 import { spawnSync } from 'node:child_process'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -183,6 +184,79 @@ describe('buildVerdictKey', () => {
 
     for (const network of ['mainnet', 'arbitrum', 'base'])
       expect(key).not.toContain(network)
+  })
+})
+
+describe('buildVerdictKey and lib/ submodules', () => {
+  /**
+   * Builds a superproject pinning a submodule, the shape `divergedSubmodules` blocks on.
+   * @returns the superproject root, the submodule path, and its second commit
+   */
+  const makeSuperproject = () => {
+    const dep = mkdtempSync(join(tmpdir(), 'cache-dep-'))
+    const runDep = (...args: string[]) =>
+      spawnSync('git', args, { cwd: dep, encoding: 'utf8' })
+    runDep('init', '-b', 'main')
+    runDep('config', 'user.email', 'gate@example.com')
+    runDep('config', 'user.name', 'gate')
+    writeFileSync(join(dep, 'Lib.sol'), 'contract Lib { }\n')
+    runDep('add', '.')
+    runDep('commit', '-m', 'v1', '--no-gpg-sign')
+    const pinned = runDep('rev-parse', 'HEAD').stdout.trim()
+    writeFileSync(join(dep, 'Lib.sol'), 'contract Lib { uint256 public x; }\n')
+    runDep('commit', '-qam', 'v2', '--no-gpg-sign')
+
+    const repoRoot = mkdtempSync(join(tmpdir(), 'cache-super-'))
+    runGit(repoRoot, 'init', '-b', 'main')
+    runGit(repoRoot, 'config', 'user.email', 'gate@example.com')
+    runGit(repoRoot, 'config', 'user.name', 'gate')
+    runGit(
+      repoRoot,
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '-q',
+      dep,
+      'lib/dep'
+    )
+    const subPath = join(repoRoot, 'lib/dep')
+    spawnSync('git', ['checkout', '-q', pinned], { cwd: subPath })
+    mkdirSync(join(repoRoot, 'src', 'Facets'), { recursive: true })
+    writeFileSync(join(repoRoot, FACET_PATH), FACET_SOURCE)
+    runGit(repoRoot, 'add', '-A')
+    runGit(repoRoot, 'commit', '-m', 'pin dep', '--no-gpg-sign')
+
+    return { repoRoot, subPath }
+  }
+
+  // `lib/` content is not in this repo's tree, so the key covers it through the gitlink.
+  // Were it not covered, a pass taken on a clean checkout would be reused across exactly
+  // the divergence the gate refuses.
+  it('changes when a submodule moves off its recorded commit', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    const before = buildVerdictKey(repoRoot, PROD_INPUT)
+    spawnSync('git', ['checkout', '-q', 'main'], { cwd: subPath })
+
+    expect(buildVerdictKey(repoRoot, PROD_INPUT)).not.toBe(before as string)
+  })
+
+  it('changes when a submodule has a modified tracked file', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    const before = buildVerdictKey(repoRoot, PROD_INPUT)
+    writeFileSync(join(subPath, 'Lib.sol'), 'contract Lib { bool tampered; }\n')
+
+    expect(buildVerdictKey(repoRoot, PROD_INPUT)).not.toBe(before as string)
+  })
+
+  // matching the gate's own `--ignore-submodules=untracked`: a stray file changes no
+  // bytecode, and keying on it would throw the cache away after one Finder visit
+  it('ignores a stray untracked file inside a submodule', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    const before = buildVerdictKey(repoRoot, PROD_INPUT)
+    writeFileSync(join(subPath, '.DS_Store'), 'junk\n')
+
+    expect(buildVerdictKey(repoRoot, PROD_INPUT)).toBe(before as string)
   })
 })
 
@@ -406,6 +480,28 @@ describe('withVerdictCache', () => {
 
     expect(await withVerdictCache(repoRoot, PROD_INPUT, compute)).toEqual([])
     expect(calls.count).toBe(1)
+  })
+
+  // a lock that cannot be created is not a lock someone holds: waiting out the full
+  // two-minute window for it would stall every invocation of the rollout
+  it('checks immediately when the lock cannot be created at all', async () => {
+    const repoRoot = initRepo('cache-unlockable-')
+    const { calls, compute } = counting()
+    await withVerdictCache(repoRoot, PROD_INPUT, compute)
+
+    const dir = cacheDirOf(repoRoot)
+    unlinkSync(onlyEntry(dir))
+    chmodSync(dir, 0o500)
+
+    const started = Date.now()
+    try {
+      expect(await withVerdictCache(repoRoot, PROD_INPUT, compute)).toEqual([])
+    } finally {
+      chmodSync(dir, 0o700)
+    }
+
+    expect(calls.count).toBe(2)
+    expect(Date.now() - started).toBeLessThan(3_000)
   })
 
   it('leaves no lock behind for the next invocation to wait on', async () => {

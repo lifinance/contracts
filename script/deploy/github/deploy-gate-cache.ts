@@ -209,23 +209,33 @@ const writePass = (path: string, entry: ICachedPass): void => {
 }
 
 /**
+ * Outcome of one attempt at the single-flight lock. `unavailable` is kept apart from
+ * `held` on purpose: waiting out the full {@link LOCK_WAIT_MS} for a lock that can never
+ * be created would stall every invocation of a rollout for two minutes.
+ */
+type TLockAttempt = 'acquired' | 'held' | 'unavailable'
+
+const isAlreadyExists = (error: unknown): boolean =>
+  (error as { code?: string })?.code === 'EEXIST'
+
+/**
  * Takes the single-flight lock, so that concurrent rollout workers do not all run the
  * check — and, more to the point, do not all `git fetch` the same ref at once and race
  * on `refs/remotes/origin/main.lock`.
  * @param lockDir - lock directory to create
  * @param now - current epoch milliseconds
- * @returns whether this process now holds the lock
+ * @returns whether the lock was taken, is held elsewhere, or cannot be taken at all
  */
-const acquireLock = (lockDir: string, now: number): boolean => {
+const acquireLock = (lockDir: string, now: number): TLockAttempt => {
   try {
     mkdirSync(lockDir)
-    return true
-  } catch {
-    // held, or unwritable - both are decided below
+    return 'acquired'
+  } catch (error) {
+    if (!isAlreadyExists(error)) return 'unavailable'
   }
 
   try {
-    if (now - statSync(lockDir).mtimeMs < LOCK_STALE_MS) return false
+    if (now - statSync(lockDir).mtimeMs < LOCK_STALE_MS) return 'held'
 
     // claiming the stale lock by rename rather than removing it in place: rename is
     // atomic, so of two waiters that both saw it as stale exactly one succeeds and the
@@ -235,15 +245,15 @@ const acquireLock = (lockDir: string, now: number): boolean => {
     renameSync(lockDir, claimed)
     rmSync(claimed, { recursive: true, force: true })
   } catch {
-    return false
+    return 'held'
   }
 
   try {
     mkdirSync(lockDir)
-    return true
-  } catch {
+    return 'acquired'
+  } catch (error) {
     // someone acquired it between the takeover and here; they hold it, not us
-    return false
+    return isAlreadyExists(error) ? 'held' : 'unavailable'
   }
 }
 
@@ -305,12 +315,16 @@ export const withVerdictCache = async (
   // the rollout's workers from fetching the same ref concurrently. A holder that
   // releases without recording a pass did not pass, so the next waiter takes its turn.
   const deadline = now() + LOCK_WAIT_MS
-  while (!acquireLock(lockDir, now())) {
+  let attempt = acquireLock(lockDir, now())
+  while (attempt !== 'acquired') {
+    if (attempt === 'unavailable') return compute()
+
     const waited = readPass(path, key, now())
     if (waited) return reuse(waited)
     if (now() >= deadline) return compute()
 
     await sleep(LOCK_POLL_MS)
+    attempt = acquireLock(lockDir, now())
   }
 
   try {
