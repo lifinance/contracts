@@ -1352,11 +1352,11 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 retained) {
-        FeeReceiver[] memory receivers = integratorFeeReceivers;
-        uint256 count = receivers.length;
+        uint256 count = integratorFeeReceivers.length;
         uint256 distributed;
 
         for (uint256 i; i < count; ++i) {
+            FeeReceiver storage receiver = integratorFeeReceivers[i];
             uint256 share;
             if (i + 1 == count) {
                 // last receiver gets the whole remainder to avoid rounding dust
@@ -1364,14 +1364,14 @@ contract LiFiVaultWrapper is
             } else {
                 // other receivers get their bps share, rounded down
                 share = _integratorTotal.mulDiv(
-                    receivers[i].bps,
+                    receiver.bps,
                     LibVaultWrapperMath.BASIS_POINT_SCALE
                 );
             }
             distributed += share;
             if (share == 0) continue;
 
-            address wallet = receivers[i].wallet;
+            address wallet = receiver.wallet;
             // we use trySafeTransfer here so a failed transfer doesn't block the distribution
             if (SafeERC20.trySafeTransfer(IERC20(_token), wallet, share)) {
                 continue;
