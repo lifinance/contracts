@@ -67,10 +67,16 @@ const main = defineCommand({
     if (!process.env.SC_MONGODB_URI)
       throw new Error('SC_MONGODB_URI environment variable is required')
 
-    const networks = args.networks
-      .split(',')
-      .map((n) => n.trim().toLowerCase())
-      .filter(Boolean)
+    // Deduped: a repeated name would count twice, print the same review
+    // command twice, and silence the shortfall check by matching the row count.
+    const networks = [
+      ...new Set(
+        args.networks
+          .split(',')
+          .map((n) => n.trim().toLowerCase())
+          .filter(Boolean)
+      ),
+    ]
     if (networks.length === 0) throw new Error('--networks matched no names')
 
     const client = new MongoClient(process.env.SC_MONGODB_URI, {
@@ -124,24 +130,55 @@ const main = defineCommand({
           `No pending proposals found for: ${networks.join(', ')}`
         )
 
-      // The caller's network list is the run's own record of what succeeded, so
-      // it is the count to check against — a row missing here is a proposal
-      // that still needs signing.
+      // A network with no PENDING row is not necessarily a missing proposal. The
+      // caller's list is every network ever marked successful for this action —
+      // the progress file survives a partial run and later runs skip networks
+      // already done — so on any resumed run it includes networks whose
+      // proposals were signed and executed long ago. Counting those as missing
+      // would fire the alarm on exactly the runs that needed a retry.
+      //
+      // Absence of any row in any status is the real signal, so that is what is
+      // asked. One extra query, and it is the difference between an alarm and a
+      // false alarm.
+      const withoutPending = networks.filter((n) => !newestByNetwork.has(n))
+      const settled =
+        withoutPending.length === 0
+          ? []
+          : (
+              await collection
+                .find({ network: { $in: withoutPending } })
+                .project<{ network: string }>({ network: 1 })
+                .toArray()
+            ).map((r) => r.network)
+
+      const unaccounted = withoutPending.filter((n) => !settled.includes(n))
+
+      const contract = args.contract
       const card = renderProposalCard(proposals, {
-        expectedCount: networks.length,
-        ...(args.contract ? { contract: args.contract } : {}),
+        // Only genuinely absent proposals are a shortfall.
+        expectedCount: proposals.length + unaccounted.length,
+        // The runner substitutes this literal when it has no contract name, and
+        // it reads as one in the headline.
+        ...(contract && contract !== 'unknown' ? { contract } : {}),
       })
+
+      if (settled.length > 0)
+        consola.info(
+          `Already signed or executed, so not on the card: ${settled.join(
+            ', '
+          )}`
+        )
+      if (unaccounted.length > 0)
+        consola.warn(
+          `No proposal at all was found on: ${unaccounted.join(
+            ', '
+          )} — the card names the shortfall.`
+        )
+
+      // Written after every read, so a failure to close the client cannot
+      // discard a card that was produced successfully.
       if (args.out) writeFileSync(args.out, `${card}\n`)
       else consola.log(card)
-
-      // Named so a partial card is explainable rather than looking complete.
-      const missing = networks.filter((n) => !newestByNetwork.has(n))
-      if (missing.length > 0)
-        consola.warn(
-          `No pending proposal found on: ${missing.join(
-            ', '
-          )} — the card omits them.`
-        )
     } finally {
       await client.close()
     }

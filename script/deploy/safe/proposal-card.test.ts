@@ -5,7 +5,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { renderProposalCard, type ICardProposal } from './proposal-card'
+import {
+  SLACK_TEXT_LIMIT,
+  renderProposalCard,
+  type ICardProposal,
+} from './proposal-card'
 
 const proposal = (overrides: Partial<ICardProposal> = {}): ICardProposal => ({
   network: 'mainnet',
@@ -134,17 +138,88 @@ describe('renderProposalCard', () => {
   })
 
   it('truncates, and stays under the cap, when the card still overflows', () => {
-    const card = renderProposalCard([
-      proposal({ dirtyTreeScoped: [`src/${'a'.repeat(4000)}.sol`] }),
-    ])
+    // Every single field is capped now, so no one of them can overflow the card
+    // on its own. The hash table's ROW COUNT is not capped, and each `&` in a
+    // value becomes five characters once escaped — so this is what an overflow
+    // actually looks like, rather than one enormous string.
+    const card = renderProposalCard([proposal({ reason: '&'.repeat(200) })], {
+      expectedHashes: Array.from({ length: 200 }, (_, i) => ({
+        network: `chain${i}`,
+        expected: `0x${'ab'.repeat(32)}`,
+        actual: `0x${'cd'.repeat(32)}`,
+      })),
+    })
 
-    expect(card.length).toBeLessThanOrEqual(2900)
+    expect(card.length).toBeLessThanOrEqual(SLACK_TEXT_LIMIT)
     expect(card).toContain('card truncated')
     // An error-path string never runs in a happy-path test, which is how a
     // command that was never a `bun` alias shipped as the recovery instruction.
     expect(card).toContain(
       'bunx tsx script/deploy/safe/list-pending-proposals.ts'
     )
+  })
+
+  it('keeps the review commands on an overflowing card', () => {
+    // They are the only actionable part and they sit at the bottom, so a
+    // tail-truncated card lost exactly the thing it exists to deliver. Measured
+    // before the fix: every one of 5226 overflowing configurations dropped the
+    // whole review section.
+    const card = renderProposalCard(
+      ['mainnet', 'arbitrum'].map((network) => ({
+        network,
+        safeTxHash: `0x${'ab'.repeat(32)}`,
+      })),
+      {
+        expectedHashes: Array.from({ length: 200 }, (_, i) => ({
+          network: `chain${i}`,
+          expected: `0x${'ab'.repeat(32)}`,
+        })),
+      }
+    )
+
+    expect(card).toContain('card truncated')
+    expect(card).toContain('*To review:*')
+    expect(card).toContain('bun confirm-safe-tx --network mainnet')
+    expect(card).toContain('bun confirm-safe-tx --network arbitrum')
+    expect(card.length).toBeLessThanOrEqual(SLACK_TEXT_LIMIT)
+  })
+
+  it('keeps underscores and tildes, which real paths and emails contain', () => {
+    // Stripping these mangled real data for no security gain: they only
+    // italicise or strike text, so they cannot forge a label or break out of a
+    // code span. `alice_smith@…` and `alicesmith@…` rendered identically on a
+    // card whose job is saying who proposed, and 115 tracked paths in this repo
+    // carry an underscore.
+    const card = renderProposalCard([
+      proposal({
+        proposerHandle: 'A B <alice_smith@example.com>',
+        dirtyTreeScoped: ['.github/pull_request_template.md'],
+        reason: 'bump ~1.2.0',
+      }),
+    ])
+
+    expect(card).toContain('alice_smith@example.com')
+    expect(card).toContain('.github/pull_request_template.md')
+    expect(card).toContain('~1.2.0')
+  })
+
+  it('flags a divergent commit or PR, not only a divergent reason', () => {
+    // gitCommit is what a signer re-derives calldata against and prUrl is the
+    // rationale they read, so these diverging matters more than the prose doing
+    // so. The first version of this flagged only the prose.
+    const card = renderProposalCard([
+      proposal(),
+      proposal({
+        network: 'arbitrum',
+        gitCommit: 'ffffffffffff',
+        prUrl: 'https://github.com/lifinance/contracts/pull/999',
+        proposerHandle: 'Bob Other <bob@example.com>',
+      }),
+    ])
+
+    expect(card).toContain('gitCommit')
+    expect(card).toContain('PR')
+    expect(card).toContain('proposerHandle')
   })
 
   it('never cuts a surrogate pair or an entity in half', () => {
@@ -336,5 +411,49 @@ describe('renderProposalCard — it cannot understate the ask', () => {
     ])
 
     expect(card.toLowerCase()).toContain('differ')
+  })
+})
+
+describe('renderProposalCard — the PR link is a link, or it is not shown', () => {
+  it.each([
+    ['javascript:', 'javascript:alert(1)'],
+    ['data:', 'data:text/html,<script>x</script>'],
+    ['file:', 'file:///etc/passwd'],
+    ['plain http', 'http://evil.example/pull/1'],
+    ['a bare word', 'nope'],
+    ['a protocol-relative URL', '//evil.example/pull/1'],
+  ])('does not present a %s value as a link', (_label, prUrl) => {
+    // The capture path already accepts only https, so a value that is not one
+    // reached the document by hand. Presenting it as a PR lends it the card's
+    // credibility, and Slack auto-links a bare URL — the same gap as the ticket
+    // link's missing scheme check on #2298, on the field next to it.
+    const card = renderProposalCard([proposal({ prUrl })])
+
+    expect(card).toContain('not a link, ignored')
+    expect(card).not.toMatch(/\*PR:\* \S+$/m)
+  })
+
+  it('keeps a real https PR link', () => {
+    expect(
+      renderProposalCard([
+        proposal({ prUrl: 'https://github.com/lifinance/contracts/pull/2125' }),
+      ])
+    ).toContain('*PR:* https://github.com/lifinance/contracts/pull/2125')
+  })
+
+  it('says a link was rejected rather than staying silent about it', () => {
+    // Silently omitting looks identical to "no PR was recorded", which is a
+    // different fact and a less alarming one.
+    expect(
+      renderProposalCard([proposal({ prUrl: 'javascript:alert(1)' })])
+    ).toContain('not a link')
+  })
+
+  it('does not treat an https prefix inside a longer scheme as https', () => {
+    expect(
+      renderProposalCard([
+        proposal({ prUrl: 'nothttps://github.com/x/pull/1' }),
+      ])
+    ).toContain('not a link')
   })
 })

@@ -22,6 +22,16 @@ const SHORT_HASH_CHARS = 10
 const SHORT_COMMIT_CHARS = 12
 
 /**
+ * Cap for every other single field.
+ *
+ * The card's own cap is not enough on its own: an oversized `contract`,
+ * `prUrl`, `proposerHandle`, `checkSummary` or network name each individually
+ * consumed the whole budget and pushed the review command — the one line that
+ * makes the card actionable — off the bottom.
+ */
+const MAX_FIELD_CHARS = 200
+
+/**
  * One proposal, flattened from its document and provenance block.
  *
  * Every field but `network` is `unknown`: a row stored before provenance
@@ -73,8 +83,14 @@ export interface ICardOptions {
  * verbatim and `SlackNotifier` only caps the `blocks[].text` fields it builds
  * itself — so an over-long card would reach Slack whole and lose its bottom to
  * the client's own collapsing. Cutting here keeps the loss visible.
+ *
+ * Not 3000: that is the per-`blocks[].text` limit, and this card posts as a
+ * top-level `text`, whose limit is 40,000. Truncating at the block figure threw
+ * away the review commands — the point of the card — to save bytes Slack would
+ * have accepted. Held well below 40,000 anyway, because a card nobody scrolls
+ * to the end of has already failed.
  */
-const SLACK_TEXT_LIMIT = 2900
+export const SLACK_TEXT_LIMIT = 8000
 
 const TRUNCATION_NOTICE =
   '\n… card truncated; run `bunx tsx script/deploy/safe/list-pending-proposals.ts` for the full set'
@@ -98,15 +114,19 @@ const escapeEntities = (value: string): string =>
  * A backtick closes the code span the review command sits in and turns the rest
  * of that line into card prose; `*` and `_` forge a bold or italic label inline,
  * which is enough to fake the advisory line. Slack mrkdwn has no escape
- * sequence for any of them, so the choice is to strip or to let a document
- * value rewrite the card. Stripped: a network name, a hash or a git identity
- * never contains one, and a reason loses nothing a signer needs.
+ * sequence for either, so the choice is to strip or to let a document value
+ * rewrite the card.
+ *
+ * `_` and `~` are deliberately NOT stripped. They only italicise or strike
+ * text, so they cannot forge a label or break out of a code span — and
+ * stripping them corrupted real data: `alice_smith@example.com` and
+ * `alicesmith@example.com` rendered byte-identically on a card whose job is
+ * saying who proposed, and 115 tracked paths in this repo carry `_`, so a dirty
+ * path rendered as a file that does not exist. That list is the one field a
+ * reviewer copies out to go and look at something.
  */
 const stripMarkdownMarkers = (value: string): string =>
-  value.replace(/[`*_~]/g, '')
-
-const escape = (value: unknown): string =>
-  stripMarkdownMarkers(escapeEntities(sanitizeProvenanceText(value)))
+  value.replace(/[`*]/g, '')
 
 /**
  * Escapes a value whose length is capped.
@@ -119,6 +139,26 @@ const escapeCapped = (value: unknown, max: number): string =>
   stripMarkdownMarkers(
     escapeEntities([...sanitizeProvenanceText(value)].slice(0, max).join(''))
   )
+
+const escape = (value: unknown): string => escapeCapped(value, MAX_FIELD_CHARS)
+
+/**
+ * Renders a URL only if it is one.
+ *
+ * `captureGitProvenance` stores a PR link only when it starts with `https://`,
+ * so a value that does not reach here through provenance capture. Labelling it
+ * `*PR:*` lends it the card's credibility, and Slack auto-links a bare URL, so
+ * a signer gets a clickable attacker-chosen destination on the screen they read
+ * immediately before approving.
+ *
+ * Rejection is stated rather than silent: an omitted line reads as "no PR was
+ * recorded", which is a different and less alarming fact.
+ */
+const renderLink = (value: unknown): string => {
+  const text = escape(value)
+  if (!text) return ''
+  return text.startsWith('https://') ? text : `${text} — not a link, ignored`
+}
 
 const shortHash = (hash: unknown): string =>
   escapeCapped(hash, SHORT_HASH_CHARS)
@@ -176,16 +216,30 @@ export const renderProposalCard = (
   // Every field below is read from the first row, which is right when a run
   // proposes the same change everywhere and misleading when it does not — the
   // rows are selected per network and nothing forces them to agree.
-  const reasonsDiffer = proposals.some(
-    (p) => escapeCapped(p.reason, MAX_PROPOSAL_REASON_LENGTH) !== reason
+  // Compared on the raw values, not the rendered ones: two reasons identical for
+  // 200 characters and divergent after were reported as agreeing.
+  const differing = (
+    ['reason', 'gitCommit', 'prUrl', 'proposerHandle'] as const
   )
-  lines.push(
-    `*Reason:* ${reason || '_none given_'}${
-      reasonsDiffer
-        ? ' — reasons differ across networks, this is the first'
-        : ''
-    }`
-  )
+    .filter((field) =>
+      proposals.some(
+        (p) => String(p[field] ?? '') !== String(first[field] ?? '')
+      )
+    )
+    .map((field) => (field === 'prUrl' ? 'PR' : field))
+
+  lines.push(`*Reason:* ${reason || '_none given_'}`)
+
+  // `gitCommit` is what a signer re-derives calldata against and `prUrl` is the
+  // rationale they read, so those diverging matters more than the prose doing
+  // so. The first version of this flagged only the prose, which is the least
+  // consequential member of the set.
+  if (differing.length > 0)
+    lines.push(
+      `⚠ These differ across the networks in this card and only the first is shown: ${differing.join(
+        ', '
+      )}. Check each network individually.`
+    )
 
   const handle = escape(first.proposerHandle)
   const actorName = escape(first.actor)
@@ -194,7 +248,7 @@ export const renderProposalCard = (
 
   const gitCommit = escapeCapped(first.gitCommit, SHORT_COMMIT_CHARS)
   if (gitCommit) lines.push(`*Commit:* ${gitCommit}`)
-  const prUrl = escape(first.prUrl)
+  const prUrl = renderLink(first.prUrl)
   if (prUrl) lines.push(`*PR:* ${prUrl}`)
 
   // A dirty tree means the commit above does not describe what was proposed.
@@ -228,30 +282,39 @@ export const renderProposalCard = (
     )
   }
 
-  lines.push('', '*To review:*')
+  // Built separately and appended last, never truncated. It is the only
+  // actionable part of the card, and it sits at the bottom — so a tail-truncated
+  // card lost precisely the thing it exists to deliver. Measured: every
+  // overflowing card dropped the whole review section.
+  const review = ['', '*To review:*']
   // One command per network up to the limit, then a single one — the reviewer
   // runs them one network at a time anyway.
   const commandNetworks =
     count <= NAMED_NETWORK_LIMIT ? networks : [first.network]
   commandNetworks.forEach((network, index) => {
     const proposal = proposals[index]
-    lines.push(
+    review.push(
       `• \`bun confirm-safe-tx --network ${escape(network)}\`` +
         (proposal ? `  (${shortHash(proposal.safeTxHash)})` : '')
     )
   })
   if (commandNetworks.length < count)
-    lines.push(
+    review.push(
       `• …and ${count - commandNetworks.length} more — same command per network`
     )
 
-  const card = lines.join('\n')
+  const reviewText = review.join('\n')
+  const card = `${lines.join('\n')}${reviewText}`
   if (card.length <= SLACK_TEXT_LIMIT) return card
 
-  let body = card.slice(0, SLACK_TEXT_LIMIT - TRUNCATION_NOTICE.length)
-  // A code-unit slice can split a surrogate pair or an `&amp;` entity, either of
+  // The middle is what goes, so the headline and the commands both survive.
+  let body = lines
+    .join('\n')
+    .slice(0, SLACK_TEXT_LIMIT - TRUNCATION_NOTICE.length - reviewText.length)
+  // A code-unit slice can split a surrogate pair or an `&` entity, either of
   // which renders as garbage rather than as a clean cut.
   if (/[\uD800-\uDBFF]$/.test(body)) body = body.slice(0, -1)
   body = body.replace(/&[a-z]{0,3}$/i, '')
-  return `${body}${TRUNCATION_NOTICE}`
+
+  return `${body}${TRUNCATION_NOTICE}${reviewText}`
 }
