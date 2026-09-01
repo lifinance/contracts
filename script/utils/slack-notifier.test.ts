@@ -12,7 +12,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { SlackNotifier } from './slack-notifier'
+import { isUnattendedRun, SlackNotifier } from './slack-notifier'
 import type { ISlackMessage } from './slack-notifier'
 
 const WEBHOOK = 'https://hooks.slack.com/services/T000/B000/xxx'
@@ -162,5 +162,42 @@ describe('SlackNotifier retry failure signaling', () => {
       caught = err
     }
     expect(String(caught)).toContain('Slack API error: 500')
+  })
+})
+
+describe('isUnattendedRun', () => {
+  const original = process.env.CI
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CI
+    else process.env.CI = original
+  })
+
+  it('is true under a GitHub Actions run, scheduled or dispatched', () => {
+    process.env.CI = 'true'
+    expect(isUnattendedRun()).toBe(true)
+  })
+
+  it('is false in a developer shell, so local runs stay off the channel', () => {
+    delete process.env.CI
+    expect(isUnattendedRun()).toBe(false)
+  })
+
+  it('is false for an empty CI value', () => {
+    process.env.CI = ''
+    expect(isUnattendedRun()).toBe(false)
+  })
+
+  it.each(['false', 'FALSE', '0', 'no'])(
+    'treats CI=%s as an opt-out, not as CI',
+    (value) => {
+      process.env.CI = value
+      expect(isUnattendedRun()).toBe(false)
+    }
+  )
+
+  it('is true for any other non-empty value', () => {
+    process.env.CI = '1'
+    expect(isUnattendedRun()).toBe(true)
   })
 })

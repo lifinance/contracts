@@ -38,6 +38,7 @@ jobs:
     # Determines whether files that can influence `forge test` outcomes were touched.
     # Always runs (cheap) so the downstream unit-tests-required can report status.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       forge: ${{ steps.filter.outputs.forge }}
     steps:
@@ -57,6 +58,8 @@ jobs:
               - 'lib/**'
               - '.gitmodules'
               - '.github/workflows/forge-unit-tests.yml'
+              - '.github/actions/setup-foundry/**'
+              - '.foundry-version'
 
   run-unit-tests:
     # Runs on PRs (once out of draft) and on push/workflow_dispatch.
@@ -71,6 +74,7 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -159,6 +163,7 @@ jobs:
     needs: [detect-changes, run-unit-tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Validate upstream result
         # Validate `detect-changes` succeeded first. If it failed, `run-unit-tests`

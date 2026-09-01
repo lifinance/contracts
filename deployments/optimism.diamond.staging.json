@@ -49,10 +49,6 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.0.0"
       },
-      "0x17508BC3E587683E6f98bE89b5fDC28521611138": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
-      },
       "0xE2Bf645a908A5515C2FEC03d3edDb59c6eF606Fe": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
@@ -64,14 +60,6 @@
       "0x1de212FC75c4B11e7E9C791a611dd5fe776636ad": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
-      },
-      "0x747AcfB82E9D59E6f196Ffb473f3521c3B057362": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
-      "0xf3a8610d57edA7Dca0670e9d7a1AcAF4CbE2C579": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
       },
       "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
         "Name": "PolymerCCTPFacet",

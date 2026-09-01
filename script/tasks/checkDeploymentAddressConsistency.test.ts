@@ -15,6 +15,7 @@ import {
   changedWhitelistNetworks,
   findCoverageGaps,
   findMismatches,
+  findScopeViolations,
   getChangedPathsSince,
   getChangedWhitelistNetworks,
   getChangedWhitelistNetworksSince,
@@ -483,5 +484,148 @@ describe('findCoverageGaps', () => {
       eligible
     )
     expect(gaps).toEqual([])
+  })
+
+  it('does not flag a network-scoped periphery on a network outside its scope', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['bob', 'lens'] }
+    )
+    expect(gaps).toEqual([])
+  })
+
+  it('still flags a network-scoped periphery on a network inside its scope', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'bob',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['bob', 'lens'] }
+    )
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({
+      network: 'bob',
+      contract: 'OutputValidator',
+    })
+  })
+
+  it('matches scoped network names case-insensitively', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'OpBNB',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { OutputValidator: ['opbnb'] }
+    )
+    expect(gaps).toHaveLength(1)
+  })
+
+  it('leaves contracts absent from the scope map unrestricted', () => {
+    const gaps = findCoverageGaps(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: {},
+          diamondPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      eligible,
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({ contract: 'OutputValidator' })
+  })
+})
+
+describe('findScopeViolations', () => {
+  it('flags a whitelist entry on a network outside the contract scope', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toMatchObject({
+      network: 'mainnet',
+      contract: 'LiFiDEXAggregator',
+      address: '0xABC',
+    })
+  })
+
+  it('accepts a whitelist entry on an in-scope network', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'bob',
+          whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('ignores contracts that are not network-scoped', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { OutputValidator: '0xABC' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('ignores empty addresses', () => {
+    const violations = findScopeViolations(
+      [
+        {
+          ...base,
+          network: 'mainnet',
+          whitelistPeriphery: { LiFiDEXAggregator: '' },
+        },
+      ],
+      { LiFiDEXAggregator: ['bob'] }
+    )
+    expect(violations).toEqual([])
+  })
+
+  it('reports nothing when no contract is scoped', () => {
+    const violations = findScopeViolations([
+      {
+        ...base,
+        network: 'mainnet',
+        whitelistPeriphery: { LiFiDEXAggregator: '0xABC' },
+      },
+    ])
+    expect(violations).toEqual([])
   })
 })
