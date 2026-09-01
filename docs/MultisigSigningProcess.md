@@ -125,7 +125,7 @@ Note what this gate does and does not assert. It enforces **main-equivalence**,
 with an audited-freeze exception for unmerged code; it does not verify that what
 reaches production was audited, because code that matches `main` passes without
 any audit lookup at all. True audit enforcement is the separate bytecode ↔ audit
-attestation item in §7. The check is also **not** a GitHub SC+auditor review
+attestation item in §9. The check is also **not** a GitHub SC+auditor review
 check, and it does not wrap the other `propose-to-safe` entry points:
 `diamondUpdatePeriphery.sh`, `diamondEMERGENCYPause.sh`, and the Tron
 `script/deploy/tron/deploy-and-register-*.ts` facet registrations (which call

@@ -355,8 +355,8 @@ export interface IDeployGateDeps {
 
 /**
  * Builds the real git / audit-log / GitHub lookups used by the CLI.
- * `mainRef`, the audit log, and GitHub are resolved lazily so staging/`main`
- * short-circuits never shell out.
+ * `mainRef`, the audit log, and GitHub are resolved lazily so the staging
+ * short-circuit never shells out, and a tree that matches `main` never reaches GitHub.
  * @param repoRoot - repository root (working tree that will be compiled)
  * @returns the git / audit-log / GitHub lookups used by the CLI
  */
