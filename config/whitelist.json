@@ -4241,6 +4241,38 @@
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
+        ],
+        "injective": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "sepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "basesepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "arbitrumsepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
         ]
       }
     },
@@ -4774,22 +4806,8 @@
   "PERIPHERY": {
     "mainnet": [
       {
-        "name": "FeeCollector",
-        "address": "0x3Ef238c36035880EfbDfa239d218186b79Ad1d6F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x685527c551Cc40ce1f1C9818cD8683307076E4eD",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -4826,16 +4844,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -4908,22 +4916,8 @@
     ],
     "0g": [
       {
-        "name": "FeeCollector",
-        "address": "0x4A01A8bb2C374D654681aEef71Cf367b8716F7B1",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB5226A52e389723B83fAeF615D1a8e097de51b51",
+        "address": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -4964,16 +4958,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xd74D6f76730d97C5524b79F03Ed0F503C3897e1b",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x0B1f03b79367CFB04245E6999943C05F441fFfEF",
         "selectors": [
@@ -4990,22 +4974,8 @@
     ],
     "abstract": [
       {
-        "name": "FeeCollector",
-        "address": "0xde6A2171959d7b82aAD8e8B14cc84684C3a186AC",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
+        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5046,16 +5016,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xe1E182Bf4AA042514368b264CD96544B3f0895cE",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
         "selectors": [
@@ -5072,22 +5032,8 @@
     ],
     "apechain": [
       {
-        "name": "FeeCollector",
-        "address": "0xEe80aaE1e39b1d25b9FC99c8edF02bCd81f9eA30",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5128,16 +5074,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x9B6fc2dbb38dcc3461667DFCE9e6aD11F3f7D773",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -5154,22 +5090,8 @@
     ],
     "arbitrum": [
       {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5206,16 +5128,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -5266,22 +5178,8 @@
     ],
     "arbitrumnova": [
       {
-        "name": "FeeCollector",
-        "address": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xD23FB66108971325f302bF0f209216D705adF987",
+        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5322,16 +5220,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
         "selectors": [
@@ -5347,20 +5235,6 @@
       }
     ],
     "arbitrumsepolia": [
-      {
-        "name": "FeeCollector",
-        "address": "0xc199Ac0C619e3333F0b80306Fc0657ed7417730F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
       {
         "name": "FeeForwarder",
         "address": "0xC7e003943dDAE973d7D6455ab54A22E18302aBeb",
@@ -5390,16 +5264,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xdC09BA167DB66DEF66390EE956e6B5D30B05Fd49",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x500AC17C064e3796004596a5c5d2c65067555692",
         "selectors": [
@@ -5416,22 +5280,8 @@
     ],
     "arc": [
       {
-        "name": "FeeCollector",
-        "address": "0x0604811F11863AA7904CF07c27875c80134744c7",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x8d01799a781A56377983E119c92036140F6D4d6f",
+        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5458,16 +5308,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xB479A5FF1b2Bda4D5F13fCAfF0C3Cd6102019F6B",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
         "selectors": [
@@ -5480,23 +5320,19 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "arctestnet": [
-      {
-        "name": "FeeCollector",
-        "address": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
       {
         "name": "FeeForwarder",
         "address": "0xD23FB66108971325f302bF0f209216D705adF987",
@@ -5508,16 +5344,6 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -5538,22 +5364,8 @@
     ],
     "avalanche": [
       {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5590,16 +5402,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -5672,22 +5474,8 @@
     ],
     "base": [
       {
-        "name": "FeeCollector",
-        "address": "0x0A6d96E7f4D7b96CFE42185DF61E64d255c12DFf",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5724,16 +5512,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -5806,20 +5584,6 @@
     ],
     "basesepolia": [
       {
-        "name": "FeeCollector",
-        "address": "0xc199Ac0C619e3333F0b80306Fc0657ed7417730F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
         "address": "0xC7e003943dDAE973d7D6455ab54A22E18302aBeb",
         "selectors": [
@@ -5848,16 +5612,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xdC09BA167DB66DEF66390EE956e6B5D30B05Fd49",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x500AC17C064e3796004596a5c5d2c65067555692",
         "selectors": [
@@ -5874,22 +5628,8 @@
     ],
     "berachain": [
       {
-        "name": "FeeCollector",
-        "address": "0x070EC43b4222E0f17EEcD2C839cb9D1D5adeF73c",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x135566E8702A377D3F7Ec9f0a2bD8009901E8693",
+        "address": "0xc431Ee11b784960CF6ed6a69f91B93fB565b4d44",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5926,16 +5666,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6295b30297C254108E0bF16C70D513d2043E3d45",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -5986,22 +5716,8 @@
     ],
     "blast": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6042,16 +5758,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -6068,22 +5774,8 @@
     ],
     "bob": [
       {
-        "name": "FeeCollector",
-        "address": "0x728f23859C718B9e1cA762f051C29Ea99119B92D",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6150,22 +5842,8 @@
     ],
     "boba": [
       {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6206,16 +5884,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -6232,22 +5900,8 @@
     ],
     "bsc": [
       {
-        "name": "FeeCollector",
-        "address": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6284,16 +5938,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -6344,22 +5988,8 @@
     ],
     "celo": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6396,16 +6026,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -6456,22 +6076,8 @@
     ],
     "cronos": [
       {
-        "name": "FeeCollector",
-        "address": "0x11d40Dc8Ff0CE92F54A315aD8e674a55a866cBEe",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6512,16 +6118,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -6538,22 +6134,8 @@
     ],
     "etherlink": [
       {
-        "name": "FeeCollector",
-        "address": "0x4827499a632e43074A93Fd2ADa3637A76B2d2347",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x1D30789E61FFEdD286B15c5aA73e8f962dA4b91a",
+        "address": "0x8fE403D552aB15A661952D3fc5c6790116B3b027",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6594,16 +6176,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x3450fA3ffbe594e8fA6850cACB0d0fa8Da49f099",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x4990566Aaa552524531774ca5a38B1a04773429A",
         "selectors": [
@@ -6620,22 +6192,8 @@
     ],
     "flare": [
       {
-        "name": "FeeCollector",
-        "address": "0xa0acea90a4755E3C9647a2d8889bfEEb1D6C7960",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6676,16 +6234,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
         "selectors": [
@@ -6702,22 +6250,8 @@
     ],
     "flow": [
       {
-        "name": "FeeCollector",
-        "address": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6758,16 +6292,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -6784,22 +6308,8 @@
     ],
     "fraxtal": [
       {
-        "name": "FeeCollector",
-        "address": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6840,16 +6350,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xE38621607316cB43367c134C65dca3f41B61250f",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -6866,22 +6366,8 @@
     ],
     "fuse": [
       {
-        "name": "FeeCollector",
-        "address": "0xB0210dE78E28e2633Ca200609D9f528c13c26cD9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0x79C3F5B651Ee5782Ba15d968B088458cd5f1f4EF",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6922,16 +6408,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -6948,22 +6424,8 @@
     ],
     "gnosis": [
       {
-        "name": "FeeCollector",
-        "address": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7000,16 +6462,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -7082,22 +6534,8 @@
     ],
     "gravity": [
       {
-        "name": "FeeCollector",
-        "address": "0x79540403cdE176Ca5f1fb95bE84A7ec91fFDEF76",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7138,16 +6576,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -7164,22 +6592,8 @@
     ],
     "hemi": [
       {
-        "name": "FeeCollector",
-        "address": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7220,16 +6634,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -7246,22 +6650,8 @@
     ],
     "hyperevm": [
       {
-        "name": "FeeCollector",
-        "address": "0x7CaC679Cc2dF9c602590eA4965091F54EC32F2Fc",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xb85d6B3deDc688C2aC7C71669F20Fdd1eC739e97",
+        "address": "0xba072Bf218314E51d5c3d254800d799840ae6a25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7298,16 +6688,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xb6abDE9E515780CcE12dD06b71C074d13dc68178",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -7358,22 +6738,8 @@
     ],
     "immutablezkevm": [
       {
-        "name": "FeeCollector",
-        "address": "0x1a4E99aB56BBac95810C0A957F173054f6FA8fDc",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7414,16 +6780,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xAcD913Ad6936Bb662395ac9a66D75bFc77c165fF",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -7441,7 +6797,7 @@
     "injective": [
       {
         "name": "FeeForwarder",
-        "address": "0x2C7475cBe7A9813dbe93C94297491ED7bD86cFab",
+        "address": "0xB08ED2b55d226CA88642926240FA1Ef42d4b2297",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7498,22 +6854,8 @@
     ],
     "ink": [
       {
-        "name": "FeeCollector",
-        "address": "0x8295805320853d6B28778fC8f5199327e62e3d87",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7554,16 +6896,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -7580,22 +6912,8 @@
     ],
     "jovay": [
       {
-        "name": "FeeCollector",
-        "address": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7636,16 +6954,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -7662,22 +6970,8 @@
     ],
     "kaia": [
       {
-        "name": "FeeCollector",
-        "address": "0x5e6525c873D6FD3D6BE0D9845018F6298583981d",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x92fd059cbA2a286B3fF7a12A7DFC93432fAe3C27",
+        "address": "0x5161370f81b3054f43361644Ad332625f5E0804F",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7718,16 +7012,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xE275759e85e5497A1B07EA65529187FD7E987509",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFbb5BDeCDA4916bEe4B8aB6Ab2F7B89E2aDA4E8d",
         "selectors": [
@@ -7744,22 +7028,8 @@
     ],
     "katana": [
       {
-        "name": "FeeCollector",
-        "address": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x51586Ff93Ded33DbEb6D5fA68d046Fd036251D8A",
+        "address": "0xaaa55A0157670Ff2b4CF82F5cd2C754FE54BA574",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7796,16 +7066,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -7856,22 +7116,8 @@
     ],
     "lens": [
       {
-        "name": "FeeCollector",
-        "address": "0x6B6A13e1a04D0a899e0c9b49AaB966a0C5A7f9f3",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x973Be760B2992D7F01f0d66bEb48A172d10FB79a",
+        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7938,22 +7184,8 @@
     ],
     "linea": [
       {
-        "name": "FeeCollector",
-        "address": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xD8b700cEd3e486c3c4FC31Fc0c3b3590e1a52D7e",
+        "address": "0x72015d314542457cBB6BF14318d82464E4D413ec",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7990,16 +7222,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -8050,22 +7272,8 @@
     ],
     "lisk": [
       {
-        "name": "FeeCollector",
-        "address": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8162,22 +7370,8 @@
     ],
     "mantle": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0x79C3F5B651Ee5782Ba15d968B088458cd5f1f4EF",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8214,16 +7408,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -8274,22 +7458,8 @@
     ],
     "megaeth": [
       {
-        "name": "FeeCollector",
-        "address": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8326,16 +7496,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -8386,22 +7546,8 @@
     ],
     "metis": [
       {
-        "name": "FeeCollector",
-        "address": "0x27f0e36dE6B1BA8232f6c2e87E00A50731048C6B",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x531207ED256C75d26401aEd744333265E4b9029c",
+        "address": "0xF46B6684DF5D121D5FDD6cA76Ef4919c65887083",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8442,16 +7588,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x93BA2c19bF542b389E3C6654F6031cE6e58d3cd9",
         "selectors": [
@@ -8468,22 +7604,8 @@
     ],
     "mode": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8524,16 +7646,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -8550,22 +7662,8 @@
     ],
     "monad": [
       {
-        "name": "FeeCollector",
-        "address": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8602,16 +7700,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -8662,22 +7750,8 @@
     ],
     "morph": [
       {
-        "name": "FeeCollector",
-        "address": "0x24Ff5343CaA5cd6B56e0AcBcEbeD4e739627404c",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x06eB9e8e12Bc998C0A349f6B3820044839ef4F82",
+        "address": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8718,16 +7792,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6B1C713894D51196fF7a54536B96559de9Bc433C",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x0B1f03b79367CFB04245E6999943C05F441fFfEF",
         "selectors": [
@@ -8744,22 +7808,8 @@
     ],
     "nibiru": [
       {
-        "name": "FeeCollector",
-        "address": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9",
+        "address": "0xC748171a028401BfD0c0F0a757ab4A1F93b00576",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8800,16 +7850,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x4E001D80ED10912530EfdDaC91f09F836FC87782",
         "selectors": [
@@ -8826,22 +7866,8 @@
     ],
     "opbnb": [
       {
-        "name": "FeeCollector",
-        "address": "0x6A2420650139854F17964b8C3Bb60248470aB57E",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8908,22 +7934,8 @@
     ],
     "optimism": [
       {
-        "name": "FeeCollector",
-        "address": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8960,16 +7972,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -9034,20 +8036,6 @@
     ],
     "optimismsepolia": [
       {
-        "name": "FeeCollector",
-        "address": "0x1f4f48e7370F2c8e6F2112B4482302BA2e094Cbc",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
         "address": "0xbb5FBc819F6c81c2DaaF4ACcEe603c70e9206d36",
         "selectors": [
@@ -9076,16 +8064,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x1feDde61B7c86bd82505B1938b647bF9bAd665eF",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x1581cA9890E178E38FC05b44D541a781bb1810ae",
         "selectors": [
@@ -9102,22 +8080,8 @@
     ],
     "pharos": [
       {
-        "name": "FeeCollector",
-        "address": "0x949343d563394016CE0c52bB6511DFE5aEec8e8a",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xD23FB66108971325f302bF0f209216D705adF987",
+        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9158,16 +8122,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x3089b3b207E051b2c035c6163874732a18F28bbd",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xE6ca0479AE3849e393c5b4735c9D41D58CcCb8cb",
         "selectors": [
@@ -9194,22 +8148,8 @@
     ],
     "plasma": [
       {
-        "name": "FeeCollector",
-        "address": "0x954d55105CDF5371224268691FAf6178be5f62F5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9250,16 +8190,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -9276,22 +8206,8 @@
     ],
     "plume": [
       {
-        "name": "FeeCollector",
-        "address": "0x3e46137a80BB3c14906505d0f78ADbb2deDb9E3f",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x32ca3c43c2807EbB7d82212BeeC31c1b7BaaD146",
+        "address": "0xa2D39966793873f4514E5EcBDB0e1a84cAffa650",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9328,16 +8244,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x9d376fd8077fF2475FD635185723A4B274fcB61C",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -9388,22 +8294,8 @@
     ],
     "polygon": [
       {
-        "name": "FeeCollector",
-        "address": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9440,16 +8332,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -9522,22 +8404,8 @@
     ],
     "robinhood": [
       {
-        "name": "FeeCollector",
-        "address": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
+        "address": "0xF4BFFE4dfC693f37715A47c15BdA8af9ed8f7Cf1",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9578,16 +8446,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x321E5015072eB568B24F46e5A92FFcc4316056AB",
         "selectors": [
@@ -9604,22 +8462,8 @@
     ],
     "ronin": [
       {
-        "name": "FeeCollector",
-        "address": "0xFEd2370437dF9c1302Fe4f0840A91fc0091DA1F2",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9660,16 +8504,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x312AA44DBc5dEB0a4bA2AD9BbA21094CD5E6362e",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -9686,22 +8520,8 @@
     ],
     "rootstock": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9742,16 +8562,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -9768,22 +8578,8 @@
     ],
     "scroll": [
       {
-        "name": "FeeCollector",
-        "address": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9820,16 +8616,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -9880,22 +8666,8 @@
     ],
     "sei": [
       {
-        "name": "FeeCollector",
-        "address": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9936,16 +8708,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -9960,24 +8722,54 @@
         ]
       }
     ],
-    "somnia": [
+    "sepolia": [
       {
-        "name": "FeeCollector",
-        "address": "0x84F071fcD60e5ff3B0E618B80Fb3DD6857C0e20c",
+        "name": "FeeForwarder",
+        "address": "0xB0c62E0952A6388dA4f591B9b832B4234672A0Af",
         "selectors": [
           {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
           },
           {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
           }
         ]
       },
       {
+        "name": "TokenWrapper",
+        "address": "0x9ff5671f13E4E437d9223662e9fc22A8E3Ccca48",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x2192054e073b78E52b27C5441C477516f94638b5",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
+    "somnia": [
+      {
         "name": "FeeForwarder",
-        "address": "0x312C114ecAA3755286D1AE985F0277b0C6E87057",
+        "address": "0x30D40571bEc82bda31856eF33898feee09065023",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10018,16 +8810,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xAD7272F01ccA70814387555C14C2F7AC1C50Aa98",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x99Eb16Cd3602D90eb9e530C9BFA622b7c96CEf5B",
         "selectors": [
@@ -10044,22 +8826,8 @@
     ],
     "soneium": [
       {
-        "name": "FeeCollector",
-        "address": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10096,16 +8864,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -10170,22 +8928,8 @@
     ],
     "sonic": [
       {
-        "name": "FeeCollector",
-        "address": "0xaFb8cC8fCd71cd768Ce117C11eB723119FCDb1f8",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10222,16 +8966,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -10282,22 +9016,8 @@
     ],
     "stable": [
       {
-        "name": "FeeCollector",
-        "address": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10338,16 +9058,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
         "selectors": [
@@ -10364,22 +9074,8 @@
     ],
     "telos": [
       {
-        "name": "FeeCollector",
-        "address": "0x28F597dCAB2dcEEb8B38474550C947E38cFace61",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x65084727261bBBc3496e0835cFD7e34e2bAD94CD",
+        "address": "0xf09DA6d62eA81E6ed5B38d2358B0d61E64f94b15",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10420,16 +9116,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x361C9203a357242734791faD2D8C4DCec028a9Db",
         "selectors": [
@@ -10446,22 +9132,8 @@
     ],
     "tempo": [
       {
-        "name": "FeeCollector",
-        "address": "0x856305Ab6259E1E83FeE6a66b01672E9CfB84055",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xb421420EEf363d62108D040b70F0A8d580708AD1",
+        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10470,16 +9142,6 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xB141CfAe0951be61eeE8b5F57DAa094D81b54e1C",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -10500,22 +9162,8 @@
     ],
     "tron": [
       {
-        "name": "FeeCollector",
-        "address": "TA7qd9KpEBH7qASAxxUpjWVfE3GiTwpd7q",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
+        "address": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10558,22 +9206,8 @@
     ],
     "unichain": [
       {
-        "name": "FeeCollector",
-        "address": "0x262de706627Fe02B46A3643a60948fA6bE007F7b",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xB401ccdA43C36935e6059C02103E9541FbA3337E",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10610,16 +9244,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x7bb54768255E9278c170981F6ea9BDe332C25148",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -10684,22 +9308,8 @@
     ],
     "vana": [
       {
-        "name": "FeeCollector",
-        "address": "0x191C78A2Ac360B3d64BDd75fDE0108599D10Ad24",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10766,22 +9376,8 @@
     ],
     "viction": [
       {
-        "name": "FeeCollector",
-        "address": "0xD4B739284A79995D1c2689BF08747b8bF98b57c1",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x7D82e9e65e75800C0dEBD47946780A4fCBD0a9aa",
+        "address": "0xBeAA6FCb23f6E0Ec6AceB41Ae502e881A0B101Cc",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10848,22 +9444,8 @@
     ],
     "worldchain": [
       {
-        "name": "FeeCollector",
-        "address": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -10960,22 +9542,8 @@
     ],
     "xdc": [
       {
-        "name": "FeeCollector",
-        "address": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x5Bf8351f8C349634911965Bd000fE9c625C1A0d9",
+        "address": "0x58Cb4abF0C88b0eBF6248923E21a92105a0d4a25",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -11016,16 +9584,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x12e271e8657C29cbFbc181Ce190BEd8ECB1Aa474",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0x4E001D80ED10912530EfdDaC91f09F836FC87782",
         "selectors": [
@@ -11042,22 +9600,8 @@
     ],
     "xlayer": [
       {
-        "name": "FeeCollector",
-        "address": "0xC69994fd72824ca98F8a0B1E2ABc954E65a91cf4",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -11098,16 +9642,6 @@
         ]
       },
       {
-        "name": "LiFiDEXAggregator",
-        "address": "0x77b86A0a71511D077aEA2b54eDF80f0916e27448",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
         "selectors": [
@@ -11124,22 +9658,8 @@
     ],
     "zksync": [
       {
-        "name": "FeeCollector",
-        "address": "0x8dBf6f59187b2EB36B980F3D8F4cFC6DC4E4642e",
-        "selectors": [
-          {
-            "selector": "0xe0cbc5f2",
-            "signature": "collectNativeFees(uint256,uint256,address)"
-          },
-          {
-            "selector": "0xeedd56e1",
-            "signature": "collectTokenFees(address,uint256,uint256,address)"
-          }
-        ]
-      },
-      {
         "name": "FeeForwarder",
-        "address": "0x92870bEd7554532ddE5213aC0f304573D79AaB24",
+        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -11176,16 +9696,6 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0xa396390CE55bA9bA3A706c4924aef9679D36fbd9",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },

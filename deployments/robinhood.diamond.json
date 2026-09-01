@@ -21,9 +21,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x0339c0585F233Ba96f44B689729C62b4E6186531": {
-        "Name": "GenericSwapFacet",
-        "Version": "1.0.0"
+      "0x42caefaD13aD83ADCdd83c99Ae27058055CbF521": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       },
       "0xB129ce9C3fCD55726Ff314a2764d3937FA496071": {
         "Name": "GenericSwapFacetV3",
@@ -49,9 +49,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xdF12A02DD62305AB8295b347FDD6057e581A44c8": {
-        "Name": "LiFiIntentEscrowFacet",
-        "Version": "1.1.1"
+      "0x88545564793A470B511CC3E7e225a459bA29D291": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       },
       "0xB2b9903cfCe365e1521D7B961bfCe0d6635D49a9": {
         "Name": "AcrossFacetV4",
@@ -80,24 +80,16 @@
       "0x19498b49FB4AA541fd208E4520a9Dc14a8A9d88E": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
-      },
-      "0x88545564793A470B511CC3E7e225a459bA29D291": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
-      },
-      "0x42caefaD13aD83ADCdd83c99Ae27058055CbF521": {
-        "Name": "SymbiosisFacet",
-        "Version": "2.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0xfb3973800ADf5B997E910F2DD90158924370612A",
       "Executor": "0x464fC28B9CbC1781286c8626B6E925275c8C14F1",
       "FeeCollector": "0xAD257784C6D50640d1EFa31cfB3e75bD566f63BA",
-      "FeeForwarder": "0x4e0eb4c17A2Fc64f06314aFa4d3646241784ab3a",
+      "FeeForwarder": "0xF4BFFE4dfC693f37715A47c15BdA8af9ed8f7Cf1",
       "GasZipPeriphery": "0x9F80FDADcA03a6e062B13BAe1B5e5c0B2A166049",
-      "LidoWrapper": "",
       "LiFiDEXAggregator": "0x6A330d43F40CA4E21842685aEE7692a6a9d4c0C8",
+      "LidoWrapper": "",
       "OutputValidator": "0x321E5015072eB568B24F46e5A92FFcc4316056AB",
       "Patcher": "",
       "Permit2Proxy": "0x8eABB4E117fB70b346592e013855f6d825F50af1",

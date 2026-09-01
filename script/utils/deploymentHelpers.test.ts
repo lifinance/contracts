@@ -7,7 +7,30 @@ import {
 
 import { type SupportedChain, EnvironmentEnum } from '../common/types'
 
-import { getDeployments } from './deploymentHelpers'
+import { getDeployments, getDeploymentsFilePath } from './deploymentHelpers'
+
+describe('getDeploymentsFilePath', () => {
+  it('resolves the production file inside deployments/', () => {
+    expect(
+      getDeploymentsFilePath('mainnet', EnvironmentEnum.production)
+    ).toEndWith('/deployments/mainnet.json')
+  })
+
+  it('resolves the staging file inside deployments/', () => {
+    expect(
+      getDeploymentsFilePath('mainnet', EnvironmentEnum.staging)
+    ).toEndWith('/deployments/mainnet.staging.json')
+  })
+
+  it('refuses a chain name that would escape deployments/', () => {
+    expect(() =>
+      getDeploymentsFilePath(
+        '../../config/networks' as SupportedChain,
+        EnvironmentEnum.production
+      )
+    ).toThrow('Invalid network name')
+  })
+})
 
 describe('getDeployments', () => {
   it('loads the deployments file for a chain and environment', async () => {

@@ -27,7 +27,9 @@ import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import {
   computeFacetRemovalDiff,
+  computeFacetRemovalsByAddress,
   computeNamedFacetRemovals,
+  type IAddressRemovalResult,
   type IFacetRemoval,
   type INamedRemovalResult,
   type IRemovalDiff,
@@ -168,6 +170,11 @@ const command = defineCommand({
       type: 'string',
       description: 'JSON array of facet names (e.g. ["FacetA","FacetB"])',
     },
+    facetAddresses: {
+      type: 'string',
+      description:
+        'JSON array of facet addresses to remove (e.g. ["0xabc…"]) — targets one exact facet, so it can remove a superseded version co-registered under a live facet\'s name. Single network only.',
+    },
     periphery: {
       type: 'string',
       description:
@@ -191,16 +198,29 @@ const command = defineCommand({
   },
 
   async run({ args }) {
-    const { facets, periphery, auto, allNetworks, yes } = args
+    const { facets, facetAddresses, periphery, auto, allNetworks, yes } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
     let calldata: `0x${string}`
 
-    // --auto (target-state diff) and --facets (explicit names) drive different
-    // removal engines; refuse the ambiguous combination instead of silently
-    // letting one win.
-    if (auto && facets) {
-      consola.error('--auto and --facets are mutually exclusive')
+    // --auto (target-state diff), --facets (explicit names) and --facet-addresses
+    // (explicit addresses) drive different removal engines; refuse an ambiguous
+    // combination instead of silently letting one win.
+    const selectors = [
+      auto ? '--auto' : undefined,
+      facets ? '--facets' : undefined,
+      facetAddresses ? '--facet-addresses' : undefined,
+    ].filter(Boolean)
+    if (selectors.length > 1) {
+      consola.error(`${selectors.join(', ')} are mutually exclusive`)
+      process.exit(1)
+    }
+
+    // Addresses are per-diamond, so a fleet sweep of them is meaningless.
+    if (facetAddresses && allNetworks) {
+      consola.error(
+        '--facet-addresses targets one diamond and cannot be combined with --all-networks'
+      )
       process.exit(1)
     }
 
@@ -268,6 +288,18 @@ const command = defineCommand({
         network,
         typedEnv,
         parseFacetNames(facets),
+        yes ? 'yes' : 'prompt'
+      )
+      return
+    }
+
+    // ---------------- HEADLESS: address-driven removal (single network) ----------------
+    if (facetAddresses) {
+      consola.box('Running headless facet removal (by address)')
+      await runAddressRemoval(
+        network,
+        typedEnv,
+        parseFacetAddresses(facetAddresses),
         yes ? 'yes' : 'prompt'
       )
       return
@@ -508,6 +540,32 @@ function printRemovalDiff(diff: IRemovalDiff): void {
     )
 }
 
+/** Parses and checksums the `--facet-addresses` JSON array argument; exits on malformed input. */
+function parseFacetAddresses(facetAddresses: string): `0x${string}`[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(facetAddresses)
+  } catch {
+    parsed = undefined
+  }
+  if (!Array.isArray(parsed) || parsed.some((a) => typeof a !== 'string')) {
+    consola.error(
+      '❌  --facet-addresses must be a JSON array of strings, e.g. \'["0xabc…"]\''
+    )
+    process.exit(1)
+  }
+  try {
+    return (parsed as string[]).map((address) => getAddress(address))
+  } catch (error) {
+    consola.error(
+      `❌  --facet-addresses contains an invalid address: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+    process.exit(1)
+  }
+}
+
 /** Parses and validates the `--facets` JSON array argument; exits on malformed input. */
 function parseFacetNames(facets: string): string[] {
   try {
@@ -745,6 +803,99 @@ function printNamedRemoval(result: INamedRemovalResult): void {
         `address; investigate before assuming removal succeeded:\n` +
         result.unresolved.map((a) => `   ${a}`).join('\n')
     )
+}
+
+/** Prints the conspicuous banner for an explicit address-driven removal on one network. */
+function printAddressRemoval(result: IAddressRemovalResult): void {
+  consola.box(
+    `⚠️  IRREVERSIBLE FACET REMOVAL — ${result.network} (${result.environment})`
+  )
+
+  if (!result.diamondAddress) {
+    consola.info(
+      `[${result.network}] no LiFiDiamond in ${result.environment} deploy log — skipping`
+    )
+    return
+  }
+
+  const refusedCount =
+    result.protectedSkipped.length +
+    result.unverifiable.length +
+    result.stillExpected.length
+  if (result.removals.length === 0 && refusedCount === 0)
+    consola.success(
+      `[${result.network}] none of the given addresses are registered here`
+    )
+  else
+    for (const r of result.removals) {
+      consola.warn(
+        `✗ REMOVE  ${r.name ?? '(not in deploy log)'}  @ ${r.address}  (${
+          r.selectors.length
+        } selectors)`
+      )
+      consola.log(`   selectors: ${r.selectors.join(', ')}`)
+    }
+
+  if (result.protectedSkipped.length > 0)
+    consola.error(
+      `🛑 REFUSED (never-remove allowlist — should never be deprecated): ${result.protectedSkipped
+        .map((p) => `${p.name} @ ${p.address}`)
+        .join(', ')}`
+    )
+
+  if (result.stillExpected.length > 0)
+    consola.error(
+      `🛑 REFUSED (target state still expects these — removing would take down a live facet): ${result.stillExpected
+        .map((s) => `${s.name ?? 'unnamed'} @ ${s.address} (${s.reason})`)
+        .join(', ')}`
+    )
+
+  if (result.unverifiable.length > 0)
+    consola.error(
+      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions are unavailable; run "forge build" and retry): ${result.unverifiable.join(
+        ', '
+      )}`
+    )
+
+  if (result.notFoundOnChain.length > 0)
+    consola.info(
+      `ℹ️  not registered on ${result.network}: ${result.notFoundOnChain.join(
+        ', '
+      )}`
+    )
+}
+
+/**
+ * Removes an explicit set of facet addresses from one network's diamond. The
+ * address-keyed counterpart of {@link runNamedRemoval}, for when the deploy-log
+ * name cannot identify the target — most often a superseded facet version still
+ * co-registered alongside the live one that owns the name (EXSC-750).
+ */
+async function runAddressRemoval(
+  network: string,
+  environment: EnvironmentEnum,
+  addresses: `0x${string}`[],
+  confirmMode: 'yes' | 'prompt' | 'dry-run'
+): Promise<void> {
+  const result = await computeFacetRemovalsByAddress(
+    network,
+    environment,
+    addresses
+  )
+
+  printAddressRemoval(result)
+
+  if (!result.diamondAddress) return
+  await proposeRemovals(
+    network,
+    environment,
+    result.diamondAddress,
+    result.removals.map((r) => ({
+      ...r,
+      name: r.name ?? `unnamed facet ${r.address}`,
+    })),
+    confirmMode
+  )
 }
 
 /**

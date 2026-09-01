@@ -65,6 +65,8 @@ jobs:
               - 'bun.lock'
               - 'tsconfig.json'
               - '.github/workflows/validateScripts.yml'
+              - '.github/actions/setup-foundry/**'
+              - '.foundry-version'
 
   validate-scripts:
     # Runs on PRs (once out of draft) and on workflow_dispatch.

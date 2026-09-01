@@ -140,3 +140,7 @@ jobs:
               exit 1
             fi
           done
+        env:
+          # no-stale-registered-facets reads the deferred-cleanup queue; without it the
+          # check can only report reduced coverage.
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}

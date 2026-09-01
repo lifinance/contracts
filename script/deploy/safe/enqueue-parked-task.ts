@@ -71,8 +71,7 @@ const main = defineCommand({
     },
     facetName: {
       type: 'string',
-      description:
-        'Facet to park for removal (identity; selectors resolved at drain)',
+      description: 'Facet name — a human-readable label for the queue reports',
       required: true,
     },
     diamondAddress: {
@@ -82,7 +81,8 @@ const main = defineCommand({
     },
     facetAddress: {
       type: 'string',
-      description: 'Facet address snapshot from the deploy log',
+      description:
+        'Exact facet address to remove — the task identity (selectors resolved at drain)',
       required: true,
     },
     prUrl: {
@@ -149,12 +149,12 @@ const main = defineCommand({
       const result = await enqueueParkedTask(parkedTasks, input)
       if (result === null) {
         consola.info(
-          `${input.facetName} on ${input.network} is already parked (queued/proposed) — no-op`
+          `${input.facetAddress} (${input.facetName}) on ${input.network} is already parked (queued/proposed) — no-op`
         )
         return
       }
       consola.success(
-        `Parked ${input.facetName} removal on ${input.network} (origin PR ${input.prUrl})`
+        `Parked ${input.facetName} removal at ${input.facetAddress} on ${input.network} (origin PR ${input.prUrl})`
       )
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
