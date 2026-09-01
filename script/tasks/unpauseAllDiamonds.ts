@@ -145,6 +145,8 @@ const main = defineCommand({
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
+    const failures: { network: string; error: string }[] = []
+
     await Promise.all(
       mainnets.map(async (network) => {
         try {
@@ -244,12 +246,30 @@ const main = defineCommand({
             `[${network.name}] Error proposing unpause transaction:`,
             error
           )
+          failures.push({
+            network: network.name,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       })
     )
 
     await mongoClient.close()
-    consola.success('All networks processed successfully.')
+
+    // A network that threw here has NO proposal, so reporting success would tell
+    // an operator running an emergency unpause that every diamond is covered
+    // when one is not.
+    if (failures.length > 0) {
+      consola.error(
+        `${failures.length} of ${mainnets.length} network(s) got NO unpause proposal:`
+      )
+      for (const failure of failures)
+        consola.error(`  ${failure.network}: ${failure.error}`)
+
+      process.exit(1)
+    }
+
+    consola.success(`All ${mainnets.length} network(s) processed successfully.`)
 
     process.exit(0)
   },

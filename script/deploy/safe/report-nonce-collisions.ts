@@ -6,13 +6,22 @@
  * so the warning is actionable, and doubles as the pre-deployment check that the
  * index will build at all.
  *
- * Writes nothing.
+ * It opens its own client rather than using `getSafeMongoCollection`, which
+ * creates indexes on connect — a diagnostic must not mutate the schema it is
+ * asked to describe, least of all the schema whose creation failed.
+ *
+ * Grouping is case-insensitive on `safeAddress` on purpose: the index keys the
+ * raw field, so two inserts that spell the same Safe differently do NOT collide
+ * in the index. Those pairs are real nonce collisions the index cannot catch,
+ * and a report that grouped the same way as the index would hide exactly them.
  */
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { MongoClient } from 'mongodb'
 
-import { getSafeMongoCollection } from './safe-utils'
+const DEFAULT_DB = 'sc_private'
+const DEFAULT_COLLECTION = 'pendingTransactions'
 
 interface ICollisionGroup {
   _id: {
@@ -22,8 +31,7 @@ interface ICollisionGroup {
     nonce: unknown
   }
   count: number
-  safeTxHashes: string[]
-  statuses: string[]
+  rows: { safeTxHash: string; status: string; safeAddress: string }[]
 }
 
 const main = defineCommand({
@@ -33,23 +41,38 @@ const main = defineCommand({
       'Lists in-flight proposals sharing a Safe nonce (read-only diagnostic)',
   },
   async run() {
-    const { client, pendingTransactions } = await getSafeMongoCollection()
+    if (!process.env.SC_MONGODB_URI)
+      throw new Error('SC_MONGODB_URI environment variable is required')
+
+    const client = new MongoClient(process.env.SC_MONGODB_URI, {
+      serverSelectionTimeoutMS: 10_000,
+    })
 
     try {
-      const groups = (await pendingTransactions
+      await client.connect()
+      const collection = client
+        .db(DEFAULT_DB)
+        .collection<Record<string, unknown>>(DEFAULT_COLLECTION)
+
+      const groups = (await collection
         .aggregate([
           { $match: { status: { $in: ['pending', 'submitted'] } } },
           {
             $group: {
               _id: {
-                safeAddress: '$safeAddress',
-                network: '$network',
+                safeAddress: { $toLower: '$safeAddress' },
+                network: { $toLower: '$network' },
                 chainId: '$chainId',
                 nonce: '$safeTx.data.nonce',
               },
               count: { $sum: 1 },
-              safeTxHashes: { $push: '$safeTxHash' },
-              statuses: { $push: '$status' },
+              rows: {
+                $push: {
+                  safeTxHash: '$safeTxHash',
+                  status: '$status',
+                  safeAddress: '$safeAddress',
+                },
+              },
             },
           },
           { $match: { count: { $gt: 1 } } },
@@ -68,18 +91,28 @@ const main = defineCommand({
         `${groups.length} nonce collision(s) among in-flight proposals. The unique index cannot be built until these are resolved:`
       )
 
-      for (const group of groups)
+      for (const group of groups) {
+        const spellings = new Set(group.rows.map((row) => row.safeAddress))
+
         consola.log(
           `  ${group._id.network} (chain ${group._id.chainId}) Safe ${
             group._id.safeAddress
-          } nonce ${String(group._id.nonce)}: ${
-            group.count
-          } rows [${group.statuses.join(', ')}]\n` +
-            group.safeTxHashes.map((hash) => `      ${hash}`).join('\n')
+          } nonce ${String(group._id.nonce)}: ${group.count} rows\n` +
+            group.rows
+              .map((row) => `      ${row.status.padEnd(9)} ${row.safeTxHash}`)
+              .join('\n') +
+            (spellings.size > 1
+              ? `\n      NOTE: ${spellings.size} spellings of this Safe address in one group ` +
+                `(${[...spellings].join(
+                  ', '
+                )}). The index keys the raw field, so these rows do ` +
+                `NOT collide in it — this collision is invisible to the database guarantee.`
+              : '')
         )
+      }
 
-      // Exit code, not just output: this is read in CI and by an operator
-      // deciding whether the index will build.
+      // Exit code so an operator (or a wrapper) can gate on it rather than
+      // having to read the output.
       process.exit(1)
     } finally {
       await client.close()
