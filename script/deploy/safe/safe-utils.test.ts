@@ -157,6 +157,28 @@ async function store(
   )
 }
 
+/**
+ * Awaiting bun's `.rejects` matcher trips `@typescript-eslint/await-thenable`
+ * because it is not a real Promise, and leaving it un-awaited lets the test
+ * finish before the assertion settles.
+ *
+ * @param promise - The call expected to reject.
+ * @param match - Pattern the error message must contain.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  expect(error?.message).toMatch(match)
+}
+
 describe('computeProposalIntentHash', () => {
   const hash = (
     overrides: Partial<{
@@ -340,9 +362,10 @@ describe('storeTransactionInMongoDB — the ticket link hard-blocks', () => {
   it('does not create a proposal when no ticket was supplied', async () => {
     const collection = createFakeCollection()
 
-    expect(
-      store(collection, buildSafeTx(), FIXED_PROVENANCE, { ticket: undefined })
-    ).rejects.toThrow(/SAFE_PROPOSAL_TICKET/)
+    await expectRejects(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, { ticket: undefined }),
+      /SAFE_PROPOSAL_TICKET/
+    )
 
     // "Not created" is the requirement, not "reported an error": a throw after
     // the insert would leave an unlinked proposal occupying a nonce.
@@ -352,11 +375,12 @@ describe('storeTransactionInMongoDB — the ticket link hard-blocks', () => {
   it('refuses a malformed ticket rather than storing it as a link', async () => {
     const collection = createFakeCollection()
 
-    expect(
+    await expectRejects(
       store(collection, buildSafeTx(), FIXED_PROVENANCE, {
         ticket: 'https://example.com/issue/EXSC-694',
-      })
-    ).rejects.toThrow(/not a Linear issue link/)
+      }),
+      /not a Linear issue link/
+    )
     expect(collection.rows).toHaveLength(0)
   })
 

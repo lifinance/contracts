@@ -135,10 +135,6 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    // Up front: this asks for a device confirmation per network, and the
-    // store-time refusal would collect them all before failing.
-    assertTicketPresent()
-
     if (!args.network && !args.allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
     if (args.network && args.allNetworks)
@@ -177,6 +173,10 @@ const main = defineCommand({
       if (bad > 0) process.exit(1)
       return
     }
+
+    // After --check, which proposes nothing, and before the Ledger: the
+    // store-time refusal would collect a device confirmation per network first.
+    assertTicketPresent()
 
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger

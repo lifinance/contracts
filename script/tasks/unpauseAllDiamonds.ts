@@ -88,11 +88,6 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    // Up front, not at the store: this script signs on every production mainnet
-    // in turn, and the store-time refusal would spend a signature per network
-    // before failing.
-    assertTicketPresent()
-
     const blacklist = args.blacklist
     const environment = castEnv(args.environment ?? 'production')
     let activeNetworks = getAllActiveNetworks()
@@ -128,6 +123,13 @@ const main = defineCommand({
       ? []
       : activeNetworks.filter((n) => !isTestnetNetwork(n.id))
     const directSendNetworks = isStaging ? activeNetworks : testnets
+
+    // Only Pass 2 proposes, so only Pass 2 needs a ticket — a staging or
+    // testnet-only run creates no proposal and must not be refused for lacking
+    // one. Checked here rather than at the store because Pass 2 signs on every
+    // production mainnet in turn, and the store-time refusal would spend a
+    // signature per network before failing.
+    if (mainnets.length > 0) assertTicketPresent()
 
     // Pass 1: direct-send networks (testnets always; all networks when staging).
     const failures: { network: string; error: string }[] = []

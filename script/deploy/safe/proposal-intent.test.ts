@@ -105,6 +105,13 @@ describe('parseTicketLink', () => {
     ['a data: URL', 'data://linear.app/issue/EXSC-694'],
     ['a file: URL', 'file://linear.app/issue/EXSC-694'],
     ['a non-web scheme', 'ftp://linear.app/issue/EXSC-694'],
+    // Scheme, host, path and id all pass on these two, so only the userinfo
+    // check can reject them.
+    [
+      'a link carrying a password',
+      'https://user:secret@linear.app/issue/EXSC-694',
+    ],
+    ['a link carrying a username', 'https://token@linear.app/issue/EXSC-694'],
     ['a lowercase bare id', 'exsc-694'],
     ['a bare id with no number', 'EXSC-'],
     ['a bare id with no team', '-694'],
@@ -313,5 +320,16 @@ describe('assertTicketPresent', () => {
     expect(assertTicketPresent('EXSC-111')).toBe(
       'https://linear.app/lifi-linear/issue/EXSC-111'
     )
+  })
+})
+
+describe('parseTicketLink — credential leakage', () => {
+  it('refuses a credential-bearing link without echoing the credential', () => {
+    const result = parseTicketLink(
+      'https://user:hunter2@linear.app/issue/EXSC-694'
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).not.toContain('hunter2')
   })
 })

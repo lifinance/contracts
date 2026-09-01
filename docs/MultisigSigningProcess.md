@@ -87,9 +87,18 @@ merge; the deploy scripts never commit.
 All EVM funnels end in `storeTransactionInMongoDB`
 (`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
 required and the missing-reason warning is emitted — placing them there rather
-than per entry point means no funnel can be added that skips them. A run with no
-ticket fails before anything is written, naming both `--ticket` and
-`SAFE_PROPOSAL_TICKET`. Entry points:
+than per entry point means no funnel can be added that skips them. The refusal
+happens before the proposal document is inserted, so a refused proposal is never
+created and claims no nonce, and it names both `--ticket` and
+`SAFE_PROPOSAL_TICKET`.
+
+That check is the backstop, not the first line: the entry points whose late
+failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
+the Tron route, and the `sendOrPropose` chokepoint — also call
+`assertTicketPresent` before they sign, so an unset ticket costs one message
+rather than a signature or a device confirmation per network. Those pre-checks
+run only on the branches that actually propose; a staging or testnet-only run, a
+`--check` audit and a `--dryRun` need no ticket. Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in

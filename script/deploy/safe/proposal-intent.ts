@@ -1,3 +1,13 @@
+/**
+ * Proposal intent: the Linear ticket link and the one-line reason that travel
+ * with every Safe proposal.
+ *
+ * Import this from any proposal funnel, or from an entry point that wants to
+ * refuse a run before it signs. It carries no Safe, Mongo or network
+ * dependency, which is what lets an entry point check the intent before opening
+ * either — and what lets `safe-utils.ts` import it without a cycle.
+ */
+
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 
 /** Longest rationale kept; the field is a one-liner for a signer, not a log. */
@@ -90,6 +100,19 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   // wherever the stored link is rendered reaches the signer's provenance block.
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
     return invalid(`scheme is '${parsed.protocol}', expected http or https`)
+
+  // `hostname` excludes userinfo, so the host check below passes
+  // `https://user:secret@linear.app/issue/EXSC-1`, which would then be stored
+  // and rendered to signers verbatim, credentials and all. This is the one
+  // rejection that does not echo the input, since that would print the very
+  // credential it is refusing.
+  if (parsed.username !== '' || parsed.password !== '')
+    return {
+      ok: false,
+      kind: 'invalid',
+      message:
+        'The ticket link carries credentials before the host. Pass the plain issue URL, or a bare id like EXSC-123.',
+    }
 
   // Compared as a whole host, never as a substring: `linear.app.evil.com`
   // contains the real host and an endsWith check would accept it.
