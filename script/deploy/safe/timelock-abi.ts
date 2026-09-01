@@ -1,7 +1,10 @@
 import {
+  encodeAbiParameters,
   encodeFunctionData,
+  getAddress,
   isAddress,
   isHex,
+  keccak256,
   parseAbi,
   toFunctionSelector,
   type Address,
@@ -22,7 +25,22 @@ export const TIMELOCK_SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
 )
 
-const ZERO_PREDECESSOR =
+/**
+ * Reads used to pick a salt that will not collide with an existing operation.
+ *
+ * `hashOperationBatch` is read from the contract rather than recomputed locally
+ * so the id cannot drift from the timelock's own definition of it.
+ */
+export const TIMELOCK_OPERATION_STATE_ABI = parseAbi([
+  'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
+  'function getTimestamp(bytes32 id) view returns (uint256)',
+])
+
+/**
+ * Exported so the operation-id read and the encoder cannot disagree: a different
+ * predecessor here would hash to a different id than the one actually scheduled.
+ */
+export const TIMELOCK_ZERO_PREDECESSOR =
   // pre-commit-checker: not a secret — zero bytes32 means "no predecessor"
   '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
 
@@ -99,9 +117,80 @@ export function encodeTimelockScheduleBatch(
       targets,
       targets.map(() => 0n), // values
       payloads,
-      ZERO_PREDECESSOR,
+      TIMELOCK_ZERO_PREDECESSOR,
       salt,
       minDelay,
     ],
   })
 }
+
+/** Whether the timelock already knows an operation id, and in what state. */
+export type TimelockOperationState = 'unknown' | 'pending' | 'done'
+
+/**
+ * Reads OZ's `_timestamps` value for an operation id.
+ *
+ * The encoding is OZ's, not ours: 0 means never scheduled, and `_DONE_TIMESTAMP`
+ * (1) is written on execute, so a done operation is indistinguishable from a
+ * scheduled one by presence alone. `_schedule` rejects both, which is why the
+ * two are told apart here rather than lumped into "exists".
+ *
+ * @param timestamp - the value `getTimestamp(id)` returned.
+ * @returns whether the operation is unknown, pending, or already executed.
+ */
+export const classifyTimelockOperation = (
+  timestamp: bigint
+): TimelockOperationState => {
+  if (timestamp === 0n) return 'unknown'
+  if (timestamp === 1n) return 'done'
+
+  return 'pending'
+}
+
+export interface ITimelockSaltInput {
+  chainId: number
+  timelockAddress: Address
+  targets: Address[]
+  payloads: Hex[]
+  /** Bumped only to escape an operation id the timelock already knows. */
+  attempt: number
+}
+
+/**
+ * Derives the timelock salt from the action itself rather than from the clock.
+ *
+ * A clock-derived salt gives the same logical action a different `scheduleBatch`
+ * calldata on every attempt, so `intentHash` differs and the duplicate-proposal
+ * index cannot see a re-proposal of work already in flight.
+ *
+ * Addresses are checksummed before hashing: the same Safe reaches this code in
+ * lowercase from the Tron path and checksummed from the EVM path, and two salts
+ * for one action would defeat the dedup this exists to restore.
+ *
+ * `attempt` is in the preimage because a purely action-derived salt can be
+ * scheduled only once ever — OZ keeps `_timestamps[id]` non-zero after execute —
+ * so a legitimate repeat needs a way to move to a fresh id without reintroducing
+ * a clock.
+ *
+ * @param input - the action, plus which attempt this is.
+ * @returns a bytes32 salt.
+ */
+export const deriveTimelockSalt = (input: ITimelockSaltInput): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { name: 'chainId', type: 'uint256' },
+        { name: 'timelock', type: 'address' },
+        { name: 'targets', type: 'address[]' },
+        { name: 'payloads', type: 'bytes[]' },
+        { name: 'attempt', type: 'uint256' },
+      ],
+      [
+        BigInt(input.chainId),
+        getAddress(input.timelockAddress),
+        input.targets.map((target) => getAddress(target)),
+        input.payloads,
+        BigInt(input.attempt),
+      ]
+    )
+  )

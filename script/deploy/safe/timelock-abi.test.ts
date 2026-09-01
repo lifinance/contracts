@@ -9,6 +9,8 @@ import { decodeFunctionData, type Address, type Hex } from 'viem'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+  classifyTimelockOperation,
+  deriveTimelockSalt,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
 
@@ -114,5 +116,120 @@ describe('encodeTimelockScheduleBatch', () => {
         3600n
       )
     ).toThrow('not a valid address')
+  })
+})
+
+describe('deriveTimelockSalt', () => {
+  const action = {
+    chainId: 1,
+    timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
+    targets: ['0x2222222222222222222222222222222222222222'] as Address[],
+    payloads: ['0xdeadbeef'] as Hex[],
+  }
+
+  it('is a bytes32 hex value', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).toMatch(
+      /^0x[0-9a-f]{64}$/
+    )
+  })
+
+  it('is deterministic — the same action gives the same salt', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).toBe(
+      deriveTimelockSalt({ ...action, attempt: 0 })
+    )
+  })
+
+  it('differs per attempt, so a legitimate repeat can get a fresh operation id', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, attempt: 1 })
+    )
+  })
+
+  it("differs across chains, so one chain cannot predict another's operation id", () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, chainId: 10, attempt: 0 })
+    )
+  })
+
+  it('differs across timelocks', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        timelockAddress: '0x3333333333333333333333333333333333333333',
+        attempt: 0,
+      })
+    )
+  })
+
+  it('differs when a payload changes', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, payloads: ['0xdeadbeee'], attempt: 0 })
+    )
+  })
+
+  it('differs when a target changes', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        targets: ['0x4444444444444444444444444444444444444444'],
+        attempt: 0,
+      })
+    )
+  })
+
+  it('is insensitive to address casing, so one Safe cannot yield two salts', () => {
+    expect(
+      deriveTimelockSalt({
+        ...action,
+        targets: ['0x2222222222222222222222222222222222222222'],
+        attempt: 0,
+      })
+    ).toBe(
+      deriveTimelockSalt({
+        ...action,
+        targets: [
+          '0x2222222222222222222222222222222222222222'
+            .toUpperCase()
+            .replace('0X', '0x') as Address,
+        ],
+        attempt: 0,
+      })
+    )
+  })
+
+  it('does not collide when call order changes — inner calls execute in array order', () => {
+    const first = '0x2222222222222222222222222222222222222222' as Address
+    const second = '0x4444444444444444444444444444444444444444' as Address
+
+    expect(
+      deriveTimelockSalt({
+        ...action,
+        targets: [first, second],
+        payloads: ['0xaa', '0xbb'],
+        attempt: 0,
+      })
+    ).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        targets: [second, first],
+        payloads: ['0xbb', '0xaa'],
+        attempt: 0,
+      })
+    )
+  })
+})
+
+describe('classifyTimelockOperation', () => {
+  it('reads 0 as unknown — nothing scheduled', () => {
+    expect(classifyTimelockOperation(0n)).toBe('unknown')
+  })
+
+  it('reads 1 as done — OZ writes _DONE_TIMESTAMP on execute', () => {
+    expect(classifyTimelockOperation(1n)).toBe('done')
+  })
+
+  it('reads anything above 1 as pending', () => {
+    expect(classifyTimelockOperation(2n)).toBe('pending')
+    expect(classifyTimelockOperation(1_800_000_000n)).toBe('pending')
   })
 })

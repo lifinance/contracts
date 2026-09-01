@@ -67,7 +67,13 @@ import {
   getLocalSelectorInfo,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
-import { encodeTimelockScheduleBatch } from './timelock-abi'
+import {
+  TIMELOCK_OPERATION_STATE_ABI,
+  TIMELOCK_ZERO_PREDECESSOR,
+  classifyTimelockOperation,
+  deriveTimelockSalt,
+  encodeTimelockScheduleBatch,
+} from './timelock-abi'
 
 config()
 
@@ -2972,6 +2978,102 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   return safeInfo
 }
 
+/** How many salts to try before giving up on finding an unused operation id. */
+const MAX_SALT_ATTEMPTS = 16
+
+export interface IPickTimelockSaltInput {
+  client: PublicClient
+  chainId: number
+  timelockAddress: Address
+  targetAddresses: Address[]
+  originalCalldatas: Hex[]
+}
+
+/**
+ * Picks the first action-derived salt whose operation the timelock does not
+ * already know.
+ *
+ * The salt has to be derived from the action so that re-proposing work already
+ * in flight produces identical calldata and the duplicate-proposal index can see
+ * it. But OZ's `_schedule` rejects any id it has a timestamp for, and it keeps
+ * one after execute, so the first candidate is unusable for an action that has
+ * run before — and scheduling it anyway would revert only after signatures had
+ * been collected and the delay had elapsed.
+ *
+ * A pending hit is reported rather than skipped quietly: that is a duplicate of
+ * live work, which is exactly what a caller needs to know before spending
+ * signatures on it.
+ *
+ * The scan is deterministic given chain state, so two proposers racing on the
+ * same repeat converge on the same salt and stay deduplicated.
+ *
+ * @param input - the action, its chain, and a client to read the timelock with.
+ * @returns the salt to schedule under.
+ * @throws If the timelock cannot be read, or every attempt is already taken.
+ */
+export const pickTimelockSalt = async (
+  input: IPickTimelockSaltInput
+): Promise<Hex> => {
+  const {
+    client,
+    chainId,
+    timelockAddress,
+    targetAddresses,
+    originalCalldatas,
+  } = input
+
+  for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
+    const salt = deriveTimelockSalt({
+      chainId,
+      timelockAddress,
+      targets: targetAddresses,
+      payloads: originalCalldatas,
+      attempt,
+    })
+
+    const operationId = await client.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_OPERATION_STATE_ABI,
+      functionName: 'hashOperationBatch',
+      args: [
+        targetAddresses,
+        targetAddresses.map(() => 0n),
+        originalCalldatas,
+        TIMELOCK_ZERO_PREDECESSOR,
+        salt,
+      ],
+    })
+
+    const state = classifyTimelockOperation(
+      await client.readContract({
+        address: timelockAddress,
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        functionName: 'getTimestamp',
+        args: [operationId],
+      })
+    )
+
+    if (state === 'unknown') return salt
+
+    if (state === 'pending')
+      consola.warn(
+        `Timelock operation ${operationId} for this exact batch is already scheduled and not yet ` +
+          `executed. This proposal duplicates work already in flight — cancel or execute the existing ` +
+          `operation instead of scheduling a second one.`
+      )
+    else
+      consola.info(
+        `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
+      )
+  }
+
+  throw new Error(
+    `Could not find an unused timelock operation id for this batch after ${MAX_SALT_ATTEMPTS} attempts ` +
+      `on ${timelockAddress}. That means this exact batch has been scheduled ${MAX_SALT_ATTEMPTS} times ` +
+      `already — refusing to schedule rather than guess.`
+  )
+}
+
 /**
  * Wraps one or more calls in a single timelock `scheduleBatch` call.
  * Inner calls are scheduled (and later executed) in array order, so callers
@@ -2982,7 +3084,9 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
  * @param targetAddresses - Target contract address per inner call (parallel to `originalCalldatas`)
  * @param originalCalldatas - Calldata per inner call (parallel to `targetAddresses`)
  * @returns The `scheduleBatch` calldata and the timelock as the new target
- * @throws If the call arrays are empty or differ in length
+ * @throws If the call arrays are empty or differ in length, if the timelock
+ *         cannot be read, or if every candidate salt maps to an operation id the
+ *         timelock already knows (see {@link pickTimelockSalt})
  */
 export async function wrapWithTimelockSchedule(
   network: string,
@@ -3051,8 +3155,13 @@ export async function wrapWithTimelockSchedule(
     }
   }
 
-  // Create a unique salt based on the current timestamp
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  const salt = await pickTimelockSalt({
+    client,
+    chainId: chain.id,
+    timelockAddress,
+    targetAddresses,
+    originalCalldatas,
+  })
 
   const scheduleBatchCalldata = encodeTimelockScheduleBatch(
     targetAddresses,

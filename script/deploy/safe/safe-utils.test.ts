@@ -31,6 +31,7 @@ import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
+  pickTimelockSalt,
   classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
@@ -49,6 +50,7 @@ import {
   type NonceExecutionDecision,
   type SafeNonceStatus,
 } from './safe-utils'
+import { deriveTimelockSalt } from './timelock-abi'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
 const TARGET = '0x2222222222222222222222222222222222222222' as Address
@@ -1247,5 +1249,122 @@ describe('classifyIndexEnsureFailure', () => {
     expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
     expect(classifyIndexEnsureFailure(6)).toBe('fatal')
     expect(classifyIndexEnsureFailure(27)).toBe('fatal')
+  })
+})
+
+/**
+ * Fake timelock: answers `hashOperationBatch` with a hash of the salt alone and
+ * `getTimestamp` from a caller-supplied table, so the salt-scan loop is testable
+ * without a chain. The id derivation does not need to match OZ here — only that
+ * distinct salts give distinct ids, which is what the loop depends on.
+ */
+const fakeTimelockClient = (
+  timestampsBySalt: Record<string, bigint>
+): { client: unknown; reads: string[] } => {
+  const reads: string[] = []
+  const client = {
+    readContract: async (args: {
+      functionName: string
+      args: readonly unknown[]
+    }): Promise<unknown> => {
+      if (args.functionName === 'hashOperationBatch') {
+        const salt = args.args[4] as string
+        reads.push(salt)
+        return salt
+      }
+      return timestampsBySalt[args.args[0] as string] ?? 0n
+    },
+  }
+  return { client, reads }
+}
+
+describe('pickTimelockSalt', () => {
+  const action = {
+    chainId: 1,
+    timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
+    targetAddresses: [
+      '0x2222222222222222222222222222222222222222',
+    ] as Address[],
+    originalCalldatas: ['0xdeadbeef'] as Hex[],
+  }
+
+  const saltFor = (attempt: number): Hex =>
+    deriveTimelockSalt({
+      chainId: action.chainId,
+      timelockAddress: action.timelockAddress,
+      targets: action.targetAddresses,
+      payloads: action.originalCalldatas,
+      attempt,
+    })
+
+  it('uses the first attempt when the timelock knows nothing about it', async () => {
+    const { client } = fakeTimelockClient({})
+
+    expect(
+      await pickTimelockSalt({
+        ...action,
+        client: client as never,
+      })
+    ).toBe(saltFor(0))
+  })
+
+  it('is deterministic — two proposers of the same action get the same salt', async () => {
+    const first = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}).client as never,
+    })
+    const second = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}).client as never,
+    })
+
+    expect(first).toBe(second)
+  })
+
+  it('skips an executed operation and takes the next attempt', async () => {
+    const { client } = fakeTimelockClient({ [saltFor(0)]: 1n })
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(1)
+    )
+  })
+
+  it('skips several executed operations in order', async () => {
+    const { client, reads } = fakeTimelockClient({
+      [saltFor(0)]: 1n,
+      [saltFor(1)]: 1n,
+      [saltFor(2)]: 1n,
+    })
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(3)
+    )
+    expect(reads).toEqual([saltFor(0), saltFor(1), saltFor(2), saltFor(3)])
+  })
+
+  it('moves past a PENDING operation rather than proposing a guaranteed revert', async () => {
+    const { client } = fakeTimelockClient({ [saltFor(0)]: 1_800_000_000n })
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(1)
+    )
+  })
+
+  it('refuses rather than guessing when every attempt is taken', async () => {
+    const taken: Record<string, bigint> = {}
+    for (let attempt = 0; attempt < 16; attempt++) taken[saltFor(attempt)] = 1n
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        client: fakeTimelockClient(taken).client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/refusing to schedule/i)
   })
 })
