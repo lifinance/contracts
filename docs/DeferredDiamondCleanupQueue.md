@@ -156,7 +156,10 @@ the source prompt or inferred, **not** confirmed.
    apply to a wrapped re-proposal. Two states break that equality by design: a **pending**
    operation makes the wrap refuse outright, and an **executed** one advances to the next
    deterministic salt, which is a different `intentHash`. `minDelay` is also a `scheduleBatch`
-   argument, so an `updateDelay` or a fallback on the `getMinDelay` read changes the calldata too.
+   argument, so an `updateDelay` or a `getMinDelay` fallback changes the calldata and therefore the
+   `intentHash` — but **not** the timelock operation id, which hashes targets, values, payloads,
+   predecessor and salt only. So a delay change defeats the Mongo intent dedup while the timelock's
+   own pending/executed refusal keeps working.
    **The queue-layer flip (Fact 15, §7) remains the guarantee that does not depend on any of
    this**, which is why it is not redundant. The Tron proposal path still uses a clock salt.
 10. `[code]` `/deprecate-contract` step 6 today builds the removal proposals eagerly
