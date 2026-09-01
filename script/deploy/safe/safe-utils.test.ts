@@ -31,6 +31,7 @@ import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
+  classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
   getSigners,
@@ -1225,5 +1226,26 @@ describe('storeTransactionInMongoDB — nonce collision is not an idempotent dup
     }
 
     expect(thrown).toBe(error)
+  })
+})
+
+describe('classifyIndexEnsureFailure', () => {
+  it('treats a drifted definition as drifted, not fatal — either conflict code', () => {
+    expect(classifyIndexEnsureFailure(85)).toBe('drifted')
+    expect(classifyIndexEnsureFailure(86)).toBe('drifted')
+  })
+
+  it('treats a permission failure as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(13)).toBe('unauthorized')
+  })
+
+  it('treats colliding data as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(11000)).toBe('colliding-data')
+  })
+
+  it('treats anything else as fatal, so a real connection fault still propagates', () => {
+    expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(6)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(27)).toBe('fatal')
   })
 })

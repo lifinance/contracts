@@ -1776,6 +1776,38 @@ async function ensurePendingProposalIndex(
   }
 }
 
+/** Why `createIndex` failed, in terms of what the caller should do about it. */
+export type IndexEnsureFailure =
+  | 'drifted'
+  | 'unauthorized'
+  | 'colliding-data'
+  | 'fatal'
+
+/**
+ * Maps a `createIndex` error code to an outcome.
+ *
+ * 85 and 86 share an outcome deliberately. MongoDB 8.2 answers every mismatch —
+ * options or key — with 86, and an identical request with no error at all, so 85
+ * is unreachable here; but the documented split puts option conflicts (collation
+ * among them) under 85, and a server that did return it must not take a
+ * different path. Neither is fatal: this index's name encodes its definition, so
+ * a conflict means the definition was changed without renaming, and refusing
+ * would throw out of `getSafeMongoCollection` — which every Safe script calls,
+ * including the ones that confirm and execute proposals already pending.
+ *
+ * @param code - the `code` property of the thrown error, if it had one.
+ * @returns what the caller should do about it.
+ */
+export const classifyIndexEnsureFailure = (
+  code: number | undefined
+): IndexEnsureFailure => {
+  if (code === 85 || code === 86) return 'drifted'
+  if (code === 13) return 'unauthorized'
+  if (code === 11000) return 'colliding-data'
+
+  return 'fatal'
+}
+
 /**
  * Creates the index, in exactly one place so a replacement cannot drift from the
  * definition the first attempt used.
@@ -1835,38 +1867,41 @@ async function ensureInFlightNonceIndex(
         ? (error as { code: number }).code
         : undefined
 
-    // 85 = exists with same options.
-    if (code === 85) return
+    // Every branch below warns and returns rather than throwing. Nothing is ever
+    // dropped either: replacing an index can leave the collection with no
+    // constraint at all when the rebuild fails on colliding data.
+    switch (classifyIndexEnsureFailure(code)) {
+      case 'drifted':
+        consola.warn(
+          `${IN_FLIGHT_NONCE_INDEX_NAME} exists with a definition this build did not ask for. Its name ` +
+            `is meant to encode its definition, so the definition was changed without renaming it. ` +
+            `Case-insensitive in-flight nonce uniqueness may NOT be enforced — inspect the index.`,
+          error
+        )
+        return
 
-    // 86 (same name, different definition) is deliberately not handled: the name
-    // encodes the definition, so an index that differs has a different name and
-    // is simply another index. Nothing is ever dropped — dropping to rebuild can
-    // leave the collection with no constraint at all when the rebuild then fails
-    // on colliding data.
+      case 'unauthorized':
+        consola.warn(
+          'Cannot verify the in-flight nonce index (role lacks createIndex); a nonce collision would not be prevented at insert time:',
+          error
+        )
+        return
 
-    if (code === 13) {
-      consola.warn(
-        'Cannot verify the in-flight nonce index (role lacks createIndex); a nonce collision would not be prevented at insert time:',
-        error
-      )
-      return
+      case 'colliding-data':
+        consola.warn(
+          `Could not build ${IN_FLIGHT_NONCE_INDEX_NAME}: the collection already holds two in-flight ` +
+            `proposals sharing a nonce. Nonce uniqueness is NOT enforced until those rows are resolved. ` +
+            `List them with 'bunx tsx script/deploy/safe/report-nonce-collisions.ts'.`,
+          error
+        )
+        return
+
+      // 'fatal' — a real connection fault. Rethrown so the caller closes the
+      // client. Default rather than a named case so an outcome added to the
+      // union later is treated as fatal until it is handled explicitly.
+      default:
+        throw error
     }
-
-    // A collision already in the data makes the build fail. Blocking every Safe
-    // script fleet-wide over pre-existing rows would be worse than the race this
-    // index prevents, so it warns — but it must say the guarantee is absent,
-    // because "index ensured" and "index absent" are not interchangeable here.
-    if (code === 11000) {
-      consola.warn(
-        `Could not build ${IN_FLIGHT_NONCE_INDEX_NAME}: the collection already holds two in-flight ` +
-          `proposals sharing a nonce. Nonce uniqueness is NOT enforced until those rows are resolved. ` +
-          `List them with 'bunx tsx script/deploy/safe/report-nonce-collisions.ts'.`,
-        error
-      )
-      return
-    }
-
-    throw error
   }
 }
 
