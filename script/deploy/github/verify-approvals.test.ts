@@ -734,27 +734,24 @@ describe('diamondUpdateFacet gate condition', () => {
     // deployed there before it is audited - gating them would block that rollout
     ['production', 'TESTNET', 'SKIPPED'],
     ['staging', 'TESTNET', 'SKIPPED'],
-  ])(
-    'runs the gate for environment %p on a %s network',
-    (environment, network, expected) => {
-      const result = spawnSync(
+  ])('decides %p on a %s network as %s', (environment, network, expected) => {
+    const result = spawnSync(
+      'bash',
+      [
+        '-c',
+        // isTestnetNetwork is stubbed on the marker rather than reimplemented, so
+        // this asserts the condition consults it, not how helperFunctions decides
+        `isTestnetNetwork() { [[ "$1" == "TESTNET" ]]; }; ENVIRONMENT=$1; NETWORK=$2; ${condition} echo RUNS; else echo SKIPPED; fi`,
         'bash',
-        [
-          '-c',
-          // isTestnetNetwork is stubbed on the marker rather than reimplemented, so
-          // this asserts the condition consults it, not how helperFunctions decides
-          `isTestnetNetwork() { [[ "$1" == "TESTNET" ]]; }; ENVIRONMENT=$1; NETWORK=$2; ${condition} echo RUNS; else echo SKIPPED; fi`,
-          'bash',
-          environment,
-          network,
-        ],
-        { encoding: 'utf8' }
-      )
+        environment,
+        network,
+      ],
+      { encoding: 'utf8' }
+    )
 
-      expect(result.status).toBe(0)
-      expect(result.stdout.trim()).toBe(expected)
-    }
-  )
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe(expected)
+  })
 })
 
 describe('audit log source', () => {
