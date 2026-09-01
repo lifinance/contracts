@@ -123,8 +123,9 @@ diamondUpdateFacet() {
     SHOULD_PROPOSE_TO_SAFE=true
   fi
 
-  # anything that is not exactly "staging" reaches the production private key via
-  # getPrivateKey's else branch, so the gate has to run for those values too.
+  # getPrivateKey hands out the production key for every ENVIRONMENT that does not
+  # contain "staging", so matching on the exact string keeps the gate at least as
+  # broad as the key it protects; an unrecognised value is then rejected downstream.
   # Testnets are exempt: deploying an unmerged facet there is how it gets validated
   # before the audit, and no mainnet Safe is involved.
   if [[ "$ENVIRONMENT" != "staging" ]] && ! isTestnetNetwork "$NETWORK"; then

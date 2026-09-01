@@ -97,11 +97,11 @@ Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the dia
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 
 - [ ] Make sure you have deployed a new diamond contract (see above)
-- [ ] Make sure the diamond contract is owned by the SAFE wallet you will use for the upgrade
+- [ ] Make sure the diamond contract is owned by the network's `LiFiTimelockController`, with the SAFE wallet as that timelock's proposer (on testnets the deployer owns the diamond directly)
 - [ ] Ensure that you have granted access to a secondary wallet to whitelist contracts and selectors
-- [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
-- [ ] Run this script `./scripts/scriptMaster.sh`, select `1) Deploy one specific contract to one network`
+- [ ] Run this script `./script/scriptMaster.sh`, select `1) Deploy one specific contract to one network`
 - [ ] Choose the network you want to run the upgrade on
-- [ ] Choose the facet you want to upgrade
+- [ ] Choose the facet you want to upgrade — the script deploys it and cuts it into the diamond in one run
+- [ ] When asked whether to add the contract to a diamond, select `yes - to LiFiDiamond` (or `yes - to LiFiDiamondImmutable`). A `no` answer deploys the facet only and performs no diamondCut
 - [ ] Wait for the script to finish. On production, non-testnet networks the diamondCut is proposed to the network's Safe (from `config/networks.json`) automatically, wrapped in a timelock `scheduleBatch`
-- [ ] Go to the Gnosis SAFE app and confirm the transaction
+- [ ] Run `bun confirm-safe-tx` to review, sign and — once the threshold is met — execute the transaction. There is no Safe{Wallet} UI in this flow; proposals live in our own MongoDB store

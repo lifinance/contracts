@@ -527,8 +527,8 @@ describe('getContractVersion under the tsx runtime', () => {
 })
 
 describe('diamondUpdateFacet gate condition', () => {
-  // getPrivateKey only treats *staging* as staging, so any other value - including a
-  // typo like "prod" - reaches the production key. The gate must run for those too.
+  // getPrivateKey hands out the production key for every value that does not contain
+  // "staging", so a typo like "prod" reaches it. The gate must run for those too.
   // Anchored on the gate's own invocation and walked backwards, because the host
   // script carries other `$ENVIRONMENT` conditions that a first-match scan picks up.
   const lines = readFileSync(

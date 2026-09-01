@@ -117,9 +117,13 @@ diverges, the branch needs an open PR and the working-tree files must equal the
 log read from `main` rather than the working tree so a deploy cannot certify
 itself. Staging is not gated, and neither are testnets — deploying an unmerged
 facet to a testnet is how it is validated before the audit, and no Safe is
-involved there. This is **not** a GitHub SC+auditor review check, and it does
-not wrap the other `propose-to-safe` entry points — including
-`diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh`.
+involved there. A branch literally named `main` short-circuits on the name alone,
+without the closure being compared, so uncommitted or unpushed edits made while
+sitting on local `main` are **not** gated. This is **not** a GitHub SC+auditor
+review check, and it does not wrap the other `propose-to-safe` entry points —
+`diamondUpdatePeriphery.sh`, `diamondEMERGENCYPause.sh`, and the Tron
+`script/deploy/tron/deploy-and-register-*.ts` facet registrations (which call
+`proposeDiamondCut` directly) are all ungated.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -207,7 +211,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `diamondUpdateFacet` from a feature branch: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); `main`, staging and testnets are not gated | Block (prod non-testnet, facet cuts only — not periphery or emergency pause) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` (PR #2128) |
+| Propose | Production `diamondUpdateFacet` from a feature branch: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); `main`, staging and testnets are not gated | Block (prod non-testnet EVM facet cuts via `diamondUpdateFacet` only — not periphery, emergency pause, or the Tron `deploy-and-register-*` scripts) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` (PR #2128) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
