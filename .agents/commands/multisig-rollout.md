@@ -79,29 +79,20 @@ If the user didn't supply a whitelist PR (number or URL), ask for it — don't g
 
 Whitelist changes are main-only by policy, so the PR's rollout defaults to a PR **merged to main** — the safe path. But merging is a formality: the sync reads the local `config/whitelist.json`, not GitHub, so proposals can be created against a **still-open** PR to run the rollout in parallel with review. Take the open-PR path **only when the user explicitly confirms** it's OK to propose ahead of merge; otherwise, if the PR is open, stop and point the user at the merge first.
 
-**Merged PR (default)** — on up-to-date main, derive affected networks from the merge commit's whitelist diff (verified recipe):
+Read the affected networks off the PR's diff — the `config/whitelist.json` network keys whose entries changed (works for merged or open PRs; a whitelist rollout PR touches only that file):
 
 ```bash
-MERGE=$(gh pr view <N> --repo lifinance/contracts --json mergeCommit --jq '.mergeCommit.oid')
-PROG='[ (.DEXS[]? | .contracts | to_entries[] | {k: .key, v: .value}), (.PERIPHERY | to_entries[]? | {k: .key, v: .value}) ] | group_by(.k) | map({key: .[0].k, value: (map(.v) | tojson)}) | from_entries'
-git show "${MERGE}~1:config/whitelist.json" | jq -S "$PROG" > /tmp/wl-base.json
-git show "${MERGE}:config/whitelist.json"  | jq -S "$PROG" > /tmp/wl-head.json
-jq -rn --slurpfile A /tmp/wl-base.json --slurpfile B /tmp/wl-head.json \
-  '[($A[0] + $B[0]) | keys[]] | unique | map(select($A[0][.] != $B[0][.])) | .[]'
+gh pr diff <N> --repo lifinance/contracts
 ```
 
-**Open PR (only after explicit user confirmation)** — the sync reads the working tree, so check out the PR branch first and diff its head against the merge-base with main (there is no merge commit yet). The `git diff --quiet` guard aborts if the local file doesn't match the PR head, so a stale checkout can't be proposed:
+**Merged PR (default)** — on up-to-date main the local file already holds the change; nothing more to set up.
+
+**Open PR (only after explicit user confirmation)** — the sync reads the local `config/whitelist.json`, not GitHub, so check out the PR branch first and confirm the local file matches the PR head (a stale checkout would propose the wrong config):
 
 ```bash
 gh pr checkout <N> --repo lifinance/contracts
-HEAD=$(gh pr view <N> --repo lifinance/contracts --json headRefOid --jq '.headRefOid')
-BASE=$(git merge-base origin/main "$HEAD")
-git diff --quiet "$HEAD" -- config/whitelist.json || { echo "local config/whitelist.json differs from PR head — check out the PR branch first"; exit 1; }
-PROG='[ (.DEXS[]? | .contracts | to_entries[] | {k: .key, v: .value}), (.PERIPHERY | to_entries[]? | {k: .key, v: .value}) ] | group_by(.k) | map({key: .[0].k, value: (map(.v) | tojson)}) | from_entries'
-git show "${BASE}:config/whitelist.json" | jq -S "$PROG" > /tmp/wl-base.json
-git show "${HEAD}:config/whitelist.json" | jq -S "$PROG" > /tmp/wl-head.json
-jq -rn --slurpfile A /tmp/wl-base.json --slurpfile B /tmp/wl-head.json \
-  '[($A[0] + $B[0]) | keys[]] | unique | map(select($A[0][.] != $B[0][.])) | .[]'
+git diff --quiet "$(gh pr view <N> --repo lifinance/contracts --json headRefOid --jq '.headRefOid')" -- config/whitelist.json \
+  || { echo "local config/whitelist.json differs from PR head — check out the PR branch first"; exit 1; }
 ```
 
 The sync itself is on-chain-diff-driven, so a too-wide network list is harmless (extra networks no-op) — but keep the list tight so the run stays fast and the Slack post stays truthful.
