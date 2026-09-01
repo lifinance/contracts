@@ -283,15 +283,12 @@ export const renderProposalCard = (
   // Capped at the same limit capture uses.
   //
   // Union across rows: a dirty tree on any network must never read as clean.
-  // A row carrying anything at all in this field is a row that reported a dirty
-  // tree, whatever shape the value arrived in.
   const dirty = proposals.filter(
     (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
   )
-  // Only a measured empty array reads as clean. `provenance-display.ts` already
-  // holds that rule for the signing prompt, where a non-array — absent and null
-  // included — is 'unreadable'; a card that stayed silent left the two
-  // renderers disagreeing about one field.
+  // Only a measured empty array reads as clean, which is the rule
+  // `provenance-display.ts` holds for the signing prompt: a non-array — absent
+  // and null included — is 'unreadable' there, never clean.
   const uncaptured = proposals.filter((p) => !Array.isArray(p.dirtyTreeScoped))
 
   if (dirty.length > 0 || uncaptured.length > 0) {
@@ -301,7 +298,6 @@ export const renderProposalCard = (
       ),
     ].filter(Boolean)
     // Capture stopped counting on at least one row, so the list is a floor.
-    // Without this a 500-file dirty tree rendered exactly like a 20-file one.
     const truncated = dirty.some((p) => p.dirtyTreeTruncated === true)
     const reported = [...dirty, ...uncaptured]
     const where =
