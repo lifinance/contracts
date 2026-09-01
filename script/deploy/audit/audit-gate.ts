@@ -85,9 +85,7 @@ export const contractNameFromPath = (path: string): string =>
  * @param source - Solidity source text.
  * @returns the declared version, or undefined when the tag is absent.
  */
-export const extractContractVersion = (
-  source: string
-): string | undefined =>
+export const extractContractVersion = (source: string): string | undefined =>
   /^\/\/\/\s*@custom:version\s+(\d+\.\d+\.\d+)/m.exec(source)?.[1]
 
 /**
@@ -104,6 +102,38 @@ export const parseContractList = (raw: string): string[] =>
     .split(/[\n,]/)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
+
+/**
+ * Where the contract list is coming from, or that the caller never said.
+ *
+ * `absent` exists because citty drops an unrecognised flag silently: a renamed
+ * or mistyped `--contracts-file` would otherwise leave the list empty, and an
+ * empty list is a legitimate pass ("no contract needs an audit"). A gate that
+ * reports success because nobody told it what to check is worse than one that
+ * fails, so the two cases are separated here rather than collapsing to `''`.
+ */
+export type ContractSourceResolution =
+  | { kind: 'provided'; raw: string }
+  | { kind: 'file'; path: string }
+  | { kind: 'absent' }
+
+/**
+ * Decides where to read the contract list from.
+ *
+ * @param args - the `--contracts` and `--contracts-file` values as parsed.
+ * @returns the inline list, the file to read, or that neither was supplied.
+ */
+export const resolveContractSource = (args: {
+  contracts?: string
+  contractsFile?: string
+}): ContractSourceResolution => {
+  if (args.contracts !== undefined)
+    return { kind: 'provided', raw: args.contracts }
+  if (args.contractsFile !== undefined)
+    return { kind: 'file', path: args.contractsFile }
+
+  return { kind: 'absent' }
+}
 
 const HEX = /^0x[0-9a-f]{64}$/i
 

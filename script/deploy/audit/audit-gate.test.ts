@@ -14,6 +14,7 @@ import {
   collectEntriesForContract,
   contractNameFromPath,
   extractContractVersion,
+  resolveContractSource,
   runAuditGate,
   type IAuditGateDeps,
 } from './audit-gate'
@@ -56,7 +57,9 @@ describe('contractNameFromPath', () => {
   })
 
   it('is unaffected by directory depth', () => {
-    expect(contractNameFromPath('src/Periphery/Deep/Nested/Bar.sol')).toBe('Bar')
+    expect(contractNameFromPath('src/Periphery/Deep/Nested/Bar.sol')).toBe(
+      'Bar'
+    )
   })
 })
 
@@ -74,13 +77,15 @@ describe('collectEntriesForContract', () => {
   })
 
   it('returns nothing for a version that is not logged', () => {
-    expect(collectEntriesForContract(singleAuditLog(), 'FooFacet', '2.0.0'))
-      .toHaveLength(0)
+    expect(
+      collectEntriesForContract(singleAuditLog(), 'FooFacet', '2.0.0')
+    ).toHaveLength(0)
   })
 
   it('returns nothing for a contract that is not logged', () => {
-    expect(collectEntriesForContract(singleAuditLog(), 'BarFacet', '1.0.0'))
-      .toHaveLength(0)
+    expect(
+      collectEntriesForContract(singleAuditLog(), 'BarFacet', '1.0.0')
+    ).toHaveLength(0)
   })
 
   it('drops an audit id that has no entry in `audits` rather than inventing one', () => {
@@ -410,5 +415,42 @@ describe('extractContractVersion', () => {
         '/// @custom:version 1.0.0\n/// @custom:version 2.0.0\n'
       )
     ).toBe('1.0.0')
+  })
+})
+
+describe('resolveContractSource', () => {
+  it('ERRORs when neither argument was supplied, rather than reading as "nothing to check"', () => {
+    const resolved = resolveContractSource({})
+
+    expect(resolved.kind).toBe('absent')
+  })
+
+  it('accepts an explicitly empty list as a real answer', () => {
+    const resolved = resolveContractSource({ contracts: '' })
+
+    expect(resolved).toEqual({ kind: 'provided', raw: '' })
+  })
+
+  it('prefers --contracts when both are given', () => {
+    const resolved = resolveContractSource({
+      contracts: 'src/Facets/FooFacet.sol',
+      contractsFile: 'contracts_for_audit.txt',
+    })
+
+    expect(resolved).toEqual({
+      kind: 'provided',
+      raw: 'src/Facets/FooFacet.sol',
+    })
+  })
+
+  it('reports the file when only --contracts-file is given', () => {
+    const resolved = resolveContractSource({
+      contractsFile: 'contracts_for_audit.txt',
+    })
+
+    expect(resolved).toEqual({
+      kind: 'file',
+      path: 'contracts_for_audit.txt',
+    })
   })
 })

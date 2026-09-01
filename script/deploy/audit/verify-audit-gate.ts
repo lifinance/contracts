@@ -19,6 +19,7 @@ import { consola } from 'consola'
 import {
   extractContractVersion,
   parseContractList,
+  resolveContractSource,
   runAuditGate,
   type IContractUnderCheck,
 } from './audit-gate'
@@ -82,9 +83,22 @@ const main = defineCommand({
     },
   },
   run({ args }) {
+    const source = resolveContractSource(args)
+
+    // Not a usage nicety: citty ignores an unrecognised flag, so a renamed
+    // --contracts-file would leave the list empty, and an empty list is a
+    // legitimate pass. Refusing here keeps a miswired gate loud.
+    if (source.kind === 'absent') {
+      consola.error(
+        'Neither --contracts nor --contracts-file was supplied, so the gate was never told what to check. Refusing to report a verdict.'
+      )
+      process.exit(EXIT_ERROR)
+    }
+
     const raw =
-      args.contracts ??
-      (args.contractsFile ? readFileSync(args.contractsFile, 'utf8') : '')
+      source.kind === 'provided'
+        ? source.raw
+        : readFileSync(source.path, 'utf8')
     const paths = parseContractList(raw)
 
     if (paths.length === 0) {
