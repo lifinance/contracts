@@ -117,18 +117,23 @@ working-tree files must equal the `audit/auditLog.json` commit for the current
 tree so a deploy cannot certify itself. What is compared is always the working
 tree, never the branch name: a checkout sitting on `main` earns no exemption, so
 uncommitted edits and a stale local `main` both block (and no PR can have `main`
-as its head, so the open-PR exception cannot apply there). Staging is not gated,
-and neither are testnets — deploying an unmerged facet to a testnet is how it is
-validated before the audit, and no Safe is involved there.
+as its head, so the open-PR exception cannot apply there). `origin/main` itself is
+refreshed first — the remote tip is read with `ls-remote` and fetched only when it
+differs — so a never-fetched checkout cannot pass by comparing against a stale main,
+and an unreachable remote fails the gate rather than falling back to the local copy.
+Dependencies under `lib/` are compiled into every facet but their content is not in
+this repo's tree, so they are compared by **submodule gitlink** instead
+(`git diff --ignore-submodules=none`, which catches both a submodule checked out off
+its recorded commit and one with a dirty working tree); a divergence there is not
+excused by an open PR or an audit freeze. Staging is not gated, and neither are
+testnets — deploying an unmerged facet to a testnet is how it is validated before
+the audit, and no Safe is involved there.
 
 Note what this gate does and does not assert. It enforces **main-equivalence**,
 with an audited-freeze exception for unmerged code; it does not verify that what
 reaches production was audited, because code that matches `main` passes without
 any audit lookup at all. True audit enforcement is the separate bytecode ↔ audit
-attestation item in §9. The comparison also stops at `src/`: dependencies under
-`lib/` are not compared and their submodule commits are not checked against
-main's gitlink, so an edited `lib/` checkout changes the deployed bytecode
-without the gate noticing. The check is further **not** a GitHub SC+auditor
+attestation item in §9. The check is further **not** a GitHub SC+auditor
 review check, and it does not wrap the other `propose-to-safe` entry points:
 `diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh` are ungated.
 

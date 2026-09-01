@@ -9,8 +9,11 @@
  *
  * A facet is compared through its transitive `src/` import closure, not just its own
  * file, because an edited library or helper changes the deployed bytecode while the
- * facet file still matches. The audit log is read from the `main` ref for the same
- * reason the facets are: a working-tree copy would let the deploy certify itself.
+ * facet file still matches. Dependencies under `lib/` are compared by submodule gitlink,
+ * since their content is not in this repo's tree. The audit log is read from the `main`
+ * ref for the same reason the facets are: a working-tree copy would let the deploy
+ * certify itself. `origin/main` is refreshed before any of this, so a never-fetched
+ * checkout cannot pass by comparing against a stale main.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -29,6 +32,7 @@ const AUDIT_COMMIT_RE = /^[0-9a-f]{40}$/i
 const AUDIT_LOG_PATH = 'audit/auditLog.json'
 const MAIN_BRANCH = 'main'
 const MAIN_REF = 'origin/main'
+const REMOTE = 'origin'
 const SOURCE_ROOT = 'src/'
 const SOURCE_REMAPPING = 'lifi/' // remappings.txt maps this onto SOURCE_ROOT
 const IMPORT_RE = /import\s+(?:[^'"]*?\bfrom\s+)?['"]([^'"]+)['"]/g
@@ -52,6 +56,7 @@ export interface IDeployGateInput {
   branch: string
   facets: IFacetDeployCheck[]
   hasOpenPr: boolean
+  divergedSubmodules?: string[]
 }
 
 /** Audit log shape used to resolve a contract version to an audited commit. */
@@ -85,9 +90,8 @@ const describePaths = (paths: string[] | undefined): string => {
  * @param fromPath - repo-relative path of the file holding the import
  * @param spec - the quoted import specifier
  * @returns the imported repo-relative path, or `undefined` when it lands outside
- * `src/`. Dependencies under `lib/` are therefore outside the closure: the gate does
- * not compare submodule content or check that a submodule sits at main's gitlink, so
- * an edited `lib/` checkout changes the bytecode without the gate noticing.
+ * `src/`. Dependencies under `lib/` are outside the closure because their content is
+ * not in this repo's tree; {@link divergedSubmodules} compares them by gitlink instead.
  */
 export const resolveSolidityImport = (
   fromPath: string,
@@ -160,14 +164,25 @@ export const collectDeployGateFailures = (
     ]
   if (input.facets.length === 0) return ['No facets were passed to the check']
 
+  // dependencies under lib/ are compiled into every facet, so a divergence there is
+  // not excused by an open PR or an audit freeze the way a facet source is
+  const submoduleFailures = input.divergedSubmodules?.length
+    ? [
+        `Dependencies under lib/ differ from ${MAIN_REF} (${describePaths(
+          input.divergedSubmodules
+        )}). They are compiled into the facet, so restore them with git submodule update --init --recursive before deploying`,
+      ]
+    : []
+
   const diverged = input.facets.filter((facet) => !facet.matchesMain)
-  if (diverged.length === 0) return []
+  if (diverged.length === 0) return submoduleFailures
 
   // no pull request can have `main` as its head, so neither the open-PR exception nor
   // the audit freeze behind it can apply: report the divergence and stop, rather than
   // sending the operator after an audit-log problem that does not exist
   if (input.branch === MAIN_BRANCH)
     return [
+      ...submoduleFailures,
       `Deploying from "${MAIN_BRANCH}", but the working tree does not match ${MAIN_REF}. Move the change onto a branch and open a PR, or discard it (git checkout / git clean) and pull, before deploying`,
       ...diverged.map(
         (facet) =>
@@ -177,7 +192,7 @@ export const collectDeployGateFailures = (
       ),
     ]
 
-  const failures: string[] = []
+  const failures: string[] = [...submoduleFailures]
   if (!input.hasOpenPr)
     failures.push(`No open PR found for branch "${input.branch}"`)
 
@@ -248,21 +263,81 @@ const git = (
 }
 
 /**
- * Resolves the remote-tracking ref every comparison is made against.
+ * Resolves the remote-tracking ref every comparison is made against, refreshing it
+ * first so "matches main" cannot mean "matches a main from last week".
+ *
  * Only `origin/main` qualifies: local `main` is whatever the operator last committed,
  * so accepting it would let a local commit satisfy the gate that exists to require a
- * merged one.
+ * merged one. The remote tip is read with `ls-remote` and only fetched when it differs,
+ * so the common case costs one round trip and transfers no objects. An unreachable
+ * remote fails the gate rather than falling back to the local copy — the whole point is
+ * that this comparison is against the authoritative main.
  * @param repoRoot - repository root
  * @returns the remote-tracking ref for main
- * @throws If `origin/main` is not present in this checkout
+ * @throws If `origin/main` cannot be resolved, reached, or updated
  */
 const resolveMainRef = (repoRoot: string): string => {
-  if (git(['rev-parse', '--verify', MAIN_REF], repoRoot).status === 0)
-    return MAIN_REF
+  if (git(['rev-parse', '--verify', MAIN_REF], repoRoot).status !== 0)
+    throw new Error(
+      `Cannot resolve ${MAIN_REF} in this checkout. Fetch it before deploying.`
+    )
 
-  throw new Error(
-    `Cannot resolve ${MAIN_REF} in this checkout. Fetch it before deploying.`
+  const remote = git(['ls-remote', REMOTE, MAIN_BRANCH], repoRoot)
+  if (remote.status !== 0)
+    throw new Error(
+      `Cannot reach ${REMOTE} to check whether ${MAIN_REF} is current. The gate compares against the merged main, so it cannot run offline.\n${remote.stderr.trim()}`
+    )
+
+  // ls-remote also echoes any matching remote-tracking ref, so match refs/heads exactly
+  const remoteSha = remote.stdout
+    .split('\n')
+    .map((line) => line.split('\t'))
+    .find(([, ref]) => ref === `refs/heads/${MAIN_BRANCH}`)?.[0]
+
+  if (remoteSha === undefined)
+    throw new Error(`${REMOTE} has no ${MAIN_BRANCH} branch`)
+
+  const localSha = git(['rev-parse', MAIN_REF], repoRoot).stdout.trim()
+  if (remoteSha === localSha) return MAIN_REF
+
+  consola.info(`${MAIN_REF} is behind ${REMOTE}, fetching before comparing`)
+  const fetch = git(['fetch', '--quiet', REMOTE, MAIN_BRANCH], repoRoot)
+  if (fetch.status !== 0)
+    throw new Error(
+      `Failed to fetch ${MAIN_BRANCH} from ${REMOTE}.\n${fetch.stderr.trim()}`
+    )
+
+  return MAIN_REF
+}
+
+/**
+ * Lists the paths under `lib/` whose state differs from `ref`.
+ *
+ * Dependencies there are compiled into the facet but live in submodules, so their
+ * content is not in the superproject tree and cannot be compared file by file. The
+ * gitlink can be: `--ignore-submodules=none` reports a submodule whose HEAD differs
+ * from the recorded commit *or* whose working tree is dirty, and it is passed
+ * explicitly so a repo-level or user-level `ignore` setting cannot weaken the check.
+ * @param repoRoot - repository root
+ * @param ref - git ref to compare against
+ * @returns repo-relative submodule paths that differ
+ * @throws If the comparison cannot be performed
+ */
+export const divergedSubmodules = (repoRoot: string, ref: string): string[] => {
+  const result = git(
+    ['diff', '--name-only', '--ignore-submodules=none', ref, '--', 'lib/'],
+    repoRoot
   )
+
+  if (result.status !== 0)
+    throw new Error(
+      `Cannot compare lib/ against ${ref}.\n${result.stderr.trim()}`
+    )
+
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
 }
 
 const readWorkingCopy = (
@@ -366,6 +441,7 @@ export interface IDeployGateDeps {
   fileMatchesRef: (ref: string, path: string) => boolean
   refExists: (ref: string) => boolean
   sourceClosure: (path: string) => string[]
+  divergedSubmodules: () => string[]
   getContractVersion: (name: string) => Promise<string>
   resolveAuditCommitHash: (name: string, version: string) => string | undefined
   getOpenPrCount: (branch: string) => Promise<number>
@@ -383,17 +459,41 @@ export const createDefaultDeps = (repoRoot: string): IDeployGateDeps => {
   let auditLog: IAuditLogData | undefined
   const getMainRef = (): string => (mainRef ??= resolveMainRef(repoRoot))
 
+  // one facet's closure overlaps heavily with the next one's, so a fleet rollout would
+  // otherwise re-read the same shared libraries once per facet
+  const matchCache = new Map<string, boolean>()
+  const closureCache = new Map<string, string[]>()
+  const sourceCache = new Map<string, string | undefined>()
+  const readSource = (path: string): string | undefined => {
+    if (!sourceCache.has(path))
+      sourceCache.set(path, readWorkingCopy(repoRoot, path))
+    return sourceCache.get(path)
+  }
+
   return {
     get mainRef() {
       return getMainRef()
     },
-    fileMatchesRef: (ref, path) => fileMatchesRef(repoRoot, ref, path),
+    fileMatchesRef: (ref, path) => {
+      const key = `${ref}\0${path}`
+      let match = matchCache.get(key)
+      if (match === undefined) {
+        match = fileMatchesRef(repoRoot, ref, path)
+        matchCache.set(key, match)
+      }
+      return match
+    },
     refExists: (ref) =>
       git(['cat-file', '-e', `${ref}^{commit}`], repoRoot).status === 0,
-    sourceClosure: (path) =>
-      collectSourceClosure(path, (candidate) =>
-        readWorkingCopy(repoRoot, candidate)
-      ),
+    sourceClosure: (path) => {
+      let closure = closureCache.get(path)
+      if (closure === undefined) {
+        closure = collectSourceClosure(path, readSource)
+        closureCache.set(path, closure)
+      }
+      return closure
+    },
+    divergedSubmodules: () => divergedSubmodules(repoRoot, getMainRef()),
     getContractVersion,
     resolveAuditCommitHash: (name, version) => {
       auditLog ??= loadAuditLog(repoRoot, getMainRef())
@@ -421,6 +521,8 @@ export const verifyDeployGate = async (
   if (input.environment === EnvironmentEnum.staging) return []
   if (input.environment !== EnvironmentEnum.production)
     return collectDeployGateFailures({ ...input, facets: [], hasOpenPr: false })
+
+  const submodules = deps.divergedSubmodules()
 
   const checks: IFacetDeployCheck[] = []
   for (const name of input.facets) {
@@ -469,6 +571,7 @@ export const verifyDeployGate = async (
     branch: input.branch,
     facets: checks,
     hasOpenPr,
+    divergedSubmodules: submodules,
   })
 }
 

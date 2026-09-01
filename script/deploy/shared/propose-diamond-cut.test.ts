@@ -47,9 +47,13 @@ function makeRepo(diverge: boolean): string {
   const run = (...args: string[]) =>
     spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
 
+  // a real bare origin, because the gate refreshes origin/main before reading it
+  const remote = mkdtempSync(join(tmpdir(), 'cut-gate-remote-'))
+  spawnSync('git', ['init', '--bare', '-b', 'main', remote])
   run('init', '-b', 'main')
   run('config', 'user.email', 'gate@example.com')
   run('config', 'user.name', 'gate')
+  run('remote', 'add', 'origin', remote)
   mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
   mkdirSync(join(repoRoot, 'audit'), { recursive: true })
   // the @custom:version tag is load-bearing: the gate reads it off the source before
@@ -64,7 +68,7 @@ function makeRepo(diverge: boolean): string {
   )
   run('add', '.')
   run('commit', '-m', 'merged state', '--no-gpg-sign')
-  run('update-ref', 'refs/remotes/origin/main', 'HEAD')
+  run('push', '-q', 'origin', 'main')
 
   if (diverge)
     writeFileSync(
