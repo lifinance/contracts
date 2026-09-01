@@ -31,8 +31,17 @@ const readAccountIndex = (...argv: string[]): number =>
 
 const SCRIPT_ROOT = resolve(__dirname, '../..')
 
-/** A citty `accountIndex` argument, i.e. a script an operator can pass one to. */
-const DECLARES_ACCOUNT_INDEX = /accountIndex:\s*\{[^}]*type:\s*'string'/
+/**
+ * A citty `accountIndex` argument, i.e. a script an operator can pass one to.
+ *
+ * Deliberately blind to what the argument declares. Matching `type: 'string'`
+ * as well would skip a declaration that spells the type differently, or that
+ * carries a `}` before it — a `${...}` in the description is enough, and one
+ * already appears in `ledger-flex-calibrate.ts` — and a skipped script is a
+ * silent pass, not a failure. An arg declared through a shared spread is the
+ * one shape still missed; the shared object itself is then the file to assert on.
+ */
+const DECLARES_ACCOUNT_INDEX = /accountIndex:\s*\{/
 
 /**
  * Discovered rather than listed: the case worth catching is a script added
