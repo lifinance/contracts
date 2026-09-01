@@ -10,7 +10,7 @@ Drives the production rollout lifecycle in three modes:
 
 - **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist sync, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
 - **propose-only mode** — bytecode already in `deployments/<net>.json` (deferred cuts, recreate-after-delete). Runs `proposeContractToNetworks.sh` — no CREATE3. Same signing/Slack tail as deploy.
-- **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
+- **whitelist mode** — given a whitelist PR (merged by default, or still open when the user explicitly confirms rolling out ahead of merge), sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
 All modes converge on the same tail: capture proposals → (deploy mode only, or propose-only when whitelist files dirty) draft PR → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
@@ -89,15 +89,22 @@ Triggered by `--propose-only <Contract>` (or natural language: “create the cut
 
 If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
 
-The input PR must be **merged to main** (whitelist changes are main-only by policy; the sync reads the local file). If it's open, stop and point the user at the merge first. Then, on up-to-date main, derive affected networks from the PR's whitelist diff (verified recipe):
+Whitelist changes are main-only by policy, so the PR's rollout defaults to a PR **merged to main** — the safe path. But merging is a formality: the sync reads the local `config/whitelist.json`, not GitHub, so proposals can be created against a **still-open** PR to run the rollout in parallel with review. Take the open-PR path **only when the user explicitly confirms** it's OK to propose ahead of merge; otherwise, if the PR is open, stop and point the user at the merge first.
+
+Read the affected networks off the PR's diff — the `config/whitelist.json` network keys whose entries changed (works for merged or open PRs; a whitelist rollout PR touches only that file):
 
 ```bash
-MERGE=$(gh pr view <N> --repo lifinance/contracts --json mergeCommit --jq '.mergeCommit.oid')
-PROG='[ (.DEXS[]? | .contracts | to_entries[] | {k: .key, v: .value}), (.PERIPHERY | to_entries[]? | {k: .key, v: .value}) ] | group_by(.k) | map({key: .[0].k, value: (map(.v) | tojson)}) | from_entries'
-git show "${MERGE}~1:config/whitelist.json" | jq -S "$PROG" > /tmp/wl-base.json
-git show "${MERGE}:config/whitelist.json"  | jq -S "$PROG" > /tmp/wl-head.json
-jq -rn --slurpfile A /tmp/wl-base.json --slurpfile B /tmp/wl-head.json \
-  '[($A[0] + $B[0]) | keys[]] | unique | map(select($A[0][.] != $B[0][.])) | .[]'
+gh pr diff <N> --repo lifinance/contracts
+```
+
+**Merged PR (default)** — on up-to-date main the local file already holds the change; nothing more to set up.
+
+**Open PR (only after explicit user confirmation)** — the sync reads the local `config/whitelist.json`, not GitHub, so check out the PR branch first and confirm the local file matches the PR head (a stale checkout would propose the wrong config):
+
+```bash
+gh pr checkout <N> --repo lifinance/contracts
+git diff --quiet "$(gh pr view <N> --repo lifinance/contracts --json headRefOid --jq '.headRefOid')" -- config/whitelist.json \
+  || { echo "local config/whitelist.json differs from PR head — check out the PR branch first"; exit 1; }
 ```
 
 The sync itself is on-chain-diff-driven, so a too-wide network list is harmless (extra networks no-op) — but keep the list tight so the run stays fast and the Slack post stays truthful.
@@ -269,7 +276,7 @@ Safe proposals live on:
 …
 ```
 
-(whitelist mode: label the link `Whitelist PR:` instead.)
+(whitelist mode: label the link `Whitelist PR:` instead — or `Whitelist PR (open, rolling out ahead of merge):` when proposing against a not-yet-merged PR, so signers know the config isn't on main yet.)
 
 ## Phase 9 — Report
 
