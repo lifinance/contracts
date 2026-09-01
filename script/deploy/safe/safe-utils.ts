@@ -44,11 +44,18 @@ import { privateKeyToAccount } from 'viem/accounts'
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactErrorReason } from '../../utils/redactUrls'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import {
+  captureGitProvenance,
+  PROVENANCE_UNKNOWN,
+  sanitizeProvenanceText,
+  type IGitProvenance,
+} from '../shared/git-provenance'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
@@ -123,6 +130,40 @@ export interface IParkedTaskRef {
   prUrl: string
 }
 
+/**
+ * Who created a proposal, from what code, and why — captured from ambient git
+ * state when the proposal is stored, and shown to the signer at signing time so
+ * "what is this?" is answerable without asking around.
+ *
+ * This is self-reported context, not a security control: it makes honest
+ * mistakes (unpushed commit, dirty whitelist, no stated reason) visible and
+ * gives later checks something to verify against. It is not a defence against a
+ * proposer who is deliberately lying.
+ */
+export interface IProposalProvenance extends IGitProvenance {
+  /** One-line rationale, when the proposer supplied one. */
+  reason?: string
+}
+
+/** Trailing options of {@link storeTransactionInMongoDB}. */
+export interface IProposalProvenanceOptions {
+  /**
+   * One-line rationale; falls back to the deploy chain's reason variable when
+   * unset.
+   */
+  reason?: string
+  /**
+   * Test seam: use this block instead of probing git, so suites that exercise
+   * the storage funnel stay deterministic and spawn no subprocesses.
+   * Copied and sanitized before storage — never aliased, never stored raw.
+   * Production code never sets it.
+   */
+  override?: IProposalProvenance
+}
+
+/** Longest rationale kept; the field is a one-liner for a signer, not a log. */
+export const MAX_PROPOSAL_REASON_LENGTH = 200
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -141,6 +182,12 @@ export interface ISafeTxDocument {
    * only present on proposals the deferred-cleanup drain folded removals into.
    */
   parkedTaskRefs?: IParkedTaskRef[]
+  /**
+   * Provenance of this proposal. Optional: rows stored before capture existed
+   * have none, so every consumer must treat `undefined` as "legacy row" rather
+   * than as a clean, authorless proposal.
+   */
+  provenance?: IProposalProvenance
 }
 
 /** MongoDB row shape — includes the document `_id` returned by `find()`. */
@@ -864,10 +911,19 @@ export class SafeClient {
       return executionResult
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      if (errorMsg.includes('execution reverted'))
-        throw new Error(`Safe execution reverted: ${errorMsg}`)
+      // Matched before the revert case: a pre-broadcast refusal quotes the
+      // underlying estimation error, which itself contains "execution reverted".
+      // Relabelling it would tell the operator a nonce was consumed when nothing
+      // was ever sent.
+      if (errorMsg.includes('refusing to broadcast')) throw error
 
-      throw new Error(`Error executing transaction: ${errorMsg}`)
+      // Redacted: viem embeds the endpoint, credentials and all, in error.message,
+      // and SlackNotifier publishes it outside the workflow log's masking.
+      const safeMsg = redactErrorReason(errorMsg)
+      if (errorMsg.includes('execution reverted'))
+        throw new Error(`Safe execution reverted: ${safeMsg}`)
+
+      throw new Error(`Error executing transaction: ${safeMsg}`)
     }
   }
 
@@ -934,6 +990,74 @@ export const NONCE_CONSUMING_STATUSES: readonly SafeTxStatus[] = ['executed']
  */
 export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
   return NONCE_CONSUMING_STATUSES.includes(status)
+}
+
+/**
+ * Where a pending proposal's nonce sits relative to the Safe's next expected
+ * nonce: `stale` was already consumed on-chain, `future` is only reachable once
+ * a lower-nonce proposal has executed, `current` is executable now.
+ */
+export type SafeNonceStatus = 'current' | 'stale' | 'future'
+
+/** Options for {@link canExecuteWithNonceStatus}. */
+export interface INonceExecutionOptions {
+  /** Result of {@link isFutureNonceExecutionAllowed} (the operator escape hatch). */
+  allowFutureNonce: boolean
+}
+
+/**
+ * Result of {@link canExecuteWithNonceStatus}, discriminated on `canExecute`.
+ * `reason` identifies the case so the caller can render the matching message
+ * without re-deriving the decision.
+ */
+export type NonceExecutionDecision =
+  | { canExecute: true; reason: 'nonce-current' | 'future-nonce-override' }
+  | { canExecute: false; reason: 'stale-nonce' | 'future-nonce' }
+
+/**
+ * Whether the operator escape hatch for broadcasting a future-nonce proposal is
+ * enabled. Default OFF — it exists only for the case where the configured RPC
+ * reports an out-of-date on-chain nonce, which makes an executable proposal look
+ * like a future one.
+ *
+ * @returns true only when the escape-hatch env flag is set to the string `true`.
+ */
+export function isFutureNonceExecutionAllowed(): boolean {
+  return process.env.ALLOW_FUTURE_NONCE_EXECUTION === 'true'
+}
+
+/**
+ * Whether a proposal may be broadcast given where its nonce sits relative to the
+ * Safe's expected nonce.
+ *
+ * Both mismatch cases are guaranteed on-chain reverts, so both are refused by
+ * default: a stale nonce fails the Safe's nonce check outright, and a future
+ * nonce fails with GS026. Only the future case has a legitimate false-positive
+ * (a lagging RPC under-reporting the on-chain nonce), so only that one can be
+ * overridden — see {@link isFutureNonceExecutionAllowed}. A stale reading would
+ * require an RPC reporting a nonce ahead of consensus, which cannot happen, so
+ * no override is offered there.
+ *
+ * Signing is out of scope: this gates broadcasting only, and callers must keep
+ * sign-only actions available for future-nonce proposals so signatures can be
+ * collected while the blocking proposal is still pending.
+ *
+ * @param status - Nonce position of the proposal relative to the Safe.
+ * @param options - Whether the future-nonce escape hatch is enabled.
+ * @returns A discriminated decision carrying the reason for the outcome.
+ */
+export function canExecuteWithNonceStatus(
+  status: SafeNonceStatus,
+  options: INonceExecutionOptions
+): NonceExecutionDecision {
+  if (status === 'stale') return { canExecute: false, reason: 'stale-nonce' }
+
+  if (status === 'future')
+    return options.allowFutureNonce
+      ? { canExecute: true, reason: 'future-nonce-override' }
+      : { canExecute: false, reason: 'future-nonce' }
+
+  return { canExecute: true, reason: 'nonce-current' }
 }
 
 /**
@@ -1338,6 +1462,109 @@ export function computeProposalIntentHash(
 }
 
 /**
+ * Normalizes a free-text proposal rationale into a single tidy line.
+ * @param raw - Rationale as supplied by a caller or the environment.
+ * @returns The collapsed, length-capped line, or `undefined` when empty.
+ */
+export function normalizeProposalReason(
+  raw: string | undefined
+): string | undefined {
+  const collapsed = sanitizeProvenanceText(raw)
+  if (collapsed.length === 0) return undefined
+  // Capped by code point, so the cut cannot leave a lone surrogate half behind.
+  return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
+}
+
+function sanitizeOverride(
+  override: IProposalProvenance,
+  fallbackReason: string | undefined
+): IProposalProvenance {
+  const actorRaw = sanitizeProvenanceText(override.actor)
+  const actor: IProposalProvenance['actor'] =
+    actorRaw === 'human' || actorRaw === 'bot' || actorRaw === 'ci'
+      ? actorRaw
+      : PROVENANCE_UNKNOWN
+
+  const overrideReason = normalizeProposalReason(override.reason)
+
+  return {
+    capturedAt:
+      sanitizeProvenanceText(override.capturedAt) || new Date().toISOString(),
+    actor,
+    proposerHandle:
+      sanitizeProvenanceText(override.proposerHandle) || PROVENANCE_UNKNOWN,
+    gitCommit: sanitizeProvenanceText(override.gitCommit) || PROVENANCE_UNKNOWN,
+    gitBranch: sanitizeProvenanceText(override.gitBranch) || PROVENANCE_UNKNOWN,
+    dirtyTreeScoped: Array.isArray(override.dirtyTreeScoped)
+      ? override.dirtyTreeScoped.map(sanitizeProvenanceText).filter(Boolean)
+      : [],
+    ...(override.dirtyTreeTruncated === true
+      ? { dirtyTreeTruncated: true }
+      : {}),
+    ...(typeof override.commitOnRemote === 'boolean'
+      ? { commitOnRemote: override.commitOnRemote }
+      : {}),
+    ...(override.prUrl !== undefined
+      ? { prUrl: sanitizeProvenanceText(override.prUrl) }
+      : {}),
+    ...(Array.isArray(override.captureErrors)
+      ? {
+          captureErrors: override.captureErrors.map(sanitizeProvenanceText),
+        }
+      : {}),
+    ...(overrideReason
+      ? { reason: overrideReason }
+      : fallbackReason
+      ? { reason: fallbackReason }
+      : {}),
+  }
+}
+
+/**
+ * Assembles the provenance block stored with a proposal.
+ *
+ * Never throws and never blocks a proposal: the storage funnel it feeds already
+ * aborts a deployment when it fails, so a git probe must not be able to take a
+ * production deploy down. Total failure yields sentinel values with the cause
+ * in `captureErrors`, which is strictly more useful than an absent field.
+ * @param options - Rationale and the test override seam.
+ * @returns A provenance block, populated as far as capture succeeded.
+ */
+export function buildProposalProvenance(
+  options?: IProposalProvenanceOptions
+): IProposalProvenance {
+  // The environment is the only channel the bash deploy chain can supply a
+  // rationale through without touching any script signature.
+  const reason = normalizeProposalReason(
+    options?.reason ?? process.env.SAFE_PROPOSAL_REASON
+  )
+
+  // Copied and sanitized, never returned by reference: the caller keeps
+  // ownership of the object it passed in, and a future production caller of
+  // the seam cannot store raw control characters either.
+  if (options?.override) return sanitizeOverride(options.override, reason)
+
+  try {
+    return {
+      ...captureGitProvenance(),
+      ...(reason ? { reason } : {}),
+    }
+  } catch (error) {
+    // Backstop only — capture is fail-soft internally and should not reach here.
+    return {
+      capturedAt: new Date().toISOString(),
+      actor: PROVENANCE_UNKNOWN,
+      proposerHandle: PROVENANCE_UNKNOWN,
+      gitCommit: PROVENANCE_UNKNOWN,
+      gitBranch: PROVENANCE_UNKNOWN,
+      dirtyTreeScoped: [],
+      captureErrors: [`provenance capture failed: ${error}`],
+      ...(reason ? { reason } : {}),
+    }
+  }
+}
+
+/**
  * Stores a Safe transaction in MongoDB
  * Skips storage if a pending proposal with the same intent already exists
  * @param pendingTransactions - MongoDB collection
@@ -1347,6 +1574,8 @@ export function computeProposalIntentHash(
  * @param safeTx - The transaction to store
  * @param safeTxHash - Hash of the transaction
  * @param proposer - Address of the proposer
+ * @param parkedTaskRefs - Origin-PR links when this is a drained facet removal
+ * @param provenanceOptions - Rationale and the provenance test override seam
  * @returns Result of the MongoDB insert operation, or null if duplicate exists
  */
 export async function storeTransactionInMongoDB(
@@ -1357,7 +1586,8 @@ export async function storeTransactionInMongoDB(
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address,
-  parkedTaskRefs?: IParkedTaskRef[]
+  parkedTaskRefs?: IParkedTaskRef[],
+  provenanceOptions?: IProposalProvenanceOptions
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   // Compute intent hash for duplicate detection
   const intentHash = computeProposalIntentHash(
@@ -1370,6 +1600,10 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
+  // Never derived from `safeTx`: the Tron route hands in a cast-together object
+  // whose shape does not match the type.
+  const provenance = buildProposalProvenance(provenanceOptions)
+
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -1380,6 +1614,7 @@ export async function storeTransactionInMongoDB(
     timestamp: new Date(),
     status: 'pending' as const,
     intentHash,
+    provenance,
     ...(parkedTaskRefs && parkedTaskRefs.length > 0 ? { parkedTaskRefs } : {}),
   } satisfies ISafeTxDocument
 
