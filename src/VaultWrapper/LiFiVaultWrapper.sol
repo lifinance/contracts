@@ -17,11 +17,6 @@ import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
-// One over solhint's 15-state default: the 16th declaration is the write-once
-// `shareDecimalsOffset` (inflation protection), which packs into the `accessGate`
-// slot rather than widening the storage layout.
-// solhint-disable max-states-count
-
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Per-integrator-product ERC-4626 vault that wraps an underlying yield source. Shares
