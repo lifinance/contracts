@@ -34,10 +34,17 @@ const run = (
 ): { output: string; refused: boolean } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
-    DOTENV_CONFIG_PATH: '/dev/null',
   }
-  if (ticket === undefined) delete env.SAFE_PROPOSAL_TICKET
-  else env.SAFE_PROPOSAL_TICKET = ticket
+  // `bun test` sets NODE_ENV=test, and consola silences itself in a test
+  // environment — so a child that inherits it produces NO output at all, and an
+  // assertion that a refusal is ABSENT then passes against anything. Removing it
+  // is what makes these assertions mean something.
+  delete env.NODE_ENV
+  // Bun auto-loads the env file into this process regardless of
+  // DOTENV_CONFIG_PATH, so the child would inherit it through process.env.
+  // Cleared explicitly, or a developer's own value decides the outcome.
+  delete env.SAFE_PROPOSAL_TICKET
+  if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],
@@ -108,14 +115,17 @@ describe('the ticket gate does not fire on paths that create no proposal', () =>
   // Each of these was refused by an earlier placement of the guard. A read-only
   // or direct-send run needs no ticket, and refusing one is a self-inflicted
   // outage on a path that touches nothing.
-  it('lets a read-only Safe-owner audit run', () => {
-    expect(
-      run('deploy/safe/add-safe-owners-and-threshold.ts', [
-        '--network',
-        'mainnet',
-        '--check',
-      ]).refused
-    ).toBe(false)
+  it('lets a read-only Safe-owner audit reach its own checking', () => {
+    // The marker matters as much as the absence: asserting only that the
+    // refusal is missing would also pass if the run died before the gate.
+    const result = run('deploy/safe/add-safe-owners-and-threshold.ts', [
+      '--network',
+      'mainnet',
+      '--check',
+    ])
+
+    expect(result.refused).toBe(false)
+    expect(result.output).toContain('Checking 1 network(s)')
   })
 
   it('lets an unpause run reach its own network filtering first', () => {

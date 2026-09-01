@@ -333,3 +333,32 @@ describe('parseTicketLink — credential leakage', () => {
     if (!result.ok) expect(result.message).not.toContain('hunter2')
   })
 })
+
+describe('parseTicketLink — https only, and bounded', () => {
+  it('refuses an http link', () => {
+    // Linear serves nothing over http, so an http link is a typo or a
+    // downgrade, and this value is later rendered as a clickable link.
+    const result = parseTicketLink('http://linear.app/lifi-linear/issue/EXSC-1')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toMatch(/expected https/)
+  })
+
+  it('refuses a link longer than the stored cap', () => {
+    const long = `https://linear.app/lifi-linear/issue/EXSC-1/${'a'.repeat(
+      400
+    )}`
+
+    const result = parseTicketLink(long)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toMatch(/longer than/)
+  })
+
+  it('still accepts a normal-length https link', () => {
+    expect(
+      parseTicketLink('https://linear.app/lifi-linear/issue/EXSC-694/some-slug')
+        .ok
+    ).toBe(true)
+  })
+})

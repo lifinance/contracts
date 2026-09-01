@@ -14,6 +14,13 @@ import { sanitizeProvenanceText } from '../shared/git-provenance'
 export const MAX_PROPOSAL_REASON_LENGTH = 200
 
 /**
+ * Longest ticket link stored. Linear's own URLs are far shorter; the cap exists
+ * because the value is written to every proposal document and rendered to
+ * signers, and `reason` beside it has always been bounded.
+ */
+export const MAX_TICKET_URL_LENGTH = 300
+
+/**
  * Normalizes a free-text proposal rationale into a single tidy line.
  * @param raw - Rationale as supplied by a caller or the environment.
  * @returns The collapsed, length-capped line, or `undefined` when empty.
@@ -28,8 +35,12 @@ export function normalizeProposalReason(
 }
 
 /**
- * Linear's own issue-identifier shape: a team key then a number. Must stay in
- * step with the PR-linkage pattern in `.github/scripts/ticket-linkage-metric.sh`.
+ * Linear's own issue-identifier shape: a team key then a number.
+ *
+ * Deliberately stricter than the `[A-Z]+-[0-9]+` that
+ * `.github/scripts/ticket-linkage-metric.sh` greps PR text with. That one only
+ * counts linkage and can afford false positives; this one decides whether a
+ * proposal is created, and nothing keeps the two in step.
  */
 const TICKET_ID = /^[A-Z][A-Z0-9]*-\d+$/
 
@@ -70,6 +81,12 @@ export const MISSING_TICKET_MESSAGE =
  */
 export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   const trimmed = (raw ?? '').trim()
+  if (trimmed.length > MAX_TICKET_URL_LENGTH)
+    return {
+      ok: false,
+      kind: 'invalid',
+      message: `ticket link is ${trimmed.length} characters, longer than the ${MAX_TICKET_URL_LENGTH} allowed`,
+    }
   if (trimmed.length === 0)
     return { ok: false, kind: 'absent', message: MISSING_TICKET_MESSAGE }
 
@@ -98,8 +115,11 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   // The host check alone is not enough: `javascript://linear.app/issue/EXSC-1`
   // parses with hostname `linear.app`, so without this a scheme that executes
   // wherever the stored link is rendered reaches the signer's provenance block.
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
-    return invalid(`scheme is '${parsed.protocol}', expected http or https`)
+  // https only. Linear serves nothing over http, so an http link is either a
+  // typo or a downgrade, and this value is later rendered as a clickable link to
+  // a signer.
+  if (parsed.protocol !== 'https:')
+    return invalid(`scheme is '${parsed.protocol}', expected https`)
 
   // `hostname` excludes userinfo, so the host check below passes
   // `https://user:secret@linear.app/issue/EXSC-1`, which would then be stored
