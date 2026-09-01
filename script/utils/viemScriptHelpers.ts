@@ -157,9 +157,14 @@ export const buildExplorerContractPageUrl = (
       return `${addressUrl}/contract`
     }
 
-    // Vana contract tab uses a query parameter instead of a hash.
+    // Blockscout v2 contract tab is ?tab=contract. Older instances still use #code.
     case 'blockscout': {
-      if (networkId === 'vana') return `${addressUrl}?tab=contract`
+      if (
+        networkId === 'vana' ||
+        networkId === 'scroll' ||
+        networkId === 'ronin'
+      )
+        return `${addressUrl}?tab=contract`
       return `${addressUrl}#code`
     }
 
