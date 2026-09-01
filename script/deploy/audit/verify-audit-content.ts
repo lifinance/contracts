@@ -1,14 +1,8 @@
 /**
  * The audit gate's decision: does the source at PR head match what was audited?
  *
- * Asks content, not provenance. The old check tested whether an audit's commit
- * appeared in the PR's commit list, which git history makes permanently true —
- * so a contract audited at commit X and then edited at commit Y in the same PR
- * merged green. This compares source-closure hashes instead, which is also why
- * a clean revert needs no title exemption: it restores byte-identical audited
- * source and therefore passes on content.
- *
- * Pure. The caller resolves each entry against git and passes the result in.
+ * Pure — the caller resolves each entry against git and passes the result in, so
+ * the cases that only occur against GitHub are decidable without the network.
  */
 
 import type { Hex } from 'viem'
