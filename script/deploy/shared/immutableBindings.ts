@@ -53,7 +53,10 @@ export interface IImmutableBindingCheck {
   legacyGetters: string[]
   configFileName: string
   keyInConfigFile: string
-  /** `keyInConfigFile` with placeholders substituted, for messages a human has to read. */
+  /**
+   * The key that actually resolved — a `.<network>` override where one exists, otherwise
+   * `keyInConfigFile` — with placeholders substituted, for messages a human has to read.
+   */
   resolvedKeyInConfigFile: string
   /** Expected address as written in config, or null when config has no value for this network. */
   expectedAddress: string | null
