@@ -6,15 +6,14 @@
  * so the warning is actionable, and doubles as the pre-deployment check that the
  * index will build at all.
  *
- * It opens its own client rather than using `getSafeMongoCollection`, which
- * creates indexes on connect — a diagnostic must not mutate the schema it is
- * asked to describe, least of all the schema whose creation failed.
+ * Opens its own client: `getSafeMongoCollection` creates indexes on connect, and
+ * this must not mutate the schema whose creation it is asked to explain.
  *
- * Grouping is case-insensitive on `safeAddress` on purpose: the index keys the
- * raw field, so two inserts that spell the same Safe differently do NOT collide
- * in the index. Those pairs are real nonce collisions the index cannot catch,
- * and a report that grouped the same way as the index would hide exactly them.
+ * Grouping matches the index's collation, so a group listed here is a pair the
+ * index build will reject.
  */
+
+import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -60,8 +59,28 @@ const main = defineCommand({
           {
             $group: {
               _id: {
-                safeAddress: { $toLower: '$safeAddress' },
-                network: { $toLower: '$network' },
+                // `$convert` with onError, not `$toString`: one malformed row
+                // would otherwise abort the whole diagnostic.
+                safeAddress: {
+                  $toLower: {
+                    $convert: {
+                      input: '$safeAddress',
+                      to: 'string',
+                      onError: '(unconvertible)',
+                      onNull: '(none)',
+                    },
+                  },
+                },
+                network: {
+                  $toLower: {
+                    $convert: {
+                      input: '$network',
+                      to: 'string',
+                      onError: '(unconvertible)',
+                      onNull: '(none)',
+                    },
+                  },
+                },
                 chainId: '$chainId',
                 nonce: '$safeTx.data.nonce',
               },
@@ -102,18 +121,17 @@ const main = defineCommand({
               .map((row) => `      ${row.status.padEnd(9)} ${row.safeTxHash}`)
               .join('\n') +
             (spellings.size > 1
-              ? `\n      NOTE: ${spellings.size} spellings of this Safe address in one group ` +
+              ? `\n      NOTE: ${spellings.size} spellings of this Safe address here ` +
                 `(${[...spellings].join(
                   ', '
-                )}). The index keys the raw field, so these rows do ` +
-                `NOT collide in it — this collision is invisible to the database guarantee.`
+                )}). The index compares case-insensitively, so these rows ` +
+                `do collide in it — written by different proposal paths for one Safe.`
               : '')
         )
       }
 
-      // Exit code so an operator (or a wrapper) can gate on it rather than
-      // having to read the output.
-      process.exit(1)
+      // Not `process.exit`: that skips the finally below, leaving the client open.
+      process.exitCode = 1
     } finally {
       await client.close()
     }

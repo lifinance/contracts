@@ -1572,12 +1572,9 @@ const NONCE_KEY_PATH = 'safeTx.data.nonce'
  * Case-insensitive comparison for the in-flight nonce index and every query that
  * has to agree with it.
  *
- * The index keys the raw `safeAddress`, and the Tron proposal path does not go
- * through `initializeSafeClient` — `propose-to-safe-tron.ts` converts with
- * `tronBase58ToEvm20Hex`, which yields lowercase hex, while the EVM path stores
- * the checksummed form. Two spellings of one Safe would otherwise be two
- * different index keys, making a nonce collision on Tron deterministic rather
- * than merely possible.
+ * `propose-to-safe-tron.ts` stores a Safe address as lowercase hex
+ * (`tronBase58ToEvm20Hex`) while the `initializeSafeClient` path stores the
+ * checksummed form, so one Safe has two spellings in this collection.
  */
 const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
 
@@ -1770,37 +1767,97 @@ async function ensurePendingProposalIndex(
   }
 }
 
+/** The index definition {@link ensureInFlightNonceIndex} creates. */
+const IN_FLIGHT_NONCE_INDEX_KEY_FIELDS = [
+  'safeAddress',
+  'network',
+  'chainId',
+  NONCE_KEY_PATH,
+] as const
+
 /**
- * Whether an already-present index of our name actually enforces the guarantee.
+ * Whether an existing index of our name is the one we rely on.
+ *
+ * Every property is compared, not just uniqueness. An index that is unique over
+ * the wrong fields, or over the right fields without the collation, still reads
+ * as "an index exists" while enforcing something other than what the caller is
+ * about to depend on — and a partial guarantee reported as a whole one is worse
+ * than none.
+ *
+ * Key order is not compared: uniqueness over a tuple does not depend on it.
+ *
+ * @param existing - one entry from `collection.indexes()`, or undefined when absent.
+ * @returns true only when the index enforces in-flight nonce uniqueness case-insensitively.
+ */
+export const inFlightNonceIndexMatchesSpec = (
+  existing:
+    | {
+        key?: Record<string, unknown>
+        unique?: boolean
+        partialFilterExpression?: unknown
+        collation?: unknown
+      }
+    | undefined
+): boolean => {
+  if (!existing?.unique) return false
+
+  const keyFields = Object.keys(existing.key ?? {})
+  if (
+    keyFields.length !== IN_FLIGHT_NONCE_INDEX_KEY_FIELDS.length ||
+    !IN_FLIGHT_NONCE_INDEX_KEY_FIELDS.every((field) =>
+      keyFields.includes(field)
+    )
+  )
+    return false
+
+  // A case-sensitive index cannot see two spellings of one Safe address, which
+  // is the whole reason ADDRESS_COLLATION exists.
+  const collation = existing.collation as
+    | { locale?: string; strength?: number }
+    | undefined
+  if (collation?.strength !== ADDRESS_COLLATION.strength) return false
+
+  const filter = existing.partialFilterExpression as
+    | { status?: unknown }
+    | undefined
+
+  // An unfiltered index constrains `executed` and `reverted` rows too, and
+  // history legitimately holds many rows per nonce — so it would reject valid
+  // writes. Replaced rather than accepted, so every environment converges on one
+  // definition.
+  if (filter?.status === undefined) return false
+
+  const statuses =
+    typeof filter.status === 'object' && filter.status !== null
+      ? (filter.status as { $in?: unknown[] }).$in ?? []
+      : [filter.status]
+
+  return statuses.includes('pending') && statuses.includes('submitted')
+}
+
+/**
+ * Creates the index, in exactly one place so a replacement cannot drift from the
+ * definition the first attempt used.
  *
  * @param pendingTransactions - MongoDB collection.
- * @returns true when the existing index is unique and covers both in-flight statuses.
  */
-const inFlightNonceIndexIsSufficient = async (
+const createInFlightNonceIndex = async (
   pendingTransactions: Collection<ISafeTxDocument>
-): Promise<boolean> => {
-  try {
-    const existing = (await pendingTransactions.indexes()).find(
-      (index) => index.name === IN_FLIGHT_NONCE_INDEX_NAME
-    )
-    if (!existing?.unique) return false
-
-    const filter = existing.partialFilterExpression as
-      | { status?: unknown }
-      | undefined
-
-    // No filter at all is stricter than ours, so it covers the guarantee.
-    if (filter?.status === undefined) return true
-
-    const statuses =
-      typeof filter.status === 'object' && filter.status !== null
-        ? (filter.status as { $in?: unknown[] }).$in ?? []
-        : [filter.status]
-
-    return statuses.includes('pending') && statuses.includes('submitted')
-  } catch {
-    return false
-  }
+): Promise<void> => {
+  await pendingTransactions.createIndex(
+    {
+      safeAddress: 1,
+      network: 1,
+      chainId: 1,
+      'safeTx.data.nonce': 1,
+    },
+    {
+      unique: true,
+      partialFilterExpression: { status: { $in: ['pending', 'submitted'] } },
+      name: IN_FLIGHT_NONCE_INDEX_NAME,
+      collation: ADDRESS_COLLATION,
+    }
+  )
 }
 
 /**
@@ -1816,33 +1873,17 @@ const inFlightNonceIndexIsSufficient = async (
  * legitimately holds many rows per nonce, and constraining it would make the
  * index unbuildable.
  *
- * `safeAddress` is NOT stored in one canonical form: the EVM path normalizes via
- * `initializeSafeClient`, while `propose-to-safe-tron.ts` converts with
- * `tronBase58ToEvm20Hex` and stores lowercase hex. The index therefore compares
- * under {@link ADDRESS_COLLATION}, and `getNextNonce` reads under the same
- * collation so the two cannot disagree about which rows exist.
+ * Compares under {@link ADDRESS_COLLATION}, as does `getNextNonce`, so the index
+ * and the read that feeds it cannot disagree about which rows exist.
  * @param pendingTransactions - MongoDB collection
  */
 async function ensureInFlightNonceIndex(
   pendingTransactions: Collection<ISafeTxDocument>
 ): Promise<void> {
   try {
-    await pendingTransactions.createIndex(
-      {
-        safeAddress: 1,
-        network: 1,
-        chainId: 1,
-        'safeTx.data.nonce': 1,
-      },
-      {
-        unique: true,
-        partialFilterExpression: { status: { $in: ['pending', 'submitted'] } },
-        name: IN_FLIGHT_NONCE_INDEX_NAME,
-        collation: ADDRESS_COLLATION,
-      }
-    )
+    await createInFlightNonceIndex(pendingTransactions)
   } catch (error: unknown) {
-    const code =
+    let code =
       error instanceof Error && 'code' in error
         ? (error as { code: number }).code
         : undefined
@@ -1850,25 +1891,39 @@ async function ensureInFlightNonceIndex(
     // 85 = exists with same options.
     if (code === 85) return
 
-    // 86 = an index of this name exists with a different definition. Not all
-    // drift is harmless: an existing index that is not unique, or whose partial
-    // filter omits `submitted`, enforces nothing this function promises. So the
-    // existing definition is read back and only accepted if it actually covers
-    // the guarantee — otherwise "relying on the existing index" would be a claim
-    // about an index that does not constrain anything.
+    // 86 = an index of this name exists with a different definition. Replaced
+    // rather than refused: throwing here propagates out of
+    // `getSafeMongoCollection`, which every Safe script calls, so a drifted index
+    // would also stop confirming and executing proposals already pending.
     if (code === 86) {
-      if (await inFlightNonceIndexIsSufficient(pendingTransactions)) {
-        consola.warn(
-          'The in-flight nonce index exists with a different definition, but it still enforces nonce uniqueness across pending and submitted; relying on it.'
-        )
-        return
-      }
-
-      throw new Error(
-        `An index named ${IN_FLIGHT_NONCE_INDEX_NAME} exists but does not enforce nonce uniqueness ` +
-          `across pending and submitted proposals. Drop or fix it — leaving it in place looks like the ` +
-          `guarantee is present when it is not.`
+      const existing = (await pendingTransactions.indexes()).find(
+        (index) => index.name === IN_FLIGHT_NONCE_INDEX_NAME
       )
+
+      if (inFlightNonceIndexMatchesSpec(existing)) return
+
+      consola.warn(
+        `${IN_FLIGHT_NONCE_INDEX_NAME} exists with a definition that does not enforce case-insensitive ` +
+          `in-flight nonce uniqueness; replacing it.`
+      )
+
+      try {
+        await pendingTransactions.dropIndex(IN_FLIGHT_NONCE_INDEX_NAME)
+        await createInFlightNonceIndex(pendingTransactions)
+        return
+      } catch (replaceError: unknown) {
+        const replaceCode =
+          replaceError instanceof Error && 'code' in replaceError
+            ? (replaceError as { code: number }).code
+            : undefined
+
+        // Falls through to the shared handling below so a permission or
+        // colliding-data failure during replacement reads the same as one during
+        // the first attempt — the outcome is identical: no usable index.
+        if (replaceCode !== 13 && replaceCode !== 11000) throw replaceError
+
+        code = replaceCode
+      }
     }
 
     if (code === 13) {
@@ -1970,9 +2025,9 @@ export async function getNextNonce(
 ): Promise<bigint> {
   // Include 'submitted' rows: a tx broadcast but not yet confirmed still has
   // its Safe nonce in flight, so a new proposal must not collide with it.
-  // Collated to match the unique index. Without it this read is blind to a row
-  // that spells the same Safe with different casing, so it would hand back a
-  // nonce the index then rejects — and re-running would derive the same one.
+  // Collated to match the unique index: an uncollated read is blind to a row
+  // spelling the same Safe differently, and would keep handing back a nonce the
+  // index rejects.
   const latestTx = await pendingTransactions
     .find({
       safeAddress,

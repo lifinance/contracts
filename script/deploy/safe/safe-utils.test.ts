@@ -31,6 +31,7 @@ import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
+  inFlightNonceIndexMatchesSpec,
   computeProposalIntentHash,
   getSelector,
   getSigners,
@@ -1203,5 +1204,93 @@ describe('storeTransactionInMongoDB — nonce collision is not an idempotent dup
     }
 
     expect(thrown).toBe(error)
+  })
+})
+
+describe('inFlightNonceIndexMatchesSpec', () => {
+  const good = {
+    name: 'unique_inflight_safe_nonce',
+    key: {
+      safeAddress: 1,
+      network: 1,
+      chainId: 1,
+      'safeTx.data.nonce': 1,
+    },
+    unique: true,
+    partialFilterExpression: { status: { $in: ['pending', 'submitted'] } },
+    collation: { locale: 'en', strength: 2 },
+  }
+
+  it('accepts the spec the code creates', () => {
+    expect(inFlightNonceIndexMatchesSpec(good)).toBe(true)
+  })
+
+  it('rejects an unfiltered index, which would reject legitimate history rows', () => {
+    const { partialFilterExpression: _filter, ...unfiltered } = good
+
+    expect(inFlightNonceIndexMatchesSpec(unfiltered)).toBe(false)
+  })
+
+  it('rejects a missing index', () => {
+    expect(inFlightNonceIndexMatchesSpec(undefined)).toBe(false)
+  })
+
+  it('rejects a non-unique index', () => {
+    expect(inFlightNonceIndexMatchesSpec({ ...good, unique: false })).toBe(
+      false
+    )
+  })
+
+  it('rejects a filter that omits submitted', () => {
+    expect(
+      inFlightNonceIndexMatchesSpec({
+        ...good,
+        partialFilterExpression: { status: 'pending' },
+      })
+    ).toBe(false)
+  })
+
+  it('rejects an index with NO collation — it cannot see two spellings of one Safe', () => {
+    const { collation: _collation, ...withoutCollation } = good
+
+    expect(inFlightNonceIndexMatchesSpec(withoutCollation)).toBe(false)
+  })
+
+  it('rejects a case-sensitive collation strength', () => {
+    expect(
+      inFlightNonceIndexMatchesSpec({
+        ...good,
+        collation: { locale: 'en', strength: 3 },
+      })
+    ).toBe(false)
+  })
+
+  it('rejects an index of the right name over the WRONG fields', () => {
+    expect(
+      inFlightNonceIndexMatchesSpec({ ...good, key: { proposer: 1 } })
+    ).toBe(false)
+  })
+
+  it('rejects an index missing the nonce component', () => {
+    expect(
+      inFlightNonceIndexMatchesSpec({
+        ...good,
+        key: { safeAddress: 1, network: 1, chainId: 1 },
+      })
+    ).toBe(false)
+  })
+
+  it('accepts the same key components in a different order', () => {
+    expect(
+      inFlightNonceIndexMatchesSpec({
+        ...good,
+        key: {
+          'safeTx.data.nonce': 1,
+          chainId: 1,
+          network: 1,
+          safeAddress: 1,
+        },
+      })
+    ).toBe(true)
   })
 })
