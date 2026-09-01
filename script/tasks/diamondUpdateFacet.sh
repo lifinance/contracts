@@ -124,8 +124,10 @@ diamondUpdateFacet() {
   fi
 
   # anything that is not exactly "staging" reaches the production private key via
-  # getPrivateKey's else branch, so the gate has to run for those values too
-  if [[ "$ENVIRONMENT" != "staging" ]]; then
+  # getPrivateKey's else branch, so the gate has to run for those values too.
+  # Testnets are exempt: deploying an unmerged facet there is how it gets validated
+  # before the audit, and no mainnet Safe is involved.
+  if [[ "$ENVIRONMENT" != "staging" ]] && ! isTestnetNetwork "$NETWORK"; then
     # The gate resolves each name to src/Facets/<name>.sol, so it needs facet
     # names, not update-script names. UpdateCoreFacets cuts the whole coreFacets
     # list rather than one facet of its own.

@@ -548,25 +548,35 @@ describe('diamondUpdateFacet gate condition', () => {
   })
 
   it.each([
-    ['production', 'RUNS'],
-    ['prod', 'RUNS'],
-    ['', 'RUNS'],
-    ['staging', 'SKIPPED'],
-  ])('runs the gate for environment %p', (environment, expected) => {
-    const result = spawnSync(
-      'bash',
-      [
-        '-c',
-        `ENVIRONMENT=$1; ${condition} echo RUNS; else echo SKIPPED; fi`,
+    ['production', 'MAINNET', 'RUNS'],
+    ['prod', 'MAINNET', 'RUNS'],
+    ['', 'MAINNET', 'RUNS'],
+    ['staging', 'MAINNET', 'SKIPPED'],
+    // testnets carry production target state but no Safe, and an unmerged facet is
+    // deployed there before it is audited - gating them would block that rollout
+    ['production', 'TESTNET', 'SKIPPED'],
+    ['staging', 'TESTNET', 'SKIPPED'],
+  ])(
+    'runs the gate for environment %p on a %s network',
+    (environment, network, expected) => {
+      const result = spawnSync(
         'bash',
-        environment,
-      ],
-      { encoding: 'utf8' }
-    )
+        [
+          '-c',
+          // isTestnetNetwork is stubbed on the marker rather than reimplemented, so
+          // this asserts the condition consults it, not how helperFunctions decides
+          `isTestnetNetwork() { [[ "$1" == "TESTNET" ]]; }; ENVIRONMENT=$1; NETWORK=$2; ${condition} echo RUNS; else echo SKIPPED; fi`,
+          'bash',
+          environment,
+          network,
+        ],
+        { encoding: 'utf8' }
+      )
 
-    expect(result.status).toBe(0)
-    expect(result.stdout.trim()).toBe(expected)
-  })
+      expect(result.status).toBe(0)
+      expect(result.stdout.trim()).toBe(expected)
+    }
+  )
 })
 
 describe('audit log source', () => {
