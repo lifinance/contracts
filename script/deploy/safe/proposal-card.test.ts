@@ -502,7 +502,7 @@ describe('renderProposalCard — a warning about one network is not a claim abou
       .find((l) => l.startsWith('*Working tree:*'))
 
     expect(workingTree).toContain('src/Facets/Foo.sol')
-    expect(workingTree).toContain('(on arbitrum)')
+    expect(workingTree).toContain('on arbitrum')
   })
 
   it('does not claim a clean tree when the first row happens to be clean', () => {
@@ -696,7 +696,7 @@ describe('renderProposalCard — an uncaptured working tree is not a clean one',
     ])
 
     const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
-    expect(line).toBe('*Working tree:* not captured — paths not captured')
+    expect(line).toBe('*Working tree:* not captured')
   })
 
   it('is silent only for a measured empty array', () => {
@@ -706,5 +706,88 @@ describe('renderProposalCard — an uncaptured working tree is not a clean one',
     ])
 
     expect(card).not.toContain('*Working tree:*')
+  })
+})
+
+describe('renderProposalCard — a failed capture is the loudest case, not the quietest', () => {
+  it('reports capture errors on a row whose path list is an empty array', () => {
+    // A failed `git status` probe writes dirtyTreeScoped: [] AND captureErrors.
+    // The card mapped neither, so the row fell in neither bucket and NO
+    // working-tree line rendered. The two likeliest probe failures — the 5s
+    // timeout and the 8MB buffer cap — both correlate with a very dirty tree,
+    // so the card read clean exactly when the tree was dirtiest.
+    const card = renderProposalCard([
+      proposal({
+        dirtyTreeScoped: [],
+        captureErrors: ['git status timed out'],
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toBeDefined()
+    expect(line).not.toMatch(/\bclean\b/i)
+    expect(line).toMatch(/capture incomplete/i)
+  })
+
+  it('stays silent for a measured empty array with no capture errors', () => {
+    const card = renderProposalCard([
+      proposal({ dirtyTreeScoped: [], captureErrors: [] }),
+    ])
+
+    expect(card).not.toContain('*Working tree:*')
+  })
+
+  it('does not let a capture failure hide behind a clean sibling', () => {
+    const card = renderProposalCard([
+      proposal({ network: 'mainnet' }),
+      proposal({
+        network: 'arbitrum',
+        dirtyTreeScoped: [],
+        captureErrors: ['git status timed out'],
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toMatch(/capture incomplete/i)
+    expect(line).toContain('arbitrum')
+  })
+})
+
+describe('renderProposalCard — the qualifier names the networks it is about', () => {
+  it('names the dirty network when another row is only uncaptured', () => {
+    // `reported` mixed both buckets, so a card of one dirty and one uncaptured
+    // row suppressed the qualifier — and a single path then read as the complete
+    // inventory across both networks.
+    const card = renderProposalCard([
+      proposal({ network: 'mainnet', dirtyTreeScoped: ['src/A.sol'] }),
+      proposal({ network: 'arbitrum', dirtyTreeScoped: undefined }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toContain('mainnet')
+    expect(line).toContain('arbitrum')
+    // And the two states must be distinguishable, not merged into one word.
+    expect(line).toMatch(/dirty/)
+    expect(line).toMatch(/not captured/)
+  })
+})
+
+describe('renderProposalCard — a truncated list is never vaguer than an exact one', () => {
+  it('keeps the count when capture also truncated', () => {
+    // 40 paths with no flag rendered "…and 20 more"; the same 40 WITH the flag
+    // rendered only "and more that capture stopped counting" — the worse case
+    // got the vaguer warning.
+    const paths = Array.from({ length: 40 }, (_, i) => `src/F${i}.sol`)
+    const exact = renderProposalCard([proposal({ dirtyTreeScoped: paths })])
+    const truncated = renderProposalCard([
+      proposal({ dirtyTreeScoped: paths, dirtyTreeTruncated: true }),
+    ])
+
+    const lineOf = (card: string) =>
+      card.split('\n').find((l) => l.startsWith('*Working tree:*')) ?? ''
+
+    expect(lineOf(exact)).toMatch(/20 more/)
+    expect(lineOf(truncated)).toMatch(/20 more/)
+    expect(lineOf(truncated)).toMatch(/stopped counting/)
   })
 })

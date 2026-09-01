@@ -51,6 +51,8 @@ export interface ICardProposal {
   dirtyTreeScoped?: unknown
   /** Capture sets this when it stopped counting; the list is then a floor. */
   dirtyTreeTruncated?: unknown
+  /** Capture records why it could not measure; a non-empty list is not clean. */
+  captureErrors?: unknown
   /**
    * Result of a check the PROPOSER ran. Rendered as advisory: the authoritative
    * status is the signer-side attestation, and a card that states a result
@@ -283,46 +285,63 @@ export const renderProposalCard = (
   // Capped at the same limit capture uses.
   //
   // Union across rows: a dirty tree on any network must never read as clean.
+  // Three states, matching `provenance-display.ts`'s model for the signing
+  // prompt: dirty, capture-incomplete, unreadable. Only a measured empty array
+  // with no capture errors is clean.
+  //
+  // Each state names its OWN networks. Merging them let one path read as the
+  // complete inventory across a network that had reported nothing.
   const dirty = proposals.filter(
     (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
   )
-  // Only a measured empty array reads as clean, which is the rule
-  // `provenance-display.ts` holds for the signing prompt: a non-array — absent
-  // and null included — is 'unreadable' there, never clean.
-  const uncaptured = proposals.filter((p) => !Array.isArray(p.dirtyTreeScoped))
+  // A failed `git status` writes an empty list AND capture errors, so an empty
+  // list alone does not mean the tree was measured. The likeliest probe
+  // failures — the timeout and the buffer cap — correlate with a very dirty
+  // tree, so treating this as clean read clean exactly when it was dirtiest.
+  const incomplete = proposals.filter(
+    (p) =>
+      Array.isArray(p.dirtyTreeScoped) &&
+      p.dirtyTreeScoped.length === 0 &&
+      Array.isArray(p.captureErrors) &&
+      p.captureErrors.length > 0
+  )
+  const unreadable = proposals.filter((p) => !Array.isArray(p.dirtyTreeScoped))
 
-  if (dirty.length > 0 || uncaptured.length > 0) {
+  if (dirty.length > 0 || incomplete.length > 0 || unreadable.length > 0) {
     const paths = [
       ...new Set(
         dirty.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
       ),
     ].filter(Boolean)
-    // Capture stopped counting on at least one row, so the list is a floor.
-    const truncated = dirty.some((p) => p.dirtyTreeTruncated === true)
-    const reported = [...dirty, ...uncaptured]
-    const where =
-      reported.length === proposals.length
+
+    /** Names the rows a state is about, unless it is the whole card. */
+    const on = (rows: ICardProposal[]): string =>
+      rows.length === proposals.length
         ? ''
-        : ` (on ${summarise(
-            reported.map((p) => escape(p.network)),
+        : ` on ${summarise(
+            rows.map((r) => escape(r.network)),
             NAMED_NETWORK_LIMIT
-          )})`
+          )}`
 
-    const detail =
-      paths.length > 0
-        ? truncated
-          ? `${paths
-              .slice(0, MAX_DIRTY_PATHS)
-              .join(', ')}, and more that capture stopped counting`
-          : summarise(paths, MAX_DIRTY_PATHS)
-        : 'paths not captured'
-    const note =
-      uncaptured.length > 0 && paths.length > 0
-        ? '; some rows captured no path list'
+    const parts: string[] = []
+
+    if (paths.length > 0) {
+      // The count survives the truncation note. Reported alone, "capture
+      // stopped counting" was VAGUER than the exact "…and N more" it replaced,
+      // so the worse case got the weaker warning.
+      const stopped = dirty.some((p) => p.dirtyTreeTruncated === true)
+        ? ', and capture stopped counting before the end'
         : ''
+      parts.push(
+        `dirty${on(dirty)} — ${summarise(paths, MAX_DIRTY_PATHS)}${stopped}`
+      )
+    } else if (dirty.length > 0)
+      parts.push(`dirty${on(dirty)} — paths unusable`)
 
-    const state = dirty.length > 0 ? 'dirty' : 'not captured'
-    lines.push(`*Working tree:* ${state}${where} — ${detail}${note}`)
+    if (incomplete.length > 0) parts.push(`capture incomplete${on(incomplete)}`)
+    if (unreadable.length > 0) parts.push(`not captured${on(unreadable)}`)
+
+    lines.push(`*Working tree:* ${parts.join('; ')}`)
   }
 
   const checkSummary = escape(first.checkSummary)
