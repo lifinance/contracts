@@ -131,9 +131,11 @@ stores. The document (`ISafeTxDocument`) carries the raw Safe tx fields, the
 proposer's wallet address, an `intentHash` dedup key, and a
 `pending → submitted → executed / reverted` status — but **no description, PR
 link (except drain `parkedTaskRefs`), git commit, or human identity**.
-`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts
-count + contract + network to `#dev-sc-multisig-proposals`; the rich
-signing-ask thread is a manual step per `.agents/commands/multisig-rollout.md`.
+`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts the
+signing-ask card rendered by `script/deploy/safe/render-proposal-card.ts` —
+reason, proposer, PR, commit and a per-network `bun confirm-safe-tx` command — to
+`#dev-sc-multisig-proposals`, falling back to a count + contract + network line
+only if the render fails.
 
 ### 4.3 Confirm / sign
 

@@ -131,7 +131,7 @@ describe('renderProposalCard', () => {
       }),
     ])
 
-    expect(card.length).toBeLessThanOrEqual(2900)
+    expect(card.length).toBeLessThanOrEqual(SLACK_TEXT_LIMIT)
     expect(card).toContain('bun confirm-safe-tx --network mainnet')
     expect(card).toContain('0xabababab')
     expect(card).toContain('*Proposed by:*')
@@ -160,10 +160,8 @@ describe('renderProposalCard', () => {
   })
 
   it('keeps the review commands on an overflowing card', () => {
-    // They are the only actionable part and they sit at the bottom, so a
-    // tail-truncated card lost exactly the thing it exists to deliver. Measured
-    // before the fix: every one of 5226 overflowing configurations dropped the
-    // whole review section.
+    // They are the only actionable part and they sit at the bottom, so a tail
+    // cut would drop exactly the thing the card exists to deliver.
     const card = renderProposalCard(
       ['mainnet', 'arbitrum'].map((network) => ({
         network,
@@ -185,11 +183,11 @@ describe('renderProposalCard', () => {
   })
 
   it('keeps underscores and tildes, which real paths and emails contain', () => {
-    // Stripping these mangled real data for no security gain: they only
+    // Stripping these mangles real data for no security gain: they only
     // italicise or strike text, so they cannot forge a label or break out of a
-    // code span. `alice_smith@…` and `alicesmith@…` rendered identically on a
-    // card whose job is saying who proposed, and 115 tracked paths in this repo
-    // carry an underscore.
+    // code span, while `alice_smith@…` and `alicesmith@…` render identically on
+    // a card whose job is saying who proposed, and many tracked paths in this
+    // repo carry an underscore.
     const card = renderProposalCard([
       proposal({
         proposerHandle: 'A B <alice_smith@example.com>',
@@ -206,7 +204,7 @@ describe('renderProposalCard', () => {
   it('flags a divergent commit or PR, not only a divergent reason', () => {
     // gitCommit is what a signer re-derives calldata against and prUrl is the
     // rationale they read, so these diverging matters more than the prose doing
-    // so. The first version of this flagged only the prose.
+    // so.
     const card = renderProposalCard([
       proposal(),
       proposal({
@@ -217,23 +215,37 @@ describe('renderProposalCard', () => {
       }),
     ])
 
-    expect(card).toContain('gitCommit')
-    expect(card).toContain('PR')
-    expect(card).toContain('proposerHandle')
+    // The warning names the card's own labels, so asserted on the whole
+    // sentence — `PR` and `Commit` both occur elsewhere on the card.
+    const warning = card.split('\n').find((l) => l.startsWith('⚠ These differ'))
+
+    expect(warning).toContain('Commit')
+    expect(warning).toContain('PR')
+    expect(warning).toContain('Proposed by')
   })
 
   it('never cuts a surrogate pair or an entity in half', () => {
     for (const filler of ['\u{1F64F}', '&', 'a'])
       for (let pad = 1; pad <= 6; pad++) {
-        const card = renderProposalCard([
-          proposal({
-            network: 'n'.repeat(pad),
-            dirtyTreeScoped: [filler.repeat(4000)],
-          }),
-        ])
-        const body = card.slice(0, card.indexOf('\n… card truncated'))
+        // The overflow has to come from the row COUNT: every field is capped, so
+        // no single value can reach the card's cap on its own. `pad` walks the
+        // cut one character at a time so it lands mid-pair and mid-entity.
+        const card = renderProposalCard(
+          [proposal({ network: 'n'.repeat(pad) })],
+          {
+            expectedHashes: Array.from({ length: 40 }, () => ({
+              network: filler.repeat(200),
+              expected: filler.repeat(200),
+            })),
+          }
+        )
+        const cut = card.indexOf('\n… card truncated')
+        const body = card.slice(0, cut)
 
-        expect(card.length).toBeLessThanOrEqual(2900)
+        // Without this the assertions below run against a whole, uncut card and
+        // prove nothing about the cut.
+        expect(cut).toBeGreaterThan(0)
+        expect(card.length).toBeLessThanOrEqual(SLACK_TEXT_LIMIT)
         // A lone high surrogate renders as U+FFFD; a bare `&am` as literal junk.
         expect(/[\uD800-\uDBFF]$/.test(body)).toBe(false)
         expect(/&[a-z]{0,3}$/i.test(body)).toBe(false)
@@ -251,10 +263,10 @@ describe('renderProposalCard', () => {
   })
 
   it('strips control and bidi characters from every rendered field', () => {
-    // EXSC-693: collapsing `\s+` does not touch Cc/Cf, so ANSI escapes and the
-    // bidi overrides behind Trojan Source reached the card unfiltered. Asserted
-    // per field, because the length-capped fields and the uncapped ones reach
-    // Slack by different escape paths.
+    // Collapsing `\s+` does not touch Cc/Cf, so ANSI escapes and the bidi
+    // overrides behind Trojan Source need their own removal. Asserted per field,
+    // because the length-capped fields and the uncapped ones reach Slack by
+    // different escape paths.
     const payload = '\u001b[2K\u202ereversed\u200bhidden\u0007'
     const banned = ['\u001b', '\u202e', '\u200b', '\u0007']
     const fields: (keyof ICardProposal)[] = [
@@ -393,7 +405,6 @@ describe('renderProposalCard — it cannot understate the ask', () => {
   })
 
   it('names the contract in the headline, which the message it replaces did', () => {
-    // Reviewer feedback on PR #1904 asked to keep the count plus the contract.
     // A name absent from every other fixture field, and asserted on the headline
     // rather than the whole card: the default fixture's reason mentions
     // AcrossFacetV4, so `toContain` on the card passed with no headline change.
@@ -425,8 +436,7 @@ describe('renderProposalCard — the PR link is a link, or it is not shown', () 
   ])('does not present a %s value as a link', (_label, prUrl) => {
     // The capture path already accepts only https, so a value that is not one
     // reached the document by hand. Presenting it as a PR lends it the card's
-    // credibility, and Slack auto-links a bare URL — the same gap as the ticket
-    // link's missing scheme check on #2298, on the field next to it.
+    // credibility, and Slack auto-links a bare URL.
     const card = renderProposalCard([proposal({ prUrl })])
 
     expect(card).toContain('not a link, ignored')

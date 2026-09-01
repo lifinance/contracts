@@ -5,6 +5,9 @@
  *
  * Opens its own client. `getSafeMongoCollection` creates indexes on connect, and
  * a read-only renderer must not alter the schema it reads.
+ *
+ * No index has `network` as a leading key, so both queries below scan the
+ * collection. Acceptable while this runs once per proposal batch.
  */
 
 import 'dotenv/config'
@@ -92,7 +95,8 @@ const main = defineCommand({
       // Takes the most recent rather than trying to match the run itself, which
       // nothing in the document identifies. A network can carry an older
       // unsigned proposal, and the card is about the run that just finished.
-      // `$eq` per the repo's operator-injection convention (mongoEq).
+      // Explicit `$eq`/`$in` per the repo's operator-injection convention, so a
+      // value can never be read as an operator expression.
       const rows = await collection
         .find(
           {
@@ -138,18 +142,16 @@ const main = defineCommand({
       // would fire the alarm on exactly the runs that needed a retry.
       //
       // Absence of any row in any status is the real signal, so that is what is
-      // asked. One extra query, and it is the difference between an alarm and a
-      // false alarm.
+      // asked. `distinct` rather than `find`, so the result is bounded by the
+      // number of networks asked about rather than by how many rows they have
+      // between them.
       const withoutPending = networks.filter((n) => !newestByNetwork.has(n))
       const settled =
         withoutPending.length === 0
           ? []
-          : (
-              await collection
-                .find({ network: { $in: withoutPending } })
-                .project<{ network: string }>({ network: 1 })
-                .toArray()
-            ).map((r) => r.network)
+          : await collection.distinct('network', {
+              network: { $in: withoutPending },
+            })
 
       const unaccounted = withoutPending.filter((n) => !settled.includes(n))
 
@@ -162,9 +164,12 @@ const main = defineCommand({
         ...(contract && contract !== 'unknown' ? { contract } : {}),
       })
 
+      // Named without asserting which status: a `reverted` row is flagged for
+      // manual review, so reading it back as "signed" would be a false
+      // reassurance about the one case that needs a human.
       if (settled.length > 0)
         consola.info(
-          `Already signed or executed, so not on the card: ${settled.join(
+          `Not on the card — an earlier proposal exists in a non-pending state: ${settled.join(
             ', '
           )}`
         )
@@ -175,12 +180,13 @@ const main = defineCommand({
           )} — the card names the shortfall.`
         )
 
-      // Written after every read, so a failure to close the client cannot
-      // discard a card that was produced successfully.
       if (args.out) writeFileSync(args.out, `${card}\n`)
       else consola.log(card)
     } finally {
-      await client.close()
+      // Swallowed: the caller reads the exit code to decide between this card
+      // and a count-only fallback that overwrites it, so a close failure after
+      // the card is on disk would replace a good card with a worse one.
+      await client.close().catch(() => undefined)
     }
   },
 })

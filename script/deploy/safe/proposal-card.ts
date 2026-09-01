@@ -22,12 +22,13 @@ const SHORT_HASH_CHARS = 10
 const SHORT_COMMIT_CHARS = 12
 
 /**
- * Cap for every other single field.
+ * Cap for every field except `reason`, `gitCommit` and `safeTxHash`, which have
+ * their own tighter caps.
  *
- * The card's own cap is not enough on its own: an oversized `contract`,
- * `prUrl`, `proposerHandle`, `checkSummary` or network name each individually
- * consumed the whole budget and pushed the review command — the one line that
- * makes the card actionable — off the bottom.
+ * The card's own cap is not enough alone: a single oversized `contract`,
+ * `prUrl`, `proposerHandle`, `checkSummary` or network name can consume the
+ * whole budget and push the review command — the one line that makes the card
+ * actionable — off the bottom.
  */
 const MAX_FIELD_CHARS = 200
 
@@ -84,11 +85,10 @@ export interface ICardOptions {
  * itself — so an over-long card would reach Slack whole and lose its bottom to
  * the client's own collapsing. Cutting here keeps the loss visible.
  *
- * Not 3000: that is the per-`blocks[].text` limit, and this card posts as a
- * top-level `text`, whose limit is 40,000. Truncating at the block figure threw
- * away the review commands — the point of the card — to save bytes Slack would
- * have accepted. Held well below 40,000 anyway, because a card nobody scrolls
- * to the end of has already failed.
+ * Not 3000: that is the per-`blocks[].text` limit (see `slack-notifier.ts`),
+ * and this card posts as a top-level `text`, whose limit is 40,000. Held well
+ * below 40,000 anyway, because a card nobody scrolls to the end of has already
+ * failed.
  */
 export const SLACK_TEXT_LIMIT = 8000
 
@@ -99,37 +99,33 @@ const escapeEntities = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /**
- * Reduces one proposal-document value to a single line of safe Slack text.
+ * Removes the two mrkdwn markers entity escaping cannot neutralise.
  *
- * `sanitizeProvenanceText` is the repo's shared sanitizer for this data
- * (EXSC-693): it strips the control, bidi-override and zero-width characters
- * that let a value repaint or reverse the lines around it, and it coerces
- * non-strings, which is what keeps a half-migrated row from throwing here. The
- * entity escaping on top is Slack's own requirement — without it `<!channel>`
- * in a field nobody reviews would notify a whole channel.
- */
-/**
- * Removes the mrkdwn markers Slack acts on and entities cannot neutralise.
+ * A backtick closes the code span a review command sits in and turns the rest of
+ * that line into card prose; `*` forges a bold label, which is enough to fake
+ * the advisory line. Slack mrkdwn has no escape sequence for either, so the
+ * choice is to strip or to let a document value rewrite the card.
  *
- * A backtick closes the code span the review command sits in and turns the rest
- * of that line into card prose; `*` and `_` forge a bold or italic label inline,
- * which is enough to fake the advisory line. Slack mrkdwn has no escape
- * sequence for either, so the choice is to strip or to let a document value
- * rewrite the card.
- *
- * `_` and `~` are deliberately NOT stripped. They only italicise or strike
- * text, so they cannot forge a label or break out of a code span — and
- * stripping them corrupted real data: `alice_smith@example.com` and
- * `alicesmith@example.com` rendered byte-identically on a card whose job is
- * saying who proposed, and 115 tracked paths in this repo carry `_`, so a dirty
- * path rendered as a file that does not exist. That list is the one field a
- * reviewer copies out to go and look at something.
+ * `_` and `~` are left in place. They only italicise or strike, so they can
+ * neither forge a label nor break out of a code span, and removing them renders
+ * `alice_smith@example.com` and `alicesmith@example.com` identically on a card
+ * whose job is saying who proposed. Many tracked paths carry `_`, so the dirty
+ * list — the one field a reviewer copies out to go and look at something — would
+ * name files that do not exist.
  */
 const stripMarkdownMarkers = (value: string): string =>
   value.replace(/[`*]/g, '')
 
 /**
- * Escapes a value whose length is capped.
+ * Reduces one proposal-document value to a single line of safe Slack text,
+ * capped at `max` code points.
+ *
+ * `sanitizeProvenanceText` is the repo's shared sanitizer for this data: it
+ * strips the control, bidi-override and zero-width characters that let a value
+ * repaint or reverse the lines around it, and it coerces non-strings, which is
+ * what keeps a half-migrated row from throwing here. The entity escaping on top
+ * is Slack's own requirement — without it `<!channel>` in a field nobody reviews
+ * would notify a whole channel.
  *
  * Capped before escaping, both because the limits count characters of the
  * underlying value and because capping afterwards could cut an entity in half.
@@ -146,10 +142,10 @@ const escape = (value: unknown): string => escapeCapped(value, MAX_FIELD_CHARS)
  * Renders a URL only if it is one.
  *
  * `captureGitProvenance` stores a PR link only when it starts with `https://`,
- * so a value that does not reach here through provenance capture. Labelling it
- * `*PR:*` lends it the card's credibility, and Slack auto-links a bare URL, so
- * a signer gets a clickable attacker-chosen destination on the screen they read
- * immediately before approving.
+ * so a value without that prefix did not reach here through provenance capture.
+ * Labelling it `*PR:*` lends it the card's credibility, and Slack auto-links a
+ * bare URL, so a signer gets a clickable attacker-chosen destination on the
+ * screen they read immediately before approving.
  *
  * Rejection is stated rather than silent: an omitted line reads as "no PR was
  * recorded", which is a different and less alarming fact.
@@ -216,24 +212,31 @@ export const renderProposalCard = (
   // Every field below is read from the first row, which is right when a run
   // proposes the same change everywhere and misleading when it does not — the
   // rows are selected per network and nothing forces them to agree.
-  // Compared on the raw values, not the rendered ones: two reasons identical for
-  // 200 characters and divergent after were reported as agreeing.
+  // Labelled as the card labels them, so the warning names lines a reader can
+  // find rather than source identifiers.
+  const COMPARED_FIELDS = {
+    reason: 'Reason',
+    gitCommit: 'Commit',
+    prUrl: 'PR',
+    proposerHandle: 'Proposed by',
+  } as const
   const differing = (
-    ['reason', 'gitCommit', 'prUrl', 'proposerHandle'] as const
+    Object.keys(COMPARED_FIELDS) as (keyof typeof COMPARED_FIELDS)[]
   )
+    // Compared on the raw values, not the rendered ones: a display cap can make
+    // two values that diverge past it render identically.
     .filter((field) =>
       proposals.some(
         (p) => String(p[field] ?? '') !== String(first[field] ?? '')
       )
     )
-    .map((field) => (field === 'prUrl' ? 'PR' : field))
+    .map((field) => COMPARED_FIELDS[field])
 
   lines.push(`*Reason:* ${reason || '_none given_'}`)
 
   // `gitCommit` is what a signer re-derives calldata against and `prUrl` is the
   // rationale they read, so those diverging matters more than the prose doing
-  // so. The first version of this flagged only the prose, which is the least
-  // consequential member of the set.
+  // so.
   if (differing.length > 0)
     lines.push(
       `⚠ These differ across the networks in this card and only the first is shown: ${differing.join(
@@ -282,11 +285,13 @@ export const renderProposalCard = (
     )
   }
 
-  // Built separately and appended last, never truncated. It is the only
-  // actionable part of the card, and it sits at the bottom — so a tail-truncated
-  // card lost precisely the thing it exists to deliver. Measured: every
-  // overflowing card dropped the whole review section.
-  const review = ['', '*To review:*']
+  // Built separately and appended last, never truncated: it is the only
+  // actionable part of the card and it sits at the bottom, so a tail cut would
+  // drop precisely the thing the card exists to deliver.
+  // Two blanks, not one: this array is concatenated onto the body rather than
+  // joined with it, so the first entry supplies the separating newline and the
+  // second the blank line that sets the section off.
+  const review = ['', '', '*To review:*']
   // One command per network up to the limit, then a single one — the reviewer
   // runs them one network at a time anyway.
   const commandNetworks =
@@ -308,13 +313,28 @@ export const renderProposalCard = (
   if (card.length <= SLACK_TEXT_LIMIT) return card
 
   // The middle is what goes, so the headline and the commands both survive.
+  // `Math.max` because a negative end makes `slice` cut from the tail instead,
+  // which would return a card longer than the cap rather than a shorter one. The
+  // budget is positive at today's constants, but it goes negative if
+  // NAMED_NETWORK_LIMIT reaches 8 or MAX_FIELD_CHARS reaches ~380.
   let body = lines
     .join('\n')
-    .slice(0, SLACK_TEXT_LIMIT - TRUNCATION_NOTICE.length - reviewText.length)
+    .slice(
+      0,
+      Math.max(
+        0,
+        SLACK_TEXT_LIMIT - TRUNCATION_NOTICE.length - reviewText.length
+      )
+    )
   // A code-unit slice can split a surrogate pair or an `&` entity, either of
   // which renders as garbage rather than as a clean cut.
   if (/[\uD800-\uDBFF]$/.test(body)) body = body.slice(0, -1)
   body = body.replace(/&[a-z]{0,3}$/i, '')
+  // The shortfall line carries a code span, so a cut can land inside it and
+  // leave an unpaired backtick that re-pairs with the review commands below,
+  // rendering each command as prose and the prose between as code.
+  if ((body.match(/`/g) ?? []).length % 2 === 1)
+    body = body.slice(0, body.lastIndexOf('`'))
 
   return `${body}${TRUNCATION_NOTICE}${reviewText}`
 }
