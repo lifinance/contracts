@@ -14,7 +14,10 @@
 import type { Hex } from 'viem'
 
 /** Why a closure could not be computed at an audit commit. */
-export type ClosureResolutionFailure = 'unfetchable' | 'contract-absent'
+export type ClosureResolutionFailure =
+  | 'unfetchable'
+  | 'contract-absent'
+  | 'closure-incomplete'
 
 export interface IAuditEntryInput {
   auditId: string
@@ -131,6 +134,16 @@ export const verifyAuditContent = (
       if (resolved === 'contract-absent') {
         errors.push(
           `audit '${entry.auditId}': ${contract} does not exist at commit ${entry.auditCommitHash}, so that entry cannot describe this contract`
+        )
+        continue
+      }
+
+      // A partial closure would hash confidently over the files it did read, so
+      // this must block rather than compare — the unread files are exactly where
+      // an undetected change would hide.
+      if (resolved === 'closure-incomplete') {
+        errors.push(
+          `audit '${entry.auditId}': the import closure at commit ${entry.auditCommitHash} could not be fully read, so no hash over it can be trusted`
         )
         continue
       }

@@ -259,3 +259,32 @@ describe('verifyAuditContent — errors (T3: blocks like fail, no ack path)', ()
     ).toBe('error')
   })
 })
+
+describe('closure-incomplete', () => {
+  it('ERROR-blocks rather than comparing a partial closure', () => {
+    const result = verifyAuditContent({
+      contract: 'FooFacet',
+      version: '1.0.0',
+      headClosureHash: HEAD,
+      entries: [withCommit({ closureAtAuditCommit: 'closure-incomplete' })],
+    })
+
+    expect(result.verdict).toBe('error')
+    expect(result.reason).toContain('could not be fully read')
+  })
+
+  it('does not veto a different audit that does prove the content', () => {
+    const result = verifyAuditContent({
+      contract: 'FooFacet',
+      version: '1.0.0',
+      headClosureHash: HEAD,
+      entries: [
+        withCommit({ closureAtAuditCommit: 'closure-incomplete' }),
+        withCommit({ auditId: 'audit2', closureAtAuditCommit: HEAD }),
+      ],
+    })
+
+    expect(result.verdict).toBe('pass')
+    expect(result.matchedAuditId).toBe('audit2')
+  })
+})

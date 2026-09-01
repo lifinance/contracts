@@ -8,7 +8,15 @@
 
 import { execFileSync } from 'node:child_process'
 
-import type { ISourceReader } from './source-closure'
+import { consola } from 'consola'
+
+import type { ClosureAtResult } from './audit-gate'
+import {
+  collectSourceClosure,
+  computeSourceClosureHash,
+  parseRemappings,
+  type ISourceReader,
+} from './source-closure'
 
 const run = (args: string[], cwd: string): string =>
   execFileSync('git', args, {
@@ -100,3 +108,38 @@ export const createGitSourceReader = (
     },
   }
 }
+
+/**
+ * Builds the git-backed closure reader the audit gate injects.
+ *
+ * A partial closure is reported as `closure-incomplete` rather than hashed: the
+ * hash would look confident while covering only the files that happened to read,
+ * and the unread ones are exactly where an undetected change would sit.
+ *
+ * @param cwd - repo directory.
+ * @param headTreeish - the tree-ish that is already checked out and needs no fetch.
+ * @returns a `closureAt` implementation for the gate.
+ */
+export const createClosureReader =
+  (cwd: string, headTreeish: string) =>
+  (treeish: string, contractPath: string): ClosureAtResult => {
+    if (treeish !== headTreeish && !ensureCommitAvailable(treeish, cwd))
+      return 'unfetchable'
+
+    const reader = createGitSourceReader(treeish, cwd)
+    if (reader.readFile(contractPath) === undefined) return 'contract-absent'
+
+    const remappings = parseRemappings(reader.readFile('remappings.txt') ?? '')
+    const closure = collectSourceClosure(contractPath, reader, remappings)
+
+    if (closure.missing.length > 0) {
+      consola.warn(
+        `closure at ${treeish} for ${contractPath} could not read: ${closure.missing.join(
+          ', '
+        )}`
+      )
+      return 'closure-incomplete'
+    }
+
+    return computeSourceClosureHash(closure, reader)
+  }
