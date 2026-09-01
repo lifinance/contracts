@@ -42,3 +42,57 @@ invariant must be added, adjusted, or removed. Use this checklist:
 If none of the above applies, no registry change is needed — but the review itself is not
 optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
 JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
+
+## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
+
+Several invariants compare on-chain reality against a _desired_ state that a merged PR
+already records — `_targetState.json` for `facets-registered` and `periphery-registered`, a
+deleted source file for `no-stale-registered-facets`. Between that merge and the multisig
+operation acting on it the two legitimately disagree, and the remediation is "wait", not
+"fix".
+
+Invariants may consult operator intent to resolve that window and report the finding as
+**expected-pending** instead of a failure:
+
+- Additions read the timelock execution queue (`script/deploy/safe/pending-registrations.ts`)
+  and downgrade only when a `queued` operation registers **exactly** the deploy-log address,
+  on **that** network's diamond. The address is matched rather than the contract name — the
+  same lesson as the parked queue (EXSC-750/EXSC-775) — but the address alone is not
+  sufficient: a facet needs a `diamondCut` record, because a registry entry routes no
+  selectors, and a periphery contract needs a `registerPeripheryContract` record carrying
+  **its own** registry name, because binding an address under one name leaves every other
+  name unset. Every record decoded for an address is kept, so a second call for the same
+  address cannot erase the first.
+- Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`), and only while
+  the task is **live** — a claim held with no Safe proposal past `STALE_PARKED_CLAIM_DAYS` is
+  breakage, not progress, and covers nothing.
+
+Know what the addition side does **not** cover, so nobody reads a red network as a bug in the
+invariant:
+
+- A queue row exists only once the Safe transaction executing `scheduleBatch` has been mined,
+  so the multisig **signing** window before it stays red. Only the timelock delay itself
+  (plus execution lag) is covered.
+- A rollout proposed **without** `--timelock` writes no row at all, and so is never downgraded.
+- **Tron** rolls out through `contracts-tron` and has no EVM queue row; it is skipped by branch.
+- A row is honoured only while it is plausibly still waiting. A never-scheduled or
+  directly-cancelled operation is reported and skipped by the execution runner *without* a
+  status change, so it stays `queued` forever; honouring it indefinitely would mask the very
+  never-landed cut these gates exist to catch. Rows past their delay plus a grace window are
+  therefore dropped and report as hard errors.
+
+Two boundaries are not negotiable:
+
+- **Never let intent drive a generator.** A bad queue read, or an operation cancelled later,
+  costs a false alert that self-corrects on the next sweep; the same bad read inside
+  `saveDiamondFacets` leaves a wrong deploy log committed to git with nobody owning the
+  compensating write. Deploy logs stay a pure function of the loupe
+  ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
+- **An unreachable queue must never suppress a finding.** What decides the degradation is
+  what the check is *for*, not its severity — all three are error-severity.
+  `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
+  every finding it could make is noise: it skips and reports the reduced coverage.
+  `facets-registered` and `periphery-registered` stand on an independent on-chain signal, so
+  they keep every error and add a warning naming the degraded coverage — a MongoDB blip
+  turning genuinely missing registrations green is far worse than a false alert during a
+  rollout.
