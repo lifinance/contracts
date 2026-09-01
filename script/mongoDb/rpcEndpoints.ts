@@ -183,3 +183,21 @@ export function buildEnvLines(
       ]
     })
 }
+
+/**
+ * Index of the stored endpoint that `url` refers to within `environment`, or -1.
+ *
+ * URL alone is not an endpoint's identity: the same URL can be stored once per environment, and
+ * matching on it lets one environment's write rewrite another's record. Endpoints predating the
+ * `environment` field count as production, the default the writer has always applied.
+ */
+export function findEndpointIndex(
+  rpcs: IRpcEndpoint[],
+  url: string,
+  environment: string
+): number {
+  return rpcs.findIndex(
+    (rpc) =>
+      rpc.url === url && (rpc.environment ?? 'production') === environment
+  )
+}

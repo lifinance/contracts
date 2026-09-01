@@ -10,6 +10,7 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   buildEnvLines,
+  findEndpointIndex,
   findUncredentialedPrimaries,
   hasApiCredentials,
   hostOf,
@@ -383,5 +384,35 @@ describe('repairOrder with a reachability probe', () => {
       DEAD_KEYED,
       LIVE_KEYLESS,
     ])
+  })
+})
+
+describe('findEndpointIndex', () => {
+  const URL_A = 'https://shared.example.invalid/aaaaaaaaaaaaaaaaaaaaaaaa'
+
+  it('does not let a staging write match the production record', () => {
+    const rpcs: IRpcEndpoint[] = [
+      { url: URL_A, priority: 3, environment: 'production' },
+    ]
+    expect(findEndpointIndex(rpcs, URL_A, 'staging')).toBe(-1)
+  })
+
+  it('matches the record belonging to the requested environment', () => {
+    const rpcs: IRpcEndpoint[] = [
+      { url: URL_A, priority: 3, environment: 'production' },
+      { url: URL_A, priority: 1, environment: 'staging' },
+    ]
+    expect(findEndpointIndex(rpcs, URL_A, 'staging')).toBe(1)
+    expect(findEndpointIndex(rpcs, URL_A, 'production')).toBe(0)
+  })
+
+  it('treats a record predating the environment field as production', () => {
+    const rpcs: IRpcEndpoint[] = [{ url: URL_A, priority: 1 }]
+    expect(findEndpointIndex(rpcs, URL_A, 'production')).toBe(0)
+    expect(findEndpointIndex(rpcs, URL_A, 'staging')).toBe(-1)
+  })
+
+  it('returns -1 for a url the chain does not have', () => {
+    expect(findEndpointIndex([], URL_A, 'production')).toBe(-1)
   })
 })

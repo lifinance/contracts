@@ -6,6 +6,7 @@ import { MongoClient } from 'mongodb'
 import { mongoEq } from '../deploy/shared/mongo-log-utils'
 
 import {
+  findEndpointIndex,
   hasApiCredentials,
   hostOf,
   lowestPriorityFor,
@@ -78,14 +79,10 @@ const main = defineCommand({
         ? existingDoc.rpcs
         : []
 
-      // URL alone is not an endpoint's identity: the same URL can be stored per environment,
-      // and matching on it lets a staging invocation rewrite the production record's environment,
-      // silently removing that endpoint from production. Records predating the field are treated
-      // as production, which is the default the writer has always applied.
-      const existingRpcIndex = existingRpcs.findIndex(
-        (rpc) =>
-          rpc.url === rpcUrl &&
-          (rpc.environment ?? 'production') === environment
+      const existingRpcIndex = findEndpointIndex(
+        existingRpcs,
+        rpcUrl,
+        environment
       )
 
       if (existingRpcIndex !== -1) {
