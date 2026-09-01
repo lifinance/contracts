@@ -102,7 +102,7 @@ All EVM funnels end in `storeTransactionInMongoDB`
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
   `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
   `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
-  (`--ledgerLive true` + `--accountIndex <n>`, or `--derivationPath <path>`; the
+  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`; the
   two path options are refused together, and a non-integer `--accountIndex` is
   refused rather than silently deriving a different address). The signer is
   checked against the Safe's owners before the proposal is stored. The
@@ -287,7 +287,7 @@ or change any. Restoring capability always requires the Safe.
 | `script/deploy/safe/timelock-queue.ts` / `execute-pending-timelock-tx.ts` / `confirm-timelock-execution.ts` / `backfill-timelock-queue.ts` | Timelock queue + executor (`bun execute-timelock`) |
 | `script/deploy/safe/parked-tasks.ts` / `drain-parked-tasks.ts` | Deferred diamond-cleanup queue + drain |
 | `script/deploy/safe/list-pending-proposals.ts` / `list-timelock-queue.ts` / `list-parked-tasks.ts` / `delete-pending-proposals.ts` | Inspection and guarded deletion |
-| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env-key funnel) |
+| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env key or `--ledger`) |
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |

@@ -36,16 +36,17 @@ import {
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isAddressASafeOwner,
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
   normalizeProposalReason,
-  isAddressASafeOwner,
   resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
   type IProposalProvenance,
+  type ISafeSigningOptions,
   type ISafeTransaction,
   type ISafeTxDocument,
   type NonceExecutionDecision,
@@ -1258,8 +1259,7 @@ describe('isAddressASafeOwner', () => {
   it('matches an owner regardless of the casing on either side', () => {
     // The Safe returns checksummed owners while a signer address can arrive in
     // any casing, so a case-sensitive compare would reject a real owner and
-    // block the proposal — the same casing trap that made the in-flight nonce
-    // collide (EXSC-874 D3).
+    // block the proposal.
     expect(isAddressASafeOwner([OWNER], OWNER.toLowerCase() as Address)).toBe(
       true
     )
@@ -1293,8 +1293,6 @@ describe('resolveSafeSigningOptions', () => {
   })
 
   it("names the caller's env variable in the no-key error", () => {
-    // Hardcoding one variable name would misdirect any caller reading a
-    // different one.
     expect(() =>
       resolveSafeSigningOptions({ envPrivateKeyName: 'PRIVATE_KEY_SOMETHING' })
     ).toThrow(/PRIVATE_KEY_SOMETHING/)
@@ -1382,11 +1380,17 @@ describe('resolveSafeSigningOptions', () => {
   // (m/44'/60'/0/0, one element short and non-hardened), 3.7 truncates to 3 and
   // -1 wraps to 2147483647. Each derives a different, valid-looking address with
   // no error anywhere, so the refusal has to happen here.
+  //
+  // Every value below is one citty actually hands back for the corresponding
+  // spelling: `--accountIndex abc` → 'abc', `--accountIndex ""` → '', and
+  // `--account-index=` → boolean true.
   it.each([
     ['non-numeric', 'abc'],
     ['fractional', '3.7'],
     ['negative', '-1'],
     ['empty', ''],
+    ['whitespace-only', '  '],
+    ['valueless kebab spelling', true],
   ])(
     'refuses a %s accountIndex rather than deriving a different address',
     (_label, value) => {
@@ -1394,11 +1398,17 @@ describe('resolveSafeSigningOptions', () => {
         resolveSafeSigningOptions({
           ledger: true,
           ledgerLive: true,
-          accountIndex: value as unknown as number,
+          accountIndex: value as ISafeSigningOptions['accountIndex'],
         })
       ).toThrow(/accountIndex must be a non-negative integer/)
     }
   )
+
+  it('reports the value the operator passed, not a coerced one', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 'abc' })
+    ).toThrow(/got 'abc'/)
+  })
 
   it('still refuses a bad accountIndex when no ledger was selected', () => {
     // The sub-options are unused on the key path, but accepting a malformed one
@@ -1406,7 +1416,7 @@ describe('resolveSafeSigningOptions', () => {
     expect(() =>
       resolveSafeSigningOptions({
         envPrivateKey: 'abc123',
-        accountIndex: 'abc' as unknown as number,
+        accountIndex: 'abc',
       })
     ).toThrow(/accountIndex must be a non-negative integer/)
   })

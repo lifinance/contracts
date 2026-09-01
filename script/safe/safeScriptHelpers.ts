@@ -42,12 +42,10 @@ export async function sendOrPropose({
   diamondAddress: string
   /**
    * Ledger flags for the Safe-proposal path; the direct-send path broadcasts
-   * with the environment key and warns if a Ledger was asked for. Required, not
-   * optional-with-a-default, so a new call site cannot silently omit it and fall
-   * back to key-only signing.
+   * with the environment key and warns if a Ledger was asked for.
    */
   signing: Omit<ISafeSigningOptions, 'envPrivateKey' | 'envPrivateKeyName'>
-}) {
+}): Promise<void> {
   const isProd = environment === EnvironmentEnum.production
   const isTestnet = isTestnetNetwork(network)
   const sendDirectly =
@@ -125,9 +123,8 @@ export async function sendOrPropose({
     ledgerOptions
   )
 
-  // Every other TS proposal funnel checks this. Without it a proposal signed by
-  // a non-owner is stored and occupies a nonce, failing only at execution time —
-  // and an operator-selected Ledger can now derive an unexpected address here.
+  // A proposal signed by a non-owner is still stored and still occupies a Safe
+  // nonce, failing only at execution time, so check ownership before storing.
   const signerAddress = safe.account.address
   const owners = await safe.getOwners()
   if (!isAddressASafeOwner(owners, signerAddress))

@@ -178,9 +178,9 @@ const command = defineCommand({
       description:
         'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION',
     },
-    // No `default` on these: citty leaves the spelling the caller did NOT use
-    // resolved to the arg's default, so a default here would shadow a passed
-    // value on whichever of the two keys is read second.
+    // No `default` on these: citty applies a default to the registered
+    // camelCase key even when the caller typed the kebab spelling, so a default
+    // would shadow a kebab-typed value for anything reading the camelCase key.
     ledgerLive: {
       type: 'boolean',
       description: 'Use the Ledger Live derivation path for --accountIndex',
@@ -235,7 +235,13 @@ const command = defineCommand({
     const signing: SigningFlags = {
       ledger: asFlag(raw.ledger),
       ledgerLive: asFlag(raw['ledger-live'] ?? raw.ledgerLive),
-      accountIndex: Number(raw['account-index'] ?? raw.accountIndex ?? 0),
+      // Forwarded unconverted: `Number('')` is 0, so coercing here would turn
+      // `--accountIndex "$UNSET_VAR"` into account 0 before the validation in
+      // resolveSafeSigningOptions can refuse it.
+      accountIndex: (raw['account-index'] ?? raw.accountIndex) as
+        | number
+        | string
+        | undefined,
       derivationPath: (raw['derivation-path'] ?? raw.derivationPath) as
         | string
         | undefined,
@@ -658,8 +664,7 @@ function assertGovernedProductionRemoval(
 
 /**
  * How the operator chose to sign, forwarded unchanged from the CLI down to
- * {@link sendOrPropose}. Required at every hop so a new removal path cannot
- * quietly fall back to key-only signing.
+ * {@link sendOrPropose}.
  */
 type SigningFlags = Omit<
   ISafeSigningOptions,

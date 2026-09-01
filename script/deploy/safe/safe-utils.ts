@@ -2058,7 +2058,8 @@ export interface ISafeSigningOptions {
   ledger?: boolean
   /** Use Ledger Live's derivation path for `accountIndex`. */
   ledgerLive?: boolean
-  accountIndex?: number
+  /** Accepted as a string so a CLI value reaches the validation below unaltered. */
+  accountIndex?: number | string
   /** Explicit derivation path; mutually exclusive with `ledgerLive`. */
   derivationPath?: string
   /** The key to fall back on when no Ledger is requested. */
@@ -2110,11 +2111,17 @@ export const resolveSafeSigningOptions = (
       } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
     )
 
-  // An empty string Numbers to 0, so `--accountIndex "$UNSET_VAR"` would sign
-  // from account 0 instead of the index the caller meant to pass.
+  // Only a number or a numeric string counts. Everything else a CLI can deliver
+  // for this flag passes `Number()` as a valid-looking index: an empty string
+  // (`--accountIndex "$UNSET_VAR"`) becomes 0, and a valueless kebab spelling
+  // (`--account-index=`) arrives as boolean `true` and becomes 1.
   const rawAccountIndex = options.accountIndex ?? 0
   const accountIndex =
-    String(rawAccountIndex).trim() === '' ? NaN : Number(rawAccountIndex)
+    typeof rawAccountIndex === 'number'
+      ? rawAccountIndex
+      : typeof rawAccountIndex === 'string' && rawAccountIndex.trim() !== ''
+      ? Number(rawAccountIndex)
+      : NaN
   if (!Number.isInteger(accountIndex) || accountIndex < 0)
     throw new Error(
       `accountIndex must be a non-negative integer, got '${String(
