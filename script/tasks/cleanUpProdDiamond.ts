@@ -35,6 +35,7 @@ import {
   type INamedRemovalResult,
   type IRemovalDiff,
 } from '../deploy/safe/diamondRemovalDiff'
+import { assertLedgerProposesOnce as assertProposesOnce } from '../deploy/safe/ledger-guards'
 import {
   wrapWithTimelockSchedule,
   type ISafeSigningOptions,
@@ -249,23 +250,8 @@ const command = defineCommand({
       }),
     }
 
-    /**
-     * Refuses a Ledger run that would propose more than once.
-     *
-     * `initializeSafeClient` keeps the Ledger account and discards its HID
-     * transport, so `closeLedgerConnection` can never reach it: each proposal in
-     * a run opens another transport that is never closed, and asks for its own
-     * device confirmation.
-     *
-     * @param count - How many proposals the chosen mode will create.
-     * @param what - Named in the error so the operator knows which flag to split.
-     */
-    const assertLedgerProposesOnce = (count: number, what: string): void => {
-      if (signing.ledger && count > 1)
-        throw new Error(
-          `--ledger cannot be combined with ${what} (${count} proposals): each proposal opens its own Ledger connection and asks for its own confirmation. Run them one at a time.`
-        )
-    }
+    const assertLedgerProposesOnce = (count: number, what: string): void =>
+      assertProposesOnce(count, signing.ledger === true, what)
 
     let calldata: `0x${string}`
 
