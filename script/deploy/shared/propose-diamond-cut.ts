@@ -104,8 +104,11 @@ export async function encodeDiamondCutCalldata(
  * Applies the production deploy gate to a cut about to be proposed.
  *
  * The bash path is gated in `script/tasks/diamondUpdateFacet.sh`; this funnel is the
- * only other way a facet cut reaches a production Safe, so gating it here rather than
- * in each caller means a new caller is covered without anyone remembering to add it.
+ * only other way a facet *addition* reaches a production Safe, so gating it here rather
+ * than in each caller means a new caller is covered without anyone remembering to add
+ * it. Removals (`cleanUpProdDiamond.ts`, the deferred-cleanup drain) propose diamond
+ * cuts too but install no new bytecode, so a main-equivalence check has nothing to
+ * compare and they are deliberately out of scope.
  * @param facetName - facet whose closure is compared against `origin/main`
  * @param network - target network, used to exempt testnets
  * @throws If the gate rejects the deploy

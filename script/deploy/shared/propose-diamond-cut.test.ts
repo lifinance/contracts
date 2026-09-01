@@ -70,6 +70,14 @@ function makeRepo(diverge: boolean): string {
   run('commit', '-m', 'merged state', '--no-gpg-sign')
   run('push', '-q', 'origin', 'main')
 
+  // a real forge artifact, so the encoder would succeed if it were ever reached - without
+  // it the "gate runs before anything is encoded" assertion could never fail
+  mkdirSync(join(repoRoot, `out/${FACET}.sol`), { recursive: true })
+  writeFileSync(
+    join(repoRoot, `out/${FACET}.sol/${FACET}.json`),
+    JSON.stringify({ methodIdentifiers: { 'swap(uint256)': 'aabbccdd' } })
+  )
+
   if (diverge)
     writeFileSync(
       join(repoRoot, FACET_PATH),
@@ -88,7 +96,7 @@ function runProbe(options: {
   diverge: boolean
   network: string
   production: string
-}): string {
+}): { marker: string; encoded: boolean } {
   const repoRoot = makeRepo(options.diverge)
   const probe = join(repoRoot, 'probe.ts')
   writeFileSync(probe, PROBE)
@@ -101,21 +109,35 @@ function runProbe(options: {
     env: { ...process.env, PRODUCTION: options.production },
   })
 
-  return /GATE_(BLOCKED|PASSED|NOT_REACHED)/.exec(result.stdout)?.[0] ?? ''
+  const output = `${result.stdout}${result.stderr}`
+
+  return {
+    marker: /GATE_(BLOCKED|PASSED|NOT_REACHED)/.exec(output)?.[0] ?? '',
+    // encodeDiamondCutCalldata announces itself, so this proves whether anything was
+    // encoded - without it, "the gate runs first" only holds because the fixture has
+    // no forge artifact for the encoder to find
+    encoded: output.includes('Encoding diamondCut'),
+  }
 }
 
 describe('proposeDiamondCut deploy gate', () => {
-  // this funnel is the only path by which a Tron facet cut reaches a production Safe,
-  // and it used to propose with no comparison against main at all
+  // this funnel is the only path by which a Tron facet addition reaches a production
+  // Safe, and it used to propose with no comparison against main at all
   it('blocks a production cut whose facet diverges from origin/main', () => {
-    expect(
-      runProbe({ diverge: true, network: 'tron', production: 'true' })
-    ).toBe('GATE_BLOCKED')
+    const result = runProbe({
+      diverge: true,
+      network: 'tron',
+      production: 'true',
+    })
+
+    expect(result.marker).toBe('GATE_BLOCKED')
+    // the gate has to run before the cut is encoded, not merely before it is proposed
+    expect(result.encoded).toBe(false)
   })
 
   it('allows a production cut whose facet matches origin/main', () => {
     expect(
-      runProbe({ diverge: false, network: 'tron', production: 'true' })
+      runProbe({ diverge: false, network: 'tron', production: 'true' }).marker
     ).toBe('GATE_PASSED')
   })
 
@@ -124,6 +146,8 @@ describe('proposeDiamondCut deploy gate', () => {
     ['tronshasta', 'true', 'a testnet'],
     ['tron', 'false', 'staging'],
   ])('skips the gate on %s with PRODUCTION=%s (%s)', (network, production) => {
-    expect(runProbe({ diverge: true, network, production })).toBe('GATE_PASSED')
+    expect(runProbe({ diverge: true, network, production }).marker).toBe(
+      'GATE_PASSED'
+    )
   })
 })

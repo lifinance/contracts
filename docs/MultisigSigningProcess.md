@@ -138,12 +138,21 @@ review check, and it does not wrap the other `propose-to-safe` entry points:
 `diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh` are ungated.
 
 The same gate is applied a second time in `proposeDiamondCut`
-(`script/deploy/shared/propose-diamond-cut.ts`), the funnel every Tron
-`deploy-and-register-*.ts` facet registration routes through. Gating the funnel
-rather than each script means a future caller is covered without anyone
-remembering to add it; the exemptions match the bash path (staging, and any
-network whose `config/networks.json` type is `testnet`, which is how
-`tronshasta` stays open).
+(`script/deploy/shared/propose-diamond-cut.ts`), the funnel the six Tron
+`deploy-and-register-*-facet.ts` scripts route through (note
+`deploy-and-register-periphery.ts` does **not** — it calls `runPropose`
+directly). Gating the funnel rather than each script means a future caller is
+covered without anyone remembering to add it; the exemptions match the bash path
+(staging, and any network whose `config/networks.json` type is `testnet`, which
+is how `tronshasta` stays open).
+
+Facet **removals** are deliberately outside both gates: `cleanUpProdDiamond.ts`
+and the deferred-cleanup drain (`drain-parked-tasks.ts`, which folds extra
+removal calls into whatever proposal `runPropose` is already building) propose
+real diamond cuts, but a removal installs no new bytecode, so a
+main-equivalence check has nothing to compare. Their safety comes from the
+removal-specific controls in the table below. The generic bash `sendOrPropose`
+chokepoint can likewise propose arbitrary calldata and is not gated.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -231,7 +240,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet cuts via `diamondUpdateFacet` and `proposeDiamondCut` — not periphery or emergency pause) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` (PR #2128, #2286) |
+| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` (PR #2128, #2286) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
