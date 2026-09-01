@@ -63,26 +63,38 @@ export function getTransportConfigFromRpcUrl(rpcUrl: string): {
 } {
   let base: { url: string; fetchOptions?: { headers: Record<string, string> } }
 
+  // Only the parse is guarded: a catch around the whole block would swallow the credential
+  // check below and hand the raw URL back, which is the outcome that check exists to prevent.
+  let url: URL | undefined
   try {
-    const url = new URL(rpcUrl)
-    if (!url.username) base = { url: rpcUrl }
-    else {
-      const cleanUrl = `${url.protocol}//${url.hostname}${
-        url.port ? `:${url.port}` : ''
-      }${url.pathname}${url.search}`
-      const encoded = Buffer.from(
-        `${decodeURIComponent(url.username)}:${decodeURIComponent(
-          url.password || ''
-        )}`,
-        'utf8'
-      ).toString('base64')
-      base = {
-        url: cleanUrl,
-        fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
-      }
-    }
+    url = new URL(rpcUrl)
   } catch {
-    base = { url: rpcUrl }
+    url = undefined
+  }
+
+  if (!url?.username) base = { url: rpcUrl }
+  else {
+    // Embedded credentials become an Authorization header; over cleartext http that header
+    // crosses the wire in the clear, so refuse rather than downgrade silently.
+    if (url.protocol !== 'https:')
+      throw new Error(
+        `RPC URL for ${
+          url.host
+        } carries credentials over ${url.protocol.replace(':', '')}; use https`
+      )
+    const cleanUrl = `${url.protocol}//${url.hostname}${
+      url.port ? `:${url.port}` : ''
+    }${url.pathname}${url.search}`
+    const encoded = Buffer.from(
+      `${decodeURIComponent(url.username)}:${decodeURIComponent(
+        url.password || ''
+      )}`,
+      'utf8'
+    ).toString('base64')
+    base = {
+      url: cleanUrl,
+      fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
+    }
   }
 
   return applyTronGridViemTransportExtras(base)

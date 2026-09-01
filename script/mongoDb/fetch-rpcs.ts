@@ -82,6 +82,13 @@ async function mergeEndpointsIntoEnv(environment: string) {
     try {
       newEndpoints = await fetchRpcEndpoints(environment)
     } catch (error) {
+      // networks.json holds a single public URL per network with no environment split, so it can
+      // only stand in for production. Answering a staging request with production endpoints would
+      // be a silent wrong-environment success.
+      if (environment !== 'production')
+        throw new Error(
+          `MongoDB is unavailable and the networks.json fallback only covers production, not '${environment}'`
+        )
       consola.warn(
         'Failed to fetch from MongoDB, falling back to networks.json:',
         error

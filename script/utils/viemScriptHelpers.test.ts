@@ -14,6 +14,7 @@ import { EnvironmentEnum } from '../common/types'
 
 import {
   buildExplorerContractPageUrl,
+  getTransportConfigFromRpcUrl,
   getDeployLogFile,
   isTestnetNetwork,
 } from './viemScriptHelpers'
@@ -99,5 +100,29 @@ describe('getDeployLogFile path guard', () => {
   it('reads a real production deploy log', () => {
     const log = getDeployLogFile('mainnet', EnvironmentEnum.production)
     expect(log.LiFiDiamond).toMatch(/^0x[0-9a-fA-F]{40}$/)
+  })
+})
+
+describe('getTransportConfigFromRpcUrl', () => {
+  it('turns embedded https credentials into a basic auth header', () => {
+    const config = getTransportConfigFromRpcUrl(
+      'https://user:pass@rpc.example.invalid/'
+    )
+    expect(config.url).toBe('https://rpc.example.invalid/')
+    expect(config.fetchOptions?.headers?.Authorization).toBe(
+      `Basic ${Buffer.from('user:pass', 'utf8').toString('base64')}`
+    )
+  })
+
+  it('refuses to send credentials over cleartext http', () => {
+    expect(() =>
+      getTransportConfigFromRpcUrl('http://user:pass@rpc.example.invalid/')
+    ).toThrow(/credentials over http/)
+  })
+
+  it('leaves a credential-free http url alone', () => {
+    expect(
+      getTransportConfigFromRpcUrl('http://node.example.invalid:8545').url
+    ).toBe('http://node.example.invalid:8545')
   })
 })
