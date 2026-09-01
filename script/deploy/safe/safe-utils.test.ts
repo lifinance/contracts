@@ -9,9 +9,16 @@
  * partial-unique-index semantics: duplicate PENDING rejected (E11000 -> null,
  * no throw), re-create after EXECUTED/REVERTED allowed, and non-duplicate
  * errors propagated.
+ *
+ * Also covers the nonce-execution gate (EXSC-690): `canExecuteWithNonceStatus`
+ * decides whether a pending proposal may be broadcast given where its nonce sits
+ * relative to the Safe's expected nonce, and `isFutureNonceExecutionAllowed`
+ * reads the operator escape hatch that the gate consults for the future case.
  */
 
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
@@ -21,17 +28,24 @@ import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import { type Address, type Hex } from 'viem'
 
 import {
+  buildProposalProvenance,
+  canExecuteWithNonceStatus,
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
+  normalizeProposalReason,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
   OperationTypeEnum,
+  type IProposalProvenance,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type NonceExecutionDecision,
+  type SafeNonceStatus,
 } from './safe-utils'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
@@ -105,9 +119,24 @@ function createFakeCollection(
   }
 }
 
+/**
+ * Frozen provenance handed to every `store()` call. Without an override the
+ * storage funnel captures ambient git state, which would make this suite spawn
+ * subprocesses and assert against whatever checkout it happens to run in.
+ */
+const FIXED_PROVENANCE: IProposalProvenance = {
+  actor: 'human',
+  proposerHandle: 'Test User <test@example.com>',
+  gitCommit: 'a'.repeat(40),
+  gitBranch: 'test-branch',
+  dirtyTreeScoped: [],
+  capturedAt: '2026-01-01T00:00:00.000Z',
+}
+
 async function store(
   collection: Collection<ISafeTxDocument>,
-  safeTx: ISafeTransaction
+  safeTx: ISafeTransaction,
+  provenance: IProposalProvenance = FIXED_PROVENANCE
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -116,7 +145,9 @@ async function store(
     CHAIN_ID,
     safeTx,
     ('0x' + 'ab'.repeat(32)) as Hex,
-    PROPOSER
+    PROPOSER,
+    undefined,
+    { override: provenance }
   )
 }
 
@@ -280,6 +311,236 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
     expect(thrown).toBeInstanceOf(Error)
     expect((thrown as Error).message).toEqual('connection reset')
     expect(collection.rows).toHaveLength(0)
+  })
+})
+
+/**
+ * Tests for provenance capture at the storage funnel (EXSC-692). Everything
+ * here drives the `override` seam so no test spawns `git`; ambient capture
+ * itself is covered in `script/deploy/shared/git-provenance.test.ts`.
+ */
+describe('storeTransactionInMongoDB — provenance', () => {
+  const originalReason = process.env.SAFE_PROPOSAL_REASON
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_REASON
+  })
+
+  afterEach(() => {
+    if (originalReason === undefined) delete process.env.SAFE_PROPOSAL_REASON
+    else process.env.SAFE_PROPOSAL_REASON = originalReason
+  })
+
+  it('writes the provenance block onto the stored row', async () => {
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx())
+
+    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+  })
+
+  it('keeps provenance out of the intent hash', async () => {
+    const collection = createFakeCollection()
+
+    const first = await store(collection, buildSafeTx())
+    const second = await store(collection, buildSafeTx(), {
+      ...FIXED_PROVENANCE,
+      gitCommit: 'b'.repeat(40),
+      gitBranch: 'another-branch',
+    })
+
+    // Same transaction, different provenance: still one pending proposal.
+    expect(first).not.toBeNull()
+    expect(second).toBeNull()
+    expect(collection.rows).toHaveLength(1)
+  })
+
+  it('captures once for a retried insert rather than per attempt', async () => {
+    let attempts = 0
+    const rows: ISafeTxDocument[] = []
+    const flaky = {
+      async insertOne(doc: ISafeTxDocument): Promise<InsertOneResult> {
+        attempts++
+        if (attempts < 3) throw new Error('connection reset')
+        rows.push({ ...doc })
+        return {
+          acknowledged: true,
+          insertedId: rows.length,
+        } as unknown as InsertOneResult
+      },
+    } as unknown as Collection<ISafeTxDocument>
+
+    await store(flaky, buildSafeTx())
+
+    expect(attempts).toBe(3)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.provenance?.capturedAt).toBe(FIXED_PROVENANCE.capturedAt)
+  })
+
+  it('stores a Tron-shaped document, which has a hand-built safeTx', async () => {
+    const collection = createFakeCollection()
+    // The Tron route casts a plain object into ISafeTransaction; capture must
+    // not read safeTx, so this must still store cleanly.
+    const tronSafeTx = {
+      data: {
+        to: TARGET,
+        value: 0n,
+        data: '0xdeadbeef' as Hex,
+        operation: OperationTypeEnum.Call,
+        nonce: 3n,
+      },
+      signatures: {},
+    } as unknown as ISafeTransaction
+
+    const result = await store(collection, tronSafeTx)
+
+    expect(result).not.toBeNull()
+    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+  })
+})
+
+describe('buildProposalProvenance', () => {
+  const originalReason = process.env.SAFE_PROPOSAL_REASON
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_REASON
+  })
+
+  afterEach(() => {
+    if (originalReason === undefined) delete process.env.SAFE_PROPOSAL_REASON
+    else process.env.SAFE_PROPOSAL_REASON = originalReason
+  })
+
+  it('returns the override untouched when no reason is supplied', () => {
+    expect(buildProposalProvenance({ override: FIXED_PROVENANCE })).toEqual(
+      FIXED_PROVENANCE
+    )
+  })
+
+  it('folds an explicit reason onto a block that has none', () => {
+    expect(
+      buildProposalProvenance({
+        override: FIXED_PROVENANCE,
+        reason: '  sync   whitelist  ',
+      }).reason
+    ).toBe('sync whitelist')
+  })
+
+  it('falls back to SAFE_PROPOSAL_REASON when no reason is passed', () => {
+    process.env.SAFE_PROPOSAL_REASON = 'whitelist sync stage 4c'
+
+    expect(buildProposalProvenance({ override: FIXED_PROVENANCE }).reason).toBe(
+      'whitelist sync stage 4c'
+    )
+  })
+
+  it('prefers an explicit reason over the environment', () => {
+    process.env.SAFE_PROPOSAL_REASON = 'from env'
+
+    expect(
+      buildProposalProvenance({
+        override: FIXED_PROVENANCE,
+        reason: 'from caller',
+      }).reason
+    ).toBe('from caller')
+  })
+
+  it('never overwrites a reason the block already carries', () => {
+    expect(
+      buildProposalProvenance({
+        override: { ...FIXED_PROVENANCE, reason: 'already recorded' },
+        reason: 'late arrival',
+      }).reason
+    ).toBe('already recorded')
+  })
+
+  it('omits the reason key entirely when there is nothing to record', () => {
+    process.env.SAFE_PROPOSAL_REASON = '   '
+
+    const provenance = buildProposalProvenance({ override: FIXED_PROVENANCE })
+
+    expect('reason' in provenance).toBe(false)
+  })
+
+  it('returns a copy so the caller cannot mutate the stored arrays', () => {
+    const override: IProposalProvenance = {
+      ...FIXED_PROVENANCE,
+      dirtyTreeScoped: ['src/Facets/Foo.sol'],
+    }
+
+    const stored = buildProposalProvenance({ override })
+    stored.dirtyTreeScoped.push('injected')
+
+    expect(override.dirtyTreeScoped).toEqual(['src/Facets/Foo.sol'])
+  })
+
+  it('sanitizes override fields so the seam cannot store raw controls', () => {
+    const esc = String.fromCharCode(27)
+    const stored = buildProposalProvenance({
+      override: {
+        ...FIXED_PROVENANCE,
+        proposerHandle: `Mallory${esc}[2J`,
+        gitBranch: `feat/x${esc}`,
+      },
+    })
+
+    expect(stored.proposerHandle).toBe('Mallory[2J')
+    expect(stored.gitBranch).toBe('feat/x')
+    expect(stored.proposerHandle).not.toContain(esc)
+  })
+})
+
+describe('normalizeProposalReason', () => {
+  it('collapses whitespace and trims', () => {
+    expect(normalizeProposalReason('  add \n  AcrossFacetV4  ')).toBe(
+      'add AcrossFacetV4'
+    )
+  })
+
+  it('treats empty and whitespace-only input as absent', () => {
+    expect(normalizeProposalReason(undefined)).toBeUndefined()
+    expect(normalizeProposalReason('')).toBeUndefined()
+    expect(normalizeProposalReason('   \t ')).toBeUndefined()
+  })
+
+  it('caps an over-long rationale', () => {
+    const normalized = normalizeProposalReason('x'.repeat(500))
+    expect(normalized).toHaveLength(200)
+  })
+
+  // A rationale is proposer-supplied and is rendered into the signing prompt a
+  // human reads before approving, so terminal control characters must never
+  // survive normalization: they can repaint or erase the prompt around them.
+  it('strips control characters a proposer could use to repaint the prompt', () => {
+    const esc = String.fromCharCode(27)
+    const normalized = normalizeProposalReason(
+      `add Facet${esc}[2K${esc}[1;32m VERIFIED${esc}[0m`
+    )
+
+    expect(normalized).toBe('add Facet[2K[1;32m VERIFIED[0m')
+    expect(normalized).not.toContain(esc)
+  })
+
+  // The reason is also the field most likely to be read straight off a Mongo
+  // dump, so the same three capabilities denied in the display path — repaint,
+  // reverse, forge a line — have to be denied here at write time too.
+  it('strips bidi overrides and line separators, not only Cc controls', () => {
+    const RLO = '\u202e'
+    const LSEP = '\u2028'
+
+    const normalized = normalizeProposalReason(
+      `whitelist${RLO} update${LSEP}    Working tree:    clean`
+    )
+
+    expect(normalized).not.toContain(RLO)
+    expect(normalized).not.toContain(LSEP)
+    expect(normalized).toBe('whitelist update Working tree: clean')
+  })
+
+  it('keeps legitimate non-ASCII text intact', () => {
+    expect(normalizeProposalReason('déployer 日本語 — naïve 👨‍👩‍👧')).toBe(
+      'déployer 日本語 — naïve 👨‍👩‍👧'
+    )
   })
 })
 
@@ -537,6 +798,47 @@ describe('safeTxStatusConsumedNonce', () => {
   it('returns false for submitted (unknown outcome) and pending', () => {
     expect(safeTxStatusConsumedNonce('submitted')).toBe(false)
     expect(safeTxStatusConsumedNonce('pending')).toBe(false)
+  })
+})
+
+describe('canExecuteWithNonceStatus', () => {
+  it.each([
+    ['stale', false, { canExecute: false, reason: 'stale-nonce' }],
+    ['stale', true, { canExecute: false, reason: 'stale-nonce' }],
+    ['future', false, { canExecute: false, reason: 'future-nonce' }],
+    ['future', true, { canExecute: true, reason: 'future-nonce-override' }],
+    ['current', false, { canExecute: true, reason: 'nonce-current' }],
+    ['current', true, { canExecute: true, reason: 'nonce-current' }],
+  ] as [SafeNonceStatus, boolean, NonceExecutionDecision][])(
+    '%s nonce with allowFutureNonce=%j => %j',
+    (status, allowFutureNonce, expected) => {
+      expect(canExecuteWithNonceStatus(status, { allowFutureNonce })).toEqual(
+        expected
+      )
+    }
+  )
+})
+
+describe('isFutureNonceExecutionAllowed', () => {
+  const original = process.env.ALLOW_FUTURE_NONCE_EXECUTION
+  afterEach(() => {
+    if (original === undefined) delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    else process.env.ALLOW_FUTURE_NONCE_EXECUTION = original
+  })
+
+  it('is true only when ALLOW_FUTURE_NONCE_EXECUTION === "true"', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = 'true'
+    expect(isFutureNonceExecutionAllowed()).toBe(true)
+  })
+
+  it('is false when unset', () => {
+    delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
+  })
+
+  it('is false for any other value', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = '1'
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
   })
 })
 

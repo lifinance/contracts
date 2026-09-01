@@ -945,10 +945,13 @@ async function processNetwork(
         if (isInteractive)
           consola.info(`[${network.name}] Operation ${operation.id}: ${result}`)
 
-        // Track statistics
+        // Track statistics. An inconclusive dry run counts as a failure, not a
+        // success: gas estimation failed, so the real run would refuse to
+        // broadcast, and a green summary would contradict it.
         operationsProcessed++
         if (result === 'executed') operationsSucceeded++
-        else if (result === 'failed') operationsFailed++
+        else if (result === 'failed' || result === 'inconclusive')
+          operationsFailed++
         else if (result === 'rejected') operationsRejected++
         else if (result === 'skipped') operationsSkipped++
       }
@@ -1661,7 +1664,7 @@ async function executeOperation(
   slackNotifier?: SlackNotifier,
   chainId?: number,
   network?: string
-): Promise<'executed' | 'rejected' | 'skipped' | 'failed'> {
+): Promise<'executed' | 'rejected' | 'skipped' | 'failed' | 'inconclusive'> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
   const callCount = operation.targets.length
   const primaryTarget = operation.targets[0]
@@ -1780,14 +1783,27 @@ async function executeOperation(
         ],
       })
 
-      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
-        to: timelockAddress,
-        data: callData,
-      })
+      const { estimatedResource, resourceLabel, estimateFailed } =
+        await chainCaller.simulate({
+          to: timelockAddress,
+          data: callData,
+        })
 
       consola.info(
-        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}`
+        `${networkPrefix}    Estimated ${resourceLabel}: ${estimatedResource}${
+          estimateFailed ? ' (fallback — estimation failed)' : ''
+        }`
       )
+      // A fallback figure must not read as a green simulation: the same failure
+      // makes the executing path refuse to broadcast. Returned as a distinct
+      // status, not just logged, so the per-network tally, the Slack summary and
+      // the exit code all dissent too.
+      if (estimateFailed) {
+        consola.warn(
+          `${networkPrefix} ⚠️  [DRY RUN] Simulation INCONCLUSIVE — ${resourceLabel} estimation failed, so the real run would refuse to broadcast`
+        )
+        return 'inconclusive'
+      }
       consola.success(
         `${networkPrefix} ✅ [DRY RUN] Transaction simulation successful`
       )
@@ -1965,13 +1981,22 @@ async function rejectOperation(
         args: [operation.id],
       })
 
-      const { estimatedResource, resourceLabel } = await chainCaller.simulate({
-        to: timelockAddress,
-        data: cancelCalldata,
-      })
+      const { estimatedResource, resourceLabel, estimateFailed } =
+        await chainCaller.simulate({
+          to: timelockAddress,
+          data: cancelCalldata,
+        })
 
-      consola.info(`   Estimated ${resourceLabel}: ${estimatedResource}`)
-      consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
+      consola.info(
+        `   Estimated ${resourceLabel}: ${estimatedResource}${
+          estimateFailed ? ' (fallback — estimation failed)' : ''
+        }`
+      )
+      if (estimateFailed)
+        consola.warn(
+          `⚠️  [DRY RUN] Cancellation simulation INCONCLUSIVE — ${resourceLabel} estimation failed, so the real run would refuse to broadcast`
+        )
+      else consola.success(`✅ [DRY RUN] Cancellation simulation successful`)
       return 'rejected'
     } else {
       // Send the actual cancellation transaction

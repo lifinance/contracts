@@ -126,15 +126,17 @@ the source prompt or inferred, **not** confirmed.
    `getTimelockQueueCollection()` (`script/deploy/safe/timelock-queue.ts:37,40,115-122`).
    The parked-tasks store mirrors **this queue sibling** — not the signing store — so it
    needs no tunnel (§5).
-6. `[code]` `ISafeTxDocument` (`safe-utils.ts:112-124`) is **purely structural**:
-   `safeAddress, network, chainId, safeTx, safeTxHash, proposer, timestamp, status,
-   executionHash?, submittedAt?, intentHash?`. **No** description / label / note /
-   URL field. The signer's view is built from it: `confirm-safe-tx.ts` shows an
+6. `[code]` `ISafeTxDocument` (`safe-utils.ts:112-124`) is **almost entirely
+   structural**: `safeAddress, network, chainId, safeTx, safeTxHash, proposer,
+   timestamp, status, executionHash?, submittedAt?, intentHash?, parkedTaskRefs?,
+   provenance?`. The only free text is the optional `provenance.reason` (plus the
+   `prUrl` links on `provenance` and `parkedTaskRefs`); there is still **no** general
+   description / label / note field. The signer's view is built from it: `confirm-safe-tx.ts` shows an
    ABI-decode block (via `formatDecodedTxDataForDisplay`, mandated single entry point
    — `.agents/rules/201-safe-decode-scripts.md:12`) plus a plain-string
    `detailLines` "Safe Transaction Details" block (`confirm-safe-tx.ts:497-512`).
    `list-pending-proposals.ts` prints `IProposalSummary` (`safe-utils.ts:139-153`).
-   None carry free text today.
+   Apart from the provenance rationale, none carry free text.
 7. `[code]` Proposal `status` is a 4-state machine `pending | submitted | executed |
    reverted` (`safe-utils.ts:110`, lifecycle doc `:97-109`). Inserted as `pending`
    (`:1291`); transitioned by `confirm-safe-tx.ts:239-253` and the reconcile sweeps
@@ -563,8 +565,9 @@ removal" problem just moves up one level (the signer now sees a mystery `diamond
 instead of a mystery deprecation). So the drain both `consola`-logs each removal it adds
 (facet + origin PR) at mint time, and threads the PR link onto the minted proposal.
 
-`ISafeTxDocument` has no free-text field (Fact 6), so the drain-minted proposal is
-extended with **one optional field** and surfaced at the three places the reviewer looks
+`ISafeTxDocument` carried no field for a cleanup origin link before this spec (Fact 6 now
+lists the `parkedTaskRefs?` it adds), so the drain-minted proposal is extended with **one
+optional field** and surfaced at the three places the reviewer looks
 — none of which touch the rule-201 decode formatter (the field-vs-side-car choice itself
 is §14 Q3):
 
