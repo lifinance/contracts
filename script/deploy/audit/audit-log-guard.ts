@@ -23,6 +23,7 @@ export interface IAuditLogFile {
 
 export type AuditLogViolationKind =
   | 'entry-removed'
+  | 'field-added'
   | 'field-changed'
   | 'field-removed'
   | 'coverage-removed'
@@ -83,6 +84,20 @@ export const diffAuditLog = (
           before: value,
           after: current[field],
         })
+
+    // Adding a field to a recorded entry is as powerful as editing one, and for
+    // `sourceClosureHash` it is strictly more powerful: the content check ranks a
+    // recorded hash above the audit commit, so writing that field onto an entry
+    // an auditor already approved makes any source pass while leaving every
+    // existing field untouched. The file grows by ENTRY, never by field.
+    for (const field of Object.keys(current))
+      if (!(field in previous))
+        violations.push({
+          kind: 'field-added',
+          auditId,
+          field,
+          after: current[field],
+        })
   }
 
   for (const [contract, versions] of Object.entries(
@@ -136,6 +151,8 @@ const describe = (violation: IAuditLogViolation): string => {
       return `  audit entry '${subject}' was removed — audit history is append-only`
     case 'field-removed':
       return `  audit entry '${subject}': field '${violation.field}' was removed (was: ${violation.before})`
+    case 'field-added':
+      return `  audit entry '${subject}': field '${violation.field}' was added (now: ${violation.after}) — an existing audit entry cannot gain fields; add a new entry instead`
     case 'field-changed':
       return `  audit entry '${subject}': field '${violation.field}' changed from '${violation.before}' to '${violation.after}'`
     case 'coverage-removed':

@@ -43,24 +43,117 @@ export interface ISourceClosure {
   missing: string[]
 }
 
-const IMPORT_RE = /\bimport\b[^;'"]*?['"]([^'"]+)['"]/g
+const IMPORT_KEYWORD_RE = /\bimport\b/g
+
+interface IStringLiteral {
+  start: number
+  end: number
+  body: string
+}
+
+interface IScannedSource {
+  /** Source with comment bodies blanked; string literals left intact. */
+  code: string
+  /** Every string literal, in source order. */
+  strings: IStringLiteral[]
+}
 
 /**
- * Strips comments so a commented-out import never joins the closure and a real
- * import inside a block comment is never counted.
+ * Splits source into code, comments and string literals in one pass.
+ *
+ * Scanned rather than regex-replaced because regexes fail silently in both
+ * directions. A `/*` inside one string literal and a `*\/` inside a later one
+ * make a comment regex span between them and delete every real import in
+ * between, with nothing recorded as missing — the closure hash would then be
+ * taken over an incomplete set, the one outcome this module must never produce.
+ * And the word `import` inside a string would be read as an import if string
+ * bodies were not tracked.
+ *
+ * @param source - Solidity source text.
+ * @returns the source with comments blanked, plus every string literal located.
  */
-const stripComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+const scanSource = (source: string): IScannedSource => {
+  const out = source.split('')
+  const strings: IStringLiteral[] = []
+  let index = 0
+
+  const blank = (from: number, to: number): void => {
+    for (let at = from; at < to && at < out.length; at++)
+      if (out[at] !== '\n') out[at] = ' '
+  }
+
+  while (index < source.length) {
+    const two = source.slice(index, index + 2)
+
+    if (two === '//') {
+      const end = source.indexOf('\n', index)
+      const stop = end === -1 ? source.length : end
+      blank(index, stop)
+      index = stop
+      continue
+    }
+
+    if (two === '/*') {
+      const end = source.indexOf('*/', index + 2)
+      const stop = end === -1 ? source.length : end + 2
+      blank(index, stop)
+      index = stop
+      continue
+    }
+
+    const quote = source[index]
+    if (quote === '"' || quote === "'") {
+      let at = index + 1
+      while (at < source.length) {
+        if (source[at] === '\\') {
+          at += 2
+          continue
+        }
+        if (source[at] === quote) break
+        at++
+      }
+      const closing = Math.min(at, source.length)
+      strings.push({
+        start: index,
+        end: closing,
+        body: source.slice(index + 1, closing),
+      })
+      index = closing + 1
+      continue
+    }
+
+    index++
+  }
+
+  return { code: out.join(''), strings }
+}
 
 /**
  * @param source - Solidity source text.
  * @returns import specifiers in source order, duplicates preserved.
  */
 export const parseImports = (source: string): string[] => {
-  const stripped = stripComments(source)
+  const { code, strings } = scanSource(source)
   const found: string[] = []
-  for (const match of stripped.matchAll(IMPORT_RE))
-    if (match[1]) found.push(match[1])
+
+  for (const match of code.matchAll(IMPORT_KEYWORD_RE)) {
+    const at = match.index
+    if (at === undefined) continue
+
+    // Only an `import` sitting in code counts. Inside a string literal it is
+    // just text, and inside a comment the keyword is already blanked away.
+    if (strings.some((literal) => at > literal.start && at < literal.end))
+      continue
+
+    const specifier = strings.find((literal) => literal.start > at)
+    if (!specifier) continue
+
+    // A statement terminator before the quote means this `import` had no
+    // specifier of its own and the next literal belongs to something else.
+    if (code.slice(at, specifier.start).includes(';')) continue
+
+    found.push(specifier.body)
+  }
 
   return found
 }
@@ -98,6 +191,16 @@ const normalise = (path: string): string => {
 const SUBMODULE_DIR_RE = /^(lib\/[^/]+)\//
 
 /**
+ * Roots foundry resolves a non-relative, non-remapped specifier against
+ * (`foundry.toml`: `libs = ["node_modules", "lib"]`), plus the repo's own source
+ * roots. Without these a direct path such as EcoFacet's
+ * `lib/openzeppelin-contracts/.../IERC20.sol` resolves to nothing, and the gate
+ * reports `closure-incomplete` for that contract on every commit — a permanent
+ * ERROR with no way to clear it.
+ */
+const DIRECT_PATH_ROOTS = ['lib/', 'node_modules/', 'src/', 'test/']
+
+/**
  * Resolves one import specifier to a repo-relative path.
  *
  * The longest matching remapping wins, matching solc: with `a/` and `a/b/` both
@@ -121,14 +224,25 @@ export const resolveImport = (
   const rule = remappings
     .filter((candidate) => specifier.startsWith(candidate.prefix))
     .sort((a, b) => b.prefix.length - a.prefix.length)[0]
-  if (!rule) return undefined
 
-  const path = normalise(rule.target + specifier.slice(rule.prefix.length))
+  const path = rule
+    ? normalise(rule.target + specifier.slice(rule.prefix.length))
+    : DIRECT_PATH_ROOTS.some((root) => specifier.startsWith(root))
+    ? normalise(specifier)
+    : undefined
+
+  if (path === undefined) return undefined
+
   const submoduleDir = SUBMODULE_DIR_RE.exec(path)?.[1]
+  if (submoduleDir) return { path, external: true, submoduleDir }
 
-  return submoduleDir
-    ? { path, external: true, submoduleDir }
-    : { path, external: false }
+  // Not readable from git at any tree-ish, so it cannot be hashed or pointed at.
+  // Reported as external so the closure walk records it rather than silently
+  // dropping it; the caller still sees it as a dependency it could not pin.
+  if (path.startsWith('node_modules/'))
+    return { path, external: true, submoduleDir: 'node_modules' }
+
+  return { path, external: false }
 }
 
 /**

@@ -23,6 +23,7 @@ import {
 
 const EXIT_FAIL = 1
 const EXIT_ERROR = 2
+const DEFAULT_AUDIT_LOG = 'audit/auditLog.json'
 
 const readLogAt = (
   treeish: string,
@@ -52,22 +53,25 @@ const main = defineCommand({
       description: 'Tree-ish for PR head',
       default: 'HEAD',
     },
+    // No `default`: citty shadows a multi-word arg's camelCase key with its
+    // default, which would make `--audit-log` silently ignored.
     auditLog: {
       type: 'string',
-      description: 'Path to the audit log',
-      default: 'audit/auditLog.json',
+      description: 'Path to the audit log (default: audit/auditLog.json)',
     },
   },
   run({ args }) {
     const cwd = process.cwd()
 
+    const auditLogPath = args.auditLog ?? DEFAULT_AUDIT_LOG
+
     const decision = decideAppendOnly({
-      auditLogPath: args.auditLog,
+      auditLogPath,
       baseTreeish: args.base,
       headTreeish: args.head,
       baseResolved: ensureCommitAvailable(args.base, cwd),
-      before: readLogAt(args.base, args.auditLog, cwd),
-      after: readLogAt(args.head, args.auditLog, cwd),
+      before: readLogAt(args.base, auditLogPath, cwd),
+      after: readLogAt(args.head, auditLogPath, cwd),
     })
 
     if (decision.verdict === 'pass') {

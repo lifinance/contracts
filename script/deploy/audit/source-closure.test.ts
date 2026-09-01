@@ -311,3 +311,133 @@ describe('computeSourceClosureHash', () => {
     expect(hashOf(base)).not.toBe(hashOf(swapped))
   })
 })
+
+/**
+ * Foundry resolves a non-relative, non-remapped specifier against `libs`
+ * (`foundry.toml`: `libs = ["node_modules", "lib"]`), so a direct path into a
+ * submodule is a legitimate import form. `src/Facets/EcoFacet.sol` uses one.
+ */
+describe('resolveImport — direct paths rooted at a libs entry', () => {
+  const remappings = parseRemappings(
+    '@openzeppelin/=lib/openzeppelin-contracts/\nforge-std/=lib/forge-std/src/\n'
+  )
+
+  it('resolves a direct lib/ path as an external submodule dependency', () => {
+    const resolved = resolveImport(
+      'src/Facets/EcoFacet.sol',
+      'lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol',
+      remappings
+    )
+
+    expect(resolved).toEqual({
+      path: 'lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol',
+      external: true,
+      submoduleDir: 'lib/openzeppelin-contracts',
+    })
+  })
+
+  it('resolves a direct node_modules/ path as external', () => {
+    const resolved = resolveImport(
+      'src/Facets/FooFacet.sol',
+      'node_modules/@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol',
+      remappings
+    )
+
+    expect(resolved?.external).toBe(true)
+  })
+
+  it('still returns undefined for a specifier matching no rule and no libs root', () => {
+    expect(
+      resolveImport('src/Facets/FooFacet.sol', 'nowhere/Thing.sol', remappings)
+    ).toBeUndefined()
+  })
+
+  it('does not treat a src/-rooted specifier as external', () => {
+    const resolved = resolveImport(
+      'src/Facets/FooFacet.sol',
+      'src/Libraries/LibAsset.sol',
+      remappings
+    )
+
+    expect(resolved).toEqual({
+      path: 'src/Libraries/LibAsset.sol',
+      external: false,
+    })
+  })
+})
+
+/**
+ * Comment stripping must understand string literals. A regex that does not can
+ * span from a `/*` inside one string to a `*\/` inside a later one, dropping every
+ * real import between them and adding nothing to `missing` — the hash is then
+ * taken over an incomplete closure and drift in the dropped file is invisible.
+ */
+describe('parseImports — comment stripping is string-aware', () => {
+  it('does not let a string-literal /* and a later */ swallow the imports between them', () => {
+    const source = [
+      'contract E {',
+      '  string memory a = "/*";',
+      '}',
+      'import { A } from "./A.sol";',
+      'contract F {',
+      '  string memory b = "*/";',
+      '}',
+    ].join('\n')
+
+    expect(parseImports(source)).toEqual(['./A.sol'])
+  })
+
+  it('does not treat the word import inside a string as an import', () => {
+    const source = [
+      'contract E {',
+      '  string memory a = "please import { X } from somewhere";',
+      '}',
+      'import { B } from "./B.sol";',
+    ].join('\n')
+
+    expect(parseImports(source)).toEqual(['./B.sol'])
+  })
+
+  it('does not let a line-comment marker inside a string hide an import', () => {
+    const source = [
+      'contract E {',
+      '  string memory url = "https://example.com";',
+      '}',
+      'import { C } from "./C.sol";',
+    ].join('\n')
+
+    expect(parseImports(source)).toEqual(['./C.sol'])
+  })
+
+  it('still ignores a genuinely commented-out import', () => {
+    const source = [
+      '// import { Dead } from "./Dead.sol";',
+      '/* import { AlsoDead } from "./AlsoDead.sol"; */',
+      'import { Live } from "./Live.sol";',
+    ].join('\n')
+
+    expect(parseImports(source)).toEqual(['./Live.sol'])
+  })
+
+  it('handles an escaped quote inside a string without losing track', () => {
+    const source = [
+      'contract E {',
+      '  string memory a = "he said \\"/*\\" and left";',
+      '}',
+      'import { D } from "./D.sol";',
+    ].join('\n')
+
+    expect(parseImports(source)).toContain('./D.sol')
+  })
+
+  it('handles single-quoted strings', () => {
+    const source = [
+      'contract E {',
+      "  string memory a = '/*';",
+      '}',
+      'import { E2 } from "./E2.sol";',
+    ].join('\n')
+
+    expect(parseImports(source)).toEqual(['./E2.sol'])
+  })
+})

@@ -88,10 +88,47 @@ describe('diffAuditLog — what is allowed', () => {
     expect(diff(base, next).violations).toEqual([])
   })
 
-  it('allows adding sourceClosureHash to an entry that had none', () => {
+  it('allows a brand-new entry that carries a sourceClosureHash', () => {
+    const next = clone(base)
+    next.audits.audit3 = {
+      auditCommitHash: 'c'.repeat(40),
+      sourceClosureHash: `0x${'1'.repeat(64)}`,
+    }
+    expect(diff(base, next).violations).toEqual([])
+  })
+})
+
+describe('diffAuditLog — adding a field to an existing entry', () => {
+  it('blocks adding sourceClosureHash to an entry that had none', () => {
     const next = clone(base)
     auditOf(next, 'audit1').sourceClosureHash = `0x${'1'.repeat(64)}`
-    expect(diff(base, next).violations).toEqual([])
+
+    const [violation] = diff(base, next).violations
+    expect(violation?.kind).toBe('field-added')
+    expect(violation?.field).toBe('sourceClosureHash')
+  })
+
+  it('blocks adding pinnedClosureHash to an entry that had none', () => {
+    const next = clone(base)
+    auditOf(next, 'audit1').pinnedClosureHash = `0x${'2'.repeat(64)}`
+
+    expect(diff(base, next).violations[0]?.kind).toBe('field-added')
+  })
+
+  it('blocks any added field, not only the hash fields', () => {
+    const next = clone(base)
+    auditOf(next, 'audit1').someLaterField = 'whatever'
+
+    expect(diff(base, next).violations[0]?.kind).toBe('field-added')
+  })
+
+  it('names the added value, so CI shows what was claimed', () => {
+    const next = clone(base)
+    auditOf(next, 'audit1').sourceClosureHash = `0x${'1'.repeat(64)}`
+
+    expect(formatAuditLogViolations(diff(base, next).violations)).toContain(
+      '1'.repeat(64)
+    )
   })
 })
 

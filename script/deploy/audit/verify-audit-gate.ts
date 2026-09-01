@@ -28,6 +28,7 @@ import { createClosureReader, createGitSourceReader } from './git-source-reader'
 
 const EXIT_FAIL = 1
 const EXIT_ERROR = 2
+const DEFAULT_AUDIT_LOG = 'audit/auditLog.json'
 
 const readContracts = (
   paths: string[],
@@ -67,10 +68,13 @@ const main = defineCommand({
       type: 'string',
       description: 'File holding the contract paths (contracts_for_audit.txt)',
     },
+    // No `default` here on purpose. citty shadows a multi-word arg's camelCase
+    // key with its default value, so `--audit-log X` would parse into
+    // `args['audit-log']` while `args.auditLog` still read the default — the
+    // flag would be silently ignored. Single-word args are unaffected.
     auditLog: {
       type: 'string',
-      description: 'Path to the audit log',
-      default: 'audit/auditLog.json',
+      description: 'Path to the audit log (default: audit/auditLog.json)',
     },
     head: {
       type: 'string',
@@ -107,7 +111,9 @@ const main = defineCommand({
     }
 
     const cwd = process.cwd()
-    const log = JSON.parse(readFileSync(args.auditLog, 'utf8')) as IAuditLogFile
+    const log = JSON.parse(
+      readFileSync(args.auditLog ?? DEFAULT_AUDIT_LOG, 'utf8')
+    ) as IAuditLogFile
 
     if (args.prTitle)
       consola.info(

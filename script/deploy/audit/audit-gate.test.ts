@@ -454,3 +454,29 @@ describe('resolveContractSource', () => {
     })
   })
 })
+
+describe('entry normalisation', () => {
+  const log: IAuditLogFile = {
+    audits: {
+      audit1: { auditCommitHash: `${'a'.repeat(40)}\n` },
+      audit2: {
+        auditCommitHash: 'b'.repeat(40),
+        sourceClosureHash: `0x${'C'.repeat(64)}`,
+      },
+    },
+    auditedContracts: { FooFacet: { '1.0.0': ['audit1', 'audit2'] } },
+  }
+
+  it('trims a stray newline off auditCommitHash so the entry still counts as a commit', () => {
+    const [first] = collectEntriesForContract(log, 'FooFacet', '1.0.0')
+
+    expect(first?.auditCommitHash).toBe('a'.repeat(40))
+  })
+
+  it('lower-cases a recorded hash, so an uppercase record is not a false mismatch', () => {
+    const entries = collectEntriesForContract(log, 'FooFacet', '1.0.0')
+    const second = entries.find((entry) => entry.auditId === 'audit2')
+
+    expect(second?.sourceClosureHash).toBe(`0x${'c'.repeat(64)}`)
+  })
+})

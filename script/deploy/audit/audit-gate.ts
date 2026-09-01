@@ -140,14 +140,20 @@ const HEX = /^0x[0-9a-f]{64}$/i
 const isClosureHash = (value: ClosureAtResult): value is Hex => HEX.test(value)
 
 const asHex = (value: string | undefined): Hex | undefined =>
-  value !== undefined && HEX.test(value) ? (value as Hex) : undefined
+  value !== undefined && HEX.test(value.trim())
+    ? (value.trim().toLowerCase() as Hex)
+    : undefined
 
 const toEntryInput = (
   auditId: string,
   entry: AuditLogEntry
 ): IAuditEntryInput => ({
   auditId,
-  auditCommitHash: entry.auditCommitHash ?? '',
+  // Trimmed here and nowhere else: this module tests the raw value to decide
+  // whether to resolve a closure while the decision table tests a trimmed one,
+  // so a stray newline in the JSON made them disagree and produced "the closure
+  // was not resolved" — an error that names neither the cause nor the fix.
+  auditCommitHash: (entry.auditCommitHash ?? '').trim(),
   sourceClosureHash: asHex(entry.sourceClosureHash),
   pinnedClosureHash: asHex(entry.pinnedClosureHash),
 })
